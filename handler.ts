@@ -6,7 +6,7 @@ const handler = createHTTPHandler({
   router: appRouter,
 
   createContext() {
-    return { a: 1 };
+    return {};
   },
 });
 
