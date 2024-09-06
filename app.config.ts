@@ -4,6 +4,7 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { createApp, type RouterSchemaInput } from 'vinxi';
 import { input } from 'vinxi/plugins/config';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 function trpcRouter() {
 	return {
@@ -39,6 +40,7 @@ export default createApp({
 					autoCodeSplitting: true,
 				}),
 				viteReact(),
+				tsconfigPaths(),
 			],
 			handler: './index.html',
 			base: '/',
