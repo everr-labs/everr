@@ -1,9 +1,9 @@
-import { t } from "./trpc";
+import { t } from './trpc';
 
 const appRouter = t.router({
-  greeting: t.procedure.query(() => {
-    return { msg: "hello tRPC v10!" };
-  }),
+	greeting: t.procedure.query(() => {
+		return { msg: 'hello tRPC v10!' };
+	}),
 });
 
 export default appRouter;

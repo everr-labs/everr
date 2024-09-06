@@ -1,28 +1,30 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { trpc } from "../utils/trpc";
-import { useState } from "react";
+import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
 
-export const Route = createFileRoute("/")({
-  component: Index,
+import { Button } from '../components/ui/button';
+import { trpc } from '../utils/trpc';
+
+export const Route = createFileRoute('/')({
+	component: Index,
 });
 
 function Index() {
-  const [counter, setCounter] = useState(0);
-  const a = trpc.greeting.useQuery();
+	const [counter, setCounter] = useState(0);
+	const a = trpc.greeting.useQuery();
 
-  return (
-    <div className="p-2">
-      <h3>
-        {a.data?.msg}
-        Welcome Home!
-        <button
-          onClick={() => {
-            setCounter(counter + 1);
-          }}
-        >
-          {counter}
-        </button>
-      </h3>
-    </div>
-  );
+	return (
+		<div className="p-2">
+			<h3>
+				{a.data?.msg}
+				Welcome Home!
+				<Button
+					onClick={() => {
+						setCounter(counter + 1);
+					}}
+				>
+					{counter}
+				</Button>
+			</h3>
+		</div>
+	);
 }
