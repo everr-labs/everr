@@ -34,13 +34,13 @@ export default createApp({
 			name: 'client',
 			type: 'spa',
 			plugins: () => [
+				tsconfigPaths(),
 				TanStackRouterVite({
 					routesDirectory: './src/app/routes',
 					generatedRouteTree: './src/app/routeTree.gen.ts',
 					autoCodeSplitting: true,
 				}),
 				viteReact(),
-				tsconfigPaths(),
 			],
 			handler: './index.html',
 			base: '/',
