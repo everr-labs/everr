@@ -14,6 +14,7 @@ function trpcRouter() {
 		handler: fileURLToPath(new URL('./handler.ts', import.meta.url)),
 		target: 'server',
 		plugins: () => [
+			tsconfigPaths(),
 			input(
 				'$vinxi/trpc/router',
 				fileURLToPath(new URL('./src/server/index.ts', import.meta.url)),
