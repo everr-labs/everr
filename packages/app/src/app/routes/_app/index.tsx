@@ -1,4 +1,4 @@
-import { RangePicker } from '@/components/range-picker';
+import { RangePicker } from '@/components/RangePicker';
 import { createFileRoute } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/_app/')({

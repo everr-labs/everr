@@ -6,11 +6,11 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getRouteApi, Link } from '@tanstack/react-router';
-import { CitrusIcon, HomeIcon, SettingsIcon, WorkflowIcon } from 'lucide-react';
+import { CitrusIcon, HomeIcon, SettingsIcon } from 'lucide-react';
 
 const routeApi = getRouteApi('/_app');
 
-export function SideBar() {
+export function Sidebar() {
 	const search = routeApi.useSearch();
 
 	return (

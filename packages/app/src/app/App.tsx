@@ -1,10 +1,11 @@
-import { lazy } from 'react';
+import { lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import SuperJSON from 'superjson';
 
+import { env } from '../env';
 import { routeTree } from './routeTree.gen';
 import { trpc } from './utils/trpc';
 
@@ -18,7 +19,7 @@ declare module '@tanstack/react-router' {
 	}
 }
 
-const queryClient = new QueryClient({});
+const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({
 	links: [
 		loggerLink({
@@ -38,19 +39,21 @@ const trpcClient = trpc.createClient({
 
 export function App() {
 	return (
-		<trpc.Provider client={trpcClient} queryClient={queryClient}>
+		<Suspense fallback={<>...</>}>
 			<QueryClientProvider client={queryClient}>
-				<RouterProvider router={router} />
+				<trpc.Provider client={trpcClient} queryClient={queryClient}>
+					<RouterProvider router={router} />
 
-				<ReactQueryDevtools initialIsOpen={false} />
-				<TanStackRouterDevtools router={router} />
+					<ReactQueryDevtools initialIsOpen={false} />
+					<TanStackRouterDevtools router={router} />
+				</trpc.Provider>
 			</QueryClientProvider>
-		</trpc.Provider>
+		</Suspense>
 	);
 }
 
 const TanStackRouterDevtools =
-	process.env.NODE_ENV === 'production'
+	env.PUBLIC_NODE_ENV === 'production'
 		? () => null
 		: lazy(() =>
 				import('@tanstack/router-devtools').then((res) => ({

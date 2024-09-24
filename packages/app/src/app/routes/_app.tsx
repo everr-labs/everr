@@ -1,6 +1,6 @@
-import { SideBar } from '@/components/sidebar';
+import { Sidebar } from '@/components/Sidebar';
 import { TimeRangeContextProvider } from '@/components/TimeRangeContext';
-import { TopNav } from '@/components/topnav';
+import { TopNav } from '@/components/TopNav';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { fallback, zodSearchValidator } from '@tanstack/router-zod-adapter';
 import { addDays, endOfDay, startOfDay } from 'date-fns';
@@ -24,7 +24,7 @@ function AppLayout() {
 	return (
 		<TimeRangeContextProvider>
 			<div className="flex min-h-screen w-full flex-col bg-muted/40">
-				<SideBar />
+				<Sidebar />
 				<div className="flex min-h-screen flex-col sm:gap-4 sm:py-4 sm:pl-14">
 					<TopNav />
 

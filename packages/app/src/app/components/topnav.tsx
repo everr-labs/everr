@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { UserMenu } from '@/components/UserMenu';
 import { Link } from '@tanstack/react-router';
 import {
 	CitrusIcon,
@@ -16,8 +17,6 @@ import {
 	SearchIcon,
 	SettingsIcon,
 } from 'lucide-react';
-
-import { UserMenu } from './usermenu';
 
 export function TopNav() {
 	return (

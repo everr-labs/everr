@@ -107,6 +107,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@18.3.0)(@types/react@18.3.8)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@t3-oss/env-core':
+        specifier: ^0.11.1
+        version: 0.11.1(typescript@5.5.4)(zod@3.23.8)
       '@tanstack/react-query':
         specifier: ^5.56.2
         version: 5.56.2(react@18.3.1)
@@ -2199,6 +2202,15 @@ packages:
   '@sindresorhus/merge-streams@2.3.0':
     resolution: {integrity: sha512-LtoMMhxAlorcGhmFYI+LhPgbPZCkgP6ra1YL604EeF6U98pLlQ3iWIGMdWSC+vWmPBWBNgmDBAhnAobLROJmwg==}
     engines: {node: '>=18'}
+
+  '@t3-oss/env-core@0.11.1':
+    resolution: {integrity: sha512-MaxOwEoG1ntCFoKJsS7nqwgcxLW1SJw238AJwfJeaz3P/8GtkxXZsPPolsz1AdYvUTbe3XvqZ/VCdfjt+3zmKw==}
+    peerDependencies:
+      typescript: '>=5.0.0'
+      zod: ^3.0.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@tanstack/history@1.57.6':
     resolution: {integrity: sha512-ppAJbnUaHdHmccVmplcd1ivX4GMPHxhStSquuuz0TSAEPEpz0iOVBur4iKfvIuMKm24c40nhvaEwZbKGVfbrGg==}
@@ -7206,6 +7218,12 @@ snapshots:
     optional: true
 
   '@sindresorhus/merge-streams@2.3.0': {}
+
+  '@t3-oss/env-core@0.11.1(typescript@5.5.4)(zod@3.23.8)':
+    dependencies:
+      zod: 3.23.8
+    optionalDependencies:
+      typescript: 5.5.4
 
   '@tanstack/history@1.57.6': {}
 
