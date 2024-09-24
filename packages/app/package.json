@@ -34,6 +34,7 @@
 		"@tanstack/react-query-devtools": "^5.56.2",
 		"@tanstack/react-router": "^1.58.3",
 		"@tanstack/react-table": "^8.20.5",
+		"@tanstack/router-zod-adapter": "^1.58.3",
 		"@trpc/client": "11.0.0-rc.498",
 		"@trpc/react-query": "11.0.0-rc.498",
 		"@trpc/server": "11.0.0-rc.498",

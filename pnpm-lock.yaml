@@ -29,7 +29,7 @@ catalogs:
       version: 3.4.13
     typescript:
       specifier: 5.6.2
-      version: 5.6.2
+      version: 5.5.4
     zod:
       specifier: ^3.23.8
       version: 3.23.8
@@ -119,6 +119,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.20.5
         version: 8.20.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@tanstack/router-zod-adapter':
+        specifier: ^1.58.3
+        version: 1.58.3(@tanstack/react-router@1.58.3(@tanstack/router-generator@1.58.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(zod@3.23.8)
       '@trpc/client':
         specifier: 11.0.0-rc.498
         version: 11.0.0-rc.498(@trpc/server@11.0.0-rc.498)
@@ -2268,6 +2271,13 @@ packages:
         optional: true
       webpack:
         optional: true
+
+  '@tanstack/router-zod-adapter@1.58.3':
+    resolution: {integrity: sha512-S7TWOWUa13JKBQJPULH3azvD/yX6SHr0I1rPcpL1Jsh5hprboGeR7w7qKTo/78aX+cwAwOM0MtB1uQz+tqQ5zw==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      '@tanstack/react-router': '>=1.43.2'
+      zod: '>=3'
 
   '@tanstack/store@0.5.5':
     resolution: {integrity: sha512-EOSrgdDAJExbvRZEQ/Xhh9iZchXpMN+ga1Bnk8Nmygzs8TfiE6hbzThF+Pr2G19uHL6+DTDTHhJ8VQiOd7l4tA==}
@@ -7280,6 +7290,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - webpack-sources
+
+  '@tanstack/router-zod-adapter@1.58.3(@tanstack/react-router@1.58.3(@tanstack/router-generator@1.58.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(zod@3.23.8)':
+    dependencies:
+      '@tanstack/react-router': 1.58.3(@tanstack/router-generator@1.58.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      zod: 3.23.8
 
   '@tanstack/store@0.5.5': {}
 
