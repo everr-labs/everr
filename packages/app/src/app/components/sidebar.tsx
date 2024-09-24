@@ -1,12 +1,12 @@
+import { getRouteApi, Link } from '@tanstack/react-router';
+import { CitrusIcon, HomeIcon, SettingsIcon } from 'lucide-react';
+
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { getRouteApi, Link } from '@tanstack/react-router';
-import { CitrusIcon, HomeIcon, SettingsIcon } from 'lucide-react';
+} from '@citric/ui';
 
 const routeApi = getRouteApi('/_app');
 
@@ -32,9 +32,7 @@ export function Sidebar() {
 								search={search}
 								activeOptions={{ exact: true, includeSearch: false }}
 								activeProps={{ className: 'bg-accent text-accent-foreground' }}
-								className={cn(
-									'flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
-								)}
+								className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8"
 							>
 								<HomeIcon className="h-5 w-5" />
 								<span className="sr-only">Home</span>

@@ -1,16 +1,17 @@
 import type { HTMLAttributes } from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { endOfDay, format, startOfDay } from 'date-fns';
+import { Calendar as CalendarIcon } from 'lucide-react';
+
 import {
+	Button,
+	Calendar,
+	cn,
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { endOfDay, format, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon } from 'lucide-react';
+} from '@citric/ui';
 
 import { useTimeRange } from './TimeRangeContext';
 

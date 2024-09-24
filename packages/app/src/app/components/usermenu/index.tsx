@@ -1,14 +1,15 @@
-import { AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	Button,
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Avatar } from '@radix-ui/react-avatar';
+} from '@citric/ui';
 
 // TODO: replace this with auth library
 interface User {

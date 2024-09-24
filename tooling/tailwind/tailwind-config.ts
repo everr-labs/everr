@@ -3,7 +3,11 @@ import animate from 'tailwindcss-animate';
 
 export default {
 	darkMode: ['class'],
-	content: ['./src/**/*.{ts,tsx}', './index.html'],
+	content: [
+		'./index.html',
+		'./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}',
+		'./node_modules/@citric/ui/src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}',
+	],
 	prefix: '',
 	theme: {
 		container: {

@@ -3,7 +3,7 @@ import type { RouterSchemaInput } from 'vinxi';
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { createApp } from 'vinxi';
-import { input } from 'vinxi/plugins/config';
+import { config, input } from 'vinxi/plugins/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 function trpcRouter() {
@@ -35,13 +35,31 @@ export default createApp({
 			name: 'client',
 			type: 'spa',
 			plugins: () => [
+				// config('custom', {
+				// 	resolve: {
+				// 		alias: [
+				// 			{
+				// 				find: '@citric/ui',
+				// 				replacement: fileURLToPath(
+				// 					new URL('../ui/src', import.meta.url),
+				// 				),
+				// 			},
+				// 			// {
+				// 			// 	find: /^@citric\/ui\/(.*)/,
+				// 			// 	replacement: fileURLToPath(
+				// 			// 		new URL(`../ui/src/$1`, import.meta.url),
+				// 			// 	),
+				// 			// },
+				// 		],
+				// 	},
+				// }),
 				tsconfigPaths(),
 				TanStackRouterVite({
 					routesDirectory: './src/app/routes',
 					generatedRouteTree: './src/app/routeTree.gen.ts',
 					autoCodeSplitting: true,
 				}),
-				viteReact(),
+				viteReact({}),
 			],
 			handler: './index.html',
 			base: '/',
