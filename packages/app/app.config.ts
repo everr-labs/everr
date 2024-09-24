@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'url';
-
+import type { RouterSchemaInput } from 'vinxi';
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
-import { createApp, type RouterSchemaInput } from 'vinxi';
+import { createApp } from 'vinxi';
 import { input } from 'vinxi/plugins/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 

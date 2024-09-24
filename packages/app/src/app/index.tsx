@@ -3,11 +3,11 @@ import ReactDOM from 'react-dom/client';
 
 import { App } from './App';
 
-import './styles/globals.css';
+import '@citric/tailwind-config/styles';
 
-// Render the app
-const rootElement = document.getElementById('app')!;
-if (!rootElement.innerHTML) {
+const rootElement = document.getElementById('app');
+
+if (rootElement && !rootElement.innerHTML) {
 	const root = ReactDOM.createRoot(rootElement);
 	root.render(
 		<StrictMode>

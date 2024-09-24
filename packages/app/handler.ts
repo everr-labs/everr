@@ -1,10 +1,10 @@
-import { type IncomingMessage, type ServerResponse } from 'http';
-
+import type { IncomingMessage, ServerResponse } from 'http';
 import { createHTTPHandler } from '@trpc/server/adapters/standalone';
 import appRouter from '$vinxi/trpc/router';
 import { fromNodeMiddleware } from 'vinxi/http';
 
 const handler = createHTTPHandler({
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	router: appRouter,
 
 	createContext() {

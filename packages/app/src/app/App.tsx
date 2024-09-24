@@ -1,8 +1,8 @@
+import { lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { httpBatchLink, loggerLink } from '@trpc/client';
-import { lazy } from 'react';
 import SuperJSON from 'superjson';
 
 import { routeTree } from './routeTree.gen';
@@ -27,7 +27,7 @@ const trpcClient = trpc.createClient({
 		httpBatchLink({
 			url: '/trpc',
 			transformer: SuperJSON,
-			async headers() {
+			headers() {
 				return {
 					// authorization: getAuthCookie(),
 				};

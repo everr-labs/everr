@@ -1,24 +1,15 @@
 {
+	"extends": "@citric/tsconfig/base.json",
+
 	"compilerOptions": {
 		"target": "ESNext",
 		"allowSyntheticDefaultImports": true,
-		"esModuleInterop": true,
-		"allowJs": true,
 		"types": ["vinxi/types/client"],
-		"isolatedModules": true,
-
-		/* Strictness */
-		"strict": true,
-		"noUncheckedIndexedAccess": true,
-		"checkJs": true,
 
 		/* Bundled projects */
 		"lib": ["dom", "dom.iterable", "ES2022"],
-		"noEmit": true,
 		"module": "ESNext",
-		"moduleResolution": "Bundler",
 		"jsx": "react-jsx",
-		"incremental": true,
 
 		/* Path Aliases */
 		"baseUrl": ".",
@@ -27,6 +18,6 @@
 			"~server": ["./src/server/index.ts"]
 		}
 	},
-	"include": [".eslintrc.cjs", "postcss.config.cjs", "**/*.ts", "**/*.tsx"],
-	"exclude": ["node_modules"]
+  "include": [".", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }

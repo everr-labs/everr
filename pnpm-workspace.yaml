@@ -1,2 +1,15 @@
 packages:
-  - "packages/*"
+  - 'packages/*'
+  - 'tooling/*'
+
+catalog:
+  '@types/react': ^18.3.8
+  '@types/react-dom': ^18.3.0
+  react: ^18.3.1
+  react-dom: ^18.3.1
+  eslint: ^9.9.0
+  prettier: ^3.3.3
+  tailwindcss: ^3.4.12
+  tailwindcss-animate: ^1.0.7
+  typescript: 5.6.2
+  zod: ^3.23.8
