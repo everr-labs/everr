@@ -1,0 +1,8 @@
+type: githubactions
+
+status:
+  class: receiver
+  stability:
+    alpha: [traces, logs]
+  codeowners:
+    active: ['Elfo404']

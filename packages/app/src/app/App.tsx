@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { createRouter, Link, RouterProvider } from '@tanstack/react-router';
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import SuperJSON from 'superjson';
 
@@ -10,7 +10,17 @@ import { routeTree } from './routeTree.gen';
 import { trpc } from './utils/trpc';
 
 // Create a new router instance
-const router = createRouter({ routeTree });
+const router = createRouter({
+	routeTree,
+	defaultNotFoundComponent: () => {
+		return (
+			<div>
+				<p>Not found!</p>
+				<Link to="/">Go home</Link>
+			</div>
+		);
+	},
+});
 
 // Register the router instance for type safety
 declare module '@tanstack/react-router' {

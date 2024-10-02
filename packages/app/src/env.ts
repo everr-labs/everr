@@ -8,7 +8,8 @@ export const env = createEnv({
 	 * isn't built with invalid env vars.
 	 */
 	server: {
-		DATABASE_URL: z.string().url(),
+		BASE_URL: z.string().url(),
+		DATABASE_URL: z.string(),
 		NODE_ENV: z
 			.enum(['development', 'test', 'production'])
 			.default('development'),
@@ -18,6 +19,7 @@ export const env = createEnv({
 		CLICKHOUSE_USER: z.string(),
 		CLICKHOUSE_PASSWORD: z.string().optional(),
 		CLICKHOUSE_URL: z.string().url(),
+		AUTH_SECRET: z.string(),
 	},
 
 	/**
@@ -36,8 +38,10 @@ export const env = createEnv({
 	 * middlewares) or client-side so we need to destruct manually.
 	 */
 	runtimeEnv: {
+		BASE_URL: process.env.BASE_URL,
 		DATABASE_URL: process.env.DATABASE_URL,
 		NODE_ENV: process.env.NODE_ENV,
+		AUTH_SECRET: process.env.AUTH_SECRET,
 		GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
 		GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
 		CLICKHOUSE_DB: process.env.CLICKHOUSE_DB,

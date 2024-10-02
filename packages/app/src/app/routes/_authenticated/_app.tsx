@@ -15,7 +15,7 @@ const timeRangeSchema = z.object({
 	),
 });
 
-export const Route = createFileRoute('/_app')({
+export const Route = createFileRoute('/_authenticated/_app')({
 	component: AppLayout,
 	validateSearch: zodSearchValidator(timeRangeSchema),
 });

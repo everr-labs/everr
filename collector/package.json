@@ -1,0 +1,6 @@
+{
+	"name": "@citric/collector",
+	"scripts": {
+		"dev": "make run"
+	}
+}

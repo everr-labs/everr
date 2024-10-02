@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useState } from 'react';
-import { getRouteApi, useNavigate } from '@tanstack/react-router';
-
-const routeApi = getRouteApi('/_app');
+import { routeApi } from '@/utils/routeApi';
+import { useNavigate } from '@tanstack/react-router';
 
 interface Range {
 	from: Date;

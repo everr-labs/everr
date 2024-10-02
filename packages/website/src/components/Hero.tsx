@@ -1,0 +1,63 @@
+import { ArrowRight } from 'lucide-react';
+
+import { Badge, Button } from '@citric/ui';
+
+export function Hero() {
+	return (
+		<section className="container w-full">
+			<div className="mx-auto grid place-items-center gap-8 py-20 md:py-32 lg:max-w-screen-xl">
+				<div className="space-y-8 text-center">
+					<Badge variant="outline" className="py-2 text-sm">
+						<span className="mr-2 text-primary">
+							<Badge>New</Badge>
+						</span>
+						<span> GitHub Actions intgration </span>
+					</Badge>
+
+					<div className="mx-auto max-w-screen-md text-center text-4xl font-bold md:text-6xl">
+						<h1>
+							Pipelines visibility,{' '}
+							<span className="whitespace-nowrap bg-gradient-to-r from-accent2 to-primary bg-clip-text text-transparent">
+								made simple
+							</span>
+							.
+						</h1>
+					</div>
+
+					<p className="mx-auto max-w-screen-sm text-xl text-muted-foreground">
+						{`We're more than just a tool, we're a community of passionate
+            creators. Get access to exclusive resources, tutorials, and support.`}
+					</p>
+
+					<div className="space-y-4 md:space-x-4 md:space-y-0">
+						<Button className="group/arrow w-5/6 font-bold md:w-1/4">
+							Join the beta
+							<ArrowRight className="ml-2 size-5 transition-transform group-hover/arrow:translate-x-1" />
+						</Button>
+
+						<Button
+							asChild
+							variant="secondary"
+							className="w-5/6 font-bold md:w-1/4"
+						>
+							<Button disabled>Docs (coming soon)</Button>
+						</Button>
+					</div>
+				</div>
+
+				<div className="group relative mt-14">
+					<div className="absolute left-1/2 top-2 mx-auto h-24 w-[90%] -translate-x-1/2 transform rounded-full bg-primary/50 blur-3xl lg:-top-8 lg:h-80"></div>
+					<img
+						width={1200}
+						height={600}
+						className="rouded-lg relative mx-auto flex w-full items-center rounded-lg border border-t-2 border-secondary border-t-primary/30 leading-none md:w-[1200px]"
+						src={'https://placedog.net/1200/600'}
+						alt="dashboard"
+					/>
+
+					<div className="absolute bottom-0 left-0 h-20 w-full rounded-lg bg-gradient-to-b from-background/0 via-background/50 to-background md:h-28"></div>
+				</div>
+			</div>
+		</section>
+	);
+}

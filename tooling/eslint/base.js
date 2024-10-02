@@ -48,13 +48,13 @@ export default tseslint.config(
 			turbo: turboPlugin,
 		},
 		extends: [
-			// eslint.configs.recommended,
+			eslint.configs.recommended,
 			...tseslint.configs.recommended,
 			...tseslint.configs.recommendedTypeChecked,
 			...tseslint.configs.stylisticTypeChecked,
 		],
 		rules: {
-			// ...turboPlugin.configs.recommended.rules,
+			...turboPlugin.configs.recommended.rules,
 			'@typescript-eslint/no-unused-vars': [
 				'error',
 				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

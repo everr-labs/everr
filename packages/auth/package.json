@@ -1,0 +1,38 @@
+{
+	"name": "@citric/auth",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/src/index.d.ts",
+			"default": "./src/index.ts"
+		}
+	},
+	"license": "MIT",
+	"scripts": {
+		"build": "tsc",
+		"clean": "git clean -xdf .cache .turbo dist node_modules",
+		"dev": "tsc",
+		"format": "prettier --check . --ignore-path ../../.gitignore",
+		"lint": "eslint",
+		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
+	},
+	"dependencies": {
+		"@auth/core": "catalog:"
+	},
+	"devDependencies": {
+		"@citric/eslint-config": "workspace:*",
+		"@citric/prettier-config": "workspace:*",
+		"@citric/tsconfig": "workspace:*",
+		"@types/react": "catalog:",
+		"eslint": "catalog:",
+		"prettier": "catalog:",
+		"react": "catalog:",
+		"typescript": "catalog:"
+	},
+	"peerDependencies": {
+		"react": "catalog:"
+	},
+	"prettier": "@citric/prettier-config"
+}

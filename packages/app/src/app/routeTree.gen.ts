@@ -11,102 +11,172 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as AppImport } from './routes/_app'
-import { Route as AppIndexImport } from './routes/_app/index'
-import { Route as AppSettingsIndexImport } from './routes/_app/settings/index'
+import { Route as AuthenticatedImport } from './routes/_authenticated'
+import { Route as AuthImport } from './routes/_auth'
+import { Route as AuthLoginImport } from './routes/auth/login'
+import { Route as AuthenticatedAppImport } from './routes/_authenticated/_app'
+import { Route as AuthenticatedAppIndexImport } from './routes/_authenticated/_app/index'
+import { Route as AuthenticatedAppSettingsIndexImport } from './routes/_authenticated/_app/settings/index'
 
 // Create/Update Routes
 
-const AppRoute = AppImport.update({
-  id: '/_app',
+const AuthenticatedRoute = AuthenticatedImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRoute,
 } as any)
 
-const AppIndexRoute = AppIndexImport.update({
-  path: '/',
-  getParentRoute: () => AppRoute,
+const AuthRoute = AuthImport.update({
+  id: '/_auth',
+  getParentRoute: () => rootRoute,
 } as any)
 
-const AppSettingsIndexRoute = AppSettingsIndexImport.update({
-  path: '/settings/',
-  getParentRoute: () => AppRoute,
+const AuthLoginRoute = AuthLoginImport.update({
+  path: '/auth/login',
+  getParentRoute: () => rootRoute,
 } as any)
+
+const AuthenticatedAppRoute = AuthenticatedAppImport.update({
+  id: '/_app',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexImport.update({
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+
+const AuthenticatedAppSettingsIndexRoute =
+  AuthenticatedAppSettingsIndexImport.update({
+    path: '/settings/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_app': {
-      id: '/_app'
+    '/_auth': {
+      id: '/_auth'
       path: ''
       fullPath: ''
-      preLoaderRoute: typeof AppImport
+      preLoaderRoute: typeof AuthImport
       parentRoute: typeof rootRoute
     }
-    '/_app/': {
-      id: '/_app/'
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof AuthenticatedImport
+      parentRoute: typeof rootRoute
+    }
+    '/_authenticated/_app': {
+      id: '/_authenticated/_app'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof AuthenticatedAppImport
+      parentRoute: typeof AuthenticatedImport
+    }
+    '/auth/login': {
+      id: '/auth/login'
+      path: '/auth/login'
+      fullPath: '/auth/login'
+      preLoaderRoute: typeof AuthLoginImport
+      parentRoute: typeof rootRoute
+    }
+    '/_authenticated/_app/': {
+      id: '/_authenticated/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AppIndexImport
-      parentRoute: typeof AppImport
+      preLoaderRoute: typeof AuthenticatedAppIndexImport
+      parentRoute: typeof AuthenticatedAppImport
     }
-    '/_app/settings/': {
-      id: '/_app/settings/'
+    '/_authenticated/_app/settings/': {
+      id: '/_authenticated/_app/settings/'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsIndexImport
-      parentRoute: typeof AppImport
+      preLoaderRoute: typeof AuthenticatedAppSettingsIndexImport
+      parentRoute: typeof AuthenticatedAppImport
     }
   }
 }
 
 // Create and export the route tree
 
-interface AppRouteChildren {
-  AppIndexRoute: typeof AppIndexRoute
-  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+  AuthenticatedAppSettingsIndexRoute: typeof AuthenticatedAppSettingsIndexRoute
 }
 
-const AppRouteChildren: AppRouteChildren = {
-  AppIndexRoute: AppIndexRoute,
-  AppSettingsIndexRoute: AppSettingsIndexRoute,
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+  AuthenticatedAppSettingsIndexRoute: AuthenticatedAppSettingsIndexRoute,
 }
 
-const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
 
 export interface FileRoutesByFullPath {
-  '': typeof AppRouteWithChildren
-  '/': typeof AppIndexRoute
-  '/settings': typeof AppSettingsIndexRoute
+  '': typeof AuthenticatedAppRouteWithChildren
+  '/auth/login': typeof AuthLoginRoute
+  '/': typeof AuthenticatedAppIndexRoute
+  '/settings': typeof AuthenticatedAppSettingsIndexRoute
 }
 
 export interface FileRoutesByTo {
-  '/': typeof AppIndexRoute
-  '/settings': typeof AppSettingsIndexRoute
+  '': typeof AuthenticatedRouteWithChildren
+  '/auth/login': typeof AuthLoginRoute
+  '/': typeof AuthenticatedAppIndexRoute
+  '/settings': typeof AuthenticatedAppSettingsIndexRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
-  '/_app': typeof AppRouteWithChildren
-  '/_app/': typeof AppIndexRoute
-  '/_app/settings/': typeof AppSettingsIndexRoute
+  '/_auth': typeof AuthRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/_authenticated/_app': typeof AuthenticatedAppRouteWithChildren
+  '/auth/login': typeof AuthLoginRoute
+  '/_authenticated/_app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/_app/settings/': typeof AuthenticatedAppSettingsIndexRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '' | '/' | '/settings'
+  fullPaths: '' | '/auth/login' | '/' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings'
-  id: '__root__' | '/_app' | '/_app/' | '/_app/settings/'
+  to: '' | '/auth/login' | '/' | '/settings'
+  id:
+    | '__root__'
+    | '/_auth'
+    | '/_authenticated'
+    | '/_authenticated/_app'
+    | '/auth/login'
+    | '/_authenticated/_app/'
+    | '/_authenticated/_app/settings/'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
-  AppRoute: typeof AppRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AuthLoginRoute: typeof AuthLoginRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  AppRoute: AppRouteWithChildren,
+  AuthRoute: AuthRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AuthLoginRoute: AuthLoginRoute,
 }
 
 export const routeTree = rootRoute
@@ -121,23 +191,38 @@ export const routeTree = rootRoute
     "__root__": {
       "filePath": "__root.tsx",
       "children": [
-        "/_app"
+        "/_auth",
+        "/_authenticated",
+        "/auth/login"
       ]
     },
-    "/_app": {
-      "filePath": "_app.tsx",
+    "/_auth": {
+      "filePath": "_auth.tsx"
+    },
+    "/_authenticated": {
+      "filePath": "_authenticated.tsx",
       "children": [
-        "/_app/",
-        "/_app/settings/"
+        "/_authenticated/_app"
       ]
     },
-    "/_app/": {
-      "filePath": "_app/index.tsx",
-      "parent": "/_app"
+    "/_authenticated/_app": {
+      "filePath": "_authenticated/_app.tsx",
+      "parent": "/_authenticated",
+      "children": [
+        "/_authenticated/_app/",
+        "/_authenticated/_app/settings/"
+      ]
     },
-    "/_app/settings/": {
-      "filePath": "_app/settings/index.tsx",
-      "parent": "/_app"
+    "/auth/login": {
+      "filePath": "auth/login.tsx"
+    },
+    "/_authenticated/_app/": {
+      "filePath": "_authenticated/_app/index.tsx",
+      "parent": "/_authenticated/_app"
+    },
+    "/_authenticated/_app/settings/": {
+      "filePath": "_authenticated/_app/settings/index.tsx",
+      "parent": "/_authenticated/_app"
     }
   }
 }

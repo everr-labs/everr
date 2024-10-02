@@ -1,0 +1,35 @@
+receivers:
+  githubactions:
+    # secret: my-secret
+    # custom_service_name: github // default org-repo-name
+    # service_name_prefix: foo-   // ignored if custom_service_name set
+    # service_name_suffix: -bar   // ignored if custom_service_name set
+    # gh_api:
+    #   base_url: https://gh_enterprise.base.url      // Enterprise GitHub base URL. Omit for github.com
+    #   upload_url: https://gh_enterprise.upload.url  // Enterprise GitHub upload URL. Omit for github.com
+    #   auth:
+    #     token: github_pat_mytoken           // Fine-grained personal access token. Omit if using a GitHub App.
+    #     app_id: 123                         // App ID for GitHub App. Omit if using a personal access token.
+    #     installation_id: 456                // Installation ID for GitHub App. Omit if using a personal access token.
+    #     private_key_path: /path/to/key.pem  // Path to private key for GitHub App. Omit if using a personal access token.
+    cors:
+      allowed_origins: ["*"]
+      allowed_headers: ["*"]
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  # batch:
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [githubactions, otlp]
+      # processors: [batch]
+      exporters: [debug]

@@ -15,9 +15,9 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/app/*"],
-			"~server": ["./src/server/index.ts"]
+			"~server/*": ["./src/server/*"]
 		}
 	},
-  "include": [".", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+	"include": [".", ".next/types/**/*.ts"],
+	"exclude": ["node_modules"]
 }

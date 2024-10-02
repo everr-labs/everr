@@ -1,3 +1,6 @@
+import { useRouteContext } from '@tanstack/react-router';
+
+import { signOut } from '@citric/auth';
 import {
 	Avatar,
 	AvatarFallback,
@@ -11,21 +14,10 @@ import {
 	DropdownMenuTrigger,
 } from '@citric/ui';
 
-// TODO: replace this with auth library
-interface User {
-	name?: string;
-	image?: string;
-}
-interface Props {
-	user?: User;
-}
+export function UserMenu() {
+	const ctx = useRouteContext({ from: '/_authenticated/_app/' });
 
-export function UserMenu({ user }: Props) {
-	if (!user) {
-		return;
-	}
-
-	const parts = user.name?.split(' ').map((n) => n[0]) ?? [];
+	const parts = ctx.user.name?.split(' ').map((n) => n[0]) ?? [];
 	const inittials = [parts[0], parts[parts.length - 1]]
 		.filter(Boolean)
 		.join('');
@@ -39,7 +31,7 @@ export function UserMenu({ user }: Props) {
 					className="overflow-hidden rounded-full"
 				>
 					<Avatar>
-						<AvatarImage src={user.image ?? void 0}></AvatarImage>
+						<AvatarImage src={ctx.user.image ?? void 0}></AvatarImage>
 						<AvatarFallback>{inittials}</AvatarFallback>
 					</Avatar>
 				</Button>
@@ -51,7 +43,13 @@ export function UserMenu({ user }: Props) {
 				<DropdownMenuItem>Settings</DropdownMenuItem>
 				<DropdownMenuItem>Support</DropdownMenuItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem>Logout</DropdownMenuItem>
+				<DropdownMenuItem
+					onClick={async () => {
+						await signOut();
+					}}
+				>
+					Logout
+				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

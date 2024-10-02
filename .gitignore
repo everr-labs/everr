@@ -9,7 +9,9 @@ node_modules
 coverage
 
 # production
-build
+collector/build
+.astro/
+.vercel/
 
 # misc
 .DS_Store
@@ -36,4 +38,8 @@ dist/
 .output
 .vinxi
 
-.astro/
+.tools
+collector/config.yaml
+coverage.out
+
+db.sqlite

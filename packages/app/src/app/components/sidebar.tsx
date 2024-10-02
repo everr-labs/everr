@@ -1,4 +1,5 @@
-import { getRouteApi, Link } from '@tanstack/react-router';
+import { routeApi } from '@/utils/routeApi';
+import { Link } from '@tanstack/react-router';
 import { CitrusIcon, HomeIcon, SettingsIcon } from 'lucide-react';
 
 import {
@@ -7,8 +8,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '@citric/ui';
-
-const routeApi = getRouteApi('/_app');
 
 export function Sidebar() {
 	const search = routeApi.useSearch();

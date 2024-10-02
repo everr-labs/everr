@@ -1,0 +1,66 @@
+# In order to ensure make instructions fail if there is command that fails a pipe (ie: `go test ... | tee -a ./test_results.txt`)
+# the value `-o pipefail` (or `set -o pipefail`) is added to each shell command that make runs
+# otherwise in the example command pipe, only the exit code of `tee` is recorded instead of `go test` which can cause
+# test to pass in CI when they should not.
+SHELL = /bin/bash
+ifeq ($(shell uname -s),Windows)
+	.SHELLFLAGS = /o pipefile /c
+else
+	.SHELLFLAGS = -o pipefail -c
+endif
+
+# SRC_ROOT is the top of the source tree.
+SRC_ROOT := $(shell git rev-parse --show-toplevel)
+
+# A lot of the following install tools commands were leveraged from the 
+# Open Telemetry Contributor Makefile following the Go Paradigm for Third Party Tools
+# See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/Makefile.Common#L39-L74 for more details.
+TOOLS_MOD_DIR := $(SRC_ROOT)/collector/internal/tools
+TOOLS_MOD_REGEX := "\s+_\s+\".*\""
+TOOLS_PKG_NAMES  := $(shell grep -E $(TOOLS_MOD_REGEX) < $(TOOLS_MOD_DIR)/tools.go | tr -d " _\"")
+TOOLS_BIN_DIR := $(SRC_ROOT)/collector/.tools
+TOOLS_BIN_NAMES  := $(addprefix $(TOOLS_BIN_DIR)/, $(notdir $(TOOLS_PKG_NAMES)))
+
+
+.PHONY: install-tools
+install-tools: $(TOOLS_BIN_NAMES)
+
+.PHONY: clean
+clean:
+	rm -rf $(TOOLS_BIN_DIR)
+
+$(TOOLS_BIN_DIR):
+	mkdir -p $@
+
+$(TOOLS_BIN_NAMES): $(TOOLS_BIN_DIR) $(TOOLS_MOD_DIR)/go.mod
+		cd $(TOOLS_MOD_DIR) && go build -o $@ -trimpath $(filter %/$(notdir $@),$(TOOLS_PKG_NAMES))
+
+LINT := $(TOOLS_BIN_DIR)/golangci-lint
+GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
+SEC := $(TOOLS_BIN_DIR)/gosec
+STATICCHECK := $(TOOLS_BIN_DIR)/staticcheck
+MDATAGEN := $(TOOLS_BIN_DIR)/mdatagen
+OCB := $(TOOLS_BIN_DIR)/builder
+CROSSLINK := $(TOOLS_BIN_DIR)/crosslink
+
+.PHONY: lint
+lint:
+	$(LINT) run
+
+.PHONY: tidy
+tidy:
+	-rm go.sum
+	go mod tidy -compat=1.22
+
+.PHONY: gen
+gen:
+	go generate ./...
+
+.PHONY: test
+test:
+	go test -v ./... -coverprofile=coverage.out -covermode=atomic
+
+.PHONY: fmt
+fmt:
+	go fmt ./...
+	
