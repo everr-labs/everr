@@ -1,5 +1,7 @@
 import type { Config } from 'tailwindcss';
+import typography from '@tailwindcss/typography';
 import animate from 'tailwindcss-animate';
+import theme from 'tailwindcss/defaultTheme';
 
 export default {
 	darkMode: ['class'],
@@ -68,6 +70,9 @@ export default {
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)',
 			},
+			spacing: {
+				fullscreen: `calc(100% - ${theme.spacing['4']})`,
+			},
 			keyframes: {
 				'accordion-down': {
 					from: {
@@ -102,5 +107,5 @@ export default {
 			},
 		},
 	},
-	plugins: [animate],
+	plugins: [animate, typography],
 } satisfies Config;

@@ -23,6 +23,7 @@
 		"@citric/eslint-config": "workspace:*",
 		"@citric/prettier-config": "workspace:*",
 		"@citric/tsconfig": "workspace:*",
+		"@tailwindcss/typography": "^0.5.15",
 		"eslint": "catalog:",
 		"prettier": "catalog:",
 		"typescript": "catalog:"

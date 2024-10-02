@@ -1,5 +1,6 @@
 import type { AuthConfig } from '@auth/core';
 import GitHub from '@auth/core/providers/github';
+import GitLab from '@auth/core/providers/gitlab';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 
 import { env } from '../env';
@@ -11,6 +12,7 @@ const providers = [
 		clientId: env.GITHUB_CLIENT_ID,
 		clientSecret: env.GITHUB_CLIENT_SECRET,
 	}),
+	GitLab,
 ];
 
 export const authOptions: AuthConfig = {
@@ -27,8 +29,6 @@ export const authOptions: AuthConfig = {
 	},
 	pages: {
 		signIn: '/auth/login',
-		signOut: '/auth/signout',
-		error: '/auth/error',
 	},
 	providers,
 	callbacks: {
