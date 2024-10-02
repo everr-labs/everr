@@ -17,7 +17,7 @@
 		"@citric/ui": "workspace:*",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
-		"astro": "^4.15.9",
+		"astro": "^4.15.10",
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"tailwindcss": "catalog:",
