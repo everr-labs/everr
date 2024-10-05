@@ -7,7 +7,8 @@ import (
 )
 
 var (
-	Type = component.MustNewType("githubactions")
+	Type      = component.MustNewType("githubactions")
+	ScopeName = "github.com/Elfo404/cicdo11y/collector/receiver/githubactionsreceiver"
 )
 
 const (

@@ -1,8 +1,6 @@
 module github.com/Elfo404/cicdo11y/collector
 
-go 1.22.5
-
-toolchain go1.22.2
+go 1.23.2
 
 replace github.com/Elfo404/ci-otel-collector/receiver/githubactionsreceiver => ./receiver/githubactionsreceiver
 
