@@ -10,14 +10,14 @@
 		"astro": "astro"
 	},
 	"dependencies": {
-		"@astrojs/check": "^0.9.3",
+		"@astrojs/check": "^0.9.4",
 		"@astrojs/react": "^3.6.2",
 		"@astrojs/tailwind": "^5.1.1",
 		"@citric/tailwind-config": "workspace:*",
 		"@citric/ui": "workspace:*",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
-		"astro": "^4.15.10",
+		"astro": "^4.15.11",
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"tailwindcss": "catalog:",
