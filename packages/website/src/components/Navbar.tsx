@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Menu } from 'lucide-react';
+import { ArrowRightIcon, Menu } from 'lucide-react';
 
 import {
 	Button,
@@ -72,7 +72,6 @@ export const Navbar = () => {
 			<a href="/" className="flex items-center text-lg font-bold">
 				<Logo />
 			</a>
-
 			{/* <!-- Mobile --> */}
 			<div className="flex items-center lg:hidden">
 				<Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -105,7 +104,6 @@ export const Navbar = () => {
 					</SheetContent>
 				</Sheet>
 			</div>
-
 			{/* <!-- Desktop --> */}
 			<NavigationMenu className="mx-auto hidden lg:block">
 				<NavigationMenuList>
@@ -152,6 +150,19 @@ export const Navbar = () => {
 					</NavigationMenuItem>
 				</NavigationMenuList>
 			</NavigationMenu>
+			<Button
+				asChild
+				variant="default"
+				className="group/arrow hidden items-center font-bold lg:flex"
+			>
+				<a
+					// TODO: Link to app
+					href="/"
+				>
+					Get Started
+					<ArrowRightIcon className="ml-2 inline size-5 transition-transform group-hover/arrow:translate-x-1" />
+				</a>
+			</Button>
 		</header>
 	);
 };

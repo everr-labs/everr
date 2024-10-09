@@ -136,11 +136,9 @@ function CostCard() {
 
 type Data = RouterOutputs['pipelines']['getAll']['data'][number];
 
-export const columns: ColumnDef<Data>[] = [
+const columns: ColumnDef<Data>[] = [
 	{
-		// TODO: this should be shrinked
 		header: 'Repo',
-		meta: {},
 		cell: ({
 			row: {
 				original: { repo },
