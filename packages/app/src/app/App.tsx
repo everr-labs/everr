@@ -7,7 +7,7 @@ import SuperJSON from 'superjson';
 
 import { env } from '../env';
 import { routeTree } from './routeTree.gen';
-import { trpc } from './utils/trpc';
+import { api } from './utils/trpc';
 
 // Create a new router instance
 const router = createRouter({
@@ -30,7 +30,7 @@ declare module '@tanstack/react-router' {
 }
 
 const queryClient = new QueryClient();
-const trpcClient = trpc.createClient({
+const trpcClient = api.createClient({
 	links: [
 		loggerLink({
 			enabled: () => true,
@@ -51,12 +51,12 @@ export function App() {
 	return (
 		<Suspense fallback={<>...</>}>
 			<QueryClientProvider client={queryClient}>
-				<trpc.Provider client={trpcClient} queryClient={queryClient}>
+				<api.Provider client={trpcClient} queryClient={queryClient}>
 					<RouterProvider router={router} />
 
 					<ReactQueryDevtools initialIsOpen={false} />
 					<TanStackRouterDevtools router={router} />
-				</trpc.Provider>
+				</api.Provider>
 			</QueryClientProvider>
 		</Suspense>
 	);

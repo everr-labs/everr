@@ -43,3 +43,5 @@ collector/config.yaml
 coverage.out
 
 db.sqlite
+
+/db

@@ -15,9 +15,12 @@ import {
 } from '@citric/ui';
 
 export function UserMenu() {
-	const ctx = useRouteContext({ from: '/_authenticated/_app/' });
+	const user = useRouteContext({
+		from: '/_authenticated',
+		select: (ctx) => ctx.user,
+	});
 
-	const parts = ctx.user.name?.split(' ').map((n) => n[0]) ?? [];
+	const parts = user.name?.split(' ').map((n) => n[0]) ?? [];
 	const inittials = [parts[0], parts[parts.length - 1]]
 		.filter(Boolean)
 		.join('');
@@ -31,7 +34,7 @@ export function UserMenu() {
 					className="overflow-hidden rounded-full"
 				>
 					<Avatar>
-						<AvatarImage src={ctx.user.image ?? void 0}></AvatarImage>
+						<AvatarImage src={user.image ?? void 0}></AvatarImage>
 						<AvatarFallback>{inittials}</AvatarFallback>
 					</Avatar>
 				</Button>
@@ -43,13 +46,7 @@ export function UserMenu() {
 				<DropdownMenuItem>Settings</DropdownMenuItem>
 				<DropdownMenuItem>Support</DropdownMenuItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem
-					onClick={async () => {
-						await signOut();
-					}}
-				>
-					Logout
-				</DropdownMenuItem>
+				<DropdownMenuItem onClick={() => signOut()}>Logout</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

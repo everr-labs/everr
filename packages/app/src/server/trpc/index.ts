@@ -1,12 +1,8 @@
-import { db } from '~server/db';
+import { pipelinesRouter } from './routers/pipelines';
+import { createTRPCRouter } from './trpc';
 
-import { t } from './trpc';
-
-const appRouter = t.router({
-	greeting: t.procedure.query(async () => {
-		const users = await db.query.users.findMany();
-		return { msg: 'hello tRPC v10!', users };
-	}),
+const appRouter = createTRPCRouter({
+	pipelines: pipelinesRouter,
 });
 
 export default appRouter;

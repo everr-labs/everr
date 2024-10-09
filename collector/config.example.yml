@@ -1,11 +1,7 @@
 receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
   githubactions:
     path: /webhook/github
-    endpoint: 0.0.0.0:4321
+    endpoint: 0.0.0.0:3333
     secret: WEBHOOKSECRETFROMGHAPP
     gh_api:
       auth:

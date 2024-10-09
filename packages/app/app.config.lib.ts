@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { NitroOptions } from 'nitropack';
 import type {
@@ -229,7 +228,7 @@ export function defineConfig(
 		serverSchema.parse(opts.server || {});
 
 	const deploymentPreset = checkDeploymentPresetInput(
-		configDeploymentPreset || 'vercel',
+		configDeploymentPreset || 'node-server',
 	);
 
 	const tsrConfig = getConfig(setTsrDefaults(opts.tsr));

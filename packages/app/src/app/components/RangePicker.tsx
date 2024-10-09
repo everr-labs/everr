@@ -45,7 +45,8 @@ export function RangePicker({ className, onChange }: Props) {
 						{format(range.from, 'LLL dd, y')} - {format(range.to, 'LLL dd, y')}
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent className="w-auto p-0" align="start">
+
+				<PopoverContent className="w-auto p-0" align="end">
 					<Calendar
 						initialFocus
 						mode="range"

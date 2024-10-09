@@ -1,0 +1,7 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    ports:
+      - '8123:8123'
+    volumes:
+      - ./db:/var/lib/clickhouse

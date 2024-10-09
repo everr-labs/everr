@@ -25,6 +25,7 @@
 		"@citric/eslint-config": "workspace:*",
 		"@citric/prettier-config": "workspace:*",
 		"@citric/tsconfig": "workspace:*",
+		"@types/node": "^22.7.5",
 		"@types/react": "catalog:",
 		"eslint": "catalog:",
 		"prettier": "catalog:",

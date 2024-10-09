@@ -1,9 +1,16 @@
+import type { AuthConfig } from '@auth/core';
 import type {
 	BuiltInProviderType,
 	RedirectableProviderType,
 } from '@auth/core/providers';
+import type { Session } from '@auth/core/types';
+import { Auth } from '@auth/core';
 
 type LiteralUnion<T extends U, U = string> = T | (U & Record<never, never>);
+
+interface CSRFResponse {
+	csrfToken: string;
+}
 
 interface SignInOptions extends Record<string, unknown> {
 	/**
@@ -12,12 +19,14 @@ interface SignInOptions extends Record<string, unknown> {
 	 * [Documentation](https://next-auth.js.org/getting-started/client#specifying-a-callbackurl)
 	 */
 	callbackUrl?: string;
-	/** [Documentation](https://next-auth.js.org/getting-started/client#using-the-redirect-false-option) */
+	/**
+	 * [Documentation](https://next-auth.js.org/getting-started/client#using-the-redirect-false-option)
+	 */
 	redirect?: boolean;
 }
 
 /** Match `inputType` of `new URLSearchParams(inputType)` */
-export type SignInAuthorizationParams =
+type SignInAuthorizationParams =
 	| string
 	| string[][]
 	| Record<string, string>
@@ -50,9 +59,7 @@ export async function signIn<
 
 	// TODO: Handle custom base path
 	const csrfTokenResponse = await fetch('/api/auth/csrf');
-	const { csrfToken } = (await csrfTokenResponse.json()) as {
-		csrfToken: string;
-	};
+	const { csrfToken } = (await csrfTokenResponse.json()) as CSRFResponse;
 
 	const res = await fetch(_signInUrl, {
 		method: 'post',
@@ -69,7 +76,7 @@ export async function signIn<
 	});
 
 	const data = await res.clone().json();
-	console.log('data', data);
+
 	const error = new URL(data.url).searchParams.get('error');
 	if (redirect || !isSupportingReturn || !error) {
 		// TODO: Do not redirect for Credentials and Email providers by default in next major
@@ -92,7 +99,8 @@ export async function signOut(options?: SignOutParams) {
 	const { callbackUrl = window.location.href } = options ?? {};
 	// TODO: Custom base path
 	const csrfTokenResponse = await fetch('/api/auth/csrf');
-	const { csrfToken } = await csrfTokenResponse.json();
+	const { csrfToken } = (await csrfTokenResponse.json()) as CSRFResponse;
+
 	const res = await fetch(`/api/auth/signout`, {
 		method: 'post',
 		headers: {
@@ -104,10 +112,31 @@ export async function signOut(options?: SignOutParams) {
 			callbackUrl,
 		}),
 	});
+
 	const data = await res.json();
 
 	const url = data.url ?? data.redirect ?? callbackUrl;
 	window.location.href = url;
 	// If url contains a hash, the browser does not reload the page. We reload manually
 	if (url.includes('#')) window.location.reload();
+}
+
+export async function authenticateRequest(
+	request: Request,
+	authOptions: AuthConfig,
+): Promise<Session | null> {
+	const url = new URL('/api/auth/session', request.url);
+
+	const response = await Auth(
+		new Request(url, { headers: request.headers }),
+		authOptions,
+	);
+
+	const { status = 200 } = response;
+
+	const data = await response.json();
+
+	if (!data || !Object.keys(data).length) return null;
+	if (status === 200) return data;
+	throw new Error(data.message);
 }
