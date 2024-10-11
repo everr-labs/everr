@@ -15,12 +15,12 @@
 		"@astrojs/tailwind": "^5.1.2",
 		"@citric/tailwind-config": "workspace:*",
 		"@citric/ui": "workspace:*",
-		"@types/react": "catalog:",
-		"@types/react-dom": "catalog:",
+		"@types/react": "^18.3.11",
+		"@types/react-dom": "^18.3.0",
 		"astro": "^4.16.0",
-		"react": "catalog:",
-		"react-dom": "catalog:",
-		"tailwindcss": "catalog:",
-		"typescript": "catalog:"
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"tailwindcss": "^3.4.13",
+		"typescript": "5.6.3"
 	}
 }

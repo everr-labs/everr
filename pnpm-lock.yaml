@@ -4,39 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-catalogs:
-  default:
-    '@auth/core':
-      specifier: ^0.37.0
-      version: 0.37.0
-    '@types/react':
-      specifier: ^18.3.11
-      version: 18.3.11
-    '@types/react-dom':
-      specifier: ^18.3.0
-      version: 18.3.0
-    eslint:
-      specifier: ^9.12.0
-      version: 9.12.0
-    prettier:
-      specifier: ^3.3.3
-      version: 3.3.3
-    react:
-      specifier: ^18.3.1
-      version: 18.3.1
-    react-dom:
-      specifier: ^18.3.1
-      version: 18.3.1
-    tailwindcss:
-      specifier: ^3.4.13
-      version: 3.4.13
-    typescript:
-      specifier: 5.6.3
-      version: 5.6.3
-    zod:
-      specifier: ^3.23.8
-      version: 3.23.8
-
 importers:
 
   .:
@@ -48,13 +15,13 @@ importers:
         specifier: ^2.1.3
         version: 2.1.3(@types/node@22.7.5)(typescript@5.6.3)
       prettier:
-        specifier: 'catalog:'
+        specifier: ^3.3.3
         version: 3.3.3
       turbo:
         specifier: ^2.1.3
         version: 2.1.3
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
 
   collector: {}
@@ -62,7 +29,7 @@ importers:
   packages/app:
     dependencies:
       '@auth/core':
-        specifier: 'catalog:'
+        specifier: ^0.37.0
         version: 0.37.0
       '@auth/drizzle-adapter':
         specifier: ^1.7.0
@@ -122,13 +89,13 @@ importers:
         specifier: ^0.451.0
         version: 0.451.0(react@18.3.1)
       react:
-        specifier: 'catalog:'
+        specifier: ^18.3.1
         version: 18.3.1
       react-day-picker:
         specifier: ^8.10.1
         version: 8.10.1(date-fns@4.1.0)(react@18.3.1)
       react-dom:
-        specifier: 'catalog:'
+        specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
       react-hook-form:
         specifier: ^7.53.0
@@ -140,7 +107,7 @@ importers:
         specifier: 0.4.3
         version: 0.4.3(@types/node@22.7.5)(better-sqlite3@11.3.0)(drizzle-orm@0.34.1(@types/better-sqlite3@7.6.11)(@types/react@18.3.11)(better-sqlite3@11.3.0)(react@18.3.1))(ioredis@5.4.1)(magicast@0.3.5)(terser@5.33.0)
       zod:
-        specifier: 'catalog:'
+        specifier: ^3.23.8
         version: 3.23.8
     devDependencies:
       '@citric/eslint-config':
@@ -156,14 +123,14 @@ importers:
         specifier: workspace:*
         version: link:../../tooling/typescript
       '@tanstack/react-query-devtools':
-        specifier: ^5.59.6
-        version: 5.59.6(@tanstack/react-query@5.59.9(react@18.3.1))(react@18.3.1)
+        specifier: ^5.59.9
+        version: 5.59.9(@tanstack/react-query@5.59.9(react@18.3.1))(react@18.3.1)
       '@tanstack/router-devtools':
-        specifier: ^1.63.5
-        version: 1.63.5(@tanstack/react-router@1.64.0(@tanstack/router-generator@1.64.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^1.64.0
+        version: 1.64.0(@tanstack/react-router@1.64.0(@tanstack/router-generator@1.64.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@tanstack/router-plugin':
-        specifier: ^1.63.5
-        version: 1.63.5(vite@5.4.8(@types/node@22.7.5)(terser@5.33.0))
+        specifier: ^1.64.0
+        version: 1.64.0(vite@5.4.8(@types/node@22.7.5)(terser@5.33.0))
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.11
@@ -171,10 +138,10 @@ importers:
         specifier: ^22.7.5
         version: 22.7.5
       '@types/react':
-        specifier: 'catalog:'
+        specifier: ^18.3.11
         version: 18.3.11
       '@types/react-dom':
-        specifier: 'catalog:'
+        specifier: ^18.3.0
         version: 18.3.0
       '@vitejs/plugin-react':
         specifier: ^4.3.2
@@ -183,13 +150,13 @@ importers:
         specifier: ^0.25.0
         version: 0.25.0
       eslint:
-        specifier: 'catalog:'
+        specifier: ^9.12.0
         version: 9.12.0(jiti@2.3.3)
       jiti:
         specifier: ^2.3.3
         version: 2.3.3
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
       vite-tsconfig-paths:
         specifier: ^5.0.1
@@ -198,7 +165,7 @@ importers:
   packages/auth:
     dependencies:
       '@auth/core':
-        specifier: 'catalog:'
+        specifier: ^0.37.0
         version: 0.37.0
     devDependencies:
       '@citric/eslint-config':
@@ -214,19 +181,19 @@ importers:
         specifier: ^22.7.5
         version: 22.7.5
       '@types/react':
-        specifier: 'catalog:'
+        specifier: ^18.3.11
         version: 18.3.11
       eslint:
-        specifier: 'catalog:'
+        specifier: ^9.12.0
         version: 9.12.0(jiti@2.3.3)
       prettier:
-        specifier: 'catalog:'
+        specifier: ^3.3.3
         version: 3.3.3
       react:
-        specifier: 'catalog:'
+        specifier: ^18.3.1
         version: 18.3.1
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
 
   packages/ui:
@@ -329,22 +296,22 @@ importers:
         specifier: workspace:*
         version: link:../../tooling/typescript
       '@types/react':
-        specifier: 'catalog:'
+        specifier: ^18.3.11
         version: 18.3.11
       eslint:
-        specifier: 'catalog:'
+        specifier: ^9.12.0
         version: 9.12.0(jiti@2.3.3)
       prettier:
-        specifier: 'catalog:'
+        specifier: ^3.3.3
         version: 3.3.3
       react:
-        specifier: 'catalog:'
+        specifier: ^18.3.1
         version: 18.3.1
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
       zod:
-        specifier: 'catalog:'
+        specifier: ^3.23.8
         version: 3.23.8
 
   packages/website:
@@ -365,25 +332,25 @@ importers:
         specifier: workspace:*
         version: link:../ui
       '@types/react':
-        specifier: 'catalog:'
+        specifier: ^18.3.11
         version: 18.3.11
       '@types/react-dom':
-        specifier: 'catalog:'
+        specifier: ^18.3.0
         version: 18.3.0
       astro:
         specifier: ^4.16.0
         version: 4.16.0(@types/node@22.7.5)(rollup@4.22.4)(terser@5.33.0)(typescript@5.6.3)
       react:
-        specifier: 'catalog:'
+        specifier: ^18.3.1
         version: 18.3.1
       react-dom:
-        specifier: 'catalog:'
+        specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
       tailwindcss:
-        specifier: 'catalog:'
+        specifier: ^3.4.13
         version: 3.4.13(ts-node@10.9.2(@types/node@22.7.5)(typescript@5.6.3))
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
 
   tooling/eslint:
@@ -417,13 +384,13 @@ importers:
         specifier: workspace:*
         version: link:../typescript
       eslint:
-        specifier: 'catalog:'
+        specifier: ^9.12.0
         version: 9.12.0(jiti@2.3.3)
       prettier:
-        specifier: 'catalog:'
+        specifier: ^3.3.3
         version: 3.3.3
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
 
   tooling/prettier:
@@ -432,7 +399,7 @@ importers:
         specifier: ^4.3.1
         version: 4.3.1(prettier@3.3.3)
       prettier:
-        specifier: 'catalog:'
+        specifier: ^3.3.3
         version: 3.3.3
       prettier-plugin-tailwindcss:
         specifier: ^0.6.8
@@ -442,7 +409,7 @@ importers:
         specifier: workspace:*
         version: link:../typescript
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
 
   tooling/tailwind:
@@ -451,7 +418,7 @@ importers:
         specifier: ^8.4.47
         version: 8.4.47
       tailwindcss:
-        specifier: 'catalog:'
+        specifier: ^3.4.13
         version: 3.4.13(ts-node@10.9.2(@types/node@22.7.5)(typescript@5.6.3))
       tailwindcss-animate:
         specifier: ^1.0.7
@@ -470,13 +437,13 @@ importers:
         specifier: ^0.5.15
         version: 0.5.15(tailwindcss@3.4.13(ts-node@10.9.2(@types/node@22.7.5)(typescript@5.6.3)))
       eslint:
-        specifier: 'catalog:'
+        specifier: ^9.12.0
         version: 9.12.0(jiti@2.3.3)
       prettier:
-        specifier: 'catalog:'
+        specifier: ^3.3.3
         version: 3.3.3
       typescript:
-        specifier: 'catalog:'
+        specifier: 5.6.3
         version: 5.6.3
 
   tooling/typescript: {}
@@ -2827,10 +2794,10 @@ packages:
       react: '>=18'
       react-dom: '>=18'
 
-  '@tanstack/react-query-devtools@5.59.6':
-    resolution: {integrity: sha512-N6C2hCGF9aAKx+ESWjKmf5/ZkGttPCwVtCfBK9mxGOOo3iTC96jKzrZrqxk1BThXyTqJ6au8biBO4q9h2P4M2Q==}
+  '@tanstack/react-query-devtools@5.59.9':
+    resolution: {integrity: sha512-Vfr8JPgx4GxopQOqdQTC7MAUbX1vuEqeexCIX0RiwjUmNCoHKUg2Mh3rTZPsx8Y7wscc7eWkBjiz03Dt/YM3oQ==}
     peerDependencies:
-      '@tanstack/react-query': ^5.59.6
+      '@tanstack/react-query': ^5.59.9
       react: ^18 || ^19
 
   '@tanstack/react-query@5.59.9':
@@ -2862,36 +2829,17 @@ packages:
       react: '>=16.8'
       react-dom: '>=16.8'
 
-  '@tanstack/router-devtools@1.63.5':
-    resolution: {integrity: sha512-kG3ei8q7XVKOE60eniK3Dn5NDiRjs0KrktM4Av8tlgIFd/89BLiXkMnYqWlDd2fp7yxmEiX3GiQv7pNedfaMiA==}
+  '@tanstack/router-devtools@1.64.0':
+    resolution: {integrity: sha512-XFWstGgrV3owZma4eo2tuai53oK4Zzb2Ro9F4KaUaPUVe64T+p3CKvst4BakLkC2SSJpSof4qVB88qBpb7+pGA==}
     engines: {node: '>=12'}
     peerDependencies:
-      '@tanstack/react-router': ^1.63.5
+      '@tanstack/react-router': ^1.64.0
       react: '>=18'
       react-dom: '>=18'
-
-  '@tanstack/router-generator@1.63.5':
-    resolution: {integrity: sha512-vhSlnztluTFqnGMN4lFJFpCYtW1jUlFW6hBl93/QlV03mbtAwBTpPT/BkGk3wZkvsUMgDP86tCyu1ytQDZwi3w==}
-    engines: {node: '>=12'}
 
   '@tanstack/router-generator@1.64.0':
     resolution: {integrity: sha512-DTSMjOUG3ipMQjvOZKJLOMV5BqahUGZAYbgTol0ccdOSa64ApKBEr8vOsG3wLbNZ+Okw97hosGmMHsOr+wsFiQ==}
     engines: {node: '>=12'}
-
-  '@tanstack/router-plugin@1.63.5':
-    resolution: {integrity: sha512-PdGy1iHCkYp8Kj7m0uFRsKYPzy+V8QQNHXuXB9mxcKx5I+hgkqWkEu5gtvrunjemsaxxp7duvKJ3/tC8C4k/ZQ==}
-    engines: {node: '>=12'}
-    peerDependencies:
-      '@rsbuild/core': '>=1.0.2'
-      vite: '>=5.0.0'
-      webpack: '>=5.92.0'
-    peerDependenciesMeta:
-      '@rsbuild/core':
-        optional: true
-      vite:
-        optional: true
-      webpack:
-        optional: true
 
   '@tanstack/router-plugin@1.64.0':
     resolution: {integrity: sha512-BQB71kVS/g6bFcabLS7LXSXyqPd2PzZuxb5GzmArxo76AU+sxlX+3SBhqnRbPeqnXNDDyMdk8SVOCzHIGKsz2Q==}
@@ -2931,10 +2879,6 @@ packages:
 
   '@tanstack/table-core@8.20.5':
     resolution: {integrity: sha512-P9dF7XbibHph2PFRz8gfBKEXEY/HJPOhym8CHmjF8y3q5mWpKx9xtZapXQUWCgkqvsK0R46Azuz+VaxD4Xl+Tg==}
-    engines: {node: '>=12'}
-
-  '@tanstack/virtual-file-routes@1.56.0':
-    resolution: {integrity: sha512-fBUj+lbSaw+VxoBN4J/WFE7dTx8x4XCTRAQvbiIyPJ8MY1KRVkdZV6cbLvg7MeDP6CxUcj6XNvWU6h0ic1Ipyg==}
     engines: {node: '>=12'}
 
   '@tanstack/virtual-file-routes@1.64.0':
@@ -9541,7 +9485,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@tanstack/react-query-devtools@5.59.6(@tanstack/react-query@5.59.9(react@18.3.1))(react@18.3.1)':
+  '@tanstack/react-query-devtools@5.59.9(@tanstack/react-query@5.59.9(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@tanstack/query-devtools': 5.58.0
       '@tanstack/react-query': 5.59.9(react@18.3.1)
@@ -9576,7 +9520,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@tanstack/router-devtools@1.63.5(@tanstack/react-router@1.64.0(@tanstack/router-generator@1.64.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@tanstack/router-devtools@1.64.0(@tanstack/react-router@1.64.0(@tanstack/router-generator@1.64.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(csstype@3.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@tanstack/react-router': 1.64.0(@tanstack/router-generator@1.64.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       clsx: 2.1.1
@@ -9586,45 +9530,12 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/router-generator@1.63.5':
-    dependencies:
-      '@tanstack/virtual-file-routes': 1.56.0
-      prettier: 3.3.3
-      tsx: 4.19.1
-      zod: 3.23.8
-
   '@tanstack/router-generator@1.64.0':
     dependencies:
       '@tanstack/virtual-file-routes': 1.64.0
       prettier: 3.3.3
       tsx: 4.19.1
       zod: 3.23.8
-
-  '@tanstack/router-plugin@1.63.5(vite@5.4.8(@types/node@22.7.5)(terser@5.33.0))':
-    dependencies:
-      '@babel/core': 7.25.7
-      '@babel/generator': 7.25.7
-      '@babel/parser': 7.25.7
-      '@babel/plugin-syntax-jsx': 7.25.7(@babel/core@7.25.7)
-      '@babel/plugin-syntax-typescript': 7.25.7(@babel/core@7.25.7)
-      '@babel/template': 7.25.7
-      '@babel/traverse': 7.25.7
-      '@babel/types': 7.25.7
-      '@tanstack/router-generator': 1.63.5
-      '@tanstack/virtual-file-routes': 1.56.0
-      '@types/babel__core': 7.20.5
-      '@types/babel__generator': 7.6.8
-      '@types/babel__template': 7.4.4
-      '@types/babel__traverse': 7.20.6
-      babel-dead-code-elimination: 1.0.6
-      chokidar: 3.6.0
-      unplugin: 1.14.1
-      zod: 3.23.8
-    optionalDependencies:
-      vite: 5.4.8(@types/node@22.7.5)(terser@5.33.0)
-    transitivePeerDependencies:
-      - supports-color
-      - webpack-sources
 
   '@tanstack/router-plugin@1.64.0(vite@5.4.8(@types/node@22.7.5)(terser@5.33.0))':
     dependencies:
@@ -9735,8 +9646,6 @@ snapshots:
   '@tanstack/store@0.5.5': {}
 
   '@tanstack/table-core@8.20.5': {}
-
-  '@tanstack/virtual-file-routes@1.56.0': {}
 
   '@tanstack/virtual-file-routes@1.64.0': {}
 
