@@ -1,8 +1,10 @@
+import type { trpcQueryUtils } from '@/router';
 import type { Session, User } from '@auth/core/types';
 import { createRootRouteWithContext, Outlet } from '@tanstack/react-router';
 
 interface RouterContext {
 	user?: User;
+	trpcQueryUtils: typeof trpcQueryUtils;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({

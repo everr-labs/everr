@@ -52,7 +52,9 @@ export function RangePicker({ className, onChange }: Props) {
 						mode="range"
 						defaultMonth={selectedRange.from}
 						selected={selectedRange}
-						onSelect={(range) => range && setSelectedRange(range)}
+						onSelect={(range) => {
+							if (range) setSelectedRange(range);
+						}}
 						disabled={{ after: new Date() }}
 					/>
 					<div className="p-2">

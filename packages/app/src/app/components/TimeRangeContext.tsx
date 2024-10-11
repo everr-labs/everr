@@ -25,7 +25,7 @@ export function TimeRangeContextProvider({
 
 	const setRange = useCallback(
 		(range: Range) => {
-			navigate({ to: '/', search: range }).catch(console.error);
+			void navigate({ to: '/', search: range });
 			applyRange(range);
 		},
 		[navigate],

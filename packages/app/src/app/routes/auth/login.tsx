@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { PrivacyPolicyDialog } from '@/components/PrivacyPolicyDialog';
 import { TermsOfUseDialog } from '@/components/TermsOfUseDialog';
+import { SiGithub } from '@icons-pack/react-simple-icons';
 import { createFileRoute } from '@tanstack/react-router';
-import { GithubIcon } from 'lucide-react';
 
 import { signIn } from '@citric/auth';
 import {
@@ -42,7 +42,7 @@ function SignIn() {
 							});
 						}}
 					>
-						<GithubIcon className="mr-2 h-4" />
+						<SiGithub className="mr-2 h-4" />
 						Login with GitHub
 					</Button>
 				</div>

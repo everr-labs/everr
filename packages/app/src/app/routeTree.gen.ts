@@ -17,6 +17,7 @@ import { Route as AuthLoginImport } from './routes/auth/login'
 import { Route as AuthenticatedAppImport } from './routes/_authenticated/_app'
 import { Route as AuthenticatedAppIndexImport } from './routes/_authenticated/_app/index'
 import { Route as AuthenticatedAppSettingsIndexImport } from './routes/_authenticated/_app/settings/index'
+import { Route as AuthenticatedAppReposOrgRepoImport } from './routes/_authenticated/_app/repos/$org.$repo'
 
 // Create/Update Routes
 
@@ -48,6 +49,12 @@ const AuthenticatedAppIndexRoute = AuthenticatedAppIndexImport.update({
 const AuthenticatedAppSettingsIndexRoute =
   AuthenticatedAppSettingsIndexImport.update({
     path: '/settings/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+
+const AuthenticatedAppReposOrgRepoRoute =
+  AuthenticatedAppReposOrgRepoImport.update({
+    path: '/repos/$org/$repo',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 
@@ -97,6 +104,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppSettingsIndexImport
       parentRoute: typeof AuthenticatedAppImport
     }
+    '/_authenticated/_app/repos/$org/$repo': {
+      id: '/_authenticated/_app/repos/$org/$repo'
+      path: '/repos/$org/$repo'
+      fullPath: '/repos/$org/$repo'
+      preLoaderRoute: typeof AuthenticatedAppReposOrgRepoImport
+      parentRoute: typeof AuthenticatedAppImport
+    }
   }
 }
 
@@ -105,11 +119,13 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppSettingsIndexRoute: typeof AuthenticatedAppSettingsIndexRoute
+  AuthenticatedAppReposOrgRepoRoute: typeof AuthenticatedAppReposOrgRepoRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppSettingsIndexRoute: AuthenticatedAppSettingsIndexRoute,
+  AuthenticatedAppReposOrgRepoRoute: AuthenticatedAppReposOrgRepoRoute,
 }
 
 const AuthenticatedAppRouteWithChildren =
@@ -143,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/': typeof AuthenticatedAppIndexRoute
   '/settings': typeof AuthenticatedAppSettingsIndexRoute
+  '/repos/$org/$repo': typeof AuthenticatedAppReposOrgRepoRoute
 }
 
 export interface FileRoutesByTo {
@@ -151,6 +168,7 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/': typeof AuthenticatedAppIndexRoute
   '/settings': typeof AuthenticatedAppSettingsIndexRoute
+  '/repos/$org/$repo': typeof AuthenticatedAppReposOrgRepoRoute
 }
 
 export interface FileRoutesById {
@@ -161,13 +179,20 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/_authenticated/_app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/_app/settings/': typeof AuthenticatedAppSettingsIndexRoute
+  '/_authenticated/_app/repos/$org/$repo': typeof AuthenticatedAppReposOrgRepoRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '' | '/auth' | '/auth/login' | '/' | '/settings'
+  fullPaths:
+    | ''
+    | '/auth'
+    | '/auth/login'
+    | '/'
+    | '/settings'
+    | '/repos/$org/$repo'
   fileRoutesByTo: FileRoutesByTo
-  to: '' | '/auth' | '/auth/login' | '/' | '/settings'
+  to: '' | '/auth' | '/auth/login' | '/' | '/settings' | '/repos/$org/$repo'
   id:
     | '__root__'
     | '/_authenticated'
@@ -176,6 +201,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/_authenticated/_app/'
     | '/_authenticated/_app/settings/'
+    | '/_authenticated/_app/repos/$org/$repo'
   fileRoutesById: FileRoutesById
 }
 
@@ -222,7 +248,8 @@ export const routeTree = rootRoute
       "parent": "/_authenticated",
       "children": [
         "/_authenticated/_app/",
-        "/_authenticated/_app/settings/"
+        "/_authenticated/_app/settings/",
+        "/_authenticated/_app/repos/$org/$repo"
       ]
     },
     "/auth/login": {
@@ -235,6 +262,10 @@ export const routeTree = rootRoute
     },
     "/_authenticated/_app/settings/": {
       "filePath": "_authenticated/_app/settings/index.tsx",
+      "parent": "/_authenticated/_app"
+    },
+    "/_authenticated/_app/repos/$org/$repo": {
+      "filePath": "_authenticated/_app/repos/$org.$repo.tsx",
       "parent": "/_authenticated/_app"
     }
   }

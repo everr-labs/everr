@@ -49,15 +49,20 @@ export default tseslint.config(
 		},
 		extends: [
 			eslint.configs.recommended,
-			...tseslint.configs.recommended,
 			...tseslint.configs.recommendedTypeChecked,
+			...tseslint.configs.strictTypeChecked,
 			...tseslint.configs.stylisticTypeChecked,
 		],
 		rules: {
 			...turboPlugin.configs.recommended.rules,
 			'@typescript-eslint/no-unused-vars': [
 				'error',
-				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+				{
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_',
+					reportUsedIgnorePattern: true,
+				},
 			],
 			'@typescript-eslint/consistent-type-imports': [
 				'warn',
@@ -71,6 +76,12 @@ export default tseslint.config(
 				'error',
 				{
 					allowConstantLoopConditions: true,
+				},
+			],
+			'@typescript-eslint/restrict-template-expressions': [
+				'error',
+				{
+					allowNumber: true,
 				},
 			],
 			'@typescript-eslint/no-non-null-assertion': 'error',

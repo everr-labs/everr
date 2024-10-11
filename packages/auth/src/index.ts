@@ -55,13 +55,13 @@ export async function signIn<
 		isCredentials ? 'callback' : 'signin'
 	}/${providerId}`;
 
-	const _signInUrl = `${signInUrl}?${new URLSearchParams(authorizationParams)}`;
+	const fullSignInUrl = `${signInUrl}?${new URLSearchParams(authorizationParams)}`;
 
 	// TODO: Handle custom base path
 	const csrfTokenResponse = await fetch('/api/auth/csrf');
 	const { csrfToken } = (await csrfTokenResponse.json()) as CSRFResponse;
 
-	const res = await fetch(_signInUrl, {
+	const res = await fetch(fullSignInUrl, {
 		method: 'post',
 		headers: {
 			'Content-Type': 'application/x-www-form-urlencoded',

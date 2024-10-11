@@ -6,9 +6,9 @@ import { RangePicker } from '@/components/RangePicker';
 import { useTimeRange } from '@/components/TimeRangeContext';
 import { shortDuration } from '@/lib/datetime';
 import { api } from '@/utils/trpc';
-import { createFileRoute } from '@tanstack/react-router';
+import { SiGithub } from '@icons-pack/react-simple-icons';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { format, formatRelative, parseISO } from 'date-fns';
-import { GithubIcon } from 'lucide-react';
 import { Area, AreaChart, XAxis } from 'recharts';
 
 import type { ChartConfig } from '@citric/ui';
@@ -141,14 +141,20 @@ const columns: ColumnDef<Data>[] = [
 		header: 'Repo',
 		cell: ({
 			row: {
-				original: { repo },
+				original: { repo: slug },
 			},
 		}) => {
+			const [org, repo] = slug.split('/') as [string, string];
 			return (
-				<div className="flex items-center whitespace-nowrap">
-					<GithubIcon className="mr-1 h-4 w-4" />
-					{repo}
-				</div>
+				<Link
+					to="/repos/$org/$repo"
+					from="/"
+					params={{ org, repo }}
+					className="flex items-center"
+				>
+					<SiGithub className="mr-1 h-4 w-4" />
+					{org}/{repo}
+				</Link>
 			);
 		},
 	},
