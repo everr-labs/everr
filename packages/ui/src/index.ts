@@ -40,6 +40,7 @@ export * from './icon';
 export * from './input';
 
 export * from './label';
+export * from './link';
 
 export * from './marquee';
 export * from './menubar';

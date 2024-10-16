@@ -1,10 +1,8 @@
-'use client';
-
 import { useState } from 'react';
 import { ArrowRightIcon, Menu } from 'lucide-react';
 
 import {
-	Button,
+	Link,
 	NavigationMenu,
 	NavigationMenuItem,
 	NavigationMenuLink,
@@ -27,7 +25,7 @@ const routeList: RouteProps[] = [
 		label: 'Pricing',
 	},
 	{
-		href: '#faqs',
+		href: '/#faqs',
 		label: 'FAQs',
 	},
 	{
@@ -65,15 +63,15 @@ export const Navbar = () => {
 						<div>
 							<div className="flex flex-col gap-2">
 								{routeList.map(({ href, label }) => (
-									<Button
+									<Link
 										key={href}
 										onClick={() => setIsOpen(false)}
-										asChild
 										variant="ghost"
 										className="justify-start text-base"
+										href={href}
 									>
-										<a href={href}>{label}</a>
-									</Button>
+										{label}
+									</Link>
 								))}
 							</div>
 						</div>
@@ -94,20 +92,15 @@ export const Navbar = () => {
 					</NavigationMenuItem>
 				</NavigationMenuList>
 			</NavigationMenu>
-			<Button
-				asChild
+			<Link
 				variant="default"
 				className="group/arrow hidden items-center font-bold lg:flex"
+				href={import.meta.env.APP_URL}
+				target="_blank"
 			>
-				<a
-					// TODO: Link to app
-					href="/"
-					target="_blank"
-				>
-					Join the beta
-					<ArrowRightIcon className="ml-2 inline size-5 transition-transform group-hover/arrow:translate-x-1" />
-				</a>
-			</Button>
+				Get started
+				<ArrowRightIcon className="ml-2 inline size-5 transition-transform group-hover/arrow:translate-x-1" />
+			</Link>
 		</header>
 	);
 };
