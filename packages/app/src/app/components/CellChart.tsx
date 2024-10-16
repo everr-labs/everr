@@ -1,10 +1,11 @@
+import type { AxisDomain } from 'recharts/types/util/types';
 import { shortDuration } from '@/lib/datetime';
 import {
 	DashIcon,
 	TriangleDownIcon,
 	TriangleUpIcon,
 } from '@radix-ui/react-icons';
-import { Area, AreaChart } from 'recharts';
+import { Area, AreaChart, YAxis } from 'recharts';
 
 import type { ChartConfig } from '@citric/ui';
 import { ChartContainer, cn } from '@citric/ui';
@@ -31,6 +32,7 @@ interface Props {
 	 */
 	negativeDeltaIsBetter?: boolean;
 	className?: string;
+	domain?: AxisDomain;
 }
 
 export function CellChart({
@@ -40,6 +42,7 @@ export function CellChart({
 	format,
 	deltaFormat,
 	negativeDeltaIsBetter = false,
+	domain,
 }: Props) {
 	const stringValue = getStringValue(value, format);
 	const delta = getDelta(prevValue, value, deltaFormat);
@@ -47,7 +50,7 @@ export function CellChart({
 	return (
 		<div className="relative flex items-center justify-center">
 			<ChartContainer config={chartConfig} className="h-16 w-full">
-				<AreaChart data={data} margin={{ bottom: 0, top: 2 }}>
+				<AreaChart data={data} margin={{ bottom: 0, top: 8 }}>
 					<defs>
 						<linearGradient id="fillColor" x1="0" y1="0" x2="0" y2="1">
 							<stop
@@ -62,6 +65,7 @@ export function CellChart({
 							/>
 						</linearGradient>
 					</defs>
+					<YAxis domain={domain} hide />
 					<Area
 						isAnimationActive={false}
 						dataKey="value"

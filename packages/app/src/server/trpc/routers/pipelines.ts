@@ -84,27 +84,6 @@ export const pipelinesRouter = createTRPCRouter({
 				}
 			}
 
-			// const data = result.reduce<Array<A>>((prev, curr) => {
-			// 	const previousEntry = prev[prev.length - 1];
-
-			// 	if (previousEntry?.time === curr.time) {
-			// 		// TODO: the price should be based on curr.label
-			// 		previousEntry[curr.repo] =
-			// 			(previousEntry[curr.repo] ?? 0) + curr.value * 0.04;
-
-			// 		return prev;
-			// 	}
-
-			// 	return [
-			// 		...prev,
-			// 		{
-			// 			time: curr.time,
-			// 			// TODO: the price should be based on curr.label
-			// 			[curr.repo]: curr.value * 0.04,
-			// 		},
-			// 	];
-			// }, []);
-
 			return r;
 		}),
 
@@ -128,7 +107,7 @@ export const pipelinesRouter = createTRPCRouter({
 						avg_duration_all: number | null;
 						last_run_time: string;
 					}>({
-						query: `SELECT
+						query: `SELECT 
 											repo,
 											count() AS total_runs,
 											max(timestamp) AS last_run_time,
@@ -149,7 +128,7 @@ export const pipelinesRouter = createTRPCRouter({
 						},
 					}),
 					clickhouse.query<{ total: number }>({
-						query: `SELECT
+						query: `SELECT 
 											COUNT(DISTINCT repo)::Int32 as total
 										FROM
 											pipelines_mv
@@ -169,7 +148,7 @@ export const pipelinesRouter = createTRPCRouter({
 		.input(z.object({ range: Range, repo: z.string() }))
 		.query(async ({ input: { range, repo }, ctx: { clickhouse } }) => {
 			const result = await clickhouse.query<DataPoint>({
-				query: `SELECT
+				query: `SELECT 
 							toStartOfInterval(timestamp, toIntervalDay(1)) AS time,
 							avg(duration) as value
 						FROM
@@ -204,7 +183,7 @@ export const pipelinesRouter = createTRPCRouter({
 				  }
 				| undefined
 			>({
-				query: `SELECT
+				query: `SELECT 
 							avg(duration) as value
 						FROM
 							pipelines_mv
@@ -225,14 +204,15 @@ export const pipelinesRouter = createTRPCRouter({
 	getSuccessRateSeries: protectedProcedure
 		.input(z.object({ range: Range, repo: z.string() }))
 		.query(async ({ input: { range, repo }, ctx: { clickhouse } }) => {
-			const result = clickhouse.query<{ time: string; value: number }>({
-				query: `SELECT
+			const result = await clickhouse.query<{ time: string; value: number }>({
+				query: `SELECT 
 	  							toStartOfInterval(timestamp, toIntervalDay(1)) AS time,
 									round((sumIf(1, status = 'success') / count()) * 100, 2) AS value
 							FROM
 									pipelines_mv
 							WHERE
 									timestamp BETWEEN parseDateTimeBestEffort({from:String}) AND parseDateTimeBestEffort({to:String})
+									AND repo = {repo:String}
 							GROUP BY ALL
 							ORDER BY time
 							WITH FILL
@@ -248,98 +228,4 @@ export const pipelinesRouter = createTRPCRouter({
 
 			return result;
 		}),
-
-	// get: protectedProcedure
-	// 	.input(z.string().min(1))
-	// 	.query(async ({ input: id }) => {
-	// 		const result = await clickhouse.query({
-	// 			query: `SELECT
-	// 			Timestamp,
-	// 			TraceId,
-	// 			SpanId,
-	// 			ParentSpanId,
-	// 			SpanName,
-	// 			SpanKind,
-	// 			ServiceName,
-	// 			Duration::Int64 as Duration,
-	// 			StatusCode,
-	// 			StatusMessage,
-	// 			SpanAttributes,
-	// 			ResourceAttributes,
-	// 			Events.Name,
-	// 			Links.TraceId
-	// 		FROM
-	// 			otel_traces
-	// 		WHERE
-	// 			TraceId = {id:String}
-	// 		ORDER BY
-	// 			Timestamp ASC,
-	// 			SpanAttributes['ci.github.workflow.job.step.number'] ASC;
-	// 		`,
-	// 			params: {
-	// 				id,
-	// 			},
-	// 		});
-
-	// 		return result;
-	// 	}),
-
-	// getLatest: protectedProcedure
-	// 	.input(
-	// 		PaginatedData.extend({
-	// 			range: Range,
-	// 		}),
-	// 	)
-	// 	.query(async ({ input: { pageSize, pageIndex, range } }) => {
-	// 		const result = await Promise.all([
-	// 			// data
-	// 			clickhouse.query({
-	// 				query: `SELECT
-	// 				Timestamp,
-	// 				TraceId,
-	// 				SpanId,
-	// 				ParentSpanId,
-	// 				SpanName,
-	// 				SpanKind,
-	// 				ServiceName,
-	// 				Duration::Int64 as Duration,
-	// 				StatusCode,
-	// 				StatusMessage,
-	// 				SpanAttributes,
-	// 				ResourceAttributes,
-	// 				Events.Name,
-	// 				Links.TraceId
-	// 			FROM
-	// 				otel_traces
-	// 			WHERE
-	// 				ParentSpanId = ''
-	// 				AND Timestamp >= parseDateTimeBestEffort({from:String})
-	// 				AND Timestamp <= parseDateTimeBestEffort({to:String})
-	// 			ORDER BY
-	// 				Timestamp DESC
-	// 			LIMIT {pageSize:UInt32}
-	// 			OFFSET {pageIndex:UInt32} * {pageSize:UInt32};`,
-	// 				params: {
-	// 					pageSize,
-	// 					pageIndex,
-	// 					...range,
-	// 				},
-	// 			}),
-
-	// 			// Pagination
-	// 			clickhouse.query<{ total: number }>({
-	// 				query: `SELECT
-	// 					COUNT(*)::Int32 as total
-	// 				FROM
-	// 					otel_traces
-	// 				WHERE
-	// 					ParentSpanId = ''
-	// 					AND Timestamp >= parseDateTimeBestEffort({from:String})
-	// 					AND Timestamp <= parseDateTimeBestEffort({to:String});`,
-	// 				params: range,
-	// 			}),
-	// 		]);
-
-	// 		return { data: result[0], total: result[1][0]?.total ?? 0 };
-	// 	}),
 });

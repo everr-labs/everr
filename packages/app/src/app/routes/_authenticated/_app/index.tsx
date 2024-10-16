@@ -246,6 +246,11 @@ function SuccessRateCell({
 		repo,
 	});
 	return (
-		<CellChart data={result.data ?? []} value={success_rate} format="percent" />
+		<CellChart
+			data={result.data ?? []}
+			value={success_rate}
+			format="percent"
+			domain={[0, 100]}
+		/>
 	);
 }

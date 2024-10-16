@@ -1,4 +1,4 @@
-import { UserMenu } from '@/components/usermenu';
+import { UserMenu } from '@/components/UserMenu';
 import { Link } from '@tanstack/react-router';
 import {
 	CitrusIcon,
