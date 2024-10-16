@@ -3,70 +3,82 @@ import {
 	AccordionContent,
 	AccordionItem,
 	AccordionTrigger,
+	Button,
 } from '@citric/ui';
 
 interface FAQProps {
 	question: string;
 	answer: string;
-	value: string;
 }
 
 const FAQList: FAQProps[] = [
 	{
-		question: 'Is this template free?',
-		answer: 'Yes. It is a free NextJS Shadcn template.',
-		value: 'item-1',
-	},
-	{
-		question: 'Duis aute irure dolor in reprehenderit in voluptate velit?',
+		question: 'What CI/CD providers does Citric support?',
 		answer:
-			'Lorem ipsum dolor sit amet, consectetur adipisicing elit. Sint labore quidem quam consectetur sapiente, iste rerum reiciendis animi nihil nostrum sit quo, modi quod.',
-		value: 'item-2',
+			'We currently support GitHub Actions and are working to expand to other major CI/CD providers like GitLab, CircleCI, and Jenkins in the near future.',
 	},
 	{
-		question:
-			'Lorem ipsum dolor sit amet Consectetur natus dolor minus quibusdam?',
+		question: 'Can I track the cost of my CI/CD pipelines?',
 		answer:
-			'Lorem ipsum dolor sit amet consectetur, adipisicing elit. Labore qui nostrum reiciendis veritatis.',
-		value: 'item-3',
+			'Yes, our platform provides detailed cost tracking, breaking down the expenses of your pipelines by jobs, steps, and repositories, allowing you to optimize for cost-efficiency.',
 	},
 	{
-		question: 'Excepteur sint occaecat cupidata non proident sunt?',
-		answer: 'Lorem ipsum dolor sit amet consectetur, adipisicing elit.',
-		value: 'item-4',
+		question: 'Can I monitor failure rates across branches and jobs?',
+		answer:
+			'Absolutely! You can monitor failure rates at multiple levels—by branch, job, or even specific steps—so you can quickly pinpoint where issues are happening.',
 	},
 	{
-		question:
-			'Enim ad minim veniam, quis nostrud exercitation ullamco laboris?',
-		answer: 'consectetur adipisicing elit. Sint labore.',
-		value: 'item-5',
+		question: 'How secure is the data collected by the Citric?',
+		answer:
+			'We take security very seriously. We follow industry best practices to ensure your data is safe. Additionally, we do not sell any data to third parties, and you can request data deletion at any time.',
+	},
+	{
+		question: 'What kind of metrics does your platform track?',
+		answer:
+			'In addition to tracking performance and failure rates, we provide DORA metrics, step-level analysis, job-level performance, and detailed cost breakdowns, all designed to give you a holistic view of your CI/CD pipeline health.',
+	},
+	{
+		question: 'Can I try Citric for free?',
+		answer:
+			'Not yet, but we are planning to offer a free tier in the future. In the meantime, you can sign up for our beta program to get early access and provide feedback to help shape the platform.',
 	},
 ];
 
 export function FAQs() {
 	return (
-		<section id="faq" className="container py-24 sm:py-32 md:w-[700px]">
-			<div className="mb-8 text-center">
+		<section id="faqs" className="container py-24 sm:py-32 md:w-[900px]">
+			<div className="mb-8">
 				<h2 className="mb-2 text-center text-lg tracking-wider text-primary">
 					FAQs
 				</h2>
-
 				<h2 className="text-center text-3xl font-bold md:text-4xl">
 					Common Questions
 				</h2>
 			</div>
+			<div className="w-full gap-4 lg:flex">
+				<div className="mb-8 text-center lg:w-2/5 lg:text-left">
+					<h3 className="mb-4 text-2xl">Can't find your answer? </h3>
+					<Button variant="secondary" asChild size="lg">
+						<a
+							// TODO: Add href to contact page
+							href="#contact"
+						>
+							Contact us
+						</a>
+					</Button>
+				</div>
+				<Accordion type="single" collapsible className="lg:w-3/5">
+					{FAQList.map(({ question, answer }, i) => (
+						<AccordionItem key={i} value={`${i}`}>
+							<AccordionTrigger className="text-left">
+								{question}
+							</AccordionTrigger>
 
-			<Accordion type="single" collapsible className="AccordionRoot">
-				{FAQList.map(({ question, answer, value }) => (
-					<AccordionItem key={value} value={value}>
-						<AccordionTrigger className="text-left">
-							{question}
-						</AccordionTrigger>
-
-						<AccordionContent>{answer}</AccordionContent>
-					</AccordionItem>
-				))}
-			</Accordion>
+							<AccordionContent>{answer}</AccordionContent>
+						</AccordionItem>
+					))}
+				</Accordion>
+			</div>
 		</section>
 	);
 }

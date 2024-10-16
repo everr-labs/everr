@@ -1,3 +1,5 @@
+import { SiGithub, SiLinkedin, SiX } from '@icons-pack/react-simple-icons';
+
 import { Logo } from './Logo';
 
 export const Footer = () => {
@@ -12,43 +14,33 @@ export const Footer = () => {
 					</div>
 
 					<div className="flex flex-col gap-2">
-						<h3 className="text-lg font-bold">Contact</h3>
+						<h3 className="text-lg font-bold">Connect</h3>
 						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								Github
+							<a
+								href="#"
+								className="flex items-center opacity-60 hover:opacity-100"
+							>
+								<SiGithub className="mr-2 size-4" />
+								GitHub
 							</a>
 						</div>
 
 						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								Twitter
+							<a
+								href="#"
+								className="flex items-center opacity-60 hover:opacity-100"
+							>
+								<SiX className="mr-2 size-4" />X / Twitter
 							</a>
 						</div>
 
 						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								Instagram
-							</a>
-						</div>
-					</div>
-
-					<div className="flex flex-col gap-2">
-						<h3 className="text-lg font-bold">Platforms</h3>
-						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								iOS
-							</a>
-						</div>
-
-						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								Android
-							</a>
-						</div>
-
-						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								Web
+							<a
+								href="#"
+								className="flex items-center opacity-60 hover:opacity-100"
+							>
+								<SiLinkedin className="mr-2 size-4" />
+								LinkedIn
 							</a>
 						</div>
 					</div>
@@ -56,29 +48,14 @@ export const Footer = () => {
 					<div className="flex flex-col gap-2">
 						<h3 className="text-lg font-bold">Help</h3>
 						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
+							<a href="/contact-us" className="opacity-60 hover:opacity-100">
 								Contact Us
 							</a>
 						</div>
 
 						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
+							<a href="/#faqs" className="opacity-60 hover:opacity-100">
 								FAQ
-							</a>
-						</div>
-
-						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								Feedback
-							</a>
-						</div>
-					</div>
-
-					<div className="flex flex-col gap-2">
-						<h3 className="text-lg font-bold">Socials</h3>
-						<div>
-							<a href="#" className="opacity-60 hover:opacity-100">
-								Twitter / X
 							</a>
 						</div>
 					</div>

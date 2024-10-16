@@ -11,7 +11,7 @@ export function Hero() {
 						<span className="mr-2 text-primary">
 							<Badge>New</Badge>
 						</span>
-						<span> GitHub Actions intgration </span>
+						<span>GitHub Actions integration</span>
 					</Badge>
 
 					<div className="mx-auto max-w-screen-md text-center text-4xl font-bold md:text-6xl">
@@ -25,22 +25,23 @@ export function Hero() {
 					</div>
 
 					<p className="mx-auto max-w-screen-sm text-xl text-muted-foreground">
-						{`We're more than just a tool, we're a community of passionate
-            creators. Get access to exclusive resources, tutorials, and support.`}
+						Take control of your CI/CD health — detailed performance tracking,
+						failure analysis, and cost monitoring all in one platform.
 					</p>
 
 					<div className="space-y-4 md:space-x-4 md:space-y-0">
-						<Button className="group/arrow w-5/6 font-bold md:w-1/4">
+						<Button className="group/arrow w-5/6 font-bold md:w-1/4" size="lg">
 							Join the beta
 							<ArrowRight className="ml-2 size-5 transition-transform group-hover/arrow:translate-x-1" />
 						</Button>
 
 						<Button
-							asChild
 							variant="secondary"
 							className="w-5/6 font-bold md:w-1/4"
+							disabled
+							size="lg"
 						>
-							<Button disabled>Docs (coming soon)</Button>
+							Docs (coming soon)
 						</Button>
 					</div>
 				</div>
