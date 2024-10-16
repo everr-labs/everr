@@ -11,7 +11,7 @@ concurrency:
 
 on:
   pull_request:
-    branches: [main, next]
+    branches: [main]
     paths:
       - .github/**
       - collector/**
@@ -19,7 +19,7 @@ on:
       - .golangci.yaml
 
   push:
-    branches: [main, next]
+    branches: [main]
 
 jobs:
   install-tools:

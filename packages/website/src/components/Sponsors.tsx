@@ -8,42 +8,42 @@ interface sponsorsProps {
 
 const sponsors: sponsorsProps[] = [
 	{
-		image: '/public/meetwithwallet.svg',
+		image: '/meetwithwallet.svg',
 		name: 'Meet with Wallet',
 		showName: true,
 	},
 	{
-		image: '/public/zenklub.svg',
+		image: '/zenklub.svg',
 		name: 'Zenklub',
 		showName: false,
 	},
 	{
-		image: '/public/meetwithwallet.svg',
+		image: '/meetwithwallet.svg',
 		name: 'Meet with Wallet',
 		showName: true,
 	},
 	{
-		image: '/public/zenklub.svg',
+		image: '/zenklub.svg',
 		name: 'Zenklub',
 		showName: false,
 	},
 	{
-		image: '/public/meetwithwallet.svg',
+		image: '/meetwithwallet.svg',
 		name: 'Meet with Wallet',
 		showName: true,
 	},
 	{
-		image: '/public/zenklub.svg',
+		image: '/zenklub.svg',
 		name: 'Zenklub',
 		showName: false,
 	},
 	{
-		image: '/public/meetwithwallet.svg',
+		image: '/meetwithwallet.svg',
 		name: 'Meet with Wallet',
 		showName: true,
 	},
 	{
-		image: '/public/zenklub.svg',
+		image: '/zenklub.svg',
 		name: 'Zenklub',
 		showName: false,
 	},
