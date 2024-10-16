@@ -1,0 +1,159 @@
+name: Build and Test
+defaults:
+  run:
+    working-directory: ./collector
+
+concurrency:
+  # For pushes, this lets concurrent runs happen, so each push gets a result.
+  # But for other events (e.g. PRs), we can cancel the previous runs.
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main, next]
+    paths:
+      - .github/**
+      - collector/**
+      # TODO: check if we need to move this to the root of the repo
+      - .golangci.yaml
+
+  push:
+    branches: [main, next]
+
+jobs:
+  install-tools:
+    name: Install Tools
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache: false
+
+      - name: Cache Go and Tools
+        id: cache
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ./collector/.tools
+          key: go-cache-${{ hashFiles('**/go.sum') }}
+
+      - name: Make install-tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: make install-tools
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: install-tools
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache: false
+
+      - name: Cache Go
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ./collector/.tools
+          key: go-cache-${{ hashFiles('**/go.sum') }}
+          fail-on-cache-miss: true
+
+      - name: Make lint-all
+        run: make lint-all
+
+      - name: Check formatting
+        run: |
+          make fmt-all
+          git diff -s --exit-code || (echo 'Code is not formatted. Run make fmt-all and commit the changes' && exit 1)
+
+      - name: Check Code Generation
+        run: |
+          make generate
+          git diff -s --exit-code || (echo 'Generated code is out of date. Run make generate and commit the changes' && exit 1)
+
+      - name: Check packages are up-to-date
+        run: |
+          make tidy-all
+          git diff -s --exit-code || (echo 'Packages are out of date. Run make tidy-all and commit the changes' && exit 1)
+
+      - name: Check crosslink run
+        run: |
+          make crosslink
+          git diff -s --exit-code || (echo 'Replace statements not updated. Run make crosslink and commit the changes' && exit 1)
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: install-tools
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache: false
+
+      - name: Cache Go
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ./collector/.tools
+          key: go-cache-${{ hashFiles('**/go.sum') }}
+          fail-on-cache-miss: true
+
+      - name: Make build
+        run: make build
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: install-tools
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache: false
+
+      - name: Cache Go
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ./collector/.tools
+          key: go-cache-${{ hashFiles('**/go.sum') }}
+          fail-on-cache-miss: true
+
+      - name: Make test-all
+        run: make test-all
