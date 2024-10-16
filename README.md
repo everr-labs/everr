@@ -1,3 +1,5 @@
+# Citric
+
 ## Development
 
 ### Set up `devtunnels`
@@ -19,6 +21,9 @@ docker-compose up -d
 ```
 
 ### Run the app
+
+> [!NOTE]  
+> When running the app for the first time you need to push the db schema to postgres. You can do this by running `pnpm db:push` inside the `packages/app` directory.
 
 ```bash
 pnpm dev

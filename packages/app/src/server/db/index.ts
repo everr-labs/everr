@@ -1,12 +1,9 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { drizzle } from 'drizzle-orm/node-postgres';
 
 import { env } from '../../env';
 import { accounts, sessions, users, verificationTokens } from './schema';
 
-const sqlite = new Database(env.DATABASE_URL);
-
-export const db = drizzle(sqlite, {
+export const db = drizzle(env.DATABASE_URL, {
 	schema: {
 		users,
 		accounts,
