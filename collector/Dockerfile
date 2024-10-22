@@ -1,6 +1,6 @@
 # STAGE 1 - build
 FROM golang:1.23.2-alpine3.20 as build
-WORKDIR /src
+WORKDIR .
 
 COPY . .
 
