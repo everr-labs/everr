@@ -1,6 +1,6 @@
 # STAGE 1 - build
-FROM golang:1.23.2-alpine3.20 as build
-WORKDIR .
+FROM golang:1.23.2-alpine3.20 AS build
+WORKDIR /collector
 
 COPY . .
 
@@ -11,7 +11,7 @@ RUN make build
 # STAGE 2 - final image
 FROM scratch
 
-ARG BIN_PATH=/src/build/ci-otelcol
+ARG BIN_PATH=/collector/build/ci-otelcol
 
 ARG UID=10001
 USER ${UID}
