@@ -25,6 +25,7 @@ import {
 
 export const Route = createFileRoute('/_authenticated/_app/')({
 	component: Index,
+	// TODO: all the data loading here should probably be done in the loader
 });
 
 function Index() {
