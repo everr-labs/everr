@@ -5,19 +5,15 @@
 	"type": "module",
 	"exports": {
 		".": {
-			"types": "./dist/src/index.d.ts",
 			"default": "./src/index.ts"
 		}
 	},
 	"license": "MIT",
 	"scripts": {
-		"build": "tsc",
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
-		"dev": "tsc",
 		"format": "prettier --check . --ignore-path ../../.gitignore",
 		"lint": "eslint",
-		"typecheck": "tsc --noEmit --emitDeclarationOnly false",
-		"ui-add": "pnpm dlx shadcn@latest add && prettier src --write --list-different"
+		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^3.9.0",
