@@ -2,6 +2,9 @@ import { ArrowRight } from 'lucide-react';
 
 import { Badge, Button } from '@citric/ui';
 
+import heroImage from '../img/screenshot.png';
+import { GradientText } from './ui/gradient-text';
+
 export function Hero() {
 	return (
 		<section className="container w-full">
@@ -17,10 +20,7 @@ export function Hero() {
 					<div className="mx-auto max-w-screen-md text-center text-4xl font-bold md:text-6xl">
 						<h1>
 							Pipelines visibility,{' '}
-							<span className="whitespace-nowrap bg-gradient-to-r from-accent2 to-primary bg-clip-text text-transparent">
-								made simple
-							</span>
-							.
+							<GradientText className="text-nowrap">made simple</GradientText>.
 						</h1>
 					</div>
 
@@ -40,8 +40,9 @@ export function Hero() {
 							className="w-5/6 font-bold md:w-1/4"
 							disabled
 							size="lg"
+							asChild
 						>
-							Docs (coming soon)
+							<a href={import.meta.env.VITE_DOCS_URL}>Documentation</a>
 						</Button>
 					</div>
 				</div>
@@ -52,7 +53,7 @@ export function Hero() {
 						width={1200}
 						height={600}
 						className="rouded-lg relative mx-auto flex w-full items-center rounded-lg border border-t-2 border-secondary border-t-primary/30 leading-none md:w-[1200px]"
-						src={'https://placedog.net/1200/600'}
+						src={heroImage.src}
 						alt="dashboard"
 					/>
 

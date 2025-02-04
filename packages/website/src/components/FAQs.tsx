@@ -40,7 +40,8 @@ const FAQList: FAQProps[] = [
 	{
 		question: 'Can I try Citric for free?',
 		answer:
-			'Not yet, but we are planning to offer a free tier in the future. In the meantime, you can sign up for our beta program to get early access and provide feedback to help shape the platform.',
+			// 'Not yet, but we are planning to offer a free tier in the future. In the meantime, you can sign up for our beta program to get early access and provide feedback to help shape the platform.',
+			'Citric is completeley free while in beta, you can sign up for our beta program to get early access and provide feedback to help shape the platform.',
 	},
 ];
 
@@ -48,20 +49,20 @@ export function FAQs() {
 	return (
 		<section id="faqs" className="container py-24 sm:py-32 md:w-[900px]">
 			<div className="mb-8">
-				<h2 className="mb-2 text-center text-lg tracking-wider text-primary">
+				<h2 className="mb-2 text-center text-lg font-bold tracking-wider text-primary">
 					FAQs
 				</h2>
 				<h2 className="text-center text-3xl font-bold md:text-4xl">
-					Common Questions
+					Common questions
 				</h2>
 			</div>
 			<div className="w-full gap-4 lg:flex">
 				<div className="mb-8 text-center lg:w-2/5 lg:text-left">
-					<h3 className="mb-4 text-2xl">Can't find your answer? </h3>
+					<h3 className="mb-4 text-2xl">Can't find the answer?</h3>
 					<Button variant="secondary" asChild size="lg">
 						<a
 							// TODO: Add href to contact page
-							href="#contact"
+							href="/contact-us"
 						>
 							Contact us
 						</a>

@@ -1,0 +1,43 @@
+{
+	"$schema": "https://mintlify.com/schema.json",
+	"name": "Citric documentation",
+	"favicon": "/favicon.svg",
+	"colors": {
+		"primary": "#D247BF",
+		"light": "#FACC15",
+		"dark": "#D247BF",
+		"background": {
+			"dark": "#0C0A09"
+		},
+		"anchors": {
+			"from": "#D247BF",
+			"to": "#FACC15"
+		}
+	},
+	"topbarLinks": [],
+	"anchors": [
+		{
+			"name": "community",
+			"icon": "discord",
+			"url": "https://discord.gg/djNRYGN7"
+		}
+	],
+	"navigation": [
+		{
+			"group": "Get Started",
+			"pages": ["introduction", "quickstart"]
+		}
+	],
+	"background": {
+		"style": "grid"
+	},
+	"layout": "topnav",
+	"modeToggle": { "default": "dark", "isHidden": true },
+	"theme": "prism",
+	"footerSocials": {
+		"website": "http://localhost:3232",
+		"x": "http://localhost:3232",
+		"github": "http://localhost:3232",
+		"discord": "https://discord.gg/djNRYGN7"
+	}
+}

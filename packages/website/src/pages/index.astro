@@ -2,23 +2,19 @@
 import Layout from '../layouts/Layout.astro';
 import { Hero } from '../components/Hero';
 import { Sponsors } from '../components/Sponsors';
-import { Benefits } from '../components/Benefits';
-import { Features } from '../components/Features';
-import { Services } from '../components/Services';
-import { Testimonial } from '../components/Testimonial';
-import { Community } from '../components/Community';
-import { Pricing } from '../components/Pricing';
+import { Solution } from '../components/solution';
+
+import { CTA } from '../components/cta';
 import { FAQs } from '../components/FAQs';
+import { Problem } from '../components/problem';
 ---
 
 <Layout title="Home">
 	<Hero />
 	<Sponsors />
-	<Benefits />
-	<Features />
-	<Services />
-	<Testimonial client:visible/>
-	<Community />
-	<Pricing client:visible />
+	<Problem />
+	<Solution client:visible />
+
+	<CTA client:visible/>
 	<FAQs client:visible/>
 </Layout>

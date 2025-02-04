@@ -1,12 +1,27 @@
+import { forwardRef } from 'react';
 import { CitrusIcon } from 'lucide-react';
 
-export function Logo() {
-	return (
-		<>
-			<span className="mr-2 grid size-9 place-items-center rounded-lg border border-secondary bg-gradient-to-tr from-primary via-primary/70 to-primary text-primary-foreground">
-				<CitrusIcon className="size-6" />
-			</span>
-			Citric
-		</>
-	);
+import { cn } from '@citric/ui';
+
+interface Props {
+	iconOnly?: boolean;
+	logoClassName?: string;
+	className?: string;
 }
+export const Logo = forwardRef<HTMLDivElement, Props>(
+	({ iconOnly = false, logoClassName, className }, ref) => {
+		return (
+			<div ref={ref} className={cn('flex place-items-center', className)}>
+				<span
+					className={cn(
+						'grid size-9 place-items-center rounded-lg border border-secondary bg-gradient-to-tr from-accent2 to-primary p-1 text-primary-foreground',
+						logoClassName,
+					)}
+				>
+					<CitrusIcon className="h-full w-full" />
+				</span>
+				{!iconOnly && <span className="ml-2">Citric</span>}
+			</div>
+		);
+	},
+);

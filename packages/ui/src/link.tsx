@@ -1,18 +1,38 @@
-import type { AnchorHTMLAttributes, ReactNode } from 'react';
+import type { VariantProps } from 'class-variance-authority';
+import type { AnchorHTMLAttributes } from 'react';
+import { forwardRef } from 'react';
+import { cva } from 'class-variance-authority';
 
-import type { ButtonProps } from './button';
-import { Button } from './button';
+export const linkVariants = cva('', {
+	variants: {
+		variant: {
+			default: 'text-primary underline hover:text-primary/90',
+			secondary: 'text-secondary-foreground underline',
+			disabled: 'cursor-not-allowed text-muted-foreground',
+		},
+	},
+	defaultVariants: {
+		variant: 'default',
+	},
+});
 
-export interface LinkProps extends ButtonProps {
-	href: string;
-	children: ReactNode;
-	target?: AnchorHTMLAttributes<HTMLAnchorElement>['target'];
+interface LinkProps
+	extends AnchorHTMLAttributes<HTMLAnchorElement>,
+		VariantProps<typeof linkVariants> {
+	className?: string;
 }
 
-export function Link({ href, children, ...props }: LinkProps) {
-	return (
-		<Button {...props} asChild>
-			<a href={href}>{children}</a>
-		</Button>
-	);
-}
+export const Link = forwardRef(
+	(
+		{ variant, className, ...props }: LinkProps,
+		ref: React.ForwardedRef<HTMLAnchorElement>,
+	) => {
+		return (
+			<a
+				{...props}
+				ref={ref}
+				className={linkVariants({ variant, className })}
+			/>
+		);
+	},
+);

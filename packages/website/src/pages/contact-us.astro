@@ -1,6 +1,6 @@
 ---
+import { Link } from '@citric/ui';
 import Layout from '../layouts/Layout.astro';
-import { Link}  from '@citric/ui'
 ---
 
 <Layout title="Contact Us">
@@ -8,8 +8,8 @@ import { Link}  from '@citric/ui'
     <h1>Contact Us</h1>
     <p class="text-lg mt-4 text-muted-foreground">Get in touch by emailing us directly</p>
 
-    <Link size="lg" href="mailto:hello@citric.app" className="font-bold mt-4">
-      hello@citric.app
-    </Link>
+      <Link  href="mailto:hello@citric.app" className="font-bold mt-4">
+        hello@citric.app
+      </Link>
   </div>
 </Layout>

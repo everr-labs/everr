@@ -1,3 +1,10 @@
+extensions:
+  basicauth/grafana_cloud:
+    # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/basicauthextension
+    client_auth:
+      username: '12345'
+      password: 'TOKEN'
+
 receivers:
   githubactions:
     path: /webhook/github
@@ -39,21 +46,26 @@ exporters:
     database: 'default'
     # TODO: double check the following
     async_insert: false
+  otlphttp/grafana_cloud:
+    endpoint: 'https://otlp-gateway-prod-us-central-0.grafana.net/otlp'
+    auth:
+      authenticator: basicauth/grafana_cloud
 
 service:
+  extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
       receivers: [otlp, githubactions]
       processors: [resource]
-      exporters: [spanmetrics, clickhouse, debug]
+      exporters: [spanmetrics, clickhouse, otlphttp/grafana_cloud, debug]
     logs:
       receivers: [otlp, githubactions]
       processors: []
-      exporters: [clickhouse, debug]
+      exporters: [clickhouse, otlphttp/grafana_cloud, debug]
     metrics:
       receivers: [spanmetrics]
       processors: []
-      exporters: [clickhouse, debug]
+      exporters: [clickhouse, otlphttp/grafana_cloud, debug]
 
   telemetry:
     metrics:

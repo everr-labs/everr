@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { ArrowRightIcon, Menu } from 'lucide-react';
 
 import {
-	Link,
+	Button,
+	buttonVariants,
+	cn,
 	NavigationMenu,
 	NavigationMenuItem,
 	NavigationMenuLink,
@@ -21,16 +23,8 @@ interface RouteProps {
 
 const routeList: RouteProps[] = [
 	{
-		href: '#pricing',
-		label: 'Pricing',
-	},
-	{
 		href: '/#faqs',
 		label: 'FAQs',
-	},
-	{
-		href: '/blog',
-		label: 'Blog',
 	},
 	{
 		href: '/contact-us',
@@ -42,7 +36,7 @@ export const Navbar = () => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
-		<header className="sticky top-5 z-40 mx-auto flex w-[90%] items-center justify-between rounded-2xl border bg-card/50 p-2 shadow-inner backdrop-blur-md md:w-[70%] lg:w-[75%] lg:max-w-screen-xl">
+		<header className="sticky top-5 z-40 mx-auto flex w-[90%] items-center justify-between rounded-2xl border bg-card/50 p-2 shadow-inner backdrop-blur-md md:grid md:w-[70%] md:grid-cols-3 lg:w-[75%] lg:max-w-screen-xl">
 			<a href="/" className="flex items-center text-lg font-bold">
 				<Logo />
 			</a>
@@ -63,15 +57,16 @@ export const Navbar = () => {
 						<div>
 							<div className="flex flex-col gap-2">
 								{routeList.map(({ href, label }) => (
-									<Link
-										key={href}
-										onClick={() => setIsOpen(false)}
-										variant="ghost"
-										className="justify-start text-base"
-										href={href}
-									>
-										{label}
-									</Link>
+									<Button asChild variant="default">
+										<a
+											key={href}
+											onClick={() => setIsOpen(false)}
+											className="justify-start text-base"
+											href={href}
+										>
+											{label}
+										</a>
+									</Button>
 								))}
 							</div>
 						</div>
@@ -92,15 +87,21 @@ export const Navbar = () => {
 					</NavigationMenuItem>
 				</NavigationMenuList>
 			</NavigationMenu>
-			<Link
-				variant="default"
-				className="group/arrow hidden items-center font-bold lg:flex"
-				href={import.meta.env.APP_URL}
-				target="_blank"
-			>
-				Get started
-				<ArrowRightIcon className="ml-2 inline size-5 transition-transform group-hover/arrow:translate-x-1" />
-			</Link>
+			<div className="hidden justify-end lg:flex">
+				<a
+					href={import.meta.env.VITE_APP_URL}
+					className={cn(
+						buttonVariants({
+							variant: 'default',
+							className: '',
+						}),
+						'group/arrow items-center font-bold',
+					)}
+				>
+					Get started
+					<ArrowRightIcon className="ml-2 inline size-5 transition-transform group-hover/arrow:translate-x-1" />
+				</a>
+			</div>
 		</header>
 	);
 };

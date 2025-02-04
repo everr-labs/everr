@@ -28,6 +28,7 @@ export * from './card';
 export * from './carousel';
 export * from './chart';
 export * from './collapsible';
+export * from './combobox';
 export * from './command';
 
 export * from './dialog';
@@ -42,7 +43,6 @@ export * from './input';
 export * from './label';
 export * from './link';
 
-export * from './marquee';
 export * from './menubar';
 
 export * from './navigation-menu';
@@ -66,3 +66,5 @@ export * from './toaster';
 export * from './tooltip';
 
 export * from './use-toast';
+
+export * from 'class-variance-authority';

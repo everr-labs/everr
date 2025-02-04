@@ -1,9 +1,33 @@
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { join } from 'path';
+import { defineConfig } from '@tanstack/start/config';
+import { App } from 'vinxi';
+import viteTsConfigPaths from 'vite-tsconfig-paths';
 
-import { defineConfig } from './app.config.lib';
+export default withGlobalMiddleware(
+	defineConfig({
+		tsr: {
+			apiBase: '/api',
+		},
+		vite: {
+			plugins: [
+				// this is the plugin that enables path aliases
+				// @ts-expect-error
+				viteTsConfigPaths(),
+			],
+		},
+	}),
+);
 
-export default defineConfig({
-	vite: {
-		plugins: () => [tsconfigPaths()],
-	},
-});
+function withGlobalMiddleware(app: App) {
+	return {
+		...app,
+		config: {
+			...app.config,
+			routers: app.config.routers.map((router) => ({
+				...router,
+				middleware:
+					router.target === 'server' ? join('app', 'middleware.ts') : undefined,
+			})),
+		},
+	};
+}

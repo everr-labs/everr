@@ -2,9 +2,9 @@
 	"extends": "@citric/tsconfig/base.json",
 
 	"compilerOptions": {
-		"target": "ESNext",
 		"allowSyntheticDefaultImports": true,
 		"types": ["vinxi/types/client"],
+		// "moduleResolution": "Bundler",
 
 		/* Bundled projects */
 		"lib": ["dom", "dom.iterable", "ES2022"],
@@ -14,10 +14,10 @@
 		/* Path Aliases */
 		"baseUrl": ".",
 		"paths": {
-			"@/*": ["./src/app/*"],
+			"@/*": ["./app/*"],
 			"~server/*": ["./src/server/*"]
 		}
 	},
-	"include": ["."],
+	"include": ["app"],
 	"exclude": ["node_modules"]
 }

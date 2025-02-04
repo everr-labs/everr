@@ -1,4 +1,4 @@
-import { Marquee } from '@citric/ui';
+import { Marquee } from './ui/marquee';
 
 interface sponsorsProps {
 	image: string;

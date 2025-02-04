@@ -14,26 +14,7 @@ export const restrictEnvAccess = tseslint.config(
 	{ ignores: ['**/env.ts'] },
 	{
 		files: ['**/*.js', '**/*.ts', '**/*.tsx'],
-		rules: {
-			'no-restricted-properties': [
-				'error',
-				{
-					object: 'process',
-					property: 'env',
-					message:
-						"Use `import { env } from '~/env'` instead to ensure validated types.",
-				},
-			],
-			'no-restricted-imports': [
-				'error',
-				{
-					name: 'process',
-					importNames: ['env'],
-					message:
-						"Use `import { env } from '~/env'` instead to ensure validated types.",
-				},
-			],
-		},
+		rules: {},
 	},
 );
 
@@ -86,6 +67,19 @@ export default tseslint.config(
 			],
 			'@typescript-eslint/no-non-null-assertion': 'error',
 			'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],
+			// TODO: Check how to do this so we can throw notFound & others from @tanstack/react-router
+			// '@typescript-eslint/only-throw-error': [
+			// 	'error',
+			// 	{
+			// 		allow: [
+			// 			{
+			// 				from: 'package',
+			// 				name: ['notFound'],
+			// 				package: '@tanstack/react-router',
+			// 			},
+			// 		],
+			// 	},
+			// ],
 		},
 	},
 	{

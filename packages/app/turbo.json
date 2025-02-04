@@ -7,7 +7,21 @@
 			"outputs": [".vinxi/**"]
 		},
 		"dev": {
-			"persistent": true
+			"persistent": true,
+			"env": [
+				"MODE",
+				"GITHUB_CLIENT_ID",
+				"GITHUB_CLIENT_SECRET",
+				"BETTER_AUTH_SECRET",
+				"BETTER_AUTH_URL",
+				"DATABASE_URL",
+				"GRAFANA_API_BASE_URL",
+				"GRAFANA_TOKEN",
+				"CLICKHOUSE_PASSWORD",
+				"CLICKHOUSE_DB",
+				"CLICKHOUSE_USER",
+				"CLICKHOUSE_URL"
+			]
 		}
 	}
 }

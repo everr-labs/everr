@@ -28,3 +28,20 @@ docker-compose up -d
 ```bash
 pnpm dev
 ```
+
+## Configure Grafana
+
+You need a Grafana Cloud Instance.
+
+Generate an Access Policy with the following permissions:
+
+- metrics:write
+- traces:write
+- logs:write
+- profiles:write
+
+and fill in the config.yaml.
+
+### Generate a Service account
+
+Generate a service account with `Data Sources:reader` permission and generate a token.

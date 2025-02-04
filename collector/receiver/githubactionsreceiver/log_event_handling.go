@@ -7,6 +7,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -14,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v61/github"
+	"github.com/google/go-github/v67/github"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
@@ -23,7 +24,6 @@ import (
 func eventToLogs(event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool) (*plog.Logs, error) {
 	e, ok := event.(*github.WorkflowRunEvent)
 	if !ok {
-		logger.Debug("Invalid event type, skipping")
 		return nil, nil
 	}
 
@@ -47,13 +47,11 @@ func eventToLogs(event interface{}, config *Config, ghClient *github.Client, log
 		return nil, err
 	}
 
-	out, err := os.CreateTemp("", "tmpfile-")
+	tmpFile, err := os.CreateTemp("", "tmpfile-")
 	if err != nil {
 		logger.Error("Failed to create temp file", zap.Error(err))
 		return nil, err
 	}
-	defer out.Close()
-	defer os.Remove(out.Name())
 
 	resp, err := http.Get(url.String())
 	if err != nil {
@@ -63,14 +61,21 @@ func eventToLogs(event interface{}, config *Config, ghClient *github.Client, log
 	defer resp.Body.Close()
 
 	// Copy the response into the temp file
-	_, err = io.Copy(out, resp.Body)
+	_, err = io.Copy(tmpFile, resp.Body)
 	if err != nil {
 		logger.Error("Failed to copy response to temp file", zap.Error(err))
 		return nil, err
 	}
 
-	archive, _ := zip.OpenReader(out.Name())
+	archive, err := zip.OpenReader(tmpFile.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open zip file: %w", err)
+	}
 	defer archive.Close()
+
+	if archive.File == nil {
+		return nil, fmt.Errorf("archive is empty")
+	}
 
 	// steps is a map of job names to a map of step numbers to file names
 	var jobs = make([]string, 0)

@@ -5,14 +5,15 @@
 	"tsx": true,
 	"tailwind": {
 		"config": "./tailwind.config.ts",
-		"css": "unused.css",
+		"css": "../../tooling/tailwind/styles.css",
 		"baseColor": "neutral",
 		"cssVariables": true,
 		"prefix": ""
 	},
 	"aliases": {
 		"components": "src/",
-		"utils": "@citric/io",
+		"utils": "@citric/ui",
 		"ui": "src/"
-	}
+	},
+	"iconLibrary": "lucide"
 }

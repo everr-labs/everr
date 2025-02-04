@@ -42,6 +42,4 @@ dist/
 collector/config.yaml
 coverage.out
 
-db.sqlite
-
 /volumes

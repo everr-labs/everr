@@ -1,13 +1,12 @@
 import { defineConfig } from 'drizzle-kit';
 
-import { env } from './src/env';
-
 export default defineConfig({
-	schema: './src/server/db/schema.ts',
+	schema: './app/db/schema.ts',
 	out: './migrations',
 	dialect: 'postgresql',
 	dbCredentials: {
-		url: env.DATABASE_URL,
+		// TODO: THIS
+		url: process.env.DATABASE_URL!,
 	},
-	tablesFilter: ['citrus_*'],
+	// tablesFilter: ['citrus_*'],
 });

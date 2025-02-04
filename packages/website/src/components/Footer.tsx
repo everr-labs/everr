@@ -1,6 +1,47 @@
-import { SiGithub, SiLinkedin, SiX } from '@icons-pack/react-simple-icons';
+import type { IconType } from '@icons-pack/react-simple-icons';
+import { SiDiscord, SiGithub, SiX } from '@icons-pack/react-simple-icons';
 
 import { Logo } from './Logo';
+
+interface FooterLink {
+	href: string;
+	text: string;
+	Icon?: IconType;
+}
+
+const socialLinks = [
+	{
+		text: 'GitHub',
+		href: '#',
+		Icon: SiGithub,
+	},
+	{
+		text: 'X',
+		href: '#',
+		Icon: SiX,
+	},
+	{
+		text: 'Discord',
+		href: 'https://discord.gg/djNRYGN7',
+		Icon: SiDiscord,
+	},
+] satisfies FooterLink[];
+
+const links = [
+	{
+		text: 'Contact Us',
+		href: '/contact-us',
+	},
+	{
+		text: 'X',
+		href: '#',
+		Icon: SiX,
+	},
+	{
+		text: 'FAQ',
+		href: '/#faqs',
+	},
+] satisfies FooterLink[];
 
 export const Footer = () => {
 	return (
@@ -15,49 +56,35 @@ export const Footer = () => {
 
 					<div className="flex flex-col gap-2">
 						<h3 className="text-lg font-bold">Connect</h3>
-						<div>
-							<a
-								href="#"
-								className="flex items-center opacity-60 hover:opacity-100"
-							>
-								<SiGithub className="mr-2 size-4" />
-								GitHub
-							</a>
-						</div>
-
-						<div>
-							<a
-								href="#"
-								className="flex items-center opacity-60 hover:opacity-100"
-							>
-								<SiX className="mr-2 size-4" />X / Twitter
-							</a>
-						</div>
-
-						<div>
-							<a
-								href="#"
-								className="flex items-center opacity-60 hover:opacity-100"
-							>
-								<SiLinkedin className="mr-2 size-4" />
-								LinkedIn
-							</a>
-						</div>
+						<ul>
+							{socialLinks.map(({ href, text, Icon }) => (
+								<li key={text} className="mt-2">
+									<a
+										href={href}
+										className="flex items-center opacity-60 hover:opacity-100"
+									>
+										{Icon && <Icon className="mr-2 size-5" />}
+										{text}
+									</a>
+								</li>
+							))}
+						</ul>
 					</div>
 
 					<div className="flex flex-col gap-2">
 						<h3 className="text-lg font-bold">Help</h3>
-						<div>
-							<a href="/contact-us" className="opacity-60 hover:opacity-100">
-								Contact Us
-							</a>
-						</div>
-
-						<div>
-							<a href="/#faqs" className="opacity-60 hover:opacity-100">
-								FAQ
-							</a>
-						</div>
+						<ul>
+							{links.map(({ href, text }) => (
+								<li key={text} className="mt-2">
+									<a
+										href={href}
+										className="flex items-center opacity-60 hover:opacity-100"
+									>
+										{text}
+									</a>
+								</li>
+							))}
+						</ul>
 					</div>
 				</div>
 			</div>

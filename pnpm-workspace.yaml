@@ -2,3 +2,11 @@ packages:
   - 'packages/*'
   - 'tooling/*'
   - 'collector'
+  - 'docs'
+
+catalog:
+  typescript: ^5.7.2
+  lucide-react: ^0.469.0
+  react: ^19.0.0
+  react-dom: ^19.0.0
+  eslint: ^9.18.0

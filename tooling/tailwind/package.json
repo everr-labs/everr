@@ -15,18 +15,18 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"postcss": "^8.4.47",
-		"tailwindcss": "^3.4.14",
+		"postcss": "^8.4.49",
+		"tailwindcss": "^3.4.17",
 		"tailwindcss-animate": "^1.0.7"
 	},
 	"devDependencies": {
 		"@citric/eslint-config": "workspace:*",
 		"@citric/prettier-config": "workspace:*",
 		"@citric/tsconfig": "workspace:*",
-		"@tailwindcss/typography": "^0.5.15",
-		"eslint": "^9.13.0",
-		"prettier": "^3.3.3",
-		"typescript": "5.6.3"
+		"@tailwindcss/typography": "^0.5.16",
+		"eslint": "catalog:",
+		"prettier": "^3.4.2",
+		"typescript": "catalog:"
 	},
 	"prettier": "@citric/prettier-config"
 }
