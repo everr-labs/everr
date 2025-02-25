@@ -16,8 +16,8 @@ import {
 
 import { auth } from './auth';
 
-if (process.env.BETTER_AUTH_URL === undefined) {
-	throw new Error('Missing BETTER_AUTH_URL');
+if (import.meta.env.VITE_BETTER_AUTH_URL === undefined) {
+	throw new Error('Missing VITE_BETTER_AUTH_URL');
 }
 
 export const SocialSignInSchema = object({
@@ -50,7 +50,7 @@ export const SignUpSchema = pipe(
 );
 
 export const authClient = createAuthClient({
-	baseURL: process.env.BETTER_AUTH_URL, // the base url of your auth server
+	baseURL: import.meta.env.VITE_BETTER_AUTH_URL, // the base url of your auth server
 	plugins: [organizationClient()],
 });
 

@@ -25,8 +25,6 @@ const getUser = createServerFn({ method: 'GET' }).handler(async () => {
 	return session?.user ?? null;
 });
 
-console.log(process.env);
-
 interface RouterContext {
 	queryClient: QueryClient;
 	user: User | null;

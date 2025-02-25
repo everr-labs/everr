@@ -42,7 +42,7 @@
 			"env": [
 				"NODE_ENV",
 				"BASE_URL",
-				"BETTER_AUTH_URL",
+				"VITE_BETTER_AUTH_URL",
 				"CLICKHOUSE_PASSWORD",
 				"CLICKHOUSE_USER",
 				"CLICKHOUSE_DB",
@@ -58,7 +58,7 @@
 			"env": [
 				"NODE_ENV",
 				"BASE_URL",
-				"BETTER_AUTH_URL",
+				"VITE_BETTER_AUTH_URL",
 				"CLICKHOUSE_PASSWORD",
 				"CLICKHOUSE_USER",
 				"CLICKHOUSE_DB",
