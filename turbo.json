@@ -30,7 +30,8 @@
 		},
 		"@citric/app#build": {
 			"dependsOn": ["^build"],
-			"outputs": ["packages/app/.output/**"]
+			"outputs": ["packages/app/.output/**"],
+			"env": ["VITE_BETTER_AUTH_URL"]
 		},
 		"@citric/app#db:force-push": {
 			"cache": false,
