@@ -17,15 +17,15 @@
 		"@icons-pack/react-simple-icons": "catalog:",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
-		"astro": "^5.3.0",
+		"astro": "^5.3.1",
 		"class-variance-authority": "^0.7.1",
 		"lucide-react": "catalog:",
-		"motion": "^12.4.5",
+		"motion": "^12.4.7",
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"typescript": "catalog:"
 	},
 	"devDependencies": {
-		"vite": "^6.1.1"
+		"vite": "^6.2.0"
 	}
 }
