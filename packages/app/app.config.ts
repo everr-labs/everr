@@ -12,4 +12,7 @@ export default defineConfig({
 			viteTsConfigPaths(),
 		],
 	},
+	server: {
+		preset: 'node-server',
+	},
 });

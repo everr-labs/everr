@@ -1,5 +1,3 @@
-'use client';
-
 import { authClient } from '@/lib/auth-client';
 import { useRouteContext, useRouter } from '@tanstack/react-router';
 import {
@@ -14,7 +12,6 @@ import { useTheme } from 'next-themes';
 
 import {
 	DropdownMenu,
-	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
