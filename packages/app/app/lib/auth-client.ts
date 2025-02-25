@@ -1,99 +1,81 @@
-import type { Session, User } from 'better-auth';
-import {
-	queryOptions,
-	useMutation,
-	useQueryClient,
-	useSuspenseQuery,
-} from '@tanstack/react-query';
-import { useRouter } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/start';
-import { email, object, picklist, pipe, string } from 'valibot';
-import { getEvent, getWebRequest } from 'vinxi/http';
+import { getWebRequest } from '@tanstack/start/server';
+import { organizationClient } from 'better-auth/client/plugins';
+import { createAuthClient } from 'better-auth/react';
+import {
+	email,
+	forward,
+	minLength,
+	object,
+	partialCheck,
+	picklist,
+	pipe,
+	string,
+} from 'valibot';
 
 import { auth } from './auth';
 
-const SocialSignInSchema = object({
+export const SocialSignInSchema = object({
 	provider: picklist(['github']),
 });
 
-const socialSignIn = createServerFn({ method: 'POST' })
-	.validator(SocialSignInSchema)
-	.handler(async ({ data: { provider } }) => {
-		const res = await auth.api.signInSocial({ body: { provider } });
-		return res;
-	});
-
-export const useSocialSignInMutation = () => {
-	return useMutation({
-		mutationFn: socialSignIn,
-		onSuccess: (data) => {
-			window.open(data.url, '_self');
-		},
-	});
-};
-
-const SignInSchema = object({
+export const SignInSchema = object({
 	email: pipe(string(), email()),
 	password: string(),
 });
-const signIn = createServerFn({ method: 'POST' })
-	.validator(SignInSchema)
-	.handler(async ({ data }) => {
-		const res = await auth.api.signInEmail({
-			body: { rememberMe: true, ...data },
+
+export const SignUpSchema = pipe(
+	object({
+		name: string(),
+		email: pipe(string(), email()),
+		password: pipe(
+			string(),
+			minLength(8, 'Password must be at least 8 characters'),
+		),
+		passwordConfirm: string(),
+	}),
+	forward(
+		partialCheck(
+			[['password'], ['passwordConfirm']],
+			(input) => input.password === input.passwordConfirm,
+			'The two passwords do not match.',
+		),
+		['passwordConfirm'],
+	),
+);
+
+export const authClient = createAuthClient({
+	baseURL: 'http://localhost:3000', // the base url of your auth server
+	plugins: [organizationClient()],
+});
+
+const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
+	async () => {
+		const request = getWebRequest();
+		if (!request) {
+			return null;
+		}
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session) {
+			return null;
+		}
+		const activeOrgId = session.session.activeOrganizationId;
+		if (!activeOrgId) {
+			return null;
+		}
+
+		return auth.api.getFullOrganization({
+			headers: request.headers,
+			query: { organizationId: activeOrgId },
 		});
-		return res;
-	});
+	},
+);
 
-export const useSignInMutation = () => {
-	const invalidateAuth = useInvalidateAuth();
-
-	return useMutation({
-		mutationFn: signIn,
-		onSuccess: invalidateAuth,
-	});
-};
-
-type Auth =
-	| { isAuthenticated: false; user: null; session: null }
-	| { isAuthenticated: true; user: User; session: Session };
-
-// eslint-disable-next-line @typescript-eslint/require-await
-const getAuth = createServerFn({ method: 'POST' }).handler(async () => {
-	const event = getEvent();
-
-	return event.context.auth as Auth;
-});
-
-export const getAuthQueryOptions = () => {
-	return queryOptions({
-		queryKey: ['auth'],
-		queryFn: () => getAuth(),
-		staleTime: Infinity,
+export const useActiveOrganization = () => {
+	return useQuery({
+		queryFn: () => getActiveOrganization(),
+		queryKey: ['active-organization'],
+		staleTime: 5000,
 	});
 };
-
-const useInvalidateAuth = () => {
-	const router = useRouter();
-	const queryClient = useQueryClient();
-
-	return async () => {
-		await queryClient.invalidateQueries(getAuthQueryOptions());
-		await router.invalidate();
-	};
-};
-
-const signOut = createServerFn({ method: 'POST' }).handler(async () => {
-	return await auth.api.signOut({ headers: getWebRequest().headers });
-});
-
-export const useSignOutMutation = () => {
-	const invalidateAuth = useInvalidateAuth();
-
-	return useMutation({
-		mutationFn: () => signOut(),
-		onSuccess: invalidateAuth,
-	});
-};
-
-export const useAuthQuery = () => useSuspenseQuery(getAuthQueryOptions());

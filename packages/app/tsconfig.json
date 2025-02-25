@@ -2,6 +2,7 @@
 	"extends": "@citric/tsconfig/base.json",
 
 	"compilerOptions": {
+		"strictNullChecks": true,
 		"allowSyntheticDefaultImports": true,
 		"types": ["vinxi/types/client"],
 		// "moduleResolution": "Bundler",

@@ -32,14 +32,12 @@ const getAvgDuration = createServerFn({ method: 'GET' })
             `,
 				params: {
 					repo,
-					from: range.from.toISOString(),
-					to: range.to.toISOString(),
+					...range,
 				},
 			})
 		)[0];
 
 		if (!data) {
-			// eslint-disable-next-line @typescript-eslint/only-throw-error
 			throw notFound();
 		}
 

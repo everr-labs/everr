@@ -1,22 +1,39 @@
 import type { QueryClient } from '@tanstack/react-query';
+import type { User } from 'better-auth';
 import type { ReactNode } from 'react';
 import { lazy, Suspense } from 'react';
+import { DefaultCatchBoundary } from '@/components/default-catch-boundary';
+import { NotFound } from '@/components/not-found';
+import { auth } from '@/lib/auth';
 import {
 	createRootRouteWithContext,
+	HeadContent,
 	Outlet,
-	ScrollRestoration,
+	Scripts,
 } from '@tanstack/react-router';
-import { Meta, Scripts } from '@tanstack/start';
+import { createServerFn } from '@tanstack/start';
 import { ThemeProvider } from 'next-themes';
+import { getWebRequest } from 'vinxi/http';
 
 import appCss from '@citric/tailwind-config/styles?url';
 
+const getUser = createServerFn({ method: 'GET' }).handler(async () => {
+	const { headers } = getWebRequest();
+
+	const session = await auth.api.getSession({ headers });
+
+	return session?.user ?? null;
+});
+
 interface RouterContext {
 	queryClient: QueryClient;
+	user: User | null;
 }
 export const Route = createRootRouteWithContext<RouterContext>()({
+	beforeLoad: async () => {
+		return { user: await getUser() };
+	},
 	head: () => ({
-		links: [{ rel: 'stylesheet', href: appCss }],
 		meta: [
 			{
 				charSet: 'utf-8',
@@ -29,7 +46,16 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 				title: 'Citric - CI/CD Observability',
 			},
 		],
+		links: [{ rel: 'stylesheet', href: appCss }],
 	}),
+	errorComponent: (props) => {
+		return (
+			<RootDocument>
+				<DefaultCatchBoundary {...props} />
+			</RootDocument>
+		);
+	},
+	notFoundComponent: () => <NotFound />,
 	component: RootComponent,
 });
 
@@ -63,7 +89,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 	return (
 		<html className="dark" style={{ colorScheme: 'dark' }}>
 			<head>
-				<Meta />
+				<HeadContent />
 			</head>
 			<body>
 				<ThemeProvider
@@ -80,7 +106,6 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 					<ReactQueryDevtools />
 				</Suspense>
 
-				<ScrollRestoration />
 				<Scripts />
 			</body>
 		</html>

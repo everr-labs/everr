@@ -6,22 +6,29 @@
 		"clean": "git clean -xdf node_modules",
 		"clean:workspaces": "turbo run clean",
 		"dev": "turbo watch dev --continue",
-		"dev:next": "turbo watch dev -F @acme/nextjs...",
 		"format": "turbo run format --continue -- --cache --cache-location .cache/.prettiercache",
 		"format:fix": "turbo run format --continue -- --write --cache --cache-location .cache/.prettiercache",
 		"lint": "turbo run lint --continue -- --cache --cache-location .cache/.eslintcache",
 		"lint:fix": "turbo run lint --continue -- --fix --cache --cache-location .cache/.eslintcache",
 		"lint:ws": "pnpm dlx sherif@latest",
 		"postinstall": "pnpm lint:ws",
-		"typecheck": "turbo run typecheck",
-		"ui-add": "turbo run ui-add"
+		"typecheck": "turbo run typecheck"
 	},
 	"devDependencies": {
 		"@citric/prettier-config": "workspace:*",
-		"@turbo/gen": "2.3.3",
-		"turbo": "2.3.3",
+		"turbo": "2.4.2",
 		"typescript": "catalog:"
 	},
-	"packageManager": "pnpm@9.15.3",
-	"prettier": "@citric/prettier-config"
+	"packageManager": "pnpm@10.4.1",
+	"prettier": "@citric/prettier-config",
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"puppeteer",
+			"sharp"
+		],
+		"overrides": {
+			"ioredis": "5.5.0"
+		}
+	}
 }

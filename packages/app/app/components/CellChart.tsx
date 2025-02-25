@@ -50,7 +50,7 @@ export function CellChart({
 	return (
 		<div className="relative flex items-center justify-center">
 			<ChartContainer config={chartConfig} className="h-16 w-full">
-				<AreaChart data={data} margin={{ bottom: 0, top: 8 }}>
+				<AreaChart data={data} margin={{ bottom: 0, top: 0 }}>
 					<defs>
 						<linearGradient id="fillColor" x1="0" y1="0" x2="0" y2="1">
 							<stop

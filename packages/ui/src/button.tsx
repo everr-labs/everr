@@ -3,12 +3,12 @@ import type { ButtonHTMLAttributes } from 'react';
 import { forwardRef } from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva } from 'class-variance-authority';
-import { Loader2 } from 'lucide-react';
+import { Loader2Icon } from 'lucide-react';
 
 import { cn } from '.';
 
 const buttonVariants = cva(
-	'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+	'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
 	{
 		variants: {
 			variant: {
@@ -21,8 +21,6 @@ const buttonVariants = cva(
 					'bg-secondary text-secondary-foreground hover:bg-secondary/80',
 				ghost: 'hover:bg-accent hover:text-accent-foreground',
 				link: 'text-primary underline-offset-4 hover:underline',
-				shimmer:
-					'animate-shimmer border border-accent bg-[linear-gradient(120deg,var(--black),33%,hsl(var(--primary)),66%,var(--black))] bg-[length:200%_100%] text-primary-foreground transition-colors hover:border-primary',
 			},
 			size: {
 				default: 'h-10 px-4 py-2',
@@ -71,7 +69,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 			>
 				{loading ? (
 					<>
-						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+						<Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
 						Please wait
 					</>
 				) : (

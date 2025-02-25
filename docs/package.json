@@ -2,10 +2,10 @@
 	"name": "@citrics/docs",
 	"version": "1.0.0",
 	"scripts": {
-		"dev": "mintlify dev --port 3232",
+		"dev": "mintlify dev --port 3232 --open=false",
 		"check:links": "mintlify broken-links"
 	},
 	"devDependencies": {
-		"mintlify": "^4.0.315"
+		"mintlify": "^4.0.397"
 	}
 }

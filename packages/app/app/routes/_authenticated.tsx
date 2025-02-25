@@ -1,16 +1,22 @@
-import { Sidebar } from '@/components/sidebar';
-import { TopNav } from '@/components/topnav';
-import { getAuthQueryOptions } from '@/lib/auth-client';
+import { AppSidebar } from '@/components/app-sidebar';
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
-export const Route = createFileRoute('/_authenticated')({
-	beforeLoad: async ({ context, location }) => {
-		const { isAuthenticated } = await context.queryClient.ensureQueryData(
-			getAuthQueryOptions(),
-		);
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+	Separator,
+	SidebarInset,
+	SidebarProvider,
+	SidebarTrigger,
+} from '@citric/ui';
 
-		if (!isAuthenticated) {
-			// eslint-disable-next-line @typescript-eslint/only-throw-error
+export const Route = createFileRoute('/_authenticated')({
+	beforeLoad: ({ location, context: { user } }) => {
+		if (!user) {
 			throw redirect({
 				to: '/auth/login',
 				search: {
@@ -18,21 +24,40 @@ export const Route = createFileRoute('/_authenticated')({
 				},
 			});
 		}
+
+		return { user: user };
 	},
 	component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
 	return (
-		<div className="flex min-h-screen w-full flex-col bg-muted/40">
-			<Sidebar />
-			<div className="flex min-h-screen flex-col sm:gap-4 sm:py-4 sm:pl-14">
-				<TopNav />
-
-				<main className="grid min-h-full flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
+		<SidebarProvider>
+			<AppSidebar />
+			<SidebarInset>
+				<header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+					<div className="flex items-center gap-2 px-4">
+						<SidebarTrigger className="-ml-1" />
+						<Separator orientation="vertical" className="mr-2 h-4" />
+						<Breadcrumb>
+							<BreadcrumbList>
+								<BreadcrumbItem className="hidden md:block">
+									<BreadcrumbLink href="#">
+										Building Your Application
+									</BreadcrumbLink>
+								</BreadcrumbItem>
+								<BreadcrumbSeparator className="hidden md:block" />
+								<BreadcrumbItem>
+									<BreadcrumbPage>Data Fetching</BreadcrumbPage>
+								</BreadcrumbItem>
+							</BreadcrumbList>
+						</Breadcrumb>
+					</div>
+				</header>
+				<main className="flex flex-1 flex-col gap-4 p-4 pt-0">
 					<Outlet />
 				</main>
-			</div>
-		</div>
+			</SidebarInset>
+		</SidebarProvider>
 	);
 }

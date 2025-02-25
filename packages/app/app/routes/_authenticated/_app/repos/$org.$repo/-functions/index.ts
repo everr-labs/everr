@@ -21,7 +21,6 @@ export const getRepo = createServerFn({ method: 'GET' })
 		});
 
 		if (result.length === 0) {
-			// eslint-disable-next-line @typescript-eslint/only-throw-error
 			throw notFound();
 		}
 
@@ -60,8 +59,7 @@ export const getPipelines = createServerFn({ method: 'GET' })
 	.handler(async ({ data: { repo, range, pageIndex, pageSize } }) => {
 		const params = {
 			repo,
-			from: range.from.toISOString(),
-			to: range.to.toISOString(),
+			...range,
 		};
 
 		const result = await clickhouse.query<Repo>({
@@ -92,7 +90,6 @@ export const getPipelines = createServerFn({ method: 'GET' })
 		)[0];
 
 		if (result.length === 0 || !meta) {
-			// eslint-disable-next-line @typescript-eslint/only-throw-error
 			throw notFound();
 		}
 

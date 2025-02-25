@@ -35,12 +35,19 @@ interface DataTableProps<
 	params: Omit<TInput, 'pageIndex' | 'pageSize'>;
 	queryKey: QueryKey;
 	queryFn: ({ data }: { data: TInput }) => Promise<PaginatedData<TData>>;
+	className?: string;
 }
 
 export function DataTable<
 	TData,
 	TInput extends InferInput<typeof PaginationSchema>,
->({ columns, queryFn, params, queryKey }: DataTableProps<TData, TInput>) {
+>({
+	columns,
+	queryFn,
+	params,
+	queryKey,
+	className,
+}: DataTableProps<TData, TInput>) {
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
 		pageSize: 10,
@@ -66,7 +73,7 @@ export function DataTable<
 
 	return (
 		<div className="grid gap-4">
-			<div className="rounded-md border">
+			<div className={cn('rounded-md border', className)}>
 				<Table>
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (
@@ -92,6 +99,7 @@ export function DataTable<
 								<TableRow
 									key={row.id}
 									data-state={row.getIsSelected() && 'selected'}
+									className=""
 								>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell

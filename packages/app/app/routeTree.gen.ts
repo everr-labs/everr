@@ -13,10 +13,10 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as AuthImport } from './routes/auth'
 import { Route as AuthenticatedImport } from './routes/_authenticated'
+import { Route as AuthSignupImport } from './routes/auth/signup'
 import { Route as AuthRecoverPasswordImport } from './routes/auth/recover-password'
 import { Route as AuthLoginImport } from './routes/auth/login'
 import { Route as AuthenticatedAppImport } from './routes/_authenticated/_app'
-import { Route as AuthenticatedSettingsIndexImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedAppIndexImport } from './routes/_authenticated/_app/index'
 import { Route as AuthenticatedAppReposOrgRepoIndexImport } from './routes/_authenticated/_app/repos/$org.$repo/index'
 import { Route as AuthenticatedAppReposOrgRepoRunTraceIdSplatImport } from './routes/_authenticated/_app/repos/$org.$repo/run/$traceId.$'
@@ -32,6 +32,12 @@ const AuthRoute = AuthImport.update({
 const AuthenticatedRoute = AuthenticatedImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRoute,
+} as any)
+
+const AuthSignupRoute = AuthSignupImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => AuthRoute,
 } as any)
 
 const AuthRecoverPasswordRoute = AuthRecoverPasswordImport.update({
@@ -50,14 +56,6 @@ const AuthenticatedAppRoute = AuthenticatedAppImport.update({
   id: '/_app',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-
-const AuthenticatedSettingsIndexRoute = AuthenticatedSettingsIndexImport.update(
-  {
-    id: '/settings/',
-    path: '/settings/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any,
-)
 
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexImport.update({
   id: '/',
@@ -118,19 +116,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRecoverPasswordImport
       parentRoute: typeof AuthImport
     }
+    '/auth/signup': {
+      id: '/auth/signup'
+      path: '/signup'
+      fullPath: '/auth/signup'
+      preLoaderRoute: typeof AuthSignupImport
+      parentRoute: typeof AuthImport
+    }
     '/_authenticated/_app/': {
       id: '/_authenticated/_app/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedAppIndexImport
       parentRoute: typeof AuthenticatedAppImport
-    }
-    '/_authenticated/settings/': {
-      id: '/_authenticated/settings/'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsIndexImport
-      parentRoute: typeof AuthenticatedImport
     }
     '/_authenticated/_app/repos/$org/$repo/': {
       id: '/_authenticated/_app/repos/$org/$repo/'
@@ -170,12 +168,10 @@ const AuthenticatedAppRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
-  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
-  AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -185,11 +181,13 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 interface AuthRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   AuthRecoverPasswordRoute: typeof AuthRecoverPasswordRoute
+  AuthSignupRoute: typeof AuthSignupRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   AuthRecoverPasswordRoute: AuthRecoverPasswordRoute,
+  AuthSignupRoute: AuthSignupRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
@@ -199,8 +197,8 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteWithChildren
   '/auth/login': typeof AuthLoginRoute
   '/auth/recover-password': typeof AuthRecoverPasswordRoute
+  '/auth/signup': typeof AuthSignupRoute
   '/': typeof AuthenticatedAppIndexRoute
-  '/settings': typeof AuthenticatedSettingsIndexRoute
   '/repos/$org/$repo': typeof AuthenticatedAppReposOrgRepoIndexRoute
   '/repos/$org/$repo/run/$traceId/$': typeof AuthenticatedAppReposOrgRepoRunTraceIdSplatRoute
 }
@@ -210,8 +208,8 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRouteWithChildren
   '/auth/login': typeof AuthLoginRoute
   '/auth/recover-password': typeof AuthRecoverPasswordRoute
+  '/auth/signup': typeof AuthSignupRoute
   '/': typeof AuthenticatedAppIndexRoute
-  '/settings': typeof AuthenticatedSettingsIndexRoute
   '/repos/$org/$repo': typeof AuthenticatedAppReposOrgRepoIndexRoute
   '/repos/$org/$repo/run/$traceId/$': typeof AuthenticatedAppReposOrgRepoRunTraceIdSplatRoute
 }
@@ -223,8 +221,8 @@ export interface FileRoutesById {
   '/_authenticated/_app': typeof AuthenticatedAppRouteWithChildren
   '/auth/login': typeof AuthLoginRoute
   '/auth/recover-password': typeof AuthRecoverPasswordRoute
+  '/auth/signup': typeof AuthSignupRoute
   '/_authenticated/_app/': typeof AuthenticatedAppIndexRoute
-  '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/_app/repos/$org/$repo/': typeof AuthenticatedAppReposOrgRepoIndexRoute
   '/_authenticated/_app/repos/$org/$repo/run/$traceId/$': typeof AuthenticatedAppReposOrgRepoRunTraceIdSplatRoute
 }
@@ -236,8 +234,8 @@ export interface FileRouteTypes {
     | '/auth'
     | '/auth/login'
     | '/auth/recover-password'
+    | '/auth/signup'
     | '/'
-    | '/settings'
     | '/repos/$org/$repo'
     | '/repos/$org/$repo/run/$traceId/$'
   fileRoutesByTo: FileRoutesByTo
@@ -246,8 +244,8 @@ export interface FileRouteTypes {
     | '/auth'
     | '/auth/login'
     | '/auth/recover-password'
+    | '/auth/signup'
     | '/'
-    | '/settings'
     | '/repos/$org/$repo'
     | '/repos/$org/$repo/run/$traceId/$'
   id:
@@ -257,8 +255,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_app'
     | '/auth/login'
     | '/auth/recover-password'
+    | '/auth/signup'
     | '/_authenticated/_app/'
-    | '/_authenticated/settings/'
     | '/_authenticated/_app/repos/$org/$repo/'
     | '/_authenticated/_app/repos/$org/$repo/run/$traceId/$'
   fileRoutesById: FileRoutesById
@@ -291,15 +289,15 @@ export const routeTree = rootRoute
     "/_authenticated": {
       "filePath": "_authenticated.tsx",
       "children": [
-        "/_authenticated/_app",
-        "/_authenticated/settings/"
+        "/_authenticated/_app"
       ]
     },
     "/auth": {
       "filePath": "auth.tsx",
       "children": [
         "/auth/login",
-        "/auth/recover-password"
+        "/auth/recover-password",
+        "/auth/signup"
       ]
     },
     "/_authenticated/_app": {
@@ -319,13 +317,13 @@ export const routeTree = rootRoute
       "filePath": "auth/recover-password.tsx",
       "parent": "/auth"
     },
+    "/auth/signup": {
+      "filePath": "auth/signup.tsx",
+      "parent": "/auth"
+    },
     "/_authenticated/_app/": {
       "filePath": "_authenticated/_app/index.tsx",
       "parent": "/_authenticated/_app"
-    },
-    "/_authenticated/settings/": {
-      "filePath": "_authenticated/settings/index.tsx",
-      "parent": "/_authenticated"
     },
     "/_authenticated/_app/repos/$org/$repo/": {
       "filePath": "_authenticated/_app/repos/$org.$repo/index.tsx",

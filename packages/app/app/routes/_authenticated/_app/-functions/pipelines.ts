@@ -53,8 +53,7 @@ export const getCostSeries = createServerFn({ method: 'GET' })
 								AND repos.repo = durations.repo
 								AND repos.labels = durations.labels;`,
 			params: {
-				from: range.from.toISOString(),
-				to: range.to.toISOString(),
+				...range,
 			},
 		});
 

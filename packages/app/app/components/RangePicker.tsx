@@ -1,9 +1,9 @@
 import type { HTMLAttributes } from 'react';
-import type { DateRange } from 'react-day-picker';
 import { useState } from 'react';
-import { endOfDay, format, startOfDay } from 'date-fns';
+import { addMonths, endOfDay, format, parseISO, startOfDay } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 
+import type { DateRange } from '@citric/ui';
 import {
 	Button,
 	Calendar,
@@ -15,50 +15,52 @@ import {
 
 import { useTimeRange } from './TimeRangeContext';
 
-interface Range {
-	from: Date;
-	to: Date;
-}
-interface Props extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
-	onChange?: (range: Range) => void;
-}
+type Props = Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>;
 
-export function RangePicker({ className, onChange }: Props) {
+export function RangePicker({ className }: Props) {
 	const { range, setRange } = useTimeRange();
 	const [open, setOpen] = useState(false);
-	const [selectedRange, setSelectedRange] = useState<DateRange>(range);
+	const [selectedRange, setSelectedRange] = useState<DateRange>({
+		from: parseISO(range.from),
+		to: parseISO(range.to),
+	});
 
 	return (
 		<div className={cn('grid gap-2', className)}>
-			<Popover open={open} onOpenChange={setOpen}>
+			<Popover open={open} onOpenChange={setOpen} modal>
+				{/* TODO: add quick dates */}
 				<PopoverTrigger asChild>
 					<Button
 						onClick={() => {
-							setSelectedRange(range);
 							setOpen((prev) => !prev);
 						}}
 						id="date"
 						variant={'outline'}
-						className={cn('w-[300px] justify-start text-left font-normal')}
+						className={cn(
+							'flex w-[250px] justify-between text-left font-normal',
+						)}
 					>
-						<CalendarIcon className="mr-2 h-4 w-4" />
-						{format(range.from, 'LLL dd, y')} - {format(range.to, 'LLL dd, y')}
+						{format(range.from, 'LLL d, y')} - {format(range.to, 'LLL dd, y')}
+						<CalendarIcon className="ml-2 h-4 w-4" />
 					</Button>
 				</PopoverTrigger>
 
 				<PopoverContent className="w-auto p-0" align="end">
 					<Calendar
 						initialFocus
+						numberOfMonths={2}
 						mode="range"
-						defaultMonth={selectedRange.from}
+						defaultMonth={addMonths(selectedRange.from ?? new Date(), -1)}
 						selected={selectedRange}
 						onSelect={(range) => {
 							if (range) setSelectedRange(range);
 						}}
 						disabled={{ after: new Date() }}
+						className="pb-0"
 					/>
-					<div className="p-2">
+					<div className="flex flex-col items-center justify-end gap-2 p-2">
 						<Button
+							size="sm"
 							className="w-full"
 							onClick={() => {
 								if (
@@ -70,8 +72,10 @@ export function RangePicker({ className, onChange }: Props) {
 										to: endOfDay(selectedRange.to),
 									};
 
-									onChange?.(range);
-									setRange(range);
+									setRange({
+										from: range.from.toISOString(),
+										to: range.to.toISOString(),
+									});
 								}
 
 								setOpen(false);
@@ -80,6 +84,9 @@ export function RangePicker({ className, onChange }: Props) {
 						>
 							Apply
 						</Button>
+						<span className="text-xs text-muted-foreground">
+							All dates are in UTC (00:00 to 23:59:59)
+						</span>
 					</div>
 				</PopoverContent>
 			</Popover>

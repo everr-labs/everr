@@ -3,7 +3,18 @@ import { DataTable } from '@/components/data-table';
 import { StatusBadge } from '@/components/status-badge';
 import { useTimeRange } from '@/components/TimeRangeContext';
 import { shortDuration } from '@/lib/datetime';
-import { createFileRoute, Link, notFound } from '@tanstack/react-router';
+import {
+	getDefaultRangeFrom,
+	getDefaultRangeTo,
+	RangeSchema,
+} from '@/lib/validators';
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	retainSearchParams,
+	stripSearchParams,
+} from '@tanstack/react-router';
 import { DollarSign, GitPullRequest } from 'lucide-react';
 
 import {
@@ -21,6 +32,17 @@ import { SuccessRateCard } from './-components/success-rate-card';
 import { getPipelines, getRepo } from './-functions';
 
 export const Route = createFileRoute('/_authenticated/_app/repos/$org/$repo/')({
+	validateSearch: RangeSchema,
+	search: {
+		middlewares: [
+			retainSearchParams(['from', 'to']),
+			// TODO: check this, we should strip from and to if they are the default values
+			stripSearchParams({
+				from: getDefaultRangeFrom(),
+				to: getDefaultRangeTo(),
+			}),
+		],
+	},
 	loader: async ({ params: { org, repo } }) => {
 		try {
 			await getRepo({ data: { repo: `${org}/${repo}` } });

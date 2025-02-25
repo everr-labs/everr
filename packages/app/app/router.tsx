@@ -10,11 +10,12 @@ export function createRouter() {
 	const queryClient = new QueryClient();
 	const router = routerWithQueryClient(
 		createTanStackRouter({
+			scrollRestoration: true,
 			routeTree,
 			defaultPreload: 'intent',
 			defaultErrorComponent: DefaultCatchBoundary,
 			defaultNotFoundComponent: () => <NotFound />,
-			context: { queryClient, user: undefined },
+			context: { queryClient, user: null },
 		}),
 		queryClient,
 	);

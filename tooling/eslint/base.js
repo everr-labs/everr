@@ -67,19 +67,18 @@ export default tseslint.config(
 			],
 			'@typescript-eslint/no-non-null-assertion': 'error',
 			'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],
-			// TODO: Check how to do this so we can throw notFound & others from @tanstack/react-router
-			// '@typescript-eslint/only-throw-error': [
-			// 	'error',
-			// 	{
-			// 		allow: [
-			// 			{
-			// 				from: 'package',
-			// 				name: ['notFound'],
-			// 				package: '@tanstack/react-router',
-			// 			},
-			// 		],
-			// 	},
-			// ],
+			'@typescript-eslint/only-throw-error': [
+				'error',
+				{
+					allow: [
+						{
+							from: 'package',
+							name: ['Redirect', 'NotFoundError'],
+							package: '@tanstack/react-router',
+						},
+					],
+				},
+			],
 		},
 	},
 	{

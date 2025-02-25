@@ -1,10 +1,4 @@
-import {
-	type LeafSpan,
-	type MiddleSpan,
-	type RootSpan,
-	type Span,
-	type Trace,
-} from '@/types';
+import type { LeafSpan, MiddleSpan, RootSpan, Span, Trace } from '@/types';
 
 export function generateTrace(spans: Span[]): Trace {
 	const rootSpan: RootSpan | undefined = spans.find(isRootSpan);
@@ -13,7 +7,7 @@ export function generateTrace(spans: Span[]): Trace {
 	}
 
 	const jobSpans = spans.filter(
-		(span) => span.ParentSpanId === rootSpan?.SpanId,
+		(span) => span.ParentSpanId === rootSpan.SpanId,
 	);
 
 	const jobs: MiddleSpan[] = jobSpans.map((job) => {

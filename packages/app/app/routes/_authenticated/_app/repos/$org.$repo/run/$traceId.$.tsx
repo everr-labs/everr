@@ -51,7 +51,8 @@ export const Route = createFileRoute(
 
 		if (!spanId) {
 			return redirect({
-				to: `/repos/${org}/${repo}/run/${traceId}/${firstStep?.SpanId}`,
+				to: `/repos/$org/$repo/run/$traceId/$`,
+				params: { org, repo, traceId, _splat: firstStep?.SpanId },
 			});
 		}
 
