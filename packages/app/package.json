@@ -8,8 +8,6 @@
 		"clean": "git clean -xdf .cache .vinxi .output .turbo node_modules",
 		"dev": "COMPATIBILITY_DATE=2024-11-24 vinxi dev",
 		"format": "prettier --check . --ignore-path ../../.gitignore --ignore-path .prettierignore",
-		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
 		"lint": "eslint",

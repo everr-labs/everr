@@ -1,12 +1,14 @@
 import { defineConfig } from 'drizzle-kit';
 
+if (!process.env.DB_URL) {
+	throw new Error('DB_URL environment variable is required');
+}
+
 export default defineConfig({
 	schema: './app/db/schema.ts',
 	out: './migrations',
 	dialect: 'postgresql',
 	dbCredentials: {
-		// TODO: THIS
-		url: process.env.DATABASE_URL!,
+		url: process.env.DB_URL,
 	},
-	// tablesFilter: ['citrus_*'],
 });

@@ -2,11 +2,4 @@ import baseConfig, { restrictEnvAccess } from '@citric/eslint-config/base';
 import reactConfig from '@citric/eslint-config/react';
 
 /** @type {import('typescript-eslint').Config} */
-export default [
-	{
-		ignores: ['src/*'],
-	},
-	...baseConfig,
-	...reactConfig,
-	...restrictEnvAccess,
-];
+export default [...baseConfig, ...reactConfig, ...restrictEnvAccess];

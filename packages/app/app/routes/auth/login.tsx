@@ -1,4 +1,3 @@
-import type { ErrorContext } from 'better-auth/react';
 import type { InferInput } from 'valibot';
 import { useState } from 'react';
 import { Link } from '@/components/Link';
@@ -51,8 +50,14 @@ const SocialSignInOptionsMap = {
 	},
 } as const;
 
+interface AuthError {
+	message: string;
+	status: number;
+	statusText: string;
+}
+
 function LogIn() {
-	const [error, setError] = useState<ErrorContext>();
+	const [error, setError] = useState<AuthError>();
 	const [isSignInPending, setIsSignInPending] = useState(false);
 	const [isSocialSignInPending, setIsSocialSignInPending] = useState(false);
 	const { redirect } = Route.useSearch();
@@ -74,8 +79,8 @@ function LogIn() {
 					setError(undefined);
 					setIsSignInPending(true);
 				},
-				onError(error) {
-					setError(error);
+				onError(ctx) {
+					setError(ctx.error);
 					setIsSignInPending(false);
 				},
 			},
@@ -109,8 +114,8 @@ function LogIn() {
 													setError(undefined);
 													setIsSocialSignInPending(true);
 												},
-												onError(error) {
-													setError(error);
+												onError(ctx) {
+													setError(ctx.error);
 													setIsSocialSignInPending(false);
 												},
 											},
@@ -200,12 +205,15 @@ function LogIn() {
 	);
 }
 
-function AuthErrorAlert({ error }: { error: ErrorContext }) {
+interface AuthErrorAlertProps {
+	error: AuthError;
+}
+function AuthErrorAlert({ error }: AuthErrorAlertProps) {
 	return (
 		<Alert variant="destructive">
 			<AlertCircleIcon className="h-4 w-4" />
 
-			<AlertTitle>{error.error.message}</AlertTitle>
+			<AlertTitle>{error.message}</AlertTitle>
 			{/* <AlertDescription>
 				{error.error.message}
 

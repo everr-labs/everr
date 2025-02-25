@@ -1,6 +1,6 @@
 import type { ForwardedRef } from 'react';
 import { forwardRef } from 'react';
-import { type Conclusion } from '@/types';
+import type {Conclusion} from '@/types';
 import { QuestionMarkCircledIcon } from '@radix-ui/react-icons';
 import { CheckCircle2Icon, CircleOffIcon, OctagonAlert } from 'lucide-react';
 

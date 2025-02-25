@@ -17,11 +17,11 @@ export function TermsOfUseDialog() {
 					Terms of Use
 				</Button>
 			</DialogTrigger>
-			<DialogContent className="max-h-fullscreen flex flex-col overflow-auto p-0">
+			<DialogContent className="flex max-h-fullscreen flex-col overflow-auto p-0">
 				<DialogHeader className="p-4">
 					<DialogTitle>Citric's Terms of Use</DialogTitle>
 				</DialogHeader>
-				<div className="prose dark:prose-invert prose-sm grow overflow-auto px-4">
+				<div className="prose prose-sm grow overflow-auto px-4 dark:prose-invert">
 					<p>
 						{/* TODO: add date */}
 						<strong>Effective Date:</strong> [Insert Date]

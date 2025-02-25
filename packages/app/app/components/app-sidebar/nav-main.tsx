@@ -1,13 +1,7 @@
 import type { LinkOptions } from '@tanstack/react-router';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import {
-	BookOpenIcon,
-	BotIcon,
-	ChevronRight,
-	Settings2Icon,
-	SquareTerminalIcon,
-} from 'lucide-react';
+import { ChevronRight, SquareTerminalIcon } from 'lucide-react';
 
 import {
 	Collapsible,
@@ -72,7 +66,7 @@ export function NavMain() {
 						<SidebarMenuItem>
 							<CollapsibleTrigger asChild>
 								<SidebarMenuButton tooltip={item.title}>
-									{item.icon && <item.icon />}
+									<item.icon />
 									<span>{item.title}</span>
 									<ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
 								</SidebarMenuButton>

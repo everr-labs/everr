@@ -1,8 +1,9 @@
 import { clickhouse } from '@/clickhouse';
-import { Log, Span } from '@/types';
+import type { Log, Span } from '@/types';
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/start';
-import { InferInput, object, string } from 'valibot';
+import type { InferInput} from 'valibot';
+import { object, string } from 'valibot';
 
 const GetPipelineSchema = object({
 	traceId: string(),

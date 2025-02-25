@@ -76,7 +76,7 @@ function WorkflowPage() {
 	const { org, repo, traceId, _splat: spanId } = Route.useParams();
 
 	if (!spanId) {
-		// eslint-disable-next-line @typescript-eslint/only-throw-error
+		 
 		throw notFound();
 	}
 

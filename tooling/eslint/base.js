@@ -73,7 +73,12 @@ export default tseslint.config(
 					allow: [
 						{
 							from: 'package',
-							name: ['Redirect', 'NotFoundError'],
+							name: ['Redirect'],
+							package: '@tanstack/router-core',
+						},
+						{
+							from: 'package',
+							name: ['NotFoundError'],
 							package: '@tanstack/react-router',
 						},
 					],
