@@ -28,19 +28,41 @@
 		"//#clean": {
 			"cache": false
 		},
-		"db:push": {
-			"cache": false,
-			"interactive": true
+		"@citric/app#build": {
+			"dependsOn": ["^build"],
+			"outputs": ["packages/app/.output/**"]
 		},
-		"db:force-push": {
+		"@citric/app#db:force-push": {
 			"cache": false,
 			"interactive": false,
 			"env": ["DB_URL"]
 		},
-		"start": {
+		"@citric/app#dev": {
+			"persistent": true,
+			"env": [
+				"NODE_ENV",
+				"CLICKHOUSE_PASSWORD",
+				"CLICKHOUSE_USER",
+				"CLICKHOUSE_DB",
+				"CLICKHOUSE_URL",
+				"DB_URL",
+				"GITHUB_CLIENT_ID",
+				"GITHUB_CLIENT_SECRET"
+			]
+		},
+		"@citric/app#start": {
 			"cache": false,
-			"interactive": false,
-			"persistent": true
+			"persistent": true,
+			"env": [
+				"NODE_ENV",
+				"CLICKHOUSE_PASSWORD",
+				"CLICKHOUSE_USER",
+				"CLICKHOUSE_DB",
+				"CLICKHOUSE_URL",
+				"DB_URL",
+				"GITHUB_CLIENT_ID",
+				"GITHUB_CLIENT_SECRET"
+			]
 		},
 		"studio": {
 			"cache": false,
