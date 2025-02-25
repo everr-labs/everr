@@ -16,7 +16,7 @@
 	},
 	"devDependencies": {
 		"@citric/prettier-config": "workspace:*",
-		"turbo": "2.4.3",
+		"turbo": "2.4.4",
 		"typescript": "catalog:"
 	},
 	"packageManager": "pnpm@10.5.0",
