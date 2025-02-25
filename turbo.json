@@ -41,6 +41,8 @@
 			"persistent": true,
 			"env": [
 				"NODE_ENV",
+				"BASE_URL",
+				"BETTER_AUTH_URL",
 				"CLICKHOUSE_PASSWORD",
 				"CLICKHOUSE_USER",
 				"CLICKHOUSE_DB",
@@ -55,6 +57,8 @@
 			"persistent": true,
 			"env": [
 				"NODE_ENV",
+				"BASE_URL",
+				"BETTER_AUTH_URL",
 				"CLICKHOUSE_PASSWORD",
 				"CLICKHOUSE_USER",
 				"CLICKHOUSE_DB",

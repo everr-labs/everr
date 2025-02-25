@@ -16,6 +16,10 @@ import {
 
 import { auth } from './auth';
 
+if (process.env.BETTER_AUTH_URL === undefined) {
+	throw new Error('Missing BETTER_AUTH_URL');
+}
+
 export const SocialSignInSchema = object({
 	provider: picklist(['github']),
 });
@@ -46,7 +50,7 @@ export const SignUpSchema = pipe(
 );
 
 export const authClient = createAuthClient({
-	baseURL: 'http://localhost:3000', // the base url of your auth server
+	baseURL: process.env.BETTER_AUTH_URL, // the base url of your auth server
 	plugins: [organizationClient()],
 });
 
