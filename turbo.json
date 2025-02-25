@@ -32,6 +32,10 @@
 			"cache": false,
 			"interactive": true
 		},
+		"db:force-push": {
+			"cache": false,
+			"interactive": false
+		},
 		"start": {
 			"cache": false,
 			"interactive": false,

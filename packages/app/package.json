@@ -9,6 +9,7 @@
 		"dev": "COMPATIBILITY_DATE=2024-11-24 vinxi dev",
 		"format": "prettier --check . --ignore-path ../../.gitignore --ignore-path .prettierignore",
 		"db:push": "drizzle-kit push",
+		"db:force-push": "drizzle-kit push --force",
 		"db:studio": "drizzle-kit studio",
 		"lint": "eslint",
 		"start": "vinxi start",
