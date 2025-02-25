@@ -1,15 +1,15 @@
 import { createClient } from '@clickhouse/client'; // or '@clickhouse/client-web'
 
-if (!process.env.CLICKHOUSE_URL) {
+if (process.env.CLICKHOUSE_URL === undefined) {
 	throw new Error('Missing CLICKHOUSE_URL');
 }
-if (!process.env.CLICKHOUSE_USER) {
+if (process.env.CLICKHOUSE_USER === undefined) {
 	throw new Error('Missing CLICKHOUSE_USER');
 }
-if (!process.env.CLICKHOUSE_PASSWORD) {
+if (process.env.CLICKHOUSE_PASSWORD === undefined) {
 	throw new Error('Missing CLICKHOUSE_PASSWORD');
 }
-if (!process.env.CLICKHOUSE_DB) {
+if (process.env.CLICKHOUSE_DB === undefined) {
 	throw new Error('Missing CLICKHOUSE_DB');
 }
 

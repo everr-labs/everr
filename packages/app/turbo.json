@@ -6,6 +6,20 @@
 			"dependsOn": ["^build"],
 			"outputs": [".vinxi/**"]
 		},
+		"start": {
+			"cache": false,
+			"persistent": true,
+			"env": [
+				"NODE_ENV",
+				"CLICKHOUSE_PASSWORD",
+				"CLICKHOUSE_USER",
+				"CLICKHOUSE_DB",
+				"CLICKHOUSE_URL",
+				"DB_URL",
+				"GITHUB_CLIENT_ID",
+				"GITHUB_CLIENT_SECRET"
+			]
+		},
 		"dev": {
 			"persistent": true,
 			"env": [
