@@ -1,6 +1,6 @@
 import { clickhouse } from '@/clickhouse';
 import { PaginationSchema, RangeSchema } from '@/lib/validators';
-import { createServerFn } from '@tanstack/start';
+import { createServerFn } from '@tanstack/react-start';
 import { addSeconds, differenceInSeconds, parseISO } from 'date-fns';
 import { intersect, object, string } from 'valibot';
 

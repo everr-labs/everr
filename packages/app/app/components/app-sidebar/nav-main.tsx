@@ -78,6 +78,7 @@ export function NavMain() {
 											<SidebarMenuSubButton asChild>
 												<Link
 													to={subItem.url}
+													activeOptions={{ exact: false, includeSearch: false }}
 													activeProps={{ 'data-active': true }}
 												>
 													<span>{subItem.title}</span>

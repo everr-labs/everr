@@ -18,5 +18,14 @@
 	"tailwindCSS.experimental.configFile": "./tooling/tailwind/tailwind-config.ts",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
 	"typescript.preferences.autoImportFileExcludePatterns": [],
-	"typescript.tsdk": "node_modules/typescript/lib"
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"files.watcherExclude": {
+		"**/routeTree.gen.ts": true
+	},
+	"search.exclude": {
+		"**/routeTree.gen.ts": true
+	},
+	"files.readonlyInclude": {
+		"**/routeTree.gen.ts": true
+	}
 }

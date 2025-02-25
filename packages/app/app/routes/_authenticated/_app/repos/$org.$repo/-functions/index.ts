@@ -1,7 +1,7 @@
 import { clickhouse } from '@/clickhouse';
 import { PaginationSchema, RangeSchema } from '@/lib/validators';
 import { notFound } from '@tanstack/react-router';
-import { createServerFn } from '@tanstack/start';
+import { createServerFn } from '@tanstack/react-start';
 import { intersect, object, string } from 'valibot';
 
 const GetRepoInputSchema = object({

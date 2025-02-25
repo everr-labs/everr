@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { createServerFn } from '@tanstack/start';
-import { getWebRequest } from '@tanstack/start/server';
+import { createServerFn } from '@tanstack/react-start';
+import { getWebRequest } from '@tanstack/react-start/server';
 import { organizationClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 import {

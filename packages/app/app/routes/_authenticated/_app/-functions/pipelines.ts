@@ -1,6 +1,6 @@
 import { clickhouse } from '@/clickhouse';
 import { RangeSchema } from '@/lib/validators';
-import { createServerFn } from '@tanstack/start';
+import { createServerFn } from '@tanstack/react-start';
 
 export const getCostSeries = createServerFn({ method: 'GET' })
 	.validator(RangeSchema)

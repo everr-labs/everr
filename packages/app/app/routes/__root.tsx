@@ -11,7 +11,7 @@ import {
 	Outlet,
 	Scripts,
 } from '@tanstack/react-router';
-import { createServerFn } from '@tanstack/start';
+import { createServerFn } from '@tanstack/react-start';
 import { ThemeProvider } from 'next-themes';
 import { getWebRequest } from 'vinxi/http';
 
