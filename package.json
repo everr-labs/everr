@@ -3,6 +3,7 @@
 	"private": true,
 	"scripts": {
 		"build": "turbo run build",
+		"build:app": "turbo run build",
 		"clean": "git clean -xdf node_modules",
 		"clean:workspaces": "turbo run clean",
 		"dev": "turbo watch dev --continue",
@@ -12,6 +13,7 @@
 		"lint:fix": "turbo run lint --continue -- --fix --cache --cache-location .cache/.eslintcache",
 		"lint:ws": "pnpm dlx sherif@latest",
 		"postinstall": "pnpm lint:ws",
+		"start:app": "node packages/app/.output/server/index.mjs",
 		"typecheck": "turbo run typecheck"
 	},
 	"devDependencies": {
