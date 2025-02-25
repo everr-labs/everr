@@ -34,7 +34,8 @@
 		},
 		"db:force-push": {
 			"cache": false,
-			"interactive": false
+			"interactive": false,
+			"env": ["DB_URL"]
 		},
 		"start": {
 			"cache": false,
