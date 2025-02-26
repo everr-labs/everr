@@ -1,14 +1,18 @@
+import type { ReactNode } from 'react';
 import { RangePicker } from '@/components/RangePicker';
 
 interface Props {
-	title: string;
+	title: ReactNode;
+	subtitle?: string;
 }
-export function PageHeader({ title }: Props) {
+export function PageHeader({ title, subtitle }: Props) {
 	return (
-		<header className="flex items-center justify-between">
+		<header className="flex items-end justify-between">
 			<div>
-				<h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-				<p className="text-muted-foreground">Repository pipeline analysis</p>
+				<h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
+					{title}
+				</h1>
+				{subtitle && <p className="text-muted-foreground">{subtitle}</p>}
 			</div>
 			<RangePicker />
 		</header>

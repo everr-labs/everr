@@ -49,14 +49,14 @@ interface Meta {
 
 const GetPipelinesInputSchema = intersect([
 	PaginationSchema,
+	RangeSchema,
 	object({
 		repo: string(),
-		range: RangeSchema,
 	}),
 ]);
 export const getPipelines = createServerFn({ method: 'GET' })
 	.validator(GetPipelinesInputSchema)
-	.handler(async ({ data: { repo, range, pageIndex, pageSize } }) => {
+	.handler(async ({ data: { repo, pageIndex, pageSize, ...range } }) => {
 		const params = {
 			repo,
 			...range,

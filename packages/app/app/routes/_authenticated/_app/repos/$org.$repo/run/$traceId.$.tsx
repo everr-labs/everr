@@ -46,13 +46,14 @@ export const Route = createFileRoute(
 		const firstStep = trace.spans[0]?.spans[0];
 
 		if (!firstStep) {
-			// TODO: how to handle this case?
+			// TODO: check this, this should happen if a pipeline is cancelled
+			throw notFound();
 		}
 
 		if (!spanId) {
 			return redirect({
 				to: `/repos/$org/$repo/run/$traceId/$`,
-				params: { org, repo, traceId, _splat: firstStep?.SpanId },
+				params: { org, repo, traceId, _splat: firstStep.SpanId },
 			});
 		}
 
@@ -76,7 +77,6 @@ function WorkflowPage() {
 	const { org, repo, traceId, _splat: spanId } = Route.useParams();
 
 	if (!spanId) {
-		 
 		throw notFound();
 	}
 

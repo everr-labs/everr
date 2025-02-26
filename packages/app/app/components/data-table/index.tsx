@@ -27,34 +27,37 @@ interface PaginatedData<TData> {
 	data: TData[];
 }
 
-interface DataTableProps<
-	TData,
-	TInput extends InferInput<typeof PaginationSchema>,
-> {
+interface QueryFnParams<TParams> {
+	data: TParams;
+}
+
+interface DataTableProps<TData, TParams extends Record<string, unknown>> {
 	columns: ColumnDef<TData>[];
-	params: Omit<TInput, 'pageIndex' | 'pageSize'>;
+	queryFn: (
+		params: QueryFnParams<TParams & InferInput<typeof PaginationSchema>>,
+	) => Promise<PaginatedData<TData>>;
+	params: TParams;
 	queryKey: QueryKey;
-	queryFn: ({ data }: { data: TInput }) => Promise<PaginatedData<TData>>;
 	className?: string;
 }
 
 export function DataTable<
 	TData,
-	TInput extends InferInput<typeof PaginationSchema>,
+	TParams extends Record<string, unknown> = Record<string, unknown>,
 >({
 	columns,
 	queryFn,
 	params,
 	queryKey,
 	className,
-}: DataTableProps<TData, TInput>) {
+}: DataTableProps<TData, TParams>) {
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
 		pageSize: 10,
 	});
 	const { data, isLoading } = useQuery({
 		queryKey: [...queryKey, params, pagination],
-		queryFn: () => queryFn({ data: { ...pagination, ...params } as TInput }),
+		queryFn: () => queryFn({ data: { ...pagination, ...params } }),
 		placeholderData: keepPreviousData,
 	});
 

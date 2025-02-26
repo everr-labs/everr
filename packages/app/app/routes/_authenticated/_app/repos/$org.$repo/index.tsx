@@ -8,6 +8,7 @@ import {
 	getDefaultRangeTo,
 	RangeSchema,
 } from '@/lib/validators';
+import { SiGithub } from '@icons-pack/react-simple-icons';
 import {
 	createFileRoute,
 	Link,
@@ -59,7 +60,15 @@ function RepositoryPage() {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<PageHeader title={`${org}/${repo}`} />
+			<PageHeader
+				title={
+					<>
+						<SiGithub className="size-7" />
+						{org}/{repo}
+					</>
+				}
+				subtitle="View the performance of your repository pipelines."
+			/>
 
 			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
 				<Card>
@@ -104,7 +113,7 @@ function RepositoryPage() {
 						queryKey={['getPipelines']}
 						params={{
 							repo: `${org}/${repo}`,
-							range,
+							...range,
 						}}
 						columns={columns}
 					/>
