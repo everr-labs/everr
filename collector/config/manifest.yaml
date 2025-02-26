@@ -6,30 +6,26 @@ dist:
   version: 0.1.0
 
 exporters:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.114.0
-  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.114.0
-  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.114.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.120.0
+  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.120.0
 
 connectors:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.114.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.114.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.120.0
 
 processors:
-  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.114.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.114.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.114.0
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.120.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.120.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.120.0
 
 extensions:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.114.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.114.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.120.0
 
 receivers:
-  # - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.114.0
-  - gomod: github.com/Elfo404/cicdo11y/collector/receiver/githubactionsreceiver v0.114.0
+  - gomod: github.com/Elfo404/cicdo11y/collector/receiver/githubactionsreceiver v0.120.0
 
 providers:
-  - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.17.0
-  - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.17.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.26.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.26.0
 
 replaces:
   - github.com/Elfo404/cicdo11y/collector/receiver/githubactionsreceiver => ../receiver/githubactionsreceiver
