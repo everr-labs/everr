@@ -298,6 +298,8 @@ go.opentelemetry.io/collector/config/configtls v1.26.0 h1:aBNqX3Q3WpO20SG/CF6sKx
 go.opentelemetry.io/collector/config/configtls v1.26.0/go.mod h1:ppoLSWiwovldy4R9KCs6+XCWhvvBaF8eBhkUL460lxw=
 go.opentelemetry.io/collector/confmap v1.26.0 h1:+EVk0RaCBHs+7dYTwawd5n5tJiiUtErIy3YS3NIFP8o=
 go.opentelemetry.io/collector/confmap v1.26.0/go.mod h1:tmOa6iw3FJsEgfBHKALqvcdfRtf71JZGor0wSM5MoH8=
+go.opentelemetry.io/collector/confmap/xconfmap v0.120.0 h1:wt+9H/TLXhY6q40AVx+fn2XK/FhjXuwInwFq9X9+aik=
+go.opentelemetry.io/collector/confmap/xconfmap v0.120.0/go.mod h1:wkzt6fVdLqBP+ZvbJWCLbo68nedvmoK09wFpR17awgs=
 go.opentelemetry.io/collector/consumer v1.26.0 h1:0MwuzkWFLOm13qJvwW85QkoavnGpR4ZObqCs9g1XAvk=
 go.opentelemetry.io/collector/consumer v1.26.0/go.mod h1:I/ZwlWM0sbFLhbStpDOeimjtMbWpMFSoGdVmzYxLGDg=
 go.opentelemetry.io/collector/consumer/consumererror v0.120.0 h1:f46ZnKCGBdvkjtJBT0ruA9cxDnvuR1jeR0amq9qc6Mc=

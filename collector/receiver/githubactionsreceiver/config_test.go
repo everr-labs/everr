@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 // only one validate check so far
@@ -165,7 +166,7 @@ func TestLoadConfig(t *testing.T) {
 	factory := NewFactory()
 	conf := factory.CreateDefaultConfig()
 	require.NoError(t, cmNoStr.Unmarshal(conf))
-	require.NoError(t, component.ValidateConfig(conf))
+	require.NoError(t, xconfmap.Validate(conf))
 
 	require.Equal(t, expect, conf)
 }
