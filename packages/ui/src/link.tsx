@@ -24,15 +24,13 @@ interface LinkProps
 
 export const Link = forwardRef(
 	(
-		{ variant, className, ...props }: LinkProps,
+		{ variant, className, children, ...props }: LinkProps,
 		ref: React.ForwardedRef<HTMLAnchorElement>,
 	) => {
 		return (
-			<a
-				{...props}
-				ref={ref}
-				className={linkVariants({ variant, className })}
-			/>
+			<a {...props} ref={ref} className={linkVariants({ variant, className })}>
+				{children}
+			</a>
 		);
 	},
 );

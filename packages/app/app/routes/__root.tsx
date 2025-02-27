@@ -87,7 +87,7 @@ const ReactQueryDevtools =
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 	return (
-		<html className="dark" style={{ colorScheme: 'dark' }}>
+		<html className="dark" style={{ colorScheme: 'dark' }} lang="en">
 			<head>
 				<HeadContent />
 			</head>

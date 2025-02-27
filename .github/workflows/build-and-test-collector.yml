@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build & Test Collector
 defaults:
   run:
     working-directory: ./collector
@@ -15,8 +15,6 @@ on:
     paths:
       - .github/**
       - collector/**
-      # TODO: check if we need to move this to the root of the repo
-      - .golangci.yaml
 
   push:
     branches: [main]

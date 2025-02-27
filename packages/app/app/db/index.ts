@@ -8,4 +8,5 @@ if (!process.env.DB_URL) {
 
 export const db = drizzle(process.env.DB_URL, {
 	schema,
+	logger: true,
 });
