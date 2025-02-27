@@ -51,7 +51,9 @@
 				"CLICKHOUSE_URL",
 				"DB_URL",
 				"GITHUB_CLIENT_ID",
-				"GITHUB_CLIENT_SECRET"
+				"GITHUB_CLIENT_SECRET",
+				"RESEND_API_KEY",
+				"EMAIL_FROM"
 			]
 		},
 		"@citric/app#start": {
@@ -68,7 +70,9 @@
 				"CLICKHOUSE_URL",
 				"DB_URL",
 				"GITHUB_CLIENT_ID",
-				"GITHUB_CLIENT_SECRET"
+				"GITHUB_CLIENT_SECRET",
+				"RESEND_API_KEY",
+				"EMAIL_FROM"
 			]
 		},
 		"studio": {

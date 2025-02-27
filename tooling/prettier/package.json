@@ -4,7 +4,7 @@
 	"version": "0.1.0",
 	"type": "module",
 	"exports": {
-		".": "./index.js"
+		".": "./.prettierrc.js"
 	},
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo node_modules",
@@ -19,6 +19,5 @@
 	"devDependencies": {
 		"@citric/tsconfig": "workspace:*",
 		"typescript": "catalog:"
-	},
-	"prettier": "@citric/prettier-config"
+	}
 }

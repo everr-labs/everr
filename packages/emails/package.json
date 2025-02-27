@@ -1,0 +1,26 @@
+{
+	"name": "@citric/emails",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"dev": "email dev -p 3001 --dir src/emails",
+		"export": "email export",
+		"lint": "eslint",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@react-email/components": "^0.0.33"
+	},
+	"devDependencies": {
+		"@citric/eslint-config": "workspace:*",
+		"@citric/prettier-config": "workspace:*",
+		"@citric/tsconfig": "workspace:*",
+		"eslint": "catalog:",
+		"react-email": "^3.0.7"
+	},
+	"prettier": "@citric/prettier-config"
+}

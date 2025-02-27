@@ -1,8 +1,12 @@
+import type { Conclusion } from '@/types';
 import type { ForwardedRef } from 'react';
 import { forwardRef } from 'react';
-import type {Conclusion} from '@/types';
-import { QuestionMarkCircledIcon } from '@radix-ui/react-icons';
-import { CheckCircle2Icon, CircleOffIcon, OctagonAlert } from 'lucide-react';
+import {
+	CheckCircle2Icon,
+	CircleHelpIcon,
+	CircleOffIcon,
+	OctagonAlert,
+} from 'lucide-react';
 
 import {
 	cn,
@@ -67,7 +71,7 @@ const Icon = forwardRef(
 			// TODO: Add more cases
 			default:
 				return (
-					<QuestionMarkCircledIcon
+					<CircleHelpIcon
 						className={cn(baseClassName, 'text-muted-foreground', className)}
 					/>
 				);

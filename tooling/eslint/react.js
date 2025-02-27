@@ -1,5 +1,6 @@
 // @ts-check
 
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactPlugin from 'eslint-plugin-react';
 import hooksPlugin from 'eslint-plugin-react-hooks';
 
@@ -10,6 +11,7 @@ export default [
 		plugins: {
 			react: reactPlugin,
 			'react-hooks': hooksPlugin,
+			'jsx-a11y': jsxA11y,
 		},
 		rules: {
 			...reactPlugin.configs['jsx-runtime'].rules,

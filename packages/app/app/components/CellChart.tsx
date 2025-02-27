@@ -1,10 +1,6 @@
 import type { AxisDomain } from 'recharts/types/util/types';
 import { shortDuration } from '@/lib/datetime';
-import {
-	DashIcon,
-	TriangleDownIcon,
-	TriangleUpIcon,
-} from '@radix-ui/react-icons';
+import { ChevronDownIcon, ChevronUpIcon, MinusIcon } from 'lucide-react';
 import { Area, AreaChart, YAxis } from 'recharts';
 
 import type { ChartConfig } from '@citric/ui';
@@ -91,11 +87,11 @@ export function CellChart({
 						})}
 					>
 						{delta > 0 ? (
-							<TriangleUpIcon className="h-4 w-4" />
+							<ChevronUpIcon className="h-4 w-4" />
 						) : delta < 0 ? (
-							<TriangleDownIcon className="h-4 w-4" />
+							<ChevronDownIcon className="h-4 w-4" />
 						) : (
-							<DashIcon className="h-4 w-4" />
+							<MinusIcon className="h-4 w-4" />
 						)}
 						{getStringValue(delta, deltaFormat)}
 					</span>

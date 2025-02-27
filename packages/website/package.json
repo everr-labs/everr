@@ -5,6 +5,7 @@
 	"scripts": {
 		"dev": "COMPATIBILITY_DATE=2024-11-24 astro dev",
 		"build": "COMPATIBILITY_DATE=2024-11-24 astro check && astro build",
+		"check": "astro check",
 		"preview": "astro preview",
 		"astro": "astro"
 	},
@@ -12,20 +13,17 @@
 		"@astrojs/check": "^0.9.4",
 		"@astrojs/react": "^4.2.0",
 		"@astrojs/tailwind": "^6.0.0",
-		"@citric/tailwind-config": "workspace:*",
 		"@citric/ui": "workspace:*",
 		"@icons-pack/react-simple-icons": "catalog:",
-		"@types/react": "catalog:",
-		"@types/react-dom": "catalog:",
 		"astro": "^5.3.1",
-		"class-variance-authority": "^0.7.1",
 		"lucide-react": "catalog:",
 		"motion": "^12.4.7",
 		"react": "catalog:",
-		"react-dom": "catalog:",
-		"typescript": "catalog:"
+		"react-dom": "catalog:"
 	},
 	"devDependencies": {
-		"vite": "^6.2.0"
+		"@citric/tailwind-config": "workspace:*",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:"
 	}
 }
