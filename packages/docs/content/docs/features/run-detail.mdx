@@ -1,0 +1,13 @@
+---
+title: Run Detail
+description: Detailed view of a single workflow run with job tree and trace waterfall.
+---
+
+**Route:** `/dashboard/runs/$traceId`
+
+Detailed view of a single workflow run with two tabs: Jobs and Trace. The Jobs tab shows a hierarchical job tree with expandable steps and a log viewer. The Trace tab renders an interactive waterfall visualization of the run's OpenTelemetry spans.
+
+- Run metadata header (ID, workflow name, conclusion, repo, branch, timestamp)
+- Job tree sidebar with expandable steps for navigating the run structure
+- Step log viewer with terminal-style formatted output
+- Trace waterfall chart showing span timing, parent-child relationships, and flaky test badges

@@ -1,0 +1,20 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: check
+      glob: "*.{js,ts,tsx,json,jsonc,css}"
+      run: pnpm biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
+      stage_fixed: true
+    - name: collector
+      glob: "collector/**/*.go"
+      group:
+        piped: true
+        jobs:
+          - name: collector-fmt
+            run: cd collector && make fmt-all
+            stage_fixed: true
+          - name: collector-tidy
+            run: cd collector && make tidy-all
+            stage_fixed: true
+          - name: collector-lint
+            run: cd collector && make lint-all

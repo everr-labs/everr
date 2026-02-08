@@ -1,0 +1,8 @@
+type: testlogstotraces
+
+status:
+  class: connector
+  stability:
+    alpha: [logs_to_traces]
+  codeowners:
+    active: ['Elfo404']

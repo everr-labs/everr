@@ -9,14 +9,18 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/get-citric/citric/collector/receiver/githubactionsreceiver/internal/metadata"
+	"github.com/get-citric/citric/collector/semconv"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -40,7 +44,9 @@ func TestNewReceiver(t *testing.T) {
 			desc: "User defined config success",
 			config: Config{
 				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
+					NetAddr: confignet.AddrConfig{
+						Endpoint: "localhost:8080",
+					},
 				},
 				Secret: "mysecret",
 			},
@@ -50,7 +56,7 @@ func TestNewReceiver(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			rec, err := newReceiver(receivertest.NewNopSettings(), &test.config)
+			rec, err := newReceiver(receivertest.NewNopSettings(metadata.Type), &test.config)
 			if test.err == nil {
 				require.NotNil(t, rec)
 			} else {
@@ -146,7 +152,8 @@ func TestProcessSteps(t *testing.T) {
 			ss := rs.ScopeSpans().AppendEmpty()
 
 			traceID, _ := generateTraceID(123, 1)
-			parentSpanID := createParentSpan(ss, tc.givenSteps, &github.WorkflowJob{}, traceID, logger)
+			parentSpanID, err := createParentSpan(ss, tc.givenSteps, &github.WorkflowJob{}, traceID, logger)
+			require.NoError(t, err)
 
 			processSteps(ss, tc.givenSteps, &github.WorkflowJob{}, traceID, parentSpanID, logger)
 
@@ -175,8 +182,8 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 			desc:            "WorkflowJobEvent Step Attributes",
 			payloadFilePath: "./testdata/completed/5_workflow_job_completed.json",
 			expectedSteps: []map[string]string{
-				{"ci.github.workflow.job.step.name": "Set up job", "ci.github.workflow.job.step.number": "1"},
-				{"ci.github.workflow.job.step.name": "Run actions/checkout@v3", "ci.github.workflow.job.step.number": "2"},
+				{string(conventions.CICDPipelineTaskNameKey): "Set up job", semconv.CitricGitHubWorkflowJobStepNumber: "1"},
+				{string(conventions.CICDPipelineTaskNameKey): "Run actions/checkout@v3", semconv.CitricGitHubWorkflowJobStepNumber: "2"},
 			},
 		},
 	}
@@ -204,14 +211,14 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 					span := ss.Spans().At(i)
 					attrs := span.Attributes()
 
-					stepValue, found := attrs.Get("ci.github.workflow.job.step.name")
+					stepValue, found := attrs.Get(string(conventions.CICDPipelineTaskNameKey))
 					stepName := stepValue.Str()
 
 					if !found || stepName == "" { // Skip if the attribute is not found or name is empty
 						continue
 					}
 
-					expectedStepName := expectedStep["ci.github.workflow.job.step.name"]
+					expectedStepName := expectedStep[string(conventions.CICDPipelineTaskNameKey)]
 
 					if stepName == expectedStepName {
 						stepFound = true
@@ -227,7 +234,7 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 					}
 				}
 
-				require.True(t, stepFound, "Step '%s' not found in any span", expectedStep["ci.github.workflow.job.step.name"])
+				require.True(t, stepFound, "Step '%s' not found in any span", expectedStep[string(conventions.CICDPipelineTaskNameKey)])
 			}
 
 		})

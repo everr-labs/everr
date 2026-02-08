@@ -7,38 +7,45 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Elfo404/cicdo11y/collector/receiver/githubactionsreceiver/internal/metadata"
+	"github.com/get-citric/citric/collector/receiver/githubactionsreceiver/internal/metadata"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
-// only one validate check so far
+type testNode struct {
+	desc     string
+	expect   error
+	conf     *Config
+	children []testNode
+}
+
 func TestValidateConfig(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		desc   string
-		expect error
-		conf   Config
-	}{
+	tests := []testNode{
 		{
 			desc:   "Missing valid endpoint",
 			expect: errMissingEndpointFromConfig,
-			conf: Config{
+			conf: &Config{
 				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "",
+					NetAddr: confignet.AddrConfig{
+						Endpoint: "",
+					},
 				},
 			},
 		},
 		{
 			desc:   "Valid Secret",
 			expect: nil,
-			conf: Config{
+			conf: &Config{
 				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
+					NetAddr: confignet.AddrConfig{
+						Endpoint: "localhost:8080",
+					},
 				},
 				Secret: "mysecret",
 			},
@@ -46,9 +53,11 @@ func TestValidateConfig(t *testing.T) {
 		{
 			desc:   "Auth method",
 			expect: errAuthMethod,
-			conf: Config{
+			conf: &Config{
 				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
+					NetAddr: confignet.AddrConfig{
+						Endpoint: "localhost:8080",
+					},
 				},
 				GitHubAPIConfig: GitHubAPIConfig{
 					Auth: GitHubAPIAuthConfig{
@@ -61,87 +70,117 @@ func TestValidateConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:   "GH App Auth > Missing App ID",
-			expect: errMissingAppID,
-			conf: Config{
-				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
-				},
-				GitHubAPIConfig: GitHubAPIConfig{
-					Auth: GitHubAPIAuthConfig{
-						InstallationID: 1,
-						PrivateKeyPath: "path",
+			desc: "GH App Auth",
+			children: []testNode{
+				{
+					desc:   "Missing App ID",
+					expect: errMissingAppID,
+					conf: &Config{
+						ServerConfig: confighttp.ServerConfig{
+							NetAddr: confignet.AddrConfig{
+								Endpoint: "localhost:8080",
+							},
+						},
+						GitHubAPIConfig: GitHubAPIConfig{
+							Auth: GitHubAPIAuthConfig{
+								InstallationID: 1,
+								PrivateKeyPath: "path",
+							},
+						},
 					},
 				},
-			},
-		},
-		{
-			desc:   "GH App Auth > Missing Installation ID",
-			expect: errMissingInstallationID,
-			conf: Config{
-				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
-				},
-				GitHubAPIConfig: GitHubAPIConfig{
-					Auth: GitHubAPIAuthConfig{
-						AppID:          1,
-						PrivateKeyPath: "path",
+				{
+					desc:   "Missing Installation ID",
+					expect: errMissingInstallationID,
+					conf: &Config{
+						ServerConfig: confighttp.ServerConfig{
+							NetAddr: confignet.AddrConfig{
+								Endpoint: "localhost:8080",
+							},
+						},
+						GitHubAPIConfig: GitHubAPIConfig{
+							Auth: GitHubAPIAuthConfig{
+								AppID:          1,
+								PrivateKeyPath: "path",
+							},
+						},
 					},
 				},
-			},
-		},
-		{
-			desc:   "GH App Auth > Missing Private Key Path",
-			expect: errMissingPrivateKeyPath,
-			conf: Config{
-				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
-				},
-				GitHubAPIConfig: GitHubAPIConfig{
-					Auth: GitHubAPIAuthConfig{
-						AppID:          1,
-						InstallationID: 1,
+				{
+					desc:   "Missing Private Key Path",
+					expect: errMissingPrivateKeyPath,
+					conf: &Config{
+						ServerConfig: confighttp.ServerConfig{
+							NetAddr: confignet.AddrConfig{
+								Endpoint: "localhost:8080",
+							},
+						},
+						GitHubAPIConfig: GitHubAPIConfig{
+							Auth: GitHubAPIAuthConfig{
+								AppID:          1,
+								InstallationID: 1,
+							},
+						},
 					},
 				},
-			},
-		},
-		{
-			desc:   "GH App Auth > Both BaseURL and UploadURL must be set if one is set > Missing BaseURL",
-			expect: errBaseURLAndUploadURL,
-			conf: Config{
-				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
-				},
-				GitHubAPIConfig: GitHubAPIConfig{
-					UploadURL: "upload",
-				},
-			},
-		},
-		{
-			desc:   "GH App Auth > Both BaseURL and UploadURL must be set if one is set > Missing UploadURL",
-			expect: errBaseURLAndUploadURL,
-			conf: Config{
-				ServerConfig: confighttp.ServerConfig{
-					Endpoint: "localhost:8080",
-				},
-				GitHubAPIConfig: GitHubAPIConfig{
-					BaseURL: "base",
+				{
+					desc: "Both BaseURL and UploadURL must be set if one is set",
+					children: []testNode{
+						{
+							desc:   "Missing BaseURL",
+							expect: errBaseURLAndUploadURL,
+							conf: &Config{
+								ServerConfig: confighttp.ServerConfig{
+									NetAddr: confignet.AddrConfig{
+										Endpoint: "localhost:8080",
+									},
+								},
+								GitHubAPIConfig: GitHubAPIConfig{
+									UploadURL: "upload",
+								},
+							},
+						},
+						{
+							desc:   "Missing UploadURL",
+							expect: errBaseURLAndUploadURL,
+							conf: &Config{
+								ServerConfig: confighttp.ServerConfig{
+									NetAddr: confignet.AddrConfig{
+										Endpoint: "localhost:8080",
+									},
+								},
+								GitHubAPIConfig: GitHubAPIConfig{
+									BaseURL: "base",
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			err := test.conf.Validate()
-			if test.expect == nil {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), test.expect.Error())
-			}
-		})
+	var runTests func(t *testing.T, nodes []testNode)
+	runTests = func(t *testing.T, nodes []testNode) {
+		t.Helper()
+		for _, node := range nodes {
+			t.Run(node.desc, func(t *testing.T) {
+				if node.conf != nil {
+					err := node.conf.Validate()
+					if node.expect == nil {
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), node.expect.Error())
+					}
+				} else {
+					runTests(t, node.children)
+				}
+			})
+		}
 	}
+
+	runTests(t, tests)
 }
 
 func TestLoadConfig(t *testing.T) {
@@ -156,7 +195,10 @@ func TestLoadConfig(t *testing.T) {
 
 	expect := &Config{
 		ServerConfig: confighttp.ServerConfig{
-			Endpoint: "localhost:8080",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:8080",
+				Transport: "tcp",
+			},
 		},
 		Path:   "/ghaevents",
 		Secret: "mysecret",

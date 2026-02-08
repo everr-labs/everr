@@ -1,24 +1,28 @@
 {
-	"extends": "@citric/tsconfig/base.json",
+  "include": ["**/*.ts", "**/*.tsx"],
+  "compilerOptions": {
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
 
-	"compilerOptions": {
-		"strictNullChecks": true,
-		"allowSyntheticDefaultImports": true,
-		"types": ["vinxi/types/client"],
-		// "moduleResolution": "Bundler",
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
 
-		/* Bundled projects */
-		"lib": ["dom", "dom.iterable", "ES2022"],
-		"module": "ESNext",
-		"jsx": "react-jsx",
-
-		/* Path Aliases */
-		"baseUrl": ".",
-		"paths": {
-			"@/*": ["./app/*"],
-			"~server/*": ["./src/server/*"]
-		}
-	},
-	"include": ["app"],
-	"exclude": ["node_modules"]
+    /* Linting */
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
 }

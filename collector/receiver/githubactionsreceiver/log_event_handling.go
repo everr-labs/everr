@@ -19,9 +19,14 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+
+	"github.com/get-citric/citric/collector/semconv"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 )
 
-func eventToLogs(event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool) (*plog.Logs, error) {
+const maxLogArchiveSize = 256 * 1024 * 1024 // 256 MB
+
+func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool) (*plog.Logs, error) {
 	e, ok := event.(*github.WorkflowRunEvent)
 	if !ok {
 		return nil, nil
@@ -40,28 +45,36 @@ func eventToLogs(event interface{}, config *Config, ghClient *github.Client, log
 
 	setWorkflowRunEventAttributes(attrs, e, config)
 
-	url, _, err := ghClient.Actions.GetWorkflowRunAttemptLogs(context.Background(), e.GetRepo().GetOwner().GetLogin(), e.GetRepo().GetName(), e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt(), 10)
+	url, _, err := ghClient.Actions.GetWorkflowRunAttemptLogs(ctx, e.GetRepo().GetOwner().GetLogin(), e.GetRepo().GetName(), e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt(), 10)
 
 	if err != nil {
 		logger.Error("Failed to get logs", zap.Error(err))
 		return nil, err
 	}
 
-	tmpFile, err := os.CreateTemp("", "tmpfile-")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
-		logger.Error("Failed to create temp file", zap.Error(err))
+		logger.Error("Failed to create log download request", zap.Error(err))
 		return nil, err
 	}
 
-	resp, err := http.Get(url.String())
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.Error("Failed to get logs", zap.Error(err))
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Copy the response into the temp file
-	_, err = io.Copy(tmpFile, resp.Body)
+	tmpFile, err := os.CreateTemp("", "tmpfile-")
+	if err != nil {
+		logger.Error("Failed to create temp file", zap.Error(err))
+		return nil, err
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// Copy the response into the temp file with a size limit
+	_, err = io.Copy(tmpFile, io.LimitReader(resp.Body, maxLogArchiveSize))
 	if err != nil {
 		logger.Error("Failed to copy response to temp file", zap.Error(err))
 		return nil, err
@@ -69,31 +82,46 @@ func eventToLogs(event interface{}, config *Config, ghClient *github.Client, log
 
 	archive, err := zip.OpenReader(tmpFile.Name())
 	if err != nil {
+		logger.Error("Failed to open zip file", zap.Error(err))
 		return nil, fmt.Errorf("failed to open zip file: %w", err)
 	}
 	defer archive.Close()
 
 	if archive.File == nil {
+		logger.Error("Archive is empty")
 		return nil, fmt.Errorf("archive is empty")
 	}
 
-	// steps is a map of job names to a map of step numbers to file names
-	var jobs = make([]string, 0)
+	// Extract job names from file paths and collect step files
+	// GitHub's zip doesn't include explicit directory entries, so we parse job names from file paths
+	jobsSet := make(map[string]struct{})
 	var files = make([]*zip.File, 0)
 
-	// first we get all the directories. each directory is a job
 	for _, f := range archive.File {
 		if f.FileInfo().IsDir() {
-			// if the file is a directory, then it's a job. each file in this directory is a step
-			jobs = append(jobs, f.Name[:len(f.Name)-1])
-		} else {
+			continue // Skip directory entries if they exist
+		}
+
+		// Extract job name from path (e.g., "Test/1_Set up job.txt" -> "Test")
+		if idx := strings.Index(f.Name, "/"); idx > 0 {
+			jobName := f.Name[:idx]
+			jobsSet[jobName] = struct{}{}
 			files = append(files, f)
 		}
+		// Skip root-level files (e.g., "0_Test.txt") as they are combined logs
 	}
+
+	// Convert set to slice
+	jobs := make([]string, 0, len(jobsSet))
+	for job := range jobsSet {
+		jobs = append(jobs, job)
+	}
+
+	logger.Debug("Extracted jobs from zip", zap.Strings("jobs", jobs), zap.Int("file_count", len(files)))
 
 	for _, jobName := range jobs {
 		jobLogsScope := allLogs.ScopeLogs().AppendEmpty()
-		jobLogsScope.Scope().Attributes().PutStr("ci.github.workflow.job.name", jobName)
+		jobLogsScope.Scope().Attributes().PutStr(string(conventions.CICDPipelineTaskNameKey), jobName)
 
 		for _, logFile := range files {
 			if !strings.HasPrefix(logFile.Name, jobName) {
@@ -119,7 +147,6 @@ func eventToLogs(event interface{}, config *Config, ghClient *github.Client, log
 				logger.Error("Failed to open file", zap.Error(err))
 				continue
 			}
-			defer ff.Close()
 
 			scanner := bufio.NewScanner(ff)
 			for scanner.Scan() {
@@ -146,7 +173,7 @@ func eventToLogs(event interface{}, config *Config, ghClient *github.Client, log
 					record.SetSpanID(spanID)
 					record.SetTraceID(traceID)
 				}
-				record.Attributes().PutInt("ci.github.workflow.job.step.number", int64(stepNumber))
+				record.Attributes().PutInt(semconv.CitricGitHubWorkflowJobStepNumber, int64(stepNumber))
 				record.SetTimestamp(pcommon.NewTimestampFromTime(parsedTime))
 				record.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 				record.Body().SetStr(line)
@@ -155,6 +182,8 @@ func eventToLogs(event interface{}, config *Config, ghClient *github.Client, log
 			if err := scanner.Err(); err != nil {
 				logger.Error("Error reading file", zap.Error(err))
 			}
+
+			ff.Close()
 		}
 	}
 

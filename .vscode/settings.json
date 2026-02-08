@@ -1,31 +1,47 @@
-{
-	"editor.codeActionsOnSave": {
-		"source.fixAll.eslint": "explicit"
-	},
-	"editor.defaultFormatter": "esbenp.prettier-vscode",
-	"editor.formatOnSave": true,
-	// "eslint.rules.customizations": [{ "rule": "*", "severity": "warn" }],
-	"eslint.runtime": "node",
-	"eslint.workingDirectories": [
-		{ "pattern": "packages/*/" },
-		{ "pattern": "tooling/*/" }
-	],
-	"prettier.ignorePath": ".gitignore",
-	"tailwindCSS.experimental.classRegex": [
-		["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
-		["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
-	],
-	"tailwindCSS.experimental.configFile": "./tooling/tailwind/tailwind-config.ts",
-	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"typescript.preferences.autoImportFileExcludePatterns": [],
-	"typescript.tsdk": "node_modules/typescript/lib",
-	"files.watcherExclude": {
-		"**/routeTree.gen.ts": true
-	},
-	"search.exclude": {
-		"**/routeTree.gen.ts": true
-	},
-	"files.readonlyInclude": {
-		"**/routeTree.gen.ts": true
+
+	{
+		"files.watcherExclude": {
+			"**/routeTree.gen.ts": true
+		},
+		"search.exclude": {
+			"**/routeTree.gen.ts": true
+		},
+		"files.readonlyInclude": {
+			"**/routeTree.gen.ts": true
+		},
+		"[javascript]": {
+			"editor.defaultFormatter": "biomejs.biome"
+		},
+		"[javascriptreact]": {
+			"editor.defaultFormatter": "biomejs.biome"
+		},
+		"[typescript]": {
+			"editor.defaultFormatter": "biomejs.biome"
+		},
+		"[typescriptreact]": {
+			"editor.defaultFormatter": "biomejs.biome"
+		},
+		"[json]": {
+			"editor.defaultFormatter": "biomejs.biome"
+		},
+		"[jsonc]": {
+			"editor.defaultFormatter": "biomejs.biome"
+		},
+		"[css]": {
+			"editor.defaultFormatter": "biomejs.biome"
+		},
+		"go.formatTool": "gofmt",
+		"[go]": {
+			"editor.formatOnSave": true,
+			"editor.defaultFormatter": "golang.go"
+		},
+		"[go.mod]": {
+			"editor.formatOnSave": true,
+		},
+		"editor.codeActionsOnSave": {
+			"source.organizeImports.biome": "explicit"
+		},
+		"tailwindCSS.lint.suggestCanonicalClasses": "ignore"
 	}
-}
+
+

@@ -3,10 +3,11 @@ package githubactionsreceiver
 import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/Elfo404/cicdo11y/collector/internal/sharedcomponent"
-	"github.com/Elfo404/cicdo11y/collector/receiver/githubactionsreceiver/internal/metadata"
+	"github.com/get-citric/citric/collector/internal/sharedcomponent"
+	"github.com/get-citric/citric/collector/receiver/githubactionsreceiver/internal/metadata"
 )
 
 // This file implements factory for GitHub Actions receiver.
@@ -30,7 +31,10 @@ func NewFactory() receiver.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		ServerConfig: confighttp.ServerConfig{
-			Endpoint: defaultBindEndpoint,
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  defaultBindEndpoint,
+				Transport: "tcp",
+			},
 		},
 		Path:   defaultPath,
 		Secret: "",

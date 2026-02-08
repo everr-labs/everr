@@ -1,0 +1,52 @@
+---
+title: Go Tests
+description: Set up test analytics for Go projects.
+---
+
+Citric parses verbose Go test output to track individual test results, detect flaky tests, and analyze failures.
+
+## Setup
+
+Run your Go tests with the `-v` (verbose) flag so that individual test results are printed:
+
+```bash
+go test -v ./...
+```
+
+### GitHub Actions workflow example
+
+```yaml
+- name: Run tests
+  run: go test -v ./...
+```
+
+That's it — the Citric collector automatically detects and parses Go test output from workflow logs.
+
+## What gets parsed
+
+The parser recognizes the standard Go test verbose output patterns:
+
+| Pattern | Meaning |
+|---------|---------|
+| `=== RUN   TestName` | Test started |
+| `--- PASS: TestName (0.05s)` | Test passed |
+| `--- FAIL: TestName (0.12s)` | Test failed |
+| `--- SKIP: TestName (0.00s)` | Test skipped |
+
+## Subtests
+
+Go subtests (created with `t.Run()`) are automatically detected via the `/` separator in test names. For example, `TestParser/valid_input` is recognized as a subtest of `TestParser`.
+
+Each subtest becomes its own span with `citric.test.is_subtest` set to `true` and `citric.test.parent_test` pointing to the parent test name.
+
+## Generated span attributes
+
+| Attribute | Value |
+|-----------|-------|
+| `citric.test.name` | Full test name (e.g. `TestParser/valid_input`) |
+| `citric.test.result` | `pass`, `fail`, or `skip` |
+| `citric.test.duration_seconds` | Duration from the test output |
+| `citric.test.framework` | `go` |
+| `citric.test.package` | Go package path |
+| `citric.test.is_subtest` | `true` for subtests |
+| `citric.test.parent_test` | Parent test name (for subtests) |

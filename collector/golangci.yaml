@@ -1,6 +1,6 @@
 ---
 run:
-  go: '1.23'
+  go: '1.25'
   timeout: 10m
   allow-parallel-runners: true
 
@@ -25,7 +25,6 @@ linters:
   enable:
     - gofmt
     - errcheck
-    - goimports
     - misspell
     - noctx
     - lll

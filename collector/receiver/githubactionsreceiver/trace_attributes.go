@@ -10,7 +10,10 @@ import (
 
 	"github.com/google/go-github/v67/github"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap"
+
+	"github.com/get-citric/citric/collector/semconv"
 )
 
 func createResourceAttributes(resource pcommon.Resource, event interface{}, config *Config, logger *zap.Logger) {
@@ -21,15 +24,16 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 		serviceName := generateServiceName(config, e.GetRepo().GetFullName())
 		attrs.PutStr("service.name", serviceName)
 
-		attrs.PutStr("ci.github.workflow.name", e.GetWorkflowJob().GetWorkflowName())
+		attrs.PutStr(string(conventions.CICDPipelineNameKey), e.GetWorkflowJob().GetWorkflowName())
 
-		attrs.PutStr("ci.github.workflow.job.created_at", e.GetWorkflowJob().GetCreatedAt().Format(time.RFC3339))
-		attrs.PutStr("ci.github.workflow.job.completed_at", e.GetWorkflowJob().GetCompletedAt().Format(time.RFC3339))
-		attrs.PutStr("ci.github.workflow.job.conclusion", e.GetWorkflowJob().GetConclusion())
-		attrs.PutStr("ci.github.workflow.job.head_branch", e.GetWorkflowJob().GetHeadBranch())
-		attrs.PutStr("ci.github.workflow.job.head_sha", e.GetWorkflowJob().GetHeadSHA())
-		attrs.PutStr("ci.github.workflow.job.html_url", e.GetWorkflowJob().GetHTMLURL())
-		attrs.PutInt("ci.github.workflow.job.id", e.GetWorkflowJob().GetID())
+		attrs.PutStr(semconv.CitricGitHubWorkflowJobCreatedAt, e.GetWorkflowJob().GetCreatedAt().Format(time.RFC3339))
+		attrs.PutStr(semconv.CitricGitHubWorkflowJobCompletedAt, e.GetWorkflowJob().GetCompletedAt().Format(time.RFC3339))
+		attrs.PutStr(string(conventions.CICDPipelineTaskRunResultKey), e.GetWorkflowJob().GetConclusion())
+		attrs.PutStr(string(conventions.VCSRefHeadNameKey), e.GetWorkflowJob().GetHeadBranch())
+		attrs.PutStr(string(conventions.VCSRefHeadTypeKey), "branch")
+		attrs.PutStr(string(conventions.VCSRefHeadRevisionKey), e.GetWorkflowJob().GetHeadSHA())
+		attrs.PutStr(string(conventions.CICDPipelineTaskRunURLFullKey), e.GetWorkflowJob().GetHTMLURL())
+		attrs.PutInt(string(conventions.CICDPipelineTaskRunIDKey), e.GetWorkflowJob().GetID())
 
 		if len(e.WorkflowJob.Labels) > 0 {
 			labels := e.GetWorkflowJob().Labels
@@ -38,24 +42,24 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 			}
 			sort.Strings(labels)
 			joinedLabels := strings.Join(labels, ",")
-			attrs.PutStr("ci.github.workflow.job.labels", joinedLabels)
+			attrs.PutStr(semconv.CICDPipelineWorkerLabels, joinedLabels)
 		} else {
-			attrs.PutStr("ci.github.workflow.job.labels", "no labels")
+			attrs.PutStr(semconv.CICDPipelineWorkerLabels, "no labels")
 		}
 
-		attrs.PutStr("ci.github.workflow.job.name", e.GetWorkflowJob().GetName())
-		attrs.PutInt("ci.github.workflow.job.run_attempt", e.GetWorkflowJob().GetRunAttempt())
-		attrs.PutInt("ci.github.workflow.job.run_id", e.GetWorkflowJob().GetRunID())
-		attrs.PutStr("ci.github.workflow.job.runner.group_name", e.GetWorkflowJob().GetRunnerGroupName())
-		attrs.PutStr("ci.github.workflow.job.runner.name", e.GetWorkflowJob().GetRunnerName())
-		attrs.PutStr("ci.github.workflow.job.sender.login", e.GetSender().GetLogin())
-		attrs.PutStr("ci.github.workflow.job.started_at", e.GetWorkflowJob().GetStartedAt().Format(time.RFC3339))
-		attrs.PutStr("ci.github.workflow.job.status", e.GetWorkflowJob().GetStatus())
+		attrs.PutStr(string(conventions.CICDPipelineTaskNameKey), e.GetWorkflowJob().GetName())
+		attrs.PutInt(semconv.CitricGitHubWorkflowJobRunAttempt, e.GetWorkflowJob().GetRunAttempt())
+		attrs.PutInt(string(conventions.CICDPipelineRunIDKey), e.GetWorkflowJob().GetRunID())
+		attrs.PutStr(semconv.CICDPipelineWorkerGroupName, e.GetWorkflowJob().GetRunnerGroupName())
+		attrs.PutStr(string(conventions.CICDWorkerNameKey), e.GetWorkflowJob().GetRunnerName())
+		attrs.PutStr(semconv.CICDPipelineTaskRunSenderLogin, e.GetSender().GetLogin())
+		attrs.PutStr(semconv.CitricGitHubWorkflowJobStartedAt, e.GetWorkflowJob().GetStartedAt().Format(time.RFC3339))
+		attrs.PutStr(semconv.CitricGitHubWorkflowJobStatus, e.GetWorkflowJob().GetStatus())
 
-		attrs.PutStr("ci.system", "github")
+		attrs.PutStr(string(conventions.VCSProviderNameKey), "github")
 
-		attrs.PutStr("scm.git.repo.owner.login", e.GetRepo().GetOwner().GetLogin())
-		attrs.PutStr("scm.git.repo", e.GetRepo().GetFullName())
+		attrs.PutStr(string(conventions.VCSOwnerNameKey), e.GetRepo().GetOwner().GetLogin())
+		attrs.PutStr(string(conventions.VCSRepositoryNameKey), e.GetRepo().GetFullName())
 
 	case *github.WorkflowRunEvent:
 		setWorkflowRunEventAttributes(attrs, e, config)

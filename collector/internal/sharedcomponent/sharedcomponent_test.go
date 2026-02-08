@@ -25,22 +25,6 @@ type mockComponent struct {
 	component.ShutdownFunc
 }
 
-func TestSharedComponents_GetOrAdd(t *testing.T) {
-	nop := &mockComponent{}
-	createNop := func() component.Component { return nop }
-
-	comps := NewSharedComponents()
-	got := comps.GetOrAdd(id, createNop)
-	assert.Len(t, comps.comps, 1)
-	assert.Same(t, nop, got.Unwrap())
-	assert.Same(t, got, comps.GetOrAdd(id, createNop))
-
-	// Shutdown nop will remove
-	assert.NoError(t, got.Shutdown(context.Background()))
-	assert.Len(t, comps.comps, 0)
-	assert.NotSame(t, got, comps.GetOrAdd(id, createNop))
-}
-
 func TestSharedComponent(t *testing.T) {
 	wantErr := errors.New("my error")
 	calledStart := 0
@@ -69,4 +53,20 @@ func TestSharedComponent(t *testing.T) {
 	// Second time is not called anymore.
 	assert.NoError(t, got.Shutdown(context.Background()))
 	assert.Equal(t, 1, calledStop)
+
+	t.Run("GetOrAdd", func(t *testing.T) {
+		nop := &mockComponent{}
+		createNop := func() component.Component { return nop }
+
+		comps := NewSharedComponents()
+		got := comps.GetOrAdd(id, createNop)
+		assert.Len(t, comps.comps, 1)
+		assert.Same(t, nop, got.Unwrap())
+		assert.Same(t, got, comps.GetOrAdd(id, createNop))
+
+		// Shutdown nop will remove
+		assert.NoError(t, got.Shutdown(context.Background()))
+		assert.Len(t, comps.comps, 0)
+		assert.NotSame(t, got, comps.GetOrAdd(id, createNop))
+	})
 }

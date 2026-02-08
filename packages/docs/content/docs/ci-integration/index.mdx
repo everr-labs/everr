@@ -1,0 +1,27 @@
+---
+title: CI Integration
+description: Connect your CI provider to Citric.
+---
+
+Citric collects telemetry by receiving webhook events from your CI provider. When a workflow runs, completes, or fails, the CI provider sends an event to the Citric collector, which transforms it into OpenTelemetry traces and logs.
+
+## Supported CI providers
+
+| Provider | Status |
+|----------|--------|
+| [GitHub Actions](/docs/ci-integration/github-actions) | Supported |
+| [GitLab CI](/docs/ci-integration/gitlab-ci) | Coming soon |
+
+## How it works
+
+1. Configure your CI provider to send webhook events to the Citric collector endpoint
+2. The collector processes `workflow_job` and `workflow_run` events into trace spans
+3. Each workflow run, job, and step becomes a span in a trace, preserving the execution hierarchy
+4. If GitHub API authentication is configured, the collector also fetches workflow logs
+
+## Next steps
+
+<Cards>
+  <Card title="GitHub Actions" href="/docs/ci-integration/github-actions" description="Set up GitHub Actions webhooks and authentication" />
+  <Card title="GitLab CI" href="/docs/ci-integration/gitlab-ci" description="GitLab CI support (coming soon)" />
+</Cards>

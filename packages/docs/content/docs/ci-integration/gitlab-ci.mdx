@@ -1,0 +1,19 @@
+---
+title: GitLab CI
+description: GitLab CI integration for Citric (coming soon).
+---
+
+GitLab CI support is planned for a future release of Citric.
+
+The integration will work similarly to GitHub Actions — GitLab webhook events will be sent to the Citric collector, which will transform them into OpenTelemetry traces and logs for storage and visualization.
+
+## Planned features
+
+- Receive GitLab CI pipeline and job webhook events
+- Transform events into OpenTelemetry traces with pipeline/stage/job hierarchy
+- Fetch job logs via the GitLab API
+- Test analytics support for CI job log output
+
+## In the meantime
+
+If you're interested in GitLab CI support or want to contribute, check the project's issue tracker for updates.

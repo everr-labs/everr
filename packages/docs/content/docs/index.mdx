@@ -1,0 +1,20 @@
+---
+title: Citric
+description: CI/CD observability platform built on OpenTelemetry.
+---
+
+Citric is a CI/CD observability platform that collects telemetry from GitHub Actions workflows using OpenTelemetry and stores data in ClickHouse for visualization and analysis.
+
+The platform consists of two main components:
+
+- **Collector** (`collector/`) — Go-based OpenTelemetry Collector that receives CI webhook events and ingests workflow telemetry
+- **Web Dashboard** (`packages/app`) — React + TanStack Start application for exploring pipeline data
+
+## Documentation
+
+<Cards>
+  <Card title="Getting Started" href="/docs/getting-started" description="Install and configure the Citric collector" />
+  <Card title="CI Integration" href="/docs/ci-integration" description="Connect your CI provider to Citric" />
+  <Card title="Test Analytics" href="/docs/test-analytics" description="Track test results, flaky tests, and trends" />
+  <Card title="Features" href="/docs/features" description="Dashboard features and capabilities" />
+</Cards>

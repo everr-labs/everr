@@ -1,7 +1,7 @@
-module github.com/Elfo404/cicdo11y/collector
+module github.com/get-citric/citric/collector
 
-go 1.23.2
+go 1.25.6
 
-replace github.com/Elfo404/ci-otel-collector/receiver/githubactionsreceiver => ./receiver/githubactionsreceiver
+replace github.com/get-citric/citric/receiver/githubactionsreceiver => ./receiver/githubactionsreceiver
 
-replace github.com/Elfo404/ci-otel-collector/internal/sharedcomponent => ./internal/sharedcomponent
+replace github.com/get-citric/citric/internal/sharedcomponent => ./internal/sharedcomponent

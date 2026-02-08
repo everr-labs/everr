@@ -12,7 +12,7 @@ endif
 # SRC_ROOT is the top of the source tree.
 SRC_ROOT := $(shell git rev-parse --show-toplevel)
 
-# A lot of the following install tools commands were leveraged from the 
+# A lot of the following install tools commands were leveraged from the
 # Open Telemetry Contributor Makefile following the Go Paradigm for Third Party Tools
 # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/Makefile.Common#L39-L74 for more details.
 TOOLS_MOD_DIR := $(SRC_ROOT)/collector/internal/tools
@@ -36,7 +36,6 @@ $(TOOLS_BIN_NAMES): $(TOOLS_BIN_DIR) $(TOOLS_MOD_DIR)/go.mod
 		cd $(TOOLS_MOD_DIR) && go build -o $@ -trimpath $(filter %/$(notdir $@),$(TOOLS_PKG_NAMES))
 
 LINT := $(TOOLS_BIN_DIR)/golangci-lint
-GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
 SEC := $(TOOLS_BIN_DIR)/gosec
 STATICCHECK := $(TOOLS_BIN_DIR)/staticcheck
 MDATAGEN := $(TOOLS_BIN_DIR)/mdatagen
@@ -50,7 +49,7 @@ lint:
 .PHONY: tidy
 tidy:
 	-rm go.sum
-	go mod tidy -compat=1.23
+	go mod tidy
 
 .PHONY: gen
 gen:
@@ -63,4 +62,3 @@ test:
 .PHONY: fmt
 fmt:
 	go fmt ./...
-	

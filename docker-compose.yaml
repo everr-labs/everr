@@ -1,19 +1,22 @@
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server
+    image: clickhouse/clickhouse-server:26.1
     ports:
-      - '8123:8123'
+      - "8123:8123"
+    environment:
+      CLICKHOUSE_USER: citric
+      CLICKHOUSE_PASSWORD: citric
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse
   postgres:
-    image: postgres
+    image: postgres:18.1-alpine3.23
     ports:
-      - '5432:5432'
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
-      - ./volumes/postgres:/var/lib/postgresql/data
+      - ./volumes/postgres:/var/lib/postgresql
   mailpit:
     image: axllent/mailpit
     restart: unless-stopped

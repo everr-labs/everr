@@ -9,29 +9,30 @@ import (
 
 	"github.com/google/go-github/v67/github"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
+
+	"github.com/get-citric/citric/collector/semconv"
 )
 
 func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent, config *Config) {
 	serviceName := generateServiceName(config, e.GetRepo().GetFullName())
 	attrs.PutStr("service.name", serviceName)
 
-	attrs.PutInt("ci.github.workflow.id", e.GetWorkflowRun().GetWorkflowID())
-	attrs.PutStr("ci.github.workflow.run.actor.login", e.GetWorkflowRun().GetActor().GetLogin())
+	attrs.PutInt(semconv.CitricGitHubWorkflowID, e.GetWorkflowRun().GetWorkflowID())
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunActorLogin, e.GetWorkflowRun().GetActor().GetLogin())
 
-	attrs.PutStr("ci.github.workflow.run.conclusion", e.GetWorkflowRun().GetConclusion())
-	attrs.PutStr("ci.github.workflow.run.created_at", e.GetWorkflowRun().GetCreatedAt().Format(time.RFC3339))
-	attrs.PutStr("ci.github.workflow.run.display_title", e.GetWorkflowRun().GetDisplayTitle())
-	attrs.PutStr("ci.github.workflow.run.event", e.GetWorkflowRun().GetEvent())
-	attrs.PutStr("ci.github.workflow.run.head_branch", e.GetWorkflowRun().GetHeadBranch())
-	attrs.PutStr("ci.github.workflow.run.head_sha", e.GetWorkflowRun().GetHeadSHA())
-	attrs.PutStr("ci.github.workflow.run.html_url", e.GetWorkflowRun().GetHTMLURL())
-	attrs.PutInt("ci.github.workflow.run.id", e.GetWorkflowRun().GetID())
-	attrs.PutStr("ci.github.workflow.run.name", e.GetWorkflowRun().GetName())
-	attrs.PutStr("ci.github.workflow.run.path", e.GetWorkflow().GetPath())
+	attrs.PutStr(string(conventions.CICDPipelineResultKey), e.GetWorkflowRun().GetConclusion())
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunCreatedAt, e.GetWorkflowRun().GetCreatedAt().Format(time.RFC3339))
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunDisplayTitle, e.GetWorkflowRun().GetDisplayTitle())
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunEvent, e.GetWorkflowRun().GetEvent())
+	attrs.PutStr(string(conventions.CICDPipelineRunURLFullKey), e.GetWorkflowRun().GetHTMLURL())
+	attrs.PutInt(string(conventions.CICDPipelineRunIDKey), e.GetWorkflowRun().GetID())
+	attrs.PutStr(string(conventions.CICDPipelineNameKey), e.GetWorkflowRun().GetName())
+	attrs.PutStr(semconv.CitricGitHubWorkflowPath, e.GetWorkflow().GetPath())
 
 	if e.GetWorkflowRun().GetPreviousAttemptURL() != "" {
 		htmlURL := transformGitHubAPIURL(e.GetWorkflowRun().GetPreviousAttemptURL())
-		attrs.PutStr("ci.github.workflow.run.previous_attempt_url", htmlURL)
+		attrs.PutStr(semconv.CICDPipelineRunPreviousAttemptURL, htmlURL)
 	}
 
 	if len(e.GetWorkflowRun().ReferencedWorkflows) > 0 {
@@ -39,36 +40,35 @@ func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent
 		for _, workflow := range e.GetWorkflowRun().ReferencedWorkflows {
 			referencedWorkflows = append(referencedWorkflows, workflow.GetPath())
 		}
-		attrs.PutStr("ci.github.workflow.run.referenced_workflows", strings.Join(referencedWorkflows, ";"))
+		attrs.PutStr(semconv.CitricGitHubWorkflowRunReferencedWorkflows, strings.Join(referencedWorkflows, ";"))
 	}
 
-	attrs.PutInt("ci.github.workflow.run.run_attempt", int64(e.GetWorkflowRun().GetRunAttempt()))
-	attrs.PutStr("ci.github.workflow.run.run_started_at", e.GetWorkflowRun().RunStartedAt.Format(time.RFC3339))
-	attrs.PutStr("ci.github.workflow.run.status", e.GetWorkflowRun().GetStatus())
-	attrs.PutStr("ci.github.workflow.run.sender.login", e.GetSender().GetLogin())
-	attrs.PutStr("ci.github.workflow.run.triggering_actor.login", e.GetWorkflowRun().GetTriggeringActor().GetLogin())
-	attrs.PutStr("ci.github.workflow.run.updated_at", e.GetWorkflowRun().GetUpdatedAt().Format(time.RFC3339))
+	attrs.PutInt(semconv.CitricGitHubWorkflowRunRunAttempt, int64(e.GetWorkflowRun().GetRunAttempt()))
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunStartedAt, e.GetWorkflowRun().RunStartedAt.Format(time.RFC3339))
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunStatus, e.GetWorkflowRun().GetStatus())
+	attrs.PutStr(semconv.CICDPipelineRunSenderLogin, e.GetSender().GetLogin())
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunTriggeringActorLogin, e.GetWorkflowRun().GetTriggeringActor().GetLogin())
+	attrs.PutStr(semconv.CitricGitHubWorkflowRunUpdatedAt, e.GetWorkflowRun().GetUpdatedAt().Format(time.RFC3339))
 
-	attrs.PutStr("ci.system", "github")
+	attrs.PutStr(string(conventions.VCSProviderNameKey), "github")
 
-	attrs.PutStr("scm.system", "git")
-
-	attrs.PutStr("scm.git.head_branch", e.GetWorkflowRun().GetHeadBranch())
-	attrs.PutStr("scm.git.head_commit.author.email", e.GetWorkflowRun().GetHeadCommit().GetAuthor().GetEmail())
-	attrs.PutStr("scm.git.head_commit.author.name", e.GetWorkflowRun().GetHeadCommit().GetAuthor().GetName())
-	attrs.PutStr("scm.git.head_commit.committer.email", e.GetWorkflowRun().GetHeadCommit().GetCommitter().GetEmail())
-	attrs.PutStr("scm.git.head_commit.committer.name", e.GetWorkflowRun().GetHeadCommit().GetCommitter().GetName())
-	attrs.PutStr("scm.git.head_commit.message", e.GetWorkflowRun().GetHeadCommit().GetMessage())
-	attrs.PutStr("scm.git.head_commit.timestamp", e.GetWorkflowRun().GetHeadCommit().GetTimestamp().Format(time.RFC3339))
-	attrs.PutStr("scm.git.head_sha", e.GetWorkflowRun().GetHeadSHA())
+	attrs.PutStr(string(conventions.VCSRefHeadNameKey), e.GetWorkflowRun().GetHeadBranch())
+	attrs.PutStr(string(conventions.VCSRefHeadTypeKey), "branch")
+	attrs.PutStr(string(conventions.VCSRefHeadRevisionKey), e.GetWorkflowRun().GetHeadSHA())
+	attrs.PutStr(semconv.VCSRefHeadRevisionAuthorEmail, e.GetWorkflowRun().GetHeadCommit().GetAuthor().GetEmail())
+	attrs.PutStr(semconv.VCSRefHeadRevisionAuthorName, e.GetWorkflowRun().GetHeadCommit().GetAuthor().GetName())
+	attrs.PutStr(semconv.CitricGitHeadCommitCommitterEmail, e.GetWorkflowRun().GetHeadCommit().GetCommitter().GetEmail())
+	attrs.PutStr(semconv.CitricGitHeadCommitCommitterName, e.GetWorkflowRun().GetHeadCommit().GetCommitter().GetName())
+	attrs.PutStr(semconv.CitricGitHeadCommitMessage, e.GetWorkflowRun().GetHeadCommit().GetMessage())
+	attrs.PutStr(semconv.CitricGitHeadCommitTimestamp, e.GetWorkflowRun().GetHeadCommit().GetTimestamp().Format(time.RFC3339))
 
 	if len(e.GetWorkflowRun().PullRequests) > 0 {
 		var prUrls []string
 		for _, pr := range e.GetWorkflowRun().PullRequests {
 			prUrls = append(prUrls, convertPRURL(pr.GetURL()))
 		}
-		attrs.PutStr("scm.git.pull_requests.url", strings.Join(prUrls, ";"))
+		attrs.PutStr(semconv.CitricGitPullRequestsURL, strings.Join(prUrls, ";"))
 	}
 
-	attrs.PutStr("scm.git.repo", e.GetRepo().GetFullName())
+	attrs.PutStr(string(conventions.VCSRepositoryNameKey), e.GetRepo().GetFullName())
 }

@@ -1,0 +1,70 @@
+---
+title: Vitest
+description: Set up test analytics for Vitest projects.
+---
+
+Citric parses verbose Vitest output to track individual test results, detect flaky tests, and analyze failures.
+
+## Setup
+
+Run Vitest with the `verbose` reporter so that individual test results are printed:
+
+```bash
+vitest run --reporter=verbose
+```
+
+Or configure it in your `vitest.config.ts`:
+
+```ts
+export default defineConfig({
+  test: {
+    reporters: ["verbose"],
+  },
+});
+```
+
+### GitHub Actions workflow example
+
+```yaml
+- name: Run tests
+  run: npx vitest run --reporter=verbose
+```
+
+The Citric collector automatically detects and parses Vitest verbose output from workflow logs.
+
+## What gets parsed
+
+The parser recognizes Vitest verbose reporter output patterns (after stripping ANSI color codes):
+
+| Pattern | Meaning |
+|---------|---------|
+| `✓ filepath > describe > test 42ms` | Test passed |
+| `× filepath > describe > test 15ms` | Test failed |
+| `↓ filepath > describe > test` | Test skipped |
+
+## Describe block hierarchy
+
+Vitest uses the ` > ` separator to represent the test hierarchy: file path, describe blocks, and test name. For example:
+
+```
+✓ src/utils.test.ts > parseConfig > handles empty input 3ms
+```
+
+This is parsed as:
+- **Package**: `src/utils.test.ts`
+- **Describe block**: `parseConfig`
+- **Test name**: `handles empty input`
+
+Nested describe blocks are automatically detected, with `citric.test.is_subtest` set for nested entries and `citric.test.parent_test` pointing to the parent.
+
+## Generated span attributes
+
+| Attribute | Value |
+|-----------|-------|
+| `citric.test.name` | Full test name (e.g. `parseConfig > handles empty input`) |
+| `citric.test.result` | `pass`, `fail`, or `skip` |
+| `citric.test.duration_seconds` | Duration from the test output |
+| `citric.test.framework` | `vitest` |
+| `citric.test.package` | File path (e.g. `src/utils.test.ts`) |
+| `citric.test.is_subtest` | `true` for tests within describe blocks |
+| `citric.test.parent_test` | Parent describe block name |

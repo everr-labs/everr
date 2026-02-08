@@ -1,5 +1,5 @@
 # STAGE 1 - build
-FROM golang:1.23.2-alpine3.20 AS build
+FROM golang:1.25.5-alpine3.20 AS build
 WORKDIR /collector
 
 COPY . .
@@ -11,13 +11,13 @@ RUN make build
 # STAGE 2 - final image
 FROM scratch
 
-ARG BIN_PATH=/collector/build/ci-otelcol
+ARG BIN_PATH=/collector/build/citric-collector
 
 ARG UID=10001
 USER ${UID}
 
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/ci-otelcol
+COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/citric-collector
 
-ENTRYPOINT ["/usr/bin/ci-otelcol"] 
-CMD ["--config=/etc/ci-otelcol/config.yaml"]
+ENTRYPOINT ["/usr/bin/citric-collector"]
+CMD ["--config=/etc/citric-collector/config.yaml"]

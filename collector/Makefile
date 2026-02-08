@@ -6,7 +6,7 @@ ARCH := $(shell uname -m)
 
 # Arguments for getting directories & executing commands against them
 PKG_DIRS = $(shell find ./* -not -path "./build/*" -not -path "./tmp/*" -type f -name "go.mod" -exec dirname {} \; | sort | grep -E '^./')
-CHECKS = generate fmt-all tidy-all lint-all test-all scan-all crosslink
+CHECKS = generate fmt-all tidy-all lint-all test-all crosslink
 
 # set ARCH var based on output
 ifeq ($(ARCH),x86_64)
@@ -27,7 +27,7 @@ build-debug: install-tools
 
 .PHONY: run
 run: build
-	$(CUSTOM_COL_DIR)/ci-otelcol --config ./config.yaml
+	$(CUSTOM_COL_DIR)/citric-collector --config ./config.yml
 
 .PHONY: for-all
 for-all:
@@ -36,7 +36,7 @@ for-all:
 	  	echo "running $${CMD} in $${dir}" && \
 	 	$${CMD} ); \
 	done
-	
+
 .PHONY: lint-all
 lint-all:
 	$(MAKE) for-all DIRS="$(PKG_DIRS)" CMD="$(MAKE) lint"
@@ -51,11 +51,11 @@ test-all:
 
 .PHONY: dockerbuild
 dockerbuild:
-	docker build . -t Elfo404/ci-otel-collector:localdev
+	docker build . -t get-citric/citric-collector:localdev
 
 .PHONY: dockerrun
 dockerrun: dockerbuild
-	docker run -v ./config.yaml:/etc/ci-otelcol/config.yaml -t Elfo404/ci-otel-collector:localdev
+	docker run -v ./config.yml:/etc/citric-collector/config.yml -t get-citric/citric-collector:localdev
 
 .PHONY: tidy-all
 tidy-all:
@@ -68,7 +68,7 @@ fmt-all:
 
 # Setting the paralellism to 1 to improve output readability. Reevaluate later as needed for performance
 .PHONY: checks
-checks: install-tools 
+checks: install-tools
 	$(MAKE) -j 1 $(CHECKS)
 	@if [ -n "$$(git diff --name-only)" ]; then \
 		echo "Some files have changed. Please commit them."; \

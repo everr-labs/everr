@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/get-citric/citric/collector/receiver/githubactionsreceiver/internal/metadata"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/receiver/receivertest"
@@ -33,12 +34,12 @@ func TestCreateTracesReceiver(t *testing.T) {
 				t.Parallel()
 
 				cfg := createDefaultConfig().(*Config)
-				cfg.Endpoint = "localhost:8080"
+				cfg.ServerConfig.NetAddr.Endpoint = "localhost:8080"
 				require.NoError(t, cfg.Validate(), "error validating default config")
 
 				_, err := newTracesReceiver(
 					context.Background(),
-					receivertest.NewNopSettings(),
+					receivertest.NewNopSettings(metadata.Type),
 					cfg,
 					consumertest.NewNop(),
 				)

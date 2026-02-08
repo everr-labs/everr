@@ -1,0 +1,73 @@
+import { Link } from "@tanstack/react-router";
+import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
+import { Badge } from "@/components/ui/badge";
+import { type Column, DataTable } from "@/components/ui/data-table";
+import { Empty, EmptyDescription } from "@/components/ui/empty";
+import type { ActiveBranch } from "@/data/repo-detail";
+import { formatRelativeTime, getSuccessRateVariant } from "@/lib/formatting";
+
+interface ActiveBranchesTableProps {
+  data: ActiveBranch[];
+}
+
+const columns: Column<ActiveBranch>[] = [
+  {
+    header: "Branch",
+    cell: (branch) => <Badge variant="outline">{branch.branch}</Badge>,
+  },
+  {
+    header: "Latest Status",
+    cell: (branch) => (
+      <ConclusionIcon conclusion={branch.latestConclusion} className="size-4" />
+    ),
+  },
+  {
+    header: "Latest Run",
+    cell: (branch) => (
+      <Link
+        to="/dashboard/runs/$traceId"
+        params={{ traceId: branch.latestTraceId }}
+        className="font-mono text-xs hover:underline"
+      >
+        {branch.latestRunId}
+      </Link>
+    ),
+  },
+  {
+    header: "Runs",
+    cell: (branch) => (
+      <span className="font-mono text-xs">{branch.totalRuns}</span>
+    ),
+  },
+  {
+    header: "Success Rate",
+    cell: (branch) => (
+      <Badge variant={getSuccessRateVariant(branch.successRate)}>
+        {branch.successRate}%
+      </Badge>
+    ),
+  },
+  {
+    header: "Last Activity",
+    cell: (branch) => (
+      <span className="text-xs text-muted-foreground">
+        {formatRelativeTime(branch.latestTimestamp)}
+      </span>
+    ),
+  },
+];
+
+export function ActiveBranchesTable({ data }: ActiveBranchesTableProps) {
+  return (
+    <DataTable
+      data={data}
+      columns={columns}
+      rowKey={(branch) => branch.branch}
+      emptyState={
+        <Empty>
+          <EmptyDescription>No active branches found</EmptyDescription>
+        </Empty>
+      }
+    />
+  );
+}

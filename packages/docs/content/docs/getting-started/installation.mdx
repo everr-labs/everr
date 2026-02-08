@@ -1,0 +1,50 @@
+---
+title: Installation
+description: Deploy the Citric collector with Docker or build from source.
+---
+
+The Citric collector is a custom OpenTelemetry Collector distribution that receives CI webhook events and exports telemetry to ClickHouse.
+
+## Docker (recommended)
+
+Build the Docker image:
+
+```bash
+docker build -t citric-collector .
+```
+
+Run with a config file mounted:
+
+```bash
+docker run \
+  -v ./config.yml:/etc/citric-collector/config.yaml \
+  -p 3333:3333 \
+  citric-collector
+```
+
+The container runs as a non-root user and expects the config at `/etc/citric-collector/config.yaml` by default.
+
+## Build from source
+
+The collector is built using the [OpenTelemetry Collector Builder (OCB)](https://opentelemetry.io/docs/collector/custom-collector/).
+
+From the `collector/` directory:
+
+```bash
+make build
+```
+
+This produces a binary at `./build/citric-collector`. Run it with:
+
+```bash
+./build/citric-collector --config ./config.yml
+```
+
+## Verify
+
+Once running, the collector exposes an HTTP endpoint (default port `3333`) ready to receive webhook events. You should see startup logs indicating the receiver is listening.
+
+## Next steps
+
+- [Configuration](/docs/getting-started/configuration) — configure the receiver, exporters, and pipelines
+- [CI Integration](/docs/ci-integration) — connect your CI provider to the collector

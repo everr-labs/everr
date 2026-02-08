@@ -1,5 +1,0 @@
-{
-	"extends": "@citric/tsconfig/base.json",
-	"include": [".prettierrc.js"],
-	"exclude": ["node_modules"]
-}

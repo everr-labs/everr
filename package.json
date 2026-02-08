@@ -1,33 +1,14 @@
 {
-	"name": "citric",
-	"private": true,
-	"scripts": {
-		"build": "turbo run build",
-		"clean": "git clean -xdf node_modules",
-		"clean:workspaces": "turbo run clean",
-		"dev": "turbo watch dev --continue",
-		"format": "turbo run format --continue -- --cache --cache-location .cache/.prettiercache",
-		"format:fix": "turbo run format --continue -- --write --cache --cache-location .cache/.prettiercache",
-		"lint": "turbo run lint --continue -- --cache --cache-location .cache/.eslintcache",
-		"lint:fix": "turbo run lint --continue -- --fix --cache --cache-location .cache/.eslintcache",
-		"lint:ws": "pnpm dlx sherif@latest",
-		"postinstall": "pnpm lint:ws",
-		"typecheck": "turbo run typecheck"
-	},
-	"devDependencies": {
-		"@citric/prettier-config": "workspace:*",
-		"turbo": "2.4.4"
-	},
-	"packageManager": "pnpm@10.5.1",
-	"prettier": "@citric/prettier-config",
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"esbuild",
-			"puppeteer",
-			"sharp"
-		],
-		"overrides": {
-			"ioredis": "5.5.0"
-		}
-	}
+  "name": "citric",
+  "private": true,
+  "scripts": {
+    "check": "biome check",
+    "check:fix": "biome check --fix",
+    "postinstall": "lefthook install"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "lefthook": "^2.1.0"
+  },
+  "packageManager": "pnpm@10.29.1"
 }

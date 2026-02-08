@@ -1,0 +1,63 @@
+extensions:
+
+receivers:
+  githubactions:
+    path: /webhook/github
+    endpoint: 0.0.0.0:3333
+    secret: wGCfsTLYEx2jdkotdN91mOKU0z+0S1BWRrIphK0Gsh4=
+    gh_api:
+      auth:
+        app_id: 1027662
+        installation_id: 56050185
+        private_key_path: ./dev-citric-app.2026-02-03.private-key.pem
+
+processors:
+  batch:
+
+  resource:
+    attributes:
+      - action: insert
+        key: ci.github.workflow.name
+        from_attribute: ci.github.workflow.run.name
+      - action: delete
+        key: ci.github.workflow.run.name
+
+connectors:
+  # spanmetrics:
+  #   histogram:
+  #     explicit:
+  #       buckets: [5s, 15s, 30s, 1m, 5m, 10m, 30m]
+  #     unit: s
+  #   aggregation_temporality: 'AGGREGATION_TEMPORALITY_CUMULATIVE'
+  #   exemplars:
+  #     enabled: true
+
+exporters:
+  debug:
+    verbosity: detailed
+  clickhouse:
+    endpoint: 'http://localhost:8123'
+    username: 'citric'
+    password: 'citric'
+    database: 'citric'
+    async_insert: false
+
+service:
+  pipelines:
+    traces:
+      receivers: [githubactions]
+      processors: [resource]
+      exporters: [clickhouse]
+    logs:
+      receivers: [githubactions]
+      processors: []
+      exporters: [clickhouse, debug]
+    # metrics:
+    #   receivers: [spanmetrics]
+    #   processors: []
+    #   exporters: [clickhouse]
+
+  telemetry:
+    logs:
+      level: debug
+

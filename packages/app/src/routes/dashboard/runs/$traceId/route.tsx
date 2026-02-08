@@ -1,0 +1,214 @@
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useMatch,
+  useParams,
+} from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
+import { JobTreeNav, RunHeader } from "@/components/run-detail";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getAllJobsSteps, getRunDetails, getRunJobs } from "@/data/runs";
+import { cn } from "@/lib/utils";
+
+export const Route = createFileRoute("/dashboard/runs/$traceId")({
+  loader: async ({ params }) => {
+    const [runDetails, jobs] = await Promise.all([
+      getRunDetails({ data: params.traceId }),
+      getRunJobs({ data: params.traceId }),
+    ]);
+
+    const stepsByJobId =
+      jobs.length > 0
+        ? await getAllJobsSteps({
+            data: {
+              traceId: params.traceId,
+              jobIds: jobs.map((j) => j.jobId),
+            },
+          })
+        : {};
+
+    return { runDetails, jobs, stepsByJobId, traceId: params.traceId };
+  },
+  component: RunDetailLayout,
+  pendingComponent: RunDetailSkeleton,
+  errorComponent: RunDetailError,
+});
+
+function RunDetailLayout() {
+  const { runDetails, jobs, stepsByJobId, traceId } = Route.useLoaderData();
+  // useParams with strict: false returns ALL matched params including child route params
+  const params = useParams({ strict: false });
+  const jobDetailMatch = useMatch({
+    from: "/dashboard/runs/$traceId/jobs/$jobId/",
+    shouldThrow: false,
+  });
+  const stepDetailMatch = useMatch({
+    from: "/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber",
+    shouldThrow: false,
+  });
+  const traceMatch = useMatch({
+    from: "/dashboard/runs/$traceId/trace",
+    shouldThrow: false,
+  });
+
+  if (!runDetails) {
+    return (
+      <div className="space-y-3">
+        <Card size="sm">
+          <CardContent className="pt-4">
+            <p className="text-muted-foreground text-center">Run not found</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <RunHeader
+        runId={runDetails.runId}
+        runAttempt={runDetails.runAttempt}
+        workflowName={runDetails.workflowName}
+        conclusion={runDetails.conclusion}
+        repo={runDetails.repo}
+        branch={runDetails.branch}
+        timestamp={runDetails.timestamp}
+      />
+
+      <Tabs
+        value={traceMatch ? "Trace" : "Jobs"}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabsList className="shrink-0">
+          <TabsTrigger value="Jobs">
+            {stepDetailMatch ? (
+              <Link
+                to="/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+                params={{
+                  traceId,
+                  jobId: stepDetailMatch.params.jobId,
+                  stepNumber: stepDetailMatch.params.stepNumber,
+                }}
+              >
+                Jobs
+              </Link>
+            ) : jobDetailMatch ? (
+              <Link
+                to="/dashboard/runs/$traceId/jobs/$jobId"
+                params={{ traceId, jobId: jobDetailMatch.params.jobId }}
+              >
+                Jobs
+              </Link>
+            ) : (
+              <Link to="/dashboard/runs/$traceId" params={{ traceId }}>
+                Jobs
+              </Link>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="Trace">
+            <Link to="/dashboard/runs/$traceId/trace" params={{ traceId }}>
+              Trace
+            </Link>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="Jobs" className="min-h-0 flex-1">
+          <div className="grid h-full gap-3 lg:grid-cols-[280px_1fr]">
+            {/* Jobs Tree Panel */}
+            <Card size="sm" className="flex flex-col overflow-hidden">
+              <CardHeader className="shrink-0">
+                <CardTitle>Jobs</CardTitle>
+                <CardDescription>
+                  {jobs.length} jobs in this run
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 overflow-auto">
+                <JobTreeNav
+                  jobs={jobs}
+                  stepsByJobId={stepsByJobId}
+                  traceId={traceId}
+                  selectedJobId={(params as { jobId?: string }).jobId}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Right pane content from child routes */}
+            <Outlet />
+          </div>
+        </TabsContent>
+        <TabsContent value="Trace" className="min-h-0 flex-1">
+          <Outlet />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function RunDetailSkeleton() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-7 w-7" />
+        <Skeleton className="size-5" />
+        <Skeleton className="h-6 w-48" />
+      </div>
+      <Skeleton className="ml-14 h-3 w-40" />
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[280px_1fr]">
+        <Card size="sm" className="flex flex-col overflow-hidden">
+          <CardHeader className="shrink-0">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-3 w-32" />
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-auto">
+            {Array.from({ length: 3 }).map((_, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton
+              <Skeleton key={i} className="h-8 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+        <Card size="sm" className="h-full">
+          <CardContent className="flex h-full items-center justify-center">
+            <Skeleton className="h-4 w-48" />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function RunDetailError({ error }: { error: Error }) {
+  return (
+    <div className="space-y-3">
+      <Link
+        to="/dashboard"
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "h-7 px-2",
+        )}
+      >
+        <ArrowLeft className="size-4" />
+      </Link>
+      <Card size="sm">
+        <CardContent className="pt-4">
+          <div className="text-center">
+            <p className="text-destructive font-medium">
+              Failed to load run details
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {error.message}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

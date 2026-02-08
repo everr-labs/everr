@@ -22,11 +22,14 @@ import (
 
 var errMissingEndpoint = errors.New("missing a receiver endpoint")
 
+const maxPayloadSize = 25 * 1024 * 1024 // 25 MB — GitHub webhook max payload size
+
 type githubActionsReceiver struct {
 	logsConsumer   consumer.Logs
 	tracesConsumer consumer.Traces
 	config         *Config
 	server         *http.Server
+	serverMu       sync.Mutex
 	shutdownWG     sync.WaitGroup
 	settings       receiver.Settings
 	logger         *zap.Logger
@@ -38,12 +41,12 @@ func newReceiver(
 	settings receiver.Settings,
 	config *Config,
 ) (*githubActionsReceiver, error) {
-	if config.Endpoint == "" {
+	if config.NetAddr.Endpoint == "" {
 		return nil, errMissingEndpoint
 	}
 
 	transport := "http"
-	if config.TLSSetting != nil {
+	if config.TLS.HasValue() {
 		transport = "https"
 	}
 
@@ -140,19 +143,26 @@ func newLogsReceiver(
 }
 
 func (gar *githubActionsReceiver) Start(ctx context.Context, host component.Host) error {
-	endpoint := fmt.Sprintf("%s%s", gar.config.Endpoint, gar.config.Path)
+	endpoint := fmt.Sprintf("%s%s", gar.config.ServerConfig.NetAddr.Endpoint, gar.config.Path)
 	gar.logger.Info("Starting GithubActions server", zap.String("endpoint", endpoint))
-	gar.server = &http.Server{
-		Addr:              gar.config.ServerConfig.Endpoint,
+
+	server := &http.Server{
+		Addr:              gar.config.ServerConfig.NetAddr.Endpoint,
 		Handler:           gar,
 		ReadHeaderTimeout: 20 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
+
+	gar.serverMu.Lock()
+	gar.server = server
+	gar.serverMu.Unlock()
 
 	gar.shutdownWG.Add(1)
 	go func() {
 		defer gar.shutdownWG.Done()
 
-		if errHTTP := gar.server.ListenAndServe(); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
+		if errHTTP := server.ListenAndServe(); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
 			gar.settings.TelemetrySettings.Logger.Error("Server closed with error", zap.Error(errHTTP))
 		}
 	}()
@@ -161,9 +171,13 @@ func (gar *githubActionsReceiver) Start(ctx context.Context, host component.Host
 }
 
 func (gar *githubActionsReceiver) Shutdown(ctx context.Context) error {
+	gar.serverMu.Lock()
+	server := gar.server
+	gar.serverMu.Unlock()
+
 	var err error
-	if gar.server != nil {
-		err = gar.server.Close()
+	if server != nil {
+		err = server.Shutdown(ctx)
 	}
 	gar.shutdownWG.Wait()
 	return err
@@ -177,6 +191,9 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
+
+	// Limit request body size to prevent OOM from oversized payloads
+	r.Body = http.MaxBytesReader(w, r.Body, maxPayloadSize)
 
 	// Validate the payload using the configured secret
 	payload, err := github.ValidatePayload(r, []byte(gar.config.Secret))
@@ -216,6 +233,7 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	gar.logger.Debug("Received valid GitHub event", zap.String("type", eventType))
+	var processingFailed bool
 	traceErr := false
 
 	// if a trace consumer is set, process the event into traces
@@ -223,15 +241,16 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		td, err := eventToTraces(event, gar.config, gar.logger.Named("eventToTraces"))
 		if err != nil {
 			traceErr = true
-			gar.logger.Debug("Failed to convert event to traces", zap.Error(err))
+			processingFailed = true
+			gar.logger.Error("Failed to convert event to traces", zap.Error(err))
 		}
 
 		if td != nil {
-			// Pass the traces to the nextConsumer
 			consumerErr := gar.tracesConsumer.ConsumeTraces(ctx, *td)
 			if consumerErr != nil {
 				traceErr = true
-				gar.logger.Debug("Failed to process traces", zap.Error(consumerErr))
+				processingFailed = true
+				gar.logger.Error("Failed to process traces", zap.Error(consumerErr))
 			}
 		}
 	}
@@ -243,18 +262,25 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		} else {
 			withTraceInfo := gar.tracesConsumer != nil && !traceErr
 
-			ld, err := eventToLogs(event, gar.config, gar.ghClient, gar.logger.Named("eventToLogs"), withTraceInfo)
+			ld, err := eventToLogs(ctx, event, gar.config, gar.ghClient, gar.logger.Named("eventToLogs"), withTraceInfo)
 			if err != nil {
+				processingFailed = true
 				gar.logger.Error("Failed to process logs", zap.Error(err))
 			}
 
 			if ld != nil {
 				consumerErr := gar.logsConsumer.ConsumeLogs(ctx, *ld)
 				if consumerErr != nil {
+					processingFailed = true
 					gar.logger.Error("Failed to consume logs", zap.Error(consumerErr))
 				}
 			}
 		}
+	}
+
+	if processingFailed {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusAccepted)
