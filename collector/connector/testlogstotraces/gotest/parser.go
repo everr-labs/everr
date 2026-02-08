@@ -20,6 +20,11 @@ var (
 	passPattern = regexp.MustCompile(`^---\s*PASS:\s*(\S+)\s*\(([0-9.]+)s\)`)
 	failPattern = regexp.MustCompile(`^---\s*FAIL:\s*(\S+)\s*\(([0-9.]+)s\)`)
 	skipPattern = regexp.MustCompile(`^---\s*SKIP:\s*(\S+)\s*\(([0-9.]+)s\)`)
+
+	// Package summary lines emitted after all tests in a package complete:
+	//   ok      github.com/foo/bar   0.005s
+	//   FAIL    github.com/foo/bar   1.234s
+	pkgPattern = regexp.MustCompile(`^(?:ok|FAIL)\s+(\S+)\s+[0-9.]+s`)
 )
 
 // Parser processes Go test verbose output and extracts test information.
@@ -69,6 +74,12 @@ func (p *Parser) ProcessLine(line string, timestamp time.Time) {
 		testName := matches[1]
 		elapsed, _ := strconv.ParseFloat(matches[2], 64)
 		p.endTest(testName, TestResultSkip, elapsed, timestamp)
+		return
+	}
+
+	// Check for package summary line (ok/FAIL <package> <duration>)
+	if matches := pkgPattern.FindStringSubmatch(trimmed); matches != nil {
+		p.setPackage(matches[1])
 		return
 	}
 
@@ -139,6 +150,27 @@ func (p *Parser) endTest(testName string, result TestResult, elapsed float64, ti
 		zap.String("test", testName),
 		zap.String("result", string(result)),
 		zap.Duration("duration", test.Duration),
+	)
+}
+
+// setPackage assigns the package path to all completed root tests that don't
+// already have one. Go test emits the package summary line after all tests in
+// that package have finished, so at this point every root test (and its
+// subtests) belongs to this package.
+func (p *Parser) setPackage(pkg string) {
+	var setOnTests func([]*TestInfo)
+	setOnTests = func(tests []*TestInfo) {
+		for _, t := range tests {
+			if t.Package == "" {
+				t.Package = pkg
+			}
+			setOnTests(t.Subtests)
+		}
+	}
+	setOnTests(p.ctx.RootTests)
+
+	p.logger.Debug("Set package on tests",
+		zap.String("package", pkg),
 	)
 }
 

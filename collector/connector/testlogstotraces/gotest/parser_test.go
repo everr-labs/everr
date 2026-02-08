@@ -298,6 +298,106 @@ func TestSpanGenerationWithSubtests(t *testing.T) {
 	assert.False(t, isSubtest.Bool())
 }
 
+func TestPackageParsing(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("sets package from ok summary line", func(t *testing.T) {
+		ctx := NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
+		parser := NewParser(ctx, logger)
+
+		lines := []string{
+			"=== RUN   TestFoo",
+			"--- PASS: TestFoo (0.001s)",
+			"=== RUN   TestBar",
+			"--- PASS: TestBar (0.002s)",
+			"ok  \tgithub.com/foo/bar/pkg\t0.005s",
+		}
+
+		baseTime := time.Now()
+		for i, line := range lines {
+			parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+		}
+		parser.Finalize()
+
+		require.Len(t, ctx.RootTests, 2)
+		assert.Equal(t, "github.com/foo/bar/pkg", ctx.RootTests[0].Package)
+		assert.Equal(t, "github.com/foo/bar/pkg", ctx.RootTests[1].Package)
+	})
+
+	t.Run("sets package from FAIL summary line", func(t *testing.T) {
+		ctx := NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
+		parser := NewParser(ctx, logger)
+
+		lines := []string{
+			"=== RUN   TestBroken",
+			"--- FAIL: TestBroken (0.010s)",
+			"FAIL\tgithub.com/foo/bar/other\t0.012s",
+		}
+
+		baseTime := time.Now()
+		for i, line := range lines {
+			parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+		}
+		parser.Finalize()
+
+		require.Len(t, ctx.RootTests, 1)
+		assert.Equal(t, "github.com/foo/bar/other", ctx.RootTests[0].Package)
+	})
+
+	t.Run("sets package on subtests", func(t *testing.T) {
+		ctx := NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
+		parser := NewParser(ctx, logger)
+
+		lines := []string{
+			"=== RUN   TestParent",
+			"=== RUN   TestParent/Child",
+			"    --- PASS: TestParent/Child (0.001s)",
+			"--- PASS: TestParent (0.002s)",
+			"ok  \tgithub.com/example/mypkg\t0.005s",
+		}
+
+		baseTime := time.Now()
+		for i, line := range lines {
+			parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+		}
+		parser.Finalize()
+
+		require.Len(t, ctx.RootTests, 1)
+		assert.Equal(t, "github.com/example/mypkg", ctx.RootTests[0].Package)
+		require.Len(t, ctx.RootTests[0].Subtests, 1)
+		assert.Equal(t, "github.com/example/mypkg", ctx.RootTests[0].Subtests[0].Package)
+	})
+
+	t.Run("generates span with package attribute", func(t *testing.T) {
+		traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+		stepSpanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+		ctx := NewParseContext(123, 1, "test-job", 1, traceID, stepSpanID)
+		parser := NewParser(ctx, logger)
+
+		lines := []string{
+			"=== RUN   TestFoo",
+			"--- PASS: TestFoo (0.100s)",
+			"ok  \tgithub.com/foo/bar\t0.105s",
+		}
+
+		baseTime := time.Now()
+		for i, line := range lines {
+			parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+		}
+		parser.Finalize()
+
+		resourceAttrs := pcommon.NewMap()
+		traces := ctx.GenerateSpans(resourceAttrs)
+		require.NotNil(t, traces)
+
+		span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+		pkg, ok := span.Attributes().Get(semconv.CitricTestPackage)
+		require.True(t, ok, "package attribute should be present")
+		assert.Equal(t, "github.com/foo/bar", pkg.Str())
+	})
+}
+
 func TestNoTestsGeneratesNilSpans(t *testing.T) {
 	ctx := NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
 	parser := NewParser(ctx, zap.NewNop())

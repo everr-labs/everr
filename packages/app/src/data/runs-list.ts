@@ -96,7 +96,7 @@ export const getRunsList = createServerFn({
 				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 				max(Duration) / 1000000 as duration,
 				max(Timestamp) as timestamp,
-				anyLast(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender,
+				max(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender,
 				count(*) as jobCount
 			FROM otel_traces
 			WHERE ${whereClause}
