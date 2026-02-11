@@ -3,20 +3,20 @@ FROM node:24.4-alpine3.22 AS base
 FROM base AS deps
 WORKDIR /app
 
-RUN ls -la
-COPY package.json pnpm-lock.yaml ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/docs/package.json ./packages/docs/
+RUN pnpm install --frozen-lockfile
 RUN corepack enable
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
 
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+FROM base AS build
 COPY . .
-
 RUN corepack enable
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm build
+RUN pnpm --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store --filter docs build
+
+RUN pnpm --filter docs deploy /app/deployed
+
 
 FROM node:24.4-alpine3.22 AS runner
 WORKDIR /app
@@ -28,7 +28,7 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
 
 # Copy only necessary files
-COPY --from=builder /app/.output ./.output
+COPY --from=build /app/deployed .
 
 # Expose the port the app will run on
 EXPOSE 3000
