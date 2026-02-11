@@ -13,7 +13,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 FROM base AS build
 COPY . .
 RUN corepack enable
-RUN pnpm --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store --filter docs build
+RUN pnpm --filter docs build
 RUN pnpm --filter docs deploy /app/deployed
 
 
