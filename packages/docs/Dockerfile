@@ -1,38 +1,28 @@
 FROM node:24.4-alpine3.22 AS base
-
-FROM base AS deps
+RUN corepack enable
 WORKDIR /app
 
+# Stage 1: install dependencies
+FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/docs/package.json ./packages/docs/
-RUN corepack enable
-RUN pnpm install --frozen-lockfile
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts
+    pnpm install --frozen-lockfile
 
-FROM base AS build
+# Stage 2: build
+FROM deps AS build
 COPY . .
-RUN corepack enable
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN pnpm --filter docs build
 RUN pnpm --filter docs deploy /app/deployed
 
-
+# Stage 3: production
 FROM node:24.4-alpine3.22 AS runner
 WORKDIR /app
-
 ENV NODE_ENV=production
-
-# Create a non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
-
-# Copy only necessary files
 COPY --from=build /app/deployed .
-
-# Expose the port the app will run on
 EXPOSE 3000
-
 USER nodejs
-
-# Start the Node.js server
 CMD ["node", ".output/server/index.mjs"]
