@@ -3,7 +3,8 @@ FROM node:24.4-alpine3.22 AS base
 FROM base AS deps
 WORKDIR /app
 
-COPY package.json ../../pnpm-lock.yaml ./
+RUN ls -la
+COPY package.json pnpm-lock.yaml ./
 RUN corepack enable
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
