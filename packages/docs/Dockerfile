@@ -28,10 +28,6 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy only necessary files
 COPY --from=builder /app/.output ./.output
-COPY /drizzle ./drizzle
-
-RUN chown -R nodejs:nodejs /app/drizzle
-RUN chmod -R u=rX,go= /app/drizzle
 
 # Expose the port the app will run on
 EXPOSE 3000
