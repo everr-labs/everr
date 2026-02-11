@@ -5,9 +5,9 @@ WORKDIR /app
 # Stage 1: install dependencies
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY packages/docs/package.json ./packages/docs/
+COPY ./packages/docs/package.json ./packages/docs/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --ignore-scripts
 
 # Stage 2: build
 FROM deps AS build
