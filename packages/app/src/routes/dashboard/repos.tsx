@@ -1,5 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangeSelect } from "@/components/analytics";
+import { TimeRangePicker } from "@/components/analytics";
 import {
   ActiveBranchesTable,
   RepoDurationTrendChart,
@@ -16,64 +17,74 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TimeRange } from "@/data/analytics";
 import {
-  getActiveBranches,
-  getRepoDurationTrend,
-  getRepoRecentRuns,
-  getRepoStats,
-  getRepoSuccessRateTrend,
-  getTopFailingJobs,
+  activeBranchesOptions,
+  repoDurationTrendOptions,
+  repoRecentRunsOptions,
+  repoStatsOptions,
+  repoSuccessRateTrendOptions,
+  topFailingJobsOptions,
 } from "@/data/repo-detail";
+import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/repos")({
+  staticData: { breadcrumb: "Repositories" },
   component: RepoDetailPage,
   validateSearch: (search: Record<string, unknown>) => ({
     name: (search.name as string) || "",
-    timeRange: (search.timeRange as TimeRange) || "7d",
+    ...parseTimeRangeFromSearch(search),
   }),
   loaderDeps: ({ search }) => ({
     name: search.name,
-    timeRange: search.timeRange,
+    timeRange: { from: search.from, to: search.to },
   }),
-  loader: async ({ deps }) => {
+  loader: async ({ context: { queryClient }, deps }) => {
     if (!deps.name) {
-      return null;
+      return;
     }
     const input = { timeRange: deps.timeRange, repo: deps.name };
-    const [
-      stats,
-      successTrend,
-      durationTrend,
-      recentRuns,
-      failingJobs,
-      branches,
-    ] = await Promise.all([
-      getRepoStats({ data: input }),
-      getRepoSuccessRateTrend({ data: input }),
-      getRepoDurationTrend({ data: input }),
-      getRepoRecentRuns({ data: input }),
-      getTopFailingJobs({ data: input }),
-      getActiveBranches({ data: input }),
+    await Promise.all([
+      queryClient.prefetchQuery(repoStatsOptions(input)),
+      queryClient.prefetchQuery(repoSuccessRateTrendOptions(input)),
+      queryClient.prefetchQuery(repoDurationTrendOptions(input)),
+      queryClient.prefetchQuery(repoRecentRunsOptions(input)),
+      queryClient.prefetchQuery(topFailingJobsOptions(input)),
+      queryClient.prefetchQuery(activeBranchesOptions(input)),
     ]);
-    return {
-      stats,
-      successTrend,
-      durationTrend,
-      recentRuns,
-      failingJobs,
-      branches,
-    };
   },
   pendingComponent: RepoDetailSkeleton,
 });
 
 function RepoDetailPage() {
-  const data = Route.useLoaderData();
-  const { name, timeRange } = Route.useSearch();
+  const { name, from, to } = Route.useSearch();
   const navigate = Route.useNavigate();
+  const timeRange = { from, to };
 
-  if (!data || !name) {
+  const input = { timeRange, repo: name };
+  const enabled = !!name;
+  const { data: stats } = useQuery({ ...repoStatsOptions(input), enabled });
+  const { data: successTrend } = useQuery({
+    ...repoSuccessRateTrendOptions(input),
+    enabled,
+  });
+  const { data: durationTrend } = useQuery({
+    ...repoDurationTrendOptions(input),
+    enabled,
+  });
+  const { data: recentRuns } = useQuery({
+    ...repoRecentRunsOptions(input),
+    enabled,
+  });
+  const { data: failingJobs } = useQuery({
+    ...topFailingJobsOptions(input),
+    enabled,
+  });
+  const { data: branches } = useQuery({
+    ...activeBranchesOptions(input),
+    enabled,
+  });
+
+  if (!name) {
     return (
       <div className="flex h-[400px] items-center justify-center text-muted-foreground text-sm">
         Select a repository to view details. Navigate from the overview page or
@@ -82,15 +93,19 @@ function RepoDetailPage() {
     );
   }
 
+  if (!stats) return null;
+
   const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: (prev) => ({ ...prev, timeRange: newRange }) });
+    navigate({
+      search: (prev) => ({ ...prev, from: newRange.from, to: newRange.to }),
+    });
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <RepoHeader name={name} stats={data.stats} />
-        <TimeRangeSelect value={timeRange} onChange={handleTimeRangeChange} />
+        <RepoHeader name={name} stats={stats} />
+        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -100,7 +115,7 @@ function RepoDetailPage() {
             <CardDescription>Build reliability over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <RepoSuccessRateChart data={data.successTrend} />
+            <RepoSuccessRateChart data={successTrend ?? []} />
           </CardContent>
         </Card>
 
@@ -110,7 +125,7 @@ function RepoDetailPage() {
             <CardDescription>Job duration P50 and P95</CardDescription>
           </CardHeader>
           <CardContent>
-            <RepoDurationTrendChart data={data.durationTrend} />
+            <RepoDurationTrendChart data={durationTrend ?? []} />
           </CardContent>
         </Card>
       </div>
@@ -121,7 +136,7 @@ function RepoDetailPage() {
           <CardDescription>Jobs with the highest failure count</CardDescription>
         </CardHeader>
         <CardContent>
-          <TopFailingJobsTable data={data.failingJobs} />
+          <TopFailingJobsTable data={failingJobs ?? []} />
         </CardContent>
       </Card>
 
@@ -131,7 +146,7 @@ function RepoDetailPage() {
           <CardDescription>Branches with recent activity</CardDescription>
         </CardHeader>
         <CardContent>
-          <ActiveBranchesTable data={data.branches} />
+          <ActiveBranchesTable data={branches ?? []} />
         </CardContent>
       </Card>
 
@@ -143,7 +158,7 @@ function RepoDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <RepoRecentRuns data={data.recentRuns} />
+          <RepoRecentRuns data={recentRuns ?? []} />
         </CardContent>
       </Card>
     </div>

@@ -1,7 +1,8 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
-import type { TimeRangeInput } from "./analytics";
-import { timeRangeToDays } from "./analytics";
+import { resolveTimeRange } from "@/lib/time-range";
+import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { testFullNameExpr } from "./sql-helpers";
 
 export interface TestResultsSummary {
@@ -15,9 +16,9 @@ export interface TestResultsSummary {
 export const getTestResultsSummary = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -37,7 +38,7 @@ export const getTestResultsSummary = createServerFn({
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 					anyLast(SpanAttributes['citric.test.result']) as test_result
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
 				GROUP BY test_full_name, run_id, head_sha
@@ -50,7 +51,7 @@ export const getTestResultsSummary = createServerFn({
       failCount: string;
       skipCount: string;
       passRate: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     if (result.length === 0) {
       return {
@@ -80,30 +81,18 @@ export interface PackageResult {
   skipCount: number;
   passRate: number;
   avgDuration: number;
+  avgDurationTrend: number[];
 }
 
 export const getTestResultsByPackage = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
-			SELECT
-				repo,
-				test_package,
-				uniqExact(test_full_name) as testCount,
-				countIf(test_result = 'pass') as passCount,
-				countIf(test_result = 'fail') as failCount,
-				countIf(test_result = 'skip') as skipCount,
-				round(
-					countIf(test_result = 'pass') * 100.0
-					/ nullIf(countIf(test_result = 'pass') + countIf(test_result = 'fail'), 0),
-					1
-				) as passRate,
-				avg(test_duration) as avgDuration
-			FROM (
+			WITH executions AS (
 				SELECT
 					ResourceAttributes['vcs.repository.name'] as repo,
 					SpanAttributes['citric.test.package'] as test_package,
@@ -111,14 +100,38 @@ export const getTestResultsByPackage = createServerFn({
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 					anyLast(SpanAttributes['citric.test.result']) as test_result,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
+					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+					toDate(max(Timestamp)) as exec_date
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
 				GROUP BY repo, test_package, test_full_name, run_id, head_sha
+			),
+			daily_pkg AS (
+				SELECT repo, test_package, exec_date,
+					avg(test_duration) as day_avg
+				FROM executions
+				GROUP BY repo, test_package, exec_date
 			)
-			GROUP BY repo, test_package
+			SELECT
+				e.repo as repo,
+				e.test_package as test_package,
+				uniqExact(e.test_full_name) as testCount,
+				countIf(e.test_result = 'pass') as passCount,
+				countIf(e.test_result = 'fail') as failCount,
+				countIf(e.test_result = 'skip') as skipCount,
+				round(
+					countIf(e.test_result = 'pass') * 100.0
+					/ nullIf(countIf(e.test_result = 'pass') + countIf(e.test_result = 'fail'), 0),
+					1
+				) as passRate,
+				avg(e.test_duration) as avgDuration,
+				(SELECT arrayMap(x -> round(x.2, 4), arraySort(x -> x.1, groupArray((exec_date, day_avg))))
+				 FROM daily_pkg d WHERE d.repo = e.repo AND d.test_package = e.test_package
+				) as avgDurationTrend
+			FROM executions e
+			GROUP BY e.repo, e.test_package
 			ORDER BY failCount DESC, testCount DESC
 			LIMIT 50
 		`;
@@ -132,7 +145,8 @@ export const getTestResultsByPackage = createServerFn({
       skipCount: string;
       passRate: string;
       avgDuration: string;
-    }>(sql);
+      avgDurationTrend: number[];
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       repo: row.repo,
@@ -143,6 +157,7 @@ export const getTestResultsByPackage = createServerFn({
       skipCount: Number(row.skipCount),
       passRate: Number(row.passRate) || 0,
       avgDuration: Number(row.avgDuration),
+      avgDurationTrend: row.avgDurationTrend,
     })) satisfies PackageResult[];
   });
 
@@ -153,38 +168,55 @@ export interface SlowestTest {
   avgDuration: number;
   maxDuration: number;
   executionCount: number;
+  avgDurationTrend: number[];
+  maxDurationTrend: number[];
 }
 
 export const getSlowestTests = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
-			SELECT
-				repo,
-				test_package,
-				test_full_name,
-				avg(test_duration) as avgDuration,
-				max(test_duration) as maxDuration,
-				count(*) as executionCount
-			FROM (
+			WITH executions AS (
 				SELECT
 					ResourceAttributes['vcs.repository.name'] as repo,
 					SpanAttributes['citric.test.package'] as test_package,
 					${testFullNameExpr()},
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
+					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+					toDate(max(Timestamp)) as exec_date
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')
 				GROUP BY repo, test_package, test_full_name, run_id, head_sha
+			),
+			daily_test AS (
+				SELECT repo, test_package, test_full_name, exec_date,
+					avg(test_duration) as day_avg,
+					max(test_duration) as day_max
+				FROM executions
+				GROUP BY repo, test_package, test_full_name, exec_date
 			)
-			GROUP BY repo, test_package, test_full_name
+			SELECT
+				e.repo as repo,
+				e.test_package as test_package,
+				e.test_full_name as test_full_name,
+				avg(e.test_duration) as avgDuration,
+				max(e.test_duration) as maxDuration,
+				count(*) as executionCount,
+				(SELECT arrayMap(x -> round(x.2, 4), arraySort(x -> x.1, groupArray((exec_date, day_avg))))
+				 FROM daily_test d WHERE d.repo = e.repo AND d.test_full_name = e.test_full_name
+				) as avgDurationTrend,
+				(SELECT arrayMap(x -> round(x.2, 4), arraySort(x -> x.1, groupArray((exec_date, day_max))))
+				 FROM daily_test d WHERE d.repo = e.repo AND d.test_full_name = e.test_full_name
+				) as maxDurationTrend
+			FROM executions e
+			GROUP BY e.repo, e.test_package, e.test_full_name
 			ORDER BY avgDuration DESC
 			LIMIT 20
 		`;
@@ -196,7 +228,9 @@ export const getSlowestTests = createServerFn({
       avgDuration: string;
       maxDuration: string;
       executionCount: string;
-    }>(sql);
+      avgDurationTrend: number[];
+      maxDurationTrend: number[];
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       repo: row.repo,
@@ -205,6 +239,8 @@ export const getSlowestTests = createServerFn({
       avgDuration: Number(row.avgDuration),
       maxDuration: Number(row.maxDuration),
       executionCount: Number(row.executionCount),
+      avgDurationTrend: row.avgDurationTrend,
+      maxDurationTrend: row.maxDurationTrend,
     })) satisfies SlowestTest[];
   });
 
@@ -218,9 +254,9 @@ export interface TestDurationTrendPoint {
 export const getTestDurationTrend = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -236,13 +272,13 @@ export const getTestDurationTrend = createServerFn({
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					max(Timestamp) as timestamp
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')
 				GROUP BY run_id, head_sha, test_full_name
 			)
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
@@ -250,7 +286,7 @@ export const getTestDurationTrend = createServerFn({
       avgDuration: string;
       p50Duration: string;
       p95Duration: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       date: row.date,
@@ -258,4 +294,33 @@ export const getTestDurationTrend = createServerFn({
       p50Duration: Number(row.p50Duration),
       p95Duration: Number(row.p95Duration),
     })) satisfies TestDurationTrendPoint[];
+  });
+
+// Query options factories
+export const testResultsSummaryOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["testResults", "summary", input],
+    queryFn: () => getTestResultsSummary({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const testResultsByPackageOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["testResults", "byPackage", input],
+    queryFn: () => getTestResultsByPackage({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const slowestTestsOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["testResults", "slowest", input],
+    queryFn: () => getSlowestTests({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const testDurationTrendOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["testResults", "durationTrend", input],
+    queryFn: () => getTestDurationTrend({ data: input }),
+    staleTime: 60_000,
   });

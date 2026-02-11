@@ -44,7 +44,7 @@ export function NavMain({
               <SidebarMenuButton tooltip={item.title}>
                 {item.icon && <item.icon />}
                 <span>{item.title}</span>
-                <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90" />
               </SidebarMenuButton>
             </CollapsibleTrigger>
 
@@ -53,15 +53,18 @@ export function NavMain({
                 {item.items?.map((subItem) => (
                   <SidebarMenuSubItem key={subItem.title}>
                     <SidebarMenuSubButton
-                      render={() => (
+                      render={
                         <Link
                           to={subItem.url}
-                          className="block text-sm px-2 py-1"
-                        >
-                          <span>{subItem.title}</span>
-                        </Link>
-                      )}
-                    ></SidebarMenuSubButton>
+                          activeOptions={{
+                            exact: subItem.url === "/dashboard",
+                          }}
+                          activeProps={{ "data-active": true }}
+                        />
+                      }
+                    >
+                      <span>{subItem.title}</span>
+                    </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 ))}
               </SidebarMenuSub>

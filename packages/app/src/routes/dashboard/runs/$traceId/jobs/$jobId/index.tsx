@@ -1,14 +1,15 @@
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
-
-const parentRoute = getRouteApi("/dashboard/runs/$traceId");
+import { runDetailsOptions } from "@/data/runs";
 
 export const Route = createFileRoute("/dashboard/runs/$traceId/jobs/$jobId/")({
   component: JobDetailPage,
 });
 
 function JobDetailPage() {
-  const { runDetails } = parentRoute.useLoaderData();
+  const { traceId } = Route.useParams();
+  const { data: runDetails } = useQuery(runDetailsOptions(traceId));
 
   if (!runDetails) {
     return null;

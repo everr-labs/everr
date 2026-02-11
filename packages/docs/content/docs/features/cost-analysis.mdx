@@ -1,0 +1,23 @@
+---
+title: Cost Analysis
+description: Estimated GitHub Actions spend based on runner labels and job duration.
+---
+
+**Route:** `/dashboard/cost-analysis`
+
+Estimates GitHub Actions spend based on runner labels and job duration, with breakdowns by repository, workflow, and runner type. Also shows normalized billing minutes (actual minutes multiplied by the OS multiplier).
+
+- Summary cards: estimated cost, total minutes, billing minutes, self-hosted minutes
+- Cost over time stacked bar chart broken down by operating system (Linux, Windows, macOS)
+- Cost by runner horizontal bar chart showing estimated cost per runner type
+- Cost by repository table with jobs, minutes, billing minutes, estimated cost, and top runner
+- Cost by workflow table with jobs, minutes, estimated cost, and average cost per run
+- Time range selector (7d, 14d, 30d, 90d)
+
+## Pricing Model
+
+Cost estimates are based on GitHub Actions standard per-minute rates. Runner labels are matched against a pricing table that covers standard, larger, ARM, GPU, and macOS runners. Each job's duration is rounded up to the nearest whole minute, matching GitHub's billing behavior.
+
+Billing minutes apply an OS multiplier: Linux 1x, Windows 2x, macOS 10x.
+
+Self-hosted runners are shown with $0.00 cost but their minutes are still tracked.

@@ -310,7 +310,7 @@ export function TraceWaterfall({
             <div className="sticky top-0 z-10 h-5 bg-card border-b border-border text-xs text-muted-foreground">
               {markers.map((marker, index) => (
                 <span
-                  key={marker.label}
+                  key={marker.fraction}
                   className={cn(
                     "absolute whitespace-nowrap",
                     index === markers.length - 1 && "-translate-x-full",
@@ -328,7 +328,7 @@ export function TraceWaterfall({
               <div className="absolute inset-y-0 left-0 right-0 pointer-events-none">
                 {markers.slice(1, -1).map((marker) => (
                   <div
-                    key={marker.label}
+                    key={marker.fraction}
                     className="absolute top-0 h-full w-px bg-border/50"
                     style={{ left: `${marker.fraction * 100}%` }}
                   />

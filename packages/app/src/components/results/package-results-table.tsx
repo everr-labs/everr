@@ -1,8 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { SortableColumnHeader } from "@/components/ui/sortable-column-header";
+import { Sparkline } from "@/components/ui/sparkline";
 import type { PackageResult } from "@/data/test-results";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { formatDuration, getSuccessRateVariant } from "@/lib/formatting";
@@ -36,6 +37,11 @@ export function PackageResultsTable({ data }: PackageResultsTableProps) {
     data,
     "failCount",
     comparator,
+  );
+
+  const avgDurationMax = useMemo(
+    () => Math.max(0, ...data.flatMap((pkg) => pkg.avgDurationTrend)),
+    [data],
   );
 
   const columns: Column<PackageResult>[] = [
@@ -110,10 +116,19 @@ export function PackageResultsTable({ data }: PackageResultsTableProps) {
           onClick={() => toggleSort("avgDuration")}
         />
       ),
+      cellClassName: "h-0 py-0 pr-4",
       cell: (pkg) => (
-        <span className="font-mono text-xs">
-          {formatDuration(pkg.avgDuration)}
-        </span>
+        <div className="relative h-full flex items-center">
+          <span className="font-mono text-xs relative z-10">
+            {formatDuration(pkg.avgDuration)}
+          </span>
+          <Sparkline
+            data={pkg.avgDurationTrend}
+            color="hsl(217, 91%, 60%)"
+            maxValue={avgDurationMax}
+            className="absolute inset-0"
+          />
+        </div>
       ),
     },
   ];

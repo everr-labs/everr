@@ -72,6 +72,7 @@ export function RepoDurationTrendChart({ data }: RepoDurationTrendChartProps) {
           stroke="var(--color-p50Duration)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
         <Line
           dataKey="p95Duration"
@@ -79,6 +80,7 @@ export function RepoDurationTrendChart({ data }: RepoDurationTrendChartProps) {
           stroke="var(--color-p95Duration)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
       </LineChart>
     </ChartContainer>

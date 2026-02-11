@@ -1,30 +1,36 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { TraceWaterfall } from "@/components/run-detail";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getFlakyTestNames } from "@/data/flaky-tests";
-import { getRunDetails, getRunSpans } from "@/data/runs";
+import { flakyTestNamesOptions } from "@/data/flaky-tests";
+import { runDetailsOptions, runSpansOptions } from "@/data/runs";
 
 export const Route = createFileRoute("/dashboard/runs/$traceId/trace")({
-  loader: async ({ params }) => {
-    const [spans, runDetails] = await Promise.all([
-      getRunSpans({ data: params.traceId }),
-      getRunDetails({ data: params.traceId }),
+  loader: async ({ context: { queryClient }, params }) => {
+    const [, runDetails] = await Promise.all([
+      queryClient.ensureQueryData(runSpansOptions(params.traceId)),
+      queryClient.ensureQueryData(runDetailsOptions(params.traceId)),
     ]);
 
-    // Fetch flaky test names for badge display
-    const flakyTestNames = runDetails?.repo
-      ? await getFlakyTestNames({ data: { repo: runDetails.repo } })
-      : [];
-
-    return { spans, traceId: params.traceId, flakyTestNames };
+    // Pre-fetch flaky test names for badge display
+    if (runDetails?.repo) {
+      await queryClient.prefetchQuery(flakyTestNamesOptions(runDetails.repo));
+    }
   },
   component: TraceView,
   pendingComponent: TraceViewSkeleton,
 });
 
 function TraceView() {
-  const { spans, traceId, flakyTestNames } = Route.useLoaderData();
+  const { traceId } = Route.useParams();
+  const { data: spans } = useQuery(runSpansOptions(traceId));
+  const { data: runDetails } = useQuery(runDetailsOptions(traceId));
+  const { data: flakyTestNames } = useQuery(
+    flakyTestNamesOptions(runDetails?.repo ?? ""),
+  );
+
+  if (!spans) return null;
 
   if (spans.length === 0) {
     return (

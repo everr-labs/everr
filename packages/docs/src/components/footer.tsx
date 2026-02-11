@@ -23,7 +23,8 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
-                  to="/docs"
+                  to="/docs/$"
+                  params={{ _splat: "" }}
                   className="text-fd-muted-foreground hover:text-fd-foreground transition-colors"
                 >
                   Documentation

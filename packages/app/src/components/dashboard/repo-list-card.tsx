@@ -58,7 +58,7 @@ export function RepoListCard({ repositories, isLoading }: RepoListCardProps) {
                 <div className="flex flex-col">
                   <Link
                     to="/dashboard/repos"
-                    search={{ name: repo.name, timeRange: "7d" }}
+                    search={{ name: repo.name, from: "now-7d", to: "now" }}
                     className="text-sm font-medium hover:underline"
                   >
                     {repo.name}

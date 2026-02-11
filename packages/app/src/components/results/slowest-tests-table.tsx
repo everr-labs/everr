@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { SortableColumnHeader } from "@/components/ui/sortable-column-header";
+import { Sparkline } from "@/components/ui/sparkline";
 import type { SlowestTest } from "@/data/test-results";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { formatDuration } from "@/lib/formatting";
@@ -36,6 +37,16 @@ export function SlowestTestsTable({ data }: SlowestTestsTableProps) {
     comparator,
   );
 
+  const avgDurationMax = useMemo(
+    () => Math.max(0, ...data.flatMap((t) => t.avgDurationTrend)),
+    [data],
+  );
+
+  const maxDurationMax = useMemo(
+    () => Math.max(0, ...data.flatMap((t) => t.maxDurationTrend)),
+    [data],
+  );
+
   const columns: Column<SlowestTest>[] = [
     {
       header: "Test",
@@ -45,7 +56,8 @@ export function SlowestTestsTable({ data }: SlowestTestsTableProps) {
           search={{
             repo: test.repo,
             test: test.testFullName,
-            timeRange: "30d",
+            from: `now-30d`,
+            to: `now`,
           }}
           className="hover:underline"
         >
@@ -66,10 +78,19 @@ export function SlowestTestsTable({ data }: SlowestTestsTableProps) {
           onClick={() => toggleSort("avgDuration")}
         />
       ),
+      cellClassName: "h-0 py-0 pr-4",
       cell: (test) => (
-        <span className="font-mono text-xs">
-          {formatDuration(test.avgDuration)}
-        </span>
+        <div className="relative h-full flex items-center">
+          <span className="font-mono text-xs relative z-10">
+            {formatDuration(test.avgDuration)}
+          </span>
+          <Sparkline
+            data={test.avgDurationTrend}
+            color="hsl(217, 91%, 60%)"
+            maxValue={avgDurationMax}
+            className="absolute inset-0"
+          />
+        </div>
       ),
     },
     {
@@ -79,10 +100,19 @@ export function SlowestTestsTable({ data }: SlowestTestsTableProps) {
           onClick={() => toggleSort("maxDuration")}
         />
       ),
+      cellClassName: "h-0 py-0 pr-4",
       cell: (test) => (
-        <span className="font-mono text-xs">
-          {formatDuration(test.maxDuration)}
-        </span>
+        <div className="relative h-full flex items-center">
+          <span className="font-mono text-xs relative z-10">
+            {formatDuration(test.maxDuration)}
+          </span>
+          <Sparkline
+            data={test.maxDurationTrend}
+            color="hsl(0, 84%, 60%)"
+            maxValue={maxDurationMax}
+            className="absolute inset-0"
+          />
+        </div>
       ),
     },
     {

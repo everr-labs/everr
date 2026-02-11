@@ -87,6 +87,7 @@ export function SuccessRateChart({ data }: SuccessRateChartProps) {
           dataKey="totalRuns"
           fill="var(--color-totalRuns)"
           radius={[4, 4, 0, 0]}
+          isAnimationActive={false}
         />
         <Line
           yAxisId="left"
@@ -95,6 +96,7 @@ export function SuccessRateChart({ data }: SuccessRateChartProps) {
           stroke="var(--color-successRate)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
       </ComposedChart>
     </ChartContainer>

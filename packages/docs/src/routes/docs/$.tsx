@@ -11,6 +11,7 @@ import {
 } from "fumadocs-ui/layouts/docs/page";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Suspense } from "react";
+import { z } from "zod";
 import { baseOptions } from "@/lib/layout.shared";
 import { source } from "@/lib/source";
 
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/docs/$")({
 const serverLoader = createServerFn({
   method: "GET",
 })
-  .inputValidator((slugs: string[]) => slugs)
+  .inputValidator(z.array(z.string()))
   .handler(async ({ data: slugs }) => {
     const page = source.getPage(slugs);
     if (!page) throw notFound();

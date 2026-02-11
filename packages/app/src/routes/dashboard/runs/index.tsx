@@ -1,15 +1,16 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangeSelect } from "@/components/analytics";
+import { TimeRangePicker } from "@/components/analytics";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TimeRange } from "@/data/analytics";
-import { getRunFilterOptions, getRunsList } from "@/data/runs-list";
+import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
+import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/runs/")({
   component: RunsListPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    timeRange: (search.timeRange as TimeRange) || "7d",
+    ...parseTimeRangeFromSearch(search),
     page: Number(search.page) || 1,
     repo: (search.repo as string) || undefined,
     branch: (search.branch as string) || undefined,
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/dashboard/runs/")({
     runId: (search.runId as string) || undefined,
   }),
   loaderDeps: ({ search }) => ({
-    timeRange: search.timeRange,
+    timeRange: { from: search.from, to: search.to },
     page: search.page,
     repo: search.repo,
     branch: search.branch,
@@ -26,34 +27,52 @@ export const Route = createFileRoute("/dashboard/runs/")({
     workflowName: search.workflowName,
     runId: search.runId,
   }),
-  loader: async ({ deps }) => {
-    const [runsResult, filterOptions] = await Promise.all([
-      getRunsList({
-        data: {
-          timeRange: deps.timeRange,
-          page: deps.page,
-          repo: deps.repo,
-          branch: deps.branch,
-          conclusion: deps.conclusion,
-          workflowName: deps.workflowName,
-          runId: deps.runId,
-        },
-      }),
-      getRunFilterOptions(),
+  loader: async ({ context: { queryClient }, deps }) => {
+    const runsInput = {
+      timeRange: deps.timeRange,
+      page: deps.page,
+      repo: deps.repo,
+      branch: deps.branch,
+      conclusion: deps.conclusion,
+      workflowName: deps.workflowName,
+      runId: deps.runId,
+    };
+    await Promise.all([
+      queryClient.prefetchQuery(runsListOptions(runsInput)),
+      queryClient.prefetchQuery(runFilterOptionsOptions()),
     ]);
-    return { runsResult, filterOptions };
   },
   pendingComponent: RunsListSkeleton,
 });
 
 function RunsListPage() {
-  const { runsResult, filterOptions } = Route.useLoaderData();
-  const { timeRange, page, repo, branch, conclusion, workflowName, runId } =
+  const { from, to, page, repo, branch, conclusion, workflowName, runId } =
     Route.useSearch();
+  const timeRange = { from, to };
+  const runsInput = {
+    timeRange,
+    page,
+    repo,
+    branch,
+    conclusion,
+    workflowName,
+    runId,
+  };
+  const { data: runsResult } = useQuery(runsListOptions(runsInput));
+  const { data: filterOptions } = useQuery(runFilterOptionsOptions());
   const navigate = Route.useNavigate();
 
+  if (!runsResult) return null;
+
   const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: (prev) => ({ ...prev, timeRange: newRange, page: 1 }) });
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        from: newRange.from,
+        to: newRange.to,
+        page: 1,
+      }),
+    });
   };
 
   const updateFilter = (updates: Record<string, unknown>) => {
@@ -69,11 +88,13 @@ function RunsListPage() {
             Browse and filter workflow runs
           </p>
         </div>
-        <TimeRangeSelect value={timeRange} onChange={handleTimeRangeChange} />
+        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <RunsFilterBar
-        filterOptions={filterOptions}
+        filterOptions={
+          filterOptions ?? { repos: [], branches: [], workflowNames: [] }
+        }
         repo={repo}
         branch={branch}
         conclusion={conclusion}

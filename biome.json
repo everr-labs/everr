@@ -9,12 +9,15 @@
     "ignoreUnknown": false,
     "includes": [
       "packages/app/**/src/**/*",
-      "packages/app/**/vite.config.ts",
+      "packages/app/vite.config.ts",
       "packages/app/**/*.css",
 
       "packages/docs/**/src/**/*",
-      "packages/docs/**/vite.config.ts",
+      "packages/docs/vite.config.ts",
       "packages/docs/**/*.css",
+
+      "packages/datemath/**/src/**/*",
+      "packages/datemath/vite.config.ts",
 
       "!packages/**/src/routeTree.gen.ts"
     ]

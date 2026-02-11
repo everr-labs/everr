@@ -4,6 +4,7 @@ export interface Column<T> {
   header: ReactNode;
   cell: (row: T) => ReactNode;
   className?: string;
+  cellClassName?: string;
 }
 
 interface DataTableProps<T> {
@@ -54,7 +55,10 @@ export function DataTable<T>({
                 <td
                   // biome-ignore lint/suspicious/noArrayIndexKey: Column order is static
                   key={i}
-                  className={i < columns.length - 1 ? "py-2 pr-4" : "py-2"}
+                  className={
+                    col.cellClassName ??
+                    (i < columns.length - 1 ? "py-2 pr-4" : "py-2")
+                  }
                 >
                   {col.cell(row)}
                 </td>

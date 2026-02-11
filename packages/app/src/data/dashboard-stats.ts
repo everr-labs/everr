@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
 
@@ -152,3 +153,22 @@ export const getRecentActivity = createServerFn({
     failureCount: Number(row.failureCount),
   })) satisfies RecentActivity[];
 });
+
+// Query options factories
+export const dashboardStatsOptions = () =>
+  queryOptions({
+    queryKey: ["dashboard", "stats"],
+    queryFn: () => getDashboardStats(),
+  });
+
+export const repositoriesOptions = () =>
+  queryOptions({
+    queryKey: ["dashboard", "repositories"],
+    queryFn: () => getRepositories(),
+  });
+
+export const recentActivityOptions = () =>
+  queryOptions({
+    queryKey: ["dashboard", "recentActivity"],
+    queryFn: () => getRecentActivity(),
+  });

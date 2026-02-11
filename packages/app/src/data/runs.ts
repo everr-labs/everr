@@ -1,4 +1,6 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 
 export interface Run {
@@ -105,7 +107,7 @@ export const getLatestRuns = createServerFn({
 export const getRunDetails = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: string) => data)
+  .inputValidator(z.string())
   .handler(async ({ data: traceId }) => {
     const sql = `
 			SELECT
@@ -149,7 +151,7 @@ export const getRunDetails = createServerFn({
 export const getRunJobs = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: string) => data)
+  .inputValidator(z.string())
   .handler(async ({ data: traceId }) => {
     const sql = `
 			SELECT
@@ -182,7 +184,7 @@ export const getRunJobs = createServerFn({
 export const getJobSteps = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: { traceId: string; jobId: string }) => data)
+  .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
   .handler(async ({ data: { traceId, jobId } }) => {
     const sql = `
 			SELECT
@@ -215,7 +217,9 @@ export const getJobSteps = createServerFn({
 export const getAllJobsSteps = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: { traceId: string; jobIds: string[] }) => data)
+  .inputValidator(
+    z.object({ traceId: z.string(), jobIds: z.array(z.string()) }),
+  )
   .handler(async ({ data: { traceId, jobIds } }) => {
     const result: Record<string, Step[]> = {};
 
@@ -258,7 +262,11 @@ export const getStepLogs = createServerFn({
   method: "GET",
 })
   .inputValidator(
-    (data: { traceId: string; jobName: string; stepNumber: string }) => data,
+    z.object({
+      traceId: z.string(),
+      jobName: z.string(),
+      stepNumber: z.string(),
+    }),
   )
   .handler(async ({ data: { traceId, jobName, stepNumber } }) => {
     // Note: Logs use job name in ScopeAttributes, not job ID
@@ -288,7 +296,7 @@ export const getStepLogs = createServerFn({
 export const getRunSpans = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: string) => data)
+  .inputValidator(z.string())
   .handler(async ({ data: traceId }) => {
     const sql = `
 			SELECT
@@ -391,4 +399,59 @@ export const getRunSpans = createServerFn({
         isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
       };
     }) satisfies Span[];
+  });
+
+// Query options factories
+export const latestRunsOptions = () =>
+  queryOptions({
+    queryKey: ["runs", "latest"],
+    queryFn: () => getLatestRuns(),
+  });
+
+export const runDetailsOptions = (traceId: string) =>
+  queryOptions({
+    queryKey: ["runs", "details", traceId],
+    queryFn: () => getRunDetails({ data: traceId }),
+    staleTime: 60_000,
+  });
+
+export const runJobsOptions = (traceId: string) =>
+  queryOptions({
+    queryKey: ["runs", "jobs", traceId],
+    queryFn: () => getRunJobs({ data: traceId }),
+    staleTime: 60_000,
+  });
+
+export const allJobsStepsOptions = (input: {
+  traceId: string;
+  jobIds: string[];
+}) =>
+  queryOptions({
+    queryKey: ["runs", "allJobsSteps", input.traceId, input.jobIds],
+    queryFn: () => getAllJobsSteps({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const stepLogsOptions = (input: {
+  traceId: string;
+  jobName: string;
+  stepNumber: string;
+}) =>
+  queryOptions({
+    queryKey: [
+      "runs",
+      "stepLogs",
+      input.traceId,
+      input.jobName,
+      input.stepNumber,
+    ],
+    queryFn: () => getStepLogs({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const runSpansOptions = (traceId: string) =>
+  queryOptions({
+    queryKey: ["runs", "spans", traceId],
+    queryFn: () => getRunSpans({ data: traceId }),
+    staleTime: 60_000,
   });

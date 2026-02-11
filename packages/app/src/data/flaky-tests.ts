@@ -1,8 +1,24 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { query } from "@/lib/clickhouse";
-import type { TimeRange, TimeRangeInput } from "./analytics";
-import { timeRangeToDays } from "./analytics";
+import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { testFullNameExpr } from "./sql-helpers";
+
+// Filter input for flaky tests list
+const FlakyTestsFilterInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  repo: z.string().optional(),
+  branch: z.string().optional(),
+  search: z.string().optional(),
+});
+export type FlakyTestsFilterInput = z.infer<typeof FlakyTestsFilterInputSchema>;
+
+// Filter options (repos + branches that have test data)
+export interface FlakyTestFilterOptions {
+  repos: string[];
+  branches: string[];
+}
 
 // Flaky test list item
 export interface FlakyTest {
@@ -18,14 +34,95 @@ export interface FlakyTest {
   failureRate: number;
   lastSeen: string;
   avgDuration: number;
+  firstSeen: string;
+  recentFailureRate: number;
 }
+
+// Daily result for heatmap
+export interface TestDailyResult {
+  date: string;
+  passCount: number;
+  failCount: number;
+  skipCount: number;
+}
+
+function buildFlakyTestConditions(
+  fromISO: string,
+  toISO: string,
+  data: FlakyTestsFilterInput,
+): { conditions: string[]; params: Record<string, unknown> } {
+  const conditions: string[] = [
+    "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
+    "SpanAttributes['citric.test.name'] != ''",
+    "SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')",
+  ];
+  const params: Record<string, unknown> = {
+    fromTime: fromISO,
+    toTime: toISO,
+  };
+
+  if (data.repo) {
+    conditions.push(
+      "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+    );
+    params.repo = data.repo;
+  }
+  if (data.branch) {
+    conditions.push(
+      "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+    );
+    params.branch = data.branch;
+  }
+  if (data.search) {
+    conditions.push(`${testFullNameExpr(null)} ILIKE {search:String}`);
+    params.search = `%${data.search}%`;
+  }
+
+  return { conditions, params };
+}
+
+export const getFlakyTestFilterOptions = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const [repos, branches] = await Promise.all([
+    query<{ repo: string }>(
+      `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
+			FROM otel_traces
+			WHERE Timestamp >= now() - INTERVAL 90 DAY
+				AND ResourceAttributes['vcs.repository.name'] != ''
+				AND SpanAttributes['citric.test.name'] != ''
+			ORDER BY repo
+			LIMIT 100`,
+    ),
+    query<{ branch: string }>(
+      `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
+			FROM otel_traces
+			WHERE Timestamp >= now() - INTERVAL 90 DAY
+				AND ResourceAttributes['vcs.ref.head.name'] != ''
+				AND SpanAttributes['citric.test.name'] != ''
+			ORDER BY branch
+			LIMIT 100`,
+    ),
+  ]);
+
+  return {
+    repos: repos.map((r) => r.repo),
+    branches: branches.map((r) => r.branch),
+  } satisfies FlakyTestFilterOptions;
+});
 
 export const getFlakyTests = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
-  .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+  .inputValidator(FlakyTestsFilterInputSchema)
+  .handler(async ({ data }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { conditions, params } = buildFlakyTestConditions(
+      fromISO,
+      toISO,
+      data,
+    );
+    const whereClause = conditions.join("\n\t\t\t\t\tAND ");
 
     const sql = `
 			SELECT
@@ -42,7 +139,17 @@ export const getFlakyTests = createServerFn({
 					1
 				) as failure_rate,
 				max(timestamp) as last_seen,
-				avg(test_duration) as avg_duration
+				avg(test_duration) as avg_duration,
+				min(timestamp) as first_seen,
+				round(
+					countIf(test_result = 'fail' AND timestamp >= now() - INTERVAL 7 DAY) * 100.0
+					/ nullIf(
+						countIf(test_result = 'fail' AND timestamp >= now() - INTERVAL 7 DAY)
+						+ countIf(test_result = 'pass' AND timestamp >= now() - INTERVAL 7 DAY),
+						0
+					),
+					1
+				) as recent_failure_rate
 			FROM (
 				SELECT
 					ResourceAttributes['vcs.repository.name'] as repo,
@@ -54,9 +161,7 @@ export const getFlakyTests = createServerFn({
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					max(Timestamp) as timestamp
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
-					AND SpanAttributes['citric.test.name'] != ''
-					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
+				WHERE ${whereClause}
 				GROUP BY repo, test_package, test_full_name, run_id, head_sha
 			)
 			GROUP BY repo, test_package, test_full_name
@@ -79,7 +184,9 @@ export const getFlakyTests = createServerFn({
       failure_rate: string;
       last_seen: string;
       avg_duration: string;
-    }>(sql);
+      first_seen: string;
+      recent_failure_rate: string;
+    }>(sql, params);
 
     return result.map((row) => ({
       repo: row.repo,
@@ -94,6 +201,8 @@ export const getFlakyTests = createServerFn({
       failureRate: Number(row.failure_rate) || 0,
       lastSeen: row.last_seen,
       avgDuration: Number(row.avg_duration),
+      firstSeen: row.first_seen,
+      recentFailureRate: Number(row.recent_failure_rate) || 0,
     })) satisfies FlakyTest[];
   });
 
@@ -107,9 +216,15 @@ export interface FlakyTestSummary {
 export const getFlakyTestSummary = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
-  .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+  .inputValidator(FlakyTestsFilterInputSchema)
+  .handler(async ({ data }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { conditions, params } = buildFlakyTestConditions(
+      fromISO,
+      toISO,
+      data,
+    );
+    const whereClause = conditions.join("\n\t\t\t\t\t\tAND ");
 
     const sql = `
 			SELECT
@@ -133,9 +248,7 @@ export const getFlakyTestSummary = createServerFn({
 						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 						anyLast(SpanAttributes['citric.test.result']) as test_result
 					FROM otel_traces
-					WHERE Timestamp >= now() - INTERVAL ${days} DAY
-						AND SpanAttributes['citric.test.name'] != ''
-						AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
+					WHERE ${whereClause}
 					GROUP BY parent_test, test_name, run_id, head_sha
 				)
 				GROUP BY test_full_name
@@ -146,7 +259,7 @@ export const getFlakyTestSummary = createServerFn({
       flaky_test_count: string;
       total_test_count: string;
       flaky_percentage: string;
-    }>(sql);
+    }>(sql, params);
 
     if (result.length === 0) {
       return {
@@ -174,9 +287,15 @@ export interface FlakinessTrendPoint {
 export const getFlakinessTrend = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
-  .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+  .inputValidator(FlakyTestsFilterInputSchema)
+  .handler(async ({ data }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { conditions, params } = buildFlakyTestConditions(
+      fromISO,
+      toISO,
+      data,
+    );
+    const whereClause = conditions.join("\n\t\t\t\t\t\tAND ");
 
     const sql = `
 			SELECT
@@ -202,15 +321,13 @@ export const getFlakinessTrend = createServerFn({
 						anyLast(SpanAttributes['citric.test.result']) as test_result,
 						max(Timestamp) as timestamp
 					FROM otel_traces
-					WHERE Timestamp >= now() - INTERVAL ${days} DAY
-						AND SpanAttributes['citric.test.name'] != ''
-						AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
+					WHERE ${whereClause}
 					GROUP BY test_full_name, run_id, head_sha
 				)
 				GROUP BY date, test_full_name
 			)
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
@@ -218,7 +335,7 @@ export const getFlakinessTrend = createServerFn({
       flaky_count: string;
       total_count: string;
       flaky_percentage: string;
-    }>(sql);
+    }>(sql, params);
 
     return result.map((row) => ({
       date: row.date,
@@ -243,18 +360,19 @@ export interface TestExecution {
   timestamp: string;
 }
 
-export interface TestDetailInput {
-  timeRange: TimeRange;
-  repo: string;
-  testFullName: string;
-}
+const TestDetailInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  repo: z.string(),
+  testFullName: z.string(),
+});
+export type TestDetailInput = z.infer<typeof TestDetailInputSchema>;
 
 export const getTestHistory = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TestDetailInput) => data)
+  .inputValidator(TestDetailInputSchema)
   .handler(async ({ data: { timeRange, repo, testFullName } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -283,7 +401,7 @@ export const getTestHistory = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as job_name,
 					max(Timestamp) as timestamp
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ${testFullNameExpr(null)} = {testFullName:String}
@@ -305,7 +423,7 @@ export const getTestHistory = createServerFn({
       workflow_name: string;
       job_name: string;
       timestamp: string;
-    }>(sql, { repo, testFullName });
+    }>(sql, { repo, testFullName, fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       traceId: row.trace_id,
@@ -335,9 +453,9 @@ export interface RunnerFlakiness {
 export const getRunnerFlakiness = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TestDetailInput) => data)
+  .inputValidator(TestDetailInputSchema)
   .handler(async ({ data: { timeRange, repo, testFullName } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -359,7 +477,7 @@ export const getRunnerFlakiness = createServerFn({
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					anyLast(ResourceAttributes['cicd.worker.name']) as runner_name
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ${testFullNameExpr(null)} = {testFullName:String}
@@ -377,7 +495,7 @@ export const getRunnerFlakiness = createServerFn({
       pass_count: string;
       failure_rate: string;
       avg_duration: string;
-    }>(sql, { repo, testFullName });
+    }>(sql, { repo, testFullName, fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       runnerName: row.runner_name,
@@ -389,11 +507,58 @@ export const getRunnerFlakiness = createServerFn({
     })) satisfies RunnerFlakiness[];
   });
 
+// Daily results for heatmap
+export const getTestDailyResults = createServerFn({
+  method: "GET",
+})
+  .inputValidator(TestDetailInputSchema)
+  .handler(async ({ data: { timeRange, repo, testFullName } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
+
+    const sql = `
+			SELECT
+				toDate(timestamp) as date,
+				countIf(test_result = 'pass') as pass_count,
+				countIf(test_result = 'fail') as fail_count,
+				countIf(test_result = 'skip') as skip_count
+			FROM (
+				SELECT
+					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+					anyLast(SpanAttributes['citric.test.result']) as test_result,
+					max(Timestamp) as timestamp
+				FROM otel_traces
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
+					AND SpanAttributes['citric.test.name'] != ''
+					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
+					AND ${testFullNameExpr(null)} = {testFullName:String}
+					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
+				GROUP BY run_id, head_sha
+			)
+			GROUP BY date
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
+		`;
+
+    const result = await query<{
+      date: string;
+      pass_count: string;
+      fail_count: string;
+      skip_count: string;
+    }>(sql, { repo, testFullName, fromTime: fromISO, toTime: toISO });
+
+    return result.map((row) => ({
+      date: row.date,
+      passCount: Number(row.pass_count),
+      failCount: Number(row.fail_count),
+      skipCount: Number(row.skip_count),
+    })) satisfies TestDailyResult[];
+  });
+
 // Lightweight lookup for waterfall badge
 export const getFlakyTestNames = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: { repo: string }) => data)
+  .inputValidator(z.object({ repo: z.string() }))
   .handler(async ({ data: { repo } }) => {
     const sql = `
 			SELECT DISTINCT test_full_name
@@ -422,4 +587,61 @@ export const getFlakyTestNames = createServerFn({
 
     const result = await query<{ test_full_name: string }>(sql, { repo });
     return result.map((row) => row.test_full_name);
+  });
+
+// Query options factories
+export const flakyTestsOptions = (input: FlakyTestsFilterInput) =>
+  queryOptions({
+    queryKey: ["flakyTests", "list", input],
+    queryFn: () => getFlakyTests({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const flakyTestSummaryOptions = (input: FlakyTestsFilterInput) =>
+  queryOptions({
+    queryKey: ["flakyTests", "summary", input],
+    queryFn: () => getFlakyTestSummary({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const flakinessTrendOptions = (input: FlakyTestsFilterInput) =>
+  queryOptions({
+    queryKey: ["flakyTests", "trend", input],
+    queryFn: () => getFlakinessTrend({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const flakyTestFilterOptionsOptions = () =>
+  queryOptions({
+    queryKey: ["flakyTests", "filterOptions"],
+    queryFn: () => getFlakyTestFilterOptions(),
+    staleTime: 5 * 60_000,
+  });
+
+export const testHistoryOptions = (input: TestDetailInput) =>
+  queryOptions({
+    queryKey: ["flakyTests", "history", input],
+    queryFn: () => getTestHistory({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const runnerFlakinessOptions = (input: TestDetailInput) =>
+  queryOptions({
+    queryKey: ["flakyTests", "runnerFlakiness", input],
+    queryFn: () => getRunnerFlakiness({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const testDailyResultsOptions = (input: TestDetailInput) =>
+  queryOptions({
+    queryKey: ["flakyTests", "dailyResults", input],
+    queryFn: () => getTestDailyResults({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const flakyTestNamesOptions = (repo: string) =>
+  queryOptions({
+    queryKey: ["flakyTests", "names", repo],
+    queryFn: () => getFlakyTestNames({ data: { repo } }),
+    staleTime: 60_000,
   });

@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
   Link,
@@ -17,27 +18,32 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getAllJobsSteps, getRunDetails, getRunJobs } from "@/data/runs";
+import {
+  allJobsStepsOptions,
+  runDetailsOptions,
+  runJobsOptions,
+} from "@/data/runs";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/runs/$traceId")({
-  loader: async ({ params }) => {
+  staticData: {
+    breadcrumb: (match: { loaderData?: { workflowName?: string } }) =>
+      match.loaderData?.workflowName ?? "Run Details",
+  },
+  loader: async ({ context: { queryClient }, params }) => {
     const [runDetails, jobs] = await Promise.all([
-      getRunDetails({ data: params.traceId }),
-      getRunJobs({ data: params.traceId }),
+      queryClient.ensureQueryData(runDetailsOptions(params.traceId)),
+      queryClient.ensureQueryData(runJobsOptions(params.traceId)),
     ]);
 
-    const stepsByJobId =
-      jobs.length > 0
-        ? await getAllJobsSteps({
-            data: {
-              traceId: params.traceId,
-              jobIds: jobs.map((j) => j.jobId),
-            },
-          })
-        : {};
+    await queryClient.prefetchQuery(
+      allJobsStepsOptions({
+        traceId: params.traceId,
+        jobIds: jobs.map((j) => j.jobId),
+      }),
+    );
 
-    return { runDetails, jobs, stepsByJobId, traceId: params.traceId };
+    return { traceId: params.traceId, workflowName: runDetails?.workflowName };
   },
   component: RunDetailLayout,
   pendingComponent: RunDetailSkeleton,
@@ -45,7 +51,15 @@ export const Route = createFileRoute("/dashboard/runs/$traceId")({
 });
 
 function RunDetailLayout() {
-  const { runDetails, jobs, stepsByJobId, traceId } = Route.useLoaderData();
+  const { traceId } = Route.useLoaderData();
+  const { data: runDetails } = useQuery(runDetailsOptions(traceId));
+  const { data: jobs } = useQuery(runJobsOptions(traceId));
+  const { data: stepsByJobId } = useQuery(
+    allJobsStepsOptions({
+      traceId,
+      jobIds: (jobs ?? []).map((j) => j.jobId),
+    }),
+  );
   // useParams with strict: false returns ALL matched params including child route params
   const params = useParams({ strict: false });
   const jobDetailMatch = useMatch({
@@ -128,13 +142,13 @@ function RunDetailLayout() {
               <CardHeader className="shrink-0">
                 <CardTitle>Jobs</CardTitle>
                 <CardDescription>
-                  {jobs.length} jobs in this run
+                  {(jobs ?? []).length} jobs in this run
                 </CardDescription>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-auto">
                 <JobTreeNav
-                  jobs={jobs}
-                  stepsByJobId={stepsByJobId}
+                  jobs={jobs ?? []}
+                  stepsByJobId={stepsByJobId ?? {}}
                   traceId={traceId}
                   selectedJobId={(params as { jobId?: string }).jobId}
                 />

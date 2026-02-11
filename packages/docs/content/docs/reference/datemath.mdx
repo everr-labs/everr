@@ -1,0 +1,117 @@
+---
+title: Date Math Expressions
+description: Syntax reference for relative and absolute time expressions used in the time range picker.
+---
+
+The time range picker on every dashboard page accepts **date math expressions** for flexible time filtering. You can use quick presets like "Last 7 days" or enter custom expressions in the **From** and **To** fields.
+
+## Syntax
+
+A date math expression starts with an **anchor** followed by optional **operations**.
+
+```
+anchor[operation][operation]...
+```
+
+### Anchors
+
+| Anchor | Description | Example |
+|--------|-------------|---------|
+| `now` | Current time | `now` |
+| ISO-8601 date | Absolute timestamp, followed by `\|\|` before operations | `2024-01-01\|\|+1M` |
+
+### Operations
+
+Operations are chained directly after the anchor without separators.
+
+| Operator | Description | Format |
+|----------|-------------|--------|
+| `+` | Add time | `+[amount]unit` |
+| `-` | Subtract time | `-[amount]unit` |
+| `/` | Round to boundary | `/unit` |
+
+The amount defaults to `1` when omitted (e.g. `+d` is equivalent to `+1d`).
+
+### Units
+
+| Unit | Description |
+|------|-------------|
+| `s` | Seconds |
+| `m` | Minutes |
+| `h` | Hours |
+| `d` | Days |
+| `w` | Weeks |
+| `M` | Months (capital M) |
+| `y` | Years |
+
+## Examples
+
+| Expression | Description |
+|------------|-------------|
+| `now` | Current time |
+| `now-7d` | 7 days ago |
+| `now-24h` | 24 hours ago |
+| `now-30m` | 30 minutes ago |
+| `now-1y` | 1 year ago |
+| `now+2d` | 2 days from now |
+| `now/d` | Start of today |
+| `now-7d/d` | 7 days ago, rounded to start of day |
+| `now-1M/M` | Start of last month |
+| `2024-01-01\|\|+1M` | January 1 2024 plus 1 month |
+
+## Rounding
+
+The round operator (`/`) snaps a date to a time boundary. Whether it rounds to the **start** or **end** of the period depends on context:
+
+- The **From** field rounds down (start of period)
+- The **To** field rounds up (end of period)
+
+### Round down (From field)
+
+| Expression | Result |
+|------------|--------|
+| `now/d` | Today at `00:00:00.000` |
+| `now/w` | Monday of the current week at `00:00:00.000` |
+| `now/M` | First day of the month at `00:00:00.000` |
+| `now/y` | January 1 of the year at `00:00:00.000` |
+
+### Round up (To field)
+
+| Expression | Result |
+|------------|--------|
+| `now/d` | Today at `23:59:59.999` |
+| `now/w` | Sunday of the current week at `23:59:59.999` |
+| `now/M` | Last day of the month at `23:59:59.999` |
+| `now/y` | December 31 of the year at `23:59:59.999` |
+
+## Quick ranges
+
+The time range picker includes presets for common ranges:
+
+| Preset | From | To |
+|--------|------|----|
+| Last 5 minutes | `now-5m` | `now` |
+| Last 15 minutes | `now-15m` | `now` |
+| Last 1 hour | `now-1h` | `now` |
+| Last 6 hours | `now-6h` | `now` |
+| Last 12 hours | `now-12h` | `now` |
+| Last 24 hours | `now-24h` | `now` |
+| Last 2 days | `now-2d` | `now` |
+| Last 7 days | `now-7d` | `now` |
+| Last 14 days | `now-14d` | `now` |
+| Last 30 days | `now-30d` | `now` |
+| Last 90 days | `now-90d` | `now` |
+| Last 1 year | `now-1y` | `now` |
+| Today | `now/d` | `now/d` |
+| Yesterday | `now-1d/d` | `now-1d/d` |
+| This week | `now/w` | `now/w` |
+| This month | `now/M` | `now/M` |
+
+## URL parameters
+
+Time ranges are stored in the URL as `from` and `to` query parameters, making them shareable:
+
+```
+/dashboard/analytics?from=now-7d&to=now
+/dashboard/runs?from=now-30d&to=now&repo=my-org/my-repo
+```

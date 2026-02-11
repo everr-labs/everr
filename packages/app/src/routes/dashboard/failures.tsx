@@ -1,5 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangeSelect } from "@/components/analytics";
+import { TimeRangePicker } from "@/components/analytics";
 import {
   FailurePatternsTable,
   FailuresByRepoTable,
@@ -13,42 +14,51 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TimeRange } from "@/data/analytics";
 import {
-  getFailurePatterns,
-  getFailuresByRepo,
-  getFailureTrend,
+  failurePatternsOptions,
+  failuresByRepoOptions,
+  failureTrendOptions,
 } from "@/data/failures";
+import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/failures")({
+  staticData: { breadcrumb: "Failures" },
   component: FailuresPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    timeRange: (search.timeRange as TimeRange) || "7d",
+    ...parseTimeRangeFromSearch(search),
   }),
-  loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
-  loader: async ({ deps: { timeRange } }) => {
-    const [patterns, trend, byRepo] = await Promise.all([
-      getFailurePatterns({ data: { timeRange } }),
-      getFailureTrend({ data: { timeRange } }),
-      getFailuresByRepo({ data: { timeRange } }),
+  loaderDeps: ({ search }) => ({
+    timeRange: { from: search.from, to: search.to },
+  }),
+  loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
+    const input = { timeRange };
+    await Promise.all([
+      queryClient.prefetchQuery(failurePatternsOptions(input)),
+      queryClient.prefetchQuery(failureTrendOptions(input)),
+      queryClient.prefetchQuery(failuresByRepoOptions(input)),
     ]);
-    return { patterns, trend, byRepo };
   },
   pendingComponent: FailuresSkeleton,
 });
 
 function FailuresPage() {
-  const { patterns, trend, byRepo } = Route.useLoaderData();
-  const { timeRange } = Route.useSearch();
+  const { from, to } = Route.useSearch();
+  const timeRange = { from, to };
+  const input = { timeRange };
+  const { data: patterns } = useQuery(failurePatternsOptions(input));
+  const { data: trend } = useQuery(failureTrendOptions(input));
+  const { data: byRepo } = useQuery(failuresByRepoOptions(input));
   const navigate = Route.useNavigate();
 
+  if (!patterns) return null;
+
   const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: { timeRange: newRange } });
+    navigate({ search: { from: newRange.from, to: newRange.to } });
   };
 
   const totalFailures = patterns.reduce((sum, p) => sum + p.count, 0);
   const uniquePatterns = patterns.length;
-  const mostAffectedRepo = byRepo.length > 0 ? byRepo[0].repo : "—";
+  const mostAffectedRepo = byRepo && byRepo.length > 0 ? byRepo[0].repo : "—";
 
   return (
     <div className="space-y-6">
@@ -61,7 +71,7 @@ function FailuresPage() {
             Common failure patterns across workflows
           </p>
         </div>
-        <TimeRangeSelect value={timeRange} onChange={handleTimeRangeChange} />
+        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -99,7 +109,7 @@ function FailuresPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <FailureTrendChart data={trend} />
+          <FailureTrendChart data={trend ?? []} />
         </CardContent>
       </Card>
 
@@ -121,7 +131,7 @@ function FailuresPage() {
           <CardDescription>Per-repository failure breakdown</CardDescription>
         </CardHeader>
         <CardContent>
-          <FailuresByRepoTable data={byRepo} />
+          <FailuresByRepoTable data={byRepo ?? []} />
         </CardContent>
       </Card>
     </div>

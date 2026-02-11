@@ -91,6 +91,7 @@ export function FlakinessTrendChart({ data }: FlakinessTrendChartProps) {
           dataKey="flakyCount"
           fill="var(--color-flakyCount)"
           radius={[4, 4, 0, 0]}
+          isAnimationActive={false}
         />
         <Line
           yAxisId="right"
@@ -99,6 +100,7 @@ export function FlakinessTrendChart({ data }: FlakinessTrendChartProps) {
           stroke="var(--color-flakyPercentage)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
       </ComposedChart>
     </ChartContainer>

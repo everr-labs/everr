@@ -71,7 +71,11 @@ export function RunnerUtilizationChart({ data }: RunnerUtilizationChartProps) {
             />
           }
         />
-        <Bar dataKey="totalJobs" radius={[0, 4, 4, 0]}>
+        <Bar
+          dataKey="totalJobs"
+          radius={[0, 4, 4, 0]}
+          isAnimationActive={false}
+        >
           {data.map((entry) => (
             <Cell key={entry.labels} fill={getColor(entry.successRate)} />
           ))}

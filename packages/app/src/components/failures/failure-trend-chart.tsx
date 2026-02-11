@@ -83,6 +83,7 @@ export function FailureTrendChart({ data }: FailureTrendChartProps) {
           dataKey="totalFailures"
           fill="var(--color-totalFailures)"
           radius={[4, 4, 0, 0]}
+          isAnimationActive={false}
         />
         <Line
           yAxisId="right"
@@ -91,6 +92,7 @@ export function FailureTrendChart({ data }: FailureTrendChartProps) {
           stroke="var(--color-uniquePatterns)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
       </ComposedChart>
     </ChartContainer>

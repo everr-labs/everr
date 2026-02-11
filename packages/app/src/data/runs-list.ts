@@ -1,7 +1,8 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { query } from "@/lib/clickhouse";
-import type { TimeRange } from "./analytics";
-import { timeRangeToDays } from "./analytics";
+import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 
 export interface RunListItem {
   traceId: string;
@@ -22,32 +23,35 @@ export interface RunsListResult {
   totalCount: number;
 }
 
-export interface RunsListInput {
-  timeRange: TimeRange;
-  page: number;
-  pageSize?: number;
-  repo?: string;
-  branch?: string;
-  conclusion?: string;
-  workflowName?: string;
-  runId?: string;
-}
+const RunsListInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  page: z.number(),
+  pageSize: z.number().optional(),
+  repo: z.string().optional(),
+  branch: z.string().optional(),
+  conclusion: z.string().optional(),
+  workflowName: z.string().optional(),
+  runId: z.string().optional(),
+});
+export type RunsListInput = z.infer<typeof RunsListInputSchema>;
 
 export const getRunsList = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: RunsListInput) => data)
+  .inputValidator(RunsListInputSchema)
   .handler(async ({ data }) => {
-    const days = timeRangeToDays(data.timeRange);
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const pageSize = data.pageSize || 20;
     const offset = (data.page - 1) * pageSize;
 
     const conditions: string[] = [
-      `Timestamp >= now() - INTERVAL ${days} DAY`,
+      "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
       "ResourceAttributes['cicd.pipeline.run.id'] != ''",
       "SpanAttributes['citric.github.workflow_job_step.number'] = ''",
     ];
     const params: Record<string, unknown> = {
+      fromTime: fromISO,
+      toTime: toISO,
       pageSize,
       offset,
     };
@@ -192,3 +196,17 @@ export const getRunFilterOptions = createServerFn({
     workflowNames: workflowNames.map((r) => r.workflowName),
   } satisfies FilterOptions;
 });
+
+// Query options factories
+export const runsListOptions = (input: RunsListInput) =>
+  queryOptions({
+    queryKey: ["runs", "list", input],
+    queryFn: () => getRunsList({ data: input }),
+  });
+
+export const runFilterOptionsOptions = () =>
+  queryOptions({
+    queryKey: ["runs", "filterOptions"],
+    queryFn: () => getRunFilterOptions(),
+    staleTime: 5 * 60_000,
+  });

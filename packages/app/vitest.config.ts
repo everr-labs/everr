@@ -18,11 +18,6 @@ export default defineConfig({
 	test: {
 		environment: "jsdom",
 		setupFiles: ["./src/test-setup.ts"],
-		coverage: {
-			provider: "v8",
-			include: ["src/**/*.{ts,tsx}"],
-			exclude: ["src/routeTree.gen.ts"],
-		},
 		reporters: ["verbose"],
 	},
 });

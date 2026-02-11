@@ -72,6 +72,7 @@ export function QueueTimeChart({ data }: QueueTimeChartProps) {
           fill="var(--color-p95QueueTime)"
           fillOpacity={0.2}
           stroke="var(--color-p95QueueTime)"
+          isAnimationActive={false}
         />
         <Area
           dataKey="avgQueueTime"
@@ -79,6 +80,7 @@ export function QueueTimeChart({ data }: QueueTimeChartProps) {
           fill="var(--color-avgQueueTime)"
           fillOpacity={0.4}
           stroke="var(--color-avgQueueTime)"
+          isAnimationActive={false}
         />
       </AreaChart>
     </ChartContainer>

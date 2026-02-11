@@ -49,7 +49,8 @@ export function LatestRunsCard({ runs, isLoading }: LatestRunsCardProps) {
           <Link
             to="/dashboard/runs"
             search={{
-              timeRange: "7d",
+              from: "now-7d",
+              to: "now",
               page: 1,
               repo: undefined,
               branch: undefined,

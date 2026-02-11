@@ -1,5 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { Citrus, LayoutDashboard } from "lucide-react";
+import {
+  ChartLine,
+  Citrus,
+  FlaskConical,
+  GitBranch,
+  GitFork,
+} from "lucide-react";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import {
@@ -21,9 +27,9 @@ const data = {
   },
   navMain: [
     {
-      title: "Dashboard",
+      title: "CI/CD",
       url: "/dashboard",
-      icon: LayoutDashboard,
+      icon: GitBranch,
       isActive: true,
       items: [
         {
@@ -35,9 +41,17 @@ const data = {
           url: "/dashboard/runs",
         },
         {
-          title: "Analytics",
-          url: "/dashboard/analytics",
+          title: "Failures",
+          url: "/dashboard/failures",
         },
+      ],
+    },
+    {
+      title: "Testing",
+      url: "/dashboard/test-results",
+      icon: FlaskConical,
+      isActive: true,
+      items: [
         {
           title: "Test Results",
           url: "/dashboard/test-results",
@@ -46,12 +60,31 @@ const data = {
           title: "Flaky Tests",
           url: "/dashboard/flaky-tests",
         },
+      ],
+    },
+    {
+      title: "Insights",
+      url: "/dashboard/analytics",
+      icon: ChartLine,
+      isActive: true,
+      items: [
         {
-          title: "Failures",
-          url: "/dashboard/failures",
+          title: "Analytics",
+          url: "/dashboard/analytics",
         },
         {
-          title: "Repositories",
+          title: "Cost Analysis",
+          url: "/dashboard/cost-analysis",
+        },
+      ],
+    },
+    {
+      title: "Repositories",
+      url: "/dashboard/repos",
+      icon: GitFork,
+      items: [
+        {
+          title: "All Repositories",
           url: "/dashboard/repos",
         },
       ],

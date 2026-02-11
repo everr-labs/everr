@@ -1,6 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangeSelect } from "@/components/analytics";
-import { FlakinessTrendChart, FlakyTestsTable } from "@/components/flaky-tests";
+import { TimeRangePicker } from "@/components/analytics";
+import {
+  FlakinessTrendChart,
+  FlakyTestsFilterBar,
+  FlakyTestsTable,
+} from "@/components/flaky-tests";
 import {
   Card,
   CardContent,
@@ -9,37 +14,67 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TimeRange } from "@/data/analytics";
 import {
-  getFlakinessTrend,
-  getFlakyTestSummary,
-  getFlakyTests,
+  flakinessTrendOptions,
+  flakyTestFilterOptionsOptions,
+  flakyTestSummaryOptions,
+  flakyTestsOptions,
 } from "@/data/flaky-tests";
+import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
+
+const FLAKY_DEFAULT = { from: "now-14d", to: "now" };
 
 export const Route = createFileRoute("/dashboard/flaky-tests/")({
   component: FlakyTestsPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    timeRange: (search.timeRange as TimeRange) || "14d",
+    ...parseTimeRangeFromSearch(search, FLAKY_DEFAULT),
+    repo: (search.repo as string) || undefined,
+    branch: (search.branch as string) || undefined,
+    search: (search.search as string) || undefined,
   }),
-  loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
-  loader: async ({ deps: { timeRange } }) => {
-    const [flakyTests, summary, trend] = await Promise.all([
-      getFlakyTests({ data: { timeRange } }),
-      getFlakyTestSummary({ data: { timeRange } }),
-      getFlakinessTrend({ data: { timeRange } }),
+  loaderDeps: ({ search }) => ({
+    timeRange: { from: search.from, to: search.to },
+    repo: search.repo,
+    branch: search.branch,
+    search: search.search,
+  }),
+  loader: async ({ context: { queryClient }, deps }) => {
+    const filterInput = {
+      timeRange: deps.timeRange,
+      repo: deps.repo,
+      branch: deps.branch,
+      search: deps.search,
+    };
+    await Promise.all([
+      queryClient.prefetchQuery(flakyTestsOptions(filterInput)),
+      queryClient.prefetchQuery(flakyTestSummaryOptions(filterInput)),
+      queryClient.prefetchQuery(flakinessTrendOptions(filterInput)),
+      queryClient.prefetchQuery(flakyTestFilterOptionsOptions()),
     ]);
-    return { flakyTests, summary, trend };
   },
   pendingComponent: FlakyTestsSkeleton,
 });
 
 function FlakyTestsPage() {
-  const { flakyTests, summary, trend } = Route.useLoaderData();
-  const { timeRange } = Route.useSearch();
+  const { from, to, repo, branch, search } = Route.useSearch();
+  const timeRange = { from, to };
+  const filterInput = { timeRange, repo, branch, search };
+  const { data: flakyTests } = useQuery(flakyTestsOptions(filterInput));
+  const { data: summary } = useQuery(flakyTestSummaryOptions(filterInput));
+  const { data: trend } = useQuery(flakinessTrendOptions(filterInput));
+  const { data: filterOptions } = useQuery(flakyTestFilterOptionsOptions());
   const navigate = Route.useNavigate();
 
+  if (!flakyTests) return null;
+
   const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: { timeRange: newRange } });
+    navigate({
+      search: (prev) => ({ ...prev, from: newRange.from, to: newRange.to }),
+    });
+  };
+
+  const updateFilter = (updates: Record<string, unknown>) => {
+    navigate({ search: (prev) => ({ ...prev, ...updates }) });
   };
 
   return (
@@ -51,8 +86,18 @@ function FlakyTestsPage() {
             Tests with inconsistent pass/fail results
           </p>
         </div>
-        <TimeRangeSelect value={timeRange} onChange={handleTimeRangeChange} />
+        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
+
+      <FlakyTestsFilterBar
+        filterOptions={filterOptions ?? { repos: [], branches: [] }}
+        repo={repo}
+        branch={branch}
+        search={search}
+        onRepoChange={(v) => updateFilter({ repo: v })}
+        onBranchChange={(v) => updateFilter({ branch: v })}
+        onSearchChange={(v) => updateFilter({ search: v || undefined })}
+      />
 
       {/* Summary stats */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -60,7 +105,7 @@ function FlakyTestsPage() {
           <CardHeader className="pb-2">
             <CardDescription>Flaky Tests</CardDescription>
             <CardTitle className="text-3xl tabular-nums">
-              {summary.flakyTestCount}
+              {summary?.flakyTestCount}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -68,7 +113,7 @@ function FlakyTestsPage() {
           <CardHeader className="pb-2">
             <CardDescription>Total Tests</CardDescription>
             <CardTitle className="text-3xl tabular-nums">
-              {summary.totalTestCount}
+              {summary?.totalTestCount}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -76,7 +121,7 @@ function FlakyTestsPage() {
           <CardHeader className="pb-2">
             <CardDescription>Flaky Percentage</CardDescription>
             <CardTitle className="text-3xl tabular-nums">
-              {summary.flakyPercentage}%
+              {summary?.flakyPercentage}%
             </CardTitle>
           </CardHeader>
         </Card>
@@ -91,7 +136,7 @@ function FlakyTestsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <FlakinessTrendChart data={trend} />
+          <FlakinessTrendChart data={trend ?? []} />
         </CardContent>
       </Card>
 
@@ -120,6 +165,12 @@ function FlakyTestsSkeleton() {
           <Skeleton className="mt-1 h-4 w-64" />
         </div>
         <Skeleton className="h-10 w-[140px]" />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
+          <Skeleton key={i} className="h-9 w-[160px]" />
+        ))}
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (

@@ -1,0 +1,358 @@
+import { queryOptions } from "@tanstack/react-query";
+import { createServerFn } from "@tanstack/react-start";
+import { query } from "@/lib/clickhouse";
+import { calculateCost, formatCost } from "@/lib/runner-pricing";
+import { resolveTimeRange } from "@/lib/time-range";
+import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
+
+export { formatCost };
+
+export interface CostSummary {
+  totalCost: number;
+  totalMinutes: number;
+  totalBillingMinutes: number;
+  totalJobs: number;
+  costByOs: { os: string; cost: number; jobs: number }[];
+  selfHostedMinutes: number;
+  selfHostedJobs: number;
+}
+
+export interface CostOverTimePoint {
+  date: string;
+  totalCost: number;
+  linuxCost: number;
+  windowsCost: number;
+  macosCost: number;
+  selfHostedMinutes: number;
+}
+
+export interface CostByRunner {
+  labels: string;
+  tier: string;
+  os: string;
+  isSelfHosted: boolean;
+  totalJobs: number;
+  totalMinutes: number;
+  billingMinutes: number;
+  estimatedCost: number;
+  ratePerMinute: number;
+}
+
+export const getCostOverview = createServerFn({
+  method: "GET",
+})
+  .inputValidator(TimeRangeInputSchema)
+  .handler(async ({ data: { timeRange } }) => {
+    const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(timeRange);
+
+    const sql = `
+      SELECT
+        toDate(Timestamp) as date,
+        ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+        count(*) as totalJobs,
+        sum(Duration) / 1000000 as totalDurationMs
+      FROM otel_traces
+      WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
+        AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+        AND SpanAttributes['citric.test.name'] = ''
+      GROUP BY date, labels
+      ORDER BY date ASC, totalDurationMs DESC
+    `;
+
+    const rows = await query<{
+      date: string;
+      labels: string;
+      totalJobs: string;
+      totalDurationMs: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
+
+    const summary: CostSummary = {
+      totalCost: 0,
+      totalMinutes: 0,
+      totalBillingMinutes: 0,
+      totalJobs: 0,
+      costByOs: [],
+      selfHostedMinutes: 0,
+      selfHostedJobs: 0,
+    };
+
+    const overTimeMap = new Map<string, CostOverTimePoint>();
+    const byRunnerMap = new Map<string, CostByRunner>();
+    const osCostMap = new Map<string, { cost: number; jobs: number }>();
+
+    for (const row of rows) {
+      const jobs = Number(row.totalJobs);
+      const durationMs = Number(row.totalDurationMs);
+      const costResult = calculateCost(row.labels, durationMs);
+
+      // Summary
+      summary.totalCost += costResult.estimatedCost;
+      summary.totalMinutes += costResult.actualMinutes;
+      summary.totalBillingMinutes += costResult.billingMinutes;
+      summary.totalJobs += jobs;
+
+      if (costResult.pricing.isSelfHosted) {
+        summary.selfHostedMinutes += costResult.actualMinutes;
+        summary.selfHostedJobs += jobs;
+      }
+
+      const osEntry = osCostMap.get(costResult.pricing.os) ?? {
+        cost: 0,
+        jobs: 0,
+      };
+      osEntry.cost += costResult.estimatedCost;
+      osEntry.jobs += jobs;
+      osCostMap.set(costResult.pricing.os, osEntry);
+
+      // Over time
+      const point = overTimeMap.get(row.date) ?? {
+        date: row.date,
+        totalCost: 0,
+        linuxCost: 0,
+        windowsCost: 0,
+        macosCost: 0,
+        selfHostedMinutes: 0,
+      };
+      point.totalCost += costResult.estimatedCost;
+      if (costResult.pricing.os === "linux")
+        point.linuxCost += costResult.estimatedCost;
+      if (costResult.pricing.os === "windows")
+        point.windowsCost += costResult.estimatedCost;
+      if (costResult.pricing.os === "macos")
+        point.macosCost += costResult.estimatedCost;
+      if (costResult.pricing.isSelfHosted)
+        point.selfHostedMinutes += costResult.actualMinutes;
+      overTimeMap.set(row.date, point);
+
+      // By runner
+      const runner = byRunnerMap.get(row.labels) ?? {
+        labels: row.labels,
+        tier: costResult.pricing.tier,
+        os: costResult.pricing.os,
+        isSelfHosted: costResult.pricing.isSelfHosted,
+        totalJobs: 0,
+        totalMinutes: 0,
+        billingMinutes: 0,
+        estimatedCost: 0,
+        ratePerMinute: costResult.pricing.ratePerMinute,
+      };
+      runner.totalJobs += jobs;
+      runner.totalMinutes += costResult.actualMinutes;
+      runner.billingMinutes += costResult.billingMinutes;
+      runner.estimatedCost += costResult.estimatedCost;
+      byRunnerMap.set(row.labels, runner);
+    }
+
+    summary.costByOs = Array.from(osCostMap.entries()).map(
+      ([os, { cost, jobs }]) => ({ os, cost, jobs }),
+    );
+
+    // Fill missing dates
+    for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10);
+      if (!overTimeMap.has(dateStr)) {
+        overTimeMap.set(dateStr, {
+          date: dateStr,
+          totalCost: 0,
+          linuxCost: 0,
+          windowsCost: 0,
+          macosCost: 0,
+          selfHostedMinutes: 0,
+        });
+      }
+    }
+
+    const overTime = Array.from(overTimeMap.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    const byRunner = Array.from(byRunnerMap.values()).sort(
+      (a, b) => b.estimatedCost - a.estimatedCost,
+    );
+
+    return { summary, overTime, byRunner };
+  });
+
+export interface CostByRepo {
+  repo: string;
+  totalJobs: number;
+  totalMinutes: number;
+  billingMinutes: number;
+  estimatedCost: number;
+  topRunner: string;
+}
+
+export const getCostByRepo = createServerFn({
+  method: "GET",
+})
+  .inputValidator(TimeRangeInputSchema)
+  .handler(async ({ data: { timeRange } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
+
+    const sql = `
+      SELECT
+        ResourceAttributes['vcs.repository.name'] as repo,
+        ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+        count(*) as totalJobs,
+        sum(Duration) / 1000000 as totalDurationMs
+      FROM otel_traces
+      WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
+        AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+        AND SpanAttributes['citric.test.name'] = ''
+        AND ResourceAttributes['vcs.repository.name'] != ''
+      GROUP BY repo, labels
+      ORDER BY totalDurationMs DESC
+    `;
+
+    const rows = await query<{
+      repo: string;
+      labels: string;
+      totalJobs: string;
+      totalDurationMs: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
+
+    const repoMap = new Map<string, CostByRepo & { topRunnerCost: number }>();
+
+    for (const row of rows) {
+      const jobs = Number(row.totalJobs);
+      const durationMs = Number(row.totalDurationMs);
+      const costResult = calculateCost(row.labels, durationMs);
+
+      const existing = repoMap.get(row.repo) ?? {
+        repo: row.repo,
+        totalJobs: 0,
+        totalMinutes: 0,
+        billingMinutes: 0,
+        estimatedCost: 0,
+        topRunner: row.labels,
+        topRunnerCost: 0,
+      };
+
+      existing.totalJobs += jobs;
+      existing.totalMinutes += costResult.actualMinutes;
+      existing.billingMinutes += costResult.billingMinutes;
+      existing.estimatedCost += costResult.estimatedCost;
+
+      if (costResult.estimatedCost > existing.topRunnerCost) {
+        existing.topRunner = row.labels;
+        existing.topRunnerCost = costResult.estimatedCost;
+      }
+
+      repoMap.set(row.repo, existing);
+    }
+
+    return Array.from(repoMap.values())
+      .map(({ topRunnerCost: _, ...rest }) => rest)
+      .sort((a, b) => b.estimatedCost - a.estimatedCost) satisfies CostByRepo[];
+  });
+
+export interface CostByWorkflow {
+  repo: string;
+  workflow: string;
+  totalJobs: number;
+  totalMinutes: number;
+  billingMinutes: number;
+  estimatedCost: number;
+  avgCostPerRun: number;
+}
+
+export const getCostByWorkflow = createServerFn({
+  method: "GET",
+})
+  .inputValidator(TimeRangeInputSchema)
+  .handler(async ({ data: { timeRange } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
+
+    const sql = `
+      SELECT
+        ResourceAttributes['vcs.repository.name'] as repo,
+        ResourceAttributes['cicd.pipeline.name'] as workflow,
+        ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+        count(*) as totalJobs,
+        sum(Duration) / 1000000 as totalDurationMs,
+        uniqExact(ResourceAttributes['cicd.pipeline.run.id']) as uniqueRuns
+      FROM otel_traces
+      WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
+        AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+        AND SpanAttributes['citric.test.name'] = ''
+        AND ResourceAttributes['vcs.repository.name'] != ''
+        AND ResourceAttributes['cicd.pipeline.name'] != ''
+      GROUP BY repo, workflow, labels
+      ORDER BY totalDurationMs DESC
+    `;
+
+    const rows = await query<{
+      repo: string;
+      workflow: string;
+      labels: string;
+      totalJobs: string;
+      totalDurationMs: string;
+      uniqueRuns: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
+
+    const workflowMap = new Map<
+      string,
+      Omit<CostByWorkflow, "avgCostPerRun"> & { maxUniqueRuns: number }
+    >();
+
+    for (const row of rows) {
+      const key = `${row.repo}:${row.workflow}`;
+      const jobs = Number(row.totalJobs);
+      const durationMs = Number(row.totalDurationMs);
+      const runs = Number(row.uniqueRuns);
+      const costResult = calculateCost(row.labels, durationMs);
+
+      const existing = workflowMap.get(key) ?? {
+        repo: row.repo,
+        workflow: row.workflow,
+        totalJobs: 0,
+        totalMinutes: 0,
+        billingMinutes: 0,
+        estimatedCost: 0,
+        maxUniqueRuns: 0,
+      };
+
+      existing.totalJobs += jobs;
+      existing.totalMinutes += costResult.actualMinutes;
+      existing.billingMinutes += costResult.billingMinutes;
+      existing.estimatedCost += costResult.estimatedCost;
+      existing.maxUniqueRuns = Math.max(existing.maxUniqueRuns, runs);
+
+      workflowMap.set(key, existing);
+    }
+
+    return Array.from(workflowMap.values())
+      .map(({ maxUniqueRuns, ...rest }) => ({
+        ...rest,
+        avgCostPerRun:
+          maxUniqueRuns > 0 ? rest.estimatedCost / maxUniqueRuns : 0,
+      }))
+      .sort(
+        (a, b) => b.estimatedCost - a.estimatedCost,
+      ) satisfies CostByWorkflow[];
+  });
+
+// Query options factories
+export const costOverviewOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["cost", "overview", input],
+    queryFn: () => getCostOverview({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const costByRepoOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["cost", "byRepo", input],
+    queryFn: () => getCostByRepo({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const costByWorkflowOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["cost", "byWorkflow", input],
+    queryFn: () => getCostByWorkflow({ data: input }),
+    staleTime: 60_000,
+  });

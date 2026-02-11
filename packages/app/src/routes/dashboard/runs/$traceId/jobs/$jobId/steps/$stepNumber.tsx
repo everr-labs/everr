@@ -1,47 +1,63 @@
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
 import { LogViewer } from "@/components/run-detail";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getRunJobs, getStepLogs } from "@/data/runs";
-
-const parentRoute = getRouteApi("/dashboard/runs/$traceId");
+import {
+  allJobsStepsOptions,
+  runDetailsOptions,
+  runJobsOptions,
+  stepLogsOptions,
+} from "@/data/runs";
 
 export const Route = createFileRoute(
   "/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber",
 )({
   component: StepDetailPage,
-  loader: async ({ params }) => {
-    // Fetch jobs to get jobName (needed for log fetching)
-    const jobs = await getRunJobs({ data: params.traceId });
+  loader: async ({ context: { queryClient }, params }) => {
+    // Jobs are already cached by parent route — read from cache to get jobName
+    const jobs = await queryClient.ensureQueryData(
+      runJobsOptions(params.traceId),
+    );
     const selectedJob = jobs.find((j) => j.jobId === params.jobId);
     const jobName = selectedJob?.name ?? "";
 
-    const logs = jobName
-      ? await getStepLogs({
-          data: {
-            traceId: params.traceId,
-            jobName,
-            stepNumber: params.stepNumber,
-          },
-        })
-      : [];
-
-    return { logs, jobName, stepNumber: params.stepNumber };
+    if (jobName) {
+      await queryClient.prefetchQuery(
+        stepLogsOptions({
+          traceId: params.traceId,
+          jobName,
+          stepNumber: params.stepNumber,
+        }),
+      );
+    }
   },
   pendingComponent: StepLogSkeleton,
 });
 
 function StepDetailPage() {
-  const { logs, stepNumber } = Route.useLoaderData();
-  const { runDetails, stepsByJobId } = parentRoute.useLoaderData();
-  const { jobId } = Route.useParams();
+  const { traceId, jobId, stepNumber } = Route.useParams();
+  const { data: runDetails } = useQuery(runDetailsOptions(traceId));
+  const { data: jobs } = useQuery(runJobsOptions(traceId));
+  const { data: stepsByJobId } = useQuery(
+    allJobsStepsOptions({
+      traceId,
+      jobIds: (jobs ?? []).map((j) => j.jobId),
+    }),
+  );
+
+  const selectedJob = (jobs ?? []).find((j) => j.jobId === jobId);
+  const jobName = selectedJob?.name ?? "";
+  const { data: logs } = useQuery(
+    stepLogsOptions({ traceId, jobName, stepNumber }),
+  );
 
   if (!runDetails) {
     return null;
   }
 
   // Derive stepName from parent's stepsByJobId data
-  const steps = stepsByJobId[jobId] ?? [];
+  const steps = stepsByJobId?.[jobId] ?? [];
   const selectedStep = steps.find((s) => s.stepNumber === stepNumber);
   const stepName = selectedStep?.name ?? "";
 
@@ -49,7 +65,7 @@ function StepDetailPage() {
     <Card size="sm" className="flex h-full flex-col overflow-hidden">
       {/* TODO: Make a card variant with 0 padding*/}
       <CardContent className="!px-0 -my-3 min-h-0 flex-1">
-        <LogViewer logs={logs} stepName={stepName} />
+        <LogViewer logs={logs ?? []} stepName={stepName} />
       </CardContent>
     </Card>
   );

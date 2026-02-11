@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { TrendingDown, TrendingUp } from "lucide-react";
 import { useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { type Column, DataTable } from "@/components/ui/data-table";
@@ -17,7 +18,17 @@ interface FlakyTestsTableProps {
   data: FlakyTest[];
 }
 
-type SortField = "failureRate" | "totalExecutions" | "lastSeen" | "avgDuration";
+type SortField =
+  | "failureRate"
+  | "totalExecutions"
+  | "lastSeen"
+  | "avgDuration"
+  | "firstSeen";
+
+function isNewFlaky(firstSeen: string): boolean {
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  return new Date(firstSeen).getTime() > sevenDaysAgo;
+}
 
 export function FlakyTestsTable({ data }: FlakyTestsTableProps) {
   const comparator = useCallback(
@@ -33,6 +44,10 @@ export function FlakyTestsTable({ data }: FlakyTestsTableProps) {
           );
         case "avgDuration":
           return a.avgDuration - b.avgDuration;
+        case "firstSeen":
+          return (
+            new Date(a.firstSeen).getTime() - new Date(b.firstSeen).getTime()
+          );
         default:
           return 0;
       }
@@ -55,11 +70,19 @@ export function FlakyTestsTable({ data }: FlakyTestsTableProps) {
           search={{
             repo: test.repo,
             test: test.testFullName,
-            timeRange: "30d",
+            from: "now-30d",
+            to: "now",
           }}
           className="hover:underline"
         >
-          <div className="font-medium">{test.testFullName}</div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{test.testFullName}</span>
+            {isNewFlaky(test.firstSeen) && (
+              <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                New
+              </Badge>
+            )}
+          </div>
           <div className="text-xs text-muted-foreground">
             {test.testPackage && (
               <span className="mr-2">{test.testPackage}</span>
@@ -76,21 +99,31 @@ export function FlakyTestsTable({ data }: FlakyTestsTableProps) {
           onClick={() => toggleSort("failureRate")}
         />
       ),
-      cell: (test) => (
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "font-mono font-medium",
-              getFailureRateColor(test.failureRate),
-            )}
-          >
-            {test.failureRate}%
-          </span>
-          <Badge variant="outline" className="text-[10px] px-1 py-0">
-            {test.failCount}F / {test.passCount}P
-          </Badge>
-        </div>
-      ),
+      cell: (test) => {
+        const diff = test.recentFailureRate - test.failureRate;
+        const showTrend = Math.abs(diff) > 5;
+        return (
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "font-mono font-medium",
+                getFailureRateColor(test.failureRate),
+              )}
+            >
+              {test.failureRate}%
+            </span>
+            {showTrend &&
+              (diff > 0 ? (
+                <TrendingUp className="h-3.5 w-3.5 text-red-500" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5 text-green-500" />
+              ))}
+            <Badge variant="outline" className="text-[10px] px-1 py-0">
+              {test.failCount}F / {test.passCount}P
+            </Badge>
+          </div>
+        );
+      },
     },
     {
       header: (
@@ -118,6 +151,19 @@ export function FlakyTestsTable({ data }: FlakyTestsTableProps) {
       cell: (test) => (
         <span className="font-mono text-xs">
           {formatDuration(test.avgDuration)}
+        </span>
+      ),
+    },
+    {
+      header: (
+        <SortableColumnHeader
+          label="First Seen"
+          onClick={() => toggleSort("firstSeen")}
+        />
+      ),
+      cell: (test) => (
+        <span className="text-xs text-muted-foreground">
+          {formatRelativeTime(test.firstSeen)}
         </span>
       ),
     },

@@ -1,7 +1,8 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
-import type { TimeRangeInput } from "./analytics";
-import { timeRangeToDays } from "./analytics";
+import { resolveTimeRange } from "@/lib/time-range";
+import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 
 export interface FailurePattern {
   pattern: string;
@@ -16,9 +17,9 @@ export interface FailurePattern {
 export const getFailurePatterns = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -30,7 +31,7 @@ export const getFailurePatterns = createServerFn({
 				groupArray(10)(ResourceAttributes['cicd.pipeline.task.name']) as sampleJobNames,
 				max(Timestamp) as lastOccurrence
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 				AND StatusMessage != ''
@@ -47,7 +48,7 @@ export const getFailurePatterns = createServerFn({
       sampleRunIds: string[];
       sampleJobNames: string[];
       lastOccurrence: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       pattern: row.pattern,
@@ -69,9 +70,9 @@ export interface FailureTrendPoint {
 export const getFailureTrend = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -79,19 +80,19 @@ export const getFailureTrend = createServerFn({
 				count(*) as totalFailures,
 				uniqExact(lower(trim(substring(StatusMessage, 1, 200)))) as uniquePatterns
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 				AND StatusMessage != ''
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
       date: string;
       totalFailures: string;
       uniquePatterns: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       date: row.date,
@@ -109,9 +110,9 @@ export interface FailureByRepo {
 export const getFailuresByRepo = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -119,7 +120,7 @@ export const getFailuresByRepo = createServerFn({
 				count(*) as failureCount,
 				topK(1)(lower(trim(substring(StatusMessage, 1, 200)))) as topPatterns
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 				AND StatusMessage != ''
@@ -133,11 +134,33 @@ export const getFailuresByRepo = createServerFn({
       repo: string;
       failureCount: string;
       topPatterns: string[];
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       repo: row.repo,
       failureCount: Number(row.failureCount),
       topPattern: row.topPatterns[0] || "",
     })) satisfies FailureByRepo[];
+  });
+
+// Query options factories
+export const failurePatternsOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["failures", "patterns", input],
+    queryFn: () => getFailurePatterns({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const failureTrendOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["failures", "trend", input],
+    queryFn: () => getFailureTrend({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const failuresByRepoOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["failures", "byRepo", input],
+    queryFn: () => getFailuresByRepo({ data: input }),
+    staleTime: 60_000,
   });

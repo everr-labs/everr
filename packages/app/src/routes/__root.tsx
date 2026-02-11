@@ -1,11 +1,17 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Scripts,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { ThemeProvider } from "better-themes";
 
+import type { RouterContext } from "../router";
 import appCss from "../styles.css?url";
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       {
@@ -47,6 +53,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               {
                 name: "Tanstack Router",
                 render: <TanStackRouterDevtoolsPanel />,
+              },
+              {
+                name: "React Query",
+                render: <ReactQueryDevtoolsPanel />,
               },
             ]}
           />

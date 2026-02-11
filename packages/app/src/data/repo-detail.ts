@@ -1,12 +1,14 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { query } from "@/lib/clickhouse";
-import type { TimeRange } from "./analytics";
-import { timeRangeToDays } from "./analytics";
+import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 
-export interface RepoDetailInput {
-  timeRange: TimeRange;
-  repo: string;
-}
+const RepoDetailInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  repo: z.string(),
+});
+export type RepoDetailInput = z.infer<typeof RepoDetailInputSchema>;
 
 export interface RepoStats {
   totalRuns: number;
@@ -17,9 +19,9 @@ export interface RepoStats {
 export const getRepoStats = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: RepoDetailInput) => data)
+  .inputValidator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -32,7 +34,7 @@ export const getRepoStats = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Duration) / 1000000 as duration
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -45,7 +47,7 @@ export const getRepoStats = createServerFn({
       totalRuns: string;
       successRate: string;
       avgDuration: string;
-    }>(sql, { repo });
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
     if (result.length === 0) {
       return {
@@ -73,9 +75,9 @@ export interface RepoSuccessRatePoint {
 export const getRepoSuccessRateTrend = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: RepoDetailInput) => data)
+  .inputValidator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -90,14 +92,14 @@ export const getRepoSuccessRateTrend = createServerFn({
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 				GROUP BY run_id
 			)
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
@@ -106,7 +108,7 @@ export const getRepoSuccessRateTrend = createServerFn({
       totalRuns: string;
       successCount: string;
       failureCount: string;
-    }>(sql, { repo });
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       date: row.date,
@@ -126,9 +128,9 @@ export interface RepoDurationPoint {
 export const getRepoDurationTrend = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: RepoDetailInput) => data)
+  .inputValidator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -136,20 +138,20 @@ export const getRepoDurationTrend = createServerFn({
 				quantile(0.5)(Duration) / 1000000 as p50Duration,
 				quantile(0.95)(Duration) / 1000000 as p95Duration
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 				AND SpanAttributes['citric.test.name'] = ''
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
       date: string;
       p50Duration: string;
       p95Duration: string;
-    }>(sql, { repo });
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       date: row.date,
@@ -171,9 +173,9 @@ export interface RepoRecentRun {
 export const getRepoRecentRuns = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: RepoDetailInput) => data)
+  .inputValidator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -185,7 +187,7 @@ export const getRepoRecentRuns = createServerFn({
 				max(Timestamp) as timestamp,
 				anyLast(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -203,7 +205,7 @@ export const getRepoRecentRuns = createServerFn({
       conclusion: string;
       timestamp: string;
       sender: string;
-    }>(sql, { repo });
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       traceId: row.trace_id,
@@ -227,9 +229,9 @@ export interface TopFailingJob {
 export const getTopFailingJobs = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: RepoDetailInput) => data)
+  .inputValidator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -243,7 +245,7 @@ export const getTopFailingJobs = createServerFn({
 					1
 				) as failureRate
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.name'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -259,7 +261,7 @@ export const getTopFailingJobs = createServerFn({
       totalRuns: string;
       failureCount: string;
       failureRate: string;
-    }>(sql, { repo });
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       jobName: row.jobName,
@@ -283,9 +285,9 @@ export interface ActiveBranch {
 export const getActiveBranches = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: RepoDetailInput) => data)
+  .inputValidator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -304,7 +306,7 @@ export const getActiveBranches = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Timestamp) as timestamp
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -324,7 +326,7 @@ export const getActiveBranches = createServerFn({
       latestTimestamp: string;
       totalRuns: string;
       successRate: string;
-    }>(sql, { repo });
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       branch: row.branch,
@@ -335,4 +337,47 @@ export const getActiveBranches = createServerFn({
       totalRuns: Number(row.totalRuns),
       successRate: Number(row.successRate) || 0,
     })) satisfies ActiveBranch[];
+  });
+
+// Query options factories
+export const repoStatsOptions = (input: RepoDetailInput) =>
+  queryOptions({
+    queryKey: ["repo", "stats", input],
+    queryFn: () => getRepoStats({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const repoSuccessRateTrendOptions = (input: RepoDetailInput) =>
+  queryOptions({
+    queryKey: ["repo", "successRateTrend", input],
+    queryFn: () => getRepoSuccessRateTrend({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const repoDurationTrendOptions = (input: RepoDetailInput) =>
+  queryOptions({
+    queryKey: ["repo", "durationTrend", input],
+    queryFn: () => getRepoDurationTrend({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const repoRecentRunsOptions = (input: RepoDetailInput) =>
+  queryOptions({
+    queryKey: ["repo", "recentRuns", input],
+    queryFn: () => getRepoRecentRuns({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const topFailingJobsOptions = (input: RepoDetailInput) =>
+  queryOptions({
+    queryKey: ["repo", "topFailingJobs", input],
+    queryFn: () => getTopFailingJobs({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const activeBranchesOptions = (input: RepoDetailInput) =>
+  queryOptions({
+    queryKey: ["repo", "activeBranches", input],
+    queryFn: () => getActiveBranches({ data: input }),
+    staleTime: 60_000,
   });

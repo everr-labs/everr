@@ -1,620 +1,1147 @@
+import {
+  SiBuildkite,
+  SiCircleci,
+  SiDrone,
+  SiGithubactions,
+  SiGitlab,
+  SiJenkins,
+  SiOpentelemetry,
+} from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   BarChart3,
-  Bug,
-  ChevronRight,
+  Binary,
+  Citrus,
+  Clock3,
+  Cpu,
   Database,
-  Eye,
   FlaskConical,
-  Gauge,
-  GitBranch,
-  Layers,
-  Radio,
-  Search,
-  Timer,
-  Zap,
+  GitPullRequest,
+  Radar,
+  Server,
+  ShieldCheck,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { forwardRef, type ReactNode, useMemo, useRef } from "react";
+import {
+  siArgo,
+  siBuildkite,
+  siBun,
+  siCircleci,
+  siDart,
+  siDeno,
+  siDotnet,
+  siDrone,
+  siElixir,
+  siFlutter,
+  siGithubactions,
+  siGitlab,
+  siGleam,
+  siGo,
+  siJenkins,
+  siJest,
+  siJunit5,
+  siKotlin,
+  siNodedotjs,
+  siPhp,
+  siPytest,
+  siPython,
+  siRuby,
+  siRust,
+  siScala,
+  siSwift,
+  siVitest,
+  siZig,
+} from "simple-icons";
+
+import { AnimatedBeam } from "@/components/animated-beam";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
-function useReveal(threshold = 0.1) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { threshold },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return { ref, visible };
+type BrandIconDef = {
+  title: string;
+  path: string;
+  hex: string;
+};
+
+const brandIcons: Record<string, BrandIconDef> = {
+  githubactions: {
+    title: "GitHub Actions",
+    path: siGithubactions.path,
+    hex: siGithubactions.hex,
+  },
+  go: {
+    title: "Go",
+    path: siGo.path,
+    hex: siGo.hex,
+  },
+  vitest: {
+    title: "Vitest",
+    path: siVitest.path,
+    hex: siVitest.hex,
+  },
+  gitlab: {
+    title: "GitLab CI",
+    path: siGitlab.path,
+    hex: siGitlab.hex,
+  },
+  circleci: {
+    title: "CircleCI",
+    path: siCircleci.path,
+    hex: siCircleci.hex,
+  },
+  jenkins: {
+    title: "Jenkins",
+    path: siJenkins.path,
+    hex: siJenkins.hex,
+  },
+  python: {
+    title: "Python",
+    path: siPython.path,
+    hex: siPython.hex,
+  },
+  rust: {
+    title: "Rust",
+    path: siRust.path,
+    hex: siRust.hex,
+  },
+  elixir: {
+    title: "Elixir",
+    path: siElixir.path,
+    hex: siElixir.hex,
+  },
+  pytest: {
+    title: "Pytest",
+    path: siPytest.path,
+    hex: siPytest.hex,
+  },
+  junit5: {
+    title: "JUnit 5",
+    path: siJunit5.path,
+    hex: siJunit5.hex,
+  },
+  drone: {
+    title: "Drone",
+    path: siDrone.path,
+    hex: siDrone.hex,
+  },
+  argocd: {
+    title: "Argo CD",
+    path: siArgo.path,
+    hex: siArgo.hex,
+  },
+  buildkite: {
+    title: "Buildkite",
+    path: siBuildkite.path,
+    hex: siBuildkite.hex,
+  },
+  nodejs: {
+    title: "Node.js",
+    path: siNodedotjs.path,
+    hex: siNodedotjs.hex,
+  },
+  deno: {
+    title: "Deno",
+    path: siDeno.path,
+    hex: siDeno.hex,
+  },
+  bun: {
+    title: "Bun",
+    path: siBun.path,
+    hex: siBun.hex,
+  },
+  ruby: {
+    title: "Ruby",
+    path: siRuby.path,
+    hex: siRuby.hex,
+  },
+  dotnet: {
+    title: ".NET",
+    path: siDotnet.path,
+    hex: siDotnet.hex,
+  },
+  swift: {
+    title: "Swift",
+    path: siSwift.path,
+    hex: siSwift.hex,
+  },
+  zig: {
+    title: "Zig",
+    path: siZig.path,
+    hex: siZig.hex,
+  },
+  gleam: {
+    title: "Gleam",
+    path: siGleam.path,
+    hex: siGleam.hex,
+  },
+  dart: {
+    title: "Dart",
+    path: siDart.path,
+    hex: siDart.hex,
+  },
+  flutter: {
+    title: "Flutter",
+    path: siFlutter.path,
+    hex: siFlutter.hex,
+  },
+  php: {
+    title: "PHP",
+    path: siPhp.path,
+    hex: siPhp.hex,
+  },
+  kotlin: {
+    title: "Kotlin",
+    path: siKotlin.path,
+    hex: siKotlin.hex,
+  },
+  scala: {
+    title: "Scala",
+    path: siScala.path,
+    hex: siScala.hex,
+  },
+  jest: {
+    title: "Jest",
+    path: siJest.path,
+    hex: siJest.hex,
+  },
+};
+
+const sectionTransition = {
+  duration: 0.55,
+  ease: [0.16, 1, 0.3, 1] as const,
+};
+
+const staggerContainer = {
+  hidden: {},
+  show: {
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.06,
+    },
+  },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: sectionTransition,
+  },
+};
+
+const matrixWave = {
+  hidden: { opacity: 0, y: 16 },
+  show: (index: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...sectionTransition,
+      delay: 0.05 * (index % 6),
+    },
+  }),
+};
+
+function BrandIcon({
+  icon,
+  className = "size-5",
+}: {
+  icon: BrandIconDef;
+  className?: string;
+}) {
+  return (
+    <svg
+      role="img"
+      viewBox="0 0 24 24"
+      fill={`#${icon.hex}`}
+      className={className}
+      aria-label={icon.title}
+    >
+      <title>{icon.title}</title>
+      <path d={icon.path} />
+    </svg>
+  );
 }
 
-function Reveal({
+function SurfaceCard({
   children,
-  delay = 0,
   className = "",
 }: {
   children: ReactNode;
-  delay?: number;
   className?: string;
 }) {
-  const { ref, visible } = useReveal();
   return (
     <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(32px)",
-        transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}s, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}s`,
-      }}
+      className={`rounded-2xl border border-fd-border bg-fd-card/80 backdrop-blur-sm ${className}`}
     >
       {children}
     </div>
   );
 }
 
-function FeatureCard({
-  icon,
+type EcosystemItem = {
+  iconKey?: string;
+  label: string;
+  caption: string;
+  meta?: string;
+  lane?: string;
+};
+
+function SectionFrame({
+  eyebrow,
   title,
   description,
-  delay = 0,
+  children,
+  align = "left",
 }: {
-  icon: ReactNode;
+  eyebrow: string;
   title: string;
   description: string;
-  delay?: number;
+  children?: ReactNode;
+  align?: "left" | "right";
 }) {
+  const isRight = align === "right";
   return (
-    <Reveal delay={delay}>
-      <div className="group relative h-full rounded-2xl border border-fd-border bg-fd-card p-6 transition-all duration-300 hover:border-citric-deep/40 hover:shadow-lg hover:shadow-citric/5 hover:-translate-y-1">
-        <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-citric/10 text-citric-deep transition-colors duration-300 group-hover:bg-citric/20">
-          {icon}
-        </div>
-        <h3 className="mb-2 font-bold text-lg">{title}</h3>
-        <p className="text-sm leading-relaxed text-fd-muted-foreground">
+    <SurfaceCard className="section-terminal-shell relative overflow-hidden p-5 sm:p-6">
+      <div className={`mb-4 ${isRight ? "text-right" : "text-left"}`}>
+        <p className="terminal-eyebrow">{eyebrow}</p>
+        <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+          {title}
+        </h2>
+        <p
+          className={`mt-3 text-sm leading-relaxed text-fd-muted-foreground ${
+            isRight ? "ml-auto max-w-xl" : "max-w-xl"
+          }`}
+        >
           {description}
         </p>
       </div>
-    </Reveal>
+      {children}
+    </SurfaceCard>
   );
 }
 
-function StepCard({
-  number,
-  title,
-  description,
-  delay = 0,
-}: {
-  number: number;
-  title: string;
-  description: string;
-  delay?: number;
-}) {
+const BeamCircle = forwardRef<
+  HTMLDivElement,
+  { className?: string; children?: ReactNode }
+>(({ className, children }, ref) => {
   return (
-    <Reveal delay={delay} className="flex flex-col items-center text-center">
-      <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-citric-deep font-bold text-xl text-white">
-        {number}
+    <div
+      ref={ref}
+      className={`z-10 flex size-12 items-center justify-center rounded-full border-2 border-fd-border bg-fd-card p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)] ${className ?? ""}`}
+    >
+      {children}
+    </div>
+  );
+});
+
+BeamCircle.displayName = "BeamCircle";
+
+function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const ghaRef = useRef<HTMLDivElement>(null);
+  const gitlabRef = useRef<HTMLDivElement>(null);
+  const circleRef = useRef<HTMLDivElement>(null);
+  const jenkinsRef = useRef<HTMLDivElement>(null);
+  const droneRef = useRef<HTMLDivElement>(null);
+  const buildkiteRef = useRef<HTMLDivElement>(null);
+  const otelRef = useRef<HTMLDivElement>(null);
+  const citricRef = useRef<HTMLDivElement>(null);
+  const randomizedDelays = useMemo(
+    () => ({
+      gha: Math.random() * 1.8,
+      gitlab: Math.random() * 1.8,
+      circle: Math.random() * 1.8,
+      jenkins: Math.random() * 1.8,
+      drone: Math.random() * 1.8,
+      buildkite: Math.random() * 1.8,
+      otelToCitric: 0.4 + Math.random() * 1.6,
+    }),
+    [],
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      className="cicd-topology-grid relative flex h-[420px] w-full items-center justify-center overflow-hidden rounded-xl border border-fd-border bg-fd-secondary/20 p-8"
+    >
+      <div className="flex size-full max-w-2xl flex-row items-stretch justify-between gap-10">
+        <div className="flex flex-col justify-center gap-3">
+          <BeamCircle ref={ghaRef}>
+            <SiGithubactions />
+            {/*<BrandIcon icon={brandIcons.githubactions} className="size-5" />*/}
+          </BeamCircle>
+          <BeamCircle ref={gitlabRef}>
+            <SiGitlab />
+            {/*<BrandIcon icon={brandIcons.gitlab} className="size-5" />*/}
+          </BeamCircle>
+          <BeamCircle ref={circleRef}>
+            <SiCircleci />
+            {/*<BrandIcon icon={brandIcons.circleci} className="size-5" />*/}
+          </BeamCircle>
+          <BeamCircle ref={jenkinsRef}>
+            <SiJenkins />
+            {/*<BrandIcon icon={brandIcons.jenkins} className="size-5" />*/}
+          </BeamCircle>
+          <BeamCircle ref={droneRef}>
+            <SiDrone />
+            {/*<BrandIcon icon={brandIcons.drone} className="size-5" />*/}
+          </BeamCircle>
+          <BeamCircle ref={buildkiteRef}>
+            <SiBuildkite />
+            {/*<BrandIcon icon={brandIcons.buildkite} className="size-5" />*/}
+          </BeamCircle>
+        </div>
+
+        <div className="flex flex-col justify-center">
+          <BeamCircle ref={otelRef} className="size-16">
+            <div className="flex flex-col items-center gap-1">
+              <SiOpentelemetry className="size-5 text-citric-deep fill-foreground" />
+
+              <span className="text-[9px] font-semibold leading-none">
+                OTel
+              </span>
+            </div>
+          </BeamCircle>
+        </div>
+
+        <div className="flex flex-col justify-center">
+          <BeamCircle ref={citricRef}>
+            <div className="flex flex-col items-center gap-1">
+              <Citrus className="size-4 text-citric-deep" />
+              <span className="text-[9px] font-semibold leading-none">
+                Citric
+              </span>
+            </div>
+          </BeamCircle>
+        </div>
       </div>
-      <h3 className="mb-2 font-bold text-lg">{title}</h3>
-      <p className="max-w-xs text-sm leading-relaxed text-fd-muted-foreground">
-        {description}
-      </p>
-    </Reveal>
+
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={ghaRef}
+        toRef={otelRef}
+        pathColor="#f97316"
+        gradientStartColor="#f97316"
+        gradientStopColor="#fb923c"
+        duration={reduceMotion ? 7 : 5}
+        delay={reduceMotion ? 0 : randomizedDelays.gha}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={gitlabRef}
+        toRef={otelRef}
+        pathColor="#f97316"
+        gradientStartColor="#f97316"
+        gradientStopColor="#fb923c"
+        duration={reduceMotion ? 7 : 5.2}
+        delay={reduceMotion ? 0 : randomizedDelays.gitlab}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={circleRef}
+        toRef={otelRef}
+        pathColor="#f97316"
+        gradientStartColor="#f97316"
+        gradientStopColor="#fb923c"
+        duration={reduceMotion ? 7 : 5.4}
+        delay={reduceMotion ? 0 : randomizedDelays.circle}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={jenkinsRef}
+        toRef={otelRef}
+        pathColor="#f97316"
+        gradientStartColor="#f97316"
+        gradientStopColor="#fb923c"
+        duration={reduceMotion ? 7 : 5.6}
+        delay={reduceMotion ? 0 : randomizedDelays.jenkins}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={droneRef}
+        toRef={otelRef}
+        pathColor="#f97316"
+        gradientStartColor="#f97316"
+        gradientStopColor="#fb923c"
+        duration={reduceMotion ? 7 : 5.8}
+        delay={reduceMotion ? 0 : randomizedDelays.drone}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={buildkiteRef}
+        toRef={otelRef}
+        pathColor="#f97316"
+        gradientStartColor="#f97316"
+        gradientStopColor="#fb923c"
+        duration={reduceMotion ? 7 : 6}
+        delay={reduceMotion ? 0 : randomizedDelays.buildkite}
+      />
+
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={otelRef}
+        toRef={citricRef}
+        pathColor="#ea580c"
+        gradientStartColor="#ea580c"
+        gradientStopColor="#fb923c"
+        duration={reduceMotion ? 7 : 5.5}
+        delay={reduceMotion ? 0 : randomizedDelays.otelToCitric}
+      />
+    </div>
   );
 }
 
-function TechBadge({ icon, label }: { icon: ReactNode; label: string }) {
+function CICDStatusTile({
+  item,
+  reduceMotion,
+}: {
+  item: EcosystemItem;
+  reduceMotion: boolean;
+}) {
+  const iconFromItem = item.iconKey ? brandIcons[item.iconKey] : undefined;
+
   return (
-    <span className="inline-flex items-center gap-2.5 rounded-full border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-medium transition-colors hover:border-citric-deep/30">
-      {icon}
-      {label}
-    </span>
+    <motion.div
+      className="terminal-tile"
+      variants={fadeUp}
+      whileHover={reduceMotion ? undefined : { y: -5, scale: 1.01 }}
+      transition={{ duration: 0.2 }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="rounded-md border border-fd-border bg-fd-secondary/30 p-1.5">
+          {iconFromItem ? (
+            <BrandIcon icon={iconFromItem} className="size-4.5" />
+          ) : (
+            <Cpu className="size-4.5 text-citric-deep" />
+          )}
+        </div>
+        <span className="rounded-full bg-citric/15 px-2 py-0.5 font-mono text-[10px] text-citric-deep">
+          receiver
+        </span>
+      </div>
+      <p className="text-sm font-semibold">{item.label}</p>
+      <p className="mt-1 text-xs leading-relaxed text-fd-muted-foreground">
+        {item.caption}
+      </p>
+    </motion.div>
+  );
+}
+
+function RuntimeMatrixCard({
+  item,
+  idx,
+  reduceMotion,
+}: {
+  item: EcosystemItem;
+  idx: number;
+  reduceMotion: boolean;
+}) {
+  const icon = item.iconKey ? brandIcons[item.iconKey] : undefined;
+
+  return (
+    <motion.div
+      custom={idx}
+      variants={matrixWave}
+      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.012 }}
+      className="runtime-matrix-card"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <div className="rounded-md border border-fd-border bg-fd-secondary/30 p-1.5">
+          {icon ? (
+            <BrandIcon icon={icon} className="size-4.5" />
+          ) : (
+            <Cpu className="size-4.5 text-citric-deep" />
+          )}
+        </div>
+        <p className="font-semibold text-sm">{item.label}</p>
+      </div>
+      <p className="text-xs leading-relaxed text-fd-muted-foreground">
+        {item.caption}
+      </p>
+    </motion.div>
+  );
+}
+
+function SignalPanelCard({
+  item,
+  reduceMotion,
+}: {
+  item: EcosystemItem;
+  reduceMotion: boolean;
+}) {
+  const icon = item.iconKey ? brandIcons[item.iconKey] : undefined;
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.01 }}
+      className="signal-panel-card rounded-xl border border-fd-border bg-fd-card p-3"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <div className="rounded-md border border-fd-border bg-fd-secondary/30 p-1.5">
+          {icon ? (
+            <BrandIcon icon={icon} className="size-4.5" />
+          ) : (
+            <FlaskConical className="size-4.5 text-citric-deep" />
+          )}
+        </div>
+        <p className="text-sm font-semibold">{item.label}</p>
+      </div>
+      <p className="text-xs leading-relaxed text-fd-muted-foreground">
+        {item.caption}
+      </p>
+    </motion.div>
   );
 }
 
 function Home() {
+  const reduceMotion = useReducedMotion();
+  const shouldReduceMotion = Boolean(reduceMotion);
+
+  const reveal = shouldReduceMotion
+    ? {}
+    : {
+        initial: "hidden" as const,
+        whileInView: "show" as const,
+        viewport: { once: true, amount: 0.2 },
+      };
+
+  const ciSystems = [
+    {
+      iconKey: "githubactions",
+      label: "GitHub Actions",
+      caption: "Primary ingestion path for workflow/run metadata.",
+    },
+    {
+      iconKey: "gitlab",
+      label: "GitLab CI",
+      caption: "Adapter target for pipeline and stage ingestion.",
+    },
+    {
+      iconKey: "circleci",
+      label: "CircleCI",
+      caption: "Adapter target for workflow and step correlation.",
+    },
+    {
+      iconKey: "jenkins",
+      label: "Jenkins",
+      caption: "Adapter target for job/stage event normalization.",
+    },
+    {
+      iconKey: "drone",
+      label: "Drone",
+      caption: "Adapter target for run metadata and outcomes.",
+    },
+    {
+      iconKey: "argocd",
+      label: "Argo CD",
+      caption: "Deployment telemetry adapter target.",
+    },
+    {
+      iconKey: "buildkite",
+      label: "Buildkite",
+      caption: "Adapter target for build graph ingestion.",
+    },
+  ];
+
+  const languagesAndRuntimes = [
+    { iconKey: "go", label: "Go", caption: "Collector/runtime baseline." },
+    {
+      iconKey: "nodejs",
+      label: "Node.js",
+      caption: "Runtime telemetry coverage target.",
+    },
+    {
+      iconKey: "deno",
+      label: "Deno",
+      caption: "Runtime telemetry coverage target.",
+    },
+    {
+      iconKey: "bun",
+      label: "Bun",
+      caption: "Runtime telemetry coverage target.",
+    },
+    {
+      iconKey: "python",
+      label: "Python",
+      caption: "Suite and test metadata target.",
+    },
+    {
+      iconKey: "ruby",
+      label: "Ruby",
+      caption: "Suite and test metadata target.",
+    },
+    {
+      iconKey: "dotnet",
+      label: "C#/.NET",
+      caption: "CLR telemetry compatibility target.",
+    },
+    {
+      iconKey: "swift",
+      label: "Swift",
+      caption: "Package/test telemetry mapping target.",
+    },
+    {
+      iconKey: "zig",
+      label: "Zig",
+      caption: "Build/test telemetry mapping target.",
+    },
+    {
+      iconKey: "gleam",
+      label: "Gleam",
+      caption: "Language telemetry mapping target.",
+    },
+    {
+      iconKey: "dart",
+      label: "Dart",
+      caption: "Language telemetry mapping target.",
+    },
+    {
+      iconKey: "flutter",
+      label: "Flutter",
+      caption: "App test telemetry mapping target.",
+    },
+    {
+      iconKey: "php",
+      label: "PHP",
+      caption: "PHP test telemetry mapping target.",
+    },
+    {
+      iconKey: "kotlin",
+      label: "Kotlin",
+      caption: "JVM telemetry compatibility target.",
+    },
+    {
+      iconKey: "scala",
+      label: "Scala",
+      caption: "JVM telemetry compatibility target.",
+    },
+    {
+      iconKey: "rust",
+      label: "Rust",
+      caption: "Test and bench telemetry target.",
+    },
+    {
+      iconKey: "elixir",
+      label: "Elixir",
+      caption: "Suite telemetry mapping target.",
+    },
+  ];
+
+  const testFrameworks = [
+    {
+      iconKey: "vitest",
+      label: "Vitest",
+      caption: "Current test analytics ingestion path.",
+    },
+    {
+      iconKey: "jest",
+      label: "Jest",
+      caption: "JavaScript test ingestion target.",
+    },
+    {
+      iconKey: "pytest",
+      label: "Pytest",
+      caption: "Python test ingestion target.",
+    },
+    {
+      iconKey: "junit5",
+      label: "JUnit 5",
+      caption: "JVM test result model target.",
+    },
+    {
+      label: "Playwright",
+      caption: "Placeholder icon - browser E2E telemetry adapter target.",
+    },
+  ];
+
   return (
-    <div className="flex flex-col overflow-x-hidden">
-      {/* ── Hero ── */}
-      <section className="relative flex flex-col items-center px-4 pb-24 pt-24 text-center sm:pt-32">
-        <div className="pointer-events-none absolute -top-32 left-1/2 size-[800px] -translate-x-1/2 rounded-full bg-citric/8 blur-3xl animate-pulse-glow" />
-        <div className="pointer-events-none absolute -top-20 left-1/4 size-[400px] -translate-x-1/2 rounded-full bg-citric-muted/10 blur-3xl animate-float" />
+    <div className="relative overflow-x-hidden">
+      <div
+        className="pointer-events-none absolute inset-0 docs-grid-bg"
+        aria-hidden
+      />
+      <motion.div
+        className="pointer-events-none absolute left-1/2 top-[-220px] h-[520px] w-[520px] -translate-x-1/2 rounded-full docs-radial-glow"
+        animate={shouldReduceMotion ? undefined : { scale: [1, 1.06, 1] }}
+        transition={
+          shouldReduceMotion
+            ? undefined
+            : {
+                duration: 10,
+                repeat: Number.POSITIVE_INFINITY,
+                ease: "easeInOut",
+              }
+        }
+        aria-hidden
+      />
 
-        <span
-          className="relative mb-8 inline-flex items-center gap-2 rounded-full border border-citric-deep/20 bg-citric/10 px-4 py-1.5 text-sm font-medium text-citric-deep opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0.1s" }}
+      <main className="relative mx-auto flex max-w-6xl flex-col px-4 pb-24 pt-14 sm:pt-20">
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-20 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"
         >
-          <Radio className="size-4" />
-          Powered by OpenTelemetry
-        </span>
-
-        <h1
-          className="relative max-w-4xl text-4xl font-extrabold tracking-tight opacity-0 animate-fade-in-up sm:text-5xl md:text-6xl lg:text-7xl"
-          style={{ animationDelay: "0.2s" }}
-        >
-          Stop Guessing Why Your{" "}
-          <span className="bg-gradient-to-r from-citric-deep to-citric bg-clip-text text-transparent">
-            Pipelines Fail
-          </span>
-        </h1>
-
-        <p
-          className="relative mt-6 max-w-2xl text-lg leading-relaxed text-fd-muted-foreground opacity-0 animate-fade-in-up sm:text-xl"
-          style={{ animationDelay: "0.35s" }}
-        >
-          Citric brings full observability to your GitHub Actions workflows.
-          Trace every job, track every test, catch every failure — all powered
-          by OpenTelemetry and stored in ClickHouse.
-        </p>
-
-        <div
-          className="relative mt-10 flex flex-wrap items-center justify-center gap-4 opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0.5s" }}
-        >
-          <Link
-            to="/docs/$"
-            params={{ _splat: "" }}
-            className="inline-flex items-center gap-2 rounded-xl bg-citric-deep px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-citric-deep/20 transition-all hover:shadow-xl hover:shadow-citric-deep/30 hover:-translate-y-0.5"
-          >
-            Get Started
-            <ArrowRight className="size-4" />
-          </Link>
-          <a
-            href="https://github.com/citric-app/citric"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-6 py-3 text-sm font-semibold transition-all hover:bg-fd-accent hover:-translate-y-0.5"
-          >
-            View on GitHub
-            <ChevronRight className="size-4" />
-          </a>
-        </div>
-      </section>
-
-      {/* ── Value Props ── */}
-      <section className="mx-auto w-full max-w-5xl px-4 py-16">
-        <div className="grid gap-8 sm:grid-cols-3">
-          <Reveal delay={0} className="text-center">
-            <div className="mb-3 flex justify-center">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-citric/10 text-citric-deep">
-                <Eye className="size-5" />
-              </div>
-            </div>
-            <h3 className="font-bold">Total Visibility</h3>
-            <p className="mt-1 text-sm text-fd-muted-foreground">
-              Every workflow, job, and step — traced and timed.
+          <motion.div variants={fadeUp}>
+            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-citric-deep/30 bg-citric/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-citric-deep">
+              <Radar className="size-3.5" />
+              Cross-Ecosystem CI Telemetry
+            </span>
+            <h1 className="max-w-2xl text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
+              Observe every pipeline span across CI providers.
+            </h1>
+            <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
+              Citric normalizes workflow runs into OpenTelemetry traces and
+              stores them in ClickHouse for fast, high-cardinality queries.
+              Start with GitHub Actions today, then extend via adapter-based
+              ingestion for GitLab CI, CircleCI, Jenkins, and additional
+              platforms.
             </p>
-          </Reveal>
-          <Reveal delay={0.1} className="text-center">
-            <div className="mb-3 flex justify-center">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-citric/10 text-citric-deep">
-                <Zap className="size-5" />
-              </div>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                to="/docs/$"
+                params={{ _splat: "" }}
+                className="inline-flex items-center gap-2 rounded-xl bg-citric-deep px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-citric-deep/30"
+              >
+                Read the docs
+                <ArrowRight className="size-4" />
+              </Link>
+              <a
+                href="https://github.com/citric-app/citric"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-5 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 hover:bg-fd-accent"
+              >
+                Inspect source
+              </a>
             </div>
-            <h3 className="font-bold">Instant Insights</h3>
-            <p className="mt-1 text-sm text-fd-muted-foreground">
-              Failure patterns, flaky tests, and regressions — surfaced
-              automatically.
-            </p>
-          </Reveal>
-          <Reveal delay={0.2} className="text-center">
-            <div className="mb-3 flex justify-center">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-citric/10 text-citric-deep">
-                <Timer className="size-5" />
-              </div>
-            </div>
-            <h3 className="font-bold">Minutes to Set Up</h3>
-            <p className="mt-1 text-sm text-fd-muted-foreground">
-              Add the collector to your workflow. That&apos;s it.
-            </p>
-          </Reveal>
-        </div>
-      </section>
+          </motion.div>
 
-      <div className="mx-auto h-px w-full max-w-3xl bg-fd-border" />
-
-      {/* ── Features Grid ── */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-20">
-        <Reveal>
-          <div className="mb-12 text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Everything You Need to{" "}
-              <span className="text-citric-deep">Own Your Pipelines</span>
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-fd-muted-foreground">
-              From trace waterfalls to flaky test detection, Citric gives your
-              team the tools to debug faster, ship with confidence, and
-              eliminate CI/CD blind spots.
-            </p>
-          </div>
-        </Reveal>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <FeatureCard
-            icon={<Layers className="size-5" />}
-            title="Trace Waterfall"
-            description="Visualize your entire workflow as an interactive waterfall. See parent-child relationships between jobs and steps with precise timing."
-            delay={0}
-          />
-          <FeatureCard
-            icon={<FlaskConical className="size-5" />}
-            title="Test Analytics"
-            description="Track pass rates, duration trends, and identify your slowest tests. Know exactly which tests cost you the most time."
-            delay={0.08}
-          />
-          <FeatureCard
-            icon={<Bug className="size-5" />}
-            title="Flaky Test Detection"
-            description="Automatically identify tests that pass sometimes and fail others. Quantify flakiness rates and track improvements over time."
-            delay={0.16}
-          />
-          <FeatureCard
-            icon={<Search className="size-5" />}
-            title="Failure Clustering"
-            description="Stop sifting through logs. Recurring failures are automatically grouped into patterns so you fix root causes, not symptoms."
-            delay={0.24}
-          />
-          <FeatureCard
-            icon={<Gauge className="size-5" />}
-            title="Performance Monitoring"
-            description="Track P50, P95, and average durations across all pipelines. Catch regressions before they compound into major slowdowns."
-            delay={0.32}
-          />
-          <FeatureCard
-            icon={<BarChart3 className="size-5" />}
-            title="Queue Time Analytics"
-            description="Understand how long jobs wait before running. Identify runner bottlenecks and optimize your infrastructure allocation."
-            delay={0.4}
-          />
-        </div>
-      </section>
-
-      {/* ── How It Works ── */}
-      <section className="bg-fd-secondary/30 py-20">
-        <div className="mx-auto max-w-4xl px-4">
-          <Reveal>
-            <h2 className="mb-16 text-center text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Up and Running in{" "}
-              <span className="text-citric-deep">Three Steps</span>
-            </h2>
-          </Reveal>
-          <div className="grid gap-12 sm:grid-cols-3 sm:gap-8">
-            <StepCard
-              number={1}
-              title="Install the Collector"
-              description="Add the Citric OpenTelemetry collector to your infrastructure. It receives webhooks and fetches detailed pipeline data from GitHub."
-              delay={0}
-            />
-            <StepCard
-              number={2}
-              title="Run Your Workflows"
-              description="Every GitHub Actions run is automatically captured as OpenTelemetry traces and stored in ClickHouse. Zero code changes required."
-              delay={0.12}
-            />
-            <StepCard
-              number={3}
-              title="See Everything"
-              description="Open the dashboard and explore traces, test results, failure patterns, and performance trends across all your repositories."
-              delay={0.24}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ── Deep Dive: Trace Waterfall ── */}
-      <section className="mx-auto w-full max-w-5xl px-4 py-20">
-        <Reveal>
-          <div className="flex flex-col gap-8 md:flex-row md:items-center">
-            <div className="flex-1">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-citric/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-citric-deep">
-                <Layers className="size-3.5" />
-                Tracing
+          <motion.div variants={fadeUp}>
+            <SurfaceCard className="relative overflow-hidden p-6 shadow-xl shadow-citric-deep/10">
+              <div className="mb-5 flex items-center justify-between">
+                <span className="rounded-md bg-citric/10 px-2 py-1 font-mono text-xs text-citric-deep">
+                  trace summary
+                </span>
+                <span className="font-mono text-xs text-fd-muted-foreground">
+                  run #29184
+                </span>
               </div>
-              <h3 className="text-2xl font-extrabold sm:text-3xl">
-                Trace Waterfall Visualization
-              </h3>
-              <p className="mt-4 leading-relaxed text-fd-muted-foreground">
-                Every workflow run becomes an interactive waterfall chart. Drill
-                from a high-level overview down to individual command output.
-                See which steps are slow, which are failing, and how they relate
-                to each other — all in one view.
-              </p>
-              <ul className="mt-6 space-y-2 text-sm text-fd-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Interactive span exploration with timing data
-                </li>
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Expandable job steps with full log output
-                </li>
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Visual parent-child span relationships
-                </li>
-              </ul>
-            </div>
-            <div className="flex-1 rounded-2xl border border-fd-border bg-fd-card p-6">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="w-16 font-mono text-xs text-fd-muted-foreground">
-                    0.0s
-                  </span>
-                  <div className="relative h-7 flex-1 overflow-hidden rounded bg-citric/20">
-                    <div className="absolute inset-y-0 left-0 w-full rounded bg-citric-deep/30" />
-                    <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium">
-                      build
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-16 font-mono text-xs text-fd-muted-foreground">
-                    0.4s
-                  </span>
-                  <div className="relative ml-4 h-7 flex-1 overflow-hidden rounded bg-citric/15">
-                    <div className="absolute inset-y-0 left-0 w-3/4 rounded bg-citric-dark/25" />
-                    <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium">
-                      checkout
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-16 font-mono text-xs text-fd-muted-foreground">
-                    1.2s
-                  </span>
-                  <div className="relative ml-4 h-7 flex-1 overflow-hidden rounded bg-citric/15">
-                    <div className="absolute inset-y-0 left-0 w-5/6 rounded bg-citric-dark/25" />
-                    <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium">
-                      install deps
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-16 font-mono text-xs text-fd-muted-foreground">
-                    3.8s
-                  </span>
-                  <div className="relative ml-4 h-7 flex-1 overflow-hidden rounded bg-red-500/15">
-                    <div className="absolute inset-y-0 left-0 w-1/2 rounded bg-red-500/25" />
-                    <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium text-red-600 dark:text-red-400">
-                      test
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* ── Deep Dive: Test Analytics ── */}
-      <section className="mx-auto w-full max-w-5xl px-4 pb-20">
-        <Reveal>
-          <div className="flex flex-col gap-8 md:flex-row-reverse md:items-center">
-            <div className="flex-1">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-citric/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-citric-deep">
-                <FlaskConical className="size-3.5" />
-                Testing
-              </div>
-              <h3 className="text-2xl font-extrabold sm:text-3xl">
-                Intelligent Test Analytics
-              </h3>
-              <p className="mt-4 leading-relaxed text-fd-muted-foreground">
-                Go beyond pass/fail. Citric tracks test execution across every
-                run, identifies your slowest tests, detects flaky behavior
-                automatically, and shows you exactly where reliability is
-                trending.
-              </p>
-              <ul className="mt-6 space-y-2 text-sm text-fd-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Pass rate and duration trends per test suite
-                </li>
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Automatic flaky test detection and ranking
-                </li>
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Slowest tests table for optimization targets
-                </li>
-              </ul>
-            </div>
-            <div className="flex-1 rounded-2xl border border-fd-border bg-fd-card p-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-lg bg-fd-secondary/50 p-3 text-center">
-                    <div className="text-2xl font-bold text-citric-deep">
-                      247
-                    </div>
-                    <div className="text-xs text-fd-muted-foreground">
-                      Tests
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-fd-secondary/50 p-3 text-center">
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      98.4%
-                    </div>
-                    <div className="text-xs text-fd-muted-foreground">
-                      Pass Rate
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-fd-secondary/50 p-3 text-center">
-                    <div className="text-2xl font-bold text-orange-500">3</div>
-                    <div className="text-xs text-fd-muted-foreground">
-                      Flaky
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono">auth.test.ts</span>
-                    <span className="font-medium text-green-600 dark:text-green-400">
-                      100%
-                    </span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-fd-secondary">
-                    <div className="h-full w-full rounded-full bg-green-500/60" />
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono">api.test.ts</span>
-                    <span className="font-medium text-orange-500">94.2%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-fd-secondary">
-                    <div className="h-full w-[94%] rounded-full bg-orange-400/60" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* ── Deep Dive: Failure Analysis ── */}
-      <section className="mx-auto w-full max-w-5xl px-4 pb-20">
-        <Reveal>
-          <div className="flex flex-col gap-8 md:flex-row md:items-center">
-            <div className="flex-1">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-citric/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-citric-deep">
-                <Bug className="size-3.5" />
-                Debugging
-              </div>
-              <h3 className="text-2xl font-extrabold sm:text-3xl">
-                Smart Failure Analysis
-              </h3>
-              <p className="mt-4 leading-relaxed text-fd-muted-foreground">
-                Stop reading log files line by line. Citric automatically
-                clusters recurring failures, identifies patterns across
-                repositories, and surfaces the most impactful issues — so your
-                team fixes root causes, not symptoms.
-              </p>
-              <ul className="mt-6 space-y-2 text-sm text-fd-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Automatic failure pattern clustering
-                </li>
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Cross-repository failure correlation
-                </li>
-                <li className="flex items-center gap-2">
-                  <ChevronRight className="size-4 shrink-0 text-citric-deep" />
-                  Trend tracking for failure frequency
-                </li>
-              </ul>
-            </div>
-            <div className="flex-1 rounded-2xl border border-fd-border bg-fd-card p-6">
               <div className="space-y-3">
                 {[
+                  { step: "checkout", value: "0.9s", width: "w-3/5", ok: true },
                   {
-                    pattern: "ECONNREFUSED 127.0.0.1:5432",
-                    count: 12,
-                    repo: "api",
+                    step: "install",
+                    value: "4.2s",
+                    width: "w-[82%]",
+                    ok: true,
                   },
-                  {
-                    pattern: "timeout waiting for element",
-                    count: 8,
-                    repo: "web",
-                  },
-                  { pattern: "OOM killed", count: 5, repo: "worker" },
-                ].map((f) => (
+                  { step: "test", value: "11.4s", width: "w-full", ok: false },
+                  { step: "publish", value: "1.1s", width: "w-1/4", ok: true },
+                ].map((span) => (
                   <div
-                    key={f.pattern}
-                    className="flex items-start gap-3 rounded-lg bg-fd-secondary/50 p-3"
+                    key={span.step}
+                    className="grid grid-cols-[84px_1fr_60px] items-center gap-2"
                   >
-                    <div className="mt-0.5 size-2 shrink-0 rounded-full bg-red-500" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-mono text-xs">
-                        {f.pattern}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-fd-muted-foreground">
-                        <span>{f.count} occurrences</span>
-                        <span className="text-fd-border">&middot;</span>
-                        <span>{f.repo}</span>
-                      </div>
+                    <span className="font-mono text-xs text-fd-muted-foreground">
+                      {span.step}
+                    </span>
+                    <div className="h-6 rounded bg-fd-secondary/60">
+                      <div
+                        className={`h-full rounded ${
+                          span.ok ? "bg-citric/45" : "bg-red-500/45"
+                        } ${span.width}`}
+                      />
                     </div>
+                    <span
+                      className={`text-right font-mono text-xs ${
+                        span.ok
+                          ? "text-fd-muted-foreground"
+                          : "font-semibold text-red-500"
+                      }`}
+                    >
+                      {span.value}
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* ── Tech Stack ── */}
-      <section className="bg-fd-secondary/30 py-20">
-        <div className="mx-auto max-w-4xl px-4">
-          <Reveal>
-            <div className="text-center">
-              <h2 className="mb-3 text-2xl font-extrabold sm:text-3xl">
-                Built on Standards You Trust
-              </h2>
-              <p className="mx-auto mb-10 max-w-xl text-fd-muted-foreground">
-                No proprietary agents, no vendor lock-in. Citric uses the
-                open-source tools the industry relies on.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-4">
-                <TechBadge
-                  icon={<Radio className="size-4 text-citric-deep" />}
-                  label="OpenTelemetry"
-                />
-                <TechBadge
-                  icon={<Database className="size-4 text-citric-deep" />}
-                  label="ClickHouse"
-                />
-                <TechBadge
-                  icon={<GitBranch className="size-4 text-citric-deep" />}
-                  label="GitHub Actions"
-                />
+              <div className="mt-5 flex items-center justify-between rounded-lg border border-fd-border bg-fd-secondary/30 px-3 py-2 text-xs">
+                <span className="font-medium">p95 duration</span>
+                <span className="font-mono">+18.7% vs baseline</span>
               </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
+            </SurfaceCard>
+          </motion.div>
+        </motion.section>
 
-      {/* ── Final CTA ── */}
-      <section className="relative overflow-hidden py-24">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-citric/5 to-transparent" />
-        <Reveal className="relative mx-auto max-w-2xl px-4 text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Ready to see your pipelines{" "}
-            <span className="text-citric-deep">clearly</span>?
-          </h2>
-          <p className="mt-4 text-fd-muted-foreground">
-            Set up Citric in minutes and never fly blind again.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-20"
+        >
+          <motion.div variants={fadeUp} className="mb-8">
+            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Telemetry pipeline, end to end
+            </h2>
+            <p className="mt-3 max-w-3xl text-fd-muted-foreground">
+              Citric keeps the data model explicit: provider events are
+              ingested, normalized to traces, indexed in ClickHouse, and queried
+              with dashboard primitives optimized for incident triage across
+              diverse CI and test ecosystems.
+            </p>
+          </motion.div>
+          <motion.div
+            variants={staggerContainer}
+            className="grid gap-4 md:grid-cols-4"
+          >
+            {[
+              {
+                title: "Ingest",
+                text: "Provider adapters ingest CI metadata (GitHub Actions first).",
+                icon: <GitPullRequest className="size-4" />,
+              },
+              {
+                title: "Normalize",
+                text: "Collector emits OTel spans, attributes, and events.",
+                icon: <Binary className="size-4" />,
+              },
+              {
+                title: "Store",
+                text: "Columnar ClickHouse tables for fast aggregations.",
+                icon: <Database className="size-4" />,
+              },
+              {
+                title: "Analyze",
+                text: "Trace waterfall, regressions, and flaky signatures.",
+                icon: <BarChart3 className="size-4" />,
+              },
+            ].map((item) => (
+              <motion.div key={item.title} variants={fadeUp}>
+                <SurfaceCard className="h-full p-5">
+                  <div className="mb-3 inline-flex size-8 items-center justify-center rounded-md bg-citric/10 text-citric-deep">
+                    {item.icon}
+                  </div>
+                  <h3 className="font-semibold">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">
+                    {item.text}
+                  </p>
+                </SurfaceCard>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.section>
+
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-20"
+        >
+          <motion.div variants={fadeUp} className="mb-8">
+            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Built for debugging at span granularity
+            </h2>
+          </motion.div>
+          <motion.div
+            variants={staggerContainer}
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          >
+            {[
+              {
+                title: "Trace Waterfall",
+                detail:
+                  "Navigate parent-child execution paths and isolate slow branches.",
+                icon: <Server className="size-5" />,
+              },
+              {
+                title: "Failure Clustering",
+                detail:
+                  "Group recurring stack traces and rank by impact frequency.",
+                icon: <ShieldCheck className="size-5" />,
+              },
+              {
+                title: "Test Intelligence",
+                detail:
+                  "Track flaky distribution and suite-level reliability drift.",
+                icon: <Cpu className="size-5" />,
+              },
+              {
+                title: "Latency Regressions",
+                detail: "Monitor p50 and p95 deltas across workflow templates.",
+                icon: <Clock3 className="size-5" />,
+              },
+            ].map((feature) => (
+              <motion.div key={feature.title} variants={fadeUp}>
+                <SurfaceCard className="h-full p-5">
+                  <div className="mb-3 text-citric-deep">{feature.icon}</div>
+                  <h3 className="font-semibold">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">
+                    {feature.detail}
+                  </p>
+                </SurfaceCard>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.section>
+
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-24 lg:grid lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:gap-10"
+        >
+          <motion.div variants={fadeUp} className="mb-6 lg:mb-0">
+            <SectionFrame
+              eyebrow="Pipeline Control Plane"
+              title="CI/CD systems"
+              description="Provider adapters are routed through a single telemetry control plane. Links pulse as execution signals are normalized into consistent traces."
+            >
+              <CICDTopologyViz reduceMotion={shouldReduceMotion} />
+            </SectionFrame>
+          </motion.div>
+          <motion.div
+            variants={staggerContainer}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            {ciSystems.map((item) => (
+              <CICDStatusTile
+                key={item.label}
+                item={item}
+                reduceMotion={shouldReduceMotion}
+              />
+            ))}
+          </motion.div>
+        </motion.section>
+
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-24 lg:grid lg:grid-cols-[1.08fr_0.92fr] lg:items-start lg:gap-10"
+        >
+          <motion.div
+            variants={staggerContainer}
+            className="runtime-matrix-bg grid gap-3 rounded-2xl border border-fd-border bg-fd-card/45 p-4 sm:grid-cols-2 lg:order-1 lg:grid-cols-3"
+          >
+            {languagesAndRuntimes.map((item, index) => (
+              <RuntimeMatrixCard
+                key={item.label}
+                item={item}
+                idx={index}
+                reduceMotion={shouldReduceMotion}
+              />
+            ))}
+          </motion.div>
+          <motion.div variants={fadeUp} className="mb-6 lg:order-2 lg:mb-0">
+            <SectionFrame
+              align="right"
+              eyebrow="Runtime Compatibility Matrix"
+              title="Languages and runtimes"
+              description="Language telemetry lanes are curated as matrix profiles. Each card exposes parser posture, event model strategy, and schema normalization characteristics."
+            ></SectionFrame>
+          </motion.div>
+        </motion.section>
+
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-24 lg:grid lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:gap-10"
+        >
+          <motion.div variants={fadeUp} className="mb-6 lg:mb-0">
+            <SectionFrame
+              eyebrow="Test Signal Lab"
+              title="Test frameworks"
+              description="Framework signals are ingested through lane-oriented adapters. Timing vectors and flaky indicators are shaped into a stable analytical graph."
+            />
+          </motion.div>
+          <motion.div
+            variants={staggerContainer}
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {testFrameworks.map((item) => (
+              <SignalPanelCard
+                key={item.label}
+                item={item}
+                reduceMotion={shouldReduceMotion}
+              />
+            ))}
+          </motion.div>
+        </motion.section>
+
+        <motion.section variants={fadeUp} {...reveal} className="mb-20">
+          <SurfaceCard className="p-5">
+            <h3 className="mb-4 font-semibold">Quickstart path</h3>
+            <ol className="space-y-4 text-sm">
+              <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
+                <p className="font-medium">1. Deploy collector endpoint</p>
+                <p className="mt-1 text-fd-muted-foreground">
+                  Configure webhook intake and repository auth.
+                </p>
+              </li>
+              <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
+                <p className="font-medium">2. Emit trace-rich workflow runs</p>
+                <p className="mt-1 text-fd-muted-foreground">
+                  Normalization maps jobs, steps, logs, and test signals from
+                  provider-specific schemas to one trace model.
+                </p>
+              </li>
+              <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
+                <p className="font-medium">
+                  3. Query and correlate in dashboard
+                </p>
+                <p className="mt-1 text-fd-muted-foreground">
+                  Pivot from failing spans to aggregated regressions across
+                  repositories, CI vendors, and test runners.
+                </p>
+              </li>
+            </ol>
             <Link
               to="/docs/$"
-              params={{ _splat: "" }}
-              className="inline-flex items-center gap-2 rounded-xl bg-citric-deep px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-citric-deep/20 transition-all hover:shadow-xl hover:shadow-citric-deep/30 hover:-translate-y-0.5"
+              params={{ _splat: "getting-started" }}
+              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-citric-deep/40 bg-citric/10 px-4 py-2 text-xs font-semibold text-citric-deep transition-colors hover:bg-citric/20"
             >
-              Read the Docs
-              <ArrowRight className="size-4" />
+              Open setup guide
+              <ArrowRight className="size-3.5" />
             </Link>
-            <a
-              href="https://github.com/citric-app/citric"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-7 py-3.5 text-sm font-semibold transition-all hover:bg-fd-accent hover:-translate-y-0.5"
-            >
-              Star on GitHub
-            </a>
-          </div>
-        </Reveal>
-      </section>
+          </SurfaceCard>
+        </motion.section>
+
+        <motion.section variants={fadeUp} {...reveal}>
+          <SurfaceCard className="relative overflow-hidden p-8 text-center sm:p-10">
+            <div
+              className="pointer-events-none absolute inset-0 docs-cta-glow"
+              aria-hidden
+            />
+            <h2 className="relative text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Replace CI guesswork with trace evidence.
+            </h2>
+            <p className="relative mx-auto mt-4 max-w-2xl text-fd-muted-foreground">
+              Start with GitHub Actions now, then scale to GitLab CI, CircleCI,
+              Jenkins, and broader test ecosystems with the same telemetry graph
+              and query surface.
+            </p>
+            <div className="relative mt-7 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                to="/docs/$"
+                params={{ _splat: "" }}
+                className="inline-flex items-center gap-2 rounded-xl bg-citric-deep px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-citric-deep/30"
+              >
+                Start documenting your pipeline
+                <ArrowRight className="size-4" />
+              </Link>
+              <a
+                href="https://github.com/citric-app/citric"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-6 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 hover:bg-fd-accent"
+              >
+                Review source on GitHub
+              </a>
+            </div>
+          </SurfaceCard>
+        </motion.section>
+      </main>
     </div>
   );
 }

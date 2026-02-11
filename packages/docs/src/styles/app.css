@@ -13,6 +13,9 @@
   --animate-fade-in: fade-in 0.6s ease-out both;
   --animate-float: float 6s ease-in-out infinite;
   --animate-pulse-glow: pulse-glow 4s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.5s ease-in-out 1;
+  --animate-gradient-shift: gradient-shift 15s ease-in-out infinite;
+  --animate-scale-in: scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes fade-in-up {
@@ -54,5 +57,195 @@
   50% {
     opacity: 0.7;
     transform: scale(1.08);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.hero-bg {
+  background-image: linear-gradient(
+    120deg,
+    transparent 0%,
+    transparent 40%,
+    oklch(0.681 0.162 75.834 / 0.06) 60%,
+    oklch(0.681 0.162 75.834 / 0.18) 80%,
+    oklch(0.681 0.162 75.834 / 0.28) 100%
+  );
+  min-height: 100%;
+}
+
+.docs-grid-bg {
+  background-image:
+    linear-gradient(
+      to right,
+      oklch(0.681 0.162 75.834 / 0.1) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      oklch(0.681 0.162 75.834 / 0.08) 1px,
+      transparent 1px
+    );
+  background-size: 34px 34px;
+  mask-image: radial-gradient(circle at top, black 20%, transparent 82%);
+  opacity: 0.35;
+}
+
+.docs-radial-glow {
+  background: radial-gradient(
+    circle at center,
+    oklch(0.852 0.199 91.936 / 0.32) 0%,
+    oklch(0.681 0.162 75.834 / 0.2) 36%,
+    transparent 72%
+  );
+  filter: blur(16px);
+}
+
+.docs-cta-glow {
+  background:
+    radial-gradient(
+      circle at 20% 20%,
+      oklch(0.852 0.199 91.936 / 0.18) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      circle at 78% 65%,
+      oklch(0.681 0.162 75.834 / 0.16) 0%,
+      transparent 55%
+    );
+}
+
+.section-terminal-shell {
+  background: var(--color-fd-card, transparent);
+}
+
+.section-terminal-shell::before {
+  content: none;
+}
+
+.terminal-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid oklch(0.681 0.162 75.834 / 0.35);
+  background: oklch(0.852 0.199 91.936 / 0.14);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: oklch(0.681 0.162 75.834);
+}
+
+.terminal-tile {
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card, transparent);
+  border-radius: 0.9rem;
+  padding: 0.8rem;
+  box-shadow: 0 8px 20px -22px oklch(0 0 0 / 0.55);
+}
+
+.cicd-topology-grid {
+  background:
+    linear-gradient(
+      to right,
+      oklch(0.681 0.162 75.834 / 0.06) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      oklch(0.681 0.162 75.834 / 0.06) 1px,
+      transparent 1px
+    ),
+    var(--color-fd-secondary, transparent);
+  background-size:
+    22px 22px,
+    22px 22px,
+    auto;
+}
+
+.runtime-matrix-bg {
+  background:
+    linear-gradient(
+      to right,
+      oklch(0.681 0.162 75.834 / 0.06) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      oklch(0.681 0.162 75.834 / 0.06) 1px,
+      transparent 1px
+    ),
+    var(--color-fd-card, transparent);
+  background-size:
+    18px 18px,
+    18px 18px,
+    auto;
+}
+
+.runtime-matrix-card {
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.85rem;
+  padding: 0.75rem;
+  background: var(--color-fd-card, transparent);
+  box-shadow: 0 8px 20px -22px oklch(0 0 0 / 0.55);
+}
+
+.signal-panel-card {
+  background: var(--color-fd-card, transparent);
+  box-shadow: 0 8px 20px -22px oklch(0 0 0 / 0.55);
+}
+
+.signal-lab-lanes {
+  position: relative;
+  overflow: hidden;
+}
+
+.signal-lab-lanes::after {
+  content: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+  }
+
+  .signal-lab-lanes::after {
+    animation: none;
   }
 }

@@ -1,10 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangeSelect } from "@/components/analytics";
-import {
-  PackageResultsTable,
-  SlowestTestsTable,
-  TestDurationTrendChart,
-} from "@/components/test-results";
+import { TimeRangePicker } from "@/components/analytics";
+import { PackageResultsTable } from "@/components/results/package-results-table";
+import { SlowestTestsTable } from "@/components/results/slowest-tests-table";
+import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import {
   Card,
   CardContent,
@@ -13,39 +12,47 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TimeRange } from "@/data/analytics";
 import {
-  getSlowestTests,
-  getTestDurationTrend,
-  getTestResultsByPackage,
-  getTestResultsSummary,
+  slowestTestsOptions,
+  testDurationTrendOptions,
+  testResultsByPackageOptions,
+  testResultsSummaryOptions,
 } from "@/data/test-results";
+import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-results")({
+  staticData: { breadcrumb: "Test Results" },
   component: TestResultsPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    timeRange: (search.timeRange as TimeRange) || "7d",
+    ...parseTimeRangeFromSearch(search),
   }),
-  loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
-  loader: async ({ deps: { timeRange } }) => {
-    const [summary, byPackage, slowest, durationTrend] = await Promise.all([
-      getTestResultsSummary({ data: { timeRange } }),
-      getTestResultsByPackage({ data: { timeRange } }),
-      getSlowestTests({ data: { timeRange } }),
-      getTestDurationTrend({ data: { timeRange } }),
-    ]);
-    return { summary, byPackage, slowest, durationTrend };
+  loaderDeps: ({ search }) => ({
+    timeRange: { from: search.from, to: search.to },
+  }),
+  loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
+    const input = { timeRange };
+    queryClient.prefetchQuery(testResultsSummaryOptions(input));
+    queryClient.prefetchQuery(testResultsByPackageOptions(input));
+    queryClient.prefetchQuery(slowestTestsOptions(input));
+    queryClient.prefetchQuery(testDurationTrendOptions(input));
   },
   pendingComponent: TestResultsSkeleton,
 });
 
 function TestResultsPage() {
-  const { summary, byPackage, slowest, durationTrend } = Route.useLoaderData();
-  const { timeRange } = Route.useSearch();
+  const { from, to } = Route.useSearch();
+  const timeRange = { from, to };
+  const input = { timeRange };
+  const { data: summary } = useQuery(testResultsSummaryOptions(input));
+  const { data: byPackage } = useQuery(testResultsByPackageOptions(input));
+  const { data: slowest } = useQuery(slowestTestsOptions(input));
+  const { data: durationTrend } = useQuery(testDurationTrendOptions(input));
   const navigate = Route.useNavigate();
 
+  if (!summary) return null;
+
   const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: { timeRange: newRange } });
+    navigate({ search: { from: newRange.from, to: newRange.to } });
   };
 
   return (
@@ -57,7 +64,7 @@ function TestResultsPage() {
             Test execution results across all repositories
           </p>
         </div>
-        <TimeRangeSelect value={timeRange} onChange={handleTimeRangeChange} />
+        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -103,7 +110,7 @@ function TestResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <TestDurationTrendChart data={durationTrend} />
+          <TestDurationTrendChart data={durationTrend ?? []} />
         </CardContent>
       </Card>
 
@@ -113,7 +120,7 @@ function TestResultsPage() {
           <CardDescription>Test results grouped by package</CardDescription>
         </CardHeader>
         <CardContent>
-          <PackageResultsTable data={byPackage} />
+          <PackageResultsTable data={byPackage ?? []} />
         </CardContent>
       </Card>
 
@@ -125,7 +132,7 @@ function TestResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <SlowestTestsTable data={slowest} />
+          <SlowestTestsTable data={slowest ?? []} />
         </CardContent>
       </Card>
     </div>

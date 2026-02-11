@@ -76,6 +76,7 @@ export function TestDurationTrendChart({ data }: TestDurationTrendChartProps) {
           stroke="var(--color-avgDuration)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
         <Line
           dataKey="p50Duration"
@@ -83,6 +84,7 @@ export function TestDurationTrendChart({ data }: TestDurationTrendChartProps) {
           stroke="var(--color-p50Duration)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
         <Line
           dataKey="p95Duration"
@@ -90,6 +92,7 @@ export function TestDurationTrendChart({ data }: TestDurationTrendChartProps) {
           stroke="var(--color-p95Duration)"
           strokeWidth={2}
           dot={false}
+          isAnimationActive={false}
         />
       </LineChart>
     </ChartContainer>

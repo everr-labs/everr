@@ -1,21 +1,13 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 
-export type TimeRange = "7d" | "14d" | "30d" | "90d";
+export { TimeRangeSchema };
 
-export interface TimeRangeInput {
-  timeRange: TimeRange;
-}
-
-export function timeRangeToDays(range: TimeRange): number {
-  const mapping: Record<TimeRange, number> = {
-    "7d": 7,
-    "14d": 14,
-    "30d": 30,
-    "90d": 90,
-  };
-  return mapping[range];
-}
+export const TimeRangeInputSchema = z.object({ timeRange: TimeRangeSchema });
+export type TimeRangeInput = z.infer<typeof TimeRangeInputSchema>;
 
 // Duration Trends
 export interface DurationTrendPoint {
@@ -29,9 +21,9 @@ export interface DurationTrendPoint {
 export const getDurationTrends = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -41,12 +33,12 @@ export const getDurationTrends = createServerFn({
 				quantile(0.95)(Duration) / 1000000 as p95Duration,
 				count(*) as runCount
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 				AND SpanAttributes['citric.test.name'] = ''
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
@@ -55,7 +47,7 @@ export const getDurationTrends = createServerFn({
       p50Duration: string;
       p95Duration: string;
       runCount: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       date: row.date,
@@ -78,9 +70,9 @@ export interface QueueTimePoint {
 export const getQueueTimeAnalysis = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -102,12 +94,12 @@ export const getQueueTimeAnalysis = createServerFn({
 					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.created_at']))
 				) * 1000 as maxQueueTime
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['citric.github.workflow_job.created_at'] != ''
 				AND ResourceAttributes['citric.github.workflow_job.started_at'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
@@ -116,7 +108,7 @@ export const getQueueTimeAnalysis = createServerFn({
       p50QueueTime: string;
       p95QueueTime: string;
       maxQueueTime: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       date: row.date,
@@ -139,9 +131,9 @@ export interface SuccessRatePoint {
 export const getSuccessRateTrends = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -156,13 +148,13 @@ export const getSuccessRateTrends = createServerFn({
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
 				FROM otel_traces
-				WHERE Timestamp >= now() - INTERVAL ${days} DAY
+				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 				GROUP BY run_id
 			)
 			GROUP BY date
-			ORDER BY date ASC
+			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
     const result = await query<{
@@ -171,7 +163,7 @@ export const getSuccessRateTrends = createServerFn({
       totalRuns: string;
       successCount: string;
       failureCount: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       date: row.date,
@@ -194,9 +186,9 @@ export interface RunnerUtilization {
 export const getRunnerUtilization = createServerFn({
   method: "GET",
 })
-  .inputValidator((data: TimeRangeInput) => data)
+  .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const days = timeRangeToDays(timeRange);
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -206,7 +198,7 @@ export const getRunnerUtilization = createServerFn({
 				round(countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'success') * 100.0 / nullIf(count(*), 0), 1) as successRate,
 				sum(Duration) / 1000000 as totalDuration
 			FROM otel_traces
-			WHERE Timestamp >= now() - INTERVAL ${days} DAY
+			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 			GROUP BY labels
@@ -220,7 +212,7 @@ export const getRunnerUtilization = createServerFn({
       avgDuration: string;
       successRate: string;
       totalDuration: string;
-    }>(sql);
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
       labels: row.labels,
@@ -229,4 +221,33 @@ export const getRunnerUtilization = createServerFn({
       successRate: Number(row.successRate) || 0,
       totalDuration: Number(row.totalDuration),
     })) satisfies RunnerUtilization[];
+  });
+
+// Query options factories
+export const durationTrendsOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["analytics", "durationTrends", input],
+    queryFn: () => getDurationTrends({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const queueTimeAnalysisOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["analytics", "queueTime", input],
+    queryFn: () => getQueueTimeAnalysis({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const successRateTrendsOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["analytics", "successRate", input],
+    queryFn: () => getSuccessRateTrends({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const runnerUtilizationOptions = (input: TimeRangeInput) =>
+  queryOptions({
+    queryKey: ["analytics", "runnerUtilization", input],
+    queryFn: () => getRunnerUtilization({ data: input }),
+    staleTime: 60_000,
   });

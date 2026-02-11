@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Activity, CheckCircle, Percent, XCircle } from "lucide-react";
 import { LatestRunsCard } from "@/components/dashboard/latest-runs-card";
@@ -12,32 +13,34 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  getDashboardStats,
-  getRecentActivity,
-  getRepositories,
+  dashboardStatsOptions,
+  recentActivityOptions,
+  repositoriesOptions,
 } from "@/data/dashboard-stats";
-import { getLatestRuns } from "@/data/runs";
+import { latestRunsOptions } from "@/data/runs";
 
 export const Route = createFileRoute("/dashboard/")({
+  staticData: { breadcrumb: "Overview" },
   component: DashboardPage,
-  loader: async () => {
-    const [stats, repositories, recentActivity, latestRuns] = await Promise.all(
-      [
-        getDashboardStats(),
-        getRepositories(),
-        getRecentActivity(),
-        getLatestRuns(),
-      ],
-    );
-    return { stats, repositories, recentActivity, latestRuns };
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.prefetchQuery(dashboardStatsOptions()),
+      queryClient.prefetchQuery(repositoriesOptions()),
+      queryClient.prefetchQuery(recentActivityOptions()),
+      queryClient.prefetchQuery(latestRunsOptions()),
+    ]);
   },
   pendingComponent: DashboardSkeleton,
   errorComponent: DashboardError,
 });
 
 function DashboardPage() {
-  const { stats, repositories, recentActivity, latestRuns } =
-    Route.useLoaderData();
+  const { data: stats } = useQuery(dashboardStatsOptions());
+  const { data: repositories } = useQuery(repositoriesOptions());
+  const { data: recentActivity } = useQuery(recentActivityOptions());
+  const { data: latestRuns } = useQuery(latestRunsOptions());
+
+  if (!stats) return null;
 
   return (
     <div className="space-y-6">
@@ -76,7 +79,7 @@ function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <RepoListCard repositories={repositories} />
+        <RepoListCard repositories={repositories ?? []} />
 
         <Card>
           <CardHeader>
@@ -84,7 +87,7 @@ function DashboardPage() {
             <CardDescription>Last 7 days</CardDescription>
           </CardHeader>
           <CardContent>
-            {recentActivity.length === 0 ? (
+            {!recentActivity || recentActivity.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 No recent activity
               </p>
@@ -114,7 +117,7 @@ function DashboardPage() {
         </Card>
       </div>
 
-      <LatestRunsCard runs={latestRuns} />
+      <LatestRunsCard runs={latestRuns ?? []} />
     </div>
   );
 }
