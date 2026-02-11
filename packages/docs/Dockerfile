@@ -25,4 +25,4 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=build /app/deployed .
 EXPOSE 3000
 USER nodejs
-CMD ["node", ".output/server/index.mjs"]
+CMD ["node", "deployed/.output/server/index.mjs"]
