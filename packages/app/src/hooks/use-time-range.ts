@@ -1,13 +1,13 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
-  DEFAULT_TIME_RANGE,
-  parseTimeRangeFromSearch,
   type TimeRange,
+  TimeRangeSearchSchema,
+  validateTimeRange,
 } from "@/lib/time-range";
 
 export function useTimeRange() {
   const search = useSearch({ strict: false }) as Record<string, unknown>;
-  const timeRange = parseTimeRangeFromSearch(search, DEFAULT_TIME_RANGE);
+  const timeRange = validateTimeRange(TimeRangeSearchSchema.parse(search));
   const navigate = useNavigate();
 
   const setTimeRange = (range: TimeRange) => {

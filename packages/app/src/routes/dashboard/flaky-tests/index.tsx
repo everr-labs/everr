@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { TimeRangePicker } from "@/components/analytics";
 import {
   FlakinessTrendChart,
@@ -20,17 +21,16 @@ import {
   flakyTestSummaryOptions,
   flakyTestsOptions,
 } from "@/data/flaky-tests";
-import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
-
-const FLAKY_DEFAULT = { from: "now-14d", to: "now" };
+import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/flaky-tests/")({
   component: FlakyTestsPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...parseTimeRangeFromSearch(search, FLAKY_DEFAULT),
-    repo: (search.repo as string) || undefined,
-    branch: (search.branch as string) || undefined,
-    search: (search.search as string) || undefined,
+  validateSearch: TimeRangeSearchSchema.extend({
+    from: z.string().default("now-14d"),
+    to: z.string().default("now"),
+    repo: z.string().optional(),
+    branch: z.string().optional(),
+    search: z.string().optional(),
   }),
   loaderDeps: ({ search }) => ({
     timeRange: { from: search.from, to: search.to },

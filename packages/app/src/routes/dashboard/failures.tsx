@@ -19,14 +19,12 @@ import {
   failuresByRepoOptions,
   failureTrendOptions,
 } from "@/data/failures";
-import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
+import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/failures")({
   staticData: { breadcrumb: "Failures" },
   component: FailuresPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...parseTimeRangeFromSearch(search),
-  }),
+  validateSearch: TimeRangeSearchSchema,
   loaderDeps: ({ search }) => ({
     timeRange: { from: search.from, to: search.to },
   }),

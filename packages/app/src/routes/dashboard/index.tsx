@@ -1,93 +1,103 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { Activity, CheckCircle, Percent, XCircle } from "lucide-react";
-import { LatestRunsCard } from "@/components/dashboard/latest-runs-card";
-import { RepoListCard } from "@/components/dashboard/repo-list-card";
-import { StatCard, StatCardSkeleton } from "@/components/dashboard/stat-card";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Activity, ChevronRight } from "lucide-react";
+import { TimeRangePicker } from "@/components/analytics";
+import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
+import { Badge } from "@/components/ui/badge";
+import { Panel } from "@/components/ui/panel";
 import {
   dashboardStatsOptions,
   recentActivityOptions,
   repositoriesOptions,
 } from "@/data/dashboard-stats";
 import { latestRunsOptions } from "@/data/runs";
+import { useTimeRange } from "@/hooks/use-time-range";
+import { formatRelativeTime, getSuccessRateVariant } from "@/lib/formatting";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/")({
   staticData: { breadcrumb: "Overview" },
   component: DashboardPage,
-  loader: async ({ context: { queryClient } }) => {
-    await Promise.all([
-      queryClient.prefetchQuery(dashboardStatsOptions()),
-      queryClient.prefetchQuery(repositoriesOptions()),
-      queryClient.prefetchQuery(recentActivityOptions()),
-      queryClient.prefetchQuery(latestRunsOptions()),
-    ]);
-  },
-  pendingComponent: DashboardSkeleton,
-  errorComponent: DashboardError,
+  validateSearch: TimeRangeSearchSchema,
 });
 
 function DashboardPage() {
-  const { data: stats } = useQuery(dashboardStatsOptions());
-  const { data: repositories } = useQuery(repositoriesOptions());
-  const { data: recentActivity } = useQuery(recentActivityOptions());
-  const { data: latestRuns } = useQuery(latestRunsOptions());
-
-  if (!stats) return null;
+  const { timeRange, setTimeRange } = useTimeRange();
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your CI/CD pipelines
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Overview of your CI/CD pipelines
+          </p>
+        </div>
+        <TimeRangePicker value={timeRange} onChange={setTimeRange} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Job Runs"
-          description="All time"
-          value={stats.totalJobRuns}
-          icon={Activity}
-        />
-        <StatCard
-          title="Successful Runs"
-          description="Completed successfully"
-          value={stats.successfulRuns}
-          icon={CheckCircle}
-        />
-        <StatCard
-          title="Failed Runs"
-          description="Completed with errors"
-          value={stats.failedRuns}
-          icon={XCircle}
-        />
-        <StatCard
-          title="Success Rate"
-          description="Overall pass rate"
-          value={`${stats.successRate}%`}
-          icon={Percent}
-        />
-      </div>
+      <Panel title="Job Runs" queries={[dashboardStatsOptions]} icon={Activity}>
+        {(stats) => (
+          <>
+            <div className="text-2xl font-bold">{stats.totalJobRuns}</div>
+            <div className="text-muted-foreground mt-1 flex gap-3 text-sm">
+              <span className="text-green-600">
+                {stats.successfulRuns} passed
+              </span>
+              <span className="text-red-600">{stats.failedRuns} failed</span>
+              <span>{stats.successRate}% success rate</span>
+            </div>
+          </>
+        )}
+      </Panel>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <RepoListCard repositories={repositories ?? []} />
+        <Panel
+          title="Watched Repositories"
+          description="Repositories sending CI/CD telemetry"
+          queries={[repositoriesOptions]}
+        >
+          {(repositories) =>
+            repositories.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No repositories found. Set up a webhook to start collecting
+                data.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {repositories.map((repo) => (
+                  <div
+                    key={repo.name}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex flex-col">
+                      <Link
+                        to="/dashboard/repos"
+                        search={{
+                          name: repo.name,
+                          from: "now-7d",
+                          to: "now",
+                        }}
+                        className="text-sm font-medium hover:underline"
+                      >
+                        {repo.name}
+                      </Link>
+                      <span className="text-muted-foreground text-xs">
+                        {repo.totalRuns} runs
+                      </span>
+                    </div>
+                    <Badge variant={getSuccessRateVariant(repo.successRate)}>
+                      {repo.successRate}%
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </Panel>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Last 7 days</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!recentActivity || recentActivity.length === 0 ? (
+        <Panel title="Recent Activity" queries={[recentActivityOptions]}>
+          {(recentActivity) =>
+            recentActivity.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 No recent activity
               </p>
@@ -112,83 +122,72 @@ function DashboardPage() {
                   </div>
                 ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        </Panel>
       </div>
 
-      <LatestRunsCard runs={latestRuns ?? []} />
-    </div>
-  );
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="mt-1 h-4 w-48" />
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
-          <StatCardSkeleton key={i} />
-        ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-48" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-24" />
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
-              <Skeleton key={i} className="h-6 w-full" />
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-function DashboardError({ error }: { error: Error }) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your CI/CD pipelines
-        </p>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-center">
-            <p className="text-destructive font-medium">
-              Failed to load dashboard data
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {error.message}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <Panel
+        title="Runs"
+        description="Workflow executions in this period"
+        queries={[latestRunsOptions]}
+        action={
+          <Link
+            to="/dashboard/runs"
+            search={{
+              from: "now-7d",
+              to: "now",
+              page: 1,
+              repo: undefined,
+              branch: undefined,
+              conclusion: undefined,
+              workflowName: undefined,
+              runId: undefined,
+            }}
+            className="text-muted-foreground hover:text-foreground text-xs"
+          >
+            View all
+          </Link>
+        }
+      >
+        {(runs) =>
+          runs.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No runs found</p>
+          ) : (
+            <div className="space-y-3">
+              {runs.map((run) => (
+                <Link
+                  key={run.traceId}
+                  to="/dashboard/runs/$traceId"
+                  params={{ traceId: run.traceId }}
+                  className="hover:bg-muted/50 -mx-2 flex items-center justify-between rounded-md px-2 py-2 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <ConclusionIcon
+                      conclusion={run.conclusion}
+                      className="size-4"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">
+                        {run.workflowName}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {run.repo} • {run.branch}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs">
+                      {formatRelativeTime(run.timestamp)}
+                    </span>
+                    <ChevronRight className="text-muted-foreground size-4" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )
+        }
+      </Panel>
     </div>
   );
 }

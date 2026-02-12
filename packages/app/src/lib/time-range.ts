@@ -21,25 +21,21 @@ export function resolveTimeRange(range: TimeRange) {
   };
 }
 
-export function parseTimeRangeFromSearch(
-  search: Record<string, unknown>,
-  defaultRange: TimeRange = DEFAULT_TIME_RANGE,
-): TimeRange {
-  // New format: ?from=now-7d&to=now
-  if (typeof search.from === "string" && typeof search.to === "string") {
-    return { from: search.from, to: search.to };
-  }
+export const TimeRangeSearchSchema = z.object({
+  from: z.string().default(DEFAULT_TIME_RANGE.from),
+  to: z.string().default(DEFAULT_TIME_RANGE.to),
+});
 
-  // Legacy format: ?timeRange=7d
-  if (typeof search.timeRange === "string") {
-    const legacy = search.timeRange;
-    const match = legacy.match(/^(\d+)([dhMy])$/);
-    if (match) {
-      return { from: `now-${legacy}`, to: "now" };
-    }
+export function validateTimeRange(range: TimeRange): TimeRange {
+  if (!isValid(range.from) || !isValid(range.to)) {
+    return DEFAULT_TIME_RANGE;
   }
-
-  return defaultRange;
+  const fromDate = resolve(range.from, { roundUp: false });
+  const toDate = resolve(range.to, { roundUp: true });
+  if (fromDate >= toDate) {
+    return DEFAULT_TIME_RANGE;
+  }
+  return range;
 }
 
 export interface QuickRange {

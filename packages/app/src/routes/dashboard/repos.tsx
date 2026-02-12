@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { TimeRangePicker } from "@/components/analytics";
 import {
   ActiveBranchesTable,
@@ -25,14 +26,13 @@ import {
   repoSuccessRateTrendOptions,
   topFailingJobsOptions,
 } from "@/data/repo-detail";
-import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
+import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },
   component: RepoDetailPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    name: (search.name as string) || "",
-    ...parseTimeRangeFromSearch(search),
+  validateSearch: TimeRangeSearchSchema.extend({
+    name: z.string().default(""),
   }),
   loaderDeps: ({ search }) => ({
     name: search.name,

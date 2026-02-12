@@ -21,14 +21,12 @@ import {
   costOverviewOptions,
   formatCost,
 } from "@/data/cost-analysis";
-import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
+import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/cost-analysis")({
   staticData: { breadcrumb: "Cost Analysis" },
   component: CostAnalysisPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...parseTimeRangeFromSearch(search),
-  }),
+  validateSearch: TimeRangeSearchSchema,
   loaderDeps: ({ search }) => ({
     timeRange: { from: search.from, to: search.to },
   }),

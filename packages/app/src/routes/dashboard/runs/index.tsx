@@ -1,22 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { TimeRangePicker } from "@/components/analytics";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
-import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
+import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/runs/")({
   component: RunsListPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...parseTimeRangeFromSearch(search),
-    page: Number(search.page) || 1,
-    repo: (search.repo as string) || undefined,
-    branch: (search.branch as string) || undefined,
-    conclusion: (search.conclusion as string) || undefined,
-    workflowName: (search.workflowName as string) || undefined,
-    runId: (search.runId as string) || undefined,
+  validateSearch: TimeRangeSearchSchema.extend({
+    page: z.coerce.number().default(1),
+    repo: z.string().optional(),
+    branch: z.string().optional(),
+    conclusion: z.string().optional(),
+    workflowName: z.string().optional(),
+    runId: z.string().optional(),
   }),
   loaderDeps: ({ search }) => ({
     timeRange: { from: search.from, to: search.to },

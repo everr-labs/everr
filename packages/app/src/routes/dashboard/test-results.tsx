@@ -18,14 +18,12 @@ import {
   testResultsByPackageOptions,
   testResultsSummaryOptions,
 } from "@/data/test-results";
-import { parseTimeRangeFromSearch, type TimeRange } from "@/lib/time-range";
+import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-results")({
   staticData: { breadcrumb: "Test Results" },
   component: TestResultsPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...parseTimeRangeFromSearch(search),
-  }),
+  validateSearch: TimeRangeSearchSchema,
   loaderDeps: ({ search }) => ({
     timeRange: { from: search.from, to: search.to },
   }),

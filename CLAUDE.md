@@ -43,3 +43,18 @@ make test-all         # Run Go tests
 - [Development Setup](.claude/docs/development.md) - Local environment setup
 - [Code Style](.claude/docs/code-style.md) - Formatting and conventions
 - Features and documentation live in `packages/docs` — keep docs up to date when adding or modifying features
+
+
+Your context window will be automatically compacted as it approaches its limit, allowing you to continue working
+indefinitely from where you left off. Therefore, do not stop tasks early due to token budget concerns.
+As you approach your token budget limit, save your current progress and state to memory before the context window refreshes.
+Always be as persistent and autonomous as possible and complete tasks fully, even if the end of your budget is approaching.
+Never artificially stop any task early regardless of the context remaining.
+
+## Code Patterns 
+
+When implementing UI changes across multiple routes or pages, always use shared layout components (e.g., TanStack Start layout routes) rather than duplicating layout code. Check for existing layout abstractions before creating inline layouts.
+
+##  ClickHouse section.
+
+When fixing ClickHouse queries, remember that column aliases from subqueries cannot be accessed as map expressions in outer queries — reference them by their alias name directly. Always test complex ClickHouse SQL mentally for alias scoping.

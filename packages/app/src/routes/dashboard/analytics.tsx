@@ -7,14 +7,12 @@ import {
   TimeRangePicker,
 } from "@/components/analytics";
 import { useTimeRange } from "@/hooks/use-time-range";
-import { parseTimeRangeFromSearch } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/analytics")({
   staticData: { breadcrumb: "Analytics" },
   component: AnalyticsPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...parseTimeRangeFromSearch(search),
-  }),
+  validateSearch: TimeRangeSearchSchema,
 });
 
 function AnalyticsPage() {

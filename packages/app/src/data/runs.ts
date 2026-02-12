@@ -2,6 +2,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { resolveTimeRange } from "@/lib/time-range";
+import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 
 export interface Run {
   traceId: string;
@@ -63,8 +65,12 @@ export interface Span {
 
 export const getLatestRuns = createServerFn({
   method: "GET",
-}).handler(async () => {
-  const sql = `
+})
+  .inputValidator(TimeRangeInputSchema)
+  .handler(async ({ data: { timeRange } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
+
+    const sql = `
 		SELECT
 			TraceId as trace_id,
 			anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
@@ -76,33 +82,34 @@ export const getLatestRuns = createServerFn({
 			max(Timestamp) as timestamp
 		FROM otel_traces
 		WHERE ResourceAttributes['cicd.pipeline.run.id'] != ''
+			AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 		GROUP BY trace_id
 		ORDER BY timestamp DESC
 		LIMIT 10
 	`;
 
-  const result = await query<{
-    trace_id: string;
-    run_id: string;
-    run_attempt: string;
-    repo: string;
-    branch: string;
-    conclusion: string;
-    workflowName: string;
-    timestamp: string;
-  }>(sql);
+    const result = await query<{
+      trace_id: string;
+      run_id: string;
+      run_attempt: string;
+      repo: string;
+      branch: string;
+      conclusion: string;
+      workflowName: string;
+      timestamp: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-  return result.map((row) => ({
-    traceId: row.trace_id,
-    runId: row.run_id,
-    runAttempt: Number(row.run_attempt),
-    repo: row.repo,
-    branch: row.branch,
-    conclusion: row.conclusion,
-    workflowName: row.workflowName || "Workflow",
-    timestamp: row.timestamp,
-  })) satisfies Run[];
-});
+    return result.map((row) => ({
+      traceId: row.trace_id,
+      runId: row.run_id,
+      runAttempt: Number(row.run_attempt),
+      repo: row.repo,
+      branch: row.branch,
+      conclusion: row.conclusion,
+      workflowName: row.workflowName || "Workflow",
+      timestamp: row.timestamp,
+    })) satisfies Run[];
+  });
 
 export const getRunDetails = createServerFn({
   method: "GET",
@@ -402,10 +409,10 @@ export const getRunSpans = createServerFn({
   });
 
 // Query options factories
-export const latestRunsOptions = () =>
+export const latestRunsOptions = ({ timeRange }: TimeRangeInput) =>
   queryOptions({
-    queryKey: ["runs", "latest"],
-    queryFn: () => getLatestRuns(),
+    queryKey: ["runs", "latest", timeRange],
+    queryFn: () => getLatestRuns({ data: { timeRange } }),
   });
 
 export const runDetailsOptions = (traceId: string) =>

@@ -174,6 +174,26 @@ describe("TimeRangePicker", () => {
       ).not.toBeDisabled();
     });
 
+    it("shows error and disables Apply when from is after to", async () => {
+      const { user } = renderPicker();
+      await openPicker(user);
+
+      const fromInput = screen.getByLabelText("From");
+      await user.clear(fromInput);
+      await user.type(fromInput, "now");
+
+      const toInput = screen.getByLabelText("To");
+      await user.clear(toInput);
+      await user.type(toInput, "now-7d");
+
+      expect(
+        screen.getByText(/"From" must be before "To"/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Apply time range" }),
+      ).toBeDisabled();
+    });
+
     it("calls onChange with custom values on Apply", async () => {
       const { user, onChange } = renderPicker();
       await openPicker(user);

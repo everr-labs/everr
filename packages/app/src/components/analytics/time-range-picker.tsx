@@ -62,7 +62,12 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
 
   const fromPreview = formatPreview(customFrom, false);
   const toPreview = formatPreview(customTo, true);
-  const canApply = fromPreview !== null && toPreview !== null;
+  const rangeInverted =
+    fromPreview !== null &&
+    toPreview !== null &&
+    resolve(customFrom, { roundUp: false }) >=
+      resolve(customTo, { roundUp: true });
+  const canApply = fromPreview !== null && toPreview !== null && !rangeInverted;
 
   const handlePresetClick = (from: string, to: string) => {
     onChange({ from, to });
@@ -225,6 +230,11 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
               </div>
             </div>
 
+            {rangeInverted && (
+              <p className="text-destructive text-[11px]">
+                "From" must be before "To"
+              </p>
+            )}
             <Button
               className="w-full mt-1"
               disabled={!canApply}
