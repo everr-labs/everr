@@ -1,11 +1,12 @@
 import {
+  SiArgo,
   SiBuildkite,
   SiCircleci,
   SiDrone,
+  SiGithub,
   SiGithubactions,
   SiGitlab,
   SiJenkins,
-  SiOpentelemetry,
 } from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -54,8 +55,9 @@ import {
   siVitest,
   siZig,
 } from "simple-icons";
-
 import { AnimatedBeam } from "@/components/animated-beam";
+import { type CICDSystem, CICDSystemTile } from "@/components/cicd-system-tile";
+import OtelLogo from "@/components/otel-logo.svg?react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -286,9 +288,7 @@ function SurfaceCard({
 type EcosystemItem = {
   iconKey?: string;
   label: string;
-  caption: string;
   meta?: string;
-  lane?: string;
 };
 
 function SectionFrame({
@@ -298,7 +298,7 @@ function SectionFrame({
   children,
   align = "left",
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
   children?: ReactNode;
@@ -308,7 +308,7 @@ function SectionFrame({
   return (
     <SurfaceCard className="section-terminal-shell relative overflow-hidden p-5 sm:p-6">
       <div className={`mb-4 ${isRight ? "text-right" : "text-left"}`}>
-        <p className="terminal-eyebrow">{eyebrow}</p>
+        {eyebrow && <p className="terminal-eyebrow">{eyebrow}</p>}
         <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
           {title}
         </h2>
@@ -373,34 +373,28 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
         <div className="flex flex-col justify-center gap-3">
           <BeamCircle ref={ghaRef}>
             <SiGithubactions />
-            {/*<BrandIcon icon={brandIcons.githubactions} className="size-5" />*/}
           </BeamCircle>
           <BeamCircle ref={gitlabRef}>
             <SiGitlab />
-            {/*<BrandIcon icon={brandIcons.gitlab} className="size-5" />*/}
           </BeamCircle>
           <BeamCircle ref={circleRef}>
             <SiCircleci />
-            {/*<BrandIcon icon={brandIcons.circleci} className="size-5" />*/}
           </BeamCircle>
           <BeamCircle ref={jenkinsRef}>
             <SiJenkins />
-            {/*<BrandIcon icon={brandIcons.jenkins} className="size-5" />*/}
           </BeamCircle>
           <BeamCircle ref={droneRef}>
             <SiDrone />
-            {/*<BrandIcon icon={brandIcons.drone} className="size-5" />*/}
           </BeamCircle>
           <BeamCircle ref={buildkiteRef}>
             <SiBuildkite />
-            {/*<BrandIcon icon={brandIcons.buildkite} className="size-5" />*/}
           </BeamCircle>
         </div>
 
         <div className="flex flex-col justify-center">
           <BeamCircle ref={otelRef} className="size-16">
             <div className="flex flex-col items-center gap-1">
-              <SiOpentelemetry className="size-5 text-citric-deep fill-foreground" />
+              <OtelLogo className="size-6" />
 
               <span className="text-[9px] font-semibold leading-none">
                 OTel
@@ -496,42 +490,6 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
   );
 }
 
-function CICDStatusTile({
-  item,
-  reduceMotion,
-}: {
-  item: EcosystemItem;
-  reduceMotion: boolean;
-}) {
-  const iconFromItem = item.iconKey ? brandIcons[item.iconKey] : undefined;
-
-  return (
-    <motion.div
-      className="terminal-tile"
-      variants={fadeUp}
-      whileHover={reduceMotion ? undefined : { y: -5, scale: 1.01 }}
-      transition={{ duration: 0.2 }}
-    >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="rounded-md border border-fd-border bg-fd-secondary/30 p-1.5">
-          {iconFromItem ? (
-            <BrandIcon icon={iconFromItem} className="size-4.5" />
-          ) : (
-            <Cpu className="size-4.5 text-citric-deep" />
-          )}
-        </div>
-        <span className="rounded-full bg-citric/15 px-2 py-0.5 font-mono text-[10px] text-citric-deep">
-          receiver
-        </span>
-      </div>
-      <p className="text-sm font-semibold">{item.label}</p>
-      <p className="mt-1 text-xs leading-relaxed text-fd-muted-foreground">
-        {item.caption}
-      </p>
-    </motion.div>
-  );
-}
-
 function RuntimeMatrixCard({
   item,
   idx,
@@ -550,7 +508,7 @@ function RuntimeMatrixCard({
       whileHover={reduceMotion ? undefined : { y: -4, scale: 1.012 }}
       className="runtime-matrix-card"
     >
-      <div className="mb-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <div className="rounded-md border border-fd-border bg-fd-secondary/30 p-1.5">
           {icon ? (
             <BrandIcon icon={icon} className="size-4.5" />
@@ -560,9 +518,6 @@ function RuntimeMatrixCard({
         </div>
         <p className="font-semibold text-sm">{item.label}</p>
       </div>
-      <p className="text-xs leading-relaxed text-fd-muted-foreground">
-        {item.caption}
-      </p>
     </motion.div>
   );
 }
@@ -582,7 +537,7 @@ function SignalPanelCard({
       whileHover={reduceMotion ? undefined : { y: -4, scale: 1.01 }}
       className="signal-panel-card rounded-xl border border-fd-border bg-fd-card p-3"
     >
-      <div className="mb-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <div className="rounded-md border border-fd-border bg-fd-secondary/30 p-1.5">
           {icon ? (
             <BrandIcon icon={icon} className="size-4.5" />
@@ -599,6 +554,44 @@ function SignalPanelCard({
   );
 }
 
+const ciSystems = [
+  {
+    Icon: SiGithub,
+    name: "GitHub Actions",
+    status: "beta",
+  },
+  {
+    Icon: SiGitlab,
+    name: "GitLab CI",
+    status: "planned",
+  },
+  {
+    Icon: SiCircleci,
+    name: "CircleCI",
+    status: "planned",
+  },
+  {
+    Icon: SiJenkins,
+    name: "Jenkins",
+    status: "planned",
+  },
+  {
+    Icon: SiDrone,
+    name: "Drone",
+    status: "planned",
+  },
+  {
+    Icon: SiArgo,
+    name: "Argo CD",
+    status: "planned",
+  },
+  {
+    Icon: SiBuildkite,
+    name: "Buildkite",
+    status: "planned",
+  },
+] satisfies CICDSystem[];
+
 function Home() {
   const reduceMotion = useReducedMotion();
   const shouldReduceMotion = Boolean(reduceMotion);
@@ -611,125 +604,74 @@ function Home() {
         viewport: { once: true, amount: 0.2 },
       };
 
-  const ciSystems = [
-    {
-      iconKey: "githubactions",
-      label: "GitHub Actions",
-      caption: "Primary ingestion path for workflow/run metadata.",
-    },
-    {
-      iconKey: "gitlab",
-      label: "GitLab CI",
-      caption: "Adapter target for pipeline and stage ingestion.",
-    },
-    {
-      iconKey: "circleci",
-      label: "CircleCI",
-      caption: "Adapter target for workflow and step correlation.",
-    },
-    {
-      iconKey: "jenkins",
-      label: "Jenkins",
-      caption: "Adapter target for job/stage event normalization.",
-    },
-    {
-      iconKey: "drone",
-      label: "Drone",
-      caption: "Adapter target for run metadata and outcomes.",
-    },
-    {
-      iconKey: "argocd",
-      label: "Argo CD",
-      caption: "Deployment telemetry adapter target.",
-    },
-    {
-      iconKey: "buildkite",
-      label: "Buildkite",
-      caption: "Adapter target for build graph ingestion.",
-    },
-  ];
-
   const languagesAndRuntimes = [
-    { iconKey: "go", label: "Go", caption: "Collector/runtime baseline." },
+    {
+      iconKey: "go",
+      label: "Go",
+    },
     {
       iconKey: "nodejs",
       label: "Node.js",
-      caption: "Runtime telemetry coverage target.",
     },
     {
       iconKey: "deno",
       label: "Deno",
-      caption: "Runtime telemetry coverage target.",
     },
     {
       iconKey: "bun",
       label: "Bun",
-      caption: "Runtime telemetry coverage target.",
     },
     {
       iconKey: "python",
       label: "Python",
-      caption: "Suite and test metadata target.",
     },
     {
       iconKey: "ruby",
       label: "Ruby",
-      caption: "Suite and test metadata target.",
     },
     {
       iconKey: "dotnet",
       label: "C#/.NET",
-      caption: "CLR telemetry compatibility target.",
     },
     {
       iconKey: "swift",
       label: "Swift",
-      caption: "Package/test telemetry mapping target.",
     },
     {
       iconKey: "zig",
       label: "Zig",
-      caption: "Build/test telemetry mapping target.",
     },
     {
       iconKey: "gleam",
       label: "Gleam",
-      caption: "Language telemetry mapping target.",
     },
     {
       iconKey: "dart",
       label: "Dart",
-      caption: "Language telemetry mapping target.",
     },
     {
       iconKey: "flutter",
       label: "Flutter",
-      caption: "App test telemetry mapping target.",
     },
     {
       iconKey: "php",
       label: "PHP",
-      caption: "PHP test telemetry mapping target.",
     },
     {
       iconKey: "kotlin",
       label: "Kotlin",
-      caption: "JVM telemetry compatibility target.",
     },
     {
       iconKey: "scala",
       label: "Scala",
-      caption: "JVM telemetry compatibility target.",
     },
     {
       iconKey: "rust",
       label: "Rust",
-      caption: "Test and bench telemetry target.",
     },
     {
       iconKey: "elixir",
       label: "Elixir",
-      caption: "Suite telemetry mapping target.",
     },
   ];
 
@@ -737,26 +679,21 @@ function Home() {
     {
       iconKey: "vitest",
       label: "Vitest",
-      caption: "Current test analytics ingestion path.",
     },
     {
       iconKey: "jest",
       label: "Jest",
-      caption: "JavaScript test ingestion target.",
     },
     {
       iconKey: "pytest",
       label: "Pytest",
-      caption: "Python test ingestion target.",
     },
     {
       iconKey: "junit5",
       label: "JUnit 5",
-      caption: "JVM test result model target.",
     },
     {
       label: "Playwright",
-      caption: "Placeholder icon - browser E2E telemetry adapter target.",
     },
   ];
 
@@ -817,7 +754,8 @@ function Home() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-5 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 hover:bg-fd-accent"
               >
-                Inspect source
+                <SiGithub className="size-5" />
+                GitHub
               </a>
             </div>
           </motion.div>
@@ -901,7 +839,7 @@ function Home() {
             {[
               {
                 title: "Ingest",
-                text: "Provider adapters ingest CI metadata (GitHub Actions first).",
+                text: "Provider-agnosting adapters ingest CI signals via APIs and webhooks.",
                 icon: <GitPullRequest className="size-4" />,
               },
               {
@@ -916,7 +854,7 @@ function Home() {
               },
               {
                 title: "Analyze",
-                text: "Trace waterfall, regressions, and flaky signatures.",
+                text: "Trace waterfall, performance regressions, and flakiness analysis.",
                 icon: <BarChart3 className="size-4" />,
               },
             ].map((item) => (
@@ -990,24 +928,23 @@ function Home() {
         <motion.section
           variants={staggerContainer}
           {...reveal}
-          className="mb-24 lg:grid lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:gap-10"
+          className="mb-24 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:items-start lg:gap-10"
         >
           <motion.div variants={fadeUp} className="mb-6 lg:mb-0">
             <SectionFrame
-              eyebrow="Pipeline Control Plane"
-              title="CI/CD systems"
-              description="Provider adapters are routed through a single telemetry control plane. Links pulse as execution signals are normalized into consistent traces."
+              title="CI/CD system agnostic"
+              description="Leveraging OpenTelemetry semantic conventions and a normalized trace model, Citric provides a unified observability layer across CI/CD platforms. Ingest pipelines are adapter-based, with GitHub Actions support available now and additional providers coming soon."
             >
               <CICDTopologyViz reduceMotion={shouldReduceMotion} />
             </SectionFrame>
           </motion.div>
           <motion.div
             variants={staggerContainer}
-            className="grid gap-3 sm:grid-cols-2"
+            className="cicd-tiles-bg flex flex-col gap-2.5 rounded-2xl border border-fd-border bg-fd-card/45 p-4"
           >
             {ciSystems.map((item) => (
-              <CICDStatusTile
-                key={item.label}
+              <CICDSystemTile
+                key={item.name}
                 item={item}
                 reduceMotion={shouldReduceMotion}
               />
@@ -1036,10 +973,9 @@ function Home() {
           <motion.div variants={fadeUp} className="mb-6 lg:order-2 lg:mb-0">
             <SectionFrame
               align="right"
-              eyebrow="Runtime Compatibility Matrix"
               title="Languages and runtimes"
-              description="Language telemetry lanes are curated as matrix profiles. Each card exposes parser posture, event model strategy, and schema normalization characteristics."
-            ></SectionFrame>
+              description="Language-specific output is normalized into a consistent trace model with spans, attributes, and events, so you get the same query and dashboard experience whether your pipelines are in Go, Python, Node.js, or any other major language or runtime environment. Instrumentation libraries and CI adapters are built on OpenTelemetry Collector for maximum flexibility and extensibility."
+            />
           </motion.div>
         </motion.section>
 
@@ -1050,9 +986,8 @@ function Home() {
         >
           <motion.div variants={fadeUp} className="mb-6 lg:mb-0">
             <SectionFrame
-              eyebrow="Test Signal Lab"
               title="Test frameworks"
-              description="Framework signals are ingested through lane-oriented adapters. Timing vectors and flaky indicators are shaped into a stable analytical graph."
+              description="Whether you're running unit tests in JUnit, pytest, or Vitest, or end-to-end tests in Playwright, Citric's normalization extracts test signals like pass/fail status, error types, and flaky history into span attributes and events. This enables powerful test intelligence features like failure clustering and flakiness tracking across diverse test ecosystems."
             />
           </motion.div>
           <motion.div
@@ -1071,12 +1006,12 @@ function Home() {
 
         <motion.section variants={fadeUp} {...reveal} className="mb-20">
           <SurfaceCard className="p-5">
-            <h3 className="mb-4 font-semibold">Quickstart path</h3>
+            <h3 className="mb-4 font-semibold">Quickstart</h3>
             <ol className="space-y-4 text-sm">
               <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
-                <p className="font-medium">1. Deploy collector endpoint</p>
+                <p className="font-medium">1. Deploy collector</p>
                 <p className="mt-1 text-fd-muted-foreground">
-                  Configure webhook intake and repository auth.
+                  Configure webhooks and auth.
                 </p>
               </li>
               <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
@@ -1127,7 +1062,7 @@ function Home() {
                 params={{ _splat: "" }}
                 className="inline-flex items-center gap-2 rounded-xl bg-citric-deep px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-citric-deep/30"
               >
-                Start documenting your pipeline
+                Start instrumenting your pipelines
                 <ArrowRight className="size-4" />
               </Link>
               <a
@@ -1136,7 +1071,8 @@ function Home() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-6 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 hover:bg-fd-accent"
               >
-                Review source on GitHub
+                <SiGithub className="size-5" />
+                GitHub
               </a>
             </div>
           </SurfaceCard>

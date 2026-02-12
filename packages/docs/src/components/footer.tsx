@@ -14,7 +14,7 @@ export function Footer() {
               Citric
             </div>
             <p className="text-sm text-fd-muted-foreground">
-              CI/CD Observability powered by OpenTelemetry
+              OpenTelemetry-native CI/CD Observability
             </p>
           </div>
 
