@@ -28,7 +28,7 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 
 		attrs.PutStr(semconv.CitricGitHubWorkflowJobCreatedAt, e.GetWorkflowJob().GetCreatedAt().Format(time.RFC3339))
 		attrs.PutStr(semconv.CitricGitHubWorkflowJobCompletedAt, e.GetWorkflowJob().GetCompletedAt().Format(time.RFC3339))
-		attrs.PutStr(string(conventions.CICDPipelineTaskRunResultKey), e.GetWorkflowJob().GetConclusion())
+		attrs.PutStr(string(conventions.CICDPipelineTaskRunResultKey), mapConclusion(e.GetWorkflowJob().GetConclusion()))
 		attrs.PutStr(string(conventions.VCSRefHeadNameKey), e.GetWorkflowJob().GetHeadBranch())
 		attrs.PutStr(string(conventions.VCSRefHeadTypeKey), "branch")
 		attrs.PutStr(string(conventions.VCSRefHeadRevisionKey), e.GetWorkflowJob().GetHeadSHA())

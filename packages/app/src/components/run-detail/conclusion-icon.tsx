@@ -1,10 +1,4 @@
-import {
-  Ban,
-  CheckCircle,
-  CircleDashed,
-  SkipForward,
-  XCircle,
-} from "lucide-react";
+import { Ban, CheckCircle, CircleDashed, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ConclusionIconProps {
@@ -18,9 +12,11 @@ export function ConclusionIcon({ conclusion, className }: ConclusionIconProps) {
       return <CheckCircle className={cn("text-green-600", className)} />;
     case "failure":
       return <XCircle className={cn("text-red-600", className)} />;
-    case "skipped":
-      return <SkipForward className={cn("text-muted-foreground", className)} />;
-    case "cancelled":
+    case "skip":
+      return (
+        <CircleDashed className={cn("text-muted-foreground", className)} />
+      );
+    case "cancellation":
       return <Ban className={cn("text-muted-foreground", className)} />;
     default:
       return (

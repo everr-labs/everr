@@ -16,6 +16,19 @@ import (
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 )
 
+func mapConclusion(conclusion string) string {
+	switch conclusion {
+	case "skipped":
+		return "skip"
+	case "cancelled":
+		return "cancellation"
+	case "timed_out":
+		return "timeout"
+	default:
+		return conclusion
+	}
+}
+
 func eventToTraces(event interface{}, config *Config, logger *zap.Logger) (*ptrace.Traces, error) {
 	logger.Debug("Determining event")
 	traces := ptrace.NewTraces()
@@ -116,7 +129,7 @@ func createParentSpan(scopeSpans ptrace.ScopeSpans, steps []*github.TaskStep, jo
 		span.Status().SetCode(ptrace.StatusCodeUnset)
 	}
 
-	span.Status().SetMessage(job.GetConclusion())
+	span.Status().SetMessage(mapConclusion(job.GetConclusion()))
 
 	return span.SpanID(), nil
 }
@@ -144,7 +157,8 @@ func createRootSpan(resourceSpans ptrace.ResourceSpans, event *github.WorkflowRu
 	span.SetKind(ptrace.SpanKindServer)
 	setSpanTimes(span, event.GetWorkflowRun().GetRunStartedAt().Time, event.GetWorkflowRun().GetUpdatedAt().Time)
 
-	switch event.WorkflowRun.GetConclusion() {
+	conclusion := mapConclusion(event.GetWorkflowRun().GetConclusion())
+	switch conclusion {
 	case "success":
 		span.Status().SetCode(ptrace.StatusCodeOk)
 	case "failure":
@@ -153,7 +167,7 @@ func createRootSpan(resourceSpans ptrace.ResourceSpans, event *github.WorkflowRu
 		span.Status().SetCode(ptrace.StatusCodeUnset)
 	}
 
-	span.Status().SetMessage(event.GetWorkflowRun().GetConclusion())
+	span.Status().SetMessage(conclusion)
 
 	// Attempt to link to previous trace ID if applicable
 	if event.GetWorkflowRun().GetPreviousAttemptURL() != "" && event.GetWorkflowRun().GetRunAttempt() > 1 {
@@ -180,7 +194,7 @@ func createSpan(scopeSpans ptrace.ScopeSpans, step *github.TaskStep, job *github
 
 	span.Attributes().PutStr(string(conventions.CICDPipelineTaskNameKey), step.GetName())
 	span.Attributes().PutStr(semconv.CitricGitHubWorkflowJobStepStatus, step.GetStatus())
-	span.Attributes().PutStr(string(conventions.CICDPipelineTaskRunResultKey), step.GetConclusion())
+	span.Attributes().PutStr(string(conventions.CICDPipelineTaskRunResultKey), mapConclusion(step.GetConclusion()))
 	span.Attributes().PutInt(semconv.CitricGitHubWorkflowJobStepNumber, step.GetNumber())
 
 	spanID, err := generateStepSpanID(job.GetRunID(), int(job.GetRunAttempt()), job.GetName(), step.GetNumber())
@@ -201,7 +215,8 @@ func createSpan(scopeSpans ptrace.ScopeSpans, step *github.TaskStep, job *github
 	span.SetName(step.GetName())
 	span.SetKind(ptrace.SpanKindServer)
 
-	switch step.GetConclusion() {
+	stepConclusion := mapConclusion(step.GetConclusion())
+	switch stepConclusion {
 	case "success":
 		span.Status().SetCode(ptrace.StatusCodeOk)
 	case "failure":
@@ -210,7 +225,7 @@ func createSpan(scopeSpans ptrace.ScopeSpans, step *github.TaskStep, job *github
 		span.Status().SetCode(ptrace.StatusCodeUnset)
 	}
 
-	span.Status().SetMessage(step.GetConclusion())
+	span.Status().SetMessage(stepConclusion)
 
 	return span.SpanID(), nil
 }

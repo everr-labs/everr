@@ -21,7 +21,7 @@ func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent
 	attrs.PutInt(semconv.CitricGitHubWorkflowID, e.GetWorkflowRun().GetWorkflowID())
 	attrs.PutStr(semconv.CitricGitHubWorkflowRunActorLogin, e.GetWorkflowRun().GetActor().GetLogin())
 
-	attrs.PutStr(string(conventions.CICDPipelineResultKey), e.GetWorkflowRun().GetConclusion())
+	attrs.PutStr(string(conventions.CICDPipelineResultKey), mapConclusion(e.GetWorkflowRun().GetConclusion()))
 	attrs.PutStr(semconv.CitricGitHubWorkflowRunCreatedAt, e.GetWorkflowRun().GetCreatedAt().Format(time.RFC3339))
 	attrs.PutStr(semconv.CitricGitHubWorkflowRunDisplayTitle, e.GetWorkflowRun().GetDisplayTitle())
 	attrs.PutStr(semconv.CitricGitHubWorkflowRunEvent, e.GetWorkflowRun().GetEvent())

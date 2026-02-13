@@ -77,7 +77,7 @@ export const getLatestRuns = createServerFn({
 			anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
 			anyLast(ResourceAttributes['vcs.repository.name']) as repo,
 			anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-			anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+			max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
 			anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 			max(Timestamp) as timestamp
 		FROM otel_traces
@@ -122,7 +122,7 @@ export const getRunDetails = createServerFn({
 				anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
 				anyLast(ResourceAttributes['vcs.repository.name']) as repo,
 				anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+				max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
 				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 				max(Timestamp) as timestamp
 			FROM otel_traces
@@ -363,6 +363,12 @@ export const getRunSpans = createServerFn({
       isSubtest: string;
     }>(sql, { traceId });
 
+    const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
+      pass: "success",
+      fail: "failure",
+      skip: "skip",
+    };
+
     return result.map((row) => {
       // Calculate queue time from created_at and started_at (ISO timestamps)
       let queueTime: number | undefined;
@@ -384,7 +390,8 @@ export const getRunSpans = createServerFn({
         startTime: Number(row.startTime),
         endTime: Number(row.endTime),
         duration: Number(row.duration),
-        conclusion: row.conclusion,
+        conclusion:
+          row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
         jobId: row.jobId || undefined,
         jobName: row.jobName || undefined,
         stepNumber: row.stepNumber || undefined,

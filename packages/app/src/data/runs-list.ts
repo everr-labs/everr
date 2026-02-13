@@ -69,9 +69,6 @@ export const getRunsList = createServerFn({
       params.branch = data.branch;
     }
     if (data.conclusion) {
-      conditions.push(
-        "ResourceAttributes['cicd.pipeline.task.run.result'] = {conclusion:String}",
-      );
       params.conclusion = data.conclusion;
     }
     if (data.workflowName) {
@@ -88,6 +85,9 @@ export const getRunsList = createServerFn({
     }
 
     const whereClause = conditions.join("\n\t\t\t\tAND ");
+    const havingClause = data.conclusion
+      ? "HAVING conclusion = {conclusion:String}"
+      : "";
 
     const dataSql = `
 			SELECT
@@ -97,7 +97,7 @@ export const getRunsList = createServerFn({
 				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 				anyLast(ResourceAttributes['vcs.repository.name']) as repo,
 				anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+				max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
 				max(Duration) / 1000000 as duration,
 				max(Timestamp) as timestamp,
 				max(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender,
@@ -105,6 +105,7 @@ export const getRunsList = createServerFn({
 			FROM otel_traces
 			WHERE ${whereClause}
 			GROUP BY trace_id
+			${havingClause}
 			ORDER BY timestamp DESC
 			LIMIT {pageSize:UInt32} OFFSET {offset:UInt32}
 		`;
@@ -112,10 +113,12 @@ export const getRunsList = createServerFn({
     const countSql = `
 			SELECT count(*) as total
 			FROM (
-				SELECT TraceId as trace_id
+				SELECT TraceId as trace_id,
+					max(ResourceAttributes['cicd.pipeline.result']) as conclusion
 				FROM otel_traces
 				WHERE ${whereClause}
 				GROUP BY trace_id
+				${havingClause}
 			)
 		`;
 
