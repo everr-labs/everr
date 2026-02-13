@@ -6,6 +6,9 @@ on:
       - Build & Test Collector
     types: [completed]
 
+permissions:
+  actions: read
+
 jobs:
   otel-export-trace:
     name: OpenTelemetry Export Trace
