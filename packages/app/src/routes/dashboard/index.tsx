@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, ChevronRight } from "lucide-react";
-import { TimeRangePicker } from "@/components/analytics";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
@@ -10,7 +9,6 @@ import {
   repositoriesOptions,
 } from "@/data/dashboard-stats";
 import { latestRunsOptions } from "@/data/runs";
-import { useTimeRange } from "@/hooks/use-time-range";
 import { formatRelativeTime, getSuccessRateVariant } from "@/lib/formatting";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
@@ -21,18 +19,15 @@ export const Route = createFileRoute("/dashboard/")({
 });
 
 function DashboardPage() {
-  const { timeRange, setTimeRange } = useTimeRange();
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">
             Overview of your CI/CD pipelines
           </p>
         </div>
-        <TimeRangePicker value={timeRange} onChange={setTimeRange} />
       </div>
 
       <Panel title="Job Runs" queries={[dashboardStatsOptions]} icon={Activity}>
@@ -50,7 +45,7 @@ function DashboardPage() {
         )}
       </Panel>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Panel
           title="Watched Repositories"
           description="Repositories sending CI/CD telemetry"
@@ -160,7 +155,7 @@ function DashboardPage() {
                   key={run.traceId}
                   to="/dashboard/runs/$traceId"
                   params={{ traceId: run.traceId }}
-                  className="hover:bg-muted/50 -mx-2 flex items-center justify-between rounded-md px-2 py-2 transition-colors"
+                  className="hover:bg-muted/50 -mx-1.5 flex items-center justify-between rounded-md px-1.5 py-1.5 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <ConclusionIcon

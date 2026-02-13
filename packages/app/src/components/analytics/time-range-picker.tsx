@@ -12,22 +12,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  formatTimeRangeDisplay,
-  QUICK_RANGE_GROUPS,
-  type TimeRange,
-} from "@/lib/time-range";
+import { useTimeRange } from "@/hooks/use-time-range";
+import { formatTimeRangeDisplay, QUICK_RANGE_GROUPS } from "@/lib/time-range";
 import { Input } from "../ui/input";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "../ui/input-group";
-
-interface TimeRangePickerProps {
-  value: TimeRange;
-  onChange: (value: TimeRange) => void;
-}
 
 function formatPreview(expr: string, roundUp: boolean): string | null {
   if (!isValid(expr)) return null;
@@ -45,10 +37,12 @@ function formatPreview(expr: string, roundUp: boolean): string | null {
   }
 }
 
-export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
+export function TimeRangePicker() {
+  const { timeRange, setTimeRange } = useTimeRange();
+
   const [open, setOpen] = useState(false);
-  const [customFrom, setCustomFrom] = useState(value.from);
-  const [customTo, setCustomTo] = useState(value.to);
+  const [customFrom, setCustomFrom] = useState(timeRange.from);
+  const [customTo, setCustomTo] = useState(timeRange.to);
   const [search, setSearch] = useState("");
 
   const filteredGroups = useMemo(() => {
@@ -70,7 +64,8 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
   const canApply = fromPreview !== null && toPreview !== null && !rangeInverted;
 
   const handlePresetClick = (from: string, to: string) => {
-    onChange({ from, to });
+    setTimeRange({ from, to });
+    // onChange({ from, to });
     setCustomFrom(from);
     setCustomTo(to);
     setOpen(false);
@@ -78,22 +73,23 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
 
   const handleApply = () => {
     if (canApply) {
-      onChange({ from: customFrom, to: customTo });
+      setTimeRange({ from: customFrom, to: customTo });
+      // onChange({ from: customFrom, to: customTo });
       setOpen(false);
     }
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      setCustomFrom(value.from);
-      setCustomTo(value.to);
+      setCustomFrom(timeRange.from);
+      setCustomTo(timeRange.to);
       setSearch("");
     }
     setOpen(nextOpen);
   };
 
-  const resolvedFrom = formatPreview(value.from, false);
-  const resolvedTo = formatPreview(value.to, true);
+  const resolvedFrom = formatPreview(timeRange.from, false);
+  const resolvedTo = formatPreview(timeRange.to, true);
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -113,7 +109,7 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
             className="size-3.5"
             aria-hidden="true"
           />
-          {formatTimeRangeDisplay(value)}
+          {formatTimeRangeDisplay(timeRange)}
           <ChevronDownIcon className="size-3" />
         </TooltipTrigger>
         {resolvedFrom && resolvedTo && (
@@ -156,7 +152,8 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
                     </div>
                     {group.ranges.map((range) => {
                       const isActive =
-                        range.from === value.from && range.to === value.to;
+                        range.from === timeRange.from &&
+                        range.to === timeRange.to;
                       return (
                         <button
                           key={`${range.from}-${range.to}`}

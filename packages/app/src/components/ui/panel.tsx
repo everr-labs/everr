@@ -71,7 +71,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
     if (variant === "stat") {
       return (
         <Card className={className}>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-1">
             <CardDescription>{title}</CardDescription>
             <Skeleton className="h-9 w-24" />
           </CardHeader>
@@ -95,7 +95,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
     if (variant === "stat") {
       return (
         <Card className={className}>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-1">
             <CardDescription>{title}</CardDescription>
             <CardTitle className="text-3xl tabular-nums">--</CardTitle>
           </CardHeader>

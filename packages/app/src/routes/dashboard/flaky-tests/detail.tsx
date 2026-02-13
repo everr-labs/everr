@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { TimeRangePicker } from "@/components/analytics";
 import {
   FlakyTestTimeline,
   RunnerFlakinessTable,
@@ -21,7 +20,7 @@ import {
   testHistoryOptions,
 } from "@/data/flaky-tests";
 import { formatRelativeTime } from "@/lib/formatting";
-import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
   staticData: {
@@ -59,7 +58,6 @@ export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
 
 function FlakyTestDetailPage() {
   const { from, to, repo, test } = Route.useSearch();
-  const navigate = Route.useNavigate();
   const timeRange = { from, to };
 
   const detailInput = { timeRange, repo, testFullName: test };
@@ -76,12 +74,6 @@ function FlakyTestDetailPage() {
     ...testDailyResultsOptions(detailInput),
     enabled,
   });
-
-  const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({
-      search: (prev) => ({ ...prev, from: newRange.from, to: newRange.to }),
-    });
-  };
 
   if (!repo || !test) {
     return (
@@ -114,7 +106,6 @@ function FlakyTestDetailPage() {
           </h1>
           <p className="text-muted-foreground">{repo}</p>
         </div>
-        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       {/* Summary stats */}

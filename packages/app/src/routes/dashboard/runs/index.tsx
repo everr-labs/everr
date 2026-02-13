@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { TimeRangePicker } from "@/components/analytics";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
-import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/runs/")({
   component: RunsListPage,
@@ -64,17 +63,6 @@ function RunsListPage() {
 
   if (!runsResult) return null;
 
-  const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        from: newRange.from,
-        to: newRange.to,
-        page: 1,
-      }),
-    });
-  };
-
   const updateFilter = (updates: Record<string, unknown>) => {
     navigate({ search: (prev) => ({ ...prev, ...updates, page: 1 }) });
   };
@@ -88,7 +76,6 @@ function RunsListPage() {
             Browse and filter workflow runs
           </p>
         </div>
-        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <RunsFilterBar

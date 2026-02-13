@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangePicker } from "@/components/analytics";
 import {
   FailurePatternsTable,
   FailuresByRepoTable,
@@ -19,7 +18,7 @@ import {
   failuresByRepoOptions,
   failureTrendOptions,
 } from "@/data/failures";
-import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/failures")({
   staticData: { breadcrumb: "Failures" },
@@ -46,13 +45,8 @@ function FailuresPage() {
   const { data: patterns } = useQuery(failurePatternsOptions(input));
   const { data: trend } = useQuery(failureTrendOptions(input));
   const { data: byRepo } = useQuery(failuresByRepoOptions(input));
-  const navigate = Route.useNavigate();
 
   if (!patterns) return null;
-
-  const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: { from: newRange.from, to: newRange.to } });
-  };
 
   const totalFailures = patterns.reduce((sum, p) => sum + p.count, 0);
   const uniquePatterns = patterns.length;
@@ -69,7 +63,6 @@ function FailuresPage() {
             Common failure patterns across workflows
           </p>
         </div>
-        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

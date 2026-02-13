@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { TimeRangePicker } from "@/components/analytics";
 import {
   FlakinessTrendChart,
   FlakyTestsFilterBar,
@@ -21,7 +20,7 @@ import {
   flakyTestSummaryOptions,
   flakyTestsOptions,
 } from "@/data/flaky-tests";
-import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/flaky-tests/")({
   component: FlakyTestsPage,
@@ -67,12 +66,6 @@ function FlakyTestsPage() {
 
   if (!flakyTests) return null;
 
-  const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({
-      search: (prev) => ({ ...prev, from: newRange.from, to: newRange.to }),
-    });
-  };
-
   const updateFilter = (updates: Record<string, unknown>) => {
     navigate({ search: (prev) => ({ ...prev, ...updates }) });
   };
@@ -86,7 +79,6 @@ function FlakyTestsPage() {
             Tests with inconsistent pass/fail results
           </p>
         </div>
-        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <FlakyTestsFilterBar

@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangePicker } from "@/components/analytics";
 import {
   CostByRepoTable,
   CostByRunnerChart,
@@ -21,7 +20,7 @@ import {
   costOverviewOptions,
   formatCost,
 } from "@/data/cost-analysis";
-import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/cost-analysis")({
   staticData: { breadcrumb: "Cost Analysis" },
@@ -48,13 +47,8 @@ function CostAnalysisPage() {
   const { data: overview } = useQuery(costOverviewOptions(input));
   const { data: byRepo } = useQuery(costByRepoOptions(input));
   const { data: byWorkflow } = useQuery(costByWorkflowOptions(input));
-  const navigate = Route.useNavigate();
 
   if (!overview) return null;
-
-  const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: { from: newRange.from, to: newRange.to } });
-  };
 
   const { summary, overTime, byRunner } = overview;
 
@@ -67,7 +61,6 @@ function CostAnalysisPage() {
             Estimated GitHub Actions spend based on runner usage
           </p>
         </div>
-        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

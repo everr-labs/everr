@@ -29,6 +29,7 @@ export const Route = createFileRoute("/dashboard/runs/$traceId")({
   staticData: {
     breadcrumb: (match: { loaderData?: { workflowName?: string } }) =>
       match.loaderData?.workflowName ?? "Run Details",
+    hideTimeRangePicker: true,
   },
   loader: async ({ context: { queryClient }, params }) => {
     const [runDetails, jobs] = await Promise.all([

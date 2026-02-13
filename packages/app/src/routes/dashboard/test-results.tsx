@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { TimeRangePicker } from "@/components/analytics";
 import { PackageResultsTable } from "@/components/results/package-results-table";
 import { SlowestTestsTable } from "@/components/results/slowest-tests-table";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
@@ -18,7 +17,7 @@ import {
   testResultsByPackageOptions,
   testResultsSummaryOptions,
 } from "@/data/test-results";
-import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-results")({
   staticData: { breadcrumb: "Test Results" },
@@ -45,13 +44,8 @@ function TestResultsPage() {
   const { data: byPackage } = useQuery(testResultsByPackageOptions(input));
   const { data: slowest } = useQuery(slowestTestsOptions(input));
   const { data: durationTrend } = useQuery(testDurationTrendOptions(input));
-  const navigate = Route.useNavigate();
 
   if (!summary) return null;
-
-  const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({ search: { from: newRange.from, to: newRange.to } });
-  };
 
   return (
     <div className="space-y-6">
@@ -62,7 +56,6 @@ function TestResultsPage() {
             Test execution results across all repositories
           </p>
         </div>
-        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

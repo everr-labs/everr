@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { TimeRangePicker } from "@/components/analytics";
 import {
   ActiveBranchesTable,
   RepoDurationTrendChart,
@@ -26,7 +25,7 @@ import {
   repoSuccessRateTrendOptions,
   topFailingJobsOptions,
 } from "@/data/repo-detail";
-import { type TimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },
@@ -57,7 +56,6 @@ export const Route = createFileRoute("/dashboard/repos")({
 
 function RepoDetailPage() {
   const { name, from, to } = Route.useSearch();
-  const navigate = Route.useNavigate();
   const timeRange = { from, to };
 
   const input = { timeRange, repo: name };
@@ -95,17 +93,10 @@ function RepoDetailPage() {
 
   if (!stats) return null;
 
-  const handleTimeRangeChange = (newRange: TimeRange) => {
-    navigate({
-      search: (prev) => ({ ...prev, from: newRange.from, to: newRange.to }),
-    });
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <RepoHeader name={name} stats={stats} />
-        <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
