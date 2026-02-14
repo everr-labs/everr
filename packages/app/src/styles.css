@@ -156,3 +156,11 @@ code {
 .recharts-wrapper *:focus {
   outline: none;
 }
+
+::view-transition-old(command-bar),
+::view-transition-new(command-bar) {
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: clip;
+  object-fit: none;
+}

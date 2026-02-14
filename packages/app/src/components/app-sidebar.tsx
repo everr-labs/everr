@@ -1,11 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  ChartLine,
-  Citrus,
-  FlaskConical,
-  GitBranch,
-  GitFork,
-} from "lucide-react";
+import { Citrus } from "lucide-react";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import {
@@ -18,6 +12,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { navMain } from "@/lib/navigation";
 
 const data = {
   user: {
@@ -25,71 +20,6 @@ const data = {
     email: "john@example.com",
     avatar: "",
   },
-  navMain: [
-    {
-      title: "CI/CD",
-      url: "/dashboard",
-      icon: GitBranch,
-      isActive: true,
-      items: [
-        {
-          title: "Overview",
-          url: "/dashboard",
-        },
-        {
-          title: "Runs",
-          url: "/dashboard/runs",
-        },
-        {
-          title: "Failures",
-          url: "/dashboard/failures",
-        },
-      ],
-    },
-    {
-      title: "Testing",
-      url: "/dashboard/test-results",
-      icon: FlaskConical,
-      isActive: true,
-      items: [
-        {
-          title: "Test Results",
-          url: "/dashboard/test-results",
-        },
-        {
-          title: "Flaky Tests",
-          url: "/dashboard/flaky-tests",
-        },
-      ],
-    },
-    {
-      title: "Insights",
-      url: "/dashboard/analytics",
-      icon: ChartLine,
-      isActive: true,
-      items: [
-        {
-          title: "Analytics",
-          url: "/dashboard/analytics",
-        },
-        {
-          title: "Cost Analysis",
-          url: "/dashboard/cost-analysis",
-        },
-      ],
-    },
-    {
-      title: "Repositories",
-      url: "/dashboard/repos",
-      icon: GitFork,
-      items: [
-        {
-          title: "All Repositories",
-          url: "/dashboard/repos",
-        },
-      ],
-    },
-  ],
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -111,7 +41,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={navMain} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
