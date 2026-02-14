@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
-import { TimeRangePicker } from "@/components/analytics";
+import { RefreshPicker, TimeRangePicker } from "@/components/analytics";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import { Separator } from "@/components/ui/separator";
@@ -34,7 +34,12 @@ function RouteComponent() {
               <Separator orientation="vertical" className="mr-2" />
               <DashboardBreadcrumb />
             </div>
-            {!hideTimeRangePicker && <TimeRangePicker />}
+            {!hideTimeRangePicker && (
+              <div className="flex items-center gap-1.5">
+                <TimeRangePicker />
+                <RefreshPicker />
+              </div>
+            )}
           </div>
         </header>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">

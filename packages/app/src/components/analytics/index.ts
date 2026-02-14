@@ -2,6 +2,7 @@ export { DurationTrendsChart } from "./duration-trends-chart";
 export { DurationTrendsPanel } from "./duration-trends-panel";
 export { QueueTimeChart } from "./queue-time-chart";
 export { QueueTimePanel } from "./queue-time-panel";
+export { RefreshPicker } from "./refresh-picker";
 export { RunnerUtilizationChart } from "./runner-utilization-chart";
 export { RunnerUtilizationPanel } from "./runner-utilization-panel";
 export { SuccessRateChart } from "./success-rate-chart";

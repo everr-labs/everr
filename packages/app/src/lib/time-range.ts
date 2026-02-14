@@ -21,9 +21,26 @@ export function resolveTimeRange(range: TimeRange) {
   };
 }
 
+export const REFRESH_INTERVALS = [
+  { label: "Off", value: "" },
+  { label: "5s", value: "5s", ms: 5_000 },
+  { label: "10s", value: "10s", ms: 10_000 },
+  { label: "30s", value: "30s", ms: 30_000 },
+  { label: "1m", value: "1m", ms: 60_000 },
+  { label: "5m", value: "5m", ms: 300_000 },
+] as const;
+
+export type RefreshInterval = (typeof REFRESH_INTERVALS)[number]["value"];
+
+export function getRefreshIntervalMs(value: string): number | null {
+  const interval = REFRESH_INTERVALS.find((i) => i.value === value);
+  return interval && "ms" in interval ? interval.ms : null;
+}
+
 export const TimeRangeSearchSchema = z.object({
   from: z.string().default(DEFAULT_TIME_RANGE.from),
   to: z.string().default(DEFAULT_TIME_RANGE.to),
+  refresh: z.string().default(""),
 });
 
 export function validateTimeRange(range: TimeRange): TimeRange {
