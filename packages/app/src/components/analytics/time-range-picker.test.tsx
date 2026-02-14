@@ -5,11 +5,30 @@ import type { TimeRange } from "@/lib/time-range";
 import { QUICK_RANGE_GROUPS } from "@/lib/time-range";
 import { TimeRangePicker } from "./time-range-picker";
 
-const defaultValue: TimeRange = { from: "now-7d", to: "now" };
+const mockSetTimeRange = vi.fn();
 
-function renderPicker(value = defaultValue, onChange = vi.fn()) {
+vi.mock("@/hooks/use-time-range", () => ({
+  useTimeRange: () => ({
+    timeRange: mockTimeRange,
+    setTimeRange: mockSetTimeRange,
+  }),
+}));
+
+let mockTimeRange: TimeRange = { from: "now-7d", to: "now" };
+
+function renderPicker(
+  value: TimeRange = { from: "now-7d", to: "now" },
+  onChange = mockSetTimeRange,
+) {
+  mockTimeRange = value;
+  mockSetTimeRange.mockReset();
+  if (onChange !== mockSetTimeRange) {
+    mockSetTimeRange.mockImplementation((...args: unknown[]) =>
+      onChange(...args),
+    );
+  }
   const user = userEvent.setup();
-  render(<TimeRangePicker value={value} onChange={onChange} />);
+  render(<TimeRangePicker />);
   return { user, onChange };
 }
 
