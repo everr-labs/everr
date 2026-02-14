@@ -39,6 +39,7 @@ interface PanelProps<TQueries extends readonly QueryFactory[]> {
   description?: string;
   queries: [...TQueries];
   children: (...data: InferQueriesData<TQueries>) => ReactNode;
+  background?: (...data: InferQueriesData<TQueries>) => ReactNode;
   variant?: "default" | "stat";
   skeleton?: ReactNode;
   icon?: LucideIcon;
@@ -51,6 +52,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
   description,
   queries: queryFactories,
   children,
+  background,
   variant = "default",
   skeleton,
   icon: Icon,
@@ -124,8 +126,13 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
 
   if (variant === "stat") {
     return (
-      <Card className={className}>
-        <CardHeader className="pb-2">
+      <Card className={cn(background && "relative", className)}>
+        {background && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 opacity-15">
+            {background(...data)}
+          </div>
+        )}
+        <CardHeader className="relative pb-2">
           <div className="flex items-center justify-between">
             <CardDescription>{title}</CardDescription>
             {Icon && <Icon className="text-muted-foreground size-4" />}

@@ -13,7 +13,11 @@ import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-c
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
-import { successRateTrendsOptions } from "@/data/analytics";
+import { Sparkline } from "@/components/ui/sparkline";
+import {
+  durationTrendsOptions,
+  successRateTrendsOptions,
+} from "@/data/analytics";
 import { costOverviewOptions, formatCost } from "@/data/cost-analysis";
 import {
   dashboardDurationStatsOptions,
@@ -52,9 +56,15 @@ function DashboardPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Panel
           title="Total Runs"
-          queries={[dashboardStatsOptions]}
+          queries={[dashboardStatsOptions, successRateTrendsOptions]}
           variant="stat"
           icon={Activity}
+          background={(_stats, trends) => (
+            <Sparkline
+              data={trends.map((t) => t.totalRuns)}
+              className="h-full w-full"
+            />
+          )}
         >
           {(stats) => (
             <>
@@ -68,9 +78,16 @@ function DashboardPage() {
 
         <Panel
           title="Success Rate"
-          queries={[dashboardStatsOptions]}
+          queries={[dashboardStatsOptions, successRateTrendsOptions]}
           variant="stat"
           icon={TrendingUp}
+          background={(_stats, trends) => (
+            <Sparkline
+              data={trends.map((t) => t.successRate)}
+              maxValue={100}
+              className="h-full w-full"
+            />
+          )}
         >
           {(stats) => (
             <>
@@ -94,9 +111,15 @@ function DashboardPage() {
 
         <Panel
           title="Avg Duration"
-          queries={[dashboardDurationStatsOptions]}
+          queries={[dashboardDurationStatsOptions, durationTrendsOptions]}
           variant="stat"
           icon={Clock}
+          background={(_duration, trends) => (
+            <Sparkline
+              data={trends.map((t) => t.avgDuration)}
+              className="h-full w-full"
+            />
+          )}
         >
           {(duration) => (
             <>
@@ -113,6 +136,12 @@ function DashboardPage() {
           queries={[costOverviewOptions]}
           variant="stat"
           icon={DollarSign}
+          background={(cost) => (
+            <Sparkline
+              data={cost.overTime.map((p) => p.totalCost)}
+              className="h-full w-full"
+            />
+          )}
         >
           {(cost) => (
             <>
