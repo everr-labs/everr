@@ -200,6 +200,69 @@ export const getRunFilterOptions = createServerFn({
   } satisfies FilterOptions;
 });
 
+export interface RunSearchResult {
+  traceId: string;
+  runId: string;
+  workflowName: string;
+  repo: string;
+  branch: string;
+  conclusion: string;
+  timestamp: string;
+}
+
+const SearchRunsInputSchema = z.object({
+  query: z.string().min(1),
+});
+
+export const searchRuns = createServerFn({
+  method: "GET",
+})
+  .inputValidator(SearchRunsInputSchema)
+  .handler(async ({ data }) => {
+    const results = await query<{
+      trace_id: string;
+      run_id: string;
+      workflowName: string;
+      repo: string;
+      branch: string;
+      conclusion: string;
+      timestamp: string;
+    }>(
+      `
+      SELECT
+        TraceId as trace_id,
+        anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
+        anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
+        anyLast(ResourceAttributes['vcs.repository.name']) as repo,
+        anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
+        max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
+        max(Timestamp) as timestamp
+      FROM otel_traces
+      WHERE Timestamp >= now() - INTERVAL 90 DAY
+        AND ResourceAttributes['cicd.pipeline.run.id'] != ''
+        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+        AND (ResourceAttributes['cicd.pipeline.run.id'] LIKE {pattern:String}
+          OR ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String})
+      GROUP BY trace_id
+      ORDER BY timestamp DESC
+      LIMIT 5
+      `,
+      { pattern: `%${data.query}%` },
+    );
+
+    return results.map(
+      (row): RunSearchResult => ({
+        traceId: row.trace_id,
+        runId: row.run_id,
+        workflowName: row.workflowName || "Workflow",
+        repo: row.repo,
+        branch: row.branch,
+        conclusion: row.conclusion,
+        timestamp: row.timestamp,
+      }),
+    );
+  });
+
 // Query options factories
 export const runsListOptions = (input: RunsListInput) =>
   queryOptions({
@@ -212,4 +275,11 @@ export const runFilterOptionsOptions = () =>
     queryKey: ["runs", "filterOptions"],
     queryFn: () => getRunFilterOptions(),
     staleTime: 5 * 60_000,
+  });
+
+export const searchRunsOptions = (searchQuery: string) =>
+  queryOptions({
+    queryKey: ["runs", "search", searchQuery],
+    queryFn: () => searchRuns({ data: { query: searchQuery } }),
+    staleTime: 30_000,
   });
