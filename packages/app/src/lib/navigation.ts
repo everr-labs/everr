@@ -33,6 +33,10 @@ export const navMain: NavItem[] = [
         url: "/dashboard/runs",
       },
       {
+        title: "Workflows",
+        url: "/dashboard/workflows",
+      },
+      {
         title: "Failures",
         url: "/dashboard/failures",
       },

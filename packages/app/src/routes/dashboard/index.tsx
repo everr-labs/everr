@@ -159,15 +159,6 @@ function DashboardPage() {
         title="Success Rate Trend"
         queries={[successRateTrendsOptions]}
         skeleton={<div className="h-40" />}
-        action={
-          <Link
-            to="/dashboard/analytics"
-            search={{ from: "now-7d", to: "now" }}
-            className="text-muted-foreground hover:text-foreground text-xs"
-          >
-            View analytics
-          </Link>
-        }
       >
         {(data) => <SuccessRateMiniChart data={data} />}
       </Panel>

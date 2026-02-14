@@ -18,11 +18,13 @@ import { Route as DashboardFlakyTestsRouteImport } from './routes/dashboard/flak
 import { Route as DashboardFailuresRouteImport } from './routes/dashboard/failures'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
+import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
 import { Route as DashboardFlakyTestsIndexRouteImport } from './routes/dashboard/flaky-tests/index'
 import { Route as DashboardFlakyTestsDetailRouteImport } from './routes/dashboard/flaky-tests/detail'
 import { Route as DashboardRunsTraceIdRouteRouteImport } from './routes/dashboard/runs/$traceId/route'
 import { Route as DashboardRunsTraceIdIndexRouteImport } from './routes/dashboard/runs/$traceId/index'
+import { Route as DashboardWorkflowsRepoWorkflowNameRouteImport } from './routes/dashboard/workflows/$repo/$workflowName'
 import { Route as DashboardRunsTraceIdTraceRouteImport } from './routes/dashboard/runs/$traceId/trace'
 import { Route as DashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as DashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -72,6 +74,11 @@ const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardWorkflowsIndexRoute = DashboardWorkflowsIndexRouteImport.update({
+  id: '/workflows/',
+  path: '/workflows/',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardRunsIndexRoute = DashboardRunsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -100,6 +107,12 @@ const DashboardRunsTraceIdIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => DashboardRunsTraceIdRouteRoute,
+  } as any)
+const DashboardWorkflowsRepoWorkflowNameRoute =
+  DashboardWorkflowsRepoWorkflowNameRouteImport.update({
+    id: '/workflows/$repo/$workflowName',
+    path: '/workflows/$repo/$workflowName',
+    getParentRoute: () => DashboardRoute,
   } as any)
 const DashboardRunsTraceIdTraceRoute =
   DashboardRunsTraceIdTraceRouteImport.update({
@@ -134,7 +147,9 @@ export interface FileRoutesByFullPath {
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
+  '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
+  '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -149,7 +164,9 @@ export interface FileRoutesByTo {
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs': typeof DashboardRunsIndexRoute
+  '/dashboard/workflows': typeof DashboardWorkflowsIndexRoute
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
+  '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -169,7 +186,9 @@ export interface FileRoutesById {
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
+  '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
+  '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -190,7 +209,9 @@ export interface FileRouteTypes {
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
+    | '/dashboard/workflows/'
     | '/dashboard/runs/$traceId/trace'
+    | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -205,7 +226,9 @@ export interface FileRouteTypes {
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests'
     | '/dashboard/runs'
+    | '/dashboard/workflows'
     | '/dashboard/runs/$traceId/trace'
+    | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId'
     | '/dashboard/runs/$traceId/jobs/$jobId'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -224,7 +247,9 @@ export interface FileRouteTypes {
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
+    | '/dashboard/workflows/'
     | '/dashboard/runs/$traceId/trace'
+    | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -299,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAnalyticsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/workflows/': {
+      id: '/dashboard/workflows/'
+      path: '/workflows'
+      fullPath: '/dashboard/workflows/'
+      preLoaderRoute: typeof DashboardWorkflowsIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/runs/': {
       id: '/dashboard/runs/'
       path: '/'
@@ -333,6 +365,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/runs/$traceId/'
       preLoaderRoute: typeof DashboardRunsTraceIdIndexRouteImport
       parentRoute: typeof DashboardRunsTraceIdRouteRoute
+    }
+    '/dashboard/workflows/$repo/$workflowName': {
+      id: '/dashboard/workflows/$repo/$workflowName'
+      path: '/workflows/$repo/$workflowName'
+      fullPath: '/dashboard/workflows/$repo/$workflowName'
+      preLoaderRoute: typeof DashboardWorkflowsRepoWorkflowNameRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/dashboard/runs/$traceId/trace': {
       id: '/dashboard/runs/$traceId/trace'
@@ -416,6 +455,8 @@ interface DashboardRouteChildren {
   DashboardRunsRoute: typeof DashboardRunsRouteWithChildren
   DashboardTestResultsRoute: typeof DashboardTestResultsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardWorkflowsIndexRoute: typeof DashboardWorkflowsIndexRoute
+  DashboardWorkflowsRepoWorkflowNameRoute: typeof DashboardWorkflowsRepoWorkflowNameRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
@@ -427,6 +468,9 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardRunsRoute: DashboardRunsRouteWithChildren,
   DashboardTestResultsRoute: DashboardTestResultsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardWorkflowsIndexRoute: DashboardWorkflowsIndexRoute,
+  DashboardWorkflowsRepoWorkflowNameRoute:
+    DashboardWorkflowsRepoWorkflowNameRoute,
 }
 
 const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
