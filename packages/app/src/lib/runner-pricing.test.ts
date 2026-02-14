@@ -111,6 +111,19 @@ describe("calculateCost", () => {
     expect(result.billingMinutes).toBe(1); // ceil to 1 minute
     expect(result.estimatedCost).toBe(0.006);
   });
+
+  it("uses preRoundedMinutes when provided for per-job billing", () => {
+    // 10 jobs of 30s each: totalDurationMs = 300_000 (5 min actual)
+    // Without preRoundedMinutes: ceil(5) = 5 billing minutes (wrong)
+    // With preRoundedMinutes: 10 jobs * ceil(0.5) = 10 billing minutes (correct)
+    const wrong = calculateCost("ubuntu-latest", 300_000);
+    expect(wrong.billingMinutes).toBe(5); // ceil(5) * 1x
+
+    const correct = calculateCost("ubuntu-latest", 300_000, 10);
+    expect(correct.actualMinutes).toBe(5);
+    expect(correct.billingMinutes).toBe(10); // 10 * 1x
+    expect(correct.estimatedCost).toBe(0.06); // 10 * 0.006
+  });
 });
 
 describe("formatCost", () => {

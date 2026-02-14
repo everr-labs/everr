@@ -294,13 +294,24 @@ export function getRunnerPricing(labelsString: string): RunnerPricing {
   return FALLBACK_PRICING;
 }
 
+/**
+ * Calculate cost for runner usage.
+ *
+ * @param labelsString - comma-separated runner labels
+ * @param durationMs - total actual duration in milliseconds
+ * @param preRoundedMinutes - sum of per-job ceil'd minutes (each job rounded up
+ *   individually). When provided, this is used for billing instead of rounding
+ *   the aggregate duration. GitHub bills each job rounded up to the nearest
+ *   minute, so callers that aggregate multiple jobs must pre-round in SQL.
+ */
 export function calculateCost(
   labelsString: string,
   durationMs: number,
+  preRoundedMinutes?: number,
 ): CostResult {
   const pricing = getRunnerPricing(labelsString);
   const actualMinutes = durationMs / 60_000;
-  const roundedMinutes = Math.ceil(actualMinutes);
+  const roundedMinutes = preRoundedMinutes ?? Math.ceil(actualMinutes);
   const billingMinutes = roundedMinutes * pricing.minuteMultiplier;
   const estimatedCost = roundedMinutes * pricing.ratePerMinute;
 

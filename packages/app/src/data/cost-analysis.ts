@@ -50,7 +50,8 @@ export const getCostOverview = createServerFn({
         toDate(Timestamp) as date,
         ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
         count(*) as totalJobs,
-        sum(Duration) / 1000000 as totalDurationMs
+        sum(Duration) / 1000000 as totalDurationMs,
+        sum(ceil(Duration / 60000000000.0)) as roundedMinutes
       FROM otel_traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
@@ -65,6 +66,7 @@ export const getCostOverview = createServerFn({
       labels: string;
       totalJobs: string;
       totalDurationMs: string;
+      roundedMinutes: string;
     }>(sql, { fromTime: fromISO, toTime: toISO });
 
     const summary: CostSummary = {
@@ -84,7 +86,8 @@ export const getCostOverview = createServerFn({
     for (const row of rows) {
       const jobs = Number(row.totalJobs);
       const durationMs = Number(row.totalDurationMs);
-      const costResult = calculateCost(row.labels, durationMs);
+      const roundedMinutes = Number(row.roundedMinutes);
+      const costResult = calculateCost(row.labels, durationMs, roundedMinutes);
 
       // Summary
       summary.totalCost += costResult.estimatedCost;
@@ -195,7 +198,8 @@ export const getCostByRepo = createServerFn({
         ResourceAttributes['vcs.repository.name'] as repo,
         ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
         count(*) as totalJobs,
-        sum(Duration) / 1000000 as totalDurationMs
+        sum(Duration) / 1000000 as totalDurationMs,
+        sum(ceil(Duration / 60000000000.0)) as roundedMinutes
       FROM otel_traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
@@ -211,6 +215,7 @@ export const getCostByRepo = createServerFn({
       labels: string;
       totalJobs: string;
       totalDurationMs: string;
+      roundedMinutes: string;
     }>(sql, { fromTime: fromISO, toTime: toISO });
 
     const repoMap = new Map<string, CostByRepo & { topRunnerCost: number }>();
@@ -218,7 +223,8 @@ export const getCostByRepo = createServerFn({
     for (const row of rows) {
       const jobs = Number(row.totalJobs);
       const durationMs = Number(row.totalDurationMs);
-      const costResult = calculateCost(row.labels, durationMs);
+      const roundedMinutes = Number(row.roundedMinutes);
+      const costResult = calculateCost(row.labels, durationMs, roundedMinutes);
 
       const existing = repoMap.get(row.repo) ?? {
         repo: row.repo,
@@ -272,6 +278,7 @@ export const getCostByWorkflow = createServerFn({
         ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
         count(*) as totalJobs,
         sum(Duration) / 1000000 as totalDurationMs,
+        sum(ceil(Duration / 60000000000.0)) as roundedMinutes,
         uniqExact(ResourceAttributes['cicd.pipeline.run.id']) as uniqueRuns
       FROM otel_traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
@@ -290,6 +297,7 @@ export const getCostByWorkflow = createServerFn({
       labels: string;
       totalJobs: string;
       totalDurationMs: string;
+      roundedMinutes: string;
       uniqueRuns: string;
     }>(sql, { fromTime: fromISO, toTime: toISO });
 
@@ -302,8 +310,9 @@ export const getCostByWorkflow = createServerFn({
       const key = `${row.repo}:${row.workflow}`;
       const jobs = Number(row.totalJobs);
       const durationMs = Number(row.totalDurationMs);
+      const roundedMinutes = Number(row.roundedMinutes);
       const runs = Number(row.uniqueRuns);
-      const costResult = calculateCost(row.labels, durationMs);
+      const costResult = calculateCost(row.labels, durationMs, roundedMinutes);
 
       const existing = workflowMap.get(key) ?? {
         repo: row.repo,

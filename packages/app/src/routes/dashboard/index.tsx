@@ -1,15 +1,33 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, ChevronRight } from "lucide-react";
+import {
+  Activity,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  GitBranch,
+  Github,
+  Hash,
+  TrendingUp,
+} from "lucide-react";
+import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
+import { successRateTrendsOptions } from "@/data/analytics";
+import { costOverviewOptions, formatCost } from "@/data/cost-analysis";
 import {
+  dashboardDurationStatsOptions,
   dashboardStatsOptions,
-  recentActivityOptions,
   repositoriesOptions,
+  topFailingJobsOptions,
+  topFailingWorkflowsOptions,
 } from "@/data/dashboard-stats";
 import { latestRunsOptions } from "@/data/runs";
-import { formatRelativeTime, getSuccessRateVariant } from "@/lib/formatting";
+import {
+  formatDuration,
+  formatRelativeTime,
+  getSuccessRateVariant,
+} from "@/lib/formatting";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/")({
@@ -30,41 +48,129 @@ function DashboardPage() {
         </div>
       </div>
 
-      <Panel title="Job Runs" queries={[dashboardStatsOptions]} icon={Activity}>
-        {(stats) => (
-          <>
-            <div className="text-2xl font-bold">{stats.totalJobRuns}</div>
-            <div className="text-muted-foreground mt-1 flex gap-3 text-sm">
-              <span className="text-green-600">
-                {stats.successfulRuns} passed
+      {/* Section 1: KPI stat cards */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Panel
+          title="Total Runs"
+          queries={[dashboardStatsOptions]}
+          variant="stat"
+          icon={Activity}
+        >
+          {(stats) => (
+            <>
+              {stats.totalJobRuns.toLocaleString()}
+              <div className="text-muted-foreground text-xs font-normal mt-1">
+                {stats.successfulRuns} passed / {stats.failedRuns} failed
+              </div>
+            </>
+          )}
+        </Panel>
+
+        <Panel
+          title="Success Rate"
+          queries={[dashboardStatsOptions]}
+          variant="stat"
+          icon={TrendingUp}
+        >
+          {(stats) => (
+            <>
+              <span
+                className={
+                  stats.successRate >= 80
+                    ? "text-green-600"
+                    : stats.successRate >= 50
+                      ? "text-yellow-600"
+                      : "text-red-600"
+                }
+              >
+                {stats.successRate}%
               </span>
-              <span className="text-red-600">{stats.failedRuns} failed</span>
-              <span>{stats.successRate}% success rate</span>
-            </div>
-          </>
-        )}
+              <div className="text-muted-foreground text-xs font-normal mt-1">
+                of all runs passed
+              </div>
+            </>
+          )}
+        </Panel>
+
+        <Panel
+          title="Avg Duration"
+          queries={[dashboardDurationStatsOptions]}
+          variant="stat"
+          icon={Clock}
+        >
+          {(duration) => (
+            <>
+              {formatDuration(duration.avgDuration, "ms")}
+              <div className="text-muted-foreground text-xs font-normal mt-1">
+                p95: {formatDuration(duration.p95Duration, "ms")}
+              </div>
+            </>
+          )}
+        </Panel>
+
+        <Panel
+          title="Est. Cost"
+          queries={[costOverviewOptions]}
+          variant="stat"
+          icon={DollarSign}
+        >
+          {(cost) => (
+            <>
+              {formatCost(cost.summary.totalCost)}
+              <div className="text-muted-foreground text-xs font-normal mt-1">
+                {Math.round(cost.summary.totalMinutes)} min
+              </div>
+            </>
+          )}
+        </Panel>
+      </div>
+
+      {/* Section 2: Trend chart */}
+      <Panel
+        title="Success Rate Trend"
+        queries={[successRateTrendsOptions]}
+        skeleton={<div className="h-40" />}
+        action={
+          <Link
+            to="/dashboard/analytics"
+            search={{ from: "now-7d", to: "now" }}
+            className="text-muted-foreground hover:text-foreground text-xs"
+          >
+            View analytics
+          </Link>
+        }
+      >
+        {(data) => <SuccessRateMiniChart data={data} />}
       </Panel>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      {/* Section 3: Detail lists */}
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         <Panel
-          title="Watched Repositories"
-          description="Repositories sending CI/CD telemetry"
+          title="Repository Health"
           queries={[repositoriesOptions]}
+          action={
+            <Link
+              to="/dashboard/repos"
+              search={{ from: "now-7d", to: "now" }}
+              className="text-muted-foreground hover:text-foreground text-xs"
+            >
+              View all
+            </Link>
+          }
         >
           {(repositories) =>
             repositories.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                No repositories found. Set up a webhook to start collecting
-                data.
+                No repositories found
               </p>
             ) : (
               <div className="space-y-3">
-                {repositories.map((repo) => (
+                {repositories.slice(0, 5).map((repo) => (
                   <div
                     key={repo.name}
                     className="flex items-center justify-between"
                   >
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0 flex-1 mr-2">
                       <Link
                         to="/dashboard/repos"
                         search={{
@@ -72,7 +178,7 @@ function DashboardPage() {
                           from: "now-7d",
                           to: "now",
                         }}
-                        className="text-sm font-medium hover:underline"
+                        className="text-sm font-medium hover:underline truncate"
                       >
                         {repo.name}
                       </Link>
@@ -90,30 +196,60 @@ function DashboardPage() {
           }
         </Panel>
 
-        <Panel title="Recent Activity" queries={[recentActivityOptions]}>
-          {(recentActivity) =>
-            recentActivity.length === 0 ? (
+        <Panel title="Top Failing Jobs" queries={[topFailingJobsOptions]}>
+          {(jobs) =>
+            jobs.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                No recent activity
+                No failing jobs found
               </p>
             ) : (
-              <div className="space-y-2">
-                {recentActivity.map((day) => (
+              <div className="space-y-3">
+                {jobs.map((job) => (
                   <div
-                    key={day.date}
-                    className="flex items-center justify-between text-sm"
+                    key={`${job.repo}:${job.jobName}`}
+                    className="flex items-center justify-between"
                   >
-                    <span className="text-muted-foreground">
-                      {new Date(day.date).toLocaleDateString()}
-                    </span>
-                    <div className="flex gap-3">
-                      <span className="text-green-600">
-                        {day.successCount} passed
+                    <div className="flex flex-col min-w-0 flex-1 mr-2">
+                      <span className="text-sm font-medium truncate">
+                        {job.jobName}
                       </span>
-                      <span className="text-red-600">
-                        {day.failureCount} failed
+                      <span className="text-muted-foreground text-xs truncate">
+                        {job.repo}
                       </span>
                     </div>
+                    <Badge variant="destructive">{job.failureCount}x</Badge>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </Panel>
+
+        <Panel
+          title="Top Failing Workflows"
+          queries={[topFailingWorkflowsOptions]}
+        >
+          {(workflows) =>
+            workflows.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No failing workflows found
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {workflows.map((wf) => (
+                  <div
+                    key={`${wf.repo}:${wf.workflowName}`}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex flex-col min-w-0 flex-1 mr-2">
+                      <span className="text-sm font-medium truncate">
+                        {wf.workflowName}
+                      </span>
+                      <span className="text-muted-foreground text-xs truncate">
+                        {wf.repo}
+                      </span>
+                    </div>
+                    <Badge variant="destructive">{wf.failureCount}x</Badge>
                   </div>
                 ))}
               </div>
@@ -122,9 +258,9 @@ function DashboardPage() {
         </Panel>
       </div>
 
+      {/* Section 4: Recent Runs */}
       <Panel
-        title="Runs"
-        description="Workflow executions in this period"
+        title="Recent Runs"
         queries={[latestRunsOptions]}
         action={
           <Link
@@ -150,25 +286,36 @@ function DashboardPage() {
             <p className="text-muted-foreground text-sm">No runs found</p>
           ) : (
             <div className="space-y-3">
-              {runs.map((run) => (
+              {runs.slice(0, 5).map((run) => (
                 <Link
                   key={run.traceId}
                   to="/dashboard/runs/$traceId"
                   params={{ traceId: run.traceId }}
                   className="hover:bg-muted/50 -mx-1.5 flex items-center justify-between rounded-md px-1.5 py-1.5 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <ConclusionIcon
                       conclusion={run.conclusion}
-                      className="size-4"
+                      className="size-4 shrink-0"
                     />
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-sm font-medium truncate">
                         {run.workflowName}
                       </span>
-                      <span className="text-muted-foreground text-xs">
-                        {run.repo} • {run.branch}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline">
+                          <Github data-icon="inline-start" />
+                          {run.repo}
+                        </Badge>
+                        <Badge variant="outline">
+                          <GitBranch data-icon="inline-start" />
+                          {run.branch}
+                        </Badge>
+                        <Badge variant="outline">
+                          <Hash data-icon="inline-start" />
+                          {run.runId}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

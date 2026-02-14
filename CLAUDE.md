@@ -51,9 +51,11 @@ As you approach your token budget limit, save your current progress and state to
 Always be as persistent and autonomous as possible and complete tasks fully, even if the end of your budget is approaching.
 Never artificially stop any task early regardless of the context remaining.
 
-## Code Patterns 
+## Code Patterns
 
 When implementing UI changes across multiple routes or pages, always use shared layout components (e.g., TanStack Start layout routes) rather than duplicating layout code. Check for existing layout abstractions before creating inline layouts.
+
+Always use the `Panel` component (`packages/app/src/components/ui/panel.tsx`) for all data-displaying sections on dashboard pages. Panel handles data fetching, loading skeletons, and error states. Use `variant="stat"` for KPI cards, default variant for charts and lists.
 
 ##  ClickHouse section.
 
