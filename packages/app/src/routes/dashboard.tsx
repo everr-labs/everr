@@ -87,7 +87,7 @@ function RouteComponent() {
             </div>
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto overscroll-contain p-3">
           <Outlet />
         </div>
       </SidebarInset>
