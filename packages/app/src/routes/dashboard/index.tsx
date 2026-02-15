@@ -257,20 +257,34 @@ function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {workflows.map((wf) => (
-                  <div
+                  <Link
                     key={`${wf.repo}:${wf.workflowName}`}
-                    className="flex items-center justify-between"
+                    to="/dashboard/workflows/$repo/$workflowName"
+                    search={{
+                      from: "now-7d",
+                      to: "now",
+                    }}
+                    params={{
+                      repo: wf.repo,
+                      workflowName: wf.workflowName,
+                    }}
+                    className="flex items-center justify-between hover:bg-muted/50 rounded-md px-1.5 py-1.5 transition-colors -mx-1.5"
                   >
-                    <div className="flex flex-col min-w-0 flex-1 mr-2">
-                      <span className="text-sm font-medium truncate">
-                        {wf.workflowName}
-                      </span>
-                      <span className="text-muted-foreground text-xs truncate">
-                        {wf.repo}
-                      </span>
+                    <div
+                      key={`${wf.repo}:${wf.workflowName}`}
+                      className="flex items-center justify-between w-full"
+                    >
+                      <div className="flex flex-col min-w-0 flex-1 mr-2">
+                        <span className="text-sm font-medium truncate">
+                          {wf.workflowName}
+                        </span>
+                        <span className="text-muted-foreground text-xs truncate">
+                          {wf.repo}
+                        </span>
+                      </div>
+                      <Badge variant="destructive">{wf.failureCount}x</Badge>
                     </div>
-                    <Badge variant="destructive">{wf.failureCount}x</Badge>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )

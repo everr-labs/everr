@@ -1,5 +1,5 @@
 import { isValid, resolve } from "@citric/datemath";
-import { ChevronDownIcon, Clock, SearchIcon } from "lucide-react";
+import { ChevronDownIcon, Clock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,11 +15,6 @@ import {
 import { useTimeRange } from "@/hooks/use-time-range";
 import { formatTimeRangeDisplay, QUICK_RANGE_GROUPS } from "@/lib/time-range";
 import { Input } from "../ui/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "../ui/input-group";
 
 function formatPreview(expr: string, roundUp: boolean): string | null {
   if (!isValid(expr)) return null;
@@ -118,23 +113,22 @@ export function TimeRangePicker() {
           </TooltipContent>
         )}
       </Tooltip>
-      <PopoverContent align="end" className="w-[520px] p-0 gap-0">
+      <PopoverContent
+        align="end"
+        className="w-[520px] p-0 gap-0 overflow-hidden"
+      >
         <div className="flex divide-x divide-border">
           {/* Left panel: quick ranges */}
           <div className="flex w-[200px] flex-col">
-            <div className="px-1 pt-1">
-              <InputGroup>
-                <InputGroupAddon>
-                  <SearchIcon />
-                </InputGroupAddon>
-                <InputGroupInput
-                  type="search"
-                  placeholder="Search..."
-                  aria-label="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </InputGroup>
+            <div className="border-b">
+              <Input
+                type="search"
+                placeholder="Search relative range..."
+                aria-label="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="rounded-none bg-transparent border-none h-10 px-3 focus:ring-0 focus-visible:ring-0"
+              />
             </div>
             <div className="max-h-[320px] overflow-y-auto p-1">
               {filteredGroups.length === 0 ? (

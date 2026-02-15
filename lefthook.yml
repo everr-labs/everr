@@ -3,7 +3,7 @@ pre-commit:
   jobs:
     - name: check
       glob: "*.{js,ts,tsx,json,jsonc,css}"
-      run: pnpm biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
+      run: pnpm biome check --fix --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
       stage_fixed: true
     - name: collector
       glob: "collector/**/*.go"
