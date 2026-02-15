@@ -261,6 +261,8 @@ export function TestPerfScatterChart({ data }: TestPerfScatterChartProps) {
                 <Button
                   className="w-full"
                   variant="outline"
+                  nativeButton={false}
+                  role="link"
                   render={
                     <Link
                       to="/dashboard/runs/$traceId"

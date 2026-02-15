@@ -9,26 +9,20 @@ import type { TestPerfFilterOptions } from "@/data/test-performance";
 
 interface TestPerfFilterBarProps {
   filterOptions: TestPerfFilterOptions;
-  packages: string[];
   repo?: string;
-  pkg?: string;
   testName?: string;
   branch?: string;
   onRepoChange: (value: string | undefined) => void;
-  onPackageChange: (value: string | undefined) => void;
   onTestNameChange: (value: string) => void;
   onBranchChange: (value: string | undefined) => void;
 }
 
 export function TestPerfFilterBar({
   filterOptions,
-  packages,
   repo,
-  pkg,
   testName,
   branch,
   onRepoChange,
-  onPackageChange,
   onTestNameChange,
   onBranchChange,
 }: TestPerfFilterBarProps) {
@@ -48,25 +42,6 @@ export function TestPerfFilterBar({
           {filterOptions.repos.map((r) => (
             <SelectItem key={r} value={r}>
               {r}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
-        value={pkg || "__all__"}
-        onValueChange={(v) =>
-          onPackageChange(v === "__all__" || v == null ? undefined : v)
-        }
-      >
-        <SelectTrigger className="w-45">
-          <SelectValue placeholder="All packages" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__all__">All packages</SelectItem>
-          {packages.map((p) => (
-            <SelectItem key={p} value={p}>
-              {p}
             </SelectItem>
           ))}
         </SelectContent>

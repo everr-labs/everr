@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
-import { testFullNameExpr } from "./sql-helpers";
+import { leafTestFilter, testFullNameExpr } from "./sql-helpers";
 
 // Filter input for test performance
 export const TestPerformanceFilterSchema = z.object({
@@ -12,6 +12,7 @@ export const TestPerformanceFilterSchema = z.object({
   pkg: z.string().optional(),
   testName: z.string().optional(),
   branch: z.string().optional(),
+  path: z.string().optional(),
 });
 export type TestPerformanceFilterInput = z.infer<
   typeof TestPerformanceFilterSchema
@@ -23,11 +24,20 @@ export interface TestPerfFilterOptions {
   branches: string[];
 }
 
+interface BuildFilterResult {
+  conditions: string[];
+  params: Record<string, unknown>;
+  /** Scope conditions to apply on the OUTER query using the test_full_name alias */
+  scopeConditions: string[];
+  /** When true, metrics should aggregate all leaf tests per run (package-level view) */
+  aggregateByRun: boolean;
+}
+
 export function buildFilterConditions(
   fromISO: string,
   toISO: string,
   data: TestPerformanceFilterInput,
-): { conditions: string[]; params: Record<string, unknown> } {
+): BuildFilterResult {
   const conditions: string[] = [
     "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
     "SpanAttributes['citric.test.name'] != ''",
@@ -37,6 +47,7 @@ export function buildFilterConditions(
     fromTime: fromISO,
     toTime: toISO,
   };
+  const scopeConditions: string[] = [];
 
   if (data.repo) {
     conditions.push(
@@ -59,7 +70,29 @@ export function buildFilterConditions(
     params.branch = data.branch;
   }
 
-  return { conditions, params };
+  if (data.path) {
+    // When viewing a specific test/suite, match exactly in the inner query
+    conditions.push(`${testFullNameExpr(null)} = {exactPath:String}`);
+    params.exactPath = data.path;
+  } else if (data.pkg) {
+    // Package level: show direct children only (describe blocks / top-level tests)
+    conditions.push("SpanAttributes['citric.test.parent_test'] = ''");
+  } else {
+    // Root level: show only leaf tests (exclude suites)
+    scopeConditions.push(
+      `test_full_name NOT IN (
+        SELECT DISTINCT SpanAttributes['citric.test.parent_test']
+        FROM otel_traces
+        WHERE SpanAttributes['citric.test.parent_test'] != ''
+          AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
+      )`,
+    );
+  }
+
+  // Package level without a specific path: aggregate per run
+  const aggregateByRun = !!data.pkg && !data.path;
+
+  return { conditions, params, scopeConditions, aggregateByRun };
 }
 
 // Server function: filter options (repos + branches from last 90 days)
@@ -153,6 +186,206 @@ export const testPerfPackagesOptions = (
     staleTime: 60_000,
   });
 
+// --- Children (hierarchy browser) ---
+
+export interface TestPerfChild {
+  name: string;
+  executions: number;
+  avgDuration: number;
+  p95Duration: number;
+  failureRate: number;
+}
+
+const TestPerfChildrenInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  repo: z.string().optional(),
+  pkg: z.string().optional(),
+  branch: z.string().optional(),
+  path: z.string().optional(),
+});
+
+export const getTestPerfChildren = createServerFn({
+  method: "GET",
+})
+  .inputValidator(TestPerfChildrenInputSchema)
+  .handler(async ({ data }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+
+    const timeConditions = [
+      "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
+      "SpanAttributes['citric.test.name'] != ''",
+      "SpanAttributes['citric.test.result'] IN ('pass', 'fail')",
+    ];
+    const params: Record<string, unknown> = {
+      fromTime: fromISO,
+      toTime: toISO,
+    };
+
+    if (data.repo) {
+      timeConditions.push(
+        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+      );
+      params.repo = data.repo;
+    }
+    if (data.branch) {
+      timeConditions.push(
+        "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+      );
+      params.branch = data.branch;
+    }
+
+    const isRoot = !data.pkg;
+
+    if (isRoot) {
+      // Root level: return packages with aggregate leaf-only metrics
+      timeConditions.push("SpanAttributes['citric.test.package'] != ''");
+      timeConditions.push(leafTestFilter());
+      const whereClause = timeConditions.join("\n\t\t\t\t\tAND ");
+
+      const sql = `
+				SELECT
+					name,
+					count(*) as executions,
+					avg(test_duration) as avg_duration,
+					quantile(0.95)(test_duration) as p95_duration,
+					round(countIf(test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate
+				FROM (
+					SELECT
+						SpanAttributes['citric.test.package'] as name,
+						${testFullNameExpr()},
+						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+						anyLast(SpanAttributes['citric.test.result']) as test_result,
+						anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
+					FROM otel_traces
+					WHERE ${whereClause}
+					GROUP BY name, test_full_name, run_id, head_sha
+				)
+				GROUP BY name
+				ORDER BY name
+			`;
+
+      const result = await query<{
+        name: string;
+        executions: string;
+        avg_duration: string;
+        p95_duration: string;
+        failure_rate: string;
+      }>(sql, params);
+
+      return result.map((row) => ({
+        name: row.name,
+        executions: Number(row.executions),
+        avgDuration: Number(row.avg_duration),
+        p95Duration: Number(row.p95_duration),
+        failureRate: Number(row.failure_rate) || 0,
+      })) satisfies TestPerfChild[];
+    }
+
+    // Package or deeper level: return direct children
+    timeConditions.push("SpanAttributes['citric.test.package'] = {pkg:String}");
+    params.pkg = data.pkg;
+
+    const parentTest = data.path ?? "";
+    timeConditions.push(
+      "SpanAttributes['citric.test.parent_test'] = {parentTest:String}",
+    );
+    params.parentTest = parentTest;
+
+    const whereClause = timeConditions.join("\n\t\t\t\t\tAND ");
+
+    const sql = `
+			SELECT
+				name,
+				count(*) as executions,
+				avg(test_duration) as avg_duration,
+				quantile(0.95)(test_duration) as p95_duration,
+				round(countIf(test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate
+			FROM (
+				SELECT
+					SpanAttributes['citric.test.name'] as name,
+					${testFullNameExpr()},
+					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+					anyLast(SpanAttributes['citric.test.result']) as test_result,
+					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
+				FROM otel_traces
+				WHERE ${whereClause}
+				GROUP BY name, test_full_name, run_id, head_sha
+			)
+			GROUP BY name
+			ORDER BY name
+		`;
+
+    const result = await query<{
+      name: string;
+      executions: string;
+      avg_duration: string;
+      p95_duration: string;
+      failure_rate: string;
+    }>(sql, params);
+
+    return result.map((row) => ({
+      name: row.name,
+      executions: Number(row.executions),
+      avgDuration: Number(row.avg_duration),
+      p95Duration: Number(row.p95_duration),
+      failureRate: Number(row.failure_rate) || 0,
+    })) satisfies TestPerfChild[];
+  });
+
+// --- Child types (determine which children are suites) ---
+
+const TestPerfChildTypesInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  childFullNames: z.array(z.string()),
+});
+
+export const getTestPerfChildTypes = createServerFn({
+  method: "GET",
+})
+  .inputValidator(TestPerfChildTypesInputSchema)
+  .handler(async ({ data }) => {
+    if (data.childFullNames.length === 0) return [] as string[];
+
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+
+    const sql = `
+			SELECT DISTINCT SpanAttributes['citric.test.parent_test'] as parent_test
+			FROM otel_traces
+			WHERE SpanAttributes['citric.test.parent_test'] IN ({childFullNames:Array(String)})
+				AND SpanAttributes['citric.test.parent_test'] != ''
+				AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
+		`;
+
+    const result = await query<{ parent_test: string }>(sql, {
+      fromTime: fromISO,
+      toTime: toISO,
+      childFullNames: data.childFullNames,
+    });
+
+    return result.map((r) => r.parent_test);
+  });
+
+export const testPerfChildrenOptions = (
+  input: z.infer<typeof TestPerfChildrenInputSchema>,
+) =>
+  queryOptions({
+    queryKey: ["testPerf", "children", input],
+    queryFn: () => getTestPerfChildren({ data: input }),
+    staleTime: 60_000,
+  });
+
+export const testPerfChildTypesOptions = (
+  input: z.infer<typeof TestPerfChildTypesInputSchema>,
+) =>
+  queryOptions({
+    queryKey: ["testPerf", "childTypes", input],
+    queryFn: () => getTestPerfChildTypes({ data: input }),
+    staleTime: 60_000,
+    enabled: input.childFullNames.length > 0,
+  });
+
 // --- Stats ---
 
 export interface TestPerformanceStats {
@@ -168,8 +401,16 @@ export const getTestPerfStats = createServerFn({
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params } = buildFilterConditions(fromISO, toISO, data);
+    const { conditions, params, scopeConditions } = buildFilterConditions(
+      fromISO,
+      toISO,
+      data,
+    );
     const whereClause = conditions.join("\n\t\t\t\t\tAND ");
+    const scopeWhere =
+      scopeConditions.length > 0
+        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
+        : "";
 
     const sql = `
 			SELECT
@@ -183,14 +424,21 @@ export const getTestPerfStats = createServerFn({
 				) as failure_rate
 			FROM (
 				SELECT
-					${testFullNameExpr()},
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					anyLast(SpanAttributes['citric.test.result']) as test_result,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
-				FROM otel_traces
-				WHERE ${whereClause}
-				GROUP BY test_full_name, run_id, head_sha
+					test_full_name,
+					test_result,
+					test_duration
+				FROM (
+					SELECT
+						${testFullNameExpr()},
+						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+						anyLast(SpanAttributes['citric.test.result']) as test_result,
+						anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
+					FROM otel_traces
+					WHERE ${whereClause}
+					GROUP BY test_full_name, run_id, head_sha
+				)
+				${scopeWhere}
 			)
 		`;
 
@@ -237,37 +485,82 @@ export const getTestPerfScatter = createServerFn({
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params } = buildFilterConditions(fromISO, toISO, data);
+    const { conditions, params, scopeConditions, aggregateByRun } =
+      buildFilterConditions(fromISO, toISO, data);
     const whereClause = conditions.join("\n\t\t\t\t\tAND ");
+    const scopeWhere =
+      scopeConditions.length > 0
+        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
+        : "";
 
-    const sql = `
-			SELECT
-				test_full_name,
-				test_duration,
-				test_result,
-				timestamp,
-				branch,
-				repo,
-				trace_id,
-				head_sha
-			FROM (
+    let sql: string;
+
+    if (aggregateByRun) {
+      // Package level: one dot per CI run, sum leaf-test durations
+      sql = `
 				SELECT
-					${testFullNameExpr()},
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					ResourceAttributes['vcs.ref.head.name'] as branch,
-					ResourceAttributes['vcs.repository.name'] as repo,
-					TraceId as trace_id,
-					anyLast(SpanAttributes['citric.test.result']) as test_result,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
-					max(Timestamp) as timestamp
-				FROM otel_traces
-				WHERE ${whereClause}
-				GROUP BY test_full_name, run_id, head_sha, branch, repo, trace_id
-			)
-			ORDER BY timestamp ASC
-			LIMIT 1000
-		`;
+					{pkg:String} as test_full_name,
+					sum(test_duration) as test_duration,
+					if(countIf(test_result = 'fail') > 0, 'fail', 'pass') as test_result,
+					max(timestamp) as timestamp,
+					branch,
+					repo,
+					any(trace_id) as trace_id,
+					head_sha
+				FROM (
+					SELECT test_full_name, test_duration, test_result, timestamp, branch, repo, trace_id, head_sha
+					FROM (
+						SELECT
+							${testFullNameExpr()},
+							ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+							ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+							ResourceAttributes['vcs.ref.head.name'] as branch,
+							ResourceAttributes['vcs.repository.name'] as repo,
+							TraceId as trace_id,
+							anyLast(SpanAttributes['citric.test.result']) as test_result,
+							anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+							max(Timestamp) as timestamp
+						FROM otel_traces
+						WHERE ${whereClause}
+						GROUP BY test_full_name, run_id, head_sha, branch, repo, trace_id
+					)
+					${scopeWhere}
+				)
+				GROUP BY branch, repo, head_sha
+				ORDER BY timestamp ASC
+				LIMIT 1000
+			`;
+    } else {
+      sql = `
+				SELECT
+					test_full_name,
+					test_duration,
+					test_result,
+					timestamp,
+					branch,
+					repo,
+					trace_id,
+					head_sha
+				FROM (
+					SELECT
+						${testFullNameExpr()},
+						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+						ResourceAttributes['vcs.ref.head.name'] as branch,
+						ResourceAttributes['vcs.repository.name'] as repo,
+						TraceId as trace_id,
+						anyLast(SpanAttributes['citric.test.result']) as test_result,
+						anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+						max(Timestamp) as timestamp
+					FROM otel_traces
+					WHERE ${whereClause}
+					GROUP BY test_full_name, run_id, head_sha, branch, repo, trace_id
+				)
+				${scopeWhere}
+				ORDER BY timestamp ASC
+				LIMIT 1000
+			`;
+    }
 
     const result = await query<{
       test_full_name: string;
@@ -307,8 +600,16 @@ export const getTestPerfTrend = createServerFn({
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params } = buildFilterConditions(fromISO, toISO, data);
+    const { conditions, params, scopeConditions } = buildFilterConditions(
+      fromISO,
+      toISO,
+      data,
+    );
     const whereClause = conditions.join("\n\t\t\t\t\tAND ");
+    const scopeWhere =
+      scopeConditions.length > 0
+        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
+        : "";
 
     const sql = `
 			SELECT
@@ -318,14 +619,21 @@ export const getTestPerfTrend = createServerFn({
 				quantile(0.95)(test_duration) as p95_duration
 			FROM (
 				SELECT
-					${testFullNameExpr()},
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
-					max(Timestamp) as timestamp
-				FROM otel_traces
-				WHERE ${whereClause}
-				GROUP BY test_full_name, run_id, head_sha
+					test_full_name,
+					test_duration,
+					timestamp
+				FROM (
+					SELECT
+						${testFullNameExpr()},
+						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+						anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+						max(Timestamp) as timestamp
+					FROM otel_traces
+					WHERE ${whereClause}
+					GROUP BY test_full_name, run_id, head_sha
+				)
+				${scopeWhere}
 			)
 			GROUP BY date
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
@@ -364,8 +672,14 @@ export const getTestPerfFailures = createServerFn({
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params } = buildFilterConditions(fromISO, toISO, data);
+    const { conditions, params, scopeConditions } = buildFilterConditions(
+      fromISO,
+      toISO,
+      data,
+    );
     const whereClause = conditions.join("\n\t\t\t\t\tAND ");
+    const scopeFilters = [...scopeConditions, "test_result = 'fail'"];
+    const scopeWhere = `WHERE ${scopeFilters.join("\n\t\t\t\t\tAND ")}`;
 
     const sql = `
 			SELECT
@@ -391,7 +705,7 @@ export const getTestPerfFailures = createServerFn({
 				WHERE ${whereClause}
 				GROUP BY test_full_name, run_id, head_sha, branch, repo, trace_id
 			)
-			WHERE test_result = 'fail'
+			${scopeWhere}
 			ORDER BY timestamp DESC
 			LIMIT 50
 		`;

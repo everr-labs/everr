@@ -14,3 +14,19 @@ export function testFullNameExpr(
   const expr = `if(${parentAttr} != '', concat(${parentAttr}, '/', ${nameAttr}), ${nameAttr})`;
   return alias ? `${expr} as ${alias}` : expr;
 }
+
+/**
+ * SQL condition that excludes parent/suite tests, keeping only leaf tests.
+ * A leaf test is one whose full name never appears as another test's parent_test.
+ */
+export function leafTestFilter(
+  fromParam = "fromTime",
+  toParam = "toTime",
+): string {
+  return `${testFullNameExpr(null)} NOT IN (
+    SELECT DISTINCT SpanAttributes['citric.test.parent_test']
+    FROM otel_traces
+    WHERE SpanAttributes['citric.test.parent_test'] != ''
+      AND Timestamp >= {${fromParam}:String} AND Timestamp <= {${toParam}:String}
+  )`;
+}
