@@ -21,6 +21,7 @@ export function useAutoRefresh() {
         ...prev,
         refresh: value || undefined,
       }),
+      replace: true,
     });
   };
 
