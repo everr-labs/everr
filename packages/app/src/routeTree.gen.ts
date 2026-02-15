@@ -18,6 +18,7 @@ import { Route as DashboardFlakyTestsRouteImport } from './routes/dashboard/flak
 import { Route as DashboardFailuresRouteImport } from './routes/dashboard/failures'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
 import { Route as DashboardFlakyTestsIndexRouteImport } from './routes/dashboard/flaky-tests/index'
@@ -73,6 +74,11 @@ const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
   getParentRoute: () => DashboardRoute,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardWorkflowsIndexRoute = DashboardWorkflowsIndexRouteImport.update({
   id: '/workflows/',
@@ -135,6 +141,7 @@ const DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
 
 export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteWithChildren
+  '/api/mcp': typeof ApiMcpRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesByTo {
+  '/api/mcp': typeof ApiMcpRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
@@ -174,6 +182,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/dashboard': typeof DashboardRouteWithChildren
+  '/api/mcp': typeof ApiMcpRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/dashboard'
+    | '/api/mcp'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/api/mcp'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/dashboard'
+    | '/api/mcp'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
@@ -257,6 +269,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
+  ApiMcpRoute: typeof ApiMcpRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -323,6 +336,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/analytics'
       preLoaderRoute: typeof DashboardAnalyticsRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/workflows/': {
       id: '/dashboard/workflows/'
@@ -479,6 +499,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
+  ApiMcpRoute: ApiMcpRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
