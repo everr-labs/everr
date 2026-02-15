@@ -56,6 +56,10 @@ export const navMain: NavItem[] = [
         title: "Flaky Tests",
         url: "/dashboard/flaky-tests",
       },
+      {
+        title: "Test Performance",
+        url: "/dashboard/test-performance",
+      },
     ],
   },
   {
