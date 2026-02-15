@@ -1,5 +1,6 @@
-import { useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
+import { ExternalLink } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -10,10 +11,18 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import { Button } from "@/components/ui/button";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import { ChartEmptyState } from "@/components/ui/chart-helpers";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { ScatterPoint } from "@/data/test-performance";
-import { formatDurationCompact } from "@/lib/formatting";
+import { formatDurationCompact, formatRelativeTime } from "@/lib/formatting";
 
 interface TestPerfScatterChartProps {
   data: ScatterPoint[];
@@ -47,7 +56,7 @@ function ScatterTooltipContent({
   const resultColor =
     point.result === "pass" ? "text-green-600" : "text-red-600";
   const displayName =
-    point.testName.length > 60
+    point.testName.length > 360
       ? `${point.testName.slice(0, 57)}...`
       : point.testName;
 
@@ -86,7 +95,7 @@ function ScatterTooltipContent({
 }
 
 export function TestPerfScatterChart({ data }: TestPerfScatterChartProps) {
-  const navigate = useNavigate();
+  const [selected, setSelected] = useState<ScatterPoint | null>(null);
 
   const { mainPass, mainFail, otherPass, otherFail } = useMemo(() => {
     const mainPass: ScatterPointWithTs[] = [];
@@ -118,77 +127,155 @@ export function TestPerfScatterChart({ data }: TestPerfScatterChartProps) {
   }
 
   const handleClick = (entry: ScatterPointWithTs | undefined) => {
-    if (entry?.traceId) {
-      navigate({
-        to: "/dashboard/runs/$traceId",
-        params: { traceId: entry.traceId },
-      });
+    if (entry) {
+      setSelected(entry);
     }
   };
 
   return (
-    <ChartContainer config={chartConfig} className="h-[400px] w-full">
-      <ScatterChart margin={{ top: 10, right: 12, bottom: 10, left: 12 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis
-          dataKey="ts"
-          type="number"
-          domain={["dataMin", "dataMax"]}
-          tickFormatter={formatTickDate}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-        />
-        <YAxis
-          dataKey="duration"
-          type="number"
-          tickFormatter={(v) => formatDurationCompact(v, "s")}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-        />
-        <ZAxis range={[30, 30]} />
-        <Tooltip content={<ScatterTooltipContent />} />
-        <Legend />
-        <Scatter
-          name="main (pass)"
-          data={mainPass}
-          fill="var(--color-mainPass)"
-          shape="circle"
-          onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
-          cursor="pointer"
-          isAnimationActive={false}
-        />
-        <Scatter
-          name="main (fail)"
-          data={mainFail}
-          fill="var(--color-mainFail)"
-          shape="circle"
-          onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
-          cursor="pointer"
-          isAnimationActive={false}
-        />
-        <Scatter
-          name="branch (pass)"
-          data={otherPass}
-          fill="var(--color-otherPass)"
-          shape="triangle"
-          opacity={0.6}
-          onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
-          cursor="pointer"
-          isAnimationActive={false}
-        />
-        <Scatter
-          name="branch (fail)"
-          data={otherFail}
-          fill="var(--color-otherFail)"
-          shape="triangle"
-          opacity={0.6}
-          onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
-          cursor="pointer"
-          isAnimationActive={false}
-        />
-      </ScatterChart>
-    </ChartContainer>
+    <>
+      <ChartContainer config={chartConfig} className="h-[400px] w-full">
+        <ScatterChart margin={{ top: 10, right: 12, bottom: 10, left: 12 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            tickFormatter={formatTickDate}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+          />
+          <YAxis
+            dataKey="duration"
+            type="number"
+            tickFormatter={(v) => formatDurationCompact(v, "s")}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+          />
+          <ZAxis range={[50, 50]} />
+          <Tooltip content={<ScatterTooltipContent />} />
+          <Legend />
+          <Scatter
+            name="main (pass)"
+            data={mainPass}
+            fill="var(--color-mainPass)"
+            stroke="#000"
+            strokeWidth={1}
+            shape="circle"
+            legendType="circle"
+            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            cursor="pointer"
+            isAnimationActive={false}
+          />
+          <Scatter
+            name="main (fail)"
+            data={mainFail}
+            fill="var(--color-mainFail)"
+            stroke="#000"
+            strokeWidth={1}
+            shape="circle"
+            legendType="circle"
+            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            cursor="pointer"
+            isAnimationActive={false}
+          />
+          <Scatter
+            name="branch (pass)"
+            data={otherPass}
+            fill="var(--color-otherPass)"
+            stroke="#000"
+            strokeWidth={0.5}
+            shape="triangle"
+            legendType="triangle"
+            opacity={1}
+            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            cursor="pointer"
+            isAnimationActive={false}
+          />
+          <Scatter
+            name="branch (fail)"
+            data={otherFail}
+            fill="var(--color-otherFail)"
+            stroke="#000"
+            strokeWidth={1}
+            shape="triangle"
+            legendType="triangle"
+            opacity={1}
+            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            cursor="pointer"
+            isAnimationActive={false}
+          />
+        </ScatterChart>
+      </ChartContainer>
+
+      <Sheet
+        open={!!selected}
+        onOpenChange={(open) => !open && setSelected(null)}
+      >
+        <SheetContent>
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle>Test Execution Details</SheetTitle>
+                <SheetDescription className="font-mono break-all">
+                  {selected.testName}
+                </SheetDescription>
+              </SheetHeader>
+              <div className="grid gap-4 px-6 py-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Result</p>
+                    <p
+                      className={`font-medium ${selected.result === "pass" ? "text-green-600" : "text-red-600"}`}
+                    >
+                      {selected.result}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Duration</p>
+                    <p className="font-mono">
+                      {formatDurationCompact(selected.duration, "s")}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Branch</p>
+                    <p>{selected.branch}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Repository</p>
+                    <p>{selected.repo}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Commit</p>
+                    <p className="font-mono">
+                      {selected.commitSha.slice(0, 7)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">When</p>
+                    <p>{formatRelativeTime(selected.timestamp)}</p>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  render={
+                    <Link
+                      to="/dashboard/runs/$traceId"
+                      params={{ traceId: selected.traceId }}
+                    />
+                  }
+                >
+                  <ExternalLink className="size-4" />
+                  View CI Run
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
