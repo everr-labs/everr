@@ -45,7 +45,7 @@ export const Route = createFileRoute("/dashboard/test-performance")({
       if (pkg) {
         segments.push({ label: pkg, search: { pkg, path: undefined } });
         if (path) {
-          const vitestPrefix = pkg + " > ";
+          const vitestPrefix = `${pkg} > `;
           const isVitest = path.startsWith(vitestPrefix);
           const separator = isVitest ? " > " : "/";
           const displayPath = isVitest ? path.slice(vitestPrefix.length) : path;
@@ -155,7 +155,7 @@ function TestPerformancePage() {
   // Build page title — use last segment of hierarchy
   let pageTitle = "Test Performance";
   if (path) {
-    const sep = path.startsWith((pkg ?? "") + " > ") ? " > " : "/";
+    const sep = path.startsWith(`${pkg ?? ""} > `) ? " > " : "/";
     pageTitle = path.split(sep).pop() ?? "Test Performance";
   } else if (pkg) {
     pageTitle = pkg;
