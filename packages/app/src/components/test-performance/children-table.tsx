@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { FlaskConical, FolderOpen } from "lucide-react";
+import { useMemo } from "react";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import type { TestPerfChild } from "@/data/test-performance";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
@@ -76,7 +77,10 @@ function makeColumns(
 }
 
 export function ChildrenTable({ data, suiteNames, pkg }: ChildrenTableProps) {
-  const columns = makeColumns(suiteNames, pkg);
+  const columns = useMemo(
+    () => makeColumns(suiteNames, pkg),
+    [suiteNames, pkg],
+  );
 
   return (
     <DataTable

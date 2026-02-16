@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { z } from "zod";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import {
@@ -140,14 +141,17 @@ function TestPerformancePage() {
     }),
   );
 
-  const suiteNames = new Set<string>();
-  if (suiteParents && children) {
-    for (const child of children) {
-      if (suiteParents.includes(child.name)) {
-        suiteNames.add(child.name);
+  const suiteNames = useMemo(() => {
+    const names = new Set<string>();
+    if (suiteParents && children) {
+      for (const child of children) {
+        if (suiteParents.includes(child.name)) {
+          names.add(child.name);
+        }
       }
     }
-  }
+    return names;
+  }, [suiteParents, children]);
 
   const isLeaf =
     children !== undefined && children.length === 0 && (pkg || path);

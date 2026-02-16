@@ -33,7 +33,63 @@ interface TestPerfScatterChartProps {
   toTimestamp: number;
 }
 
-type ScatterPointWithTs = ScatterPoint & { ts: number };
+type ScatterPointWithTs = ScatterPoint & { ts: number; count: number };
+
+const AGGREGATE_THRESHOLD = 200;
+const TIME_BINS = 60;
+const DURATION_BINS = 30;
+
+/**
+ * Spatially bins an array of points into a grid and merges nearby ones.
+ * Points in the same (time_bin, duration_bin) cell are averaged into one
+ * representative point whose `count` reflects how many were merged.
+ */
+function aggregateNearby(
+  points: ScatterPointWithTs[],
+  fromTs: number,
+  toTs: number,
+): ScatterPointWithTs[] {
+  if (points.length === 0) return points;
+
+  let minDur = Infinity;
+  let maxDur = -Infinity;
+  for (const p of points) {
+    if (p.duration < minDur) minDur = p.duration;
+    if (p.duration > maxDur) maxDur = p.duration;
+  }
+
+  const timeBinSize = (toTs - fromTs) / TIME_BINS || 1;
+  const durBinSize = (maxDur - minDur) / DURATION_BINS || 1;
+
+  const bins = new Map<string, ScatterPointWithTs[]>();
+
+  for (const p of points) {
+    const tx = Math.floor((p.ts - fromTs) / timeBinSize);
+    const dy = Math.floor((p.duration - minDur) / durBinSize);
+    const key = `${tx},${dy}`;
+    const bin = bins.get(key);
+    if (bin) bin.push(p);
+    else bins.set(key, [p]);
+  }
+
+  const result: ScatterPointWithTs[] = [];
+  for (const group of bins.values()) {
+    if (group.length === 1) {
+      result.push(group[0]);
+    } else {
+      const avgTs = group.reduce((s, p) => s + p.ts, 0) / group.length;
+      const avgDur = group.reduce((s, p) => s + p.duration, 0) / group.length;
+      result.push({
+        ...group[0],
+        ts: avgTs,
+        duration: avgDur,
+        count: group.length,
+      });
+    }
+  }
+
+  return result;
+}
 
 const chartConfig = {
   mainPass: { label: "main (pass)", color: "hsl(142, 71%, 45%)" },
@@ -69,10 +125,17 @@ function ScatterTooltipContent({
     <div className="border-border/50 bg-background rounded-lg border px-2.5 py-1.5 text-xs shadow-xl min-w-48">
       <p className="font-medium mb-1 break-all">{displayName}</p>
       <div className="grid gap-0.5 text-muted-foreground">
+        {point.count > 1 && (
+          <p>
+            Executions:{" "}
+            <span className="text-foreground font-medium">{point.count}</span>
+          </p>
+        )}
         <p>
           Duration:{" "}
           <span className="text-foreground font-mono">
             {formatDurationCompact(point.duration, "s")}
+            {point.count > 1 && " (avg)"}
           </span>
         </p>
         <p>
@@ -82,18 +145,22 @@ function ScatterTooltipContent({
         <p>
           Branch: <span className="text-foreground">{point.branch}</span>
         </p>
-        <p>
-          Commit:{" "}
-          <span className="text-foreground font-mono">
-            {point.commitSha.slice(0, 7)}
-          </span>
-        </p>
-        <p>
-          Time:{" "}
-          <span className="text-foreground">
-            {new Date(point.timestamp).toLocaleString()}
-          </span>
-        </p>
+        {point.count === 1 && (
+          <>
+            <p>
+              Commit:{" "}
+              <span className="text-foreground font-mono">
+                {point.commitSha.slice(0, 7)}
+              </span>
+            </p>
+            <p>
+              Time:{" "}
+              <span className="text-foreground">
+                {new Date(point.timestamp).toLocaleString()}
+              </span>
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -104,7 +171,9 @@ export function TestPerfScatterChart({
   fromTimestamp,
   toTimestamp,
 }: TestPerfScatterChartProps) {
-  const [selected, setSelected] = useState<ScatterPoint | null>(null);
+  const [selected, setSelected] = useState<ScatterPointWithTs | null>(null);
+
+  const shouldAggregate = data.length > AGGREGATE_THRESHOLD;
 
   const { mainPass, mainFail, otherPass, otherFail } = useMemo(() => {
     const mainPass: ScatterPointWithTs[] = [];
@@ -116,6 +185,7 @@ export function TestPerfScatterChart({
       const enriched: ScatterPointWithTs = {
         ...point,
         ts: new Date(point.timestamp).getTime(),
+        count: 1,
       };
       const isMain = point.branch === "main";
       const isPass = point.result === "pass";
@@ -126,8 +196,17 @@ export function TestPerfScatterChart({
       else otherFail.push(enriched);
     }
 
-    return { mainPass, mainFail, otherPass, otherFail };
-  }, [data]);
+    if (!shouldAggregate) {
+      return { mainPass, mainFail, otherPass, otherFail };
+    }
+
+    return {
+      mainPass: aggregateNearby(mainPass, fromTimestamp, toTimestamp),
+      mainFail: aggregateNearby(mainFail, fromTimestamp, toTimestamp),
+      otherPass: aggregateNearby(otherPass, fromTimestamp, toTimestamp),
+      otherFail: aggregateNearby(otherFail, fromTimestamp, toTimestamp),
+    };
+  }, [data, shouldAggregate, fromTimestamp, toTimestamp]);
 
   if (data.length === 0) {
     return (
@@ -163,7 +242,7 @@ export function TestPerfScatterChart({
             axisLine={false}
             tickMargin={8}
           />
-          <ZAxis range={[100, 100]} />
+          <ZAxis dataKey="count" type="number" range={[60, 400]} />
           <ChartTooltip content={<ScatterTooltipContent />} />
           <ChartLegend />
           <Scatter
@@ -228,7 +307,11 @@ export function TestPerfScatterChart({
           {selected && (
             <>
               <DrawerHeader>
-                <DrawerTitle>Test Execution Details</DrawerTitle>
+                <DrawerTitle>
+                  {selected.count > 1
+                    ? `${selected.count} Executions`
+                    : "Test Execution Details"}
+                </DrawerTitle>
                 <DrawerDescription className="font-mono break-all">
                   {selected.testName}
                 </DrawerDescription>
@@ -244,7 +327,9 @@ export function TestPerfScatterChart({
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground text-xs">Duration</p>
+                    <p className="text-muted-foreground text-xs">
+                      {selected.count > 1 ? "Avg Duration" : "Duration"}
+                    </p>
                     <p className="font-mono">
                       {formatDurationCompact(selected.duration, "s")}
                     </p>
@@ -257,32 +342,38 @@ export function TestPerfScatterChart({
                     <p className="text-muted-foreground text-xs">Repository</p>
                     <p>{selected.repo}</p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Commit</p>
-                    <p className="font-mono">
-                      {selected.commitSha.slice(0, 7)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">When</p>
-                    <p>{formatRelativeTime(selected.timestamp)}</p>
-                  </div>
+                  {selected.count === 1 && (
+                    <>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Commit</p>
+                        <p className="font-mono">
+                          {selected.commitSha.slice(0, 7)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">When</p>
+                        <p>{formatRelativeTime(selected.timestamp)}</p>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  nativeButton={false}
-                  role="link"
-                  render={
-                    <Link
-                      to="/dashboard/runs/$traceId"
-                      params={{ traceId: selected.traceId }}
-                    />
-                  }
-                >
-                  <ExternalLink className="size-4" />
-                  View CI Run
-                </Button>
+                {selected.count === 1 && (
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    nativeButton={false}
+                    role="link"
+                    render={
+                      <Link
+                        to="/dashboard/runs/$traceId"
+                        params={{ traceId: selected.traceId }}
+                      />
+                    }
+                  >
+                    <ExternalLink className="size-4" />
+                    View CI Run
+                  </Button>
+                )}
               </div>
             </>
           )}
