@@ -18,12 +18,12 @@ import {
 } from "@/components/ui/chart";
 import { ChartEmptyState } from "@/components/ui/chart-helpers";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import type { ScatterPoint } from "@/data/test-performance";
 import { formatDurationCompact, formatRelativeTime } from "@/lib/formatting";
 
@@ -219,19 +219,20 @@ export function TestPerfScatterChart({
         </ScatterChart>
       </ChartContainer>
 
-      <Sheet
+      <Drawer
+        swipeDirection="right"
         open={!!selected}
         onOpenChange={(open) => !open && setSelected(null)}
       >
-        <SheetContent>
+        <DrawerContent>
           {selected && (
             <>
-              <SheetHeader>
-                <SheetTitle>Test Execution Details</SheetTitle>
-                <SheetDescription className="font-mono break-all">
+              <DrawerHeader>
+                <DrawerTitle>Test Execution Details</DrawerTitle>
+                <DrawerDescription className="font-mono break-all">
                   {selected.testName}
-                </SheetDescription>
-              </SheetHeader>
+                </DrawerDescription>
+              </DrawerHeader>
               <div className="grid gap-4 px-6 py-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -285,8 +286,8 @@ export function TestPerfScatterChart({
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }

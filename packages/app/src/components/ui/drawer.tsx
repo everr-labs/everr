@@ -27,7 +27,8 @@ function DrawerOverlay({
     <DrawerPrimitive.Backdrop
       data-slot="drawer-overlay"
       className={cn(
-        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-black/80 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 z-50",
+        "fixed inset-0 z-50 bg-black",
+        "transition-opacity duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
         className,
       )}
       {...props}
@@ -38,7 +39,7 @@ function DrawerOverlay({
 function DrawerContent({
   className,
   children,
-  side = "bottom",
+  side = "right",
   ...props
 }: DrawerPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left";
@@ -48,7 +49,6 @@ function DrawerContent({
       <DrawerOverlay />
       <DrawerPrimitive.Viewport
         data-slot="drawer-viewport"
-        data-side={side}
         className={cn(
           "fixed inset-0 z-50 flex",
           side === "bottom" && "items-end justify-center",
@@ -61,26 +61,31 @@ function DrawerContent({
           data-slot="drawer-content"
           data-side={side}
           className={cn(
-            "before:bg-background before:border-border flex h-auto flex-col bg-transparent p-2 text-xs/relaxed before:absolute before:inset-2 before:-z-10 before:rounded-xl before:border",
-            "overflow-y-auto overscroll-contain",
-            "transition-transform duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
-            "data-[swiping]:select-none",
-            side === "bottom" &&
-              "inset-x-0 bottom-0 mt-24 max-h-[80vh] w-full [transform:translateY(var(--drawer-swipe-movement-y))] data-[starting-style]:[transform:translateY(100%)] data-[ending-style]:[transform:translateY(100%)]",
-            side === "top" &&
-              "inset-x-0 top-0 mb-24 max-h-[80vh] w-full [transform:translateY(var(--drawer-swipe-movement-y))] data-[starting-style]:[transform:translateY(-100%)] data-[ending-style]:[transform:translateY(-100%)]",
-            side === "left" &&
-              "inset-y-0 left-0 w-3/4 sm:max-w-sm [transform:translateX(var(--drawer-swipe-movement-x))] data-[starting-style]:[transform:translateX(-100%)] data-[ending-style]:[transform:translateX(-100%)]",
-            side === "right" &&
-              "inset-y-0 right-0 w-3/4 sm:max-w-sm [transform:translateX(var(--drawer-swipe-movement-x))] data-[starting-style]:[transform:translateX(100%)] data-[ending-style]:[transform:translateX(100%)]",
+            "bg-background text-foreground flex flex-col outline-none",
+            "overflow-y-auto overscroll-contain touch-auto",
+            "transition-transform duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
+            "data-[swiping]:select-none data-[swiping]:transition-none",
             "data-[ending-style]:duration-[calc(var(--drawer-swipe-strength)*400ms)]",
             "group/drawer-content",
+            side === "bottom" &&
+              "border-border inset-x-0 bottom-0 mt-24 max-h-[80vh] w-full rounded-t-xl border-t shadow-lg [transform:translateY(var(--drawer-swipe-movement-y))] data-[starting-style]:[transform:translateY(100%)] data-[ending-style]:[transform:translateY(100%)]",
+            side === "top" &&
+              "border-border inset-x-0 top-0 mb-24 max-h-[80vh] w-full rounded-b-xl border-b shadow-lg [transform:translateY(var(--drawer-swipe-movement-y))] data-[starting-style]:[transform:translateY(-100%)] data-[ending-style]:[transform:translateY(-100%)]",
+            side === "left" &&
+              "border-border inset-y-0 left-0 h-full w-3/4 border-r shadow-lg sm:max-w-sm [transform:translateX(var(--drawer-swipe-movement-x))] data-[starting-style]:[transform:translateX(-100%)] data-[ending-style]:[transform:translateX(-100%)]",
+            side === "right" &&
+              "border-border inset-y-0 right-0 h-full w-3/4 border-l shadow-lg sm:max-w-sm [transform:translateX(var(--drawer-swipe-movement-x))] data-[starting-style]:[transform:translateX(100%)] data-[ending-style]:[transform:translateX(100%)]",
             className,
           )}
           {...props}
         >
-          <DrawerPrimitive.Content data-slot="drawer-inner-content">
-            <div className="bg-muted mt-4 h-1.5 w-[100px] rounded-full mx-auto hidden shrink-0 group-data-[side=bottom]/drawer-content:block" />
+          {(side === "bottom" || side === "top") && (
+            <div className="bg-muted mx-auto mt-3 mb-1 h-1.5 w-[100px] shrink-0 rounded-full" />
+          )}
+          <DrawerPrimitive.Content
+            data-slot="drawer-inner-content"
+            className="mx-auto w-full max-w-lg"
+          >
             {children}
           </DrawerPrimitive.Content>
         </DrawerPrimitive.Popup>
@@ -93,10 +98,7 @@ function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="drawer-header"
-      className={cn(
-        "gap-1 p-4 group-data-[side=bottom]/drawer-content:text-center group-data-[side=top]/drawer-content:text-center md:text-left flex flex-col",
-        className,
-      )}
+      className={cn("flex flex-col gap-1.5 p-6", className)}
       {...props}
     />
   );
@@ -106,7 +108,7 @@ function DrawerFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="drawer-footer"
-      className={cn("gap-2 p-4 mt-auto flex flex-col", className)}
+      className={cn("mt-auto flex flex-col gap-2 p-6", className)}
       {...props}
     />
   );
