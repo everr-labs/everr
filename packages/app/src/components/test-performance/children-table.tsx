@@ -8,29 +8,29 @@ interface ChildrenTableProps {
   data: TestPerfChild[];
   suiteNames: Set<string>;
   pkg?: string;
-  path?: string;
 }
 
 type SearchUpdater = (prev: Record<string, unknown>) => Record<string, unknown>;
 
-function buildChildSearch(
-  childName: string,
-  pkg?: string,
-  path?: string,
-): SearchUpdater {
+/** Extract the last segment of a test name for display */
+function displayName(fullName: string): string {
+  // Vitest uses " > ", Go tests use "/"
+  const sep = fullName.includes(" > ") ? " > " : "/";
+  return fullName.split(sep).pop() ?? fullName;
+}
+
+function buildChildSearch(childName: string, pkg?: string): SearchUpdater {
   if (!pkg) {
     // Root level: child is a package name
     return (prev) => ({ ...prev, pkg: childName, path: undefined });
   }
-  // Package or deeper level: child is a test/suite name
-  const newPath = path ? `${path}/${childName}` : childName;
-  return (prev) => ({ ...prev, path: newPath });
+  // Package or deeper level: child name is already the full path
+  return (prev) => ({ ...prev, path: childName });
 }
 
 function makeColumns(
   suiteNames: Set<string>,
   pkg?: string,
-  path?: string,
 ): Column<TestPerfChild>[] {
   return [
     {
@@ -38,7 +38,7 @@ function makeColumns(
       cell: (row) => {
         const isSuite = suiteNames.has(row.name);
         const Icon = isSuite ? FolderOpen : FlaskConical;
-        const search = buildChildSearch(row.name, pkg, path);
+        const search = buildChildSearch(row.name, pkg);
         return (
           <Link
             to="/dashboard/test-performance"
@@ -46,7 +46,7 @@ function makeColumns(
             className="inline-flex items-center gap-1.5 font-mono text-xs hover:underline"
           >
             <Icon className="text-muted-foreground size-3.5 shrink-0" />
-            {row.name}
+            {pkg ? displayName(row.name) : row.name}
           </Link>
         );
       },
@@ -80,13 +80,8 @@ function makeColumns(
   ];
 }
 
-export function ChildrenTable({
-  data,
-  suiteNames,
-  pkg,
-  path,
-}: ChildrenTableProps) {
-  const columns = makeColumns(suiteNames, pkg, path);
+export function ChildrenTable({ data, suiteNames, pkg }: ChildrenTableProps) {
+  const columns = makeColumns(suiteNames, pkg);
 
   return (
     <DataTable

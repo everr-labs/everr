@@ -60,7 +60,9 @@ export function buildFilterConditions(
     params.pkg = data.pkg;
   }
   if (data.testName) {
-    conditions.push(`${testFullNameExpr(null)} ILIKE {testName:String}`);
+    conditions.push(
+      "SpanAttributes['citric.test.name'] ILIKE {testName:String}",
+    );
     params.testName = `%${data.testName}%`;
   }
   if (data.branch) {
@@ -71,8 +73,8 @@ export function buildFilterConditions(
   }
 
   if (data.path) {
-    // When viewing a specific test/suite, match exactly in the inner query
-    conditions.push(`${testFullNameExpr(null)} = {exactPath:String}`);
+    // name already contains the full test path for both vitest and Go tests
+    conditions.push("SpanAttributes['citric.test.name'] = {exactPath:String}");
     params.exactPath = data.path;
   } else if (data.pkg) {
     // Package level: show direct children only (describe blocks / top-level tests)

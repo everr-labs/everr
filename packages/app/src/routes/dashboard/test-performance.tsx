@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import {
@@ -8,14 +8,6 @@ import {
   TestPerfFilterBar,
   TestPerfScatterChart,
 } from "@/components/test-performance";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import {
   Card,
   CardContent,
@@ -35,15 +27,43 @@ import {
 } from "@/data/test-performance";
 import { formatDurationCompact } from "@/lib/formatting";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
+import type { BreadcrumbSegment } from "@/router-types";
 
 export const Route = createFileRoute("/dashboard/test-performance")({
   staticData: {
     breadcrumb: (match: { search?: { path?: string; pkg?: string } }) => {
       const path = match.search?.path;
       const pkg = match.search?.pkg;
-      if (path) return path.split("/").pop() ?? "Test Performance";
-      if (pkg) return pkg;
-      return "Test Performance";
+      if (!pkg && !path) return "Test Performance";
+
+      const segments: BreadcrumbSegment[] = [
+        {
+          label: "Test Performance",
+          search: { pkg: undefined, path: undefined },
+        },
+      ];
+      if (pkg) {
+        segments.push({ label: pkg, search: { pkg, path: undefined } });
+        if (path) {
+          const vitestPrefix = pkg + " > ";
+          const isVitest = path.startsWith(vitestPrefix);
+          const separator = isVitest ? " > " : "/";
+          const displayPath = isVitest ? path.slice(vitestPrefix.length) : path;
+          const parts = displayPath.split(separator);
+
+          for (let i = 0; i < parts.length; i++) {
+            const partialPath = parts.slice(0, i + 1).join(separator);
+            segments.push({
+              label: parts[i],
+              search: {
+                pkg,
+                path: isVitest ? vitestPrefix + partialPath : partialPath,
+              },
+            });
+          }
+        }
+      }
+      return segments;
     },
   },
   component: TestPerformancePage,
@@ -105,11 +125,8 @@ function TestPerformancePage() {
   const childrenInput = { timeRange, repo, pkg, branch, path };
   const { data: children } = useQuery(testPerfChildrenOptions(childrenInput));
 
-  // Compute full names for children to check which are suites
-  const childFullNames = (children ?? []).map((c) => {
-    if (!pkg) return c.name; // root level: child name is the package
-    return path ? `${path}/${c.name}` : c.name;
-  });
+  // Child names are already full paths — use them directly to check which are suites
+  const childFullNames = (children ?? []).map((c) => c.name);
 
   const { data: suiteParents } = useQuery(
     testPerfChildTypesOptions({
@@ -121,12 +138,7 @@ function TestPerformancePage() {
   const suiteNames = new Set<string>();
   if (suiteParents && children) {
     for (const child of children) {
-      const fullName = !pkg
-        ? child.name
-        : path
-          ? `${path}/${child.name}`
-          : child.name;
-      if (suiteParents.includes(fullName)) {
+      if (suiteParents.includes(child.name)) {
         suiteNames.add(child.name);
       }
     }
@@ -140,10 +152,11 @@ function TestPerformancePage() {
     navigate({ search: (prev) => ({ ...prev, ...updates }) });
   };
 
-  // Build page title
+  // Build page title — use last segment of hierarchy
   let pageTitle = "Test Performance";
   if (path) {
-    pageTitle = path.split("/").pop() ?? "Test Performance";
+    const sep = path.startsWith((pkg ?? "") + " > ") ? " > " : "/";
+    pageTitle = path.split(sep).pop() ?? "Test Performance";
   } else if (pkg) {
     pageTitle = pkg;
   }
@@ -151,7 +164,6 @@ function TestPerformancePage() {
   return (
     <div className="space-y-6">
       <div>
-        {(pkg || path) && <HierarchyBreadcrumb pkg={pkg} path={path} />}
         <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
         <p className="text-muted-foreground">
           {isLeaf
@@ -184,12 +196,7 @@ function TestPerformancePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChildrenTable
-              data={children}
-              suiteNames={suiteNames}
-              pkg={pkg}
-              path={path}
-            />
+            <ChildrenTable data={children} suiteNames={suiteNames} pkg={pkg} />
           </CardContent>
         </Card>
       )}
@@ -270,66 +277,6 @@ function TestPerformancePage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function HierarchyBreadcrumb({ pkg, path }: { pkg?: string; path?: string }) {
-  const segments: { label: string; search: Record<string, unknown> }[] = [];
-
-  // Root
-  segments.push({
-    label: "Test Performance",
-    search: { pkg: undefined, path: undefined },
-  });
-
-  if (pkg) {
-    // Package level
-    segments.push({
-      label: pkg,
-      search: { pkg, path: undefined },
-    });
-
-    // Path segments
-    if (path) {
-      const parts = path.split("/");
-      for (let i = 0; i < parts.length; i++) {
-        segments.push({
-          label: parts[i],
-          search: {
-            pkg,
-            path: parts.slice(0, i + 1).join("/"),
-          },
-        });
-      }
-    }
-  }
-
-  const lastIndex = segments.length - 1;
-
-  return (
-    <Breadcrumb className="mb-2">
-      <BreadcrumbList>
-        {segments.map((seg, i) => (
-          <BreadcrumbItem key={seg.label + String(i)}>
-            {i > 0 && <BreadcrumbSeparator />}
-            {i < lastIndex ? (
-              <BreadcrumbLink
-                render={
-                  <Link
-                    to="/dashboard/test-performance"
-                    search={(prev) => ({ ...prev, ...seg.search })}
-                  />
-                }
-              >
-                {seg.label}
-              </BreadcrumbLink>
-            ) : (
-              <BreadcrumbPage>{seg.label}</BreadcrumbPage>
-            )}
-          </BreadcrumbItem>
-        ))}
-      </BreadcrumbList>
-    </Breadcrumb>
   );
 }
 
