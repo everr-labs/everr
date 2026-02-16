@@ -1,13 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { FlaskConical, FolderOpen } from "lucide-react";
-import { useMemo } from "react";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import type { TestPerfChild } from "@/data/test-performance";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 
 interface ChildrenTableProps {
   data: TestPerfChild[];
-  suiteNames: Set<string>;
   pkg?: string;
 }
 
@@ -24,16 +22,12 @@ function buildChildSearch(childName: string, pkg?: string) {
   return (prev: Record<string, unknown>) => ({ ...prev, path: childName });
 }
 
-function makeColumns(
-  suiteNames: Set<string>,
-  pkg?: string,
-): Column<TestPerfChild>[] {
+function makeColumns(pkg?: string): Column<TestPerfChild>[] {
   return [
     {
       header: "Name",
       cell: (row) => {
-        const isSuite = suiteNames.has(row.name);
-        const Icon = isSuite ? FolderOpen : FlaskConical;
+        const Icon = row.isSuite ? FolderOpen : FlaskConical;
         const search = buildChildSearch(row.name, pkg);
         return (
           <Link
@@ -76,16 +70,11 @@ function makeColumns(
   ];
 }
 
-export function ChildrenTable({ data, suiteNames, pkg }: ChildrenTableProps) {
-  const columns = useMemo(
-    () => makeColumns(suiteNames, pkg),
-    [suiteNames, pkg],
-  );
-
+export function ChildrenTable({ data, pkg }: ChildrenTableProps) {
   return (
     <DataTable
       data={data}
-      columns={columns}
+      columns={makeColumns(pkg)}
       rowKey={(row) => row.name}
       emptyState={
         <p className="text-muted-foreground py-8 text-center">

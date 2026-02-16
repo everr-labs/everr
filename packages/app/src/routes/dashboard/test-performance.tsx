@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
 import { z } from "zod";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import {
@@ -19,57 +18,23 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   testPerfChildrenOptions,
-  testPerfChildTypesOptions,
   testPerfFailuresOptions,
   testPerfFilterOptionsOptions,
   testPerfScatterOptions,
   testPerfStatsOptions,
   testPerfTrendOptions,
 } from "@/data/test-performance";
-import {
-  formatDurationCompact,
-  testNameLastSegment,
-  testNameSeparator,
-} from "@/lib/formatting";
+import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
+import { buildTestPerformanceBreadcrumb } from "@/lib/test-performance-breadcrumb";
 import { resolveTimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
-import type { BreadcrumbSegment } from "@/router-types";
 
 export const Route = createFileRoute("/dashboard/test-performance")({
   staticData: {
-    breadcrumb: (match: { search?: { path?: string; pkg?: string } }) => {
-      const path = match.search?.path;
-      const pkg = match.search?.pkg;
-      if (!pkg && !path) return "Test Performance";
-
-      const segments: BreadcrumbSegment[] = [
-        {
-          label: "Test Performance",
-          search: { pkg: undefined, path: undefined },
-        },
-      ];
-      if (pkg) {
-        segments.push({ label: pkg, search: { pkg, path: undefined } });
-        if (path) {
-          const sep = testNameSeparator(path);
-          const vitestPrefix = `${pkg} > `;
-          const isVitest = sep === " > ";
-          const displayPath = isVitest ? path.slice(vitestPrefix.length) : path;
-          const parts = displayPath.split(sep);
-
-          for (let i = 0; i < parts.length; i++) {
-            const partialPath = parts.slice(0, i + 1).join(sep);
-            segments.push({
-              label: parts[i],
-              search: {
-                pkg,
-                path: isVitest ? vitestPrefix + partialPath : partialPath,
-              },
-            });
-          }
-        }
-      }
-      return segments;
-    },
+    breadcrumb: (match: { search?: { path?: string; pkg?: string } }) =>
+      buildTestPerformanceBreadcrumb({
+        pkg: match.search?.pkg,
+        path: match.search?.path,
+      }),
   },
   component: TestPerformancePage,
   validateSearch: TimeRangeSearchSchema.extend({
@@ -131,28 +96,6 @@ function TestPerformancePage() {
   const childrenInput = { timeRange, repo, pkg, branch, path };
   const { data: children } = useQuery(testPerfChildrenOptions(childrenInput));
 
-  // Child names are already full paths — use them directly to check which are suites
-  const childFullNames = (children ?? []).map((c) => c.name);
-
-  const { data: suiteParents } = useQuery(
-    testPerfChildTypesOptions({
-      timeRange,
-      childFullNames,
-    }),
-  );
-
-  const suiteNames = useMemo(() => {
-    const names = new Set<string>();
-    if (suiteParents && children) {
-      for (const child of children) {
-        if (suiteParents.includes(child.name)) {
-          names.add(child.name);
-        }
-      }
-    }
-    return names;
-  }, [suiteParents, children]);
-
   const isLeaf =
     children !== undefined && children.length === 0 && (pkg || path);
   const hasChildren = children !== undefined && children.length > 0;
@@ -204,7 +147,7 @@ function TestPerformancePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChildrenTable data={children} suiteNames={suiteNames} pkg={pkg} />
+            <ChildrenTable data={children} pkg={pkg} />
           </CardContent>
         </Card>
       )}
