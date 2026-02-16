@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm biome check --fix $(echo $CLAUDE_FILE_PATHS | tr ',' ' ') 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo $CLAUDE_FILE_PATHS | tr ',' '\\n' | grep -q '\\.env$' && echo 'BLOCK: Do not edit .env files directly' && exit 1 || exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
