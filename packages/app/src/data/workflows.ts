@@ -234,7 +234,9 @@ export const getWorkflowsSparklines = createServerFn({
 })
   .inputValidator(WorkflowsSparklineInputSchema)
   .handler(async ({ data }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(
+      data.timeRange,
+    );
 
     if (data.workflows.length === 0) {
       return [] satisfies WorkflowSparklineData[];
@@ -304,6 +306,27 @@ export const getWorkflowsSparklines = createServerFn({
         successRate: Number(row.successRate) || 0,
         avgDuration: Number(row.avgDuration),
       });
+    }
+
+    // Fill missing dates so sparklines span the full time range
+    for (const entry of grouped.values()) {
+      const existingDates = new Set(entry.buckets.map((b) => b.date));
+      for (
+        const d = new Date(fromDate);
+        d <= toDate;
+        d.setDate(d.getDate() + 1)
+      ) {
+        const dateStr = d.toISOString().slice(0, 10);
+        if (!existingDates.has(dateStr)) {
+          entry.buckets.push({
+            date: dateStr,
+            totalRuns: 0,
+            successRate: 0,
+            avgDuration: 0,
+          });
+        }
+      }
+      entry.buckets.sort((a, b) => a.date.localeCompare(b.date));
     }
 
     return Array.from(grouped.values()) satisfies WorkflowSparklineData[];

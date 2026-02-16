@@ -3,16 +3,19 @@ import { ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
-  Legend,
   Scatter,
   ScatterChart,
-  Tooltip,
   XAxis,
   YAxis,
   ZAxis,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartTooltip,
+} from "@/components/ui/chart";
 import { ChartEmptyState } from "@/components/ui/chart-helpers";
 import {
   Sheet,
@@ -26,6 +29,8 @@ import { formatDurationCompact, formatRelativeTime } from "@/lib/formatting";
 
 interface TestPerfScatterChartProps {
   data: ScatterPoint[];
+  fromTimestamp: number;
+  toTimestamp: number;
 }
 
 type ScatterPointWithTs = ScatterPoint & { ts: number };
@@ -56,8 +61,8 @@ function ScatterTooltipContent({
   const resultColor =
     point.result === "pass" ? "text-green-600" : "text-red-600";
   const displayName =
-    point.testName.length > 360
-      ? `${point.testName.slice(0, 57)}...`
+    point.testName.length > 45
+      ? `${point.testName.slice(0, 42)}...`
       : point.testName;
 
   return (
@@ -94,7 +99,11 @@ function ScatterTooltipContent({
   );
 }
 
-export function TestPerfScatterChart({ data }: TestPerfScatterChartProps) {
+export function TestPerfScatterChart({
+  data,
+  fromTimestamp,
+  toTimestamp,
+}: TestPerfScatterChartProps) {
   const [selected, setSelected] = useState<ScatterPoint | null>(null);
 
   const { mainPass, mainFail, otherPass, otherFail } = useMemo(() => {
@@ -140,7 +149,7 @@ export function TestPerfScatterChart({ data }: TestPerfScatterChartProps) {
           <XAxis
             dataKey="ts"
             type="number"
-            domain={["dataMin", "dataMax"]}
+            domain={[fromTimestamp, toTimestamp]}
             tickFormatter={formatTickDate}
             tickLine={false}
             axisLine={false}
@@ -154,9 +163,9 @@ export function TestPerfScatterChart({ data }: TestPerfScatterChartProps) {
             axisLine={false}
             tickMargin={8}
           />
-          <ZAxis range={[50, 50]} />
-          <Tooltip content={<ScatterTooltipContent />} />
-          <Legend />
+          <ZAxis range={[100, 100]} />
+          <ChartTooltip content={<ScatterTooltipContent />} />
+          <ChartLegend />
           <Scatter
             name="main (pass)"
             data={mainPass}

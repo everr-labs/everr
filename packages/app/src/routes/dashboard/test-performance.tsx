@@ -26,7 +26,7 @@ import {
   testPerfTrendOptions,
 } from "@/data/test-performance";
 import { formatDurationCompact } from "@/lib/formatting";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { resolveTimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 import type { BreadcrumbSegment } from "@/router-types";
 
 export const Route = createFileRoute("/dashboard/test-performance")({
@@ -113,6 +113,7 @@ export const Route = createFileRoute("/dashboard/test-performance")({
 function TestPerformancePage() {
   const { from, to, repo, pkg, testName, branch, path } = Route.useSearch();
   const timeRange = { from, to };
+  const { fromDate, toDate } = resolveTimeRange(timeRange);
   const filterInput = { timeRange, repo, pkg, testName, branch, path };
   const navigate = Route.useNavigate();
 
@@ -247,7 +248,11 @@ function TestPerformancePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <TestPerfScatterChart data={scatter ?? []} />
+          <TestPerfScatterChart
+            data={scatter ?? []}
+            fromTimestamp={fromDate.getTime()}
+            toTimestamp={toDate.getTime()}
+          />
         </CardContent>
       </Card>
 
