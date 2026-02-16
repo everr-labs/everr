@@ -51,3 +51,13 @@ Custom OpenTelemetry Collector that:
 |---------|---------|
 | ClickHouse | Primary telemetry storage |
 | PostgreSQL | App metadata and user data |
+
+## UI Patterns
+
+When implementing UI changes across multiple routes or pages, always use shared layout components (e.g., TanStack Start layout routes) rather than duplicating layout code. Check for existing layout abstractions before creating inline layouts.
+
+Always use the `Panel` component (`packages/app/src/components/ui/panel.tsx`) for all data-displaying sections on dashboard pages. Panel handles data fetching, loading skeletons, and error states. Use `variant="stat"` for KPI cards, default variant for charts and lists.
+
+## ClickHouse Queries
+
+When fixing ClickHouse queries, remember that column aliases from subqueries cannot be accessed as map expressions in outer queries — reference them by their alias name directly. Always test complex ClickHouse SQL mentally for alias scoping.

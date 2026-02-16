@@ -5,6 +5,22 @@ import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { testFullNameExpr } from "./sql-helpers";
 
+/** Fill missing dates in a sparse [date, value] trend array to span the full range. */
+function fillTrendDates(
+  raw: [string, number][],
+  fromDate: Date,
+  toDate: Date,
+): number[] {
+  console.log("fill");
+  const valueMap = new Map(raw);
+  const result: number[] = [];
+  for (const d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    result.push(valueMap.get(dateStr) ?? 0);
+  }
+  return result;
+}
+
 export interface TestResultsSummary {
   totalTests: number;
   passCount: number;
@@ -89,7 +105,7 @@ export const getTestResultsByPackage = createServerFn({
 })
   .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			WITH executions AS (
@@ -127,9 +143,9 @@ export const getTestResultsByPackage = createServerFn({
 					1
 				) as passRate,
 				avg(e.test_duration) as avgDuration,
-				(SELECT arrayMap(x -> round(x.2, 4), arraySort(x -> x.1, groupArray((exec_date, day_avg))))
+				(SELECT arraySort(x -> x.1, groupArray((toString(exec_date), round(day_avg, 4))))
 				 FROM daily_pkg d WHERE d.repo = e.repo AND d.test_package = e.test_package
-				) as avgDurationTrend
+				) as avgDurationTrendRaw
 			FROM executions e
 			GROUP BY e.repo, e.test_package
 			ORDER BY failCount DESC, testCount DESC
@@ -145,7 +161,7 @@ export const getTestResultsByPackage = createServerFn({
       skipCount: string;
       passRate: string;
       avgDuration: string;
-      avgDurationTrend: number[];
+      avgDurationTrendRaw: [string, number][];
     }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
@@ -157,7 +173,11 @@ export const getTestResultsByPackage = createServerFn({
       skipCount: Number(row.skipCount),
       passRate: Number(row.passRate) || 0,
       avgDuration: Number(row.avgDuration),
-      avgDurationTrend: row.avgDurationTrend,
+      avgDurationTrend: fillTrendDates(
+        row.avgDurationTrendRaw,
+        fromDate,
+        toDate,
+      ),
     })) satisfies PackageResult[];
   });
 
@@ -177,7 +197,7 @@ export const getSlowestTests = createServerFn({
 })
   .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
 			WITH executions AS (
@@ -209,12 +229,12 @@ export const getSlowestTests = createServerFn({
 				avg(e.test_duration) as avgDuration,
 				max(e.test_duration) as maxDuration,
 				count(*) as executionCount,
-				(SELECT arrayMap(x -> round(x.2, 4), arraySort(x -> x.1, groupArray((exec_date, day_avg))))
+				(SELECT arraySort(x -> x.1, groupArray((toString(exec_date), round(day_avg, 4))))
 				 FROM daily_test d WHERE d.repo = e.repo AND d.test_full_name = e.test_full_name
-				) as avgDurationTrend,
-				(SELECT arrayMap(x -> round(x.2, 4), arraySort(x -> x.1, groupArray((exec_date, day_max))))
+				) as avgDurationTrendRaw,
+				(SELECT arraySort(x -> x.1, groupArray((toString(exec_date), round(day_max, 4))))
 				 FROM daily_test d WHERE d.repo = e.repo AND d.test_full_name = e.test_full_name
-				) as maxDurationTrend
+				) as maxDurationTrendRaw
 			FROM executions e
 			GROUP BY e.repo, e.test_package, e.test_full_name
 			ORDER BY avgDuration DESC
@@ -228,8 +248,8 @@ export const getSlowestTests = createServerFn({
       avgDuration: string;
       maxDuration: string;
       executionCount: string;
-      avgDurationTrend: number[];
-      maxDurationTrend: number[];
+      avgDurationTrendRaw: [string, number][];
+      maxDurationTrendRaw: [string, number][];
     }>(sql, { fromTime: fromISO, toTime: toISO });
 
     return result.map((row) => ({
@@ -239,8 +259,16 @@ export const getSlowestTests = createServerFn({
       avgDuration: Number(row.avgDuration),
       maxDuration: Number(row.maxDuration),
       executionCount: Number(row.executionCount),
-      avgDurationTrend: row.avgDurationTrend,
-      maxDurationTrend: row.maxDurationTrend,
+      avgDurationTrend: fillTrendDates(
+        row.avgDurationTrendRaw,
+        fromDate,
+        toDate,
+      ),
+      maxDurationTrend: fillTrendDates(
+        row.maxDurationTrendRaw,
+        fromDate,
+        toDate,
+      ),
     })) satisfies SlowestTest[];
   });
 

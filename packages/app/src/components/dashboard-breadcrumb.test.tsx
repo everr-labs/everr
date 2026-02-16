@@ -3,19 +3,40 @@ import { describe, expect, it, type Mock, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
   useMatches: vi.fn(),
-  Link: ({ to, children }: { to: string; children?: React.ReactNode }) => (
-    <a href={to}>{children}</a>
-  ),
+  Link: ({
+    to,
+    search,
+    children,
+  }: {
+    to: string;
+    search?: (prev: Record<string, unknown>) => Record<string, unknown>;
+    children?: React.ReactNode;
+  }) => {
+    const resolvedSearch = search ? search({}) : undefined;
+    const searchStr = resolvedSearch
+      ? `?${new URLSearchParams(
+          Object.entries(resolvedSearch)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)]),
+        ).toString()}`
+      : "";
+    return <a href={`${to}${searchStr}`}>{children}</a>;
+  },
 }));
 
 import { useMatches } from "@tanstack/react-router";
+import type { BreadcrumbSegment } from "@/router-types";
 import { DashboardBreadcrumb } from "./dashboard-breadcrumb";
 
 const mockUseMatches = useMatches as Mock;
 
 function makeMatch(
   fullPath: string,
-  breadcrumb?: string | ((match: Record<string, unknown>) => string),
+  breadcrumb?:
+    | string
+    | ((
+        match: Record<string, unknown>,
+      ) => string | BreadcrumbSegment[] | undefined),
   extra?: Record<string, unknown>,
 ) {
   return {
@@ -173,5 +194,57 @@ describe("DashboardBreadcrumb", () => {
     expect(
       screen.getByText("my-test-name").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
+  });
+
+  it("renders multi-segment breadcrumbs from array return", () => {
+    const segmentsFn = () =>
+      [
+        { label: "Test Performance", search: {} },
+        { label: "my-pkg", search: { pkg: "my-pkg" } },
+        {
+          label: "TraceWaterfall",
+          search: { pkg: "my-pkg", path: "my-pkg > TraceWaterfall" },
+        },
+      ] as BreadcrumbSegment[];
+
+    mockUseMatches.mockReturnValue([
+      makeMatch("/dashboard/test-performance", segmentsFn),
+    ]);
+    render(<DashboardBreadcrumb />);
+
+    // First two are links, last is a page
+    const rootLink = screen.getByText("Test Performance").closest("a");
+    expect(rootLink).toHaveAttribute("href", "/dashboard/test-performance?");
+
+    const pkgLink = screen.getByText("my-pkg").closest("a");
+    expect(pkgLink).toHaveAttribute(
+      "href",
+      "/dashboard/test-performance?pkg=my-pkg",
+    );
+
+    expect(
+      screen
+        .getByText("TraceWaterfall")
+        .closest("[data-slot='breadcrumb-page']"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders separators between multi-segment crumbs", () => {
+    const segmentsFn = () =>
+      [
+        { label: "Test Performance", search: {} },
+        { label: "pkg", search: { pkg: "pkg" } },
+        { label: "Describe", search: { pkg: "pkg", path: "pkg > Describe" } },
+      ] as BreadcrumbSegment[];
+
+    mockUseMatches.mockReturnValue([
+      makeMatch("/dashboard/test-performance", segmentsFn),
+    ]);
+    const { container } = render(<DashboardBreadcrumb />);
+
+    const separators = container.querySelectorAll(
+      "[data-slot='breadcrumb-separator']",
+    );
+    expect(separators).toHaveLength(2);
   });
 });

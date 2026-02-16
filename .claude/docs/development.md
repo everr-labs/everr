@@ -57,3 +57,7 @@ make lint-all         # Lint all Go packages
 make test-all         # Run all Go tests
 make dockerbuild      # Build Docker image
 ```
+
+## Documentation
+
+Features and documentation live in `packages/docs` — keep docs up to date when adding or modifying features.
