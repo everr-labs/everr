@@ -97,6 +97,79 @@ export function buildFilterConditions(
   return { conditions, params, scopeConditions, aggregateByRun };
 }
 
+/**
+ * Resolves time range, builds filter conditions, and joins them into SQL fragments.
+ * Shared boilerplate for stats, scatter, trend, and failures handlers.
+ */
+function prepareFilter(data: TestPerformanceFilterInput) {
+  const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+  const filter = buildFilterConditions(fromISO, toISO, data);
+  const whereClause = filter.conditions.join("\n\t\t\t\t\tAND ");
+  const scopeWhere =
+    filter.scopeConditions.length > 0
+      ? `WHERE ${filter.scopeConditions.join("\n\t\t\t\t\tAND ")}`
+      : "";
+  return { ...filter, whereClause, scopeWhere, fromISO, toISO };
+}
+
+/**
+ * Builds the inner deduplication subquery that collapses multiple spans for the
+ * same (test_full_name, run_id, head_sha) into a single execution row.
+ *
+ * @param whereClause - SQL WHERE conditions
+ * @param opts.includeResult - include test_result column (default true)
+ * @param opts.includeTimestamp - include max(Timestamp) as timestamp
+ * @param opts.includeMetadata - include branch, repo, trace_id columns
+ */
+function executionsSubquery(
+  whereClause: string,
+  opts: {
+    includeResult?: boolean;
+    includeTimestamp?: boolean;
+    includeMetadata?: boolean;
+  } = {},
+): string {
+  const {
+    includeResult = true,
+    includeTimestamp = false,
+    includeMetadata = false,
+  } = opts;
+
+  const selects = [
+    testFullNameExpr(),
+    "ResourceAttributes['cicd.pipeline.run.id'] as run_id",
+    "ResourceAttributes['vcs.ref.head.revision'] as head_sha",
+  ];
+  const groupBy = ["test_full_name", "run_id", "head_sha"];
+
+  if (includeMetadata) {
+    selects.push(
+      "ResourceAttributes['vcs.ref.head.name'] as branch",
+      "ResourceAttributes['vcs.repository.name'] as repo",
+      "TraceId as trace_id",
+    );
+    groupBy.push("branch", "repo", "trace_id");
+  }
+
+  if (includeResult) {
+    selects.push(
+      "anyLast(SpanAttributes['citric.test.result']) as test_result",
+    );
+  }
+  selects.push(
+    "anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration",
+  );
+  if (includeTimestamp) {
+    selects.push("max(Timestamp) as timestamp");
+  }
+
+  return `SELECT
+						${selects.join(",\n\t\t\t\t\t\t")}
+					FROM otel_traces
+					WHERE ${whereClause}
+					GROUP BY ${groupBy.join(", ")}`;
+}
+
 // Server function: filter options (repos + branches from last 90 days)
 export const getTestPerfFilterOptions = createServerFn({
   method: "GET",
@@ -402,17 +475,8 @@ export const getTestPerfStats = createServerFn({
 })
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params, scopeConditions } = buildFilterConditions(
-      fromISO,
-      toISO,
-      data,
-    );
-    const whereClause = conditions.join("\n\t\t\t\t\tAND ");
-    const scopeWhere =
-      scopeConditions.length > 0
-        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
-        : "";
+    const { whereClause, scopeWhere, params } = prepareFilter(data);
+    const inner = executionsSubquery(whereClause);
 
     const sql = `
 			SELECT
@@ -425,21 +489,8 @@ export const getTestPerfStats = createServerFn({
 					1
 				) as failure_rate
 			FROM (
-				SELECT
-					test_full_name,
-					test_result,
-					test_duration
-				FROM (
-					SELECT
-						${testFullNameExpr()},
-						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-						anyLast(SpanAttributes['citric.test.result']) as test_result,
-						anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
-					FROM otel_traces
-					WHERE ${whereClause}
-					GROUP BY test_full_name, run_id, head_sha
-				)
+				SELECT test_full_name, test_result, test_duration
+				FROM (${inner})
 				${scopeWhere}
 			)
 		`;
@@ -486,14 +537,12 @@ export const getTestPerfScatter = createServerFn({
 })
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params, scopeConditions, aggregateByRun } =
-      buildFilterConditions(fromISO, toISO, data);
-    const whereClause = conditions.join("\n\t\t\t\t\tAND ");
-    const scopeWhere =
-      scopeConditions.length > 0
-        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
-        : "";
+    const { whereClause, scopeWhere, params, aggregateByRun } =
+      prepareFilter(data);
+    const inner = executionsSubquery(whereClause, {
+      includeMetadata: true,
+      includeTimestamp: true,
+    });
 
     let sql: string;
 
@@ -511,21 +560,7 @@ export const getTestPerfScatter = createServerFn({
 					head_sha
 				FROM (
 					SELECT test_full_name, test_duration, test_result, timestamp, branch, repo, trace_id, head_sha
-					FROM (
-						SELECT
-							${testFullNameExpr()},
-							ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-							ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-							ResourceAttributes['vcs.ref.head.name'] as branch,
-							ResourceAttributes['vcs.repository.name'] as repo,
-							TraceId as trace_id,
-							anyLast(SpanAttributes['citric.test.result']) as test_result,
-							anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
-							max(Timestamp) as timestamp
-						FROM otel_traces
-						WHERE ${whereClause}
-						GROUP BY test_full_name, run_id, head_sha, branch, repo, trace_id
-					)
+					FROM (${inner})
 					${scopeWhere}
 				)
 				GROUP BY branch, repo, head_sha
@@ -534,30 +569,8 @@ export const getTestPerfScatter = createServerFn({
 			`;
     } else {
       sql = `
-				SELECT
-					test_full_name,
-					test_duration,
-					test_result,
-					timestamp,
-					branch,
-					repo,
-					trace_id,
-					head_sha
-				FROM (
-					SELECT
-						${testFullNameExpr()},
-						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-						ResourceAttributes['vcs.ref.head.name'] as branch,
-						ResourceAttributes['vcs.repository.name'] as repo,
-						TraceId as trace_id,
-						anyLast(SpanAttributes['citric.test.result']) as test_result,
-						anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
-						max(Timestamp) as timestamp
-					FROM otel_traces
-					WHERE ${whereClause}
-					GROUP BY test_full_name, run_id, head_sha, branch, repo, trace_id
-				)
+				SELECT test_full_name, test_duration, test_result, timestamp, branch, repo, trace_id, head_sha
+				FROM (${inner})
 				${scopeWhere}
 				ORDER BY timestamp ASC
 				LIMIT 1000
@@ -601,17 +614,11 @@ export const getTestPerfTrend = createServerFn({
 })
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params, scopeConditions } = buildFilterConditions(
-      fromISO,
-      toISO,
-      data,
-    );
-    const whereClause = conditions.join("\n\t\t\t\t\tAND ");
-    const scopeWhere =
-      scopeConditions.length > 0
-        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
-        : "";
+    const { whereClause, scopeWhere, params } = prepareFilter(data);
+    const inner = executionsSubquery(whereClause, {
+      includeResult: false,
+      includeTimestamp: true,
+    });
 
     const sql = `
 			SELECT
@@ -620,21 +627,8 @@ export const getTestPerfTrend = createServerFn({
 				quantile(0.5)(test_duration) as p50_duration,
 				quantile(0.95)(test_duration) as p95_duration
 			FROM (
-				SELECT
-					test_full_name,
-					test_duration,
-					timestamp
-				FROM (
-					SELECT
-						${testFullNameExpr()},
-						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-						anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
-						max(Timestamp) as timestamp
-					FROM otel_traces
-					WHERE ${whereClause}
-					GROUP BY test_full_name, run_id, head_sha
-				)
+				SELECT test_full_name, test_duration, timestamp
+				FROM (${inner})
 				${scopeWhere}
 			)
 			GROUP BY date
@@ -673,41 +667,18 @@ export const getTestPerfFailures = createServerFn({
 })
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { conditions, params, scopeConditions } = buildFilterConditions(
-      fromISO,
-      toISO,
-      data,
-    );
-    const whereClause = conditions.join("\n\t\t\t\t\tAND ");
+    const { whereClause, scopeConditions, params } = prepareFilter(data);
+    const inner = executionsSubquery(whereClause, {
+      includeMetadata: true,
+      includeTimestamp: true,
+    });
     const scopeFilters = [...scopeConditions, "test_result = 'fail'"];
-    const scopeWhere = `WHERE ${scopeFilters.join("\n\t\t\t\t\tAND ")}`;
+    const failuresWhere = `WHERE ${scopeFilters.join("\n\t\t\t\t\tAND ")}`;
 
     const sql = `
-			SELECT
-				test_full_name,
-				test_duration,
-				timestamp,
-				branch,
-				head_sha,
-				trace_id,
-				repo
-			FROM (
-				SELECT
-					${testFullNameExpr()},
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					ResourceAttributes['vcs.ref.head.name'] as branch,
-					ResourceAttributes['vcs.repository.name'] as repo,
-					TraceId as trace_id,
-					anyLast(SpanAttributes['citric.test.result']) as test_result,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
-					max(Timestamp) as timestamp
-				FROM otel_traces
-				WHERE ${whereClause}
-				GROUP BY test_full_name, run_id, head_sha, branch, repo, trace_id
-			)
-			${scopeWhere}
+			SELECT test_full_name, test_duration, timestamp, branch, head_sha, trace_id, repo
+			FROM (${inner})
+			${failuresWhere}
 			ORDER BY timestamp DESC
 			LIMIT 50
 		`;

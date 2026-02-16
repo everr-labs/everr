@@ -174,7 +174,7 @@ export function TestPerfScatterChart({
             strokeWidth={1}
             shape="circle"
             legendType="circle"
-            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            onClick={handleClick}
             cursor="pointer"
             isAnimationActive={false}
           />
@@ -186,7 +186,7 @@ export function TestPerfScatterChart({
             strokeWidth={1}
             shape="circle"
             legendType="circle"
-            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            onClick={handleClick}
             cursor="pointer"
             isAnimationActive={false}
           />
@@ -199,7 +199,7 @@ export function TestPerfScatterChart({
             shape="triangle"
             legendType="triangle"
             opacity={1}
-            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            onClick={handleClick}
             cursor="pointer"
             isAnimationActive={false}
           />
@@ -212,7 +212,7 @@ export function TestPerfScatterChart({
             shape="triangle"
             legendType="triangle"
             opacity={1}
-            onClick={(e) => handleClick(e as unknown as ScatterPointWithTs)}
+            onClick={handleClick}
             cursor="pointer"
             isAnimationActive={false}
           />

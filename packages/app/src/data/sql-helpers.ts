@@ -1,6 +1,12 @@
 /**
  * SQL expression to build the full test name from parent_test and test name.
- * Used across flaky-tests and test-results queries.
+ * Uses "/" as the join separator for deduplication purposes.
+ *
+ * Note: this produces a compound key for grouping, not a display name.
+ * Test frameworks use different native separators for display:
+ * - Vitest: " > " (e.g., "pkg > Describe > test")
+ * - Go: "/" (e.g., "TestSuite/SubTest")
+ * See `testNameSeparator()` in lib/formatting.ts for display parsing.
  *
  * @param alias - Column alias (e.g., "test_full_name"). Pass `null` to omit the alias.
  * @param parentAttr - SQL expression for the parent test attribute.

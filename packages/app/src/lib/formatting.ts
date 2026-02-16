@@ -61,6 +61,19 @@ export function parseDuration(input: string): number | null {
   return matched ? totalMs : null;
 }
 
+/**
+ * Detect the hierarchy separator used in a test name.
+ * Vitest uses " > " (e.g., "pkg > Describe > test"), Go uses "/" (e.g., "TestSuite/SubTest").
+ */
+export function testNameSeparator(name: string): string {
+  return name.includes(" > ") ? " > " : "/";
+}
+
+/** Extract the last segment of a hierarchical test name for display. */
+export function testNameLastSegment(name: string): string {
+  return name.split(testNameSeparator(name)).pop() ?? name;
+}
+
 export function formatRelativeTime(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();

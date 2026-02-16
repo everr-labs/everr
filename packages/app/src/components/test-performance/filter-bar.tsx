@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -6,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { TestPerfFilterOptions } from "@/data/test-performance";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface TestPerfFilterBarProps {
   filterOptions: TestPerfFilterOptions;
@@ -26,6 +28,19 @@ export function TestPerfFilterBar({
   onTestNameChange,
   onBranchChange,
 }: TestPerfFilterBarProps) {
+  const [localTestName, setLocalTestName] = useState(testName || "");
+  const debouncedTestName = useDebouncedValue(localTestName, 300);
+
+  // Sync debounced value to parent
+  useEffect(() => {
+    onTestNameChange(debouncedTestName);
+  }, [debouncedTestName, onTestNameChange]);
+
+  // Sync external changes (e.g. URL navigation) back to local state
+  useEffect(() => {
+    setLocalTestName(testName || "");
+  }, [testName]);
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select
@@ -72,8 +87,8 @@ export function TestPerfFilterBar({
       <input
         type="text"
         placeholder="Search test name..."
-        value={testName || ""}
-        onChange={(e) => onTestNameChange(e.target.value)}
+        value={localTestName}
+        onChange={(e) => setLocalTestName(e.target.value)}
         className="border-input bg-background placeholder:text-muted-foreground h-9 rounded-md border px-3 text-sm"
       />
     </div>

@@ -185,6 +185,7 @@ function Sidebar({
 
   if (isMobile) {
     return (
+      // TODO: can we replace with the drawer?
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
           dir={dir}

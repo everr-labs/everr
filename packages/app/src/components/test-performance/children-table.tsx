@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { FlaskConical, FolderOpen } from "lucide-react";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import type { TestPerfChild } from "@/data/test-performance";
-import { formatDurationCompact } from "@/lib/formatting";
+import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 
 interface ChildrenTableProps {
   data: TestPerfChild[];
@@ -10,22 +10,17 @@ interface ChildrenTableProps {
   pkg?: string;
 }
 
-type SearchUpdater = (prev: Record<string, unknown>) => Record<string, unknown>;
-
-/** Extract the last segment of a test name for display */
-function displayName(fullName: string): string {
-  // Vitest uses " > ", Go tests use "/"
-  const sep = fullName.includes(" > ") ? " > " : "/";
-  return fullName.split(sep).pop() ?? fullName;
-}
-
-function buildChildSearch(childName: string, pkg?: string): SearchUpdater {
+function buildChildSearch(childName: string, pkg?: string) {
   if (!pkg) {
     // Root level: child is a package name
-    return (prev) => ({ ...prev, pkg: childName, path: undefined });
+    return (prev: Record<string, unknown>) => ({
+      ...prev,
+      pkg: childName,
+      path: undefined,
+    });
   }
   // Package or deeper level: child name is already the full path
-  return (prev) => ({ ...prev, path: childName });
+  return (prev: Record<string, unknown>) => ({ ...prev, path: childName });
 }
 
 function makeColumns(
@@ -46,7 +41,7 @@ function makeColumns(
             className="inline-flex items-center gap-1.5 font-mono text-xs hover:underline"
           >
             <Icon className="text-muted-foreground size-3.5 shrink-0" />
-            {pkg ? displayName(row.name) : row.name}
+            {pkg ? testNameLastSegment(row.name) : row.name}
           </Link>
         );
       },

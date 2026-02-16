@@ -24,16 +24,9 @@ const themeIcons: Record<string, LucideIcon> = {
   system: Monitor,
 };
 
-type Page = "root" | "theme";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
-function useDebouncedValue(value: string, delay: number) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
+type Page = "root" | "theme";
 
 export function CommandBar({
   open,

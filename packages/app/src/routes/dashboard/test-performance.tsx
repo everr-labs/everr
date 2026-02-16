@@ -25,7 +25,11 @@ import {
   testPerfStatsOptions,
   testPerfTrendOptions,
 } from "@/data/test-performance";
-import { formatDurationCompact } from "@/lib/formatting";
+import {
+  formatDurationCompact,
+  testNameLastSegment,
+  testNameSeparator,
+} from "@/lib/formatting";
 import { resolveTimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
 import type { BreadcrumbSegment } from "@/router-types";
 
@@ -45,14 +49,14 @@ export const Route = createFileRoute("/dashboard/test-performance")({
       if (pkg) {
         segments.push({ label: pkg, search: { pkg, path: undefined } });
         if (path) {
+          const sep = testNameSeparator(path);
           const vitestPrefix = `${pkg} > `;
-          const isVitest = path.startsWith(vitestPrefix);
-          const separator = isVitest ? " > " : "/";
+          const isVitest = sep === " > ";
           const displayPath = isVitest ? path.slice(vitestPrefix.length) : path;
-          const parts = displayPath.split(separator);
+          const parts = displayPath.split(sep);
 
           for (let i = 0; i < parts.length; i++) {
-            const partialPath = parts.slice(0, i + 1).join(separator);
+            const partialPath = parts.slice(0, i + 1).join(sep);
             segments.push({
               label: parts[i],
               search: {
@@ -156,8 +160,7 @@ function TestPerformancePage() {
   // Build page title — use last segment of hierarchy
   let pageTitle = "Test Performance";
   if (path) {
-    const sep = path.startsWith(`${pkg ?? ""} > `) ? " > " : "/";
-    pageTitle = path.split(sep).pop() ?? "Test Performance";
+    pageTitle = testNameLastSegment(path);
   } else if (pkg) {
     pageTitle = pkg;
   }
