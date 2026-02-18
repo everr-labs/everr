@@ -2,6 +2,8 @@
   "name": "citric",
   "private": true,
   "scripts": {
+    "dev:app": "cd packages/app && pnpm dev",
+    "build": "pnpm -r build",
     "check": "biome check",
     "check:fix": "biome check --fix",
     "postinstall": "lefthook install",
