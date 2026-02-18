@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Panel } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sparkline } from "@/components/ui/sparkline";
 import {
   Tooltip,
   TooltipContent,
@@ -26,6 +27,7 @@ import {
   testPerfFilterOptionsOptions,
   testPerfScatterOptions,
   testPerfStatsOptions,
+  testPerfStatsTrendOptions,
   testPerfTrendOptions,
 } from "@/data/test-performance";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
@@ -79,6 +81,7 @@ export const Route = createFileRoute("/dashboard/test-performance")({
     if (deps.pkg || deps.path) {
       prefetches.push(
         queryClient.prefetchQuery(testPerfStatsOptions(filterInput)),
+        queryClient.prefetchQuery(testPerfStatsTrendOptions(filterInput)),
         queryClient.prefetchQuery(testPerfScatterOptions(filterInput)),
         queryClient.prefetchQuery(testPerfTrendOptions(filterInput)),
         queryClient.prefetchQuery(testPerfFailuresOptions(filterInput)),
@@ -100,6 +103,10 @@ function TestPerformancePage() {
 
   const { data: stats } = useQuery({
     ...testPerfStatsOptions(filterInput),
+    enabled: !isRootScope,
+  });
+  const { data: statsTrend } = useQuery({
+    ...testPerfStatsTrendOptions(filterInput),
     enabled: !isRootScope,
   });
   const { data: scatter } = useQuery({
@@ -166,6 +173,43 @@ function TestPerformancePage() {
       .slice(0, 20);
   }, [failures]);
 
+  const executionTotalSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.totalExecutions),
+    [statsTrend],
+  );
+  const executionFailureRateSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.failureRate),
+    [statsTrend],
+  );
+  const executionFailSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.failExecutions),
+    [statsTrend],
+  );
+  const executionUniqueFailSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.uniqueFailingTests),
+    [statsTrend],
+  );
+  const durationAvgSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.avgDuration),
+    [statsTrend],
+  );
+  const durationMedianSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.medianDuration),
+    [statsTrend],
+  );
+  const durationP95Series = useMemo(
+    () => (statsTrend ?? []).map((d) => d.p95Duration),
+    [statsTrend],
+  );
+  const durationMaxSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.maxDuration),
+    [statsTrend],
+  );
+  const durationCvSeries = useMemo(
+    () => (statsTrend ?? []).map((d) => d.coefficientOfVariation),
+    [statsTrend],
+  );
+
   const updateFilter = (updates: Record<string, unknown>) => {
     navigate({ search: (prev) => ({ ...prev, ...updates }) });
   };
@@ -206,38 +250,67 @@ function TestPerformancePage() {
           <Panel title="Execution Health" queries={[]}>
             {() => (
               <div className="space-y-2 pt-0">
-                <div className="flex items-baseline justify-between gap-3 border-b pb-2">
-                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                    Total Executions
-                  </p>
-                  <p className="text-2xl font-semibold tabular-nums leading-none">
-                    {stats?.totalExecutions ?? "--"}
-                  </p>
+                <div className="relative overflow-hidden rounded border-b pb-2">
+                  <Sparkline
+                    data={executionTotalSeries}
+                    className="pointer-events-none absolute inset-0 opacity-25"
+                    color="hsl(214, 84%, 56%)"
+                  />
+                  <div className="relative flex items-baseline justify-between gap-3">
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                      Total Executions
+                    </p>
+                    <p className="text-2xl font-semibold tabular-nums leading-none">
+                      {stats?.totalExecutions ?? "--"}
+                    </p>
+                  </div>
                 </div>
                 <div className="grid gap-1.5 grid-cols-3">
-                  <div className="rounded border px-2 py-1.5">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Failure Rate
-                    </p>
-                    <p className="font-mono text-xs">
-                      {stats ? `${stats.failureRate}%` : "--"}
-                    </p>
+                  <div className="relative overflow-hidden rounded border px-2 py-1.5">
+                    <Sparkline
+                      data={executionFailureRateSeries}
+                      className="pointer-events-none absolute inset-0 opacity-25"
+                      color="hsl(10, 85%, 58%)"
+                      maxValue={100}
+                    />
+                    <div className="relative">
+                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                        Failure Rate
+                      </p>
+                      <p className="font-mono text-xs">
+                        {stats ? `${stats.failureRate}%` : "--"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded border px-2 py-1.5">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Failed Execs
-                    </p>
-                    <p className="font-mono text-xs">
-                      {stats?.failExecutions ?? "--"}
-                    </p>
+                  <div className="relative overflow-hidden rounded border px-2 py-1.5">
+                    <Sparkline
+                      data={executionFailSeries}
+                      className="pointer-events-none absolute inset-0 opacity-25"
+                      color="hsl(20, 90%, 52%)"
+                    />
+                    <div className="relative">
+                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                        Failed Execs
+                      </p>
+                      <p className="font-mono text-xs">
+                        {stats?.failExecutions ?? "--"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded border px-2 py-1.5">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Unique Failures
-                    </p>
-                    <p className="font-mono text-xs">
-                      {stats?.uniqueFailingTests ?? "--"}
-                    </p>
+                  <div className="relative overflow-hidden rounded border px-2 py-1.5">
+                    <Sparkline
+                      data={executionUniqueFailSeries}
+                      className="pointer-events-none absolute inset-0 opacity-25"
+                      color="hsl(30, 88%, 50%)"
+                    />
+                    <div className="relative">
+                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                        Unique Failures
+                      </p>
+                      <p className="font-mono text-xs">
+                        {stats?.uniqueFailingTests ?? "--"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -246,72 +319,107 @@ function TestPerformancePage() {
           <Panel title="Duration Profile" queries={[]}>
             {() => (
               <div className="space-y-2 pt-0">
-                <div className="flex items-baseline justify-between gap-3 border-b pb-2">
-                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                    Average Duration
-                  </p>
-                  <p className="text-2xl font-semibold tabular-nums leading-none">
-                    {stats
-                      ? formatDurationCompact(stats.avgDuration, "s")
-                      : "--"}
-                  </p>
+                <div className="relative overflow-hidden rounded border-b pb-2">
+                  <Sparkline
+                    data={durationAvgSeries}
+                    className="pointer-events-none absolute inset-0 opacity-25"
+                    color="hsl(173, 80%, 36%)"
+                  />
+                  <div className="relative flex items-baseline justify-between gap-3">
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                      Average Duration
+                    </p>
+                    <p className="text-2xl font-semibold tabular-nums leading-none">
+                      {stats
+                        ? formatDurationCompact(stats.avgDuration, "s")
+                        : "--"}
+                    </p>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
-                  <div className="rounded border px-1.5 py-1">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Median
-                    </p>
-                    <p className="font-mono text-xs">
-                      {stats
-                        ? formatDurationCompact(stats.medianDuration, "s")
-                        : "--"}
-                    </p>
+                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
+                    <Sparkline
+                      data={durationMedianSeries}
+                      className="pointer-events-none absolute inset-0 opacity-25"
+                      color="hsl(179, 80%, 34%)"
+                    />
+                    <div className="relative">
+                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                        Median
+                      </p>
+                      <p className="font-mono text-xs">
+                        {stats
+                          ? formatDurationCompact(stats.medianDuration, "s")
+                          : "--"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded border px-1.5 py-1">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      P95
-                    </p>
-                    <p className="font-mono text-xs">
-                      {stats
-                        ? formatDurationCompact(stats.p95Duration, "s")
-                        : "--"}
-                    </p>
+                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
+                    <Sparkline
+                      data={durationP95Series}
+                      className="pointer-events-none absolute inset-0 opacity-25"
+                      color="hsl(192, 82%, 36%)"
+                    />
+                    <div className="relative">
+                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                        P95
+                      </p>
+                      <p className="font-mono text-xs">
+                        {stats
+                          ? formatDurationCompact(stats.p95Duration, "s")
+                          : "--"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded border px-1.5 py-1">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Max
-                    </p>
-                    <p className="font-mono text-xs">
-                      {stats
-                        ? formatDurationCompact(stats.maxDuration, "s")
-                        : "--"}
-                    </p>
+                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
+                    <Sparkline
+                      data={durationMaxSeries}
+                      className="pointer-events-none absolute inset-0 opacity-25"
+                      color="hsl(203, 84%, 40%)"
+                    />
+                    <div className="relative">
+                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                        Max
+                      </p>
+                      <p className="font-mono text-xs">
+                        {stats
+                          ? formatDurationCompact(stats.maxDuration, "s")
+                          : "--"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded border px-1.5 py-1">
-                    <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
-                      CV
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground"
-                              aria-label="What is CV?"
-                            />
-                          }
-                        >
-                          <CircleHelp className="size-3.5" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-64">
-                          Coefficient of variation (CV) = std dev / mean. It
-                          shows relative spread, so higher CV means test
-                          durations are less stable and less predictable.
-                        </TooltipContent>
-                      </Tooltip>
-                    </p>
-                    <p className="font-mono text-xs">
-                      {stats ? `${stats.coefficientOfVariation}%` : "--"}
-                    </p>
+                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
+                    <Sparkline
+                      data={durationCvSeries}
+                      className="pointer-events-none absolute inset-0 opacity-25"
+                      color="hsl(221, 83%, 56%)"
+                    />
+                    <div className="relative">
+                      <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
+                        CV
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="What is CV?"
+                              />
+                            }
+                          >
+                            <CircleHelp className="size-3.5" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-64">
+                            Coefficient of variation (CV) = std dev / mean. It
+                            shows relative spread, so higher CV means test
+                            durations are less stable and less predictable.
+                          </TooltipContent>
+                        </Tooltip>
+                      </p>
+                      <p className="font-mono text-xs">
+                        {stats ? `${stats.coefficientOfVariation}%` : "--"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
