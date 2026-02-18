@@ -4,6 +4,7 @@ import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { calculateCost } from "@/lib/runner-pricing";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
+import { runSummarySubquery } from "./run-query-helpers";
 import type { RunListItem } from "./runs-list";
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -79,8 +80,8 @@ export interface WorkflowFailureReason {
 
 const WorkflowsListInputSchema = z.object({
   timeRange: TimeRangeSchema,
-  page: z.number(),
-  pageSize: z.number().optional(),
+  page: z.coerce.number().int().min(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
   repo: z.string().optional(),
   search: z.string().optional(),
 });
@@ -109,7 +110,7 @@ export const getWorkflowsList = createServerFn({
     const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(
       data.timeRange,
     );
-    const pageSize = data.pageSize || 20;
+    const pageSize = data.pageSize ?? 20;
     const offset = (data.page - 1) * pageSize;
 
     // Calculate prior period: same width shifted back
@@ -242,13 +243,18 @@ export const getWorkflowsSparklines = createServerFn({
       return [] satisfies WorkflowSparklineData[];
     }
 
-    // Build IN clause directly — parameterized arrays aren't well supported
-    const pairs = data.workflows
-      .map(
-        (w) =>
-          `('${w.workflowName.replace(/'/g, "\\'")}', '${w.repo.replace(/'/g, "\\'")}')`,
-      )
-      .join(", ");
+    const pairParams: Record<string, unknown> = {
+      fromTime: fromISO,
+      toTime: toISO,
+    };
+    const pairConditions = data.workflows
+      .map((w, i) => {
+        pairParams[`workflowName${i}`] = w.workflowName;
+        pairParams[`repo${i}`] = w.repo;
+        return `(ResourceAttributes['cicd.pipeline.name'] = {workflowName${i}:String}
+          AND ResourceAttributes['vcs.repository.name'] = {repo${i}:String})`;
+      })
+      .join("\n\t\t\t\t\t\tOR ");
 
     const sql = `
 			SELECT
@@ -268,11 +274,11 @@ export const getWorkflowsSparklines = createServerFn({
 					max(Timestamp) as timestamp
 				FROM otel_traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-					AND ResourceAttributes['cicd.pipeline.name'] != ''
-					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
-					AND (ResourceAttributes['cicd.pipeline.name'], ResourceAttributes['vcs.repository.name']) IN (${pairs})
-				GROUP BY run_id
+						AND ResourceAttributes['cicd.pipeline.run.id'] != ''
+						AND ResourceAttributes['cicd.pipeline.name'] != ''
+						AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+						AND (${pairConditions})
+					GROUP BY run_id
 			)
 			GROUP BY workflowName, repo, date
 			ORDER BY workflowName, repo, date ASC
@@ -285,7 +291,7 @@ export const getWorkflowsSparklines = createServerFn({
       totalRuns: string;
       successRate: string;
       avgDuration: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
+    }>(sql, pairParams);
 
     // Group results by workflow+repo
     const grouped = new Map<string, WorkflowSparklineData>();
@@ -746,27 +752,25 @@ export const getWorkflowRecentRuns = createServerFn({
   .inputValidator(WorkflowDetailInputSchema)
   .handler(async ({ data }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-
-    const sql = `
-			SELECT
-				TraceId as trace_id,
-				anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-				anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
-				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-				anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-				anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-				max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
-				max(Duration) / 1000000 as duration,
-				max(Timestamp) as timestamp,
-				max(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender,
-				count(*) as jobCount
-			FROM otel_traces
-			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
+    const runSummarySql = runSummarySubquery({
+      whereClause: `Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
+				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-			GROUP BY trace_id
+				AND SpanAttributes['citric.test.name'] = ''`,
+      groupByExpr: "TraceId",
+      groupByAlias: "trace_id",
+      includeRunAttempt: true,
+      includeDuration: true,
+      includeSender: true,
+      includeJobCount: true,
+    });
+
+    const sql = `
+      SELECT *
+      FROM (${runSummarySql})
 			ORDER BY timestamp DESC
 			LIMIT 10
 		`;

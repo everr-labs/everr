@@ -12,8 +12,14 @@ import {
 
 export interface TestPerformanceStats {
   totalExecutions: number;
+  failExecutions: number;
+  uniqueFailingTests: number;
   avgDuration: number;
+  medianDuration: number;
   p95Duration: number;
+  maxDuration: number;
+  stdDevDuration: number;
+  coefficientOfVariation: number;
   failureRate: number;
 }
 
@@ -28,8 +34,14 @@ export const getTestPerfStats = createServerFn({
     const sql = `
       SELECT
         count(*) as total_executions,
+        countIf(test_result = 'fail') as fail_executions,
+        uniqExactIf(test_full_name, test_result = 'fail') as unique_failing_tests,
         avg(test_duration) as avg_duration,
+        quantile(0.5)(test_duration) as median_duration,
         quantile(0.95)(test_duration) as p95_duration,
+        max(test_duration) as max_duration,
+        stddevPop(test_duration) as stddev_duration,
+        round(stddevPop(test_duration) * 100.0 / nullIf(avg(test_duration), 0), 1) as coefficient_of_variation,
         round(
           countIf(test_result = 'fail') * 100.0
           / nullIf(countIf(test_result = 'fail') + countIf(test_result = 'pass'), 0),
@@ -44,24 +56,42 @@ export const getTestPerfStats = createServerFn({
 
     const result = await query<{
       total_executions: string;
+      fail_executions: string;
+      unique_failing_tests: string;
       avg_duration: string;
+      median_duration: string;
       p95_duration: string;
+      max_duration: string;
+      stddev_duration: string;
+      coefficient_of_variation: string;
       failure_rate: string;
     }>(sql, params);
 
     if (result.length === 0) {
       return {
         totalExecutions: 0,
+        failExecutions: 0,
+        uniqueFailingTests: 0,
         avgDuration: 0,
+        medianDuration: 0,
         p95Duration: 0,
+        maxDuration: 0,
+        stdDevDuration: 0,
+        coefficientOfVariation: 0,
         failureRate: 0,
       } satisfies TestPerformanceStats;
     }
 
     return {
       totalExecutions: Number(result[0].total_executions),
+      failExecutions: Number(result[0].fail_executions),
+      uniqueFailingTests: Number(result[0].unique_failing_tests),
       avgDuration: Number(result[0].avg_duration),
+      medianDuration: Number(result[0].median_duration),
       p95Duration: Number(result[0].p95_duration),
+      maxDuration: Number(result[0].max_duration),
+      stdDevDuration: Number(result[0].stddev_duration),
+      coefficientOfVariation: Number(result[0].coefficient_of_variation) || 0,
       failureRate: Number(result[0].failure_rate) || 0,
     } satisfies TestPerformanceStats;
   });

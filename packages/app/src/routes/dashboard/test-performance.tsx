@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { CircleHelp } from "lucide-react";
+import { useMemo } from "react";
 import { z } from "zod";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import {
   ChildrenTable,
+  TestPerfFailureHotspotsTable,
   TestPerfFailuresTable,
   TestPerfFilterBar,
   TestPerfScatterChart,
@@ -16,6 +19,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   testPerfChildrenOptions,
   testPerfFailuresOptions,
@@ -100,6 +108,48 @@ function TestPerformancePage() {
     children !== undefined && children.length === 0 && (pkg || path);
   const hasChildren = children !== undefined && children.length > 0;
 
+  const failureHotspots = useMemo(() => {
+    const grouped = new Map<
+      string,
+      {
+        testName: string;
+        failureCount: number;
+        latestTimestamp: string;
+        avgDuration: number;
+        latestTraceId: string;
+      }
+    >();
+    for (const row of failures ?? []) {
+      const existing = grouped.get(row.testName);
+      if (!existing) {
+        grouped.set(row.testName, {
+          testName: row.testName,
+          failureCount: 1,
+          latestTimestamp: row.timestamp,
+          avgDuration: row.duration,
+          latestTraceId: row.traceId,
+        });
+        continue;
+      }
+      const newer = row.timestamp > existing.latestTimestamp;
+      existing.failureCount += 1;
+      existing.avgDuration =
+        (existing.avgDuration * (existing.failureCount - 1) + row.duration) /
+        existing.failureCount;
+      if (newer) {
+        existing.latestTimestamp = row.timestamp;
+        existing.latestTraceId = row.traceId;
+      }
+    }
+    return Array.from(grouped.values())
+      .sort(
+        (a, b) =>
+          b.failureCount - a.failureCount ||
+          b.latestTimestamp.localeCompare(a.latestTimestamp),
+      )
+      .slice(0, 20);
+  }, [failures]);
+
   const updateFilter = (updates: Record<string, unknown>) => {
     navigate({ search: (prev) => ({ ...prev, ...updates }) });
   };
@@ -135,60 +185,165 @@ function TestPerformancePage() {
         onBranchChange={(v) => updateFilter({ branch: v })}
       />
 
-      {/* Children browser */}
-      {hasChildren && (
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Execution Health</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            <div className="flex items-baseline justify-between gap-3 border-b pb-2">
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                Total Executions
+              </p>
+              <p className="text-2xl font-semibold tabular-nums leading-none">
+                {stats?.totalExecutions ?? "--"}
+              </p>
+            </div>
+            <div className="grid gap-1.5 grid-cols-3">
+              <div className="rounded border px-2 py-1.5">
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                  Failure Rate
+                </p>
+                <p className="font-mono text-xs">
+                  {stats ? `${stats.failureRate}%` : "--"}
+                </p>
+              </div>
+              <div className="rounded border px-2 py-1.5">
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                  Failed Execs
+                </p>
+                <p className="font-mono text-xs">
+                  {stats?.failExecutions ?? "--"}
+                </p>
+              </div>
+              <div className="rounded border px-2 py-1.5">
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                  Unique Failures
+                </p>
+                <p className="font-mono text-xs">
+                  {stats?.uniqueFailingTests ?? "--"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Duration Profile</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            <div className="flex items-baseline justify-between gap-3 border-b pb-2">
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                Average Duration
+              </p>
+              <p className="text-2xl font-semibold tabular-nums leading-none">
+                {stats ? formatDurationCompact(stats.avgDuration, "s") : "--"}
+              </p>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              <div className="rounded border px-1.5 py-1">
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                  Median
+                </p>
+                <p className="font-mono text-xs">
+                  {stats
+                    ? formatDurationCompact(stats.medianDuration, "s")
+                    : "--"}
+                </p>
+              </div>
+              <div className="rounded border px-1.5 py-1">
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                  P95
+                </p>
+                <p className="font-mono text-xs">
+                  {stats ? formatDurationCompact(stats.p95Duration, "s") : "--"}
+                </p>
+              </div>
+              <div className="rounded border px-1.5 py-1">
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                  Max
+                </p>
+                <p className="font-mono text-xs">
+                  {stats ? formatDurationCompact(stats.maxDuration, "s") : "--"}
+                </p>
+              </div>
+              <div className="rounded border px-1.5 py-1">
+                <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
+                  CV
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="What is CV?"
+                        />
+                      }
+                    >
+                      <CircleHelp className="size-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-64">
+                      Coefficient of variation (CV) = std dev / mean. It shows
+                      relative spread, so higher CV means test durations are
+                      less stable and less predictable.
+                    </TooltipContent>
+                  </Tooltip>
+                </p>
+                <p className="font-mono text-xs">
+                  {stats ? `${stats.coefficientOfVariation}%` : "--"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>{!pkg ? "Packages" : "Tests"}</CardTitle>
             <CardDescription>
               {!pkg
-                ? "Click a package to browse its tests"
-                : "Click a suite to drill down, or a test to see its metrics"}
+                ? "Browse package hierarchy while keeping diagnostics visible below"
+                : "Drill into suites/tests and compare failures and duration trends"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChildrenTable data={children} pkg={pkg} />
+            {hasChildren ? (
+              <ChildrenTable data={children} pkg={pkg} />
+            ) : (
+              <p className="py-2 text-sm text-muted-foreground">
+                No further children at this scope.
+              </p>
+            )}
           </CardContent>
         </Card>
-      )}
 
-      {/* KPI Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Executions</CardDescription>
-            <CardTitle className="text-3xl tabular-nums">
-              {stats?.totalExecutions ?? "--"}
-            </CardTitle>
+          <CardHeader>
+            <CardTitle>Failure Hotspots</CardTitle>
+            <CardDescription>
+              Most frequently failing tests in the current scope
+            </CardDescription>
           </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Avg Duration</CardDescription>
-            <CardTitle className="text-3xl tabular-nums">
-              {stats ? formatDurationCompact(stats.avgDuration, "s") : "--"}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>P95 Duration</CardDescription>
-            <CardTitle className="text-3xl tabular-nums">
-              {stats ? formatDurationCompact(stats.p95Duration, "s") : "--"}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Failure Rate</CardDescription>
-            <CardTitle className="text-3xl tabular-nums">
-              {stats ? `${stats.failureRate}%` : "--"}
-            </CardTitle>
-          </CardHeader>
+          <CardContent>
+            <TestPerfFailureHotspotsTable data={failureHotspots} />
+          </CardContent>
         </Card>
       </div>
 
-      {/* Scatter Plot */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Duration Trend</CardTitle>
+          <CardDescription>
+            Average, P50, and P95 test duration over time
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <TestDurationTrendChart data={trend ?? []} />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Test Duration Distribution</CardTitle>
@@ -206,20 +361,6 @@ function TestPerformancePage() {
         </CardContent>
       </Card>
 
-      {/* Duration Trend */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Duration Trend</CardTitle>
-          <CardDescription>
-            Average, P50, and P95 test duration over time
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TestDurationTrendChart data={trend ?? []} />
-        </CardContent>
-      </Card>
-
-      {/* Failures Table */}
       <Card>
         <CardHeader>
           <CardTitle>Recent Failures</CardTitle>

@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
+import { runSummarySubquery } from "./run-query-helpers";
 
 export interface RunListItem {
   traceId: string;
@@ -25,8 +26,8 @@ export interface RunsListResult {
 
 const RunsListInputSchema = z.object({
   timeRange: TimeRangeSchema,
-  page: z.number(),
-  pageSize: z.number().optional(),
+  page: z.coerce.number().int().min(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
   repo: z.string().optional(),
   branch: z.string().optional(),
   conclusion: z.string().optional(),
@@ -41,13 +42,15 @@ export const getRunsList = createServerFn({
   .inputValidator(RunsListInputSchema)
   .handler(async ({ data }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const pageSize = data.pageSize || 20;
+    const pageSize = data.pageSize ?? 20;
     const offset = (data.page - 1) * pageSize;
 
     const conditions: string[] = [
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
       "ResourceAttributes['cicd.pipeline.run.id'] != ''",
+      "ResourceAttributes['cicd.pipeline.task.run.result'] != ''",
       "SpanAttributes['citric.github.workflow_job_step.number'] = ''",
+      "SpanAttributes['citric.test.name'] = ''",
     ];
     const params: Record<string, unknown> = {
       fromTime: fromISO,
@@ -85,42 +88,35 @@ export const getRunsList = createServerFn({
     }
 
     const whereClause = conditions.join("\n\t\t\t\tAND ");
-    const havingClause = data.conclusion
-      ? "HAVING conclusion = {conclusion:String}"
+    const conclusionClause = data.conclusion
+      ? "WHERE conclusion = {conclusion:String}"
       : "";
+    const runSummarySql = runSummarySubquery({
+      whereClause,
+      groupByExpr: "TraceId",
+      groupByAlias: "trace_id",
+      includeRunAttempt: true,
+      includeDuration: true,
+      includeSender: true,
+      includeJobCount: true,
+    });
 
     const dataSql = `
-			SELECT
-				TraceId as trace_id,
-				anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-				anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
-				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-				anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-				anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-				max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
-				max(Duration) / 1000000 as duration,
-				max(Timestamp) as timestamp,
-				max(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender,
-				count(*) as jobCount
-			FROM otel_traces
-			WHERE ${whereClause}
-			GROUP BY trace_id
-			${havingClause}
-			ORDER BY timestamp DESC
-			LIMIT {pageSize:UInt32} OFFSET {offset:UInt32}
-		`;
+        SELECT *
+        FROM (${runSummarySql})
+        ${conclusionClause}
+				ORDER BY timestamp DESC
+				LIMIT {pageSize:UInt32} OFFSET {offset:UInt32}
+			`;
 
     const countSql = `
-			SELECT count(*) as total
-			FROM (
-				SELECT TraceId as trace_id,
-					max(ResourceAttributes['cicd.pipeline.result']) as conclusion
-				FROM otel_traces
-				WHERE ${whereClause}
-				GROUP BY trace_id
-				${havingClause}
-			)
-		`;
+				SELECT count(*) as total
+				FROM (
+					SELECT trace_id
+          FROM (${runSummarySql})
+          ${conclusionClause}
+				)
+			`;
 
     const [dataResult, countResult] = await Promise.all([
       query<{
@@ -229,21 +225,20 @@ export const searchRuns = createServerFn({
       timestamp: string;
     }>(
       `
-      SELECT
-        TraceId as trace_id,
-        anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-        anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-        anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-        anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-        max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
-        max(Timestamp) as timestamp
-      FROM otel_traces
-      WHERE Timestamp >= now() - INTERVAL 90 DAY
-        AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-        AND (ResourceAttributes['cicd.pipeline.run.id'] LIKE {pattern:String}
-          OR ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String})
-      GROUP BY trace_id
+      SELECT *
+      FROM (
+        ${runSummarySubquery({
+          whereClause: `Timestamp >= now() - INTERVAL 90 DAY
+            AND ResourceAttributes['cicd.pipeline.run.id'] != ''
+            AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+            AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+            AND SpanAttributes['citric.test.name'] = ''
+            AND (ResourceAttributes['cicd.pipeline.run.id'] LIKE {pattern:String}
+              OR ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String})`,
+          groupByExpr: "TraceId",
+          groupByAlias: "trace_id",
+        })}
+      )
       ORDER BY timestamp DESC
       LIMIT 5
       `,

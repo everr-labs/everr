@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
-import { testFullNameExpr } from "../sql-helpers";
+import { leafTestFilter, testFullNameExpr } from "../sql-helpers";
 
 // Filter input for test performance
 export const TestPerformanceFilterSchema = z.object({
@@ -72,13 +72,21 @@ export function buildFilterConditions(
     conditions.push("SpanAttributes['citric.test.parent_test'] = ''");
   } else {
     // Root level: show only leaf tests (exclude suites)
+    const leafScopeConditions: string[] = [];
+    if (data.repo) {
+      leafScopeConditions.push(
+        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+      );
+    }
+    if (data.branch) {
+      leafScopeConditions.push(
+        "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+      );
+    }
     scopeConditions.push(
-      `test_full_name NOT IN (
-        SELECT DISTINCT SpanAttributes['citric.test.parent_test']
-        FROM otel_traces
-        WHERE SpanAttributes['citric.test.parent_test'] != ''
-          AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-      )`,
+      leafTestFilter({
+        extraConditions: leafScopeConditions,
+      }),
     );
   }
 

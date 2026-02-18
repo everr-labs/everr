@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { FlaskConical, FolderOpen } from "lucide-react";
+import { ChevronRight, FlaskConical, FolderOpen } from "lucide-react";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import type { TestPerfChild } from "@/data/test-performance";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
@@ -26,46 +26,64 @@ function makeColumns(pkg?: string): Column<TestPerfChild>[] {
   return [
     {
       header: "Name",
+      className: "pb-1 pr-3 font-medium",
+      cellClassName: "py-1 pr-3",
       cell: (row) => {
         const Icon = row.isSuite ? FolderOpen : FlaskConical;
         const search = buildChildSearch(row.name, pkg);
+        const displayName = pkg ? testNameLastSegment(row.name) : row.name;
         return (
           <Link
             to="/dashboard/test-performance"
             search={search}
-            className="inline-flex items-center gap-1.5 font-mono text-xs hover:underline"
+            className="group -mx-1 flex items-center justify-between rounded px-1 py-0.5 font-mono text-[11px] hover:bg-muted/60"
           >
-            <Icon className="text-muted-foreground size-3.5 shrink-0" />
-            {pkg ? testNameLastSegment(row.name) : row.name}
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <Icon className="text-muted-foreground size-3 shrink-0" />
+              <span className="truncate">{displayName}</span>
+            </span>
+            <ChevronRight className="text-muted-foreground size-3 shrink-0 opacity-60 transition-opacity group-hover:opacity-100" />
           </Link>
         );
       },
     },
     {
       header: "Executions",
+      className: "pb-1 pr-3 font-medium",
+      cellClassName: "py-1 pr-3",
       cell: (row) => (
-        <span className="tabular-nums">{row.executions.toLocaleString()}</span>
+        <span className="tabular-nums text-xs">
+          {row.executions.toLocaleString()}
+        </span>
       ),
     },
     {
       header: "Avg Duration",
+      className: "pb-1 pr-3 font-medium",
+      cellClassName: "py-1 pr-3",
       cell: (row) => (
-        <span className="tabular-nums">
+        <span className="tabular-nums text-xs">
           {formatDurationCompact(row.avgDuration, "s")}
         </span>
       ),
     },
     {
       header: "P95 Duration",
+      className: "pb-1 pr-3 font-medium",
+      cellClassName: "py-1 pr-3",
       cell: (row) => (
-        <span className="tabular-nums">
+        <span className="tabular-nums text-xs">
           {formatDurationCompact(row.p95Duration, "s")}
         </span>
       ),
     },
     {
       header: "Failure Rate",
-      cell: (row) => <span className="tabular-nums">{row.failureRate}%</span>,
+      className: "pb-1 font-medium",
+      cellClassName: "py-1",
+      cell: (row) => (
+        <span className="tabular-nums text-xs">{row.failureRate}%</span>
+      ),
     },
   ];
 }
