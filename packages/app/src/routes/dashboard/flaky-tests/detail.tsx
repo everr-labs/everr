@@ -20,7 +20,7 @@ import {
   testHistoryOptions,
 } from "@/data/flaky-tests";
 import { formatRelativeTime } from "@/lib/formatting";
-import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
   staticData: {
@@ -32,15 +32,7 @@ export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
     repo: z.string().default(""),
     test: z.string().default(""),
   }),
-  loaderDeps: ({ search }) => {
-    return {
-      ...search,
-      timeRange: {
-        from: search.from ?? DEFAULT_TIME_RANGE.from,
-        to: search.to ?? DEFAULT_TIME_RANGE.to,
-      },
-    };
-  },
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({
     context: { queryClient },
     deps: { repo, test, timeRange },

@@ -17,20 +17,13 @@ import {
   testResultsByPackageOptions,
   testResultsSummaryOptions,
 } from "@/data/test-results";
-import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-results")({
   staticData: { breadcrumb: "Test Results" },
   component: TestResultsPage,
   validateSearch: TimeRangeSearchSchema,
-  loaderDeps: ({ search }) => {
-    return {
-      timeRange: {
-        from: search.from ?? DEFAULT_TIME_RANGE.from,
-        to: search.to ?? DEFAULT_TIME_RANGE.to,
-      },
-    };
-  },
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
     queryClient.prefetchQuery(testResultsSummaryOptions({ timeRange }));
     queryClient.prefetchQuery(testResultsByPackageOptions({ timeRange }));

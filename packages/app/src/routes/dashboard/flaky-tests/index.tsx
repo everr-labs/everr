@@ -20,7 +20,7 @@ import {
   flakyTestSummaryOptions,
   flakyTestsOptions,
 } from "@/data/flaky-tests";
-import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/flaky-tests/")({
   component: FlakyTestsPage,
@@ -29,15 +29,7 @@ export const Route = createFileRoute("/dashboard/flaky-tests/")({
     branch: z.string().optional(),
     search: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => {
-    return {
-      ...search,
-      timeRange: {
-        from: search.from ?? DEFAULT_TIME_RANGE.from,
-        to: search.to ?? DEFAULT_TIME_RANGE.to,
-      },
-    };
-  },
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps }) => {
     const filterInput = {
       timeRange: deps.timeRange,

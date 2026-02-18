@@ -35,9 +35,9 @@ import {
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 import { buildTestPerformanceBreadcrumb } from "@/lib/test-performance-breadcrumb";
 import {
-  DEFAULT_TIME_RANGE,
   resolveTimeRange,
   TimeRangeSearchSchema,
+  withTimeRange,
 } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-performance")({
@@ -56,15 +56,7 @@ export const Route = createFileRoute("/dashboard/test-performance")({
     branch: z.string().optional(),
     path: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => {
-    return {
-      ...search,
-      timeRange: {
-        from: search.from ?? DEFAULT_TIME_RANGE.from,
-        to: search.to ?? DEFAULT_TIME_RANGE.to,
-      },
-    };
-  },
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps }) => {
     const filterInput = {
       timeRange: deps.timeRange,

@@ -5,7 +5,7 @@ import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
-import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/runs/")({
   component: RunsListPage,
@@ -17,15 +17,7 @@ export const Route = createFileRoute("/dashboard/runs/")({
     workflowName: z.string().optional(),
     runId: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => {
-    return {
-      ...search,
-      timeRange: {
-        from: search.from ?? DEFAULT_TIME_RANGE.from,
-        to: search.to ?? DEFAULT_TIME_RANGE.to,
-      },
-    };
-  },
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps }) => {
     const runsInput = {
       timeRange: deps.timeRange,

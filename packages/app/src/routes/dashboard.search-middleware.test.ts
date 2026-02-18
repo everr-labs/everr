@@ -2,26 +2,47 @@ import { retainSearchParams, stripSearchParams } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 
-const middlewares = [
-  stripSearchParams({
-    from: DEFAULT_TIME_RANGE.from,
-    to: DEFAULT_TIME_RANGE.to,
-    refresh: "",
-  }),
-  retainSearchParams(["from", "to", "refresh"]),
-] as Array<any>;
+type DashboardSearch = {
+  from?: string;
+  to?: string;
+  refresh?: string;
+  page?: number;
+};
+
+type DashboardSearchMiddleware = (ctx: {
+  search: DashboardSearch;
+  next: (newSearch: DashboardSearch) => DashboardSearch;
+}) => DashboardSearch;
+
+const strip = stripSearchParams({
+  from: DEFAULT_TIME_RANGE.from,
+  to: DEFAULT_TIME_RANGE.to,
+  refresh: "",
+}) as DashboardSearchMiddleware;
+const retain = retainSearchParams<DashboardSearch>([
+  "from",
+  "to",
+  "refresh",
+]) as DashboardSearchMiddleware;
+
+const middlewares: Array<DashboardSearchMiddleware> = [strip, retain];
 
 function applyMiddlewares(
-  current: Record<string, unknown>,
-  destination: Record<string, unknown>,
-) {
-  const final = () => destination as any;
-  const chain = middlewares.reduceRight(
-    (next: any, middleware: any) => (search: Record<string, unknown>) =>
-      middleware({ search, next }),
-    final,
-  );
-  return chain(current);
+  current: DashboardSearch,
+  destination: DashboardSearch,
+): DashboardSearch {
+  const applyAt = (index: number, search: DashboardSearch): DashboardSearch => {
+    const middleware = middlewares[index];
+    if (!middleware) {
+      return destination;
+    }
+    return middleware({
+      search,
+      next: (nextSearch) => applyAt(index + 1, nextSearch),
+    });
+  };
+
+  return applyAt(0, current);
 }
 
 describe("dashboard search middlewares", () => {

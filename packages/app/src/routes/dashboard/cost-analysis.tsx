@@ -20,20 +20,13 @@ import {
   costOverviewOptions,
   formatCost,
 } from "@/data/cost-analysis";
-import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/cost-analysis")({
   staticData: { breadcrumb: "Cost Analysis" },
   component: CostAnalysisPage,
   validateSearch: TimeRangeSearchSchema,
-  loaderDeps: ({ search }) => {
-    return {
-      timeRange: {
-        from: search.from ?? DEFAULT_TIME_RANGE.from,
-        to: search.to ?? DEFAULT_TIME_RANGE.to,
-      },
-    };
-  },
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
     const input = { timeRange };
     await Promise.all([

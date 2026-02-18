@@ -18,20 +18,13 @@ import {
   failuresByRepoOptions,
   failureTrendOptions,
 } from "@/data/failures";
-import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/failures")({
   staticData: { breadcrumb: "Failures" },
   component: FailuresPage,
   validateSearch: TimeRangeSearchSchema,
-  loaderDeps: ({ search }) => {
-    return {
-      timeRange: {
-        from: search.from ?? DEFAULT_TIME_RANGE.from,
-        to: search.to ?? DEFAULT_TIME_RANGE.to,
-      },
-    };
-  },
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
     const input = { timeRange };
     await Promise.all([
