@@ -20,7 +20,7 @@ import {
   flakyTestSummaryOptions,
   flakyTestsOptions,
 } from "@/data/flaky-tests";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/flaky-tests/")({
   component: FlakyTestsPage,
@@ -29,12 +29,15 @@ export const Route = createFileRoute("/dashboard/flaky-tests/")({
     branch: z.string().optional(),
     search: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => ({
-    timeRange: { from: search.from, to: search.to },
-    repo: search.repo,
-    branch: search.branch,
-    search: search.search,
-  }),
+  loaderDeps: ({ search }) => {
+    return {
+      ...search,
+      timeRange: {
+        from: search.from ?? DEFAULT_TIME_RANGE.from,
+        to: search.to ?? DEFAULT_TIME_RANGE.to,
+      },
+    };
+  },
   loader: async ({ context: { queryClient }, deps }) => {
     const filterInput = {
       timeRange: deps.timeRange,
@@ -53,8 +56,8 @@ export const Route = createFileRoute("/dashboard/flaky-tests/")({
 });
 
 function FlakyTestsPage() {
-  const { from, to, repo, branch, search } = Route.useSearch();
-  const timeRange = { from, to };
+  const { timeRange, repo, branch, search } = Route.useLoaderDeps();
+
   const filterInput = { timeRange, repo, branch, search };
   const { data: flakyTests } = useQuery(flakyTestsOptions(filterInput));
   const { data: summary } = useQuery(flakyTestSummaryOptions(filterInput));

@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  retainSearchParams,
+  stripSearchParams,
+  useMatches,
+} from "@tanstack/react-router";
 import { SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
@@ -12,14 +18,20 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { retainTimeRangeSearch } from "@/lib/router/retain-time-range-search";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard")({
   ssr: false,
   validateSearch: TimeRangeSearchSchema,
   search: {
-    middlewares: [retainTimeRangeSearch],
+    middlewares: [
+      stripSearchParams({
+        from: DEFAULT_TIME_RANGE.from,
+        to: DEFAULT_TIME_RANGE.to,
+        refresh: "",
+      }),
+      retainSearchParams(["from", "to", "refresh"]),
+    ],
   },
   component: RouteComponent,
 });

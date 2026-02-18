@@ -20,7 +20,7 @@ import {
   testHistoryOptions,
 } from "@/data/flaky-tests";
 import { formatRelativeTime } from "@/lib/formatting";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
   staticData: {
@@ -32,11 +32,15 @@ export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
     repo: z.string().default(""),
     test: z.string().default(""),
   }),
-  loaderDeps: ({ search }) => ({
-    repo: search.repo,
-    test: search.test,
-    timeRange: { from: search.from, to: search.to },
-  }),
+  loaderDeps: ({ search }) => {
+    return {
+      ...search,
+      timeRange: {
+        from: search.from ?? DEFAULT_TIME_RANGE.from,
+        to: search.to ?? DEFAULT_TIME_RANGE.to,
+      },
+    };
+  },
   loader: async ({
     context: { queryClient },
     deps: { repo, test, timeRange },
@@ -55,8 +59,7 @@ export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
 });
 
 function FlakyTestDetailPage() {
-  const { from, to, repo, test } = Route.useSearch();
-  const timeRange = { from, to };
+  const { timeRange, repo, test } = Route.useLoaderDeps();
 
   const detailInput = { timeRange, repo, testFullName: test };
   const enabled = !!repo && !!test;

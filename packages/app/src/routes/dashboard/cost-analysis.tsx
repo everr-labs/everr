@@ -20,15 +20,20 @@ import {
   costOverviewOptions,
   formatCost,
 } from "@/data/cost-analysis";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/cost-analysis")({
   staticData: { breadcrumb: "Cost Analysis" },
   component: CostAnalysisPage,
   validateSearch: TimeRangeSearchSchema,
-  loaderDeps: ({ search }) => ({
-    timeRange: { from: search.from, to: search.to },
-  }),
+  loaderDeps: ({ search }) => {
+    return {
+      timeRange: {
+        from: search.from ?? DEFAULT_TIME_RANGE.from,
+        to: search.to ?? DEFAULT_TIME_RANGE.to,
+      },
+    };
+  },
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
     const input = { timeRange };
     await Promise.all([
@@ -41,12 +46,11 @@ export const Route = createFileRoute("/dashboard/cost-analysis")({
 });
 
 function CostAnalysisPage() {
-  const { from, to } = Route.useSearch();
-  const timeRange = { from, to };
-  const input = { timeRange };
-  const { data: overview } = useQuery(costOverviewOptions(input));
-  const { data: byRepo } = useQuery(costByRepoOptions(input));
-  const { data: byWorkflow } = useQuery(costByWorkflowOptions(input));
+  const { timeRange } = Route.useLoaderDeps();
+
+  const { data: overview } = useQuery(costOverviewOptions({ timeRange }));
+  const { data: byRepo } = useQuery(costByRepoOptions({ timeRange }));
+  const { data: byWorkflow } = useQuery(costByWorkflowOptions({ timeRange }));
 
   if (!overview) return null;
 

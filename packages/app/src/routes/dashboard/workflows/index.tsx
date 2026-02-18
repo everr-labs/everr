@@ -11,7 +11,7 @@ import {
   workflowsListOptions,
   workflowsSparklineOptions,
 } from "@/data/workflows";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/workflows/")({
   staticData: { breadcrumb: "Workflows" },
@@ -22,10 +22,11 @@ export const Route = createFileRoute("/dashboard/workflows/")({
     search: z.string().optional(),
   }),
   loaderDeps: ({ search }) => ({
-    timeRange: { from: search.from, to: search.to },
-    page: search.page,
-    repo: search.repo,
-    search: search.search,
+    ...search,
+    timeRange: {
+      from: search.from ?? DEFAULT_TIME_RANGE.from,
+      to: search.to ?? DEFAULT_TIME_RANGE.to,
+    },
   }),
   loader: async ({ context: { queryClient }, deps }) => {
     const listInput = {
@@ -43,11 +44,11 @@ export const Route = createFileRoute("/dashboard/workflows/")({
 });
 
 function WorkflowsListPage() {
-  const { from, to, page, repo, search } = Route.useSearch();
-  const timeRange = { from, to };
-  const listInput = { timeRange, page, repo, search };
+  const { timeRange, page, repo, search } = Route.useLoaderDeps();
 
-  const { data: listResult } = useQuery(workflowsListOptions(listInput));
+  const { data: listResult } = useQuery(
+    workflowsListOptions({ timeRange, page, repo, search }),
+  );
   const { data: filterOptions } = useQuery(runFilterOptionsOptions());
   const { data: sparklines } = useQuery(
     workflowsSparklineOptions({

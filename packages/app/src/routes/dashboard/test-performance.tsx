@@ -34,7 +34,11 @@ import {
 } from "@/data/test-performance";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 import { buildTestPerformanceBreadcrumb } from "@/lib/test-performance-breadcrumb";
-import { resolveTimeRange, TimeRangeSearchSchema } from "@/lib/time-range";
+import {
+  DEFAULT_TIME_RANGE,
+  resolveTimeRange,
+  TimeRangeSearchSchema,
+} from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-performance")({
   staticData: {
@@ -52,14 +56,15 @@ export const Route = createFileRoute("/dashboard/test-performance")({
     branch: z.string().optional(),
     path: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => ({
-    timeRange: { from: search.from, to: search.to },
-    repo: search.repo,
-    pkg: search.pkg,
-    testName: search.testName,
-    branch: search.branch,
-    path: search.path,
-  }),
+  loaderDeps: ({ search }) => {
+    return {
+      ...search,
+      timeRange: {
+        from: search.from ?? DEFAULT_TIME_RANGE.from,
+        to: search.to ?? DEFAULT_TIME_RANGE.to,
+      },
+    };
+  },
   loader: async ({ context: { queryClient }, deps }) => {
     const filterInput = {
       timeRange: deps.timeRange,
@@ -95,9 +100,10 @@ export const Route = createFileRoute("/dashboard/test-performance")({
 });
 
 function TestPerformancePage() {
-  const { from, to, repo, pkg, testName, branch, path } = Route.useSearch();
+  const { timeRange, repo, pkg, testName, branch, path } =
+    Route.useLoaderDeps();
+
   const isRootScope = !pkg && !path;
-  const timeRange = { from, to };
   const { fromDate, toDate } = resolveTimeRange(timeRange);
   const filterInput = { timeRange, repo, pkg, testName, branch, path };
   const navigate = Route.useNavigate();
