@@ -56,8 +56,6 @@ export function SlowestTestsTable({ data }: SlowestTestsTableProps) {
           search={{
             repo: test.repo,
             test: test.testFullName,
-            from: `now-30d`,
-            to: `now`,
           }}
           className="hover:underline"
         >

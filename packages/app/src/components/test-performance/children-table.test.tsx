@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,9 +26,18 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { ChildrenTable } from "./children-table";
 
+function renderWithProviders(ui: React.ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
+
 describe("ChildrenTable", () => {
   it("uses suite icon and pkg navigation at root level", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <ChildrenTable
         data={[
           {
@@ -39,6 +49,7 @@ describe("ChildrenTable", () => {
             failureRate: 5,
           },
         ]}
+        timeRange={{ from: "-7d", to: "now" }}
       />,
     );
 
@@ -51,7 +62,7 @@ describe("ChildrenTable", () => {
   });
 
   it("uses leaf icon and path navigation for test rows", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <ChildrenTable
         pkg="my-pkg"
         data={[
@@ -64,13 +75,14 @@ describe("ChildrenTable", () => {
             failureRate: 5,
           },
         ]}
+        timeRange={{ from: "-7d", to: "now" }}
       />,
     );
 
     const link = screen.getByText("test").closest("a");
     expect(link).toHaveAttribute(
       "href",
-      "/dashboard/test-performance?path=my-pkg+%3E+Describe+%3E+test",
+      "/dashboard/test-performance?pkg=my-pkg&path=my-pkg+%3E+Describe+%3E+test",
     );
     expect(container.querySelector("svg.lucide-flask-conical")).toBeTruthy();
   });

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
+import { runSummarySubquery } from "./run-query-helpers";
 
 export interface Run {
   traceId: string;
@@ -20,14 +21,14 @@ export interface Job {
   jobId: string;
   name: string;
   conclusion: string;
-  duration: number;
+  duration: number; // ms
 }
 
 export interface Step {
   stepNumber: string;
   name: string;
   conclusion: string;
-  duration: number;
+  duration: number; // ms
 }
 
 export interface LogEntry {
@@ -69,21 +70,20 @@ export const getLatestRuns = createServerFn({
   .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const runSummarySql = runSummarySubquery({
+      whereClause: `ResourceAttributes['cicd.pipeline.run.id'] != ''
+				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['citric.test.name'] = ''
+				AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}`,
+      groupByExpr: "TraceId",
+      groupByAlias: "trace_id",
+      includeRunAttempt: true,
+    });
 
     const sql = `
-		SELECT
-			TraceId as trace_id,
-			anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-			anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
-			anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-			anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-			max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
-			anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-			max(Timestamp) as timestamp
-		FROM otel_traces
-		WHERE ResourceAttributes['cicd.pipeline.run.id'] != ''
-			AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-		GROUP BY trace_id
+      SELECT *
+      FROM (${runSummarySql})
 		ORDER BY timestamp DESC
 		LIMIT 10
 	`;
@@ -118,14 +118,14 @@ export const getRunDetails = createServerFn({
   .handler(async ({ data: traceId }) => {
     const sql = `
 			SELECT
-				anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-				anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
-				anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-				anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-				max(ResourceAttributes['cicd.pipeline.result']) as conclusion,
-				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-				max(Timestamp) as timestamp
-			FROM otel_traces
+					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
+					anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
+					anyLast(ResourceAttributes['vcs.repository.name']) as repo,
+					anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
+					coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
+					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
+					max(Timestamp) as timestamp
+				FROM otel_traces
 			WHERE TraceId = {traceId:String}
 		`;
 
@@ -162,10 +162,10 @@ export const getRunJobs = createServerFn({
   .handler(async ({ data: traceId }) => {
     const sql = `
 			SELECT
-				ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-				anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
-				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
-				max(Duration) as duration
+					ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
+					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
+					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+					max(Duration) / 1000000 as duration
 			FROM otel_traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
@@ -195,10 +195,10 @@ export const getJobSteps = createServerFn({
   .handler(async ({ data: { traceId, jobId } }) => {
     const sql = `
 			SELECT
-				SpanName as name,
-				SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
-				StatusMessage as conclusion,
-				Duration as duration
+					SpanName as name,
+					SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
+					StatusMessage as conclusion,
+					Duration / 1000000 as duration
 			FROM otel_traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
@@ -228,39 +228,43 @@ export const getAllJobsSteps = createServerFn({
     z.object({ traceId: z.string(), jobIds: z.array(z.string()) }),
   )
   .handler(async ({ data: { traceId, jobIds } }) => {
+    if (jobIds.length === 0) {
+      return {};
+    }
+
     const result: Record<string, Step[]> = {};
+    const sql = `
+      SELECT
+        ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
+        SpanName as name,
+        SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
+        StatusMessage as conclusion,
+        Duration / 1000000 as duration
+      FROM otel_traces
+      WHERE TraceId = {traceId:String}
+        AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
+        AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
+      ORDER BY jobId, toUInt32OrZero(stepNumber)
+    `;
+    const rows = await query<{
+      jobId: string;
+      name: string;
+      stepNumber: string;
+      conclusion: string;
+      duration: string;
+    }>(sql, { traceId, jobIds });
 
-    // Fetch steps for each job in parallel
-    await Promise.all(
-      jobIds.map(async (jobId) => {
-        const sql = `
-					SELECT
-						SpanName as name,
-						SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
-						StatusMessage as conclusion,
-						Duration as duration
-					FROM otel_traces
-					WHERE TraceId = {traceId:String}
-						AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
-						AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
-					ORDER BY toUInt32OrZero(stepNumber)
-				`;
-
-        const rows = await query<{
-          name: string;
-          stepNumber: string;
-          conclusion: string;
-          duration: string;
-        }>(sql, { traceId, jobId });
-
-        result[jobId] = rows.map((row) => ({
-          stepNumber: row.stepNumber,
-          name: row.name,
-          conclusion: row.conclusion,
-          duration: Number(row.duration),
-        }));
-      }),
-    );
+    for (const row of rows) {
+      if (!result[row.jobId]) {
+        result[row.jobId] = [];
+      }
+      result[row.jobId].push({
+        stepNumber: row.stepNumber,
+        name: row.name,
+        conclusion: row.conclusion,
+        duration: Number(row.duration),
+      });
+    }
 
     return result;
   });

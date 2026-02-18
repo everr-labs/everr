@@ -430,8 +430,6 @@ function WorkflowDetailPage() {
             <Link
               to="/dashboard/runs"
               search={{
-                from: timeRange.from,
-                to: timeRange.to,
                 page: 1,
                 workflowName,
                 repo,

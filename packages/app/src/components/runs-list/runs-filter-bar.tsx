@@ -87,7 +87,7 @@ export function RunsFilterBar({
           <SelectItem value="__all__">All statuses</SelectItem>
           <SelectItem value="success">Success</SelectItem>
           <SelectItem value="failure">Failure</SelectItem>
-          <SelectItem value="cancelled">Cancelled</SelectItem>
+          <SelectItem value="cancellation">Cancelled</SelectItem>
         </SelectContent>
       </Select>
 

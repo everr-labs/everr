@@ -5,7 +5,7 @@ import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/runs/")({
   component: RunsListPage,
@@ -17,15 +17,7 @@ export const Route = createFileRoute("/dashboard/runs/")({
     workflowName: z.string().optional(),
     runId: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => ({
-    timeRange: { from: search.from, to: search.to },
-    page: search.page,
-    repo: search.repo,
-    branch: search.branch,
-    conclusion: search.conclusion,
-    workflowName: search.workflowName,
-    runId: search.runId,
-  }),
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps }) => {
     const runsInput = {
       timeRange: deps.timeRange,
@@ -45,9 +37,9 @@ export const Route = createFileRoute("/dashboard/runs/")({
 });
 
 function RunsListPage() {
-  const { from, to, page, repo, branch, conclusion, workflowName, runId } =
-    Route.useSearch();
-  const timeRange = { from, to };
+  const { timeRange, page, repo, branch, conclusion, workflowName, runId } =
+    Route.useLoaderDeps();
+
   const runsInput = {
     timeRange,
     page,

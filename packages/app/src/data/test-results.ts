@@ -11,7 +11,6 @@ function fillTrendDates(
   fromDate: Date,
   toDate: Date,
 ): number[] {
-  console.log("fill");
   const valueMap = new Map(raw);
   const result: number[] = [];
   for (const d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {

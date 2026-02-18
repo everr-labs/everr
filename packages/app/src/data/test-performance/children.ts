@@ -106,14 +106,34 @@ export const getTestPerfChildren = createServerFn({
       const conditions = [...baseConditions];
       // Root level: return packages with aggregate leaf-only metrics
       conditions.push("SpanAttributes['citric.test.package'] != ''");
-      conditions.push(leafTestFilter());
+      const leafScopeConditions: string[] = [
+        "SpanAttributes['citric.test.package'] != ''",
+      ];
+      if (data.repo) {
+        leafScopeConditions.push(
+          "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+        );
+      }
+      if (data.branch) {
+        leafScopeConditions.push(
+          "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+        );
+      }
+      conditions.push(
+        leafTestFilter({
+          leftExpr: `tuple(SpanAttributes['citric.test.package'], ${testFullNameExpr(null)})`,
+          rightExpr:
+            "tuple(SpanAttributes['citric.test.package'], SpanAttributes['citric.test.parent_test'])",
+          extraConditions: leafScopeConditions,
+        }),
+      );
       const whereClause = conditions.join("\n          AND ");
 
       const sql = `
         SELECT
           name,
           1 as is_suite,
-          count(*) as executions,
+          countDistinct(tuple(run_id, head_sha)) as executions,
           avg(test_duration) as avg_duration,
           quantile(0.95)(test_duration) as p95_duration,
           round(countIf(test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate
@@ -178,7 +198,7 @@ export const getTestPerfChildren = createServerFn({
       SELECT
         c.name,
         if(countIf(s.name != '') > 0, 1, 0) as is_suite,
-        count(*) as executions,
+        countDistinct(tuple(c.run_id, c.head_sha)) as executions,
         avg(c.test_duration) as avg_duration,
         quantile(0.95)(c.test_duration) as p95_duration,
         round(countIf(c.test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate

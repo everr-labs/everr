@@ -25,7 +25,7 @@ import {
   repoSuccessRateTrendOptions,
   topFailingJobsOptions,
 } from "@/data/repo-detail";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },
@@ -33,10 +33,7 @@ export const Route = createFileRoute("/dashboard/repos")({
   validateSearch: TimeRangeSearchSchema.extend({
     name: z.string().default(""),
   }),
-  loaderDeps: ({ search }) => ({
-    name: search.name,
-    timeRange: { from: search.from, to: search.to },
-  }),
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps }) => {
     if (!deps.name) {
       return;
@@ -55,9 +52,7 @@ export const Route = createFileRoute("/dashboard/repos")({
 });
 
 function RepoDetailPage() {
-  const { name, from, to } = Route.useSearch();
-  const timeRange = { from, to };
-
+  const { timeRange, name } = Route.useLoaderDeps();
   const input = { timeRange, repo: name };
   const enabled = !!name;
   const { data: stats } = useQuery({ ...repoStatsOptions(input), enabled });

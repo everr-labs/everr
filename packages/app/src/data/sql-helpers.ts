@@ -26,13 +26,31 @@ export function testFullNameExpr(
  * A leaf test is one whose full name never appears as another test's parent_test.
  */
 export function leafTestFilter(
-  fromParam = "fromTime",
-  toParam = "toTime",
+  opts: {
+    fromParam?: string;
+    toParam?: string;
+    leftExpr?: string;
+    rightExpr?: string;
+    extraConditions?: string[];
+  } = {},
 ): string {
-  return `${testFullNameExpr(null)} NOT IN (
-    SELECT DISTINCT SpanAttributes['citric.test.parent_test']
+  const {
+    fromParam = "fromTime",
+    toParam = "toTime",
+    leftExpr = testFullNameExpr(null),
+    rightExpr = "SpanAttributes['citric.test.parent_test']",
+    extraConditions = [],
+  } = opts;
+  const scopedConditions =
+    extraConditions.length > 0
+      ? `\n      AND ${extraConditions.join("\n      AND ")}`
+      : "";
+
+  return `${leftExpr} NOT IN (
+    SELECT DISTINCT ${rightExpr}
     FROM otel_traces
     WHERE SpanAttributes['citric.test.parent_test'] != ''
       AND Timestamp >= {${fromParam}:String} AND Timestamp <= {${toParam}:String}
+      ${scopedConditions}
   )`;
 }

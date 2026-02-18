@@ -6,6 +6,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { Job, Step } from "@/data/runs";
+import { formatDuration } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";
 
@@ -14,14 +15,6 @@ interface JobTreeNavProps {
   stepsByJobId: Record<string, Step[]>;
   traceId: string;
   selectedJobId?: string;
-}
-
-function formatDuration(nanoseconds: number): string {
-  const seconds = Math.floor(nanoseconds / 1_000_000_000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}m ${remainingSeconds}s`;
 }
 
 export function JobTreeNav({
@@ -52,7 +45,7 @@ export function JobTreeNav({
               />
               <span className="truncate">{job.name}</span>
               <span className="ml-auto shrink-0 opacity-60">
-                {formatDuration(job.duration)}
+                {formatDuration(job.duration, "ms")}
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -85,7 +78,7 @@ export function JobTreeNav({
                         <span className="truncate">{step.name}</span>
                       </div>
                       <span className="ml-2 shrink-0 opacity-60">
-                        {formatDuration(step.duration)}
+                        {formatDuration(step.duration, "ms")}
                       </span>
                     </Link>
                   );

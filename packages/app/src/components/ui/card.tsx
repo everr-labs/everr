@@ -3,12 +3,17 @@ import { cn } from "@/lib/utils";
 function Card({
   className,
   size = "default",
+  inset = "default",
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+}: React.ComponentProps<"div"> & {
+  size?: "default" | "sm";
+  inset?: "default" | "flush-content";
+}) {
   return (
     <div
       data-slot="card"
       data-size={size}
+      data-inset={inset}
       className={cn(
         "ring-foreground/10 bg-card text-card-foreground gap-2 overflow-hidden rounded-lg py-3 text-xs/relaxed ring-1 has-[>img:first-child]:pt-0 data-[size=sm]:gap-2 data-[size=sm]:py-2 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg group/card flex flex-col",
         className,
@@ -68,7 +73,10 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-content"
-      className={cn("px-3 group-data-[size=sm]/card:px-2.5", className)}
+      className={cn(
+        "px-3 group-data-[size=sm]/card:px-2.5 group-data-[inset=flush-content]/card:px-0",
+        className,
+      )}
       {...props}
     />
   );

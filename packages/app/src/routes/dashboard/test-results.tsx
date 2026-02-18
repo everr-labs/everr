@@ -17,33 +17,33 @@ import {
   testResultsByPackageOptions,
   testResultsSummaryOptions,
 } from "@/data/test-results";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-results")({
   staticData: { breadcrumb: "Test Results" },
   component: TestResultsPage,
   validateSearch: TimeRangeSearchSchema,
-  loaderDeps: ({ search }) => ({
-    timeRange: { from: search.from, to: search.to },
-  }),
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
-    const input = { timeRange };
-    queryClient.prefetchQuery(testResultsSummaryOptions(input));
-    queryClient.prefetchQuery(testResultsByPackageOptions(input));
-    queryClient.prefetchQuery(slowestTestsOptions(input));
-    queryClient.prefetchQuery(testDurationTrendOptions(input));
+    queryClient.prefetchQuery(testResultsSummaryOptions({ timeRange }));
+    queryClient.prefetchQuery(testResultsByPackageOptions({ timeRange }));
+    queryClient.prefetchQuery(slowestTestsOptions({ timeRange }));
+    queryClient.prefetchQuery(testDurationTrendOptions({ timeRange }));
   },
   pendingComponent: TestResultsSkeleton,
 });
 
 function TestResultsPage() {
-  const { from, to } = Route.useSearch();
-  const timeRange = { from, to };
-  const input = { timeRange };
-  const { data: summary } = useQuery(testResultsSummaryOptions(input));
-  const { data: byPackage } = useQuery(testResultsByPackageOptions(input));
-  const { data: slowest } = useQuery(slowestTestsOptions(input));
-  const { data: durationTrend } = useQuery(testDurationTrendOptions(input));
+  const { timeRange } = Route.useLoaderDeps();
+
+  const { data: summary } = useQuery(testResultsSummaryOptions({ timeRange }));
+  const { data: byPackage } = useQuery(
+    testResultsByPackageOptions({ timeRange }),
+  );
+  const { data: slowest } = useQuery(slowestTestsOptions({ timeRange }));
+  const { data: durationTrend } = useQuery(
+    testDurationTrendOptions({ timeRange }),
+  );
 
   if (!summary) return null;
 

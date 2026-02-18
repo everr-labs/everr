@@ -38,10 +38,24 @@ export function getRefreshIntervalMs(value: string): number | null {
 }
 
 export const TimeRangeSearchSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  refresh: z.string().optional(),
+});
+
+export const ResolvedTimeRangeSearchSchema = z.object({
   from: z.string().default(DEFAULT_TIME_RANGE.from),
   to: z.string().default(DEFAULT_TIME_RANGE.to),
   refresh: z.string().default(""),
 });
+
+export function withTimeRange<T extends { from?: string; to?: string }>(
+  search: T,
+): T & { from: string; to: string; timeRange: TimeRange } {
+  const from = search.from ?? DEFAULT_TIME_RANGE.from;
+  const to = search.to ?? DEFAULT_TIME_RANGE.to;
+  return { ...search, from, to, timeRange: { from, to } };
+}
 
 export function validateTimeRange(range: TimeRange): TimeRange {
   if (!isValid(range.from) || !isValid(range.to)) {

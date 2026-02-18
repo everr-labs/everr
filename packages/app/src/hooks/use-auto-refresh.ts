@@ -4,12 +4,12 @@ import { useEffect, useRef } from "react";
 import {
   getRefreshIntervalMs,
   type RefreshInterval,
-  TimeRangeSearchSchema,
+  ResolvedTimeRangeSearchSchema,
 } from "@/lib/time-range";
 
 export function useAutoRefresh() {
-  const search = useSearch({ strict: false }) as Record<string, unknown>;
-  const { refresh } = TimeRangeSearchSchema.parse(search);
+  const search = useSearch({ from: "/dashboard" });
+  const { refresh } = ResolvedTimeRangeSearchSchema.parse(search);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

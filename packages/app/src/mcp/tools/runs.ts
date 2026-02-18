@@ -34,7 +34,7 @@ export function registerRunsTools(server: McpServer) {
         .string()
         .optional()
         .describe(
-          "Filter by conclusion: 'success', 'failure', or 'cancelled'.",
+          "Filter by conclusion: 'success', 'failure', or 'cancellation'.",
         ),
       workflowName: z.string().optional().describe("Filter by workflow name."),
       runId: z.string().optional().describe("Filter by specific run ID."),

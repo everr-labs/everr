@@ -18,15 +18,13 @@ import {
   failuresByRepoOptions,
   failureTrendOptions,
 } from "@/data/failures";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/failures")({
   staticData: { breadcrumb: "Failures" },
   component: FailuresPage,
   validateSearch: TimeRangeSearchSchema,
-  loaderDeps: ({ search }) => ({
-    timeRange: { from: search.from, to: search.to },
-  }),
+  loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
     const input = { timeRange };
     await Promise.all([
@@ -39,12 +37,10 @@ export const Route = createFileRoute("/dashboard/failures")({
 });
 
 function FailuresPage() {
-  const { from, to } = Route.useSearch();
-  const timeRange = { from, to };
-  const input = { timeRange };
-  const { data: patterns } = useQuery(failurePatternsOptions(input));
-  const { data: trend } = useQuery(failureTrendOptions(input));
-  const { data: byRepo } = useQuery(failuresByRepoOptions(input));
+  const { timeRange } = Route.useLoaderDeps();
+  const { data: patterns } = useQuery(failurePatternsOptions({ timeRange }));
+  const { data: trend } = useQuery(failureTrendOptions({ timeRange }));
+  const { data: byRepo } = useQuery(failuresByRepoOptions({ timeRange }));
 
   if (!patterns) return null;
 
