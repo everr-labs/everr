@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { CircleHelp } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import {
@@ -11,11 +11,13 @@ import {
   TestPerfFilterBar,
   TestPerfScatterChart,
   TestPerfTreemap,
+  type TreemapSizeMetric,
 } from "@/components/test-performance";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Panel } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
   TooltipContent,
@@ -100,6 +102,8 @@ function TestPerformancePage() {
   const filterInput = { timeRange, repo, pkg, testName, branch, path };
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
+  const [treemapSizeMetric, setTreemapSizeMetric] =
+    useState<TreemapSizeMetric>("avgDuration");
 
   const { data: stats } = useQuery({
     ...testPerfStatsOptions(filterInput),
@@ -477,14 +481,54 @@ function TestPerformancePage() {
       {!isLeaf && hasChildren && (
         <Panel
           title="Execution Treemap"
-          description="Size = average duration, color = failure rate. Click a block to drill down."
+          description={`Size = ${
+            treemapSizeMetric === "avgDuration"
+              ? "average duration"
+              : treemapSizeMetric === "p95Duration"
+                ? "p95 duration"
+                : "failure rate"
+          }, color = failure rate. Click a block to drill down.`}
           queries={[]}
           inset="flush-content"
+          action={
+            <ToggleGroup
+              value={[treemapSizeMetric]}
+              variant="outline"
+              size="sm"
+              spacing={0}
+              onValueChange={(value) => {
+                const selected = value[0];
+                if (!selected) return;
+                if (
+                  selected === "avgDuration" ||
+                  selected === "p95Duration" ||
+                  selected === "failureRate"
+                ) {
+                  setTreemapSizeMetric(selected);
+                }
+              }}
+              aria-label="Treemap size metric"
+            >
+              <ToggleGroupItem
+                value="avgDuration"
+                aria-label="Average duration"
+              >
+                Avg
+              </ToggleGroupItem>
+              <ToggleGroupItem value="p95Duration" aria-label="P95 duration">
+                P95
+              </ToggleGroupItem>
+              <ToggleGroupItem value="failureRate" aria-label="Failure rate">
+                Fail %
+              </ToggleGroupItem>
+            </ToggleGroup>
+          }
         >
           {() => (
             <TestPerfTreemap
               data={children}
               pkg={pkg}
+              sizeMetric={treemapSizeMetric}
               onSelect={(name) => {
                 if (!pkg) {
                   updateFilter({ pkg: name, path: undefined });

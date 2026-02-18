@@ -4,10 +4,13 @@ import { ChartEmptyState } from "@/components/ui/chart-helpers";
 import type { TestPerfChild } from "@/data/test-performance";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 
+export type TreemapSizeMetric = "avgDuration" | "p95Duration" | "failureRate";
+
 interface TestPerfTreemapProps {
   data: TestPerfChild[];
   pkg?: string;
   onSelect?: (name: string) => void;
+  sizeMetric?: TreemapSizeMetric;
 }
 
 interface TreemapDatum extends TestPerfChild {
@@ -25,23 +28,37 @@ function getFailureColor(failureRate: number) {
 function TreemapTooltip({
   active,
   payload,
+  sizeMetric,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: TreemapDatum }>;
+  sizeMetric: TreemapSizeMetric;
 }) {
   if (!active || !payload?.length) return null;
   const item = payload[0]?.payload;
   if (!item) return null;
+
+  const sizeLabel =
+    sizeMetric === "avgDuration"
+      ? "Average Duration"
+      : sizeMetric === "p95Duration"
+        ? "P95 Duration"
+        : "Failure Rate";
+
+  const sizeValue =
+    sizeMetric === "avgDuration"
+      ? formatDurationCompact(item.avgDuration, "s")
+      : sizeMetric === "p95Duration"
+        ? formatDurationCompact(item.p95Duration, "s")
+        : `${item.failureRate}%`;
 
   return (
     <div className="border-border/50 bg-background rounded-lg border px-2.5 py-1.5 text-xs shadow-xl min-w-44">
       <p className="font-medium mb-1 break-all">{item.name}</p>
       <div className="grid gap-0.5 text-muted-foreground">
         <p>
-          Avg Duration:{" "}
-          <span className="text-foreground font-mono">
-            {formatDurationCompact(item.avgDuration, "s")}
-          </span>
+          Size ({sizeLabel}):{" "}
+          <span className="text-foreground font-mono">{sizeValue}</span>
         </p>
         <p>
           Failure Rate:{" "}
@@ -73,6 +90,9 @@ function TreemapCell(props: {
   name?: string;
   displayName?: string;
   avgDuration?: number;
+  p95Duration?: number;
+  failureRate?: number;
+  sizeMetric?: TreemapSizeMetric;
   fill?: string;
 }) {
   const {
@@ -84,6 +104,9 @@ function TreemapCell(props: {
     name,
     displayName,
     avgDuration,
+    p95Duration,
+    failureRate,
+    sizeMetric = "avgDuration",
     fill,
   } = props;
 
@@ -92,6 +115,8 @@ function TreemapCell(props: {
 
   const label = displayName ?? name ?? "";
   const avg = typeof avgDuration === "number" ? avgDuration : undefined;
+  const p95 = typeof p95Duration === "number" ? p95Duration : undefined;
+  const rate = typeof failureRate === "number" ? failureRate : undefined;
   const color = fill ?? "hsl(142 71% 45%)";
   const gap = 2;
   const tileX = x + gap / 2;
@@ -99,6 +124,19 @@ function TreemapCell(props: {
   const tileWidth = Math.max(0, width - gap);
   const tileHeight = Math.max(0, height - gap);
   const canLabel = tileWidth >= 64 && tileHeight >= 28;
+
+  const sizeText =
+    sizeMetric === "avgDuration"
+      ? avg !== undefined
+        ? `${formatDurationCompact(avg, "s")} avg`
+        : undefined
+      : sizeMetric === "p95Duration"
+        ? p95 !== undefined
+          ? `${formatDurationCompact(p95, "s")} p95`
+          : undefined
+        : rate !== undefined
+          ? `${rate}% fail`
+          : undefined;
 
   if (tileWidth <= 0 || tileHeight <= 0) return null;
 
@@ -126,7 +164,7 @@ function TreemapCell(props: {
           >
             {label}
           </text>
-          {tileHeight >= 40 && avg !== undefined && (
+          {tileHeight >= 40 && sizeText && (
             <text
               x={tileX + 6}
               y={tileY + 28}
@@ -135,7 +173,7 @@ function TreemapCell(props: {
               fontSize={10}
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
             >
-              {formatDurationCompact(avg, "s")} avg
+              {sizeText}
             </text>
           )}
         </>
@@ -144,19 +182,31 @@ function TreemapCell(props: {
   );
 }
 
-export function TestPerfTreemap({ data, pkg, onSelect }: TestPerfTreemapProps) {
+export function TestPerfTreemap({
+  data,
+  pkg,
+  onSelect,
+  sizeMetric = "avgDuration",
+}: TestPerfTreemapProps) {
   const treemapData = useMemo<TreemapDatum[]>(
     () =>
       data
         .map((row) => ({
           ...row,
-          value: Math.max(row.avgDuration, 0.001),
+          value: Math.max(
+            sizeMetric === "avgDuration"
+              ? row.avgDuration
+              : sizeMetric === "p95Duration"
+                ? row.p95Duration
+                : row.failureRate,
+            0.001,
+          ),
           displayName: pkg ? testNameLastSegment(row.name) : row.name,
           fill: getFailureColor(row.failureRate),
         }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 80),
-    [data, pkg],
+    [data, pkg, sizeMetric],
   );
 
   if (treemapData.length === 0) {
@@ -172,7 +222,7 @@ export function TestPerfTreemap({ data, pkg, onSelect }: TestPerfTreemapProps) {
           aspectRatio={1}
           type="flat"
           isAnimationActive={false}
-          content={<TreemapCell />}
+          content={<TreemapCell sizeMetric={sizeMetric} />}
           onClick={(node: unknown) => {
             if (!onSelect) return;
             const clicked = node as {
@@ -183,7 +233,7 @@ export function TestPerfTreemap({ data, pkg, onSelect }: TestPerfTreemapProps) {
             if (name) onSelect(name);
           }}
         >
-          <Tooltip content={<TreemapTooltip />} />
+          <Tooltip content={<TreemapTooltip sizeMetric={sizeMetric} />} />
         </Treemap>
       </ResponsiveContainer>
     </div>
