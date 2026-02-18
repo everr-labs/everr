@@ -6,7 +6,7 @@ import {
 } from "@/lib/time-range";
 
 export function useTimeRange() {
-  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const search = useSearch({ from: "/dashboard" });
   const timeRange = validateTimeRange(TimeRangeSearchSchema.parse(search));
   const navigate = useNavigate();
 

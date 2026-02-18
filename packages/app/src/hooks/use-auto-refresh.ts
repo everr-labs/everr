@@ -8,7 +8,7 @@ import {
 } from "@/lib/time-range";
 
 export function useAutoRefresh() {
-  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const search = useSearch({ from: "/dashboard" });
   const { refresh } = TimeRangeSearchSchema.parse(search);
   const navigate = useNavigate();
   const queryClient = useQueryClient();

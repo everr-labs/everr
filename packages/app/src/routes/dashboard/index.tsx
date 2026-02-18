@@ -171,7 +171,6 @@ function DashboardPage() {
           action={
             <Link
               to="/dashboard/repos"
-              search={{ from: "now-7d", to: "now" }}
               className="text-muted-foreground hover:text-foreground text-xs"
             >
               View all
@@ -195,8 +194,6 @@ function DashboardPage() {
                         to="/dashboard/repos"
                         search={{
                           name: repo.name,
-                          from: "now-7d",
-                          to: "now",
                         }}
                         className="text-sm font-medium hover:underline truncate"
                       >
@@ -260,10 +257,6 @@ function DashboardPage() {
                   <Link
                     key={`${wf.repo}:${wf.workflowName}`}
                     to="/dashboard/workflows/$repo/$workflowName"
-                    search={{
-                      from: "now-7d",
-                      to: "now",
-                    }}
                     params={{
                       repo: wf.repo,
                       workflowName: wf.workflowName,
@@ -300,8 +293,6 @@ function DashboardPage() {
           <Link
             to="/dashboard/runs"
             search={{
-              from: "now-7d",
-              to: "now",
               page: 1,
               repo: undefined,
               branch: undefined,

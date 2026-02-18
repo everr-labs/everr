@@ -63,7 +63,7 @@ export function RunsTable({ data }: RunsTableProps) {
               <td className="py-2 pr-4">
                 <Link
                   to="/dashboard/repos"
-                  search={{ name: run.repo, from: "now-7d", to: "now" }}
+                  search={{ name: run.repo }}
                   className="hover:underline"
                 >
                   {run.repo}

@@ -14,7 +14,7 @@ const columns: Column<FailureByRepo>[] = [
     cell: (row) => (
       <Link
         to="/dashboard/repos"
-        search={{ name: row.repo, from: "now-7d", to: "now" }}
+        search={{ name: row.repo }}
         className="font-medium hover:underline"
       >
         {row.repo}

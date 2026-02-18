@@ -25,8 +25,6 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 export const Route = createFileRoute("/dashboard/flaky-tests/")({
   component: FlakyTestsPage,
   validateSearch: TimeRangeSearchSchema.extend({
-    from: z.string().default("now-14d"),
-    to: z.string().default("now"),
     repo: z.string().optional(),
     branch: z.string().optional(),
     search: z.string().optional(),

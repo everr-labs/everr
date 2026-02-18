@@ -29,8 +29,6 @@ export const Route = createFileRoute("/dashboard/flaky-tests/detail")({
   },
   component: FlakyTestDetailPage,
   validateSearch: TimeRangeSearchSchema.extend({
-    from: z.string().default("now-30d"),
-    to: z.string().default("now"),
     repo: z.string().default(""),
     test: z.string().default(""),
   }),

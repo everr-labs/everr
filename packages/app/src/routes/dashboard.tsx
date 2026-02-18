@@ -12,9 +12,15 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { retainTimeRangeSearch } from "@/lib/router/retain-time-range-search";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard")({
   ssr: false,
+  validateSearch: TimeRangeSearchSchema,
+  search: {
+    middlewares: [retainTimeRangeSearch],
+  },
   component: RouteComponent,
 });
 
