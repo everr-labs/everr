@@ -31,7 +31,7 @@ export const getDashboardStats = createServerFn({
 			count(*) as totalJobRuns,
 			countIf(conclusion = 'success') as successfulRuns,
 			countIf(conclusion = 'failure') as failedRuns,
-			countIf(conclusion = 'cancelled') as cancelledRuns
+			countIf(conclusion = 'cancellation') as cancelledRuns
 		FROM (
 			SELECT
 				ResourceAttributes['cicd.pipeline.run.id'] as run_id,

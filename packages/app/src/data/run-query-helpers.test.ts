@@ -10,8 +10,9 @@ describe("runSummarySubquery", () => {
     });
 
     expect(sql).toContain("TraceId as trace_id");
+    expect(sql).toContain("ResourceAttributes['cicd.pipeline.result']");
     expect(sql).toContain(
-      "argMax(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp) as conclusion",
+      "ResourceAttributes['cicd.pipeline.task.run.result']",
     );
     expect(sql).toContain("GROUP BY trace_id");
   });

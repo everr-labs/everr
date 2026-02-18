@@ -122,7 +122,7 @@ export const getRunDetails = createServerFn({
 					anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
 					anyLast(ResourceAttributes['vcs.repository.name']) as repo,
 					anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-					argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '') as conclusion,
+					coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 					max(Timestamp) as timestamp
 				FROM otel_traces

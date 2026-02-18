@@ -27,7 +27,7 @@ export function runSummarySubquery({
     "anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName",
     "anyLast(ResourceAttributes['vcs.repository.name']) as repo",
     "anyLast(ResourceAttributes['vcs.ref.head.name']) as branch",
-    "argMax(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp) as conclusion",
+    "coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion",
     "max(Timestamp) as timestamp",
   ];
 
