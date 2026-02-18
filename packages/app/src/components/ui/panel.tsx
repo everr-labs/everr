@@ -44,6 +44,7 @@ interface PanelProps<TQueries extends readonly QueryFactory[]> {
   skeleton?: ReactNode;
   icon?: LucideIcon;
   action?: ReactNode;
+  inset?: "default" | "flush-content";
   className?: string;
 }
 
@@ -57,6 +58,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
   skeleton,
   icon: Icon,
   action,
+  inset = "default",
   className,
 }: PanelProps<TQueries>) {
   const { timeRange } = useTimeRange();
@@ -72,7 +74,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
   if (isPending) {
     if (variant === "stat") {
       return (
-        <Card className={className}>
+        <Card inset={inset} className={className}>
           <CardHeader className="pb-1">
             <CardDescription>{title}</CardDescription>
             <Skeleton className="h-9 w-24" />
@@ -81,7 +83,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
       );
     }
     return (
-      <Card className={className}>
+      <Card inset={inset} className={className}>
         <CardHeader>
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-4 w-48" />
@@ -96,7 +98,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
   if (error) {
     if (variant === "stat") {
       return (
-        <Card className={className}>
+        <Card inset={inset} className={className}>
           <CardHeader className="pb-1">
             <CardDescription>{title}</CardDescription>
             <CardTitle className="text-3xl tabular-nums">--</CardTitle>
@@ -105,7 +107,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
       );
     }
     return (
-      <Card className={className}>
+      <Card inset={inset} className={className}>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
           {description && <CardDescription>{description}</CardDescription>}
@@ -126,7 +128,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
 
   if (variant === "stat") {
     return (
-      <Card className={cn(background && "relative", className)}>
+      <Card inset={inset} className={cn(background && "relative", className)}>
         {background && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 opacity-15">
             {background(...data)}
@@ -146,7 +148,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
   }
 
   return (
-    <Card className={cn(className)}>
+    <Card inset={inset} className={cn(className)}>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {description && <CardDescription>{description}</CardDescription>}

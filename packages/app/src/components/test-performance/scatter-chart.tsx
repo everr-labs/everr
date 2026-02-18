@@ -174,6 +174,7 @@ export function TestPerfScatterChart({
   const [selected, setSelected] = useState<ScatterPointWithTs | null>(null);
 
   const shouldAggregate = data.length > AGGREGATE_THRESHOLD;
+  const zRange: [number, number] = shouldAggregate ? [42, 260] : [42, 42];
 
   const { mainPass, mainFail, otherPass, otherFail } = useMemo(() => {
     const mainPass: ScatterPointWithTs[] = [];
@@ -242,7 +243,12 @@ export function TestPerfScatterChart({
             axisLine={false}
             tickMargin={8}
           />
-          <ZAxis dataKey="count" type="number" range={[60, 400]} />
+          <ZAxis
+            dataKey="count"
+            type="number"
+            range={zRange}
+            scale={shouldAggregate ? "sqrt" : "linear"}
+          />
           <ChartTooltip content={<ScatterTooltipContent />} />
           <ChartLegend />
           <Scatter
