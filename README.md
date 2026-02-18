@@ -20,6 +20,63 @@
 docker-compose up -d
 ```
 
+### Install dependencies and build
+
+```bash
+pnpm i
+pnpm build
+```
+
+### Create a GitHub App
+
+1. On GitHub, go to [Settings -> Developer settings -> GitHub Apps](https://github.com/settings/apps) and click **New GitHub App**.
+2. Choose an app name and set a homepage URL.
+3. Under **Webhook**, enable **Active** and set the webhook URL to your tunnel URL with the receiver path, for example: `https://<your-tunnel>/webhook/github`.
+4. Set a webhook secret and store it in `collector/config.yml` as `receivers.githubactions.secret`.
+5. Under **Repository permissions**, set **Actions** to **Read-only**.
+6. Under **Subscribe to events**, select **Workflow job** and **Workflow run**.
+7. Create the app.
+8. In the app settings page, scroll to **Private keys** and click **Generate a private key** to download the `.pem` file.
+9. Move the downloaded `.pem` file into `collector/` and set restrictive permissions:
+   ```bash
+   mv ~/Downloads/<your-app-name>*.pem collector/dev-citric-app.pem
+   chmod 600 collector/dev-citric-app.pem
+   ```
+10. Install the app on the repository you want to observe.
+11. Get the **App ID** from the GitHub App settings page (shown at the top of the page).
+12. Get the **Installation ID** from GitHub App settings -> **Advanced** -> **Recent deliveries** (open a delivery payload and copy `installation.id`).
+13. Fill `collector/config.yml`:
+    ```yaml
+    receivers:
+      githubactions:
+        secret: <webhook-secret>
+        gh_api:
+          auth:
+            app_id: <app-id>
+            installation_id: <installation-id>
+            private_key_path: ./dev-citric-app.pem
+    ```
+14. Try to redeliver the ping to validate that everything is ok
+
+### Fill the collector config
+
+Update `collector/config.yml` with your Grafana Cloud values.
+
+### Set app environment variables
+
+```bash
+cp packages/app/.env.example packages/app/.env
+```
+
+Then review and update values in `packages/app/.env` if needed.
+
+### Start the collector
+
+```bash
+cd collector
+make run
+```
+
 ### Run the app
 
 > [!NOTE]  
@@ -40,7 +97,7 @@ Generate an Access Policy with the following permissions:
 - logs:write
 - profiles:write
 
-and fill in the config.yaml.
+and fill in `collector/config.yml`.
 
 ### Generate a Service account
 
