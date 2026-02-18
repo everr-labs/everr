@@ -133,7 +133,7 @@ export const getTestPerfChildren = createServerFn({
         SELECT
           name,
           1 as is_suite,
-          count(*) as executions,
+          countDistinct(tuple(run_id, head_sha)) as executions,
           avg(test_duration) as avg_duration,
           quantile(0.95)(test_duration) as p95_duration,
           round(countIf(test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate
@@ -198,7 +198,7 @@ export const getTestPerfChildren = createServerFn({
       SELECT
         c.name,
         if(countIf(s.name != '') > 0, 1, 0) as is_suite,
-        count(*) as executions,
+        countDistinct(tuple(c.run_id, c.head_sha)) as executions,
         avg(c.test_duration) as avg_duration,
         quantile(0.95)(c.test_duration) as p95_duration,
         round(countIf(c.test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate

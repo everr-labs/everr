@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { CircleHelp } from "lucide-react";
 import { useMemo } from "react";
@@ -76,29 +76,48 @@ export const Route = createFileRoute("/dashboard/test-performance")({
       branch: deps.branch,
       path: deps.path,
     };
-    await Promise.all([
-      queryClient.prefetchQuery(testPerfStatsOptions(filterInput)),
-      queryClient.prefetchQuery(testPerfScatterOptions(filterInput)),
-      queryClient.prefetchQuery(testPerfTrendOptions(filterInput)),
-      queryClient.prefetchQuery(testPerfFailuresOptions(filterInput)),
+    const prefetches = [
       queryClient.prefetchQuery(testPerfFilterOptionsOptions()),
       queryClient.prefetchQuery(testPerfChildrenOptions(childrenInput)),
-    ]);
+    ];
+    if (deps.pkg || deps.path) {
+      prefetches.push(
+        queryClient.prefetchQuery(testPerfStatsOptions(filterInput)),
+        queryClient.prefetchQuery(testPerfScatterOptions(filterInput)),
+        queryClient.prefetchQuery(testPerfTrendOptions(filterInput)),
+        queryClient.prefetchQuery(testPerfFailuresOptions(filterInput)),
+      );
+    }
+    await Promise.all(prefetches);
   },
   pendingComponent: TestPerformanceSkeleton,
 });
 
 function TestPerformancePage() {
   const { from, to, repo, pkg, testName, branch, path } = Route.useSearch();
+  const isRootScope = !pkg && !path;
   const timeRange = { from, to };
   const { fromDate, toDate } = resolveTimeRange(timeRange);
   const filterInput = { timeRange, repo, pkg, testName, branch, path };
   const navigate = Route.useNavigate();
+  const queryClient = useQueryClient();
 
-  const { data: stats } = useQuery(testPerfStatsOptions(filterInput));
-  const { data: scatter } = useQuery(testPerfScatterOptions(filterInput));
-  const { data: trend } = useQuery(testPerfTrendOptions(filterInput));
-  const { data: failures } = useQuery(testPerfFailuresOptions(filterInput));
+  const { data: stats } = useQuery({
+    ...testPerfStatsOptions(filterInput),
+    enabled: !isRootScope,
+  });
+  const { data: scatter } = useQuery({
+    ...testPerfScatterOptions(filterInput),
+    enabled: !isRootScope,
+  });
+  const { data: trend } = useQuery({
+    ...testPerfTrendOptions(filterInput),
+    enabled: !isRootScope,
+  });
+  const { data: failures } = useQuery({
+    ...testPerfFailuresOptions(filterInput),
+    enabled: !isRootScope,
+  });
   const { data: filterOptions } = useQuery(testPerfFilterOptionsOptions());
 
   const childrenInput = { timeRange, repo, pkg, branch, path };
@@ -185,132 +204,155 @@ function TestPerformancePage() {
         onBranchChange={(v) => updateFilter({ branch: v })}
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Execution Health</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 pt-0">
-            <div className="flex items-baseline justify-between gap-3 border-b pb-2">
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                Total Executions
-              </p>
-              <p className="text-2xl font-semibold tabular-nums leading-none">
-                {stats?.totalExecutions ?? "--"}
-              </p>
-            </div>
-            <div className="grid gap-1.5 grid-cols-3">
-              <div className="rounded border px-2 py-1.5">
+      {!isRootScope && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Execution Health</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 pt-0">
+              <div className="flex items-baseline justify-between gap-3 border-b pb-2">
                 <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                  Failure Rate
+                  Total Executions
                 </p>
-                <p className="font-mono text-xs">
-                  {stats ? `${stats.failureRate}%` : "--"}
+                <p className="text-2xl font-semibold tabular-nums leading-none">
+                  {stats?.totalExecutions ?? "--"}
                 </p>
               </div>
-              <div className="rounded border px-2 py-1.5">
+              <div className="grid gap-1.5 grid-cols-3">
+                <div className="rounded border px-2 py-1.5">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Failure Rate
+                  </p>
+                  <p className="font-mono text-xs">
+                    {stats ? `${stats.failureRate}%` : "--"}
+                  </p>
+                </div>
+                <div className="rounded border px-2 py-1.5">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Failed Execs
+                  </p>
+                  <p className="font-mono text-xs">
+                    {stats?.failExecutions ?? "--"}
+                  </p>
+                </div>
+                <div className="rounded border px-2 py-1.5">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Unique Failures
+                  </p>
+                  <p className="font-mono text-xs">
+                    {stats?.uniqueFailingTests ?? "--"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Duration Profile</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 pt-0">
+              <div className="flex items-baseline justify-between gap-3 border-b pb-2">
                 <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                  Failed Execs
+                  Average Duration
                 </p>
-                <p className="font-mono text-xs">
-                  {stats?.failExecutions ?? "--"}
-                </p>
-              </div>
-              <div className="rounded border px-2 py-1.5">
-                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                  Unique Failures
-                </p>
-                <p className="font-mono text-xs">
-                  {stats?.uniqueFailingTests ?? "--"}
+                <p className="text-2xl font-semibold tabular-nums leading-none">
+                  {stats ? formatDurationCompact(stats.avgDuration, "s") : "--"}
                 </p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Duration Profile</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 pt-0">
-            <div className="flex items-baseline justify-between gap-3 border-b pb-2">
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                Average Duration
-              </p>
-              <p className="text-2xl font-semibold tabular-nums leading-none">
-                {stats ? formatDurationCompact(stats.avgDuration, "s") : "--"}
-              </p>
-            </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              <div className="rounded border px-1.5 py-1">
-                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                  Median
-                </p>
-                <p className="font-mono text-xs">
-                  {stats
-                    ? formatDurationCompact(stats.medianDuration, "s")
-                    : "--"}
-                </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                <div className="rounded border px-1.5 py-1">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Median
+                  </p>
+                  <p className="font-mono text-xs">
+                    {stats
+                      ? formatDurationCompact(stats.medianDuration, "s")
+                      : "--"}
+                  </p>
+                </div>
+                <div className="rounded border px-1.5 py-1">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    P95
+                  </p>
+                  <p className="font-mono text-xs">
+                    {stats
+                      ? formatDurationCompact(stats.p95Duration, "s")
+                      : "--"}
+                  </p>
+                </div>
+                <div className="rounded border px-1.5 py-1">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Max
+                  </p>
+                  <p className="font-mono text-xs">
+                    {stats
+                      ? formatDurationCompact(stats.maxDuration, "s")
+                      : "--"}
+                  </p>
+                </div>
+                <div className="rounded border px-1.5 py-1">
+                  <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
+                    CV
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label="What is CV?"
+                          />
+                        }
+                      >
+                        <CircleHelp className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-64">
+                        Coefficient of variation (CV) = std dev / mean. It shows
+                        relative spread, so higher CV means test durations are
+                        less stable and less predictable.
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="font-mono text-xs">
+                    {stats ? `${stats.coefficientOfVariation}%` : "--"}
+                  </p>
+                </div>
               </div>
-              <div className="rounded border px-1.5 py-1">
-                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                  P95
-                </p>
-                <p className="font-mono text-xs">
-                  {stats ? formatDurationCompact(stats.p95Duration, "s") : "--"}
-                </p>
-              </div>
-              <div className="rounded border px-1.5 py-1">
-                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                  Max
-                </p>
-                <p className="font-mono text-xs">
-                  {stats ? formatDurationCompact(stats.maxDuration, "s") : "--"}
-                </p>
-              </div>
-              <div className="rounded border px-1.5 py-1">
-                <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
-                  CV
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground"
-                          aria-label="What is CV?"
-                        />
-                      }
-                    >
-                      <CircleHelp className="size-3.5" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-64">
-                      Coefficient of variation (CV) = std dev / mean. It shows
-                      relative spread, so higher CV means test durations are
-                      less stable and less predictable.
-                    </TooltipContent>
-                  </Tooltip>
-                </p>
-                <p className="font-mono text-xs">
-                  {stats ? `${stats.coefficientOfVariation}%` : "--"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+      <div className={`grid gap-6 ${isRootScope ? "" : "xl:grid-cols-2"}`}>
+        <Card inset="flush-content">
           <CardHeader>
             <CardTitle>{!pkg ? "Packages" : "Tests"}</CardTitle>
             <CardDescription>
               {!pkg
-                ? "Browse package hierarchy while keeping diagnostics visible below"
+                ? "Browse package hierarchy"
                 : "Drill into suites/tests and compare failures and duration trends"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {hasChildren ? (
-              <ChildrenTable data={children} pkg={pkg} />
+              <ChildrenTable
+                data={children}
+                pkg={pkg}
+                repo={repo}
+                branch={branch}
+                timeRange={timeRange}
+                fetchChildren={(scope) =>
+                  queryClient.fetchQuery(
+                    testPerfChildrenOptions({
+                      timeRange,
+                      repo,
+                      branch,
+                      pkg: scope.pkg,
+                      path: scope.path,
+                    }),
+                  )
+                }
+              />
             ) : (
               <p className="py-2 text-sm text-muted-foreground">
                 No further children at this scope.
@@ -319,59 +361,66 @@ function TestPerformancePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Failure Hotspots</CardTitle>
-            <CardDescription>
-              Most frequently failing tests in the current scope
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TestPerfFailureHotspotsTable data={failureHotspots} />
-          </CardContent>
-        </Card>
+        {!isRootScope && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Failure Hotspots</CardTitle>
+              <CardDescription>
+                Most frequently failing tests in the current scope
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TestPerfFailureHotspotsTable data={failureHotspots} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Duration Trend</CardTitle>
-          <CardDescription>
-            Average, P50, and P95 test duration over time
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TestDurationTrendChart data={trend ?? []} />
-        </CardContent>
-      </Card>
+      {!isRootScope && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Duration Trend</CardTitle>
+              <CardDescription>
+                Average, P50, and P95 test duration over time
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TestDurationTrendChart data={trend ?? []} />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Test Duration Distribution</CardTitle>
-          <CardDescription>
-            Each dot is one test execution. Color = outcome, shape = branch type
-            (circle = main, triangle = other). Click a dot to view the CI run.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TestPerfScatterChart
-            data={scatter ?? []}
-            fromTimestamp={fromDate.getTime()}
-            toTimestamp={toDate.getTime()}
-          />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Test Duration Distribution</CardTitle>
+              <CardDescription>
+                Each dot is one test execution. Color = outcome, shape = branch
+                type (circle = main, triangle = other). Click a dot to view the
+                CI run.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TestPerfScatterChart
+                data={scatter ?? []}
+                fromTimestamp={fromDate.getTime()}
+                toTimestamp={toDate.getTime()}
+              />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Failures</CardTitle>
-          <CardDescription>
-            Most recent test failures with links to CI runs
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TestPerfFailuresTable data={failures ?? []} />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Failures</CardTitle>
+              <CardDescription>
+                Most recent test failures with links to CI runs
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TestPerfFailuresTable data={failures ?? []} />
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
