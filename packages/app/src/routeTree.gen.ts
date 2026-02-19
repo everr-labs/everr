@@ -13,6 +13,7 @@ import { Route as SignoutRouteImport } from './routes/signout'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as SetupOrganizationRouteImport } from './routes/setup/organization'
 import { Route as DashboardTestResultsRouteImport } from './routes/dashboard/test-results'
 import { Route as DashboardTestPerformanceRouteImport } from './routes/dashboard/test-performance'
 import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
@@ -53,6 +54,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
+} as any)
+const SetupOrganizationRoute = SetupOrganizationRouteImport.update({
+  id: '/setup/organization',
+  path: '/setup/organization',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardTestResultsRoute = DashboardTestResultsRouteImport.update({
   id: '/test-results',
@@ -177,6 +183,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
@@ -226,6 +234,7 @@ export interface FileRoutesById {
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/dashboard/runs'
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
+    | '/setup/organization'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/dashboard/repos'
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
+    | '/setup/organization'
     | '/dashboard'
     | '/api/auth/callback'
     | '/dashboard/flaky-tests/detail'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/dashboard/runs'
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
+    | '/setup/organization'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
@@ -321,6 +333,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
   SignoutRoute: typeof SignoutRoute
   ApiMcpRoute: typeof ApiMcpRoute
+  SetupOrganizationRoute: typeof SetupOrganizationRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
 }
 
@@ -353,6 +366,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/setup/organization': {
+      id: '/setup/organization'
+      path: '/setup/organization'
+      fullPath: '/setup/organization'
+      preLoaderRoute: typeof SetupOrganizationRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/test-results': {
       id: '/dashboard/test-results'
@@ -584,6 +604,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
   SignoutRoute: SignoutRoute,
   ApiMcpRoute: ApiMcpRoute,
+  SetupOrganizationRoute: SetupOrganizationRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
 }
 export const routeTree = rootRouteImport

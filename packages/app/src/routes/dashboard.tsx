@@ -36,12 +36,17 @@ export const Route = createFileRoute("/dashboard")({
     ],
   },
   loader: async () => {
-    const { user } = await getAuth();
-    if (!user) {
+    const auth = await getAuth();
+    if (!auth.user) {
       const signInUrl = await getSignInUrl();
       throw redirect({ href: signInUrl });
     }
-    return { user };
+
+    if (!auth.organizationId) {
+      throw redirect({ to: "/setup/organization" });
+    }
+
+    return { user: auth.user, organizationId: auth.organizationId };
   },
   component: RouteComponent,
 });

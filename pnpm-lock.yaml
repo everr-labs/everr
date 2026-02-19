@@ -71,6 +71,9 @@ importers:
       '@tanstack/router-plugin':
         specifier: 1.160.0
         version: 1.160.0(@tanstack/react-router@1.160.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.33.0)(tsx@4.19.2)(yaml@2.7.0))
+      '@workos-inc/node':
+        specifier: ^8.0.0
+        version: 8.0.0
       '@workos/authkit-tanstack-react-start':
         specifier: ^0.5.0
         version: 0.5.0(@tanstack/react-router@1.160.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@tanstack/react-start@1.160.0(crossws@0.4.4(srvx@0.11.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.33.0)(tsx@4.19.2)(yaml@2.7.0)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

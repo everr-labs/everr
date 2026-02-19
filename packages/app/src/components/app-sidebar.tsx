@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useAuth } from "@workos/authkit-tanstack-react-start/client";
 import { Citrus } from "lucide-react";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
@@ -14,15 +15,11 @@ import {
 } from "@/components/ui/sidebar";
 import { navMain } from "@/lib/navigation";
 
-const data = {
-  user: {
-    name: "John Doe",
-    email: "john@example.com",
-    avatar: "",
-  },
-};
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { user, organizationId } = useAuth();
+  const fallbackName = user?.email?.split("@")[0] || "User";
+  const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -44,7 +41,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser
+          user={{
+            name: userName || fallbackName,
+            email: user?.email || "",
+            avatar: "",
+          }}
+          showOrganizationSetup={!organizationId}
+        />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
