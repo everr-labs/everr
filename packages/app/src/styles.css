@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/noto-sans";
+@import "@radix-ui/themes/styles.css";
+@import "@workos-inc/widgets/styles.css";
 
 @custom-variant dark (&:is(.dark *));
 
