@@ -1,67 +1,38 @@
 # Pipeline Failure Attention Notifier
 
-## Summary
-Notify a developer immediately when a CI/CD pipeline they own starts failing, using their GitHub email to identify ownership.
+## Core Need
+Developers push code and immediately move to another task. When CI fails a few minutes later, attention is elsewhere, context is gone, and recovery is slower.
 
-## Goals
-- Detect failing pipelines quickly.
-- Alert only the relevant developer (owner).
-- Minimize noisy or duplicate notifications.
+This feature exists to pull attention back at the exact moment a developer-owned pipeline fails, so they can fix it while context is still fresh.
 
-## Non-goals
-- Auto-fix pipelines.
-- Team-wide incident management.
-- Deep pipeline analytics.
+## User Problem
+- I push code and get distracted.
+- CI fails again.
+- I only notice later, after I have lost focus and mental context.
+- Fixing takes longer and interrupts my next task.
 
-## User Story
-As a developer, if a pipeline I own fails, I get an attention-grabbing notification so I can act quickly.
+## Desired Outcome
+- If my pipeline fails, I get an immediate, high-signal alert.
+- The alert reaches me where I am (in-app and optional system notification).
+- The alert includes a direct path to logs so I can act quickly.
 
-## Ownership Resolution
-- Identify current user email from app/session.
-- Query GitHub user profile/emails via OAuth token.
-- Match current user email to GitHub email list:
-  - Prefer verified and primary email.
-  - Fallback to any verified email match.
-- Determine pipeline owner from pipeline metadata:
-  - Last commit author email, PR author email, or configured owner field.
-- Trigger only if owner email matches current user GitHub email.
+## Ownership Match (GitHub Email)
+- Resolve the current user identity from app/session.
+- Fetch GitHub emails via OAuth (`read:user`, `user:email`).
+- Match current user email to verified GitHub email (prefer primary).
+- Consider a failing pipeline "mine" when pipeline owner email matches my GitHub email.
 
-## Failure Detection
-- Inputs:
-  - CI provider webhook events (preferred) or polling fallback.
-- Trigger condition:
-  - Pipeline status transitions to `failed` for a branch/PR the user owns.
-- De-duplication:
-  - One notification per pipeline run ID and failure state.
-  - Cooldown window (for example, 30 minutes) to avoid alert storms.
+## Trigger
+- On pipeline status transition to `failed`.
+- Notify only when the failing pipeline is owned by the current user.
+- Deduplicate by pipeline run ID and failure state to avoid repeated noise.
 
-## Notification Behavior
-- Channels:
-  - In-app toast and optional desktop/system notification.
-- Content:
-  - Repo, branch/PR, failed stage/job, failure time, direct link to logs.
-- Priority:
-  - High-attention style (sound/badge) only for first failure in cooldown window.
+## Notification Requirements
+- Must interrupt attention (high-priority signal).
+- Must be immediate (seconds after failure event).
+- Must include: repo, branch/PR, failed job/stage, failure time, and logs link.
 
-## Settings
-- Enable/disable per user.
-- Quiet hours.
-- Channel preferences.
-- Scope filters (repos/branches).
-
-## Security and Privacy
-- Store minimal email data (hashed where possible).
-- Use least-privilege GitHub scopes (`read:user`, `user:email`).
-- Do not expose private emails in notification payloads/logs.
-
-## Edge Cases
-- User has no public/verified GitHub email.
-- Bot-authored commits.
-- Multiple owners in monorepo pipelines.
-- Pipeline reruns and flaky tests.
-
-## Success Metrics
-- Median time-to-notification after failure.
-- Reduction in mean time-to-acknowledge.
-- Alert precision (low false-positive rate).
-- Notification opt-out/complaint rate.
+## Success Criteria
+- Lower time from CI failure to developer acknowledgment.
+- Fewer failures discovered "late" after context switch.
+- High relevance (very low false positives).
