@@ -2,13 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@workos/authkit-tanstack-react-start", () => ({
   getAuth: vi.fn(),
+  switchToOrganization: vi.fn(),
 }));
 
 vi.mock("@/lib/workos", () => ({
   getWorkOS: vi.fn(),
 }));
 
-import { getAuth } from "@workos/authkit-tanstack-react-start";
+import {
+  getAuth,
+  switchToOrganization,
+} from "@workos/authkit-tanstack-react-start";
 import { getWorkOS } from "@/lib/workos";
 import {
   CreateOrganizationInputSchema,
@@ -16,6 +20,7 @@ import {
 } from "./onboarding";
 
 const mockedGetAuth = vi.mocked(getAuth);
+const mockedSwitchToOrganization = vi.mocked(switchToOrganization);
 const mockedGetWorkOS = vi.mocked(getWorkOS);
 
 const createOrganization = vi.fn();
@@ -78,6 +83,9 @@ describe("createOrganizationForCurrentUser", () => {
       userId: "user_123",
       roleSlug: "admin",
     });
+    expect(mockedSwitchToOrganization).toHaveBeenCalledWith({
+      data: { organizationId: "org_new" },
+    });
   });
 
   it("returns safe error when organization creation fails", async () => {
@@ -101,6 +109,7 @@ describe("createOrganizationForCurrentUser", () => {
     );
 
     expect(createOrganizationMembership).not.toHaveBeenCalled();
+    expect(mockedSwitchToOrganization).not.toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "[onboarding] org_create_failed",
       expect.objectContaining({
@@ -132,10 +141,43 @@ describe("createOrganizationForCurrentUser", () => {
       "Your organization was created, but we couldn't finish setup. Please try again. (ref: 22222222-2222-2222-2222-222222222222)",
     );
 
+    expect(mockedSwitchToOrganization).not.toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "[onboarding] membership_create_failed",
       expect.objectContaining({
         requestId: "22222222-2222-2222-2222-222222222222",
+        userId: "user_123",
+        organizationId: "org_new",
+      }),
+    );
+  });
+
+  it("returns safe error when session switch fails", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+      "33333333-3333-3333-3333-333333333333",
+    );
+
+    mockedGetAuth.mockResolvedValue({
+      user: { id: "user_123", email: "user@example.com" },
+      organizationId: undefined,
+    } as never);
+    createOrganization.mockResolvedValue({ id: "org_new" });
+    createOrganizationMembership.mockResolvedValue({ id: "om_123" });
+    mockedSwitchToOrganization.mockRejectedValue(new Error("cannot switch"));
+
+    await expect(
+      createOrganizationForCurrentUser({ data: { organizationName: "Acme" } }),
+    ).rejects.toThrow(
+      "Your organization was created, but we couldn't switch your session. Please try again. (ref: 33333333-3333-3333-3333-333333333333)",
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[onboarding] session_switch_failed",
+      expect.objectContaining({
+        requestId: "33333333-3333-3333-3333-333333333333",
         userId: "user_123",
         organizationId: "org_new",
       }),

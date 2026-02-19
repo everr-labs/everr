@@ -40,22 +40,17 @@ vi.mock("@/data/onboarding", () => ({
 }));
 
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
-import { useAuth } from "@workos/authkit-tanstack-react-start/client";
 import { createOrganizationForCurrentUser } from "@/data/onboarding";
 import { Route } from "./organization";
 
 const mockedGetAuth = vi.mocked(getAuth);
 const mockedGetSignInUrl = vi.mocked(getSignInUrl);
-const mockedUseAuth = vi.mocked(useAuth);
 const mockedCreateOrganization = vi.mocked(createOrganizationForCurrentUser);
 
 describe("/setup/organization route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     routerMocks.setLoaderData({ user: { email: "user@example.com" } });
-    mockedUseAuth.mockReturnValue({
-      switchToOrganization: vi.fn(),
-    } as never);
   });
 
   describe("loader", () => {
@@ -100,10 +95,8 @@ describe("/setup/organization route", () => {
   });
 
   describe("component", () => {
-    it("creates org, switches organization, and navigates to dashboard", async () => {
+    it("creates org and navigates to dashboard", async () => {
       const user = userEvent.setup();
-      const switchToOrganization = vi.fn().mockResolvedValue(undefined);
-      mockedUseAuth.mockReturnValue({ switchToOrganization } as never);
       mockedCreateOrganization.mockResolvedValue({
         organizationId: "org_new",
         organizationName: "Acme",
@@ -120,20 +113,14 @@ describe("/setup/organization route", () => {
       expect(mockedCreateOrganization).toHaveBeenCalledWith({
         data: { organizationName: "Acme" },
       });
-      expect(switchToOrganization).toHaveBeenCalledWith("org_new");
       expect(routerMocks.navigate).toHaveBeenCalledWith({ to: "/dashboard" });
     });
 
-    it("shows switch error and does not navigate when org switch fails", async () => {
+    it("shows server error and does not navigate when setup API fails", async () => {
       const user = userEvent.setup();
-      const switchToOrganization = vi
-        .fn()
-        .mockResolvedValue({ error: "switch failed" });
-      mockedUseAuth.mockReturnValue({ switchToOrganization } as never);
-      mockedCreateOrganization.mockResolvedValue({
-        organizationId: "org_new",
-        organizationName: "Acme",
-      } as never);
+      mockedCreateOrganization.mockRejectedValue(
+        new Error("Session switch failed"),
+      );
 
       const Component = Route.options.component as React.ComponentType;
       render(<Component />);
@@ -143,11 +130,7 @@ describe("/setup/organization route", () => {
         screen.getByRole("button", { name: "Create organization" }),
       );
 
-      expect(
-        screen.getByText(
-          "We couldn't switch to your organization. Please try again.",
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Session switch failed")).toBeInTheDocument();
       expect(routerMocks.navigate).not.toHaveBeenCalled();
     });
 

@@ -1,6 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
-import { useAuth } from "@workos/authkit-tanstack-react-start/client";
 import { useState } from "react";
 import { createOrganizationForCurrentUser } from "@/data/onboarding";
 
@@ -25,7 +24,6 @@ export const Route = createFileRoute("/setup/organization")({
 function OrganizationSetupPage() {
   const { user } = Route.useLoaderData();
   const navigate = useNavigate();
-  const { switchToOrganization } = useAuth({ ensureSignedIn: true });
 
   const [organizationName, setOrganizationName] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -42,18 +40,9 @@ function OrganizationSetupPage() {
     setIsSubmitting(true);
 
     try {
-      const result = await createOrganizationForCurrentUser({
+      await createOrganizationForCurrentUser({
         data: { organizationName },
       });
-
-      const switchResult = await switchToOrganization(result.organizationId);
-      if (switchResult && "error" in switchResult) {
-        setErrorMessage(
-          "We couldn't switch to your organization. Please try again.",
-        );
-        return;
-      }
-
       await navigate({ to: "/dashboard" });
     } catch (error) {
       const message =

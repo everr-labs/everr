@@ -1,5 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getAuth } from "@workos/authkit-tanstack-react-start";
+import {
+  getAuth,
+  switchToOrganization,
+} from "@workos/authkit-tanstack-react-start";
 import { z } from "zod";
 import { getWorkOS } from "@/lib/workos";
 
@@ -18,7 +21,8 @@ export type CreateOrganizationInput = z.infer<
 export type OnboardingErrorCode =
   | "UNAUTHENTICATED"
   | "ORG_CREATE_FAILED"
-  | "MEMBERSHIP_CREATE_FAILED";
+  | "MEMBERSHIP_CREATE_FAILED"
+  | "SESSION_SWITCH_FAILED";
 
 function createSafeOnboardingError(
   code: OnboardingErrorCode,
@@ -34,6 +38,10 @@ function createSafeOnboardingError(
     case "MEMBERSHIP_CREATE_FAILED":
       return new Error(
         `Your organization was created, but we couldn't finish setup. Please try again. (ref: ${requestId})`,
+      );
+    case "SESSION_SWITCH_FAILED":
+      return new Error(
+        `Your organization was created, but we couldn't switch your session. Please try again. (ref: ${requestId})`,
       );
   }
 }
@@ -90,6 +98,20 @@ export const createOrganizationForCurrentUser = createServerFn({
         error,
       });
       throw createSafeOnboardingError("MEMBERSHIP_CREATE_FAILED", requestId);
+    }
+
+    try {
+      await switchToOrganization({
+        data: { organizationId },
+      });
+    } catch (error) {
+      console.error("[onboarding] session_switch_failed", {
+        requestId,
+        userId: auth.user.id,
+        organizationId,
+        error,
+      });
+      throw createSafeOnboardingError("SESSION_SWITCH_FAILED", requestId);
     }
 
     return {
