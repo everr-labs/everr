@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useAuth } from "@workos/authkit-tanstack-react-start/client";
 import { useTheme } from "better-themes";
 import {
   BadgeCheck,
@@ -10,6 +11,7 @@ import {
   Moon,
   Sparkles,
   Sun,
+  Users,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,24 +28,23 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string;
-    email: string;
-    avatar: string;
-  };
-}) {
+export function NavUser() {
+  // Using this instead of useRouteContext to make the user name reactive to changes
+  const { user, roles } = useAuth();
+  const isAdmin = roles?.includes("admin") === true;
+
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
 
-  const initials = user.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  if (!user) {
+    return null;
+  }
+
+  const firstName = user.firstName ?? "";
+  const lastName = user.lastName ?? "";
+  const fullName = `${firstName} ${lastName}`;
+
+  const initials = firstName.slice(0, 1) + lastName.slice(0, 1);
 
   return (
     <SidebarMenu>
@@ -58,10 +59,18 @@ export function NavUser({
             }
           >
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-              {initials}
+              {user.profilePictureUrl ? (
+                <img
+                  src={user.profilePictureUrl}
+                  alt={fullName}
+                  className="size-full object-cover rounded-sm"
+                />
+              ) : (
+                initials
+              )}
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{user.name}</span>
+              <span className="truncate font-medium">{fullName}</span>
               <span className="truncate text-xs">{user.email}</span>
             </div>
             <ChevronsUpDown className="ml-auto size-4" />
@@ -77,7 +86,7 @@ export function NavUser({
                 {initials}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
+                <span className="truncate font-medium">{fullName}</span>
                 <span className="truncate text-xs">{user.email}</span>
               </div>
             </div>
@@ -90,10 +99,18 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem render={<Link to="/dashboard/account" />}>
                 <BadgeCheck />
                 Account
               </DropdownMenuItem>
+              {isAdmin ? (
+                <DropdownMenuItem
+                  render={<Link to="/dashboard/users-management" />}
+                >
+                  <Users />
+                  Users Management
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem>
                 <CreditCard />
                 Billing

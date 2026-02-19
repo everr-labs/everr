@@ -14,6 +14,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as SetupOrganizationRouteImport } from './routes/setup/organization'
+import { Route as DashboardUsersManagementRouteImport } from './routes/dashboard/users-management'
 import { Route as DashboardTestResultsRouteImport } from './routes/dashboard/test-results'
 import { Route as DashboardTestPerformanceRouteImport } from './routes/dashboard/test-performance'
 import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
@@ -22,6 +23,7 @@ import { Route as DashboardFlakyTestsRouteImport } from './routes/dashboard/flak
 import { Route as DashboardFailuresRouteImport } from './routes/dashboard/failures'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
+import { Route as DashboardAccountRouteImport } from './routes/dashboard/account'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
@@ -60,6 +62,12 @@ const SetupOrganizationRoute = SetupOrganizationRouteImport.update({
   path: '/setup/organization',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardUsersManagementRoute =
+  DashboardUsersManagementRouteImport.update({
+    id: '/users-management',
+    path: '/users-management',
+    getParentRoute: () => DashboardRoute,
+  } as any)
 const DashboardTestResultsRoute = DashboardTestResultsRouteImport.update({
   id: '/test-results',
   path: '/test-results',
@@ -99,6 +107,11 @@ const DashboardCostAnalysisRoute = DashboardCostAnalysisRouteImport.update({
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAccountRoute = DashboardAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => DashboardRoute,
 } as any)
 const ApiMcpRoute = ApiMcpRouteImport.update({
@@ -175,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
@@ -183,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
@@ -201,12 +216,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signout': typeof SignoutRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -226,6 +243,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
@@ -234,6 +252,7 @@ export interface FileRoutesById {
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
@@ -255,6 +274,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/signout'
     | '/api/mcp'
+    | '/dashboard/account'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
@@ -263,6 +283,7 @@ export interface FileRouteTypes {
     | '/dashboard/runs'
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
+    | '/dashboard/users-management'
     | '/setup/organization'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
@@ -281,12 +302,14 @@ export interface FileRouteTypes {
     | '/'
     | '/signout'
     | '/api/mcp'
+    | '/dashboard/account'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
     | '/dashboard/repos'
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
+    | '/dashboard/users-management'
     | '/setup/organization'
     | '/dashboard'
     | '/api/auth/callback'
@@ -305,6 +328,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/signout'
     | '/api/mcp'
+    | '/dashboard/account'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
@@ -313,6 +337,7 @@ export interface FileRouteTypes {
     | '/dashboard/runs'
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
+    | '/dashboard/users-management'
     | '/setup/organization'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
@@ -374,6 +399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupOrganizationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/users-management': {
+      id: '/dashboard/users-management'
+      path: '/users-management'
+      fullPath: '/dashboard/users-management'
+      preLoaderRoute: typeof DashboardUsersManagementRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/test-results': {
       id: '/dashboard/test-results'
       path: '/test-results'
@@ -428,6 +460,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/dashboard/analytics'
       preLoaderRoute: typeof DashboardAnalyticsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/account': {
+      id: '/dashboard/account'
+      path: '/account'
+      fullPath: '/dashboard/account'
+      preLoaderRoute: typeof DashboardAccountRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/api/mcp': {
@@ -567,6 +606,7 @@ const DashboardRunsRouteWithChildren = DashboardRunsRoute._addFileChildren(
 )
 
 interface DashboardRouteChildren {
+  DashboardAccountRoute: typeof DashboardAccountRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardCostAnalysisRoute: typeof DashboardCostAnalysisRoute
   DashboardFailuresRoute: typeof DashboardFailuresRoute
@@ -575,12 +615,14 @@ interface DashboardRouteChildren {
   DashboardRunsRoute: typeof DashboardRunsRouteWithChildren
   DashboardTestPerformanceRoute: typeof DashboardTestPerformanceRoute
   DashboardTestResultsRoute: typeof DashboardTestResultsRoute
+  DashboardUsersManagementRoute: typeof DashboardUsersManagementRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardWorkflowsIndexRoute: typeof DashboardWorkflowsIndexRoute
   DashboardWorkflowsRepoWorkflowNameRoute: typeof DashboardWorkflowsRepoWorkflowNameRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAccountRoute: DashboardAccountRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardCostAnalysisRoute: DashboardCostAnalysisRoute,
   DashboardFailuresRoute: DashboardFailuresRoute,
@@ -589,6 +631,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardRunsRoute: DashboardRunsRouteWithChildren,
   DashboardTestPerformanceRoute: DashboardTestPerformanceRoute,
   DashboardTestResultsRoute: DashboardTestResultsRoute,
+  DashboardUsersManagementRoute: DashboardUsersManagementRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardWorkflowsIndexRoute: DashboardWorkflowsIndexRoute,
   DashboardWorkflowsRepoWorkflowNameRoute:
