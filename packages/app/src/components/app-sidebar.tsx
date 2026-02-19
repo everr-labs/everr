@@ -16,11 +16,7 @@ import {
 import { navMain } from "@/lib/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user } = useAuth();
-
-  if (!user) {
-    return null;
-  }
+  const { user } = useRouteContext({ from: "/dashboard" });
 
   return (
     <Sidebar collapsible="icon" {...props}>
