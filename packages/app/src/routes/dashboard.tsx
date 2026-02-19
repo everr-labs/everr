@@ -1,11 +1,12 @@
 import {
   createFileRoute,
   Outlet,
-  retainSearchParams,
   redirect,
+  retainSearchParams,
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
+import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 import { SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
@@ -20,7 +21,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
-import { getAuth,getSignInUrl } from "@workos/authkit-tanstack-react-start";
 
 export const Route = createFileRoute("/dashboard")({
   ssr: false,
