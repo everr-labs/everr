@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useTheme } from "better-themes";
 import {
   BadgeCheck,
@@ -125,7 +126,7 @@ export function NavUser({
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem render={<Link to="/signout" />}>
               <LogOut />
               Log out
             </DropdownMenuItem>

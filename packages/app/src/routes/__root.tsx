@@ -6,6 +6,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
 import { ThemeProvider } from "better-themes";
 
 import type { RouterContext } from "../router";
@@ -43,25 +44,27 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <ThemeProvider attribute="class" disableTransitionOnChange>
-          {children}
-          <TanStackDevtools
-            config={{
-              position: "bottom-right",
-            }}
-            plugins={[
-              {
-                name: "Tanstack Router",
-                render: <TanStackRouterDevtoolsPanel />,
-              },
-              {
-                name: "React Query",
-                render: <ReactQueryDevtoolsPanel />,
-              },
-            ]}
-          />
-          <Scripts />
-        </ThemeProvider>
+        <AuthKitProvider>
+          <ThemeProvider attribute="class" disableTransitionOnChange>
+            {children}
+            <TanStackDevtools
+              config={{
+                position: "bottom-right",
+              }}
+              plugins={[
+                {
+                  name: "Tanstack Router",
+                  render: <TanStackRouterDevtoolsPanel />,
+                },
+                {
+                  name: "React Query",
+                  render: <ReactQueryDevtoolsPanel />,
+                },
+              ]}
+            />
+            <Scripts />
+          </ThemeProvider>
+        </AuthKitProvider>
       </body>
     </html>
   );

@@ -1,10 +1,12 @@
 import {
   createFileRoute,
   Outlet,
+  redirect,
   retainSearchParams,
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
+import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 import { SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
@@ -32,6 +34,19 @@ export const Route = createFileRoute("/dashboard")({
       }),
       retainSearchParams(["from", "to", "refresh"]),
     ],
+  },
+  beforeLoad: async () => {
+    const auth = await getAuth();
+    if (!auth.user) {
+      const signInUrl = await getSignInUrl();
+      throw redirect({ href: signInUrl });
+    }
+
+    if (!auth.organizationId) {
+      throw redirect({ to: "/setup/organization" });
+    }
+
+    return { user: auth.user, organizationId: auth.organizationId };
   },
   component: RouteComponent,
 });
