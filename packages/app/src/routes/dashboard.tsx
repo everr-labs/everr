@@ -35,7 +35,7 @@ export const Route = createFileRoute("/dashboard")({
       retainSearchParams(["from", "to", "refresh"]),
     ],
   },
-  loader: async () => {
+  beforeLoad: async () => {
     const auth = await getAuth();
     if (!auth.user) {
       const signInUrl = await getSignInUrl();

@@ -16,9 +16,11 @@ import {
 import { navMain } from "@/lib/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user, organizationId } = useAuth();
-  const fallbackName = user?.email?.split("@")[0] || "User";
-  const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+  const { user } = useAuth();
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -43,11 +45,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <NavUser
           user={{
-            name: userName || fallbackName,
-            email: user?.email || "",
+            name: `${user.firstName} ${user.lastName}`,
+            email: user.email,
             avatar: "",
           }}
-          showOrganizationSetup={!organizationId}
         />
       </SidebarFooter>
       <SidebarRail />
