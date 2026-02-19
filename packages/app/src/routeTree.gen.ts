@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignoutRouteImport } from './routes/signout'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardTestResultsRouteImport } from './routes/dashboard/test-results'
 import { Route as DashboardTestPerformanceRouteImport } from './routes/dashboard/test-performance'
@@ -24,6 +26,7 @@ import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
 import { Route as DashboardFlakyTestsIndexRouteImport } from './routes/dashboard/flaky-tests/index'
 import { Route as DashboardFlakyTestsDetailRouteImport } from './routes/dashboard/flaky-tests/detail'
+import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as DashboardRunsTraceIdRouteRouteImport } from './routes/dashboard/runs/$traceId/route'
 import { Route as DashboardRunsTraceIdIndexRouteImport } from './routes/dashboard/runs/$traceId/index'
 import { Route as DashboardWorkflowsRepoWorkflowNameRouteImport } from './routes/dashboard/workflows/$repo/$workflowName'
@@ -31,9 +34,19 @@ import { Route as DashboardRunsTraceIdTraceRouteImport } from './routes/dashboar
 import { Route as DashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as DashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
+const SignoutRoute = SignoutRouteImport.update({
+  id: '/signout',
+  path: '/signout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
@@ -109,6 +122,11 @@ const DashboardFlakyTestsDetailRoute =
     path: '/detail',
     getParentRoute: () => DashboardFlakyTestsRoute,
   } as any)
+const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
+  id: '/api/auth/callback',
+  path: '/api/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRunsTraceIdRouteRoute =
   DashboardRunsTraceIdRouteRouteImport.update({
     id: '/$traceId',
@@ -147,7 +165,9 @@ const DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/signout': typeof SignoutRoute
   '/api/mcp': typeof ApiMcpRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
@@ -159,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/test-results': typeof DashboardTestResultsRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
@@ -170,6 +191,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
+  '/signout': typeof SignoutRoute
   '/api/mcp': typeof ApiMcpRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
@@ -178,6 +201,7 @@ export interface FileRoutesByTo {
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs': typeof DashboardRunsIndexRoute
@@ -190,7 +214,9 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/signout': typeof SignoutRoute
   '/api/mcp': typeof ApiMcpRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
@@ -202,6 +228,7 @@ export interface FileRoutesById {
   '/dashboard/test-results': typeof DashboardTestResultsRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
@@ -215,7 +242,9 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/dashboard'
+    | '/signout'
     | '/api/mcp'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
@@ -227,6 +256,7 @@ export interface FileRouteTypes {
     | '/dashboard/test-results'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
+    | '/api/auth/callback'
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
@@ -238,6 +268,8 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
+    | '/signout'
     | '/api/mcp'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
@@ -246,6 +278,7 @@ export interface FileRouteTypes {
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
     | '/dashboard'
+    | '/api/auth/callback'
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests'
     | '/dashboard/runs'
@@ -257,7 +290,9 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   id:
     | '__root__'
+    | '/'
     | '/dashboard'
+    | '/signout'
     | '/api/mcp'
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
@@ -269,6 +304,7 @@ export interface FileRouteTypes {
     | '/dashboard/test-results'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
+    | '/api/auth/callback'
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
@@ -281,17 +317,34 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  SignoutRoute: typeof SignoutRoute
   ApiMcpRoute: typeof ApiMcpRoute
+  ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signout': {
+      id: '/signout'
+      path: '/signout'
+      fullPath: '/signout'
+      preLoaderRoute: typeof SignoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/': {
@@ -391,6 +444,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/flaky-tests/detail'
       preLoaderRoute: typeof DashboardFlakyTestsDetailRouteImport
       parentRoute: typeof DashboardFlakyTestsRoute
+    }
+    '/api/auth/callback': {
+      id: '/api/auth/callback'
+      path: '/api/auth/callback'
+      fullPath: '/api/auth/callback'
+      preLoaderRoute: typeof ApiAuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/runs/$traceId': {
       id: '/dashboard/runs/$traceId'
@@ -520,18 +580,22 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  SignoutRoute: SignoutRoute,
   ApiMcpRoute: ApiMcpRoute,
+  ApiAuthCallbackRoute: ApiAuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

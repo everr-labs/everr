@@ -2,6 +2,7 @@ import {
   createFileRoute,
   Outlet,
   retainSearchParams,
+  redirect,
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
@@ -19,6 +20,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import { getAuth,getSignInUrl } from "@workos/authkit-tanstack-react-start";
 
 export const Route = createFileRoute("/dashboard")({
   ssr: false,
@@ -32,6 +34,14 @@ export const Route = createFileRoute("/dashboard")({
       }),
       retainSearchParams(["from", "to", "refresh"]),
     ],
+  },
+  loader: async () => {
+    const { user } = await getAuth();
+    if (!user) {
+      const signInUrl = await getSignInUrl();
+      throw redirect({ href: signInUrl });
+    }
+    return { user };
   },
   component: RouteComponent,
 });
