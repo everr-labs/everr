@@ -52,7 +52,7 @@ export const getCostOverview = createServerFn({
         count(*) as totalJobs,
         sum(Duration) / 1000000 as totalDurationMs,
         sum(ceil(Duration / 60000000000.0)) as roundedMinutes
-      FROM otel_traces
+      FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
         AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -200,7 +200,7 @@ export const getCostByRepo = createServerFn({
         count(*) as totalJobs,
         sum(Duration) / 1000000 as totalDurationMs,
         sum(ceil(Duration / 60000000000.0)) as roundedMinutes
-      FROM otel_traces
+      FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
         AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -280,7 +280,7 @@ export const getCostByWorkflow = createServerFn({
         sum(Duration) / 1000000 as totalDurationMs,
         sum(ceil(Duration / 60000000000.0)) as roundedMinutes,
         uniqExact(ResourceAttributes['cicd.pipeline.run.id']) as uniqueRuns
-      FROM otel_traces
+      FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
         AND SpanAttributes['citric.github.workflow_job_step.number'] = ''

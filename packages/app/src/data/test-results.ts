@@ -52,7 +52,7 @@ export const getTestResultsSummary = createServerFn({
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 					anyLast(SpanAttributes['citric.test.result']) as test_result
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
@@ -117,7 +117,7 @@ export const getTestResultsByPackage = createServerFn({
 					anyLast(SpanAttributes['citric.test.result']) as test_result,
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					toDate(max(Timestamp)) as exec_date
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
@@ -208,7 +208,7 @@ export const getSlowestTests = createServerFn({
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					toDate(max(Timestamp)) as exec_date
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')
@@ -298,7 +298,7 @@ export const getTestDurationTrend = createServerFn({
 					${testFullNameExpr()},
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')

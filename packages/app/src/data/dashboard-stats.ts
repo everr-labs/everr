@@ -36,7 +36,7 @@ export const getDashboardStats = createServerFn({
 			SELECT
 				ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
-			FROM otel_traces
+			FROM traces
 			WHERE ResourceAttributes['cicd.pipeline.run.id'] != ''
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 				AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
@@ -93,7 +93,7 @@ export const getRepositories = createServerFn({
 				ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 				max(Timestamp) as lastRunAt
-			FROM otel_traces
+			FROM traces
 			WHERE ResourceAttributes['vcs.repository.name'] != ''
 				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
@@ -136,7 +136,7 @@ export const getDashboardDurationStats = createServerFn({
 		SELECT
 			avg(Duration) / 1000000 as avgDuration,
 			quantile(0.95)(Duration) / 1000000 as p95Duration
-		FROM otel_traces
+		FROM traces
 		WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 			AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 			AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -179,7 +179,7 @@ export const getTopFailingJobs = createServerFn({
 			ResourceAttributes['cicd.pipeline.task.name'] as jobName,
 			ResourceAttributes['vcs.repository.name'] as repo,
 			count(*) as failureCount
-		FROM otel_traces
+		FROM traces
 		WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 			AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 			AND ResourceAttributes['cicd.pipeline.task.name'] != ''
@@ -227,7 +227,7 @@ export const getTopFailingWorkflows = createServerFn({
 				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 				anyLast(ResourceAttributes['vcs.repository.name']) as repo,
 				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''

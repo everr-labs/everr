@@ -9,10 +9,15 @@ vi.mock("@/lib/workos", () => ({
   getWorkOS: vi.fn(),
 }));
 
+vi.mock("@/data/tenants", () => ({
+  ensureTenantForOrganizationId: vi.fn(),
+}));
+
 import {
   getAuth,
   switchToOrganization,
 } from "@workos/authkit-tanstack-react-start";
+import { ensureTenantForOrganizationId } from "@/data/tenants";
 import { getWorkOS } from "@/lib/workos";
 import {
   CreateOrganizationInputSchema,
@@ -22,12 +27,16 @@ import {
 const mockedGetAuth = vi.mocked(getAuth);
 const mockedSwitchToOrganization = vi.mocked(switchToOrganization);
 const mockedGetWorkOS = vi.mocked(getWorkOS);
+const mockedEnsureTenantForOrganizationId = vi.mocked(
+  ensureTenantForOrganizationId,
+);
 
 const createOrganization = vi.fn();
 const createOrganizationMembership = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedEnsureTenantForOrganizationId.mockResolvedValue(1);
 
   mockedGetWorkOS.mockReturnValue({
     organizations: {
@@ -63,6 +72,9 @@ describe("createOrganizationForCurrentUser", () => {
     expect(mockedGetWorkOS).not.toHaveBeenCalled();
     expect(createOrganization).not.toHaveBeenCalled();
     expect(createOrganizationMembership).not.toHaveBeenCalled();
+    expect(mockedEnsureTenantForOrganizationId).toHaveBeenCalledWith(
+      "org_existing",
+    );
   });
 
   it("creates organization and admin membership for authenticated user", async () => {
@@ -86,6 +98,7 @@ describe("createOrganizationForCurrentUser", () => {
     expect(mockedSwitchToOrganization).toHaveBeenCalledWith({
       data: { organizationId: "org_new" },
     });
+    expect(mockedEnsureTenantForOrganizationId).toHaveBeenCalledWith("org_new");
   });
 
   it("returns safe error when organization creation fails", async () => {
@@ -180,6 +193,38 @@ describe("createOrganizationForCurrentUser", () => {
         requestId: "33333333-3333-3333-3333-333333333333",
         userId: "user_123",
         organizationId: "org_new",
+      }),
+    );
+  });
+
+  it("returns safe error when tenant link fails", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+      "44444444-4444-4444-4444-444444444444",
+    );
+
+    mockedGetAuth.mockResolvedValue({
+      user: { id: "user_123", email: "user@example.com" },
+      organizationId: "org_existing",
+    } as never);
+    mockedEnsureTenantForOrganizationId.mockRejectedValue(
+      new Error("db unavailable"),
+    );
+
+    await expect(
+      createOrganizationForCurrentUser({ data: { organizationName: "Acme" } }),
+    ).rejects.toThrow(
+      "Your organization is ready, but we couldn't finish tenant setup. Please try again. (ref: 44444444-4444-4444-4444-444444444444)",
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[onboarding] tenant_link_failed_existing_org",
+      expect.objectContaining({
+        requestId: "44444444-4444-4444-4444-444444444444",
+        userId: "user_123",
+        organizationId: "org_existing",
       }),
     );
   });

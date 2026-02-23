@@ -4,10 +4,12 @@ services:
     ports:
       - "8123:8123"
     environment:
-      CLICKHOUSE_USER: citric
+      CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: citric
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse
+      - ./clickhouse/init:/docker-entrypoint-initdb.d
   postgres:
     image: postgres:18.1-alpine3.23
     ports:

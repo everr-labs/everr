@@ -125,7 +125,7 @@ export const getRunDetails = createServerFn({
 					coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 			WHERE TraceId = {traceId:String}
 		`;
 
@@ -166,7 +166,7 @@ export const getRunJobs = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Duration) / 1000000 as duration
-			FROM otel_traces
+			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 			GROUP BY jobId
@@ -199,7 +199,7 @@ export const getJobSteps = createServerFn({
 					SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
 					StatusMessage as conclusion,
 					Duration / 1000000 as duration
-			FROM otel_traces
+			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
 				AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
@@ -240,7 +240,7 @@ export const getAllJobsSteps = createServerFn({
         SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
         StatusMessage as conclusion,
         Duration / 1000000 as duration
-      FROM otel_traces
+      FROM traces
       WHERE TraceId = {traceId:String}
         AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
         AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
@@ -285,7 +285,7 @@ export const getStepLogs = createServerFn({
 			SELECT
 				Timestamp as timestamp,
 				Body as body
-			FROM otel_logs
+			FROM logs
 			WHERE TraceId = {traceId:String}
 				AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
 				AND LogAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
@@ -335,7 +335,7 @@ export const getRunSpans = createServerFn({
 				SpanAttributes['citric.test.duration_seconds'] as testDuration,
 				SpanAttributes['citric.test.framework'] as testFramework,
 				SpanAttributes['citric.test.is_subtest'] as isSubtest
-			FROM otel_traces
+			FROM traces
 			WHERE TraceId = {traceId:String}
 			ORDER BY startTime ASC
 		`;

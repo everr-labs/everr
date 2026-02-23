@@ -3,9 +3,10 @@ import * as z from "zod";
 
 import { clickhouseEnv } from "./clickhouse.env";
 import { dbEnv } from "./db.env";
+import { githubEnv } from "./github.env";
 
 export const env = createEnv({
-  extends: [dbEnv, clickhouseEnv],
+  extends: [dbEnv, clickhouseEnv, githubEnv],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
   },

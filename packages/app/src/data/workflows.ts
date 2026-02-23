@@ -171,7 +171,7 @@ export const getWorkflowsList = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Duration) / 1000000 as duration,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE ${whereClause}
 				GROUP BY run_id
 			)
@@ -191,7 +191,7 @@ export const getWorkflowsList = createServerFn({
 						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 						anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 						anyLast(ResourceAttributes['vcs.repository.name']) as repo
-					FROM otel_traces
+					FROM traces
 					WHERE ${whereClause}
 					GROUP BY run_id
 				)
@@ -272,7 +272,7 @@ export const getWorkflowsSparklines = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Duration) / 1000000 as duration,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 						AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 						AND ResourceAttributes['cicd.pipeline.name'] != ''
@@ -373,7 +373,7 @@ export const getWorkflowStats = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Duration) / 1000000 as duration,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {prevFromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
@@ -442,7 +442,7 @@ export const getWorkflowSuccessRateTrend = createServerFn({
 					toDate(max(Timestamp)) as date,
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
@@ -493,7 +493,7 @@ export const getWorkflowDurationTrend = createServerFn({
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					max(Duration) / 1000000 as duration,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
@@ -536,7 +536,7 @@ export const getWorkflowTopFailingJobs = createServerFn({
 				count(*) as totalRuns,
 				round(countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'success') * 100.0
 					/ nullIf(count(*), 0), 1) as successRate
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
@@ -580,7 +580,7 @@ export const getWorkflowFailureReasons = createServerFn({
 				lower(trim(substring(StatusMessage, 1, 200))) as pattern,
 				count(*) as count,
 				max(Timestamp) as lastOccurrence
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
@@ -647,7 +647,7 @@ export const getWorkflowCost = createServerFn({
 					sumIf(ceil(Duration / 60000000000.0), Timestamp >= {fromTime:String}) as currentRoundedMinutes,
 					sumIf(Duration, Timestamp < {fromTime:String}) / 1000000 as prevDurationMs,
 					sumIf(ceil(Duration / 60000000000.0), Timestamp < {fromTime:String}) as prevRoundedMinutes
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {prevFromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
@@ -676,7 +676,7 @@ export const getWorkflowCost = createServerFn({
 					ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
 					sum(Duration) / 1000000 as durationMs,
 					sum(ceil(Duration / 60000000000.0)) as roundedMinutes
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}

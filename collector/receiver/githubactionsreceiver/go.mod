@@ -11,6 +11,7 @@ require (
 	github.com/get-citric/citric/collector/internal/sharedcomponent v0.0.0-00010101000000-000000000000
 	github.com/get-citric/citric/collector/semconv v0.0.0-00010101000000-000000000000
 	github.com/google/go-github/v67 v67.0.0
+	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.51.0
 	go.opentelemetry.io/collector/component/componenttest v0.145.0

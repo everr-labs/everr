@@ -9,7 +9,7 @@ interface RunSummarySubqueryOptions {
 }
 
 /**
- * Builds a run-level deduplication subquery over otel_traces.
+ * Builds a run-level deduplication subquery over traces.
  * Collapses multiple spans into one row per run grouping key.
  */
 export function runSummarySubquery({
@@ -50,7 +50,7 @@ export function runSummarySubquery({
 
   return `SELECT
     ${selects.join(",\n    ")}
-  FROM otel_traces
+  FROM traces
   WHERE ${whereClause}
   GROUP BY ${groupByAlias}`;
 }

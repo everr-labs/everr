@@ -54,11 +54,11 @@ GitHub Apps have higher rate limits, support multiple repositories from a single
 4. Select which repositories to install on
 5. Click **Install**
 6. Go back to the app settings > **Advanced** > **Recent deliveries**
-7. Expand a delivery to find the **Installation ID** in the payload
+7. Expand a delivery and confirm the payload includes `installation.id`
 
 ### Configure the collector
 
-Add the App ID, Installation ID, and private key path to your collector config:
+Add the App ID and private key path to your collector config:
 
 ```yaml
 receivers:
@@ -69,27 +69,10 @@ receivers:
     gh_api:
       auth:
         app_id: 1234
-        installation_id: 5678
         private_key_path: /path/to/key.pem
 ```
 
-> Each repository installation generates a unique Installation ID. To receive events from multiple installations, create multiple receiver instances:
->
-> ```yaml
-> receivers:
->   githubactions/org-a:
->     gh_api:
->       auth:
->         app_id: 1
->         installation_id: 234
->         private_key_path: /path/to/key.pem
->   githubactions/org-b:
->     gh_api:
->       auth:
->         app_id: 1
->         installation_id: 789
->         private_key_path: /path/to/key.pem
-> ```
+> The receiver resolves installation IDs from each webhook payload (`installation.id`), so one receiver instance can serve multiple app installations.
 
 ## Verifying the setup
 

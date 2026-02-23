@@ -4,6 +4,7 @@
 package githubactionsreceiver
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -24,6 +25,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
+
+func int64Ptr(v int64) *int64 {
+	return &v
+}
 
 func TestNewReceiver(t *testing.T) {
 	defaultConfig := createDefaultConfig().(*Config)
@@ -59,12 +64,36 @@ func TestNewReceiver(t *testing.T) {
 			rec, err := newReceiver(receivertest.NewNopSettings(metadata.Type), &test.config)
 			if test.err == nil {
 				require.NotNil(t, rec)
+				require.NoError(t, rec.Shutdown(context.Background()))
 			} else {
 				require.ErrorIs(t, err, test.err)
 				require.Nil(t, rec)
 			}
 		})
 	}
+}
+
+func TestInstallationIDFromWebhookEvent(t *testing.T) {
+	t.Run("WorkflowRunEvent", func(t *testing.T) {
+		id, err := installationIDFromWebhookEvent(&github.WorkflowRunEvent{
+			Installation: &github.Installation{ID: int64Ptr(12345)},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(12345), id)
+	})
+
+	t.Run("WorkflowJobEvent", func(t *testing.T) {
+		id, err := installationIDFromWebhookEvent(&github.WorkflowJobEvent{
+			Installation: &github.Installation{ID: int64Ptr(67890)},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(67890), id)
+	})
+
+	t.Run("Missing installation", func(t *testing.T) {
+		_, err := installationIDFromWebhookEvent(&github.WorkflowRunEvent{})
+		require.ErrorIs(t, err, errMissingInstallationIDFromEvent)
+	})
 }
 
 func TestEventToTracesTraces(t *testing.T) {
@@ -100,7 +129,7 @@ func TestEventToTracesTraces(t *testing.T) {
 			event, err := github.ParseWebHook(test.eventType, payload)
 			require.NoError(t, err)
 
-			traces, err := eventToTraces(event, &Config{}, logger)
+			traces, err := eventToTraces(event, &Config{}, logger, 1)
 
 			if test.expectedError != nil {
 				require.Error(t, err)
@@ -198,7 +227,7 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 			event, err := github.ParseWebHook("workflow_job", payload)
 			require.NoError(t, err)
 
-			traces, err := eventToTraces(event, &Config{}, logger)
+			traces, err := eventToTraces(event, &Config{}, logger, 1)
 			require.NoError(t, err)
 
 			rs := traces.ResourceSpans().At(0)

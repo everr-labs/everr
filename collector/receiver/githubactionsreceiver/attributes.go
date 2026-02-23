@@ -14,9 +14,12 @@ import (
 	"github.com/get-citric/citric/collector/semconv"
 )
 
-func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent, config *Config) {
+func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent, config *Config, tenantID int64) {
 	serviceName := generateServiceName(config, e.GetRepo().GetFullName())
 	attrs.PutStr("service.name", serviceName)
+	if tenantID != 0 {
+		attrs.PutInt(semconv.CitricTenantID, tenantID)
+	}
 
 	attrs.PutInt(semconv.CitricGitHubWorkflowID, e.GetWorkflowRun().GetWorkflowID())
 	attrs.PutStr(semconv.CitricGitHubWorkflowRunActorLogin, e.GetWorkflowRun().GetActor().GetLogin())

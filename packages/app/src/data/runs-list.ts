@@ -165,7 +165,7 @@ export const getRunFilterOptions = createServerFn({
   const [repos, branches, workflowNames] = await Promise.all([
     query<{ repo: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.repository.name'] != ''
 			ORDER BY repo
@@ -173,7 +173,7 @@ export const getRunFilterOptions = createServerFn({
     ),
     query<{ branch: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.ref.head.name'] != ''
 			ORDER BY branch
@@ -181,7 +181,7 @@ export const getRunFilterOptions = createServerFn({
     ),
     query<{ workflowName: string }>(
       `SELECT DISTINCT ResourceAttributes['cicd.pipeline.name'] as workflowName
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['cicd.pipeline.name'] != ''
 			ORDER BY workflowName

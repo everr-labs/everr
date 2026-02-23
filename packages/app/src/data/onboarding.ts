@@ -4,6 +4,7 @@ import {
   switchToOrganization,
 } from "@workos/authkit-tanstack-react-start";
 import { z } from "zod";
+import { ensureTenantForOrganizationId } from "@/data/tenants";
 import { getWorkOS } from "@/lib/workos";
 
 export const CreateOrganizationInputSchema = z.object({
@@ -22,7 +23,8 @@ export type OnboardingErrorCode =
   | "UNAUTHENTICATED"
   | "ORG_CREATE_FAILED"
   | "MEMBERSHIP_CREATE_FAILED"
-  | "SESSION_SWITCH_FAILED";
+  | "SESSION_SWITCH_FAILED"
+  | "TENANT_LINK_FAILED";
 
 function createSafeOnboardingError(
   code: OnboardingErrorCode,
@@ -43,6 +45,10 @@ function createSafeOnboardingError(
       return new Error(
         `Your organization was created, but we couldn't switch your session. Please try again. (ref: ${requestId})`,
       );
+    case "TENANT_LINK_FAILED":
+      return new Error(
+        `Your organization is ready, but we couldn't finish tenant setup. Please try again. (ref: ${requestId})`,
+      );
   }
 }
 
@@ -59,6 +65,18 @@ export const createOrganizationForCurrentUser = createServerFn({
     }
 
     if (auth.organizationId) {
+      try {
+        await ensureTenantForOrganizationId(auth.organizationId);
+      } catch (error) {
+        console.error("[onboarding] tenant_link_failed_existing_org", {
+          requestId,
+          userId: auth.user.id,
+          organizationId: auth.organizationId,
+          error,
+        });
+        throw createSafeOnboardingError("TENANT_LINK_FAILED", requestId);
+      }
+
       return {
         organizationId: auth.organizationId,
         organizationName: data.organizationName,
@@ -112,6 +130,18 @@ export const createOrganizationForCurrentUser = createServerFn({
         error,
       });
       throw createSafeOnboardingError("SESSION_SWITCH_FAILED", requestId);
+    }
+
+    try {
+      await ensureTenantForOrganizationId(organizationId);
+    } catch (error) {
+      console.error("[onboarding] tenant_link_failed_new_org", {
+        requestId,
+        userId: auth.user.id,
+        organizationId,
+        error,
+      });
+      throw createSafeOnboardingError("TENANT_LINK_FAILED", requestId);
     }
 
     return {
