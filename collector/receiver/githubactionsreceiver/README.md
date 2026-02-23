@@ -16,7 +16,7 @@ The GitHub Actions Receiver processes GitHub Actions webhook events to observe w
 
 If the receiver is configured in a trace pipeline, each completed GitHub Action workflow or job, along with its steps, are converted into trace spans, allowing the observation of workflow execution times, success, and failure rates.
 
-If a token is provided and the receiver is configured in a logs pipeline, the receiver fetches logs from the GitHub API. If the receiver is configured also in a traces pipeline, logs will contain the traceID and spanId of the relevant span. This provides a complete view of the workflow execution, including logs from each step.
+If GitHub App auth is configured and the receiver is in a logs pipeline, the receiver fetches logs from the GitHub API. If the receiver is configured also in a traces pipeline, logs will contain the traceID and spanId of the relevant span. This provides a complete view of the workflow execution, including logs from each step.
 
 If a secret is configured (recommended), it [validates the payload](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries) ensuring data integrity before processing.
 
@@ -36,9 +36,7 @@ The following settings are optional:
   - `base_url`: GitHub Enterprise base URL. Can be omitted if using GitHub.com
   - `upload_url`: GitHub Enterprise upload URL. Can be omitted if using GitHub.com
   - `auth`: GitHub API authentication details
-    - `token`: GitHub personal access token. Must be empty if any of the following is set
     - `app_id` GitHub App ID
-    - `installation_id` GitHub App Installation ID
     - `private_key_path` Path to the GitHub App private key file
 
 Example:
@@ -52,7 +50,6 @@ receivers:
     gh_api:
       auth:
         app_id: 123
-        installation_id: 456
         private_key_path: /path/to/key.pem
 ```
 
@@ -60,25 +57,9 @@ The full list of settings exposed for this receiver are documented [here](./conf
 
 ### GitHub API Authentication
 
-The receiver requires GitHub API authentication to fetch logs for workflows. The authentication method can be either a Fine-grained personal access token (Beta) or a GitHub App. The receiver supports both methods, but only one can be used at a time.
+The receiver requires GitHub App authentication to fetch logs for workflows.
 
 GitHub apps are recommended as they have higher rate limits and are more secure. To use a GitHub App, you need to create a GitHub App and install it on your repository.
-
-#### Fine-grained Personal Access Token
-
-> [!WARNING]
-> Personal Access Tokens are not recommended. They have lower rate limits and are less secure than GitHub Apps. Use a GitHub App for production deployments.
-
-To create a Fine-graned personal access token (Beta):
-
-1. On **GitHub.com**, navigate to [Settings -> Developer settings -> Personal access tokens -> Fine-grained tokens](https://github.com/settings/tokens?type=beta)
-2. Click **Generate new token**.
-3. Select a name and an expiration date for the token.
-4. Under **Repository access**, select either **All repositories** or **Only select repositories** and select the repositories you want to access.
-5. Under **Permissions -> Repository permissions**, set **Actions** to **Read-only**.
-6. Click **Generate token**.
-
-Use the generated token as the `ghauth.token` in the receiver configuration.
 
 ## Advanced Configuration
 
@@ -176,11 +157,11 @@ After creating the GitHub App, you can install it on your repository.
 5. Click **Install**.
 6. Navigate back to the GitHub App settings page.
 7. On the left sidebar, click **Advanced**.
-8. Under **Recent deliveries**, expand a delivery and take note of the **Installation ID** as shown in the payload.
+8. Under **Recent deliveries**, expand a delivery and confirm payloads contain an `installation.id` value.
 
 ##### Configure the Receiver to use the GitHub App
 
-When configuring the receiver, you will need to provide the **App ID** and **Installation ID** for the GitHub App. You will also need to provide the path to the private key file.
+When configuring the receiver, you need to provide the **App ID** and path to the private key file. The Installation ID is resolved from each webhook payload (`installation.id`).
 
 example:
 
@@ -191,30 +172,11 @@ receivers:
     gh_api:
       auth:
         app_id: 1
-        installation_id: 234
         private_key_path: /path/to/key.pem
 ```
 
 > [!IMPORTANT]
-> Each time you install the GitHub App on a repository, a new installation ID is generated. When configuring the receiver, you will need to provide the installation ID for the repository you want to receive events from. You can create multiple instances of the receiver, each with a different installation ID, to receive events from multiple installations.
->
-> ```yaml
-> receivers:
->   githubactions/one:
->     # [...] other settings
->     gh_api:
->       auth:
->         app_id: 1
->         installation_id: 234
->         private_key_path: /path/to/key.pem
->   githubactions/two:
->     # [...] other settings
->     gh_api:
->       auth:
->         app_id: 1
->         installation_id: 789
->         private_key_path: /path/to/key.pem
-> ```
+> Each repository installation has its own installation ID, and the receiver resolves it directly from incoming webhook payloads. This allows a single receiver instance to process multiple installations.
 
 ## Deterministic IDs
 

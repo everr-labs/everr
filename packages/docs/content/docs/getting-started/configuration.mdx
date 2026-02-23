@@ -52,12 +52,8 @@ receivers:
     # GitHub API config — required for fetching workflow logs
     gh_api:
       auth:
-        # Option 1: GitHub App (recommended)
         app_id: 1234
-        installation_id: 5678
         private_key_path: /path/to/key.pem
-        # Option 2: Personal Access Token
-        # token: ghp_xxxxxxxxxxxx
 ```
 
 See [GitHub Actions integration](/docs/ci-integration/github-actions) for details on setting up authentication.
@@ -143,37 +139,23 @@ Key points:
 
 ## GitHub API authentication
 
-The receiver needs GitHub API access to fetch workflow logs. Two authentication methods are supported:
+The receiver needs GitHub App API access to fetch workflow logs.
 
 ### GitHub App (recommended)
 
 GitHub Apps have higher rate limits and finer-grained permissions. You need:
 
 - `app_id` — from the GitHub App settings page
-- `installation_id` — from the app's installation on your repository
 - `private_key_path` — path to the `.pem` file generated when creating the app
 
 ```yaml
 gh_api:
   auth:
     app_id: 1234
-    installation_id: 5678
     private_key_path: /path/to/key.pem
 ```
 
 See [GitHub Actions — GitHub App setup](/docs/ci-integration/github-actions#github-app-recommended) for step-by-step instructions.
-
-### Personal Access Token
-
-> Personal Access Tokens have lower rate limits and are less secure than GitHub Apps. Use a GitHub App for production deployments.
-
-Use a [Fine-grained personal access token](https://github.com/settings/tokens?type=beta) with **Actions: Read-only** permission on the target repositories.
-
-```yaml
-gh_api:
-  auth:
-    token: ghp_xxxxxxxxxxxx
-```
 
 ## GitHub Enterprise
 

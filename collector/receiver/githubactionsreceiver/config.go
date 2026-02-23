@@ -12,17 +12,14 @@ import (
 )
 
 var errMissingEndpointFromConfig = errors.New("missing receiver server endpoint from config")
-var errAuthMethod = errors.New("only one authentication method can be used at a time")
 var errMissingAppID = errors.New("missing app_id")
-var errMissingInstallationID = errors.New("missing installation_id")
 var errMissingPrivateKeyPath = errors.New("missing private_key_path")
 var errBaseURLAndUploadURL = errors.New("both base_url and upload_url must be set if one is set")
 
 // GitHubAPIAuthConfig defines authentication configuration for GitHub API
 type GitHubAPIAuthConfig struct {
-	Token          string `mapstructure:"token"`            // github token for API access. Default is empty
 	AppID          int64  `mapstructure:"app_id"`           // github app id for API access. Default is 0
-	InstallationID int64  `mapstructure:"installation_id"`  // github app installation id for API access. Default is 0
+	InstallationID int64  `mapstructure:"installation_id"`  // deprecated: installation id is resolved from webhook payloads
 	PrivateKeyPath string `mapstructure:"private_key_path"` // github app private key path for API access. Default is empty
 }
 
@@ -54,14 +51,10 @@ func (cfg *Config) Validate() error {
 		errs = multierr.Append(errs, errMissingEndpointFromConfig)
 	}
 
-	if (cfg.GitHubAPIConfig.Auth.AppID != 0 || cfg.GitHubAPIConfig.Auth.InstallationID != 0 || cfg.GitHubAPIConfig.Auth.PrivateKeyPath != "") && cfg.GitHubAPIConfig.Auth.Token != "" {
-		errs = multierr.Append(errs, errAuthMethod)
-	} else if cfg.GitHubAPIConfig.Auth.AppID != 0 || cfg.GitHubAPIConfig.Auth.InstallationID != 0 || cfg.GitHubAPIConfig.Auth.PrivateKeyPath != "" {
+	usesGitHubAppAuth := cfg.GitHubAPIConfig.Auth.AppID != 0 || cfg.GitHubAPIConfig.Auth.PrivateKeyPath != ""
+	if usesGitHubAppAuth {
 		if cfg.GitHubAPIConfig.Auth.AppID == 0 {
 			errs = multierr.Append(errs, errMissingAppID)
-		}
-		if cfg.GitHubAPIConfig.Auth.InstallationID == 0 {
-			errs = multierr.Append(errs, errMissingInstallationID)
 		}
 		if cfg.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
 			errs = multierr.Append(errs, errMissingPrivateKeyPath)

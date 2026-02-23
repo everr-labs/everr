@@ -44,8 +44,7 @@ pnpm build
    ```
 10. Install the app on the repository you want to observe.
 11. Get the **App ID** from the GitHub App settings page (shown at the top of the page).
-12. Get the **Installation ID** from GitHub App settings -> **Advanced** -> **Recent deliveries** (open a delivery payload and copy `installation.id`).
-13. Fill `collector/config.yml`:
+12. Fill `collector/config.yml`:
     ```yaml
     receivers:
       githubactions:
@@ -53,10 +52,9 @@ pnpm build
         gh_api:
           auth:
             app_id: <app-id>
-            installation_id: <installation-id>
             private_key_path: ./dev-citric-app.pem
     ```
-14. Try to redeliver the ping to validate that everything is ok
+13. Try to redeliver the ping to validate that everything is ok
 
 ### Fill the collector config
 

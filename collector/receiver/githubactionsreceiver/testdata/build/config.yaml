@@ -8,10 +8,8 @@ receivers:
     #   base_url: https://gh_enterprise.base.url      // Enterprise GitHub base URL. Omit for github.com
     #   upload_url: https://gh_enterprise.upload.url  // Enterprise GitHub upload URL. Omit for github.com
     #   auth:
-    #     token: github_pat_mytoken           // Fine-grained personal access token. Omit if using a GitHub App.
-    #     app_id: 123                         // App ID for GitHub App. Omit if using a personal access token.
-    #     installation_id: 456                // Installation ID for GitHub App. Omit if using a personal access token.
-    #     private_key_path: /path/to/key.pem  // Path to private key for GitHub App. Omit if using a personal access token.
+    #     app_id: 123                         // App ID for GitHub App.
+    #     private_key_path: /path/to/key.pem  // Path to private key for GitHub App.
     cors:
       allowed_origins: ["*"]
       allowed_headers: ["*"]

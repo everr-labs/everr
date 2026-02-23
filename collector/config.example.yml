@@ -13,7 +13,6 @@ receivers:
     gh_api:
       auth:
         app_id: 1234
-        installation_id: 6578
         private_key_path: /path/to/key.pem
 
 processors:

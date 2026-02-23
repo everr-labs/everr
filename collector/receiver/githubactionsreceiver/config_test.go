@@ -51,25 +51,6 @@ func TestValidateConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:   "Auth method",
-			expect: errAuthMethod,
-			conf: &Config{
-				ServerConfig: confighttp.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: "localhost:8080",
-					},
-				},
-				GitHubAPIConfig: GitHubAPIConfig{
-					Auth: GitHubAPIAuthConfig{
-						AppID:          1,
-						InstallationID: 1,
-						PrivateKeyPath: "path",
-						Token:          "token",
-					},
-				},
-			},
-		},
-		{
 			desc: "GH App Auth",
 			children: []testNode{
 				{
@@ -83,24 +64,6 @@ func TestValidateConfig(t *testing.T) {
 						},
 						GitHubAPIConfig: GitHubAPIConfig{
 							Auth: GitHubAPIAuthConfig{
-								InstallationID: 1,
-								PrivateKeyPath: "path",
-							},
-						},
-					},
-				},
-				{
-					desc:   "Missing Installation ID",
-					expect: errMissingInstallationID,
-					conf: &Config{
-						ServerConfig: confighttp.ServerConfig{
-							NetAddr: confignet.AddrConfig{
-								Endpoint: "localhost:8080",
-							},
-						},
-						GitHubAPIConfig: GitHubAPIConfig{
-							Auth: GitHubAPIAuthConfig{
-								AppID:          1,
 								PrivateKeyPath: "path",
 							},
 						},
@@ -117,8 +80,7 @@ func TestValidateConfig(t *testing.T) {
 						},
 						GitHubAPIConfig: GitHubAPIConfig{
 							Auth: GitHubAPIAuthConfig{
-								AppID:          1,
-								InstallationID: 1,
+								AppID: 1,
 							},
 						},
 					},

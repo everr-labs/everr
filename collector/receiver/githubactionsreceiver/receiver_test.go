@@ -25,6 +25,10 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+func int64Ptr(v int64) *int64 {
+	return &v
+}
+
 func TestNewReceiver(t *testing.T) {
 	defaultConfig := createDefaultConfig().(*Config)
 
@@ -65,6 +69,29 @@ func TestNewReceiver(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInstallationIDFromWebhookEvent(t *testing.T) {
+	t.Run("WorkflowRunEvent", func(t *testing.T) {
+		id, err := installationIDFromWebhookEvent(&github.WorkflowRunEvent{
+			Installation: &github.Installation{ID: int64Ptr(12345)},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(12345), id)
+	})
+
+	t.Run("WorkflowJobEvent", func(t *testing.T) {
+		id, err := installationIDFromWebhookEvent(&github.WorkflowJobEvent{
+			Installation: &github.Installation{ID: int64Ptr(67890)},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(67890), id)
+	})
+
+	t.Run("Missing installation", func(t *testing.T) {
+		_, err := installationIDFromWebhookEvent(&github.WorkflowRunEvent{})
+		require.ErrorIs(t, err, errMissingInstallationIDFromEvent)
+	})
 }
 
 func TestEventToTracesTraces(t *testing.T) {

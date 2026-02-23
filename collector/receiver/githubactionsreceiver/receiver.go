@@ -21,6 +21,8 @@ import (
 )
 
 var errMissingEndpoint = errors.New("missing a receiver endpoint")
+var errMissingInstallationIDFromEvent = errors.New("missing installation.id in webhook payload")
+var errMissingGitHubAuth = errors.New("github api authentication is not configured")
 
 const maxPayloadSize = 25 * 1024 * 1024 // 25 MB — GitHub webhook max payload size
 
@@ -60,21 +62,7 @@ func newReceiver(
 		return nil, err
 	}
 
-	var ghClient *github.Client
-	var httpClient *http.Client
-	if config.GitHubAPIConfig.Auth.AppID != 0 && config.GitHubAPIConfig.Auth.InstallationID != 0 && config.GitHubAPIConfig.Auth.PrivateKeyPath != "" {
-		itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, config.GitHubAPIConfig.Auth.AppID, config.GitHubAPIConfig.Auth.InstallationID, config.GitHubAPIConfig.Auth.PrivateKeyPath)
-		if err != nil {
-			return nil, err
-		}
-
-		httpClient = &http.Client{Transport: itr}
-	}
-	ghClient = github.NewClient(httpClient)
-
-	if config.GitHubAPIConfig.Auth.Token != "" {
-		ghClient = ghClient.WithAuthToken(config.GitHubAPIConfig.Auth.Token)
-	}
+	ghClient := github.NewClient(nil)
 
 	if config.GitHubAPIConfig.BaseURL != "" && config.GitHubAPIConfig.UploadURL != "" {
 		ghClient, err = ghClient.WithEnterpriseURLs(config.GitHubAPIConfig.BaseURL, config.GitHubAPIConfig.UploadURL)
@@ -257,12 +245,14 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	// if a log consumer is set, process the event into logs
 	if gar.logsConsumer != nil {
-		if gar.ghClient == nil {
-			gar.logger.Error("GitHub token not provided, but a logs consumer is set. Logs will not be processed. Please provide a GitHub token.")
+		ghClient, err := gar.githubClientForEvent(event)
+		if err != nil {
+			processingFailed = true
+			gar.logger.Error("Failed to initialize GitHub client for logs", zap.Error(err))
 		} else {
 			withTraceInfo := gar.tracesConsumer != nil && !traceErr
 
-			ld, err := eventToLogs(ctx, event, gar.config, gar.ghClient, gar.logger.Named("eventToLogs"), withTraceInfo)
+			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo)
 			if err != nil {
 				processingFailed = true
 				gar.logger.Error("Failed to process logs", zap.Error(err))
@@ -284,4 +274,48 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (gar *githubActionsReceiver) githubClientForEvent(event interface{}) (*github.Client, error) {
+	if gar.config.GitHubAPIConfig.Auth.AppID == 0 || gar.config.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
+		return nil, errMissingGitHubAuth
+	}
+
+	installationID, err := installationIDFromWebhookEvent(event)
+	if err != nil {
+		return nil, err
+	}
+
+	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, gar.config.GitHubAPIConfig.Auth.AppID, installationID, gar.config.GitHubAPIConfig.Auth.PrivateKeyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	client := github.NewClient(&http.Client{Transport: itr})
+	if gar.config.GitHubAPIConfig.BaseURL != "" && gar.config.GitHubAPIConfig.UploadURL != "" {
+		client, err = client.WithEnterpriseURLs(gar.config.GitHubAPIConfig.BaseURL, gar.config.GitHubAPIConfig.UploadURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return client, nil
+}
+
+func installationIDFromWebhookEvent(event interface{}) (int64, error) {
+	var installation *github.Installation
+	switch e := event.(type) {
+	case *github.WorkflowRunEvent:
+		installation = e.GetInstallation()
+	case *github.WorkflowJobEvent:
+		installation = e.GetInstallation()
+	default:
+		return 0, errMissingInstallationIDFromEvent
+	}
+
+	if installation == nil || installation.GetID() == 0 {
+		return 0, errMissingInstallationIDFromEvent
+	}
+
+	return installation.GetID(), nil
 }
