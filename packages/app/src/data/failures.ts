@@ -30,7 +30,7 @@ export const getFailurePatterns = createServerFn({
 				groupArray(10)(ResourceAttributes['cicd.pipeline.run.id']) as sampleRunIds,
 				groupArray(10)(ResourceAttributes['cicd.pipeline.task.name']) as sampleJobNames,
 				max(Timestamp) as lastOccurrence
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -79,7 +79,7 @@ export const getFailureTrend = createServerFn({
 				toDate(Timestamp) as date,
 				count(*) as totalFailures,
 				uniqExact(lower(trim(substring(StatusMessage, 1, 200)))) as uniquePatterns
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -119,7 +119,7 @@ export const getFailuresByRepo = createServerFn({
 				ResourceAttributes['vcs.repository.name'] as repo,
 				count(*) as failureCount,
 				topK(1)(lower(trim(substring(StatusMessage, 1, 200)))) as topPatterns
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''

@@ -164,7 +164,7 @@ export function executionsSubquery(
 
   return `SELECT
             ${selects.join(",\n            ")}
-          FROM otel_traces
+          FROM traces
           WHERE ${whereClause}
           GROUP BY ${groupBy.join(", ")}`;
 }

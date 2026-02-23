@@ -48,7 +48,7 @@ export function leafTestFilter(
 
   return `${leftExpr} NOT IN (
     SELECT DISTINCT ${rightExpr}
-    FROM otel_traces
+    FROM traces
     WHERE SpanAttributes['citric.test.parent_test'] != ''
       AND Timestamp >= {${fromParam}:String} AND Timestamp <= {${toParam}:String}
       ${scopedConditions}

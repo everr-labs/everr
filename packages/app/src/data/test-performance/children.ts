@@ -18,7 +18,7 @@ export const getTestPerfFilterOptions = createServerFn({
   const [repos, branches] = await Promise.all([
     query<{ repo: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
-      FROM otel_traces
+      FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
         AND ResourceAttributes['vcs.repository.name'] != ''
         AND SpanAttributes['citric.test.name'] != ''
@@ -27,7 +27,7 @@ export const getTestPerfFilterOptions = createServerFn({
     ),
     query<{ branch: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
-      FROM otel_traces
+      FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
         AND ResourceAttributes['vcs.ref.head.name'] != ''
         AND SpanAttributes['citric.test.name'] != ''
@@ -145,7 +145,7 @@ export const getTestPerfChildren = createServerFn({
             ResourceAttributes['vcs.ref.head.revision'] as head_sha,
             anyLast(SpanAttributes['citric.test.result']) as test_result,
             anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
-          FROM otel_traces
+          FROM traces
           WHERE ${whereClause}
           GROUP BY name, test_full_name, run_id, head_sha
         )
@@ -210,13 +210,13 @@ export const getTestPerfChildren = createServerFn({
           ResourceAttributes['vcs.ref.head.revision'] as head_sha,
           anyLast(SpanAttributes['citric.test.result']) as test_result,
           anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
-        FROM otel_traces
+        FROM traces
         WHERE ${childWhere}
         GROUP BY name, test_full_name, run_id, head_sha
       ) c
       LEFT JOIN (
         SELECT DISTINCT SpanAttributes['citric.test.parent_test'] as name
-        FROM otel_traces
+        FROM traces
         WHERE ${suiteWhere}
       ) s USING (name)
       GROUP BY c.name

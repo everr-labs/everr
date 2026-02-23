@@ -87,7 +87,7 @@ export const getFlakyTestFilterOptions = createServerFn({
   const [repos, branches] = await Promise.all([
     query<{ repo: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.repository.name'] != ''
 				AND SpanAttributes['citric.test.name'] != ''
@@ -96,7 +96,7 @@ export const getFlakyTestFilterOptions = createServerFn({
     ),
     query<{ branch: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.ref.head.name'] != ''
 				AND SpanAttributes['citric.test.name'] != ''
@@ -160,7 +160,7 @@ export const getFlakyTests = createServerFn({
 					anyLast(SpanAttributes['citric.test.result']) as test_result,
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE ${whereClause}
 				GROUP BY repo, test_package, test_full_name, run_id, head_sha
 			)
@@ -247,7 +247,7 @@ export const getFlakyTestSummary = createServerFn({
 						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 						anyLast(SpanAttributes['citric.test.result']) as test_result
-					FROM otel_traces
+					FROM traces
 					WHERE ${whereClause}
 					GROUP BY parent_test, test_name, run_id, head_sha
 				)
@@ -320,7 +320,7 @@ export const getFlakinessTrend = createServerFn({
 						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 						anyLast(SpanAttributes['citric.test.result']) as test_result,
 						max(Timestamp) as timestamp
-					FROM otel_traces
+					FROM traces
 					WHERE ${whereClause}
 					GROUP BY test_full_name, run_id, head_sha
 				)
@@ -400,7 +400,7 @@ export const getTestHistory = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflow_name,
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as job_name,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
@@ -476,7 +476,7 @@ export const getRunnerFlakiness = createServerFn({
 					anyLast(SpanAttributes['citric.test.result']) as test_result,
 					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
 					anyLast(ResourceAttributes['cicd.worker.name']) as runner_name
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
@@ -527,7 +527,7 @@ export const getTestDailyResults = createServerFn({
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 					anyLast(SpanAttributes['citric.test.result']) as test_result,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND SpanAttributes['citric.test.name'] != ''
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
@@ -573,7 +573,7 @@ export const getFlakyTestNames = createServerFn({
 						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 						anyLast(SpanAttributes['citric.test.result']) as test_result
-					FROM otel_traces
+					FROM traces
 					WHERE Timestamp >= now() - INTERVAL 30 DAY
 						AND SpanAttributes['citric.test.name'] != ''
 						AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')

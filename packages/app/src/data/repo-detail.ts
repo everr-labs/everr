@@ -33,7 +33,7 @@ export const getRepoStats = createServerFn({
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Duration) / 1000000 as duration
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
@@ -91,7 +91,7 @@ export const getRepoSuccessRateTrend = createServerFn({
 					toDate(max(Timestamp)) as date,
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
@@ -137,7 +137,7 @@ export const getRepoDurationTrend = createServerFn({
 				toDate(Timestamp) as date,
 				quantile(0.5)(Duration) / 1000000 as p50Duration,
 				quantile(0.95)(Duration) / 1000000 as p95Duration
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
@@ -186,7 +186,7 @@ export const getRepoRecentRuns = createServerFn({
 				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 				max(Timestamp) as timestamp,
 				anyLast(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
@@ -244,7 +244,7 @@ export const getTopFailingJobs = createServerFn({
 					/ nullIf(count(*), 0),
 					1
 				) as failureRate
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.name'] != ''
@@ -305,7 +305,7 @@ export const getActiveBranches = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					max(Timestamp) as timestamp
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''

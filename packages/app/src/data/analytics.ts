@@ -32,7 +32,7 @@ export const getDurationTrends = createServerFn({
 				quantile(0.5)(Duration) / 1000000 as p50Duration,
 				quantile(0.95)(Duration) / 1000000 as p95Duration,
 				count(*) as runCount
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
@@ -93,7 +93,7 @@ export const getQueueTimeAnalysis = createServerFn({
 					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.started_at'])) -
 					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.created_at']))
 				) * 1000 as maxQueueTime
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['citric.github.workflow_job.created_at'] != ''
 				AND ResourceAttributes['citric.github.workflow_job.started_at'] != ''
@@ -147,7 +147,7 @@ export const getSuccessRateTrends = createServerFn({
 					toDate(max(Timestamp)) as date,
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
-				FROM otel_traces
+				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
 					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
@@ -197,7 +197,7 @@ export const getRunnerUtilization = createServerFn({
 				avg(Duration) / 1000000 as avgDuration,
 				round(countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'success') * 100.0 / nullIf(count(*), 0), 1) as successRate,
 				sum(Duration) / 1000000 as totalDuration
-			FROM otel_traces
+			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
 				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
