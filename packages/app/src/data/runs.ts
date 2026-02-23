@@ -290,7 +290,6 @@ export const getStepLogs = createServerFn({
 				AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
 				AND LogAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
 			ORDER BY Timestamp ASC
-			LIMIT 1000
 		`;
 
     const result = await query<{

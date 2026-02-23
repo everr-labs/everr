@@ -10,6 +10,7 @@ import {
   Monitor,
   Moon,
   Plug,
+  PlugZap,
   Sparkles,
   Sun,
   Users,
@@ -145,6 +146,10 @@ export function NavUser() {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuItem render={<Link to="/dashboard/mcp-server" />}>
+                <PlugZap />
+                MCP Server
+              </DropdownMenuItem>
               <DropdownMenuItem
                 render={<Link to="/api/github/install/start" reloadDocument />}
               >
