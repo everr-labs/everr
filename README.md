@@ -104,16 +104,6 @@ cd collector
 make run
 ```
 
-### Create ClickHouse views
-
-MVs and RLS are now also created by ClickHouse startup scripts.
-If you need to re-apply them manually, use:
-
-```bash
-docker compose exec clickhouse clickhouse-client -u app_mv_admin --password change-me-strong -n < clickhouse/init/10-create-mvs.sql
-docker compose exec clickhouse clickhouse-client -u app_mv_admin --password change-me-strong -n < clickhouse/init/20-apply-rls.sql
-```
-
 ### Run the app
 
 > [!NOTE]  
