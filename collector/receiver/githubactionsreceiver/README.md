@@ -27,17 +27,17 @@ The receiver supports linking spans to previous runs for `workflow_run` events, 
 The following settings are required:
 
 - `endpoint` (no default): The endpoint where you may point your webhook to emit events to
+- `gh_api`: GitHub API configuration details used to retrieve workflow logs
+  - `auth`: GitHub App authentication details
+    - `app_id` GitHub App ID
+    - `private_key_path` Path to the GitHub App private key file
 
 The following settings are optional:
 
 - `path` (default: '/events'): Path where the receiver instance will accept events
 - `secret`: GitHub webhook hash signature
-- `gh_api`: GitHub API configuration details used to retireve workflows logs (can be omitted if no log pipeline is configured for the receiver)
   - `base_url`: GitHub Enterprise base URL. Can be omitted if using GitHub.com
   - `upload_url`: GitHub Enterprise upload URL. Can be omitted if using GitHub.com
-  - `auth`: GitHub API authentication details
-    - `app_id` GitHub App ID
-    - `private_key_path` Path to the GitHub App private key file
 
 Example:
 

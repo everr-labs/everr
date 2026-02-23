@@ -36,10 +36,16 @@ func TestValidateConfig(t *testing.T) {
 						Endpoint: "",
 					},
 				},
+				GitHubAPIConfig: GitHubAPIConfig{
+					Auth: GitHubAPIAuthConfig{
+						AppID:          1,
+						PrivateKeyPath: "path",
+					},
+				},
 			},
 		},
 		{
-			desc:   "Valid Secret",
+			desc:   "Valid Secret and auth",
 			expect: nil,
 			conf: &Config{
 				ServerConfig: confighttp.ServerConfig{
@@ -48,10 +54,16 @@ func TestValidateConfig(t *testing.T) {
 					},
 				},
 				Secret: "mysecret",
+				GitHubAPIConfig: GitHubAPIConfig{
+					Auth: GitHubAPIAuthConfig{
+						AppID:          1,
+						PrivateKeyPath: "path",
+					},
+				},
 			},
 		},
 		{
-			desc: "GH App Auth",
+			desc: "Auth validation",
 			children: []testNode{
 				{
 					desc:   "Missing App ID",
@@ -99,6 +111,10 @@ func TestValidateConfig(t *testing.T) {
 								},
 								GitHubAPIConfig: GitHubAPIConfig{
 									UploadURL: "upload",
+									Auth: GitHubAPIAuthConfig{
+										AppID:          1,
+										PrivateKeyPath: "path",
+									},
 								},
 							},
 						},
@@ -113,6 +129,10 @@ func TestValidateConfig(t *testing.T) {
 								},
 								GitHubAPIConfig: GitHubAPIConfig{
 									BaseURL: "base",
+									Auth: GitHubAPIAuthConfig{
+										AppID:          1,
+										PrivateKeyPath: "path",
+									},
 								},
 							},
 						},
@@ -164,6 +184,12 @@ func TestLoadConfig(t *testing.T) {
 		},
 		Path:   "/ghaevents",
 		Secret: "mysecret",
+		GitHubAPIConfig: GitHubAPIConfig{
+			Auth: GitHubAPIAuthConfig{
+				AppID:          1,
+				PrivateKeyPath: "/path/to/key.pem",
+			},
+		},
 	}
 
 	// create expected config

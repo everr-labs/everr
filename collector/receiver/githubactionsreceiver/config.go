@@ -50,14 +50,11 @@ func (cfg *Config) Validate() error {
 		errs = multierr.Append(errs, errMissingEndpointFromConfig)
 	}
 
-	usesGitHubAppAuth := cfg.GitHubAPIConfig.Auth.AppID != 0 || cfg.GitHubAPIConfig.Auth.PrivateKeyPath != ""
-	if usesGitHubAppAuth {
-		if cfg.GitHubAPIConfig.Auth.AppID == 0 {
-			errs = multierr.Append(errs, errMissingAppID)
-		}
-		if cfg.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
-			errs = multierr.Append(errs, errMissingPrivateKeyPath)
-		}
+	if cfg.GitHubAPIConfig.Auth.AppID == 0 {
+		errs = multierr.Append(errs, errMissingAppID)
+	}
+	if cfg.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
+		errs = multierr.Append(errs, errMissingPrivateKeyPath)
 	}
 
 	if cfg.GitHubAPIConfig.BaseURL != "" && cfg.GitHubAPIConfig.UploadURL == "" || cfg.GitHubAPIConfig.BaseURL == "" && cfg.GitHubAPIConfig.UploadURL != "" {

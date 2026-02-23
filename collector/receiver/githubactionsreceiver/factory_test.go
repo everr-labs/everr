@@ -35,6 +35,8 @@ func TestCreateTracesReceiver(t *testing.T) {
 
 				cfg := createDefaultConfig().(*Config)
 				cfg.ServerConfig.NetAddr.Endpoint = "localhost:8080"
+				cfg.GitHubAPIConfig.Auth.AppID = 1
+				cfg.GitHubAPIConfig.Auth.PrivateKeyPath = "/path/to/key.pem"
 				require.NoError(t, cfg.Validate(), "error validating default config")
 
 				_, err := newTracesReceiver(
