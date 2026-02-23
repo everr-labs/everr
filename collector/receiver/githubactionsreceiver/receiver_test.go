@@ -4,6 +4,7 @@
 package githubactionsreceiver
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -63,6 +64,7 @@ func TestNewReceiver(t *testing.T) {
 			rec, err := newReceiver(receivertest.NewNopSettings(metadata.Type), &test.config)
 			if test.err == nil {
 				require.NotNil(t, rec)
+				require.NoError(t, rec.Shutdown(context.Background()))
 			} else {
 				require.ErrorIs(t, err, test.err)
 				require.Nil(t, rec)
@@ -127,7 +129,7 @@ func TestEventToTracesTraces(t *testing.T) {
 			event, err := github.ParseWebHook(test.eventType, payload)
 			require.NoError(t, err)
 
-			traces, err := eventToTraces(event, &Config{}, logger)
+			traces, err := eventToTraces(event, &Config{}, logger, 1)
 
 			if test.expectedError != nil {
 				require.Error(t, err)
@@ -225,7 +227,7 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 			event, err := github.ParseWebHook("workflow_job", payload)
 			require.NoError(t, err)
 
-			traces, err := eventToTraces(event, &Config{}, logger)
+			traces, err := eventToTraces(event, &Config{}, logger, 1)
 			require.NoError(t, err)
 
 			rs := traces.ResourceSpans().At(0)

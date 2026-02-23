@@ -1,9 +1,4 @@
 extensions:
-  basicauth/grafana_cloud:
-    # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/basicauthextension
-    client_auth:
-      username: '12345'
-      password: 'TOKEN'
 
 receivers:
   githubactions:
@@ -14,6 +9,11 @@ receivers:
       auth:
         app_id: 1234
         private_key_path: /path/to/key.pem
+    tenant_resolution:
+      postgres_dsn: postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+    event_forwarding:
+      installation_events_url: https://app.example.com/api/github/install-events
+      timeout: 5s
 
 processors:
   batch:
@@ -26,49 +26,30 @@ processors:
       - action: delete
         key: ci.github.workflow.run.name
 
-connectors:
-  spanmetrics:
-    histogram:
-      explicit:
-        buckets: [5s, 15s, 30s, 1m, 5m, 10m, 30m]
-      unit: s
-    aggregation_temporality: 'AGGREGATION_TEMPORALITY_CUMULATIVE'
-    exemplars:
-      enabled: true
-
 exporters:
   debug:
     verbosity: detailed
   clickhouse:
-    endpoint: 'http://localhost:8123'
-    username: 'default'
-    database: 'default'
-    # TODO: double check the following
-    async_insert: false
-  otlphttp/grafana_cloud:
-    endpoint: 'https://otlp-gateway-prod-us-central-0.grafana.net/otlp'
-    auth:
-      authenticator: basicauth/grafana_cloud
+    endpoint: "http://localhost:8123"
+    username: "default"
+    database: "default"
+    create_schema: false
 
 service:
   extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
-      receivers: [otlp, githubactions]
+      receivers: [githubactions]
       processors: [resource]
-      exporters: [spanmetrics, clickhouse, otlphttp/grafana_cloud, debug]
+      exporters: [clickhouse, debug]
     logs:
-      receivers: [otlp, githubactions]
+      receivers: [githubactions]
       processors: []
-      exporters: [clickhouse, otlphttp/grafana_cloud, debug]
-    metrics:
-      receivers: [spanmetrics]
-      processors: []
-      exporters: [clickhouse, otlphttp/grafana_cloud, debug]
+      exporters: [clickhouse, debug]
 
   telemetry:
     metrics:
       level: detailed
     logs:
       level: debug
-      encoding: 'json'
+      encoding: "json"

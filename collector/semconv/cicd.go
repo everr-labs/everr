@@ -17,6 +17,7 @@ const (
 const (
 	CitricGitHubWorkflowID   = "citric.github.workflow.id"
 	CitricGitHubWorkflowPath = "citric.github.workflow.path"
+	CitricTenantID           = "citric.tenant.id"
 )
 
 // Citric — GitHub workflow run attributes with no OTel/contrib equivalent

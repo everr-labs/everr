@@ -4,9 +4,11 @@
 package githubactionsreceiver
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -23,6 +25,7 @@ import (
 var errMissingEndpoint = errors.New("missing a receiver endpoint")
 var errMissingInstallationIDFromEvent = errors.New("missing installation.id in webhook payload")
 var errMissingGitHubAuth = errors.New("github api authentication is not configured")
+var errMissingTenantResolver = errors.New("tenant resolver is not configured")
 
 const maxPayloadSize = 25 * 1024 * 1024 // 25 MB — GitHub webhook max payload size
 
@@ -37,6 +40,8 @@ type githubActionsReceiver struct {
 	logger         *zap.Logger
 	obsrecv        *receiverhelper.ObsReport
 	ghClient       *github.Client
+	tenantResolver *tenantResolver
+	forwardClient  *http.Client
 }
 
 func newReceiver(
@@ -71,12 +76,24 @@ func newReceiver(
 		}
 	}
 
+	var tenantResolver *tenantResolver
+	if config.TenantResolution.PostgresDSN != "" {
+		tenantResolver, err = newTenantResolver(config.TenantResolution.PostgresDSN, config.TenantResolution.CacheTTL)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	gar := &githubActionsReceiver{
-		config:   config,
-		settings: settings,
-		logger:   settings.Logger,
-		obsrecv:  obsrecv,
-		ghClient: ghClient,
+		config:         config,
+		settings:       settings,
+		logger:         settings.Logger,
+		obsrecv:        obsrecv,
+		ghClient:       ghClient,
+		tenantResolver: tenantResolver,
+		forwardClient: &http.Client{
+			Timeout: config.EventForwarding.Timeout,
+		},
 	}
 
 	return gar, nil
@@ -167,6 +184,9 @@ func (gar *githubActionsReceiver) Shutdown(ctx context.Context) error {
 	if server != nil {
 		err = server.Shutdown(ctx)
 	}
+	if closeErr := gar.tenantResolver.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
 	gar.shutdownWG.Wait()
 	return err
 }
@@ -193,6 +213,23 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	// Determine the type of GitHub webhook event and ensure it's one we handle
 	eventType := github.WebHookType(r)
+	if eventType == "installation" || eventType == "installation_repositories" {
+		if gar.config.EventForwarding.InstallationEventsURL == "" {
+			gar.logger.Debug("Skipping installation event forwarding because installation_events_url is not configured", zap.String("event", eventType))
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		if err := gar.forwardInstallationEvent(ctx, eventType, payload, r.Header); err != nil {
+			gar.logger.Error("Failed to forward installation event", zap.String("event", eventType), zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+
 	event, err := github.ParseWebHook(eventType, payload)
 	if err != nil {
 		gar.logger.Debug("Webhook parsing failed", zap.Error(err))
@@ -224,9 +261,30 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	var processingFailed bool
 	traceErr := false
 
+	installationID, err := installationIDFromWebhookEvent(event)
+	if err != nil {
+		gar.logger.Error("Failed to extract installation ID from event", zap.Error(err))
+		http.Error(w, "Missing installation id", http.StatusBadRequest)
+		return
+	}
+
+	if gar.tenantResolver == nil {
+		processingFailed = true
+		gar.logger.Error("Failed to resolve tenant for installation", zap.Int64("installation_id", installationID), zap.Error(errMissingTenantResolver))
+	}
+
+	var tenantID int64
+	if !processingFailed {
+		tenantID, err = gar.tenantResolver.ResolveTenantID(ctx, installationID)
+		if err != nil {
+			processingFailed = true
+			gar.logger.Error("Failed to resolve tenant for installation", zap.Int64("installation_id", installationID), zap.Error(err))
+		}
+	}
+
 	// if a trace consumer is set, process the event into traces
-	if gar.tracesConsumer != nil {
-		td, err := eventToTraces(event, gar.config, gar.logger.Named("eventToTraces"))
+	if !processingFailed && gar.tracesConsumer != nil {
+		td, err := eventToTraces(event, gar.config, gar.logger.Named("eventToTraces"), tenantID)
 		if err != nil {
 			traceErr = true
 			processingFailed = true
@@ -244,15 +302,15 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	// if a log consumer is set, process the event into logs
-	if gar.logsConsumer != nil {
-		ghClient, err := gar.githubClientForEvent(event)
+	if !processingFailed && gar.logsConsumer != nil {
+		ghClient, err := gar.githubClientForInstallation(installationID)
 		if err != nil {
 			processingFailed = true
 			gar.logger.Error("Failed to initialize GitHub client for logs", zap.Error(err))
 		} else {
 			withTraceInfo := gar.tracesConsumer != nil && !traceErr
 
-			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo)
+			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo, tenantID)
 			if err != nil {
 				processingFailed = true
 				gar.logger.Error("Failed to process logs", zap.Error(err))
@@ -276,14 +334,42 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (gar *githubActionsReceiver) githubClientForEvent(event interface{}) (*github.Client, error) {
-	if gar.config.GitHubAPIConfig.Auth.AppID == 0 || gar.config.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
-		return nil, errMissingGitHubAuth
+func (gar *githubActionsReceiver) forwardInstallationEvent(ctx context.Context, eventType string, payload []byte, inHeader http.Header) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gar.config.EventForwarding.InstallationEventsURL, bytes.NewReader(payload))
+	if err != nil {
+		return err
 	}
 
-	installationID, err := installationIDFromWebhookEvent(event)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Event", eventType)
+
+	if delivery := inHeader.Get("X-GitHub-Delivery"); delivery != "" {
+		req.Header.Set("X-GitHub-Delivery", delivery)
+	}
+	if signature := inHeader.Get("X-Hub-Signature-256"); signature != "" {
+		req.Header.Set("X-Hub-Signature-256", signature)
+	}
+	if userAgent := inHeader.Get("User-Agent"); userAgent != "" {
+		req.Header.Set("User-Agent", userAgent)
+	}
+
+	resp, err := gar.forwardClient.Do(req)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("forward endpoint returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+func (gar *githubActionsReceiver) githubClientForInstallation(installationID int64) (*github.Client, error) {
+	if gar.config.GitHubAPIConfig.Auth.AppID == 0 || gar.config.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
+		return nil, errMissingGitHubAuth
 	}
 
 	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, gar.config.GitHubAPIConfig.Auth.AppID, installationID, gar.config.GitHubAPIConfig.Auth.PrivateKeyPath)

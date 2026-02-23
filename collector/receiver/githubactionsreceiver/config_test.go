@@ -6,6 +6,7 @@ package githubactionsreceiver
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/get-citric/citric/collector/receiver/githubactionsreceiver/internal/metadata"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,9 @@ func TestValidateConfig(t *testing.T) {
 						PrivateKeyPath: "path",
 					},
 				},
+				TenantResolution: TenantResolutionConfig{
+					PostgresDSN: "postgres://user:pass@localhost:5432/citric?sslmode=disable",
+				},
 			},
 		},
 		{
@@ -54,6 +58,26 @@ func TestValidateConfig(t *testing.T) {
 					},
 				},
 				Secret: "mysecret",
+				GitHubAPIConfig: GitHubAPIConfig{
+					Auth: GitHubAPIAuthConfig{
+						AppID:          1,
+						PrivateKeyPath: "path",
+					},
+				},
+				TenantResolution: TenantResolutionConfig{
+					PostgresDSN: "postgres://user:pass@localhost:5432/citric?sslmode=disable",
+				},
+			},
+		},
+		{
+			desc:   "Missing tenant postgres dsn",
+			expect: errMissingTenantPostgresDSN,
+			conf: &Config{
+				ServerConfig: confighttp.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: "localhost:8080",
+					},
+				},
 				GitHubAPIConfig: GitHubAPIConfig{
 					Auth: GitHubAPIAuthConfig{
 						AppID:          1,
@@ -79,6 +103,9 @@ func TestValidateConfig(t *testing.T) {
 								PrivateKeyPath: "path",
 							},
 						},
+						TenantResolution: TenantResolutionConfig{
+							PostgresDSN: "postgres://user:pass@localhost:5432/citric?sslmode=disable",
+						},
 					},
 				},
 				{
@@ -94,6 +121,9 @@ func TestValidateConfig(t *testing.T) {
 							Auth: GitHubAPIAuthConfig{
 								AppID: 1,
 							},
+						},
+						TenantResolution: TenantResolutionConfig{
+							PostgresDSN: "postgres://user:pass@localhost:5432/citric?sslmode=disable",
 						},
 					},
 				},
@@ -116,6 +146,9 @@ func TestValidateConfig(t *testing.T) {
 										PrivateKeyPath: "path",
 									},
 								},
+								TenantResolution: TenantResolutionConfig{
+									PostgresDSN: "postgres://user:pass@localhost:5432/citric?sslmode=disable",
+								},
 							},
 						},
 						{
@@ -133,6 +166,9 @@ func TestValidateConfig(t *testing.T) {
 										AppID:          1,
 										PrivateKeyPath: "path",
 									},
+								},
+								TenantResolution: TenantResolutionConfig{
+									PostgresDSN: "postgres://user:pass@localhost:5432/citric?sslmode=disable",
 								},
 							},
 						},
@@ -189,6 +225,13 @@ func TestLoadConfig(t *testing.T) {
 				AppID:          1,
 				PrivateKeyPath: "/path/to/key.pem",
 			},
+		},
+		TenantResolution: TenantResolutionConfig{
+			PostgresDSN: "postgres://user:pass@localhost:5432/citric?sslmode=disable",
+			CacheTTL:    time.Minute,
+		},
+		EventForwarding: EventForwardingConfig{
+			Timeout: 5 * time.Second,
 		},
 	}
 

@@ -1,6 +1,8 @@
 package githubactionsreceiver
 
 import (
+	"time"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -38,6 +40,12 @@ func createDefaultConfig() component.Config {
 		},
 		Path:   defaultPath,
 		Secret: "",
+		TenantResolution: TenantResolutionConfig{
+			CacheTTL: time.Minute,
+		},
+		EventForwarding: EventForwardingConfig{
+			Timeout: 5 * time.Second,
+		},
 	}
 }
 

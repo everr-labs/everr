@@ -37,15 +37,17 @@ func TestCreateTracesReceiver(t *testing.T) {
 				cfg.ServerConfig.NetAddr.Endpoint = "localhost:8080"
 				cfg.GitHubAPIConfig.Auth.AppID = 1
 				cfg.GitHubAPIConfig.Auth.PrivateKeyPath = "/path/to/key.pem"
+				cfg.TenantResolution.PostgresDSN = "postgres://user:pass@localhost:5432/citric?sslmode=disable"
 				require.NoError(t, cfg.Validate(), "error validating default config")
 
-				_, err := newTracesReceiver(
+				rcvr, err := newTracesReceiver(
 					context.Background(),
 					receivertest.NewNopSettings(metadata.Type),
 					cfg,
 					consumertest.NewNop(),
 				)
 				require.NoError(t, err, "failed to create trace receiver")
+				require.NoError(t, rcvr.Shutdown(context.Background()))
 			},
 		},
 	}

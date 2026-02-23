@@ -31,6 +31,11 @@ The following settings are required:
   - `auth`: GitHub App authentication details
     - `app_id` GitHub App ID
     - `private_key_path` Path to the GitHub App private key file
+- `tenant_resolution`: Tenant mapping configuration
+  - `postgres_dsn`: Postgres DSN for resolving `installation.id -> tenant_id`
+- `event_forwarding`: Forwarding configuration for installation lifecycle events
+  - `installation_events_url`: App endpoint that receives `installation` and `installation_repositories` events
+  - `timeout`: Forwarding request timeout (default: `5s`)
 
 The following settings are optional:
 
@@ -51,6 +56,11 @@ receivers:
       auth:
         app_id: 123
         private_key_path: /path/to/key.pem
+    tenant_resolution:
+      postgres_dsn: postgresql://user:pass@localhost:5432/citric?sslmode=disable
+    event_forwarding:
+      installation_events_url: https://app.example.com/api/github/install-events
+      timeout: 5s
 ```
 
 The full list of settings exposed for this receiver are documented [here](./config.go) with a detailed sample configuration [here](./testdata/config.yaml)

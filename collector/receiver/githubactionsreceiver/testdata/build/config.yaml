@@ -10,6 +10,11 @@ receivers:
     #   auth:
     #     app_id: 123                         // App ID for GitHub App.
     #     private_key_path: /path/to/key.pem  // Path to private key for GitHub App.
+    # tenant_resolution:
+    #   postgres_dsn: postgresql://user:pass@localhost:5432/citric?sslmode=disable
+    # event_forwarding:
+    #   installation_events_url: https://app.example.com/api/github/install-events
+    #   timeout: 5s
     cors:
       allowed_origins: ["*"]
       allowed_headers: ["*"]
