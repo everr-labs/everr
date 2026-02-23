@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { githubInstallationTenants, tenants } from "@/db/schema";
 
+export type GithubInstallationStatus = "active" | "suspended" | "uninstalled";
+
 export class GithubInstallationAlreadyLinkedError extends Error {
   constructor() {
     super("GitHub installation is already linked to another tenant.");
@@ -53,6 +55,7 @@ export async function linkGithubInstallationToTenant(
     .values({
       githubInstallationId,
       tenantId,
+      status: "active",
     })
     .onConflictDoNothing({
       target: githubInstallationTenants.githubInstallationId,
@@ -66,7 +69,10 @@ export async function linkGithubInstallationToTenant(
   }
 
   const [existing] = await db
-    .select({ tenantId: githubInstallationTenants.tenantId })
+    .select({
+      tenantId: githubInstallationTenants.tenantId,
+      status: githubInstallationTenants.status,
+    })
     .from(githubInstallationTenants)
     .where(
       eq(githubInstallationTenants.githubInstallationId, githubInstallationId),
@@ -82,11 +88,19 @@ export async function linkGithubInstallationToTenant(
   if (existing.tenantId !== tenantId) {
     throw new GithubInstallationAlreadyLinkedError();
   }
+
+  if (existing.status !== "active") {
+    await setGithubInstallationStatus(githubInstallationId, "active");
+  }
 }
 
-export async function unlinkGithubInstallation(githubInstallationId: number) {
+export async function setGithubInstallationStatus(
+  githubInstallationId: number,
+  status: GithubInstallationStatus,
+) {
   await db
-    .delete(githubInstallationTenants)
+    .update(githubInstallationTenants)
+    .set({ status, updatedAt: new Date() })
     .where(
       eq(githubInstallationTenants.githubInstallationId, githubInstallationId),
     );

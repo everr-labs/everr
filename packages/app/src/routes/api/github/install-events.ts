@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { unlinkGithubInstallation } from "@/data/tenants";
+import { setGithubInstallationStatus } from "@/data/tenants";
 
 const InstallationEventPayloadSchema = z.object({
   action: z.string().optional(),
@@ -75,12 +75,24 @@ export const Route = createFileRoute("/api/github/install-events")({
         POST: {
           middleware: [verifyGithubInstallEventWebhook],
           handler: async ({ context }) => {
-            // Installation lifecycle events that indicate the mapping should be removed.
-            if (
-              context.eventType === "installation" &&
-              context.action === "deleted"
-            ) {
-              await unlinkGithubInstallation(context.installationId);
+            // Installation lifecycle events update persisted installation status.
+            if (context.eventType === "installation") {
+              if (context.action === "deleted") {
+                await setGithubInstallationStatus(
+                  context.installationId,
+                  "uninstalled",
+                );
+              } else if (context.action === "suspend") {
+                await setGithubInstallationStatus(
+                  context.installationId,
+                  "suspended",
+                );
+              } else if (context.action === "unsuspend") {
+                await setGithubInstallationStatus(
+                  context.installationId,
+                  "active",
+                );
+              }
             }
 
             return new Response(null, { status: 202 });

@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   bigint,
   index,
+  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -25,6 +26,12 @@ export const tenants = pgTable(
   (table) => [uniqueIndex("tenants_external_id_uq").on(table.externalId)],
 );
 
+export const githubInstallationStatusEnum = pgEnum("installation_status", [
+  "active",
+  "suspended",
+  "uninstalled",
+]);
+
 export const githubInstallationTenants = pgTable(
   "github_installation_tenants",
   {
@@ -34,6 +41,7 @@ export const githubInstallationTenants = pgTable(
     tenantId: bigint("tenant_id", { mode: "number" })
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
+    status: githubInstallationStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

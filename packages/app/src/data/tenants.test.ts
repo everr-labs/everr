@@ -23,15 +23,20 @@ const mocked = vi.hoisted(() => {
     from: selectFrom,
   }));
 
-  const delWhere = vi.fn();
-  const del = vi.fn(() => ({
-    where: delWhere,
+  const updateWhere = vi.fn();
+  const updateSet = vi.fn(() => ({
+    where: updateWhere,
+  }));
+  const update = vi.fn(() => ({
+    set: updateSet,
   }));
 
   return {
     insert,
     select,
-    del,
+    update,
+    updateSet,
+    updateWhere,
     insertReturning,
     selectLimit,
   };
@@ -49,6 +54,7 @@ vi.mock("@/db/schema", () => ({
   githubInstallationTenants: {
     githubInstallationId: "github_installation_tenants.github_installation_id",
     tenantId: "github_installation_tenants.tenant_id",
+    status: "github_installation_tenants.status",
   },
 }));
 
@@ -56,7 +62,7 @@ vi.mock("@/db/client", () => ({
   db: {
     insert: mocked.insert,
     select: mocked.select,
-    delete: mocked.del,
+    update: mocked.update,
   },
 }));
 
@@ -64,6 +70,7 @@ import {
   GithubInstallationAlreadyLinkedError,
   getTenantForOrganizationId,
   linkGithubInstallationToTenant,
+  setGithubInstallationStatus,
 } from "./tenants";
 
 beforeEach(() => {
@@ -83,18 +90,32 @@ describe("linkGithubInstallationToTenant", () => {
 
   it("is idempotent when already linked to the same tenant", async () => {
     mocked.insertReturning.mockResolvedValue([]);
-    mocked.selectLimit.mockResolvedValue([{ tenantId: 7 }]);
+    mocked.selectLimit.mockResolvedValue([{ tenantId: 7, status: "active" }]);
 
     await expect(
       linkGithubInstallationToTenant(42, 7),
     ).resolves.toBeUndefined();
 
     expect(mocked.select).toHaveBeenCalledTimes(1);
+    expect(mocked.update).not.toHaveBeenCalled();
+  });
+
+  it("reactivates installation when linked tenant matches but status is inactive", async () => {
+    mocked.insertReturning.mockResolvedValue([]);
+    mocked.selectLimit.mockResolvedValue([
+      { tenantId: 7, status: "suspended" },
+    ]);
+
+    await expect(
+      linkGithubInstallationToTenant(42, 7),
+    ).resolves.toBeUndefined();
+
+    expect(mocked.update).toHaveBeenCalledTimes(1);
   });
 
   it("throws conflict error when already linked to another tenant", async () => {
     mocked.insertReturning.mockResolvedValue([]);
-    mocked.selectLimit.mockResolvedValue([{ tenantId: 9 }]);
+    mocked.selectLimit.mockResolvedValue([{ tenantId: 9, status: "active" }]);
 
     await expect(linkGithubInstallationToTenant(42, 7)).rejects.toBeInstanceOf(
       GithubInstallationAlreadyLinkedError,
@@ -113,5 +134,19 @@ describe("getTenantForOrganizationId", () => {
     mocked.selectLimit.mockResolvedValue([]);
 
     await expect(getTenantForOrganizationId("org_missing")).resolves.toBeNull();
+  });
+});
+
+describe("setGithubInstallationStatus", () => {
+  it("updates installation status", async () => {
+    await expect(
+      setGithubInstallationStatus(42, "uninstalled"),
+    ).resolves.toBeUndefined();
+
+    expect(mocked.update).toHaveBeenCalledTimes(1);
+    expect(mocked.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "uninstalled" }),
+    );
+    expect(mocked.updateWhere).toHaveBeenCalledTimes(1);
   });
 });

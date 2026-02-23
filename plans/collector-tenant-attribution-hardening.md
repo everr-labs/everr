@@ -9,6 +9,7 @@ The current collector tenant attribution path is functionally correct and fail-c
 - Location: `collector/receiver/githubactionsreceiver/tenant_resolver.go`
 - Current behavior: installation -> tenant mapping is cached by `cache_ttl` with no explicit invalidation.
 - Risk: after relink/unlink/relink, events may be attributed to the old tenant until cache expiry.
+- Lifecycle policy: do not hard-delete mapping rows on uninstall/suspend; set an `installation_status` flag (for example `active|suspended|uninstalled`) and have resolver treat non-active as unresolved.
 
 ### P2: Tenant lookup relies on Postgres `search_path`
 - Location: `collector/receiver/githubactionsreceiver/tenant_resolver.go`
@@ -39,6 +40,7 @@ The current collector tenant attribution path is functionally correct and fail-c
 4. Validate behavior under relink/unlink scenarios
 - Add tests for mapping change propagation and expected consistency window.
 - Ensure no cross-tenant attribution in transition cases.
+- Verify uninstall/suspend transitions set status flag instead of deleting rows.
 
 ## Acceptance Criteria
 - Mapping changes do not remain stale beyond an explicit, documented bound.

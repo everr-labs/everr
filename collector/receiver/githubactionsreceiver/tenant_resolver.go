@@ -66,7 +66,7 @@ func (tr *tenantResolver) ResolveTenantID(ctx context.Context, installationID in
 	const q = `
 		SELECT tenant_id
 		FROM github_installation_tenants
-		WHERE github_installation_id = $1
+		WHERE github_installation_id = $1 AND status = 'active'
 		LIMIT 1
 	`
 

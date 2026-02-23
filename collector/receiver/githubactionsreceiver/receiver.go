@@ -277,6 +277,14 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	if !processingFailed {
 		tenantID, err = gar.tenantResolver.ResolveTenantID(ctx, installationID)
 		if err != nil {
+			if errors.Is(err, errTenantNotFound) {
+				gar.logger.Info(
+					"Dropping event with unresolved tenant mapping",
+					zap.Int64("installation_id", installationID),
+				)
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
 			processingFailed = true
 			gar.logger.Error("Failed to resolve tenant for installation", zap.Int64("installation_id", installationID), zap.Error(err))
 		}

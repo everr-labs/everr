@@ -2,12 +2,14 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/data/tenants", () => ({
-  unlinkGithubInstallation: vi.fn(),
+  setGithubInstallationStatus: vi.fn(),
 }));
 
-import { unlinkGithubInstallation } from "@/data/tenants";
+import { setGithubInstallationStatus } from "@/data/tenants";
 
-const mockedUnlinkGithubInstallation = vi.mocked(unlinkGithubInstallation);
+const mockedSetGithubInstallationStatus = vi.mocked(
+  setGithubInstallationStatus,
+);
 
 function sign(payload: string, secret: string): string {
   return `sha256=${createHmac("sha256", secret).update(payload).digest("hex")}`;
@@ -160,10 +162,10 @@ describe("/api/github/install-events", () => {
     });
 
     expect(response.status).toBe(401);
-    expect(mockedUnlinkGithubInstallation).not.toHaveBeenCalled();
+    expect(mockedSetGithubInstallationStatus).not.toHaveBeenCalled();
   });
 
-  it("unlinks tenant mapping for deleted installations with a valid signature", async () => {
+  it("marks installation uninstalled for deleted installations", async () => {
     const secret = "super-secret-value-super-secret-1234";
     const handler = await getHandler(secret);
     const payload = JSON.stringify({
@@ -183,10 +185,13 @@ describe("/api/github/install-events", () => {
     });
 
     expect(response.status).toBe(202);
-    expect(mockedUnlinkGithubInstallation).toHaveBeenCalledWith(456);
+    expect(mockedSetGithubInstallationStatus).toHaveBeenCalledWith(
+      456,
+      "uninstalled",
+    );
   });
 
-  it("does not unlink tenant mapping for suspended installations", async () => {
+  it("marks installation suspended for suspended installations", async () => {
     const secret = "super-secret-value-super-secret-1234";
     const handler = await getHandler(secret);
     const payload = JSON.stringify({
@@ -206,10 +211,13 @@ describe("/api/github/install-events", () => {
     });
 
     expect(response.status).toBe(202);
-    expect(mockedUnlinkGithubInstallation).not.toHaveBeenCalled();
+    expect(mockedSetGithubInstallationStatus).toHaveBeenCalledWith(
+      456,
+      "suspended",
+    );
   });
 
-  it("does not unlink tenant mapping for unsuspend installations", async () => {
+  it("marks installation active for unsuspend installations", async () => {
     const secret = "super-secret-value-super-secret-1234";
     const handler = await getHandler(secret);
     const payload = JSON.stringify({
@@ -229,7 +237,10 @@ describe("/api/github/install-events", () => {
     });
 
     expect(response.status).toBe(202);
-    expect(mockedUnlinkGithubInstallation).not.toHaveBeenCalled();
+    expect(mockedSetGithubInstallationStatus).toHaveBeenCalledWith(
+      456,
+      "active",
+    );
   });
 
   it("ignores non-installation events", async () => {
@@ -246,6 +257,6 @@ describe("/api/github/install-events", () => {
     });
 
     expect(response.status).toBe(202);
-    expect(mockedUnlinkGithubInstallation).not.toHaveBeenCalled();
+    expect(mockedSetGithubInstallationStatus).not.toHaveBeenCalled();
   });
 });

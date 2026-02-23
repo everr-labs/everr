@@ -128,6 +128,7 @@ Optional escape hatch for local/dev:
 ## Cache consistency
 - Keep short TTL (5-10s) unless explicit invalidation is available.
 - If installation relink/unlink events are available, invalidate keys immediately.
+- Installation lifecycle persistence policy: keep mapping row history and update an `installation_status` flag on uninstall/suspend instead of deleting records; resolver only returns tenant for `active` status.
 
 ## Query qualification
 - Use fully-qualified table name (`schema.table`) in resolver to avoid `search_path` drift.
@@ -188,6 +189,7 @@ Optional escape hatch for local/dev:
 ## Integration tests
 - End-to-end with test Postgres and synthetic webhook payload.
 - Relink/unlink scenario validates no cross-tenant attribution.
+- Uninstall/suspend/unsuspend scenario validates status transitions without row deletion.
 
 ## Load tests
 - High webhook throughput with realistic cache hit rates.

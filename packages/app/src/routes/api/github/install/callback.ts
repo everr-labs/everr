@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAuth } from "@workos/authkit-tanstack-react-start";
-
 import {
   ensureTenantForOrganizationId,
   GithubInstallationAlreadyLinkedError,
