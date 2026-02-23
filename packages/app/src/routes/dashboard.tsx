@@ -38,7 +38,7 @@ export const Route = createFileRoute("/dashboard")({
         to: DEFAULT_TIME_RANGE.to,
         refresh: "",
       }),
-      retainSearchParams(["from", "to", "refresh", "github_install", "reason"]),
+      retainSearchParams(["from", "to", "refresh"]),
     ],
   },
   beforeLoad: async () => {
