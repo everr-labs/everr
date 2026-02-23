@@ -146,10 +146,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem
-                render={
-                  // biome-ignore lint/a11y/useAnchorContent: the children actually includes text content
-                  <a href="/api/github/install/start" />
-                }
+                render={<Link to="/api/github/install/start" reloadDocument />}
               >
                 <Plug />
                 Connect GitHub
