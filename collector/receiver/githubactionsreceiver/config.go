@@ -19,7 +19,6 @@ var errBaseURLAndUploadURL = errors.New("both base_url and upload_url must be se
 // GitHubAPIAuthConfig defines authentication configuration for GitHub API
 type GitHubAPIAuthConfig struct {
 	AppID          int64  `mapstructure:"app_id"`           // github app id for API access. Default is 0
-	InstallationID int64  `mapstructure:"installation_id"`  // deprecated: installation id is resolved from webhook payloads
 	PrivateKeyPath string `mapstructure:"private_key_path"` // github app private key path for API access. Default is empty
 }
 
