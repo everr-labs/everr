@@ -1,7 +1,3 @@
--- Run this after ClickHouse startup scripts have created source tables:
---   otel.otel_traces
---   otel.otel_logs
-
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
 ENGINE = MergeTree
