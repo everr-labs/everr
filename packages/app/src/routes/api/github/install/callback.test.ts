@@ -43,17 +43,20 @@ const mockedLinkGithubInstallationToTenant = vi.mocked(
 const mockedParseInstallState = vi.mocked(parseInstallState);
 
 function getHandler() {
-  const routeOptions = Route.options as {
-    server: {
-      handlers: {
-        GET: (args: { request: Request }) => Promise<Response>;
+  const routeOptions = Route.options as unknown as {
+    server?: {
+      handlers?: {
+        GET?: (args: { request: Request }) => Promise<Response>;
       };
     };
   };
 
-  return routeOptions.server.handlers.GET as (args: {
-    request: Request;
-  }) => Promise<Response>;
+  const handler = routeOptions.server?.handlers?.GET;
+  if (!handler) {
+    throw new Error("Missing GET handler for install callback route.");
+  }
+
+  return handler as (args: { request: Request }) => Promise<Response>;
 }
 
 beforeEach(() => {
