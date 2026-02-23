@@ -31,9 +31,11 @@ exporters:
     verbosity: detailed
   clickhouse:
     endpoint: "http://localhost:8123"
-    username: "default"
-    database: "default"
+    username: "collector_rw"
+    password: "change-me-strong"
+    database: "otel"
     create_schema: false
+    ttl: 72h
 
 service:
   extensions: [basicauth/grafana_cloud]
