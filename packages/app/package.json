@@ -20,6 +20,7 @@
     "@clickhouse/client": "^1.17.0",
     "@fontsource-variable/noto-sans": "^5.2.10",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@octokit/webhooks-methods": "^6.0.0",
     "@radix-ui/themes": "^3.3.0",
     "@t3-oss/env-core": "^0.13.10",
     "@tailwindcss/vite": "^4.1.18",

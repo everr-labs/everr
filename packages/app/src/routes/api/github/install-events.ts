@@ -1,48 +1,91 @@
+import { verify } from "@octokit/webhooks-methods";
 import { createFileRoute } from "@tanstack/react-router";
+import { createMiddleware } from "@tanstack/react-start";
+import { z } from "zod";
 
 import { unlinkGithubInstallation } from "@/data/tenants";
 
-type InstallationEventPayload = {
+const InstallationEventPayloadSchema = z.object({
+  action: z.string().optional(),
+  installation: z
+    .object({
+      id: z.number().int().positive().optional(),
+    })
+    .optional(),
+});
+
+const verifyGithubInstallEventWebhook = createMiddleware().server<{
+  eventType: "installation" | "installation_repositories";
   action?: string;
-  installation?: {
-    id?: number;
-  };
-};
+  installationId: number;
+}>(async ({ request, next }) => {
+  const eventType = request.headers.get("x-github-event") ?? "";
+  if (
+    eventType !== "installation" &&
+    eventType !== "installation_repositories"
+  ) {
+    return new Response("ignored", { status: 202 });
+  }
+
+  const webhookSecret = process.env.GITHUB_APP_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return new Response("missing webhook secret", { status: 500 });
+  }
+
+  const signatureHeader = request.headers.get("x-hub-signature-256");
+  if (!signatureHeader) {
+    return new Response("missing signature", { status: 401 });
+  }
+
+  const body = await request.text();
+  if (!(await verify(webhookSecret, body, signatureHeader))) {
+    return new Response("invalid signature", { status: 401 });
+  }
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(body);
+  } catch {
+    return new Response("invalid json payload", { status: 400 });
+  }
+
+  const parsedPayload = InstallationEventPayloadSchema.safeParse(parsedJson);
+  if (!parsedPayload.success) {
+    return new Response("invalid payload shape", { status: 400 });
+  }
+
+  const installationId = parsedPayload.data.installation?.id;
+  if (!installationId) {
+    return new Response("missing installation.id", { status: 400 });
+  }
+
+  return next({
+    context: {
+      eventType,
+      action: parsedPayload.data.action,
+      installationId,
+    },
+  });
+});
 
 export const Route = createFileRoute("/api/github/install-events")({
   server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const eventType = request.headers.get("x-github-event") ?? "";
-        if (
-          eventType !== "installation" &&
-          eventType !== "installation_repositories"
-        ) {
-          return new Response("ignored", { status: 202 });
-        }
+    handlers: ({ createHandlers }) =>
+      createHandlers({
+        POST: {
+          middleware: [verifyGithubInstallEventWebhook],
+          handler: async ({ context }) => {
+            // Installation lifecycle events that indicate the mapping should be removed.
+            if (
+              context.eventType === "installation" &&
+              context.action === "deleted"
+            ) {
+              await unlinkGithubInstallation(context.installationId);
+            }
 
-        let payload: InstallationEventPayload;
-        try {
-          payload = (await request.json()) as InstallationEventPayload;
-        } catch {
-          return new Response("invalid json payload", { status: 400 });
-        }
-
-        const installationId = payload.installation?.id;
-        if (!installationId) {
-          return new Response("missing installation.id", { status: 400 });
-        }
-
-        // Installation lifecycle events that indicate the mapping should be removed.
-        if (
-          eventType === "installation" &&
-          (payload.action === "deleted" || payload.action === "suspend")
-        ) {
-          await unlinkGithubInstallation(installationId);
-        }
-
-        return new Response(null, { status: 202 });
-      },
-    },
+            return new Response(null, { status: 202 });
+          },
+        },
+      }),
   },
 });

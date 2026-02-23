@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-
 import { db } from "@/db/client";
 import { githubInstallationTenants, tenants } from "@/db/schema";
 
@@ -10,9 +9,7 @@ export class GithubInstallationAlreadyLinkedError extends Error {
   }
 }
 
-export async function ensureTenantForOrganizationId(
-  organizationId: string,
-): Promise<number> {
+export async function ensureTenantForOrganizationId(organizationId: string) {
   await db
     .insert(tenants)
     .values({
@@ -50,7 +47,7 @@ export async function getTenantForOrganizationId(
 export async function linkGithubInstallationToTenant(
   githubInstallationId: number,
   tenantId: number,
-): Promise<void> {
+) {
   const inserted = await db
     .insert(githubInstallationTenants)
     .values({
@@ -87,9 +84,7 @@ export async function linkGithubInstallationToTenant(
   }
 }
 
-export async function unlinkGithubInstallation(
-  githubInstallationId: number,
-): Promise<void> {
+export async function unlinkGithubInstallation(githubInstallationId: number) {
   await db
     .delete(githubInstallationTenants)
     .where(
