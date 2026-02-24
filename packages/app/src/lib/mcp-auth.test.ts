@@ -36,6 +36,10 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
+vi.mock("@/lib/workos", () => ({
+  getWorkOS: vi.fn(),
+}));
+
 vi.mock("@/db/schema", () => ({
   mcpTokens: {
     id: "mcp_tokens.id",
@@ -51,10 +55,22 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
+import { getWorkOS } from "@/lib/workos";
 import { getBearerToken, validateMcpApiKey } from "./mcp-auth";
+
+const listOrganizationMemberships = vi.fn();
+const mockedGetWorkOS = vi.mocked(getWorkOS);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listOrganizationMemberships.mockResolvedValue({
+    data: [{ id: "om_123", status: "active" }],
+  });
+  mockedGetWorkOS.mockReturnValue({
+    userManagement: {
+      listOrganizationMemberships,
+    },
+  } as never);
 });
 
 describe("getBearerToken", () => {
@@ -88,6 +104,7 @@ describe("validateMcpApiKey", () => {
     expect(mocked.select).toHaveBeenCalledTimes(1);
     expect(mocked.selectInnerJoin).toHaveBeenCalledTimes(1);
     expect(mocked.selectWhere).toHaveBeenCalledTimes(1);
+    expect(listOrganizationMemberships).not.toHaveBeenCalled();
   });
 
   it("returns mapped token fields when token is valid", async () => {
@@ -108,5 +125,26 @@ describe("validateMcpApiKey", () => {
       userId: "user_123",
       name: "mcp-server-abcdef12",
     });
+    expect(listOrganizationMemberships).toHaveBeenCalledWith({
+      userId: "user_123",
+      organizationId: "org_123",
+      statuses: ["active"],
+      limit: 1,
+    });
+  });
+
+  it("returns null when user has no active membership in organization", async () => {
+    mocked.selectLimit.mockResolvedValue([
+      {
+        tokenId: 9,
+        tenantId: 77,
+        organizationId: "org_123",
+        userId: "user_123",
+        name: "mcp-server-abcdef12",
+      },
+    ]);
+    listOrganizationMemberships.mockResolvedValue({ data: [] });
+
+    await expect(validateMcpApiKey("ctmcp_valid")).resolves.toBeNull();
   });
 });

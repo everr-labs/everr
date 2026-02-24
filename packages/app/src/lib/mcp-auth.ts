@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { mcpTokens, tenants } from "@/db/schema";
+import { getWorkOS } from "@/lib/workos";
 
 export type ValidMcpApiKey = {
   tokenId: number;
@@ -13,6 +14,32 @@ export type ValidMcpApiKey = {
 
 function hashMcpToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
+}
+
+async function hasOrganizationReadAccess(
+  userId: string,
+  organizationId: string,
+): Promise<boolean> {
+  try {
+    const workos = getWorkOS();
+    const memberships = await workos.userManagement.listOrganizationMemberships(
+      {
+        userId,
+        organizationId,
+        statuses: ["active"],
+        limit: 1,
+      },
+    );
+
+    return memberships.data.length > 0;
+  } catch (error) {
+    console.error("[mcp-auth] org_access_check_failed", {
+      userId,
+      organizationId,
+      error,
+    });
+    return false;
+  }
 }
 
 export function getBearerToken(headers: Headers): string | null {
@@ -51,6 +78,15 @@ export async function validateMcpApiKey(
     .limit(1);
 
   if (!storedToken) {
+    return null;
+  }
+
+  const hasReadAccess = await hasOrganizationReadAccess(
+    storedToken.userId,
+    storedToken.organizationId,
+  );
+
+  if (!hasReadAccess) {
     return null;
   }
 
