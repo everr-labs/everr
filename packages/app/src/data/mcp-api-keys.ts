@@ -1,13 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getAuth } from "@workos/authkit-tanstack-react-start";
-import { z } from "zod";
 import { getWorkOS } from "@/lib/workos";
 
-const CreateMcpApiKeyInputSchema = z.object({});
-
-export const createMcpApiKey = createServerFn({ method: "POST" })
-  .inputValidator(CreateMcpApiKeyInputSchema)
-  .handler(async () => {
+export const createMcpApiKey = createServerFn({ method: "POST" }).handler(
+  async () => {
     const requestId = crypto.randomUUID();
     const auth = await getAuth();
 
@@ -46,4 +42,5 @@ export const createMcpApiKey = createServerFn({ method: "POST" })
         `We couldn't create your MCP API token right now. Please try again. (ref: ${requestId})`,
       );
     }
-  });
+  },
+);

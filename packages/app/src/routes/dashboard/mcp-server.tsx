@@ -42,9 +42,7 @@ function McpServerSetupPage() {
     setIsGenerating(true);
 
     try {
-      const token = await createMcpApiKey({
-        data: {},
-      });
+      const token = await createMcpApiKey();
       setGeneratedToken(token.value);
       setMaskedToken(token.obfuscatedValue);
     } catch (error) {
