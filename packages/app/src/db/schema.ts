@@ -67,3 +67,34 @@ export const githubInstallationTenantRelations = relations(
     }),
   }),
 );
+
+export const mcpTokens = pgTable(
+  "mcp_tokens",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    organizationId: text("organization_id").notNull(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    tokenPrefix: text("token_prefix").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mcp_tokens_token_hash_uq").on(table.tokenHash),
+    index("mcp_tokens_org_user_revoked_created_idx").on(
+      table.organizationId,
+      table.userId,
+      table.revokedAt,
+      table.createdAt,
+    ),
+    index("mcp_tokens_token_prefix_idx").on(table.tokenPrefix),
+  ],
+);

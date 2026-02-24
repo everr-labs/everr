@@ -19,6 +19,7 @@ import { Route as DashboardTestResultsRouteImport } from './routes/dashboard/tes
 import { Route as DashboardTestPerformanceRouteImport } from './routes/dashboard/test-performance'
 import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
 import { Route as DashboardReposRouteImport } from './routes/dashboard/repos'
+import { Route as DashboardMcpServerRouteImport } from './routes/dashboard/mcp-server'
 import { Route as DashboardFlakyTestsRouteImport } from './routes/dashboard/flaky-tests'
 import { Route as DashboardFailuresRouteImport } from './routes/dashboard/failures'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
@@ -90,6 +91,11 @@ const DashboardRunsRoute = DashboardRunsRouteImport.update({
 const DashboardReposRoute = DashboardReposRouteImport.update({
   id: '/repos',
   path: '/repos',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardMcpServerRoute = DashboardMcpServerRouteImport.update({
+  id: '/mcp-server',
+  path: '/mcp-server',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardFlakyTestsRoute = DashboardFlakyTestsRouteImport.update({
@@ -212,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
   '/dashboard/flaky-tests': typeof DashboardFlakyTestsRouteWithChildren
+  '/dashboard/mcp-server': typeof DashboardMcpServerRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
@@ -242,6 +249,7 @@ export interface FileRoutesByTo {
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
+  '/dashboard/mcp-server': typeof DashboardMcpServerRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
   '/dashboard/flaky-tests': typeof DashboardFlakyTestsRouteWithChildren
+  '/dashboard/mcp-server': typeof DashboardMcpServerRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
     | '/dashboard/flaky-tests'
+    | '/dashboard/mcp-server'
     | '/dashboard/repos'
     | '/dashboard/runs'
     | '/dashboard/test-performance'
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/dashboard/analytics'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
+    | '/dashboard/mcp-server'
     | '/dashboard/repos'
     | '/dashboard/test-performance'
     | '/dashboard/test-results'
@@ -367,6 +378,7 @@ export interface FileRouteTypes {
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
     | '/dashboard/flaky-tests'
+    | '/dashboard/mcp-server'
     | '/dashboard/repos'
     | '/dashboard/runs'
     | '/dashboard/test-performance'
@@ -472,6 +484,13 @@ declare module '@tanstack/react-router' {
       path: '/repos'
       fullPath: '/dashboard/repos'
       preLoaderRoute: typeof DashboardReposRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/mcp-server': {
+      id: '/dashboard/mcp-server'
+      path: '/mcp-server'
+      fullPath: '/dashboard/mcp-server'
+      preLoaderRoute: typeof DashboardMcpServerRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/flaky-tests': {
@@ -672,6 +691,7 @@ interface DashboardRouteChildren {
   DashboardCostAnalysisRoute: typeof DashboardCostAnalysisRoute
   DashboardFailuresRoute: typeof DashboardFailuresRoute
   DashboardFlakyTestsRoute: typeof DashboardFlakyTestsRouteWithChildren
+  DashboardMcpServerRoute: typeof DashboardMcpServerRoute
   DashboardReposRoute: typeof DashboardReposRoute
   DashboardRunsRoute: typeof DashboardRunsRouteWithChildren
   DashboardTestPerformanceRoute: typeof DashboardTestPerformanceRoute
@@ -688,6 +708,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCostAnalysisRoute: DashboardCostAnalysisRoute,
   DashboardFailuresRoute: DashboardFailuresRoute,
   DashboardFlakyTestsRoute: DashboardFlakyTestsRouteWithChildren,
+  DashboardMcpServerRoute: DashboardMcpServerRoute,
   DashboardReposRoute: DashboardReposRoute,
   DashboardRunsRoute: DashboardRunsRouteWithChildren,
   DashboardTestPerformanceRoute: DashboardTestPerformanceRoute,
