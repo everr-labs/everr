@@ -240,23 +240,9 @@ bearer_token_env_var = "${tokenForInstructions}"`}
                 </TabsContent>
 
                 <TabsContent value="claude" className="space-y-2">
-                  <p className="text-muted-foreground text-xs">
-                    Add this to <code>.mcp.json</code> at your project root.
-                  </p>
                   <pre className="overflow-auto rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs">
-                    {JSON.stringify(
-                      {
-                        citric: {
-                          type: "http",
-                          url: mcpEndpoint,
-                          headers: {
-                            Authorization: `Bearer ${tokenForInstructions}`,
-                          },
-                        },
-                      },
-                      null,
-                      2,
-                    )}
+                    {`claude mcp add --transport http citric ${mcpEndpoint} \\
+  --header "Authorization: Bearer ${tokenForInstructions}"`}
                   </pre>
                 </TabsContent>
               </Tabs>
