@@ -200,7 +200,7 @@ function McpServerSetupPage() {
                   <pre className="overflow-auto rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs">
                     {`[mcp_servers.citric]
 url = "${mcpEndpoint}"
-bearer_token = "${tokenForInstructions}"`}
+bearer_token_env_var = "${tokenForInstructions}"`}
                   </pre>
                 </TabsContent>
 
