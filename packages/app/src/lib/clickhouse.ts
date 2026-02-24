@@ -11,11 +11,10 @@ export const clickhouse = createClient({
   database: env.CLICKHOUSE_DATABASE,
 });
 
-async function resolveOrganizationIdForQuery() {
-  const organizationIdFromContext =
-    getRequestContextFromStartContext()?.organizationId;
-  if (organizationIdFromContext) {
-    return organizationIdFromContext;
+async function resolveTenantIdForQuery() {
+  const tenantIdFromContext = getRequestContextFromStartContext()?.tenantId;
+  if (tenantIdFromContext) {
+    return tenantIdFromContext;
   }
 
   const auth = await getAuth();
@@ -25,26 +24,24 @@ async function resolveOrganizationIdForQuery() {
     );
   }
 
-  return auth.organizationId;
+  const tenantId = await getTenantForOrganizationId(auth.organizationId);
+  if (tenantId === null) {
+    throw new Error("No tenant mapping found for authenticated organization.");
+  }
+
+  return tenantId;
 }
 
 export async function query<T>(
   sql: string,
   params?: Record<string, unknown>,
 ): Promise<T[]> {
-  const organizationId = await resolveOrganizationIdForQuery();
-
-  const tenantId = await getTenantForOrganizationId(organizationId);
-  if (tenantId === null) {
-    throw new Error("No tenant mapping found for authenticated organization.");
-  }
-
   const result = await clickhouse.query({
     query: sql,
     query_params: params,
     format: "JSONEachRow",
     clickhouse_settings: {
-      SQL_citric_tenant_id: tenantId,
+      SQL_citric_tenant_id: await resolveTenantIdForQuery(),
     },
   });
 
