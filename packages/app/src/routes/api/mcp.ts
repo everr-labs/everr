@@ -32,12 +32,12 @@ const tokenAuthMiddleware = createMiddleware({ type: "request" }).server(
     setRequestContextInStartContext({
       organizationId: validatedApiKey.organizationId,
       userId: validatedApiKey.userId,
+      tenantId: validatedApiKey.tenantId,
     });
 
     return next({
       context: {
-        organizationId: validatedApiKey.organizationId,
-        userId: validatedApiKey.userId,
+        apiKey: validatedApiKey,
       },
     });
   },

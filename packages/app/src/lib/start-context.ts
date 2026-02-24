@@ -1,14 +1,15 @@
 import { getGlobalStartContext } from "@tanstack/react-start";
 
 type CitricRequestContext = {
-  organizationId?: string;
-  userId?: string;
+  organizationId: string;
+  userId: string;
+  tenantId: number;
 };
 
 type CitricGlobalStartContext = {
   organizationId?: string;
   userId?: string;
-  contextAfterGlobalMiddlewares?: CitricRequestContext;
+  tenantId?: number;
 };
 
 function getStartContextOrNull() {
@@ -27,10 +28,7 @@ export function setRequestContextInStartContext(context: CitricRequestContext) {
 
   startContext.organizationId = context.organizationId;
   startContext.userId = context.userId;
-  startContext.contextAfterGlobalMiddlewares = {
-    ...(startContext.contextAfterGlobalMiddlewares ?? {}),
-    ...context,
-  };
+  startContext.tenantId = context.tenantId;
 }
 
 export function getRequestContextFromStartContext(): CitricRequestContext | null {
@@ -39,15 +37,13 @@ export function getRequestContextFromStartContext(): CitricRequestContext | null
     return null;
   }
 
-  const organizationId =
-    startContext.organizationId ??
-    startContext.contextAfterGlobalMiddlewares?.organizationId;
-  const userId =
-    startContext.userId ?? startContext.contextAfterGlobalMiddlewares?.userId;
+  const organizationId = startContext.organizationId;
+  const userId = startContext.userId;
+  const tenantId = startContext.tenantId;
 
-  if (!organizationId && !userId) {
+  if (!organizationId || !userId || !tenantId) {
     return null;
   }
 
-  return { organizationId, userId };
+  return { organizationId, userId, tenantId };
 }

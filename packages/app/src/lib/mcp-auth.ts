@@ -1,14 +1,19 @@
-import { getWorkOS } from "@/lib/workos";
-
-const MCP_API_KEY_NAME_PREFIX = "mcp-server-user-";
+import { createHash } from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
+import { db } from "@/db/client";
+import { mcpTokens, tenants } from "@/db/schema";
 
 export type ValidMcpApiKey = {
-  id: string;
+  tokenId: number;
+  tenantId: number;
   organizationId: string;
   userId: string;
   name: string;
-  permissions: string[];
 };
+
+function hashMcpToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export function getBearerToken(headers: Headers): string | null {
   const authorization = headers.get("authorization");
@@ -31,34 +36,23 @@ export async function validateMcpApiKey(
     return null;
   }
 
-  const workos = getWorkOS();
-  const { apiKey } = await workos.apiKeys.validateApiKey({
-    value: token,
-  });
+  const tokenHash = hashMcpToken(token);
+  const [storedToken] = await db
+    .select({
+      tokenId: mcpTokens.id,
+      tenantId: tenants.id,
+      organizationId: mcpTokens.organizationId,
+      userId: mcpTokens.userId,
+      name: mcpTokens.name,
+    })
+    .from(mcpTokens)
+    .innerJoin(tenants, eq(tenants.externalId, mcpTokens.organizationId))
+    .where(and(eq(mcpTokens.tokenHash, tokenHash), isNull(mcpTokens.revokedAt)))
+    .limit(1);
 
-  if (!apiKey) {
+  if (!storedToken) {
     return null;
   }
 
-  if (!apiKey.name.startsWith(MCP_API_KEY_NAME_PREFIX)) {
-    return null;
-  }
-
-  const suffix = apiKey.name.slice(MCP_API_KEY_NAME_PREFIX.length);
-  const lastDash = suffix.lastIndexOf("-");
-  if (lastDash <= 0) {
-    return null;
-  }
-  const userId = suffix.slice(0, lastDash);
-  if (!userId) {
-    return null;
-  }
-
-  return {
-    id: apiKey.id,
-    organizationId: apiKey.owner.id,
-    userId,
-    name: apiKey.name,
-    permissions: apiKey.permissions,
-  };
+  return storedToken;
 }
