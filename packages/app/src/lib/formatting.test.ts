@@ -165,4 +165,22 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime("2025-01-01T12:00:00Z")).toBe("2d ago");
     vi.useRealTimers();
   });
+
+  it("treats timezone-less ClickHouse timestamps as UTC", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T12:05:00Z"));
+    expect(formatRelativeTime("2025-01-01 12:00:00")).toBe("5m ago");
+    vi.useRealTimers();
+  });
+
+  it("treats timezone-less ISO timestamps as UTC", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T12:05:00Z"));
+    expect(formatRelativeTime("2025-01-01T12:00:00")).toBe("5m ago");
+    vi.useRealTimers();
+  });
+
+  it("returns a safe placeholder for invalid timestamps", () => {
+    expect(formatRelativeTime("not-a-date")).toBe("—");
+  });
 });

@@ -74,10 +74,27 @@ export function testNameLastSegment(name: string): string {
   return name.split(testNameSeparator(name)).pop() ?? name;
 }
 
+function parseTimestampAsUTC(timestamp: string): Date {
+  // ClickHouse often returns "YYYY-MM-DD HH:mm:ss[.sss]" without timezone.
+  // Treat timezone-less timestamps as UTC to avoid client-local drift.
+  const normalized = timestamp.trim();
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized);
+  if (hasTimezone) return new Date(normalized);
+
+  const isoLike = normalized.includes("T")
+    ? normalized
+    : normalized.replace(" ", "T");
+  return new Date(`${isoLike}Z`);
+}
+
 export function formatRelativeTime(timestamp: string): string {
-  const date = new Date(timestamp);
+  const date = parseTimestampAsUTC(timestamp);
+  if (Number.isNaN(date.getTime())) return "—";
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return "just now";
+
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "just now";
   if (diffMins < 60) return `${diffMins}m ago`;
