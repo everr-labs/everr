@@ -36,8 +36,8 @@ export interface LogEntry {
   body: string;
 }
 
-const DEFAULT_FAILING_CONTEXT_WINDOW = 5;
-const DEFAULT_RAW_TAIL_LINES = 1000;
+const DEFAULT_FAILING_CONTEXT_WINDOW = 50;
+const DEFAULT_RAW_TAIL_LINES = 5000;
 
 export function isFailureConclusion(conclusion: string): boolean {
   const normalized = conclusion.trim().toLowerCase();
@@ -134,6 +134,7 @@ export function buildFailingStepLogsSql(): string {
 					(
 						match(Body, '(?i)^##\\\\[error\\\\]')
 						OR positionCaseInsensitive(Body, 'exception') > 0
+						OR positionCaseInsensitive(Body, 'error') > 0
 						OR positionCaseInsensitive(Body, 'traceback') > 0
 						OR positionCaseInsensitive(Body, 'timeout') > 0
 						OR positionCaseInsensitive(Body, 'timed out') > 0
@@ -177,7 +178,15 @@ export function buildFailingStepLogsSql(): string {
 		SELECT
 			timestamp,
 			body
-		FROM failing
+		FROM (
+			SELECT
+				timestamp,
+				body,
+				line_no
+			FROM failing
+			ORDER BY line_no DESC
+			LIMIT ${DEFAULT_RAW_TAIL_LINES}
+		)
 		ORDER BY line_no ASC
 	`;
 }
@@ -448,7 +457,7 @@ export const getStepLogs = createServerFn({
       traceId: data.traceId,
       jobName: data.jobName,
       stepNumber: data.stepNumber,
-      maxLines: DEFAULT_RAW_TAIL_LINES,
+      maxLines: data.fullLogs ? undefined : DEFAULT_RAW_TAIL_LINES,
       useTail: true,
     });
   });
@@ -612,7 +621,7 @@ export const stepLogsOptions = (input: {
       input.jobName,
       input.stepNumber,
     ],
-    queryFn: () => getStepLogs({ data: input }),
+    queryFn: () => getStepLogs({ data: { ...input, fullLogs: true } }),
     staleTime: 60_000,
   });
 

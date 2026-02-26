@@ -9,24 +9,6 @@ import {
 import { getRunsList } from "@/data/runs-list";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 
-const FAILED_CONCLUSIONS = new Set(["failure", "failed"]);
-
-interface FailingStepWithLogs {
-  jobId: string;
-  jobName: string;
-  stepNumber: string;
-  stepName: string;
-  conclusion: string;
-  logs: string;
-}
-
-function isFailedConclusion(value?: string): boolean {
-  if (!value) {
-    return false;
-  }
-  return FAILED_CONCLUSIONS.has(value.trim().toLowerCase());
-}
-
 function resolveInputTimeRange(args: { from?: string; to?: string }) {
   return {
     from: args.from ?? DEFAULT_TIME_RANGE.from,
@@ -35,101 +17,6 @@ function resolveInputTimeRange(args: { from?: string; to?: string }) {
 }
 
 export function registerRunsTools(server: McpServer) {
-  server.registerTool(
-    "get_last_failing_ci",
-    {
-      description:
-        "Get the most recent failing CI/CD pipeline run along with the failing steps and their logs. Optionally filter by branch.",
-      inputSchema: {
-        branch: z.string().optional().describe("Filter by branch name."),
-      },
-    },
-    async (args) => {
-      const result = await getRunsList({
-        data: {
-          timeRange: resolveInputTimeRange({}),
-          page: 1,
-          pageSize: 1,
-          branch: args.branch,
-          conclusion: "failure",
-        },
-      });
-
-      const run = result.runs[0];
-      if (!run) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({ run: null, failingSteps: [] }),
-            },
-          ],
-        };
-      }
-
-      const jobs = await getRunJobs({ data: run.traceId });
-      const failingJobs = jobs.filter((job) =>
-        isFailedConclusion(job.conclusion),
-      );
-      const stepsByJobId =
-        failingJobs.length > 0
-          ? await getAllJobsSteps({
-              data: {
-                traceId: run.traceId,
-                jobIds: failingJobs.map((job) => job.jobId),
-              },
-            })
-          : {};
-
-      const failingSteps: FailingStepWithLogs[] = [];
-      for (const job of failingJobs) {
-        const jobSteps = stepsByJobId[job.jobId] ?? [];
-        const failedJobSteps = jobSteps.filter((step) =>
-          isFailedConclusion(step.conclusion),
-        );
-
-        for (const step of failedJobSteps) {
-          const logs = await getStepLogs({
-            data: {
-              traceId: run.traceId,
-              jobName: job.name,
-              stepNumber: step.stepNumber,
-            },
-          });
-
-          failingSteps.push({
-            jobId: job.jobId,
-            jobName: job.name,
-            stepNumber: step.stepNumber,
-            stepName: step.name,
-            conclusion: step.conclusion,
-            logs: logs.map((line) => line.body).join("\n"),
-          });
-        }
-      }
-
-      if (failingSteps.length === 1) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({ ...run, ...failingSteps[0] }),
-            },
-          ],
-        };
-      }
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({ run, failingSteps }),
-          },
-        ],
-      };
-    },
-  );
-
   server.registerTool(
     "list_runs",
     {
