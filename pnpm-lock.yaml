@@ -125,9 +125,6 @@ importers:
       simple-icons:
         specifier: ^16.9.0
         version: 16.9.0
-      srvx:
-        specifier: ^0.11.7
-        version: 0.11.7
       tailwind-merge:
         specifier: ^3.4.1
         version: 3.4.1
