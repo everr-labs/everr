@@ -7,6 +7,7 @@ COPY . .
 RUN apk --update add --no-cache git make bash ca-certificates
 
 RUN make build
+RUN rm -rf /tmp-empty && mkdir /tmp-empty
 
 # STAGE 2 - final image
 FROM scratch
@@ -17,6 +18,7 @@ ARG UID=10001
 USER ${UID}
 
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build --chmod=1777 /tmp-empty /tmp
 COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/citric-collector
 
 ENTRYPOINT ["/usr/bin/citric-collector"]
