@@ -7,20 +7,17 @@ COPY . .
 RUN apk --update add --no-cache git make bash ca-certificates
 
 RUN make build
-RUN rm -rf /tmp-empty && mkdir /tmp-empty
 
 # STAGE 2 - final image
-FROM scratch
+FROM alpine:3.23
 
 ARG BIN_PATH=/collector/build/citric-collector
-
 ARG UID=10001
-COPY --from=build --chmod=1777 /tmp-empty /tmp
 
-USER ${UID}
-
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN adduser -D -u ${UID} collector
 COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/citric-collector
+
+USER collector
 
 ENTRYPOINT ["/usr/bin/citric-collector"]
 CMD ["--config=/etc/citric-collector/config.yaml"]
