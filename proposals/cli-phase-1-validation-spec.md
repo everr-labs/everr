@@ -9,8 +9,8 @@ Phase 1 includes:
 1. Representative command subset (not full MCP parity).
 2. Global assistant integration (user-level, not repo-level) for Codex, Claude, Cursor.
 3. Pull-based failure notifications via background daemon.
-4. `citric install` interactive wizard.
-5. `citric auth logout`.
+4. `everr install` interactive wizard.
+5. `everr auth logout`.
 
 ## Goals and Success Criteria
 
@@ -22,7 +22,7 @@ Phase 1 includes:
 
 ## Public Interfaces and Command Surface (Phase 1)
 
-### `citric install` (interactive-only)
+### `everr install` (interactive-only)
 
 1. Detect auth session and start login if none is active.
 2. Prompt user to choose one or more assistants (Codex, Claude, Cursor).
@@ -31,26 +31,26 @@ Phase 1 includes:
 
 ### Auth commands
 
-1. `citric auth login`
-2. `citric auth logout`
+1. `everr auth login`
+2. `everr auth logout`
 
 ### Core commands
 
-1. `citric context`
-2. `citric status`
-3. `citric runs list`
-4. `citric runs show --trace-id <id>`
-5. `citric runs logs --trace-id <id> --job-name <name> --step-number <n> [--full]`
-6. `citric assistant init --assistant codex|claude|cursor|all`
-7. `citric notify daemon|status`
+1. `everr context`
+2. `everr status`
+3. `everr runs list`
+4. `everr runs show --trace-id <id>`
+5. `everr runs logs --trace-id <id> --job-name <name> --step-number <n> [--full]`
+6. `everr assistant init --assistant codex|claude|cursor|all`
+7. `everr notify daemon|status`
 
 ## Global Assistant Integration (Updated Requirement)
 
 1. Integration scope is user-level only; no repository file writes for assistant wiring.
 2. CLI updates global assistant config/rules in each assistant's standard user path.
-3. `citric assistant init` is idempotent and preserves unrelated user customizations.
-4. `citric install` invokes the same assistant integration flow from wizard selections.
-5. Assistants invoke `citric` from the current working directory; CLI resolves repo and branch at runtime.
+3. `everr assistant init` is idempotent and preserves unrelated user customizations.
+4. `everr install` invokes the same assistant integration flow from wizard selections.
+5. Assistants invoke `everr` from the current working directory; CLI resolves repo and branch at runtime.
 
 ## Logout Behavior
 
@@ -121,7 +121,7 @@ Phase 1 includes:
 ## Assumptions and Defaults
 
 1. Phase 1 is validation-first, not full MCP replacement.
-2. `citric install` is the recommended onboarding path.
-3. `citric install` is interactive-only in phase 1.
+2. `everr install` is the recommended onboarding path.
+3. `everr install` is interactive-only in phase 1.
 4. Assistant integration is strictly global in phase 1.
 5. Rust implementation should avoid unnecessary `.clone()` while preserving thread safety.
