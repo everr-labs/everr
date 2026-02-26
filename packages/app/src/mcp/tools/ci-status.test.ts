@@ -11,6 +11,9 @@ vi.mock("@/data/runs-list", () => ({
 
 vi.mock("node:child_process", () => ({
   execFileSync: mocked.execFileSync,
+  default: {
+    execFileSync: mocked.execFileSync,
+  },
 }));
 
 import { registerBranchStatusTools } from "./ci-status";
