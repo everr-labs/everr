@@ -19,20 +19,25 @@ function resolveInputTimeRange(args: { from?: string; to?: string }) {
 }
 
 export function registerWorkflowsTools(server: McpServer) {
-  server.tool(
+  server.registerTool(
     "get_workflow_details",
-    "Get comprehensive analysis of a specific workflow: stats with previous period comparison, success rate and duration trends, top failing jobs, failure reasons, estimated cost, and recent runs. Requires workflowName and repo.",
     {
-      from: z
-        .string()
-        .optional()
-        .describe("Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'."),
-      to: z
-        .string()
-        .optional()
-        .describe("End of time range. Defaults to 'now'."),
-      workflowName: z.string().describe("The workflow name to analyze."),
-      repo: z.string().describe("The repository (e.g. 'owner/repo')."),
+      description:
+        "Get comprehensive analysis of a specific workflow: stats with previous period comparison, success rate and duration trends, top failing jobs, failure reasons, estimated cost, and recent runs. Requires workflowName and repo.",
+      inputSchema: {
+        from: z
+          .string()
+          .optional()
+          .describe(
+            "Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'.",
+          ),
+        to: z
+          .string()
+          .optional()
+          .describe("End of time range. Defaults to 'now'."),
+        workflowName: z.string().describe("The workflow name to analyze."),
+        repo: z.string().describe("The repository (e.g. 'owner/repo')."),
+      },
     },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);

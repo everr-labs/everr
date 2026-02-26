@@ -16,18 +16,23 @@ function resolveInputTimeRange(args: { from?: string; to?: string }) {
 }
 
 export function registerCostsTools(server: McpServer) {
-  server.tool(
+  server.registerTool(
     "get_cost_analysis",
-    "Get CI/CD cost breakdown: total estimated cost, cost by OS and runner tier, daily cost trend, cost per repository, and cost per workflow. Useful for identifying cost optimization opportunities.",
     {
-      from: z
-        .string()
-        .optional()
-        .describe("Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'."),
-      to: z
-        .string()
-        .optional()
-        .describe("End of time range. Defaults to 'now'."),
+      description:
+        "Get CI/CD cost breakdown: total estimated cost, cost by OS and runner tier, daily cost trend, cost per repository, and cost per workflow. Useful for identifying cost optimization opportunities.",
+      inputSchema: {
+        from: z
+          .string()
+          .optional()
+          .describe(
+            "Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'.",
+          ),
+        to: z
+          .string()
+          .optional()
+          .describe("End of time range. Defaults to 'now'."),
+      },
     },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);
@@ -52,18 +57,23 @@ export function registerCostsTools(server: McpServer) {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_runner_utilization",
-    "Get runner performance metrics: number of jobs, average duration, and success rate per runner label. Useful for identifying underperforming or overloaded runners.",
     {
-      from: z
-        .string()
-        .optional()
-        .describe("Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'."),
-      to: z
-        .string()
-        .optional()
-        .describe("End of time range. Defaults to 'now'."),
+      description:
+        "Get runner performance metrics: number of jobs, average duration, and success rate per runner label. Useful for identifying underperforming or overloaded runners.",
+      inputSchema: {
+        from: z
+          .string()
+          .optional()
+          .describe(
+            "Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'.",
+          ),
+        to: z
+          .string()
+          .optional()
+          .describe("End of time range. Defaults to 'now'."),
+      },
     },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);

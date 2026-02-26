@@ -30,10 +30,13 @@ function resolveInputTimeRange(args: { from?: string; to?: string }) {
 }
 
 export function registerOverviewTools(server: McpServer) {
-  server.tool(
+  server.registerTool(
     "get_dashboard_overview",
-    "Get high-level CI/CD health metrics: total runs, success/failure/cancelled counts, success rate, average and p95 durations, and list of repositories. This is the best starting point to understand overall CI/CD health.",
-    timeRangeParams,
+    {
+      description:
+        "Get high-level CI/CD health metrics: total runs, success/failure/cancelled counts, success rate, average and p95 durations, and list of repositories. This is the best starting point to understand overall CI/CD health.",
+      inputSchema: timeRangeParams,
+    },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);
       const [stats, duration, repos] = await Promise.all([
@@ -53,10 +56,13 @@ export function registerOverviewTools(server: McpServer) {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_top_failures",
-    "Get the top 5 failing jobs and top 5 failing workflows. Useful for identifying the most problematic areas in your CI/CD pipeline.",
-    timeRangeParams,
+    {
+      description:
+        "Get the top 5 failing jobs and top 5 failing workflows. Useful for identifying the most problematic areas in your CI/CD pipeline.",
+      inputSchema: timeRangeParams,
+    },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);
       const [jobs, workflows] = await Promise.all([
