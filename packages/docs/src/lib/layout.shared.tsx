@@ -7,12 +7,12 @@ export function baseOptions(): BaseLayoutProps {
       title: (
         <span className="flex items-center gap-1.5 font-semibold">
           <Citrus className="size-5" />
-          Citric
+          Everr
         </span>
       ),
       url: "/",
     },
-    githubUrl: "https://github.com/citric-app/citric",
+    githubUrl: "https://app.everr.dev",
     links: [
       {
         text: "Documentation",

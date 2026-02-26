@@ -1,9 +1,9 @@
 ---
 title: MCP Server
-description: Expose Citric data to AI coding assistants via the Model Context Protocol.
+description: Expose Everr data to AI coding assistants via the Model Context Protocol.
 ---
 
-Citric includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that exposes CI/CD observability data as tools for AI coding assistants. This enables agents in Claude Code, Cursor, and other MCP-compatible clients to query pipeline health, diagnose failures, analyze test flakiness, and more — directly from your IDE.
+Everr includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that exposes CI/CD observability data as tools for AI coding assistants. This enables agents in Claude Code, Cursor, and other MCP-compatible clients to query pipeline health, diagnose failures, analyze test flakiness, and more — directly from your IDE.
 
 ## Endpoint
 
@@ -18,13 +18,13 @@ It implements the [Streamable HTTP transport](https://modelcontextprotocol.io/sp
 ## Configuration
 
 ### Claude Code
-To connect Claude Code to your Citric MCP server:
+To connect Claude Code to your Everr MCP server:
 
 ```sh
-claude mcp add citric --transport http http://localhost:5173/api/mcp
+claude mcp add everr --transport http http://localhost:5173/api/mcp
 ```
 
-Replace `localhost:5173` with your Citric deployment URL if running remotely.
+Replace `localhost:5173` with your Everr deployment URL if running remotely.
 
 ## Available Tools
 
@@ -85,4 +85,4 @@ Once configured, you can ask your AI assistant questions like:
 - "How much are we spending on CI runners?"
 - "Are there any performance regressions in our pipeline?"
 
-The assistant will automatically call the appropriate Citric MCP tools to answer these questions.
+The assistant will automatically call the appropriate Everr MCP tools to answer these questions.
