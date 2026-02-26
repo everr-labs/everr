@@ -23,7 +23,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
-COPY --from=build /app/packages/app/dist ./dist
+COPY --from=build /app/packages/app/.output ./.output
 EXPOSE 3000
 USER nodejs
-CMD ["node", "dist/server/server.js"]
+CMD ["node", ".output/server/index.mjs"]
