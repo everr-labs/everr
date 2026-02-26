@@ -607,20 +607,6 @@ function Home() {
         className="pointer-events-none absolute inset-0 docs-grid-bg"
         aria-hidden
       />
-      <motion.div
-        className="pointer-events-none absolute left-1/2 top-[-220px] h-[520px] w-[520px] -translate-x-1/2 rounded-full docs-radial-glow"
-        animate={shouldReduceMotion ? undefined : { scale: [1, 1.06, 1] }}
-        transition={
-          shouldReduceMotion
-            ? undefined
-            : {
-                duration: 10,
-                repeat: Number.POSITIVE_INFINITY,
-                ease: "easeInOut",
-              }
-        }
-        aria-hidden
-      />
 
       <main className="relative mx-auto flex max-w-6xl flex-col px-4 pb-24 pt-14 sm:pt-20">
         <motion.section
