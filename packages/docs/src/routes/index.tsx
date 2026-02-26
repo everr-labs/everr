@@ -779,6 +779,75 @@ function Home() {
           {...reveal}
           className="mb-20"
         >
+          <motion.div variants={fadeUp} className="mb-7">
+            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Core features
+            </h2>
+            <p className="mt-3 max-w-3xl text-fd-muted-foreground">
+              Start with the hosted dashboard, connect your assistant through
+              MCP, and automate workflows with the CLI.
+            </p>
+          </motion.div>
+          <motion.div
+            variants={staggerContainer}
+            className="grid gap-4 md:grid-cols-3"
+          >
+            {[
+              {
+                title: "Dashboard",
+                detail:
+                  "Monitor CI/CD health, investigate failures, and track regressions from one UI.",
+                to: "app/getting-started",
+                cta: "Open dashboard docs",
+              },
+              {
+                title: "MCP server",
+                detail:
+                  "Expose telemetry tools to AI agents so they can query and diagnose pipelines in your editor.",
+                to: "mcp/getting-started",
+                cta: "Open MCP docs",
+              },
+              {
+                title: "CLI",
+                detail:
+                  "Use terminal-first workflows for setup, automation, and CI observability tasks.",
+                to: "cli/coming-soon",
+                cta: "Open CLI docs",
+                comingSoon: true,
+              },
+            ].map((feature) => (
+              <motion.div key={feature.title} variants={fadeUp}>
+                <SurfaceCard className="group h-full border-fd-border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">{feature.title}</h3>
+                    {feature.comingSoon ? (
+                      <span className="inline-flex items-center rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                        Coming soon
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">
+                    {feature.detail}
+                  </p>
+                  <Link
+                    to="/docs/$"
+                    params={{ _splat: feature.to }}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-everr-deep/25 bg-everr/8 px-2.5 py-1 text-sm font-semibold text-everr-deep transition-colors group-hover:bg-everr/12"
+                  >
+                    {feature.cta}
+                    <ArrowRight className="size-3.5" />
+                  </Link>
+                </SurfaceCard>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.section>
+
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-20"
+        >
           <motion.div variants={fadeUp} className="mb-8">
             <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
               Built for high-tempo engineering teams
