@@ -16,12 +16,12 @@ vi.mock("node:child_process", () => ({
 import { registerBranchStatusTools } from "./ci-status";
 
 function createServerMock() {
-  const handlers = new Map<string, (...args: any[]) => Promise<any>>();
+  const handlers = new Map<string, (...args: unknown[]) => Promise<unknown>>();
   const server = {
     registerTool: vi.fn((name: string, ...rest: unknown[]) => {
       const handler = rest[rest.length - 1];
       if (typeof handler === "function") {
-        handlers.set(name, handler as (...args: any[]) => Promise<any>);
+        handlers.set(name, handler as (...args: unknown[]) => Promise<unknown>);
       }
     }),
   };
@@ -121,7 +121,10 @@ describe("registerBranchStatusTools", () => {
       .mockResolvedValueOnce({ runs: [], totalCount: 0 });
 
     const handler = handlers.get("ci_status");
-    const result = await handler?.({ repo: "acme/citric", branch: "feature/x" });
+    const result = await handler?.({
+      repo: "acme/citric",
+      branch: "feature/x",
+    });
     const payload = JSON.parse(result?.content?.[0]?.text ?? "{}");
 
     expect(payload.status).toBe("attention");

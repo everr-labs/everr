@@ -1,5 +1,5 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { execFileSync } from "node:child_process";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getRunsList } from "@/data/runs-list";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
@@ -12,7 +12,9 @@ interface ResolvedBranchContext {
   gitRoot?: string;
 }
 
-function normalizeBranchName(rawBranch: string | undefined): string | undefined {
+function normalizeBranchName(
+  rawBranch: string | undefined,
+): string | undefined {
   if (!rawBranch) {
     return undefined;
   }
@@ -22,7 +24,9 @@ function normalizeBranchName(rawBranch: string | undefined): string | undefined 
   return rawBranch;
 }
 
-function parseRepoFromRemoteUrl(remoteUrl: string | undefined): string | undefined {
+function parseRepoFromRemoteUrl(
+  remoteUrl: string | undefined,
+): string | undefined {
   if (!remoteUrl) {
     return undefined;
   }
@@ -166,7 +170,7 @@ export function registerBranchStatusTools(server: McpServer) {
     "ci_status",
     {
       description:
-        "Analyze recent CI runs for a branch: report failing pipelines, detect slowdown versus recent and older runs on main, or confirm healthy status with the latest pipeline duration.",
+        "Check CI status for a branch by scanning recent runs: report failing pipelines, detect slowdown versus recent and older successful runs on main, or confirm healthy status with the latest pipeline duration. If repo/branch are omitted, it resolves them from local Git.",
       inputSchema: {
         repo: z
           .string()
@@ -309,8 +313,12 @@ export function registerBranchStatusTools(server: McpServer) {
           timestamp: run.timestamp,
         }));
 
-      const mainRecentDurations = mainRecentResult.runs.map((run) => run.duration);
-      const mainOlderDurations = mainOlderResult.runs.map((run) => run.duration);
+      const mainRecentDurations = mainRecentResult.runs.map(
+        (run) => run.duration,
+      );
+      const mainOlderDurations = mainOlderResult.runs.map(
+        (run) => run.duration,
+      );
 
       const mainRecentAvg = average(mainRecentDurations);
       const mainOlderAvg = average(mainOlderDurations);
@@ -328,7 +336,8 @@ export function registerBranchStatusTools(server: McpServer) {
         slowdownVsRecentPct !== null &&
         slowdownVsRecentPct >= slowdownThresholdPct;
       const isSlowComparedToOlder =
-        slowdownVsOlderPct !== null && slowdownVsOlderPct >= slowdownThresholdPct;
+        slowdownVsOlderPct !== null &&
+        slowdownVsOlderPct >= slowdownThresholdPct;
 
       const slowdownDetected = isSlowComparedToRecent || isSlowComparedToOlder;
       const status =
