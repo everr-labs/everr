@@ -50,5 +50,17 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Generate migrations
+        run: |
+          DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mock" pnpm -C packages/app db:generate
+
+      - name: Ensure no unstaged/changed files
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "❌ Uncommitted migrations. run 'pnpm db:generate' and commit the changes."
+            git status --porcelain
+            git diff
+            exit 1
+          fi
       - name: Build
         run: pnpm -C packages/app build
