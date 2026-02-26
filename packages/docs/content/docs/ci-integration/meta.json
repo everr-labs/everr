@@ -1,4 +1,0 @@
-{
-  "title": "CI Integration",
-  "pages": ["index", "github-actions", "gitlab-ci"]
-}

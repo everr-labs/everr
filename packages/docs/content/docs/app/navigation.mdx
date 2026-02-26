@@ -1,0 +1,28 @@
+---
+title: App Navigation
+description: Map dashboard sections to common CI/CD questions.
+---
+
+Citric organizes CI/CD analysis into focused dashboard areas.
+
+## Main sections
+
+- **Overview** (`/dashboard`): high-level health, success rate, recent runs, top failing jobs/workflows.
+- **Runs** (`/dashboard/runs`): search and filter individual workflow runs.
+- **Analytics** (`/dashboard/analytics`): performance trends across workflows.
+- **Cost Analysis** (`/dashboard/cost-analysis`): estimated CI cost by OS, runner, repo, and workflow.
+- **Failures** (`/dashboard/failures`): recurring failure patterns and failure trends.
+- **Flaky Tests** (`/dashboard/flaky-tests`): unstable tests with failure rates and history.
+- **Test Results** (`/dashboard/test-results`): aggregate test health and slow tests.
+- **Repositories** (`/dashboard/repos`): repository-level CI insights.
+- **Workflows** (`/dashboard/workflows`): workflow-specific metrics and recent runs.
+- **MCP Server** (`/dashboard/mcp-server`): token generation and assistant client setup.
+
+## Recommended usage pattern
+
+1. Start at **Overview** for current health.
+2. Jump to **Runs** or **Failures** when regressions appear.
+3. Use **Flaky Tests** and **Test Results** for test reliability work.
+4. Use **Cost Analysis** to spot expensive pipelines.
+
+For hands-on triage flows, see [App Workflows](/docs/app/workflows).
