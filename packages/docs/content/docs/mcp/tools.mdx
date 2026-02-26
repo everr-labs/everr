@@ -12,8 +12,7 @@ All tools accept optional `from` and `to` time filters (for example, `now-7d`, `
 
 ## Runs
 
-- `prepare_ci_status`: resolve repo/branch from local git before branch checks.
-- `ci_status`: branch health check for failures, slowdown vs main baselines, or healthy latest duration.
+- `ci_status`: scans recent branch runs to report failures, detect slowdown vs recent/older successful runs on main, or confirm healthy status with the latest duration (resolves repo/branch from local git when omitted).
 - `list_runs`: filter runs by repo, branch, conclusion, workflow, or run ID.
 - `get_run_details`: full run hierarchy for a trace ID.
 - `get_step_logs`: logs for a specific job step.
