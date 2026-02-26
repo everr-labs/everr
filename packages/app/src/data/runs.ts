@@ -36,6 +36,161 @@ export interface LogEntry {
   body: string;
 }
 
+const DEFAULT_FAILING_CONTEXT_WINDOW = 50;
+const DEFAULT_RAW_TAIL_LINES = 5000;
+
+export function isFailureConclusion(conclusion: string): boolean {
+  const normalized = conclusion.trim().toLowerCase();
+  return normalized === "failure" || normalized === "failed";
+}
+
+async function getRawStepLogs(params: {
+  traceId: string;
+  jobName: string;
+  stepNumber: string;
+  maxLines?: number;
+  useTail?: boolean;
+}): Promise<LogEntry[]> {
+  const order = params.useTail ? "DESC" : "ASC";
+  const limitClause =
+    typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
+  const sql = `
+		SELECT
+			Timestamp as timestamp,
+			Body as body
+		FROM logs
+		WHERE TraceId = {traceId:String}
+			AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+			AND LogAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
+		ORDER BY Timestamp ${order}
+		${limitClause}
+	`;
+
+  const result = await query<{
+    timestamp: string;
+    body: string;
+  }>(sql, {
+    traceId: params.traceId,
+    jobName: params.jobName,
+    stepNumber: params.stepNumber,
+    maxLines: params.maxLines,
+  });
+
+  const logs = result.map((row) => ({
+    timestamp: row.timestamp,
+    body: row.body,
+  }));
+
+  return params.useTail ? logs.reverse() : logs;
+}
+
+async function isFailedPipelineStep(params: {
+  traceId: string;
+  jobName: string;
+  stepNumber: string;
+}): Promise<boolean> {
+  const sql = `
+		SELECT count() as count
+		FROM traces
+		WHERE TraceId = {traceId:String}
+			AND ResourceAttributes['cicd.pipeline.task.name'] = {jobName:String}
+			AND SpanAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
+			AND (
+				lowerUTF8(StatusMessage) IN ('failure', 'failed')
+				OR lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
+				OR lowerUTF8(ResourceAttributes['cicd.pipeline.result']) IN ('failure', 'failed')
+			)
+	`;
+
+  const result = await query<{ count: string }>(sql, params);
+  return (result[0] ? Number(result[0].count) : 0) > 0;
+}
+
+async function getStepLogsFailing(params: {
+  traceId: string;
+  jobName: string;
+  stepNumber: string;
+}): Promise<LogEntry[]> {
+  const sql = buildFailingStepLogsSql();
+  const result = await query<{
+    timestamp: string;
+    body: string;
+  }>(sql, params);
+
+  return result.map((row) => ({
+    timestamp: row.timestamp,
+    body: row.body,
+  }));
+}
+
+export function buildFailingStepLogsSql(): string {
+  return `
+		WITH
+			step_logs AS (
+				SELECT
+					Timestamp as timestamp,
+					Body as body,
+					row_number() OVER (ORDER BY Timestamp ASC) AS line_no,
+					(
+						match(Body, '(?i)^##\\\\[error\\\\]')
+						OR positionCaseInsensitive(Body, 'exception') > 0
+						OR positionCaseInsensitive(Body, 'error') > 0
+						OR positionCaseInsensitive(Body, 'traceback') > 0
+						OR positionCaseInsensitive(Body, 'timeout') > 0
+						OR positionCaseInsensitive(Body, 'timed out') > 0
+						OR positionCaseInsensitive(Body, 'deadline exceeded') > 0
+						OR positionCaseInsensitive(Body, 'etimedout') > 0
+						OR match(Body, '(?i)\\\\bHTTP\\\\s*5\\\\d\\\\d\\\\b|\\\\bstatus\\\\s*[:=]?\\\\s*5\\\\d\\\\d\\\\b')
+						OR positionCaseInsensitive(Body, 'panic') > 0
+						OR positionCaseInsensitive(Body, 'segfault') > 0
+						OR positionCaseInsensitive(Body, 'fatal') > 0
+						OR positionCaseInsensitive(Body, 'outofmemory') > 0
+						OR positionCaseInsensitive(Body, 'out of memory') > 0
+						OR positionCaseInsensitive(Body, ' exit code ') > 0
+						OR positionCaseInsensitive(Body, 'exited with code') > 0
+						OR positionCaseInsensitive(Body, 'non-zero exit') > 0
+					) AS is_anchor
+				FROM logs
+				WHERE TraceId = {traceId:String}
+					AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+					AND LogAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
+			),
+			anchors AS (
+				SELECT groupArray(line_no) AS anchor_line_nos
+				FROM step_logs
+				WHERE is_anchor
+			),
+			failing AS (
+				SELECT
+					s.timestamp,
+					s.body,
+					s.line_no,
+					s.is_anchor
+				FROM step_logs s
+				CROSS JOIN anchors a
+				WHERE
+					s.is_anchor
+					OR arrayExists(
+						x -> abs(toInt64(s.line_no) - toInt64(x)) <= toInt64(${DEFAULT_FAILING_CONTEXT_WINDOW}),
+						a.anchor_line_nos
+					)
+			)
+		SELECT
+			timestamp,
+			body
+		FROM (
+			SELECT
+				timestamp,
+				body,
+				line_no
+			FROM failing
+			ORDER BY line_no DESC
+			LIMIT ${DEFAULT_RAW_TAIL_LINES}
+		)
+		ORDER BY line_no ASC
+	`;
+}
+
 export interface Span {
   spanId: string;
   parentSpanId: string;
@@ -277,30 +432,34 @@ export const getStepLogs = createServerFn({
       traceId: z.string(),
       jobName: z.string(),
       stepNumber: z.string(),
+      fullLogs: z.boolean().optional(),
     }),
   )
-  .handler(async ({ data: { traceId, jobName, stepNumber } }) => {
-    // Note: Logs use job name in ScopeAttributes, not job ID
-    const sql = `
-			SELECT
-				Timestamp as timestamp,
-				Body as body
-			FROM logs
-			WHERE TraceId = {traceId:String}
-				AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
-				AND LogAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
-			ORDER BY Timestamp ASC
-		`;
+  .handler(async ({ data }) => {
+    if (data.fullLogs) {
+      return getRawStepLogs(data);
+    }
 
-    const result = await query<{
-      timestamp: string;
-      body: string;
-    }>(sql, { traceId, jobName, stepNumber });
+    const isFailedStep = await isFailedPipelineStep(data);
+    if (isFailedStep) {
+      const failingLogs = await getStepLogsFailing({
+        traceId: data.traceId,
+        jobName: data.jobName,
+        stepNumber: data.stepNumber,
+      });
 
-    return result.map((row) => ({
-      timestamp: row.timestamp,
-      body: row.body,
-    })) satisfies LogEntry[];
+      if (failingLogs.length > 0) {
+        return failingLogs;
+      }
+    }
+
+    return getRawStepLogs({
+      traceId: data.traceId,
+      jobName: data.jobName,
+      stepNumber: data.stepNumber,
+      maxLines: data.fullLogs ? undefined : DEFAULT_RAW_TAIL_LINES,
+      useTail: true,
+    });
   });
 
 export const getRunSpans = createServerFn({
@@ -462,7 +621,7 @@ export const stepLogsOptions = (input: {
       input.jobName,
       input.stepNumber,
     ],
-    queryFn: () => getStepLogs({ data: input }),
+    queryFn: () => getStepLogs({ data: { ...input, fullLogs: true } }),
     staleTime: 60_000,
   });
 

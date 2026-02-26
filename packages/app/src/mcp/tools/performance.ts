@@ -20,18 +20,23 @@ function resolveInputTimeRange(args: { from?: string; to?: string }) {
 }
 
 export function registerPerformanceTools(server: McpServer) {
-  server.tool(
+  server.registerTool(
     "get_performance_trends",
-    "Get performance trends over time: duration metrics (avg, p50, p95), queue time analysis, and success rate trends. Useful for spotting performance regressions or improvements.",
     {
-      from: z
-        .string()
-        .optional()
-        .describe("Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'."),
-      to: z
-        .string()
-        .optional()
-        .describe("End of time range. Defaults to 'now'."),
+      description:
+        "Get performance trends over time: duration metrics (avg, p50, p95), queue time analysis, and success rate trends. Useful for spotting performance regressions or improvements.",
+      inputSchema: {
+        from: z
+          .string()
+          .optional()
+          .describe(
+            "Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'.",
+          ),
+        to: z
+          .string()
+          .optional()
+          .describe("End of time range. Defaults to 'now'."),
+      },
     },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);
@@ -56,18 +61,23 @@ export function registerPerformanceTools(server: McpServer) {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_failure_analysis",
-    "Analyze failure patterns: common failure types with sample traceIds for investigation, failure trends over time, and failures broken down by repository. Useful for identifying systemic issues.",
     {
-      from: z
-        .string()
-        .optional()
-        .describe("Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'."),
-      to: z
-        .string()
-        .optional()
-        .describe("End of time range. Defaults to 'now'."),
+      description:
+        "Analyze failure patterns: common failure types with sample traceIds for investigation, failure trends over time, and failures broken down by repository. Useful for identifying systemic issues.",
+      inputSchema: {
+        from: z
+          .string()
+          .optional()
+          .describe(
+            "Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'.",
+          ),
+        to: z
+          .string()
+          .optional()
+          .describe("End of time range. Defaults to 'now'."),
+      },
     },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);

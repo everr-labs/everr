@@ -1,6 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getRunDetails, getRunJobs, getStepLogs } from "@/data/runs";
+import {
+  getAllJobsSteps,
+  getRunDetails,
+  getRunJobs,
+  getStepLogs,
+} from "@/data/runs";
 import { getRunsList } from "@/data/runs-list";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 
@@ -12,32 +17,40 @@ function resolveInputTimeRange(args: { from?: string; to?: string }) {
 }
 
 export function registerRunsTools(server: McpServer) {
-  server.tool(
+  server.registerTool(
     "list_runs",
-    "Search and list CI/CD pipeline runs with optional filters. Returns paginated results with run metadata including status, duration, repository, branch, and workflow name.",
     {
-      from: z
-        .string()
-        .optional()
-        .describe("Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'."),
-      to: z
-        .string()
-        .optional()
-        .describe("End of time range. Defaults to 'now'."),
-      page: z
-        .number()
-        .optional()
-        .describe("Page number (1-based). Defaults to 1."),
-      repo: z.string().optional().describe("Filter by repository name."),
-      branch: z.string().optional().describe("Filter by branch name."),
-      conclusion: z
-        .string()
-        .optional()
-        .describe(
-          "Filter by conclusion: 'success', 'failure', or 'cancellation'.",
-        ),
-      workflowName: z.string().optional().describe("Filter by workflow name."),
-      runId: z.string().optional().describe("Filter by specific run ID."),
+      description:
+        "Search and list CI/CD pipeline runs with optional filters. Returns paginated results with run metadata including status, duration, repository, branch, and workflow name.",
+      inputSchema: {
+        from: z
+          .string()
+          .optional()
+          .describe(
+            "Start of time range (e.g. 'now-7d'). Defaults to 'now-7d'.",
+          ),
+        to: z
+          .string()
+          .optional()
+          .describe("End of time range. Defaults to 'now'."),
+        page: z
+          .number()
+          .optional()
+          .describe("Page number (1-based). Defaults to 1."),
+        repo: z.string().optional().describe("Filter by repository name."),
+        branch: z.string().optional().describe("Filter by branch name."),
+        conclusion: z
+          .string()
+          .optional()
+          .describe(
+            "Filter by conclusion: 'success', 'failure', or 'cancellation'.",
+          ),
+        workflowName: z
+          .string()
+          .optional()
+          .describe("Filter by workflow name."),
+        runId: z.string().optional().describe("Filter by specific run ID."),
+      },
     },
     async (args) => {
       const timeRange = resolveInputTimeRange(args);
@@ -59,11 +72,14 @@ export function registerRunsTools(server: McpServer) {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_run_details",
-    "Get full details for a specific pipeline run including its jobs and steps. Provide a traceId (from list_runs results). Returns run metadata, all jobs with their status and duration, and steps for each job.",
     {
-      traceId: z.string().describe("The trace ID of the run to inspect."),
+      description:
+        "Get full details for a specific pipeline run including its jobs and steps. Provide a traceId (from list_runs results). Returns run metadata, all jobs with their status and duration, and steps for each job.",
+      inputSchema: {
+        traceId: z.string().describe("The trace ID of the run to inspect."),
+      },
     },
     async (args) => {
       const [run, jobs] = await Promise.all([
@@ -86,7 +102,6 @@ export function registerRunsTools(server: McpServer) {
       const jobIds = jobs.map((j) => j.jobId);
       let steps: Record<string, unknown[]> = {};
       if (jobIds.length > 0) {
-        const { getAllJobsSteps } = await import("@/data/runs");
         steps = await getAllJobsSteps({
           data: { traceId: args.traceId, jobIds },
         });
@@ -100,13 +115,24 @@ export function registerRunsTools(server: McpServer) {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_step_logs",
-    "Retrieve logs for a specific step within a job. Use after get_run_details to drill into a particular step's output. Useful for diagnosing failures.",
     {
-      traceId: z.string().describe("The trace ID of the run."),
-      jobName: z.string().describe("The name of the job containing the step."),
-      stepNumber: z.string().describe("The step number within the job."),
+      description:
+        "Retrieve logs for a specific step within a job. Use after get_run_details to drill into a particular step's output. Useful for diagnosing failures.",
+      inputSchema: {
+        traceId: z.string().describe("The trace ID of the run."),
+        jobName: z
+          .string()
+          .describe("The name of the job containing the step."),
+        stepNumber: z.string().describe("The step number within the job."),
+        fullLogs: z
+          .boolean()
+          .optional()
+          .describe(
+            "If true, return full raw logs. By default this tool returns failing-focused logs for failed pipelines, otherwise the last 1000 lines.",
+          ),
+      },
     },
     async (args) => {
       const logs = await getStepLogs({
@@ -114,6 +140,7 @@ export function registerRunsTools(server: McpServer) {
           traceId: args.traceId,
           jobName: args.jobName,
           stepNumber: args.stepNumber,
+          fullLogs: args.fullLogs,
         },
       });
 
