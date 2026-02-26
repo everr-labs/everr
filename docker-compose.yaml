@@ -1,15 +1,16 @@
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:26.1
+    build: ./clickhouse
     ports:
       - "8123:8123"
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: citric
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      COLLECTOR_RW_PASSWORD: collector-dev
+      APP_RO_PASSWORD: app-dev
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse
-      - ./clickhouse/init:/docker-entrypoint-initdb.d
   postgres:
     image: postgres:18.1-alpine3.23
     ports:
