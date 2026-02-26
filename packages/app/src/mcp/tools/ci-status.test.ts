@@ -43,7 +43,8 @@ function createServerMock() {
 
 describe("registerBranchStatusTools", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mocked.getRunsList.mockReset();
+    mocked.execFileSync.mockReset();
   });
 
   it("prepare_ci_status resolves context from local git", async () => {
