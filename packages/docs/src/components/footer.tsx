@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Citrus } from "lucide-react";
 
-const GITHUB_URL = "https://github.com/citric-app/citric";
+const APP_URL = "https://app.everr.dev";
 
 export function Footer() {
   return (
@@ -11,10 +11,10 @@ export function Footer() {
           <div className="space-y-3">
             <div className="flex items-center gap-1.5 font-semibold">
               <Citrus className="size-5" />
-              Citric
+              Everr
             </div>
             <p className="text-sm text-fd-muted-foreground">
-              OpenTelemetry-native CI/CD Observability
+              OpenTelemetry-native CI/CD observability for humans and AI agents
             </p>
           </div>
 
@@ -32,46 +32,44 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href={GITHUB_URL}
+                  href={APP_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-fd-muted-foreground hover:text-fd-foreground transition-colors"
                 >
-                  GitHub
+                  Get started
                 </a>
               </li>
             </ul>
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold">Project</h4>
+            <h4 className="text-sm font-semibold">Resources</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a
-                  href={`${GITHUB_URL}/blob/main/CONTRIBUTING.md`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  to="/docs/$"
+                  params={{ _splat: "getting-started" }}
                   className="text-fd-muted-foreground hover:text-fd-foreground transition-colors"
                 >
-                  Contributing
-                </a>
+                  Getting started
+                </Link>
               </li>
               <li>
-                <a
-                  href={`${GITHUB_URL}/issues`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  to="/docs/$"
+                  params={{ _splat: "reference/mcp-server" }}
                   className="text-fd-muted-foreground hover:text-fd-foreground transition-colors"
                 >
-                  Report an Issue
-                </a>
+                  MCP reference
+                </Link>
               </li>
             </ul>
           </div>
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-fd-border pt-6 text-xs text-fd-muted-foreground sm:flex-row">
-          <span>&copy; {new Date().getFullYear()} Citric</span>
+          <span>&copy; {new Date().getFullYear()} Everr</span>
           <span>
             Built with{" "}
             <a

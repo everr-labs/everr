@@ -40,7 +40,7 @@ export function CICDSystemTile({ item, reduceMotion }: CICDStatusTileProps) {
         className={cn(
           "rounded-full px-2 py-0.5 font-mono text-[10px]",
           item.status === "beta" &&
-            "border border-citric-deep/25 bg-citric/12 text-citric-deep",
+            "border border-everr-deep/25 bg-everr/12 text-everr-deep",
           item.status === "planned" &&
             "border border-fd-border bg-fd-secondary/40 text-fd-muted-foreground",
         )}

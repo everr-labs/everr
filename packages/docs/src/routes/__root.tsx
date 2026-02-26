@@ -22,7 +22,7 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "Citric - CI/CD Observability",
+        title: "Everr - Every second counts in CI/CD",
       },
     ],
     links: [{ rel: "stylesheet", href: appCss }],

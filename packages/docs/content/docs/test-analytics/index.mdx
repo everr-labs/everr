@@ -3,12 +3,12 @@ title: Test Analytics
 description: Track test results, flaky tests, and duration trends from your CI pipelines.
 ---
 
-Citric can parse verbose test output from your CI workflow logs and generate OpenTelemetry trace spans for each test. This enables test result tracking, flaky test detection, failure analysis, and duration trends — all from data you're already producing.
+Everr can parse verbose test output from your CI workflow logs and generate OpenTelemetry trace spans for each test. This enables test result tracking, flaky test detection, failure analysis, and duration trends — all from data you're already producing.
 
 ## How it works
 
 1. Your CI workflows run tests with **verbose output** enabled
-2. Citric ingests workflow logs for your workspace
+2. Everr ingests workflow logs for your workspace
 3. The `testlogstotraces` connector parses the log output and identifies test results
 4. Each test becomes a span with attributes like name, result, duration, and framework
 5. The dashboard surfaces this data through the [Test Results](/docs/features/test-results), [Flaky Tests](/docs/features/flaky-tests), and [Failure Analysis](/docs/features/failure-analysis) features
@@ -24,7 +24,7 @@ More test frameworks will be supported in the future.
 
 ## Requirements
 
-The key requirement is that **tests must produce verbose output** so Citric can parse individual test results. Standard (non-verbose) test output only reports summary pass/fail and cannot be parsed into per-test spans.
+The key requirement is that **tests must produce verbose output** so Everr can parse individual test results. Standard (non-verbose) test output only reports summary pass/fail and cannot be parsed into per-test spans.
 
 ## Span attributes
 
@@ -32,13 +32,13 @@ Each test span includes the following attributes:
 
 | Attribute | Description |
 |-----------|-------------|
-| `citric.test.name` | Test name (e.g. `TestParseConfig` or `renders login form`) |
-| `citric.test.result` | Result: `pass`, `fail`, or `skip` |
-| `citric.test.duration_seconds` | Test execution duration in seconds |
-| `citric.test.framework` | Test framework (`go` or `vitest`) |
-| `citric.test.package` | Go package path or Vitest file path |
-| `citric.test.is_subtest` | Whether this is a subtest/nested describe |
-| `citric.test.parent_test` | Parent test name for subtests |
+| `everr.test.name` | Test name (e.g. `TestParseConfig` or `renders login form`) |
+| `everr.test.result` | Result: `pass`, `fail`, or `skip` |
+| `everr.test.duration_seconds` | Test execution duration in seconds |
+| `everr.test.framework` | Test framework (`go` or `vitest`) |
+| `everr.test.package` | Go package path or Vitest file path |
+| `everr.test.is_subtest` | Whether this is a subtest/nested describe |
+| `everr.test.parent_test` | Parent test name for subtests |
 
 ## Next steps
 

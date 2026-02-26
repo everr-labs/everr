@@ -1,9 +1,4 @@
 import {
-  SiArgo,
-  SiBuildkite,
-  SiCircleci,
-  SiDrone,
-  SiGithub,
   SiGithubactions,
   SiGitlab,
   SiJenkins,
@@ -26,14 +21,10 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import { forwardRef, type ReactNode, useMemo, useRef } from "react";
 import {
-  siArgo,
-  siBuildkite,
   siBun,
-  siCircleci,
   siDart,
   siDeno,
   siDotnet,
-  siDrone,
   siElixir,
   siFlutter,
   siGithubactions,
@@ -56,6 +47,7 @@ import {
   siZig,
 } from "simple-icons";
 import { AnimatedBeam } from "@/components/animated-beam";
+import { SparklesText } from "@/components/animated-text";
 import { type CICDSystem, CICDSystemTile } from "@/components/cicd-system-tile";
 import OtelLogo from "@/components/otel-logo.svg?react";
 
@@ -90,11 +82,6 @@ const brandIcons: Record<string, BrandIconDef> = {
     path: siGitlab.path,
     hex: siGitlab.hex,
   },
-  circleci: {
-    title: "CircleCI",
-    path: siCircleci.path,
-    hex: siCircleci.hex,
-  },
   jenkins: {
     title: "Jenkins",
     path: siJenkins.path,
@@ -124,21 +111,6 @@ const brandIcons: Record<string, BrandIconDef> = {
     title: "JUnit 5",
     path: siJunit5.path,
     hex: siJunit5.hex,
-  },
-  drone: {
-    title: "Drone",
-    path: siDrone.path,
-    hex: siDrone.hex,
-  },
-  argocd: {
-    title: "Argo CD",
-    path: siArgo.path,
-    hex: siArgo.hex,
-  },
-  buildkite: {
-    title: "Buildkite",
-    path: siBuildkite.path,
-    hex: siBuildkite.hex,
   },
   nodejs: {
     title: "Node.js",
@@ -345,21 +317,15 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const ghaRef = useRef<HTMLDivElement>(null);
   const gitlabRef = useRef<HTMLDivElement>(null);
-  const circleRef = useRef<HTMLDivElement>(null);
   const jenkinsRef = useRef<HTMLDivElement>(null);
-  const droneRef = useRef<HTMLDivElement>(null);
-  const buildkiteRef = useRef<HTMLDivElement>(null);
   const otelRef = useRef<HTMLDivElement>(null);
-  const citricRef = useRef<HTMLDivElement>(null);
+  const everrRef = useRef<HTMLDivElement>(null);
   const randomizedDelays = useMemo(
     () => ({
       gha: Math.random() * 1.8,
       gitlab: Math.random() * 1.8,
-      circle: Math.random() * 1.8,
       jenkins: Math.random() * 1.8,
-      drone: Math.random() * 1.8,
-      buildkite: Math.random() * 1.8,
-      otelToCitric: 0.4 + Math.random() * 1.6,
+      otelToEverr: 0.4 + Math.random() * 1.6,
     }),
     [],
   );
@@ -367,7 +333,7 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
   return (
     <div
       ref={containerRef}
-      className="cicd-topology-grid relative flex h-[420px] w-full items-center justify-center overflow-hidden rounded-xl border border-fd-border bg-fd-secondary/20 p-8"
+      className="relative flex h-[250px] w-full items-center justify-center overflow-hidden px-4 sm:px-8"
     >
       <div className="flex size-full max-w-2xl flex-row items-stretch justify-between gap-10">
         <div className="flex flex-col justify-center gap-3">
@@ -377,17 +343,8 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
           <BeamCircle ref={gitlabRef}>
             <SiGitlab />
           </BeamCircle>
-          <BeamCircle ref={circleRef}>
-            <SiCircleci />
-          </BeamCircle>
           <BeamCircle ref={jenkinsRef}>
             <SiJenkins />
-          </BeamCircle>
-          <BeamCircle ref={droneRef}>
-            <SiDrone />
-          </BeamCircle>
-          <BeamCircle ref={buildkiteRef}>
-            <SiBuildkite />
           </BeamCircle>
         </div>
 
@@ -404,11 +361,11 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
         </div>
 
         <div className="flex flex-col justify-center">
-          <BeamCircle ref={citricRef}>
+          <BeamCircle ref={everrRef}>
             <div className="flex flex-col items-center gap-1">
-              <Citrus className="size-4 text-citric-deep" />
+              <Citrus className="size-4 text-everr-deep" />
               <span className="text-[9px] font-semibold leading-none">
-                Citric
+                Everr
               </span>
             </div>
           </BeamCircle>
@@ -437,16 +394,6 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
       />
       <AnimatedBeam
         containerRef={containerRef}
-        fromRef={circleRef}
-        toRef={otelRef}
-        pathColor="#f97316"
-        gradientStartColor="#f97316"
-        gradientStopColor="#fb923c"
-        duration={reduceMotion ? 7 : 5.4}
-        delay={reduceMotion ? 0 : randomizedDelays.circle}
-      />
-      <AnimatedBeam
-        containerRef={containerRef}
         fromRef={jenkinsRef}
         toRef={otelRef}
         pathColor="#f97316"
@@ -455,36 +402,16 @@ function CICDTopologyViz({ reduceMotion }: { reduceMotion: boolean }) {
         duration={reduceMotion ? 7 : 5.6}
         delay={reduceMotion ? 0 : randomizedDelays.jenkins}
       />
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={droneRef}
-        toRef={otelRef}
-        pathColor="#f97316"
-        gradientStartColor="#f97316"
-        gradientStopColor="#fb923c"
-        duration={reduceMotion ? 7 : 5.8}
-        delay={reduceMotion ? 0 : randomizedDelays.drone}
-      />
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={buildkiteRef}
-        toRef={otelRef}
-        pathColor="#f97316"
-        gradientStartColor="#f97316"
-        gradientStopColor="#fb923c"
-        duration={reduceMotion ? 7 : 6}
-        delay={reduceMotion ? 0 : randomizedDelays.buildkite}
-      />
 
       <AnimatedBeam
         containerRef={containerRef}
         fromRef={otelRef}
-        toRef={citricRef}
+        toRef={everrRef}
         pathColor="#ea580c"
         gradientStartColor="#ea580c"
         gradientStopColor="#fb923c"
         duration={reduceMotion ? 7 : 5.5}
-        delay={reduceMotion ? 0 : randomizedDelays.otelToCitric}
+        delay={reduceMotion ? 0 : randomizedDelays.otelToEverr}
       />
     </div>
   );
@@ -513,7 +440,7 @@ function RuntimeMatrixCard({
           {icon ? (
             <BrandIcon icon={icon} className="size-4.5" />
           ) : (
-            <Cpu className="size-4.5 text-citric-deep" />
+            <Cpu className="size-4.5 text-everr-deep" />
           )}
         </div>
         <p className="font-semibold text-sm">{item.label}</p>
@@ -542,21 +469,18 @@ function SignalPanelCard({
           {icon ? (
             <BrandIcon icon={icon} className="size-4.5" />
           ) : (
-            <FlaskConical className="size-4.5 text-citric-deep" />
+            <FlaskConical className="size-4.5 text-everr-deep" />
           )}
         </div>
         <p className="text-sm font-semibold">{item.label}</p>
       </div>
-      <p className="text-xs leading-relaxed text-fd-muted-foreground">
-        {item.caption}
-      </p>
     </motion.div>
   );
 }
 
 const ciSystems = [
   {
-    Icon: SiGithub,
+    Icon: SiGithubactions,
     name: "GitHub Actions",
     status: "beta",
   },
@@ -566,28 +490,8 @@ const ciSystems = [
     status: "planned",
   },
   {
-    Icon: SiCircleci,
-    name: "CircleCI",
-    status: "planned",
-  },
-  {
     Icon: SiJenkins,
     name: "Jenkins",
-    status: "planned",
-  },
-  {
-    Icon: SiDrone,
-    name: "Drone",
-    status: "planned",
-  },
-  {
-    Icon: SiArgo,
-    name: "Argo CD",
-    status: "planned",
-  },
-  {
-    Icon: SiBuildkite,
-    name: "Buildkite",
     status: "planned",
   },
 ] satisfies CICDSystem[];
@@ -725,45 +629,43 @@ function Home() {
           className="mb-20 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"
         >
           <motion.div variants={fadeUp}>
-            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-citric-deep/30 bg-citric/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-citric-deep">
+            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-everr-deep/30 bg-everr/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-everr-deep">
               <Radar className="size-3.5" />
-              Cross-Ecosystem CI Telemetry
+              CI/CD observability for humans and AI agents
             </span>
             <h1 className="max-w-2xl text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
-              Observe every pipeline span across CI providers.
+              Every second counts in CI/CD.
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
-              Citric normalizes workflow runs into OpenTelemetry traces and
-              stores them in ClickHouse for fast, high-cardinality queries.
-              Start with GitHub Actions today, then extend via adapter-based
-              ingestion for GitLab CI, CircleCI, Jenkins, and additional
-              platforms.
+              AI-assisted development compresses release cycles, so slow
+              feedback loops hurt faster. Everr turns workflow runs into
+              OpenTelemetry traces in ClickHouse so teams can spot regressions,
+              flaky tests, and bottlenecks quickly across CI providers.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
+              <a
+                href="https://app.everr.dev"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-everr-deep px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-everr-deep/30"
+              >
+                Get started
+              </a>
               <Link
                 to="/docs/$"
                 params={{ _splat: "" }}
-                className="inline-flex items-center gap-2 rounded-xl bg-citric-deep px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-citric-deep/30"
+                className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-5 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 hover:bg-fd-accent"
               >
                 Read the docs
                 <ArrowRight className="size-4" />
               </Link>
-              <a
-                href="https://github.com/citric-app/citric"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-5 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 hover:bg-fd-accent"
-              >
-                <SiGithub className="size-5" />
-                GitHub
-              </a>
             </div>
           </motion.div>
 
           <motion.div variants={fadeUp}>
-            <SurfaceCard className="relative overflow-hidden p-6 shadow-xl shadow-citric-deep/10">
+            <SurfaceCard className="relative overflow-hidden p-6 shadow-xl shadow-everr-deep/10">
               <div className="mb-5 flex items-center justify-between">
-                <span className="rounded-md bg-citric/10 px-2 py-1 font-mono text-xs text-citric-deep">
+                <span className="rounded-md bg-everr/10 px-2 py-1 font-mono text-xs text-everr-deep">
                   trace summary
                 </span>
                 <span className="font-mono text-xs text-fd-muted-foreground">
@@ -792,7 +694,7 @@ function Home() {
                     <div className="h-6 rounded bg-fd-secondary/60">
                       <div
                         className={`h-full rounded ${
-                          span.ok ? "bg-citric/45" : "bg-red-500/45"
+                          span.ok ? "bg-everr/45" : "bg-red-500/45"
                         } ${span.width}`}
                       />
                     </div>
@@ -823,13 +725,12 @@ function Home() {
         >
           <motion.div variants={fadeUp} className="mb-8">
             <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Telemetry pipeline, end to end
+              Trace every second from trigger to outcome
             </h2>
             <p className="mt-3 max-w-3xl text-fd-muted-foreground">
-              Citric keeps the data model explicit: provider events are
-              ingested, normalized to traces, indexed in ClickHouse, and queried
-              with dashboard primitives optimized for incident triage across
-              diverse CI and test ecosystems.
+              Everr keeps the data model explicit so incident triage stays fast:
+              provider events are ingested, normalized to traces, indexed in
+              ClickHouse, and surfaced in dashboards built for rapid debugging.
             </p>
           </motion.div>
           <motion.div
@@ -839,7 +740,7 @@ function Home() {
             {[
               {
                 title: "Ingest",
-                text: "Provider-agnosting adapters ingest CI signals via APIs and webhooks.",
+                text: "Provider-agnostic adapters ingest CI signals via APIs and webhooks.",
                 icon: <GitPullRequest className="size-4" />,
               },
               {
@@ -860,7 +761,7 @@ function Home() {
             ].map((item) => (
               <motion.div key={item.title} variants={fadeUp}>
                 <SurfaceCard className="h-full p-5">
-                  <div className="mb-3 inline-flex size-8 items-center justify-center rounded-md bg-citric/10 text-citric-deep">
+                  <div className="mb-3 inline-flex size-8 items-center justify-center rounded-md bg-everr/10 text-everr-deep">
                     {item.icon}
                   </div>
                   <h3 className="font-semibold">{item.title}</h3>
@@ -880,7 +781,7 @@ function Home() {
         >
           <motion.div variants={fadeUp} className="mb-8">
             <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Built for debugging at span granularity
+              Built for high-tempo engineering teams
             </h2>
           </motion.div>
           <motion.div
@@ -914,7 +815,7 @@ function Home() {
             ].map((feature) => (
               <motion.div key={feature.title} variants={fadeUp}>
                 <SurfaceCard className="h-full p-5">
-                  <div className="mb-3 text-citric-deep">{feature.icon}</div>
+                  <div className="mb-3 text-everr-deep">{feature.icon}</div>
                   <h3 className="font-semibold">{feature.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">
                     {feature.detail}
@@ -928,27 +829,38 @@ function Home() {
         <motion.section
           variants={staggerContainer}
           {...reveal}
-          className="mb-24 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:items-start lg:gap-10"
+          className="relative left-1/2 right-1/2 mb-10 -mx-[50vw] w-screen border-y border-fd-border bg-fd-card/35 py-7 sm:py-8"
         >
-          <motion.div variants={fadeUp} className="mb-6 lg:mb-0">
-            <SectionFrame
-              title="CI/CD system agnostic"
-              description="Leveraging OpenTelemetry semantic conventions and a normalized trace model, Citric provides a unified observability layer across CI/CD platforms. Ingest pipelines are adapter-based, with GitHub Actions support available now and additional providers coming soon."
-            >
-              <CICDTopologyViz reduceMotion={shouldReduceMotion} />
-            </SectionFrame>
-          </motion.div>
+          <div
+            className="pointer-events-none absolute inset-0 docs-grid-bg"
+            aria-hidden
+          />
           <motion.div
-            variants={staggerContainer}
-            className="cicd-tiles-bg flex flex-col gap-2.5 rounded-2xl border border-fd-border bg-fd-card/45 p-4"
+            variants={fadeUp}
+            className="relative mx-auto max-w-6xl px-4"
           >
-            {ciSystems.map((item) => (
-              <CICDSystemTile
-                key={item.name}
-                item={item}
-                reduceMotion={shouldReduceMotion}
-              />
-            ))}
+            <div className="mb-4">
+              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                CI/CD system agnostic
+              </h2>
+              <p className="mt-3 max-w-3xl text-fd-muted-foreground">
+                Everr normalizes pipeline telemetry into one trace model, so you
+                can analyze runs consistently across CI providers.
+              </p>
+            </div>
+            <CICDTopologyViz reduceMotion={shouldReduceMotion} />
+            <motion.div
+              variants={staggerContainer}
+              className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+            >
+              {ciSystems.map((item) => (
+                <CICDSystemTile
+                  key={item.name}
+                  item={item}
+                  reduceMotion={shouldReduceMotion}
+                />
+              ))}
+            </motion.div>
           </motion.div>
         </motion.section>
 
@@ -974,7 +886,7 @@ function Home() {
             <SectionFrame
               align="right"
               title="Languages and runtimes"
-              description="Language-specific output is normalized into a consistent trace model with spans, attributes, and events, so you get the same query and dashboard experience whether your pipelines are in Go, Python, Node.js, or any other major language or runtime environment. Instrumentation libraries and CI adapters are built on OpenTelemetry Collector for maximum flexibility and extensibility."
+              description="Go, Python, Node.js, and more all map to one trace model. Query and debug every pipeline the same way, with OpenTelemetry-based adapters under the hood."
             />
           </motion.div>
         </motion.section>
@@ -987,7 +899,7 @@ function Home() {
           <motion.div variants={fadeUp} className="mb-6 lg:mb-0">
             <SectionFrame
               title="Test frameworks"
-              description="Whether you're running unit tests in JUnit, pytest, or Vitest, or end-to-end tests in Playwright, Citric's normalization extracts test signals like pass/fail status, error types, and flaky history into span attributes and events. This enables powerful test intelligence features like failure clustering and flakiness tracking across diverse test ecosystems."
+              description="JUnit, pytest, Vitest, and Playwright signals are normalized into traces. Track pass/fail, error patterns, and flaky behavior without framework-specific dashboards."
             />
           </motion.div>
           <motion.div
@@ -1004,42 +916,80 @@ function Home() {
           </motion.div>
         </motion.section>
 
-        <motion.section variants={fadeUp} {...reveal} className="mb-20">
-          <SurfaceCard className="p-5">
-            <h3 className="mb-4 font-semibold">Quickstart</h3>
-            <ol className="space-y-4 text-sm">
-              <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
-                <p className="font-medium">1. Deploy collector</p>
-                <p className="mt-1 text-fd-muted-foreground">
-                  Configure webhooks and auth.
-                </p>
-              </li>
-              <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
-                <p className="font-medium">2. Emit trace-rich workflow runs</p>
-                <p className="mt-1 text-fd-muted-foreground">
-                  Normalization maps jobs, steps, logs, and test signals from
-                  provider-specific schemas to one trace model.
-                </p>
-              </li>
-              <li className="rounded-lg border border-fd-border bg-fd-secondary/20 p-3">
-                <p className="font-medium">
-                  3. Query and correlate in dashboard
-                </p>
-                <p className="mt-1 text-fd-muted-foreground">
-                  Pivot from failing spans to aggregated regressions across
-                  repositories, CI vendors, and test runners.
-                </p>
-              </li>
+        <motion.section
+          variants={fadeUp}
+          {...reveal}
+          className="relative left-1/2 right-1/2 mb-20 -mx-[50vw] w-screen border-y border-fd-border bg-fd-card/35 py-10 sm:py-12"
+        >
+          <div
+            className="pointer-events-none absolute inset-0 docs-grid-bg-strong"
+            aria-hidden
+          />
+          <div className="relative mx-auto grid max-w-6xl gap-6 px-4 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+            <div>
+              <span className="mb-3 inline-flex items-center rounded-full border border-everr-deep/30 bg-everr/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-everr-deep">
+                Quickstart
+              </span>
+              <h3 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+                Launch Everr in three steps
+              </h3>
+              <p className="mt-3 max-w-md text-sm leading-relaxed text-fd-muted-foreground sm:text-base">
+                Start at app.everr.dev, connect your CI, and jump straight into
+                traces without self-hosting setup.
+              </p>
+              <a
+                href="https://app.everr.dev"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-everr-deep px-5 py-2.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-everr-deep/30"
+              >
+                Get started in app
+                <ArrowRight className="size-4" />
+              </a>
+            </div>
+
+            <ol className="grid gap-3 text-sm">
+              {[
+                {
+                  title: "Create your Everr account",
+                  detail: "Sign in at app.everr.dev and create your workspace.",
+                  icon: <Radar className="size-4" />,
+                },
+                {
+                  title: "Connect your CI provider",
+                  detail:
+                    "Authorize your repositories so new workflow runs stream into Everr automatically.",
+                  icon: <GitPullRequest className="size-4" />,
+                },
+                {
+                  title: "Analyze runs in the dashboard",
+                  detail:
+                    "Go from failed runs to root cause with traces, test signals, and regressions in one view.",
+                  icon: <BarChart3 className="size-4" />,
+                },
+              ].map((step, idx) => (
+                <li
+                  key={step.title}
+                  className="rounded-xl border border-fd-border bg-fd-card p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-everr/15 font-mono text-xs font-semibold text-everr-deep">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="text-everr-deep">{step.icon}</span>
+                        <p className="font-semibold">{step.title}</p>
+                      </div>
+                      <p className="leading-relaxed text-fd-muted-foreground">
+                        {step.detail}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              ))}
             </ol>
-            <Link
-              to="/docs/$"
-              params={{ _splat: "getting-started" }}
-              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-citric-deep/40 bg-citric/10 px-4 py-2 text-xs font-semibold text-citric-deep transition-colors hover:bg-citric/20"
-            >
-              Open setup guide
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </SurfaceCard>
+          </div>
         </motion.section>
 
         <motion.section variants={fadeUp} {...reveal}>
@@ -1049,31 +999,37 @@ function Home() {
               aria-hidden
             />
             <h2 className="relative text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Replace CI guesswork with trace evidence.
+              <SparklesText
+                className="text-3xl sm:text-4xl inline-block text-everr-deep"
+                sparklesCount={4}
+              >
+                Everr
+              </SparklesText>
+              y second counts. See where yours go.
             </h2>
             <p className="relative mx-auto mt-4 max-w-2xl text-fd-muted-foreground">
-              Start with GitHub Actions now, then scale to GitLab CI, CircleCI,
-              Jenkins, and broader test ecosystems with the same telemetry graph
-              and query surface.
+              Start with GitHub Actions, then scale to GitLab CI, Jenkins, and
+              broader test ecosystems with one telemetry model and one query
+              surface.
             </p>
             <div className="relative mt-7 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                to="/docs/$"
-                params={{ _splat: "" }}
-                className="inline-flex items-center gap-2 rounded-xl bg-citric-deep px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-citric-deep/30"
+              <a
+                href="https://app.everr.dev"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-everr-deep px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-everr-deep/30"
               >
                 Start instrumenting your pipelines
                 <ArrowRight className="size-4" />
-              </Link>
-              <a
-                href="https://github.com/citric-app/citric"
-                target="_blank"
-                rel="noreferrer"
+              </a>
+              <Link
+                to="/docs/$"
+                params={{ _splat: "" }}
                 className="inline-flex items-center gap-2 rounded-xl border border-fd-border bg-fd-card px-6 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 hover:bg-fd-accent"
               >
-                <SiGithub className="size-5" />
-                GitHub
-              </a>
+                Read the docs
+                <ArrowRight className="size-4" />
+              </Link>
             </div>
           </SurfaceCard>
         </motion.section>

@@ -1,11 +1,11 @@
 ---
 title: MCP Clients
-description: Configure Codex, Cursor, OpenCode, or Claude to use Citric MCP.
+description: Configure Codex, Cursor, OpenCode, or Claude to use Everr MCP.
 ---
 
 Generate a token in `/dashboard/mcp-server` first, then configure your client with:
 
-- URL: `https://<your-citric-domain>/api/mcp`
+- URL: `https://<your-everr-domain>/api/mcp`
 - Header: `Authorization: Bearer <YOUR_MCP_TOKEN>`
 
 ## Codex
@@ -13,10 +13,10 @@ Generate a token in `/dashboard/mcp-server` first, then configure your client wi
 Add this to `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.citric]
+[mcp_servers.everr]
 url = "https://dev.everr.dev/api/mcp"
 
-[mcp_servers.citric.http_headers]
+[mcp_servers.everr.http_headers]
 Authorization = "Bearer <YOUR_MCP_TOKEN>"
 ```
 
@@ -27,7 +27,7 @@ Add this to `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "citric": {
+    "everr": {
       "url": "https://dev.everr.dev/api/mcp",
       "headers": {
         "Authorization": "Bearer <YOUR_MCP_TOKEN>"
@@ -47,7 +47,7 @@ opencode mcp add
 
 Use:
 
-- `name=citric`
+- `name=everr`
 - `url=https://dev.everr.dev/api/mcp`
 - `Authorization: Bearer <YOUR_MCP_TOKEN>`
 
@@ -56,6 +56,6 @@ Use:
 Run:
 
 ```bash
-claude mcp add --transport http citric https://dev.everr.dev/api/mcp \
+claude mcp add --transport http everr https://dev.everr.dev/api/mcp \
   --header "Authorization: Bearer <YOUR_MCP_TOKEN>"
 ```
