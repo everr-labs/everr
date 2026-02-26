@@ -15,13 +15,23 @@ vi.mock("node:child_process", () => ({
 
 import { registerBranchStatusTools } from "./ci-status";
 
+interface ToolTextContent {
+  type: "text";
+  text: string;
+}
+
+interface ToolResult {
+  content: ToolTextContent[];
+  isError?: boolean;
+}
+
 function createServerMock() {
-  const handlers = new Map<string, (...args: unknown[]) => Promise<unknown>>();
+  const handlers = new Map<string, (args: unknown) => Promise<ToolResult>>();
   const server = {
     registerTool: vi.fn((name: string, ...rest: unknown[]) => {
       const handler = rest[rest.length - 1];
       if (typeof handler === "function") {
-        handlers.set(name, handler as (...args: unknown[]) => Promise<unknown>);
+        handlers.set(name, handler as (args: unknown) => Promise<ToolResult>);
       }
     }),
   };
