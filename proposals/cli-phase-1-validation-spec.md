@@ -67,8 +67,9 @@ Phase 1 includes:
    - Primary: push ledger from optional post-push hook.
    - Fallback: reflog heuristic.
 4. Alert when a run for the current branch after a recent push fails.
-5. Dedupe key: `repo|branch|runId|failure`.
-6. Alert payload includes repo, branch, workflow, run ID, timestamp, and run/log link.
+5. Parse `git reflog` to score whether a failure is likely interesting to the current user (for example, recent local checkouts, rebases, pulls, and pushes on the same branch increase relevance).
+6. Dedupe key: `repo|branch|runId|failure`.
+7. Alert payload includes repo, branch, workflow, run ID, timestamp, and run/log link.
 
 ## Backend/API Additions (Phase 1)
 
