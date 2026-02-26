@@ -8,7 +8,7 @@ Citric can parse verbose test output from your CI workflow logs and generate Ope
 ## How it works
 
 1. Your CI workflows run tests with **verbose output** enabled
-2. The Citric collector fetches workflow logs via the GitHub API
+2. Citric ingests workflow logs for your workspace
 3. The `testlogstotraces` connector parses the log output and identifies test results
 4. Each test becomes a span with attributes like name, result, duration, and framework
 5. The dashboard surfaces this data through the [Test Results](/docs/features/test-results), [Flaky Tests](/docs/features/flaky-tests), and [Failure Analysis](/docs/features/failure-analysis) features
@@ -24,27 +24,7 @@ More test frameworks will be supported in the future.
 
 ## Requirements
 
-The key requirement is that **tests must produce verbose output** so the collector can parse individual test results. Standard (non-verbose) test output only reports summary pass/fail and cannot be parsed into per-test spans.
-
-## Collector configuration
-
-Add the `testlogstotraces` connector to your collector config:
-
-```yaml
-connectors:
-  testlogstotraces:
-
-service:
-  pipelines:
-    logs:
-      receivers: [githubactions]
-      exporters: [testlogstotraces, clickhouse]
-    traces/tests:
-      receivers: [testlogstotraces]
-      exporters: [clickhouse]
-```
-
-The connector auto-detects Go test and Vitest output formats — no additional configuration is needed.
+The key requirement is that **tests must produce verbose output** so Citric can parse individual test results. Standard (non-verbose) test output only reports summary pass/fail and cannot be parsed into per-test spans.
 
 ## Span attributes
 

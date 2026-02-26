@@ -1,0 +1,37 @@
+---
+title: App Workflows
+description: Practical playbooks for investigating CI/CD issues in Citric.
+---
+
+## Triage a failing pipeline
+
+1. Open `/dashboard` and review top failing jobs/workflows.
+2. Go to `/dashboard/runs` and filter by `conclusion = failure`.
+3. Open a failing run and inspect job/step details.
+4. Use related logs and step metadata to identify the failure cause.
+
+## Investigate recurring failures
+
+1. Open `/dashboard/failures`.
+2. Review pattern frequency and trend charts.
+3. Pivot to affected repositories and recent related runs.
+
+## Analyze flaky tests
+
+1. Open `/dashboard/flaky-tests`.
+2. Sort by failure rate and filter by repo/branch.
+3. Open a test detail page to inspect execution history.
+
+For parser/output guidance, see [Test Analytics](/docs/test-analytics).
+
+## Review CI cost trends
+
+1. Open `/dashboard/cost-analysis`.
+2. Compare cost by runner and by workflow.
+3. Prioritize high-cost, low-success workflows for optimization.
+
+## Use assistant-driven investigations
+
+1. Configure the MCP server in `/dashboard/mcp-server`.
+2. Ask your assistant targeted questions (for example, failing workflows in the last 24h).
+3. Use returned trace IDs to drill down in Citric UI.

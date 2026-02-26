@@ -1,0 +1,32 @@
+---
+title: App Getting Started
+description: Start using the hosted Citric dashboard to monitor CI/CD health.
+---
+
+This guide assumes your organization already has access to a Citric workspace.
+
+## First login checklist
+
+1. Sign in to your Citric workspace.
+2. Open the **Dashboard** at `/dashboard`.
+3. Open the user menu and click **Connect GitHub**.
+4. Follow the GitHub installation wizard and complete the app installation for the repositories you want to monitor.
+5. Trigger or wait for a new pipeline run after installation.
+6. Return to Citric, set a time window (for example, last 24h or last 7d), and confirm new run data appears in overview cards and recent runs.
+
+Citric collects telemetry from new pipeline executions that happen after the GitHub App installation is completed.
+
+## What you can do immediately
+
+- Track overall CI success rate and trends.
+- Drill into failing runs and failing jobs.
+- Identify flaky tests and failure patterns.
+- Analyze cost and runner utilization trends.
+
+## Next steps
+
+<Cards>
+  <Card title="Navigation" href="/docs/app/navigation" description="Learn what each dashboard area is for" />
+  <Card title="Workflows" href="/docs/app/workflows" description="Follow task-based investigation playbooks" />
+  <Card title="MCP Setup" href="/docs/mcp/getting-started" description="Use Citric data from your coding assistant" />
+</Cards>

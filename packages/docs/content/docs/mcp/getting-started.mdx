@@ -1,0 +1,38 @@
+---
+title: MCP Getting Started
+description: Connect your coding assistant to Citric via MCP.
+---
+
+Citric exposes CI/CD observability data through a built-in Model Context Protocol (MCP) server.
+
+## Endpoint
+
+Citric MCP uses:
+
+```text
+POST /api/mcp
+```
+
+The server uses Streamable HTTP transport in stateless mode.
+
+## Authentication
+
+MCP requests require an API token sent as a bearer token:
+
+```text
+Authorization: Bearer <YOUR_MCP_TOKEN>
+```
+
+If the header is missing or invalid, Citric returns `401`.
+
+## Generate a token in the app
+
+1. Open `/dashboard/mcp-server`.
+2. In **Step 1: Generate API Token**, click **Generate token**.
+3. Copy the token and store it securely. The full token is shown once.
+4. Use the endpoint shown in **Step 2: Configure Your MCP Client**.
+
+## Next steps
+
+- [Client Setup](/docs/mcp/clients)
+- [Available Tools](/docs/mcp/tools)

@@ -1,0 +1,45 @@
+---
+title: MCP Tools
+description: Tool catalog and suggested prompts for Citric MCP.
+---
+
+All tools accept optional `from` and `to` time filters (for example, `now-7d`, `now-24h`).
+
+## Overview
+
+- `get_dashboard_overview`: high-level CI/CD health, success rate, duration, repositories.
+- `get_top_failures`: top failing jobs and workflows.
+
+## Runs
+
+- `list_runs`: filter runs by repo, branch, conclusion, workflow, or run ID.
+- `get_run_details`: full run hierarchy for a trace ID.
+- `get_step_logs`: logs for a specific job step.
+
+## Workflows
+
+- `get_workflow_details`: trends, failure reasons, costs, and recent runs for one workflow.
+
+## Tests
+
+- `get_test_results_summary`: pass/fail/skip, package breakdown, slowest tests.
+- `get_flaky_tests`: flaky tests with failure rates and flakiness scores.
+- `get_test_history`: detailed execution history for one test.
+
+## Cost and runners
+
+- `get_cost_analysis`: cost by OS, runner tier, repo, workflow, and trend.
+- `get_runner_utilization`: jobs, duration, and success rate by runner label.
+
+## Performance and failures
+
+- `get_performance_trends`: duration, queue time, and success-rate trends.
+- `get_failure_analysis`: recurring failure patterns and repo breakdown.
+
+## Example prompts for your assistant
+
+- "Give me a CI health summary for the last 24 hours."
+- "Which workflows failed most in the last 7 days?"
+- "Show flaky tests on main this week."
+- "Why did the latest failing run on main fail? Include failing step logs."
+- "Where are we spending most CI cost this month?"
