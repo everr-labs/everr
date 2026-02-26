@@ -620,13 +620,15 @@ function Home() {
               CI/CD observability for humans and AI agents
             </span>
             <h1 className="max-w-2xl text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
-              Every second counts in CI/CD.
+              Every second counts
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
               AI-assisted development compresses release cycles, so slow
-              feedback loops hurt faster. Everr turns workflow runs into
-              OpenTelemetry traces in ClickHouse so teams can spot regressions,
-              flaky tests, and bottlenecks quickly across CI providers.
+              feedback loops hurt faster.{" "}
+              <span className="font-semibold text-black">Everr</span> turns
+              workflow runs into OpenTelemetry traces in ClickHouse so teams can
+              spot regressions, flaky tests, and bottlenecks quickly across CI
+              providers.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a
@@ -803,7 +805,7 @@ function Home() {
               },
             ].map((feature) => (
               <motion.div key={feature.title} variants={fadeUp}>
-                <SurfaceCard className="group h-full border-fd-border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+                <SurfaceCard className="group h-full border-fd-border p-5 transition-all duration-300 hover:shadow-lg">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">{feature.title}</h3>
                     {feature.comingSoon ? (
