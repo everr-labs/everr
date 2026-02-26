@@ -1,5 +1,5 @@
 # STAGE 1 - build
-FROM golang:1.26.0 AS build
+FROM golang:1.26.0-alpine AS build
 WORKDIR /collector
 
 COPY . .
