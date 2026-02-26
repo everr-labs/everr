@@ -625,10 +625,10 @@ function Home() {
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
               AI-assisted development compresses release cycles, so slow
               feedback loops hurt faster.{" "}
-              <span className="font-semibold text-black">Everr</span> turns
-              workflow runs into OpenTelemetry traces in ClickHouse so teams can
-              spot regressions, flaky tests, and bottlenecks quickly across CI
-              providers.
+              <span className="font-semibold text-fd-foreground">Everr</span>{" "}
+              turns workflow runs into OpenTelemetry traces in ClickHouse so
+              teams can spot regressions, flaky tests, and bottlenecks quickly
+              across CI providers.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a
