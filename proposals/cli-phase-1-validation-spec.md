@@ -41,9 +41,8 @@ Phase 1 includes:
 3. `citric runs list`
 4. `citric runs show --trace-id <id>`
 5. `citric runs logs --trace-id <id> --job-name <name> --step-number <n> [--full]`
-6. `citric failures top`
-7. `citric assistant init --assistant codex|claude|cursor|all`
-8. `citric notify daemon|status`
+6. `citric assistant init --assistant codex|claude|cursor|all`
+7. `citric notify daemon|status`
 
 ## Global Assistant Integration (Updated Requirement)
 
@@ -79,7 +78,6 @@ Phase 1 includes:
    - `runs_list`
    - `run_details`
    - `step_logs`
-   - `top_failures`
 3. Branch-runs polling API for daemon use.
 4. Token revocation endpoint for logout (if implemented in phase scope).
 
