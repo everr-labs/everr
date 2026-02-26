@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerBranchStatusTools } from "./tools/ci-status";
 import { registerCostsTools } from "./tools/costs";
 import { registerOverviewTools } from "./tools/overview";
 import { registerPerformanceTools } from "./tools/performance";
@@ -13,6 +14,7 @@ export function createMcpServer(): McpServer {
   });
 
   registerOverviewTools(server);
+  registerBranchStatusTools(server);
   registerRunsTools(server);
   registerWorkflowsTools(server);
   registerTestsTools(server);
