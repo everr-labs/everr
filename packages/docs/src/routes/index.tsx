@@ -607,20 +607,6 @@ function Home() {
         className="pointer-events-none absolute inset-0 docs-grid-bg"
         aria-hidden
       />
-      <motion.div
-        className="pointer-events-none absolute left-1/2 top-[-220px] h-[520px] w-[520px] -translate-x-1/2 rounded-full docs-radial-glow"
-        animate={shouldReduceMotion ? undefined : { scale: [1, 1.06, 1] }}
-        transition={
-          shouldReduceMotion
-            ? undefined
-            : {
-                duration: 10,
-                repeat: Number.POSITIVE_INFINITY,
-                ease: "easeInOut",
-              }
-        }
-        aria-hidden
-      />
 
       <main className="relative mx-auto flex max-w-6xl flex-col px-4 pb-24 pt-14 sm:pt-20">
         <motion.section
@@ -634,13 +620,15 @@ function Home() {
               CI/CD observability for humans and AI agents
             </span>
             <h1 className="max-w-2xl text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
-              Every second counts in CI/CD.
+              Every second counts
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
               AI-assisted development compresses release cycles, so slow
-              feedback loops hurt faster. Everr turns workflow runs into
-              OpenTelemetry traces in ClickHouse so teams can spot regressions,
-              flaky tests, and bottlenecks quickly across CI providers.
+              feedback loops hurt faster.{" "}
+              <span className="font-semibold text-black">Everr</span> turns
+              workflow runs into OpenTelemetry traces in ClickHouse so teams can
+              spot regressions, flaky tests, and bottlenecks quickly across CI
+              providers.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a
@@ -768,6 +756,75 @@ function Home() {
                   <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">
                     {item.text}
                   </p>
+                </SurfaceCard>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.section>
+
+        <motion.section
+          variants={staggerContainer}
+          {...reveal}
+          className="mb-20"
+        >
+          <motion.div variants={fadeUp} className="mb-7">
+            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Core features
+            </h2>
+            <p className="mt-3 max-w-3xl text-fd-muted-foreground">
+              Start with the hosted dashboard, connect your assistant through
+              MCP, and automate workflows with the CLI.
+            </p>
+          </motion.div>
+          <motion.div
+            variants={staggerContainer}
+            className="grid gap-4 md:grid-cols-3"
+          >
+            {[
+              {
+                title: "Dashboard",
+                detail:
+                  "Monitor CI/CD health, investigate failures, and track regressions from one UI.",
+                to: "app/getting-started",
+                cta: "Open dashboard docs",
+              },
+              {
+                title: "MCP server",
+                detail:
+                  "Expose telemetry tools to AI agents so they can query and diagnose pipelines in your editor.",
+                to: "mcp/getting-started",
+                cta: "Open MCP docs",
+              },
+              {
+                title: "CLI",
+                detail:
+                  "Use terminal-first workflows for setup, automation, and CI observability tasks.",
+                to: "cli/coming-soon",
+                cta: "Open CLI docs",
+                comingSoon: true,
+              },
+            ].map((feature) => (
+              <motion.div key={feature.title} variants={fadeUp}>
+                <SurfaceCard className="group h-full border-fd-border p-5 transition-all duration-300 hover:shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">{feature.title}</h3>
+                    {feature.comingSoon ? (
+                      <span className="inline-flex items-center rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                        Coming soon
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">
+                    {feature.detail}
+                  </p>
+                  <Link
+                    to="/docs/$"
+                    params={{ _splat: feature.to }}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-everr-deep/25 bg-everr/8 px-2.5 py-1 text-sm font-semibold text-everr-deep transition-colors group-hover:bg-everr/12"
+                  >
+                    {feature.cta}
+                    <ArrowRight className="size-3.5" />
+                  </Link>
                 </SurfaceCard>
               </motion.div>
             ))}

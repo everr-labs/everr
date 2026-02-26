@@ -139,16 +139,6 @@
   opacity: 0.48;
 }
 
-.docs-radial-glow {
-  background: radial-gradient(
-    circle at center,
-    oklch(0.852 0.199 91.936 / 0.32) 0%,
-    oklch(0.681 0.162 75.834 / 0.2) 36%,
-    transparent 72%
-  );
-  filter: blur(16px);
-}
-
 .docs-cta-glow {
   background:
     radial-gradient(
