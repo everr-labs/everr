@@ -5,6 +5,7 @@ interface RunSummarySubqueryOptions {
   includeRunAttempt?: boolean;
   includeDuration?: boolean;
   includeSender?: boolean;
+  includeHeadSha?: boolean;
   includeJobCount?: boolean;
 }
 
@@ -19,6 +20,7 @@ export function runSummarySubquery({
   includeRunAttempt = false,
   includeDuration = false,
   includeSender = false,
+  includeHeadSha = false,
   includeJobCount = false,
 }: RunSummarySubqueryOptions): string {
   const selects: string[] = [
@@ -42,6 +44,11 @@ export function runSummarySubquery({
   if (includeSender) {
     selects.push(
       "max(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender",
+    );
+  }
+  if (includeHeadSha) {
+    selects.push(
+      "anyLast(ResourceAttributes['vcs.ref.head.revision']) as headSha",
     );
   }
   if (includeJobCount) {

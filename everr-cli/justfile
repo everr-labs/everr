@@ -1,0 +1,13 @@
+set shell := ["bash", "-cu"]
+
+default:
+  just --list
+
+check:
+  cargo check
+
+fmt:
+  cargo fmt
+
+run *args:
+  cargo run -- {{args}}
