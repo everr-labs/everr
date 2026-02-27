@@ -5,6 +5,7 @@ mod cli;
 mod core;
 mod daemon;
 mod install;
+mod notifications;
 mod notify;
 
 use anyhow::Result;

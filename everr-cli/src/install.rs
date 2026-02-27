@@ -1,7 +1,6 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 use anyhow::{Context, Result};
 use dialoguer::MultiSelect;
@@ -10,6 +9,7 @@ use crate::assistant;
 use crate::auth;
 use crate::cli::{AssistantKind, LoginArgs};
 use crate::daemon;
+use crate::notifications;
 
 pub async fn run_install_wizard() -> Result<()> {
     let mut summary: Vec<String> = Vec::new();
@@ -154,19 +154,9 @@ fn is_dir_in_path(dir: &PathBuf) -> bool {
 }
 
 fn send_install_completed_notification() -> Result<()> {
-    #[cfg(target_os = "macos")]
-    {
-        let script = "display notification \"Everr CLI is ready to use.\" with title \"Everr install complete\" subtitle \"Setup finished\" sound name \"Glass\"";
-        let output = Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .output()
-            .context("failed to execute osascript for install notification")?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("osascript exited non-zero: {}", stderr.trim());
-        }
-    }
-
-    Ok(())
+    notifications::send(
+        "Everr install complete",
+        "Setup finished",
+        "Everr CLI is ready to use.",
+    )
 }

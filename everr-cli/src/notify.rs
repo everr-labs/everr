@@ -13,6 +13,7 @@ use crate::api::ApiClient;
 use crate::auth;
 use crate::cli::NotifyDaemonArgs;
 use crate::daemon;
+use crate::notifications;
 
 #[derive(Debug, Deserialize)]
 struct RunsListResponse {
@@ -223,28 +224,18 @@ fn parse_datetime_unix(raw: &str) -> Option<u64> {
 fn send_failure_notification(run: &RunItem) {
     #[cfg(target_os = "macos")]
     {
-        let title = "Everr: Failing pipeline";
-        let subtitle = format!("{} ({})", run.repo, run.branch);
-        let body = format!(
-            "{} failed (run {}, trace {}).",
-            run.workflow_name, run.run_id, run.trace_id
+        let _ = notifications::send(
+            "Everr: Failing pipeline",
+            &format!("{} ({})", run.repo, run.branch),
+            &format!(
+                "{} failed (run {}, trace {}).",
+                run.workflow_name, run.run_id, run.trace_id
+            ),
         );
-
-        let script = format!(
-            "display notification \"{}\" with title \"{}\" subtitle \"{}\"",
-            apple_script_escape(&body),
-            apple_script_escape(title),
-            apple_script_escape(&subtitle),
-        );
-        let _ = Command::new("osascript").arg("-e").arg(script).output();
     }
 
     #[cfg(not(target_os = "macos"))]
     {
         let _ = run;
     }
-}
-
-fn apple_script_escape(input: &str) -> String {
-    input.replace('\\', "\\\\").replace('"', "\\\"")
 }
