@@ -52,10 +52,10 @@ jobs:
           set -euo pipefail
           mkdir -p dist
 
-          cp ./everr-cli/target/release/everr ./dist/everr-darwin-arm64
+          cp ./everr-cli/target/release/everr ./dist/everr
           (
             cd dist
-            shasum -a 256 everr-darwin-arm64 > everr-darwin-arm64.sha256
+            shasum -a 256 everr > everr.sha256
           )
 
           BUILD_TIME_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -69,6 +69,6 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: everr-cli-darwin-arm64
+          name: everr-cli
           path: dist/*
           if-no-files-found: error
