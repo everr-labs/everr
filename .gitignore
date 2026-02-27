@@ -32,3 +32,6 @@ config.yml
 dist
 
 .output
+
+# rust
+target

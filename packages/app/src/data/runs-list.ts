@@ -16,6 +16,7 @@ export interface RunListItem {
   duration: number;
   timestamp: string;
   sender: string;
+  headSha?: string;
   jobCount: number;
 }
 
@@ -98,6 +99,7 @@ export const getRunsList = createServerFn({
       includeRunAttempt: true,
       includeDuration: true,
       includeSender: true,
+      includeHeadSha: true,
       includeJobCount: true,
     });
 
@@ -130,6 +132,7 @@ export const getRunsList = createServerFn({
         duration: string;
         timestamp: string;
         sender: string;
+        headSha: string;
         jobCount: string;
       }>(dataSql, params),
       query<{ total: string }>(countSql, params),
@@ -147,6 +150,7 @@ export const getRunsList = createServerFn({
         duration: Number(row.duration),
         timestamp: row.timestamp,
         sender: row.sender,
+        headSha: row.headSha,
         jobCount: Number(row.jobCount),
       })),
       totalCount: countResult.length > 0 ? Number(countResult[0].total) : 0,

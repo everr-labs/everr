@@ -31,6 +31,8 @@ import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/
 import { Route as DashboardFlakyTestsIndexRouteImport } from './routes/dashboard/flaky-tests/index'
 import { Route as DashboardFlakyTestsDetailRouteImport } from './routes/dashboard/flaky-tests/detail'
 import { Route as ApiGithubInstallEventsRouteImport } from './routes/api/github/install-events'
+import { Route as ApiCliStatusRouteImport } from './routes/api/cli/status'
+import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as DashboardRunsTraceIdRouteRouteImport } from './routes/dashboard/runs/$traceId/route'
 import { Route as DashboardRunsTraceIdIndexRouteImport } from './routes/dashboard/runs/$traceId/index'
@@ -38,6 +40,8 @@ import { Route as DashboardWorkflowsRepoWorkflowNameRouteImport } from './routes
 import { Route as DashboardRunsTraceIdTraceRouteImport } from './routes/dashboard/runs/$traceId/trace'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
+import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
+import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as DashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as DashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
@@ -155,6 +159,16 @@ const ApiGithubInstallEventsRoute = ApiGithubInstallEventsRouteImport.update({
   path: '/api/github/install-events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCliStatusRoute = ApiCliStatusRouteImport.update({
+  id: '/api/cli/status',
+  path: '/api/cli/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
+  id: '/api/cli/runs',
+  path: '/api/cli/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
   id: '/api/auth/callback',
   path: '/api/auth/callback',
@@ -195,6 +209,16 @@ const ApiGithubInstallCallbackRoute =
     path: '/api/github/install/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
+  id: '/$traceId',
+  path: '/$traceId',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
+const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ApiCliRunsTraceIdRoute,
+} as any)
 const DashboardRunsTraceIdJobsJobIdIndexRoute =
   DashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
     id: '/jobs/$jobId/',
@@ -228,16 +252,20 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/status': typeof ApiCliStatusRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
+  '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
   '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
+  '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -257,16 +285,20 @@ export interface FileRoutesByTo {
   '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/status': typeof ApiCliStatusRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs': typeof DashboardRunsIndexRoute
   '/dashboard/workflows': typeof DashboardWorkflowsIndexRoute
+  '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
   '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdIndexRoute
+  '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboard/runs/$traceId/jobs/$jobId': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -291,16 +323,20 @@ export interface FileRoutesById {
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/status': typeof ApiCliStatusRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
   '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
   '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
+  '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
   '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
+  '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -326,16 +362,20 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
+    | '/api/cli/runs'
+    | '/api/cli/status'
     | '/api/github/install-events'
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
+    | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/dashboard/runs/$traceId/trace'
     | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId/'
+    | '/api/cli/runs/$traceId/logs'
     | '/dashboard/runs/$traceId/jobs/$jobId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesByTo: FileRoutesByTo
@@ -355,16 +395,20 @@ export interface FileRouteTypes {
     | '/setup/organization'
     | '/dashboard'
     | '/api/auth/callback'
+    | '/api/cli/runs'
+    | '/api/cli/status'
     | '/api/github/install-events'
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests'
     | '/dashboard/runs'
     | '/dashboard/workflows'
+    | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/dashboard/runs/$traceId/trace'
     | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId'
+    | '/api/cli/runs/$traceId/logs'
     | '/dashboard/runs/$traceId/jobs/$jobId'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   id:
@@ -388,16 +432,20 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
+    | '/api/cli/runs'
+    | '/api/cli/status'
     | '/api/github/install-events'
     | '/dashboard/flaky-tests/detail'
     | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
+    | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/dashboard/runs/$traceId/trace'
     | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId/'
+    | '/api/cli/runs/$traceId/logs'
     | '/dashboard/runs/$traceId/jobs/$jobId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesById: FileRoutesById
@@ -409,6 +457,8 @@ export interface RootRouteChildren {
   ApiMcpRoute: typeof ApiMcpRoute
   SetupOrganizationRoute: typeof SetupOrganizationRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
+  ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
+  ApiCliStatusRoute: typeof ApiCliStatusRoute
   ApiGithubInstallEventsRoute: typeof ApiGithubInstallEventsRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
@@ -570,6 +620,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubInstallEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cli/status': {
+      id: '/api/cli/status'
+      path: '/api/cli/status'
+      fullPath: '/api/cli/status'
+      preLoaderRoute: typeof ApiCliStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/runs': {
+      id: '/api/cli/runs'
+      path: '/api/cli/runs'
+      fullPath: '/api/cli/runs'
+      preLoaderRoute: typeof ApiCliRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/callback': {
       id: '/api/auth/callback'
       path: '/api/auth/callback'
@@ -618,6 +682,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/github/install/callback'
       preLoaderRoute: typeof ApiGithubInstallCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/runs/$traceId': {
+      id: '/api/cli/runs/$traceId'
+      path: '/$traceId'
+      fullPath: '/api/cli/runs/$traceId'
+      preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/cli/runs/$traceId/logs': {
+      id: '/api/cli/runs/$traceId/logs'
+      path: '/logs'
+      fullPath: '/api/cli/runs/$traceId/logs'
+      preLoaderRoute: typeof ApiCliRunsTraceIdLogsRouteImport
+      parentRoute: typeof ApiCliRunsTraceIdRoute
     }
     '/dashboard/runs/$traceId/jobs/$jobId/': {
       id: '/dashboard/runs/$traceId/jobs/$jobId/'
@@ -724,6 +802,29 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
+interface ApiCliRunsTraceIdRouteChildren {
+  ApiCliRunsTraceIdLogsRoute: typeof ApiCliRunsTraceIdLogsRoute
+}
+
+const ApiCliRunsTraceIdRouteChildren: ApiCliRunsTraceIdRouteChildren = {
+  ApiCliRunsTraceIdLogsRoute: ApiCliRunsTraceIdLogsRoute,
+}
+
+const ApiCliRunsTraceIdRouteWithChildren =
+  ApiCliRunsTraceIdRoute._addFileChildren(ApiCliRunsTraceIdRouteChildren)
+
+interface ApiCliRunsRouteChildren {
+  ApiCliRunsTraceIdRoute: typeof ApiCliRunsTraceIdRouteWithChildren
+}
+
+const ApiCliRunsRouteChildren: ApiCliRunsRouteChildren = {
+  ApiCliRunsTraceIdRoute: ApiCliRunsTraceIdRouteWithChildren,
+}
+
+const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
+  ApiCliRunsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
@@ -731,6 +832,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpRoute: ApiMcpRoute,
   SetupOrganizationRoute: SetupOrganizationRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
+  ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
+  ApiCliStatusRoute: ApiCliStatusRoute,
   ApiGithubInstallEventsRoute: ApiGithubInstallEventsRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
