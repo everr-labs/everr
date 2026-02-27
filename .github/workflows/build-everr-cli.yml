@@ -23,9 +23,9 @@ on:
       - packages/docs/content/docs/cli/**
 
 jobs:
-  build-macos-arm64:
-    name: Build (macOS arm64)
-    runs-on: macos-14
+  build:
+    name: Build
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,29 +46,3 @@ jobs:
 
       - name: Smoke test
         run: ./everr-cli/target/release/everr --help
-
-      - name: Package artifacts
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-
-          cp ./everr-cli/target/release/everr ./dist/everr
-          (
-            cd dist
-            shasum -a 256 everr > everr.sha256
-          )
-
-          BUILD_TIME_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          cat > ./dist/metadata.json <<EOF
-          {
-            "git_sha": "${GITHUB_SHA}",
-            "build_time_utc": "${BUILD_TIME_UTC}"
-          }
-          EOF
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-cli
-          path: dist/*
-          if-no-files-found: error
