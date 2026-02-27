@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli::LoginArgs;
 
-const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
+pub const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Session {

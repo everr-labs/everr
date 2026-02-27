@@ -17,7 +17,9 @@ async fn main() -> Result<()> {
         Commands::Install => install::run_install_wizard().await?,
         Commands::Uninstall => {
             assistant::remove_managed_prompts()?;
+            auth::logout()?;
         }
+        Commands::Connect(args) => core::connect(args)?,
         Commands::Auth { command } => match command {
             AuthCommand::Login(login) => auth::login(login).await?,
             AuthCommand::Logout => auth::logout()?,
