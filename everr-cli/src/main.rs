@@ -17,7 +17,10 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Install => install::run_install_wizard().await?,
-        Commands::Uninstall => daemon::uninstall()?,
+        Commands::Uninstall => {
+            assistant::remove_managed_prompts()?;
+            daemon::uninstall()?;
+        }
         Commands::Auth { command } => match command {
             AuthCommand::Login(login) => auth::login(login).await?,
             AuthCommand::Logout => auth::logout()?,
@@ -30,7 +33,7 @@ async fn main() -> Result<()> {
             cli::NotifyCommand::Status => notify::status()?,
         },
         Commands::Context => core::context()?,
-        Commands::Status(args) => core::status(args).await?,
+        Commands::CurrentBranchStatus(args) => core::status(args).await?,
         Commands::Runs { command } => match command {
             RunsCommand::List(args) => core::runs_list(args).await?,
             RunsCommand::Show(args) => core::runs_show(args).await?,

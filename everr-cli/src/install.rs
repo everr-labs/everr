@@ -1,4 +1,9 @@
-use anyhow::{Result, bail};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+
+use anyhow::{Context, Result};
 use dialoguer::MultiSelect;
 
 use crate::assistant;
@@ -8,6 +13,28 @@ use crate::daemon;
 
 pub async fn run_install_wizard() -> Result<()> {
     let mut summary: Vec<String> = Vec::new();
+
+    let command_install = install_command_binary()?;
+    if command_install.installed_now {
+        summary.push(format!(
+            "command: installed everr at {}",
+            command_install.destination.display()
+        ));
+    } else {
+        summary.push(format!(
+            "command: already installed at {}",
+            command_install.destination.display()
+        ));
+    }
+    if !command_install.in_path {
+        summary.push(format!(
+            "command: add {} to PATH to run `everr` from any shell",
+            command_install
+                .destination
+                .parent()
+                .map_or_else(|| "<unknown>".to_string(), |p| p.display().to_string())
+        ));
+    }
 
     if auth::has_active_session()? {
         summary.push("auth: active session found".to_string());
@@ -21,8 +48,12 @@ pub async fn run_install_wizard() -> Result<()> {
     }
 
     let assistants = prompt_assistants()?;
-    assistant::init_assistants(&assistants)?;
-    summary.push(format!("assistants: configured {}", assistants.len()));
+    if assistants.is_empty() {
+        summary.push("assistants: skipped".to_string());
+    } else {
+        assistant::init_assistants(&assistants)?;
+        summary.push(format!("assistants: configured {}", assistants.len()));
+    }
 
     let daemon_result = daemon::install_if_missing()?;
     if daemon_result.installed_now {
@@ -46,6 +77,9 @@ pub async fn run_install_wizard() -> Result<()> {
     for item in summary {
         println!("- {item}");
     }
+    if let Err(error) = send_install_completed_notification() {
+        eprintln!("warning: failed to send install notification: {error}");
+    }
     Ok(())
 }
 
@@ -56,15 +90,83 @@ fn prompt_assistants() -> Result<Vec<AssistantKind>> {
         AssistantKind::Cursor,
     ];
     let labels = ["Codex", "Claude", "Cursor"];
+    let defaults = [
+        assistant::is_assistant_installed(AssistantKind::Codex)?,
+        assistant::is_assistant_installed(AssistantKind::Claude)?,
+        assistant::is_assistant_installed(AssistantKind::Cursor)?,
+    ];
     let indexes = MultiSelect::new()
         .with_prompt("Select assistants to configure globally")
         .items(&labels)
+        .defaults(&defaults)
         .interact()?;
-
-    if indexes.is_empty() {
-        bail!("at least one assistant must be selected");
-    }
 
     let selected = indexes.into_iter().map(|idx| choices[idx]).collect();
     Ok(selected)
+}
+
+struct CommandInstallResult {
+    destination: PathBuf,
+    installed_now: bool,
+    in_path: bool,
+}
+
+fn install_command_binary() -> Result<CommandInstallResult> {
+    let source = env::current_exe().context("failed to resolve current executable path")?;
+    let destination_dir = command_install_dir()?;
+    fs::create_dir_all(&destination_dir)
+        .with_context(|| format!("failed to create {}", destination_dir.display()))?;
+    let destination = destination_dir.join("everr");
+
+    let source_canonical = fs::canonicalize(&source).unwrap_or(source.clone());
+    let dest_canonical = fs::canonicalize(&destination).unwrap_or(destination.clone());
+    let installed_now = if source_canonical == dest_canonical {
+        false
+    } else {
+        fs::copy(&source, &destination).with_context(|| {
+            format!(
+                "failed to copy binary from {} to {}",
+                source.display(),
+                destination.display()
+            )
+        })?;
+        true
+    };
+
+    let in_path = is_dir_in_path(&destination_dir);
+    Ok(CommandInstallResult {
+        destination,
+        installed_now,
+        in_path,
+    })
+}
+
+fn command_install_dir() -> Result<PathBuf> {
+    let home = dirs::home_dir().context("failed to resolve home dir")?;
+    Ok(home.join(".local").join("bin"))
+}
+
+fn is_dir_in_path(dir: &PathBuf) -> bool {
+    let Some(path) = env::var_os("PATH") else {
+        return false;
+    };
+    env::split_paths(&path).any(|p| p == *dir)
+}
+
+fn send_install_completed_notification() -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let script = "display notification \"Everr CLI is ready to use.\" with title \"Everr install complete\" subtitle \"Setup finished\" sound name \"Glass\"";
+        let output = Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output()
+            .context("failed to execute osascript for install notification")?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("osascript exited non-zero: {}", stderr.trim());
+        }
+    }
+
+    Ok(())
 }

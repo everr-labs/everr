@@ -25,6 +25,49 @@ pub fn init_assistants(assistants: &[AssistantKind]) -> Result<()> {
     Ok(())
 }
 
+pub fn is_assistant_installed(assistant: AssistantKind) -> Result<bool> {
+    let path = path_for_assistant(assistant)?;
+    if !path.exists() {
+        return Ok(false);
+    }
+
+    let current =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
+    Ok(current.contains(BLOCK_START) && current.contains(BLOCK_END))
+}
+
+pub fn remove_managed_prompts() -> Result<()> {
+    let assistants = [
+        AssistantKind::Codex,
+        AssistantKind::Claude,
+        AssistantKind::Cursor,
+    ];
+
+    for assistant in assistants {
+        let path = path_for_assistant(assistant)?;
+        if !path.exists() {
+            continue;
+        }
+        let current = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        let next = remove_managed_block(&current);
+        if next == current {
+            continue;
+        }
+
+        if next.trim().is_empty() {
+            fs::remove_file(&path)
+                .with_context(|| format!("failed to remove {}", path.display()))?;
+        } else {
+            fs::write(&path, next)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+        }
+        println!("Removed Everr prompt from {}", path.display());
+    }
+
+    Ok(())
+}
+
 fn path_for_assistant(assistant: AssistantKind) -> Result<PathBuf> {
     let home = dirs::home_dir().context("failed to resolve home dir")?;
     let path = match assistant {
@@ -37,7 +80,7 @@ fn path_for_assistant(assistant: AssistantKind) -> Result<PathBuf> {
 
 fn content_for_assistant() -> String {
     format!(
-        "{BLOCK_START}\n#\nUse Everr CLI from the current project directory to get CI/CD status and logs.\n\nQuick commands:- `everr status`\n- `everr runs list`\n- `everr runs show --trace-id <trace_id>`\n- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`\n{BLOCK_END}\n"
+        "{BLOCK_START}\n#\nUse Everr CLI from the current project directory to get CI/CD status and logs.\n\nQuick commands:- `everr current-branch-status`\n- `everr runs list`\n- `everr runs show --trace-id <trace_id>`\n- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`\n{BLOCK_END}\n"
     )
 }
 
@@ -78,5 +121,20 @@ fn upsert_managed_block(current: &str, block: &str) -> String {
                 format!("{current}\n\n{block}")
             }
         }
+    }
+}
+
+fn remove_managed_block(current: &str) -> String {
+    match (current.find(BLOCK_START), current.find(BLOCK_END)) {
+        (Some(start), Some(end_marker)) if end_marker >= start => {
+            let end = end_marker + BLOCK_END.len();
+            let mut out = String::with_capacity(current.len());
+            out.push_str(&current[..start]);
+            if end < current.len() {
+                out.push_str(&current[end..]);
+            }
+            out.trim().to_string()
+        }
+        _ => current.to_string(),
     }
 }

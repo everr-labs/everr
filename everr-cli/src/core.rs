@@ -48,8 +48,11 @@ pub async fn status(args: StatusArgs) -> Result<()> {
 pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
     let session = auth::require_session()?;
     let client = ApiClient::from_session(&session)?;
+    let git = resolve_git_context(std::env::current_dir()?);
+    let repo = args.repo.or(git.repo);
+
     let mut query: Vec<(&str, String)> = Vec::new();
-    push_opt(&mut query, "repo", args.repo);
+    push_opt(&mut query, "repo", repo);
     push_opt(&mut query, "branch", args.branch);
     push_opt(&mut query, "conclusion", args.conclusion);
     push_opt(&mut query, "workflowName", args.workflow_name);

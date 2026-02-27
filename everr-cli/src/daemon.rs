@@ -5,6 +5,8 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
+const LAUNCHD_LABEL: &str = "dev.everr.daemon";
+
 pub struct DaemonInstallResult {
     pub service_path: PathBuf,
     pub installed_now: bool,
@@ -14,10 +16,16 @@ pub struct DaemonInstallResult {
 pub fn install_if_missing() -> Result<DaemonInstallResult> {
     let service_path = service_file_path()?;
     if service_path.exists() {
+        let already_loaded = is_service_loaded();
+        let started = if already_loaded {
+            true
+        } else {
+            start_service(&service_path)
+        };
         return Ok(DaemonInstallResult {
             service_path,
             installed_now: false,
-            started: true,
+            started,
         });
     }
 
@@ -128,6 +136,9 @@ fn render_service_file(exe_path: &str) -> String {
 fn start_service(service_path: &PathBuf) -> bool {
     #[cfg(target_os = "macos")]
     {
+        if is_service_loaded() {
+            return true;
+        }
         let output = Command::new("launchctl")
             .arg("load")
             .arg("-w")
@@ -149,6 +160,22 @@ fn stop_service(service_path: &PathBuf) -> bool {
             .arg("unload")
             .arg("-w")
             .arg(service_path)
+            .output();
+        return output.is_ok_and(|result| result.status.success());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
+fn is_service_loaded() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("launchctl")
+            .arg("list")
+            .arg(LAUNCHD_LABEL)
             .output();
         return output.is_ok_and(|result| result.status.success());
     }
