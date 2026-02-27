@@ -72,24 +72,6 @@ pub async fn run_install_wizard() -> Result<()> {
     }
     summary.push(assistants_summary(&assistants));
 
-    // let daemon_result = daemon::install_if_missing()?;
-    // if daemon_result.installed_now {
-    //     summary.push(format!(
-    //         "daemon: installed service at {}",
-    //         daemon_result.service_path.display()
-    //     ));
-    // } else {
-    //     summary.push("daemon: service already installed".to_string());
-    // }
-    // if daemon_result.started {
-    //     summary.push("daemon: service started".to_string());
-    // } else {
-    //     summary.push(
-    //         "daemon: service file installed but start command failed (start it manually)"
-    //             .to_string(),
-    //     );
-    // }
-
     println!("\nInstall summary:");
     for item in summary {
         println!("- {item}");

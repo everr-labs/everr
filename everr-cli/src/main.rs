@@ -4,7 +4,6 @@ mod auth;
 mod cli;
 mod core;
 mod install;
-mod notifications;
 
 use anyhow::Result;
 use clap::Parser;
