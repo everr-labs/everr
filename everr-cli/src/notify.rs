@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
@@ -32,8 +31,6 @@ struct RunItem {
     branch: String,
     conclusion: String,
     timestamp: String,
-    #[serde(rename = "headSha")]
-    head_sha: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -92,27 +89,20 @@ async fn run_poll_cycle(client: &ApiClient) -> Result<()> {
 
     let parsed: RunsListResponse =
         serde_json::from_value(payload).context("failed to decode list_runs output")?;
-    for run in parsed.runs.iter().filter(|r| r.conclusion == "failure") {
+    for run in &parsed.runs {
         let run_ts = parse_run_timestamp_unix(&run.timestamp).unwrap_or(0);
         if run_ts < last_poll_unix {
             continue;
         }
 
-        let authored_commit_match = is_commit_authored_by_current_user(&run.head_sha)?;
-
-        if !authored_commit_match {
-            continue;
-        }
-
-        let key = format!("{}|{}|{}|failure", run.repo, run.branch, run.run_id);
+        let key = format!("{}|{}|{}", run.repo, run.branch, run.run_id);
         if state.last_alert_key.as_deref() == Some(key.as_str()) {
             continue;
         }
 
-        send_failure_notification(run);
+        send_run_notification(run);
         state.last_alert_key = Some(key);
         state.last_alert_at_unix = Some(now_unix());
-        break;
     }
 
     state.last_poll_at_unix = Some(now_unix());
@@ -166,48 +156,6 @@ fn relative_from_expr(last_poll_unix: u64, now_unix: u64) -> String {
     format!("now-{delta}s")
 }
 
-fn is_commit_authored_by_current_user(sha: &str) -> Result<bool> {
-    if sha.trim().is_empty() {
-        return Ok(false);
-    }
-
-    let user_email = run_git_global(["config", "--global", "--get", "user.email"])
-        .map(|s| s.trim().to_ascii_lowercase())
-        .filter(|s| !s.is_empty());
-    let Some(user_email) = user_email else {
-        return Ok(false);
-    };
-
-    let output = Command::new("git")
-        .args(["show", "-s", "--format=%ae%n%ce", sha])
-        .output()
-        .context("failed to inspect commit author")?;
-    if !output.status.success() {
-        return Ok(false);
-    }
-
-    let stdout = String::from_utf8(output.stdout).context("git show output was not UTF-8")?;
-    let matches = stdout.lines().any(|line| {
-        let email = line.trim().to_ascii_lowercase();
-        !email.is_empty() && email == user_email
-    });
-    Ok(matches)
-}
-
-fn run_git_global<const N: usize>(args: [&str; N]) -> Option<String> {
-    let output = Command::new("git").args(args).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let stdout = String::from_utf8(output.stdout).ok()?;
-    let trimmed = stdout.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
 fn parse_datetime_unix(raw: &str) -> Option<u64> {
     if let Ok(dt) = DateTime::parse_from_rfc3339(raw) {
         return Some(dt.timestamp() as u64);
@@ -221,15 +169,15 @@ fn parse_datetime_unix(raw: &str) -> Option<u64> {
     None
 }
 
-fn send_failure_notification(run: &RunItem) {
+fn send_run_notification(run: &RunItem) {
     #[cfg(target_os = "macos")]
     {
         let _ = notifications::send(
-            "Everr: Failing pipeline",
+            "Everr: Pipeline update",
             &format!("{} ({})", run.repo, run.branch),
             &format!(
-                "{} failed (run {}, trace {}).",
-                run.workflow_name, run.run_id, run.trace_id
+                "{} {} (run {}, trace {}).",
+                run.workflow_name, run.conclusion, run.run_id, run.trace_id
             ),
         );
     }
