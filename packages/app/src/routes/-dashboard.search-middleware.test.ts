@@ -52,7 +52,7 @@ describe("dashboard search middlewares", () => {
       { from: "now-7d", to: "now", refresh: "10s" },
     );
 
-    expect(result).toEqual({ refresh: "1000" });
+    expect(result).toEqual({ refresh: "10s" });
   });
 
   it("retains current range when destination omits time params", () => {

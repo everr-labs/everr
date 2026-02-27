@@ -68,6 +68,39 @@ pub fn remove_managed_prompts() -> Result<()> {
     Ok(())
 }
 
+pub fn refresh_existing_managed_prompts() -> Result<Vec<AssistantKind>> {
+    let assistants = [
+        AssistantKind::Codex,
+        AssistantKind::Claude,
+        AssistantKind::Cursor,
+    ];
+    let managed_block = content_for_assistant();
+    let mut refreshed = Vec::new();
+
+    for assistant in assistants {
+        let path = path_for_assistant(assistant)?;
+        if !path.exists() {
+            continue;
+        }
+
+        let current = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        if !(current.contains(BLOCK_START) && current.contains(BLOCK_END)) {
+            continue;
+        }
+
+        let next = upsert_managed_block(&current, &managed_block);
+        if next == current {
+            continue;
+        }
+
+        fs::write(&path, next).with_context(|| format!("failed to write {}", path.display()))?;
+        refreshed.push(assistant);
+    }
+
+    Ok(refreshed)
+}
+
 fn path_for_assistant(assistant: AssistantKind) -> Result<PathBuf> {
     let home = dirs::home_dir().context("failed to resolve home dir")?;
     let path = match assistant {
@@ -80,7 +113,7 @@ fn path_for_assistant(assistant: AssistantKind) -> Result<PathBuf> {
 
 fn content_for_assistant() -> String {
     format!(
-        "{BLOCK_START}\n#\nUse Everr CLI from the current project directory to get CI/CD status and logs.\n\nQuick commands:- `everr current-branch-status`\n- `everr runs list`\n- `everr runs show --trace-id <trace_id>`\n- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`\n{BLOCK_END}\n"
+        "{BLOCK_START}\n#\nUse Everr CLI from the current project directory to see what is wrong with CI.\nWhen CI fails, use Everr to identify the failing workflow/job/step and inspect logs.\n\nQuick commands:\n- `everr current-branch-status`\n- `everr runs list`\n- `everr runs show --trace-id <trace_id>`\n- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`\n{BLOCK_END}\n"
     )
 }
 

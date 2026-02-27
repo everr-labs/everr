@@ -1,6 +1,5 @@
 use std::env;
 use std::fs;
-use std::io;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -9,7 +8,6 @@ use dialoguer::MultiSelect;
 use crate::assistant;
 use crate::auth;
 use crate::cli::{AssistantKind, LoginArgs};
-use crate::notifications;
 
 pub async fn run_install_wizard() -> Result<()> {
     let mut summary: Vec<String> = Vec::new();
@@ -47,6 +45,18 @@ pub async fn run_install_wizard() -> Result<()> {
         summary.push("auth: logged in".to_string());
     }
 
+    let refreshed = assistant::refresh_existing_managed_prompts()?;
+    if !refreshed.is_empty() {
+        summary.push(format!(
+            "assistants: updated stale prompts for {}",
+            refreshed
+                .iter()
+                .map(|assistant| assistant_label(*assistant))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+
     let assistants = prompt_assistants()?;
     if assistants.is_empty() {
         summary.push("assistants: skipped".to_string());
@@ -77,10 +87,15 @@ pub async fn run_install_wizard() -> Result<()> {
     for item in summary {
         println!("- {item}");
     }
-    if let Err(error) = run_notification_permission_prompt() {
-        eprintln!("warning: failed to run notification permission prompt: {error}");
-    }
     Ok(())
+}
+
+fn assistant_label(assistant: AssistantKind) -> &'static str {
+    match assistant {
+        AssistantKind::Codex => "Codex",
+        AssistantKind::Claude => "Claude",
+        AssistantKind::Cursor => "Cursor",
+    }
 }
 
 fn prompt_assistants() -> Result<Vec<AssistantKind>> {
@@ -151,30 +166,4 @@ fn is_dir_in_path(dir: &PathBuf) -> bool {
         return false;
     };
     env::split_paths(&path).any(|p| p == *dir)
-}
-
-fn run_notification_permission_prompt() -> Result<()> {
-    notifications::send(
-        "Everr notifications setup",
-        "Follow the instructions to enable notifications for Everr.",
-        "This is a test notification to verify that notifications are working.",
-    )?;
-
-    println!();
-    println!("Notification permission setup:");
-    println!("1. Open System Settings -> Notifications.");
-    println!("2. Enable notifications for Everr/Script Editor/Terminal.");
-    println!("3. Set style to Banners or Alerts and allow sounds.");
-    println!("Press Enter when done, and Everr will send a second test notification.");
-
-    let mut input = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .context("failed to read confirmation input")?;
-
-    notifications::send(
-        "Everr install complete",
-        "Setup finished",
-        "Everr CLI is ready to use.",
-    )
 }
