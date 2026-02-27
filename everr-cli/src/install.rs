@@ -9,7 +9,6 @@ use dialoguer::MultiSelect;
 use crate::assistant;
 use crate::auth;
 use crate::cli::{AssistantKind, LoginArgs};
-use crate::daemon;
 use crate::notifications;
 
 pub async fn run_install_wizard() -> Result<()> {
@@ -56,23 +55,23 @@ pub async fn run_install_wizard() -> Result<()> {
         summary.push(format!("assistants: configured {}", assistants.len()));
     }
 
-    let daemon_result = daemon::install_if_missing()?;
-    if daemon_result.installed_now {
-        summary.push(format!(
-            "daemon: installed service at {}",
-            daemon_result.service_path.display()
-        ));
-    } else {
-        summary.push("daemon: service already installed".to_string());
-    }
-    if daemon_result.started {
-        summary.push("daemon: service started".to_string());
-    } else {
-        summary.push(
-            "daemon: service file installed but start command failed (start it manually)"
-                .to_string(),
-        );
-    }
+    // let daemon_result = daemon::install_if_missing()?;
+    // if daemon_result.installed_now {
+    //     summary.push(format!(
+    //         "daemon: installed service at {}",
+    //         daemon_result.service_path.display()
+    //     ));
+    // } else {
+    //     summary.push("daemon: service already installed".to_string());
+    // }
+    // if daemon_result.started {
+    //     summary.push("daemon: service started".to_string());
+    // } else {
+    //     summary.push(
+    //         "daemon: service file installed but start command failed (start it manually)"
+    //             .to_string(),
+    //     );
+    // }
 
     println!("\nInstall summary:");
     for item in summary {

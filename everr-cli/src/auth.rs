@@ -6,7 +6,6 @@ use dialoguer::{Input, Password};
 use serde::{Deserialize, Serialize};
 
 use crate::cli::LoginArgs;
-use crate::daemon;
 
 const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
 
@@ -77,14 +76,6 @@ pub fn logout() -> Result<()> {
         println!("Logged out.");
     } else {
         println!("No active session.");
-    }
-
-    if daemon::is_service_installed()? {
-        if daemon::stop_if_installed()? {
-            println!("Daemon stopped.");
-        } else {
-            println!("Daemon service is installed but stop command failed.");
-        }
     }
 
     Ok(())

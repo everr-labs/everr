@@ -15,7 +15,7 @@ pub struct Cli {
 pub enum Commands {
     /// First-run setup wizard
     Install,
-    /// Remove local Everr setup artifacts (daemon service only for now)
+    /// Remove local Everr setup artifacts
     Uninstall,
     /// Authentication commands
     Auth {
@@ -26,11 +26,6 @@ pub enum Commands {
     Assistant {
         #[command(subcommand)]
         command: AssistantCommand,
-    },
-    /// Daemon controls
-    Notify {
-        #[command(subcommand)]
-        command: NotifyCommand,
     },
     /// Show current git repository and branch context
     Context,
@@ -66,24 +61,6 @@ pub struct LoginArgs {
 pub enum AssistantCommand {
     /// Initialize global assistant integration files
     Init(AssistantInitArgs),
-}
-
-#[derive(Subcommand, Debug)]
-pub enum NotifyCommand {
-    /// Run the background daemon loop
-    Daemon(NotifyDaemonArgs),
-    /// Show daemon status
-    Status,
-}
-
-#[derive(Args, Debug, Default)]
-pub struct NotifyDaemonArgs {
-    /// Poll interval in seconds
-    #[arg(long, default_value_t = 60)]
-    pub interval_seconds: u64,
-    /// Run one poll cycle and exit
-    #[arg(long, default_value_t = false)]
-    pub once: bool,
 }
 
 #[derive(Subcommand, Debug)]

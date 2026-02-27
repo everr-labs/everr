@@ -3,10 +3,8 @@ mod assistant;
 mod auth;
 mod cli;
 mod core;
-mod daemon;
 mod install;
 mod notifications;
-mod notify;
 
 use anyhow::Result;
 use clap::Parser;
@@ -20,7 +18,6 @@ async fn main() -> Result<()> {
         Commands::Install => install::run_install_wizard().await?,
         Commands::Uninstall => {
             assistant::remove_managed_prompts()?;
-            daemon::uninstall()?;
         }
         Commands::Auth { command } => match command {
             AuthCommand::Login(login) => auth::login(login).await?,
@@ -28,10 +25,6 @@ async fn main() -> Result<()> {
         },
         Commands::Assistant { command } => match command {
             cli::AssistantCommand::Init(init) => assistant::init_from_args(init)?,
-        },
-        Commands::Notify { command } => match command {
-            cli::NotifyCommand::Daemon(args) => notify::run_daemon(args).await?,
-            cli::NotifyCommand::Status => notify::status()?,
         },
         Commands::Context => core::context()?,
         Commands::CurrentBranchStatus(args) => core::status(args).await?,
