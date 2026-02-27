@@ -138,3 +138,124 @@ pub enum AssistantKind {
     Claude,
     Cursor,
 }
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use super::{AssistantCommand, AssistantKind, Cli, Commands, RunsCommand};
+
+    #[test]
+    fn parses_top_level_commands() {
+        let context = Cli::try_parse_from(["everr", "context"]).expect("context command");
+        assert!(matches!(context.command, Commands::Context));
+
+        let uninstall = Cli::try_parse_from(["everr", "uninstall"]).expect("uninstall command");
+        assert!(matches!(uninstall.command, Commands::Uninstall));
+    }
+
+    #[test]
+    fn validates_required_trace_id_for_runs_show() {
+        let err = Cli::try_parse_from(["everr", "runs", "show"])
+            .expect_err("runs show should require --trace-id");
+        let err_string = err.to_string();
+        assert!(err_string.contains("--trace-id"));
+    }
+
+    #[test]
+    fn validates_required_arguments_for_runs_logs() {
+        let err = Cli::try_parse_from([
+            "everr",
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-1",
+            "--job-name",
+            "build",
+        ])
+        .expect_err("runs logs should require --step-number");
+        assert!(err.to_string().contains("--step-number"));
+    }
+
+    #[test]
+    fn validates_required_assistants_for_assistant_init() {
+        let err = Cli::try_parse_from(["everr", "assistant", "init"])
+            .expect_err("assistant init should require --assistant");
+        assert!(err.to_string().contains("--assistant"));
+    }
+
+    #[test]
+    fn runs_logs_full_flag_defaults_to_false() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-1",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+        ])
+        .expect("valid runs logs command");
+
+        let Commands::Runs { command } = cli.command else {
+            panic!("expected runs command");
+        };
+        let RunsCommand::Logs(args) = command else {
+            panic!("expected runs logs command");
+        };
+        assert!(!args.full);
+    }
+
+    #[test]
+    fn runs_logs_full_flag_parses_true_when_present() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-1",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--full",
+        ])
+        .expect("valid runs logs command");
+
+        let Commands::Runs { command } = cli.command else {
+            panic!("expected runs command");
+        };
+        let RunsCommand::Logs(args) = command else {
+            panic!("expected runs logs command");
+        };
+        assert!(args.full);
+    }
+
+    #[test]
+    fn assistant_init_supports_repeated_assistant_flags() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "assistant",
+            "init",
+            "--assistant",
+            "codex",
+            "--assistant",
+            "cursor",
+        ])
+        .expect("assistant init command");
+
+        let Commands::Assistant {
+            command: AssistantCommand::Init(args),
+        } = cli.command
+        else {
+            panic!("expected assistant init command");
+        };
+
+        assert_eq!(
+            args.assistants,
+            vec![AssistantKind::Codex, AssistantKind::Cursor]
+        );
+    }
+}

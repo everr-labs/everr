@@ -15,6 +15,31 @@ pub struct Session {
     pub token: String,
 }
 
+trait LoginPrompter {
+    fn prompt_api_base_url(&self, default_api_base_url: &str) -> Result<String>;
+    fn prompt_token(&self) -> Result<String>;
+}
+
+struct DialoguerLoginPrompter;
+
+impl LoginPrompter for DialoguerLoginPrompter {
+    fn prompt_api_base_url(&self, default_api_base_url: &str) -> Result<String> {
+        Input::new()
+            .with_prompt("Everr API base URL")
+            .default(default_api_base_url.to_string())
+            .interact_text()
+            .context("failed to read API base URL")
+    }
+
+    fn prompt_token(&self) -> Result<String> {
+        Password::new()
+            .with_prompt("Paste your Everr MCP token")
+            .allow_empty_password(false)
+            .interact()
+            .context("failed to read token")
+    }
+}
+
 pub async fn login(args: LoginArgs) -> Result<()> {
     let session = login_interactive(args.api_base_url, args.token)?;
     save_session(&session)?;
@@ -26,13 +51,18 @@ pub async fn login(args: LoginArgs) -> Result<()> {
 }
 
 pub fn login_interactive(api_base_url: Option<String>, token: Option<String>) -> Result<Session> {
+    let prompter = DialoguerLoginPrompter;
+    login_interactive_with(api_base_url, token, &prompter)
+}
+
+fn login_interactive_with(
+    api_base_url: Option<String>,
+    token: Option<String>,
+    prompter: &dyn LoginPrompter,
+) -> Result<Session> {
     let api_base_url = match api_base_url {
         Some(url) => url,
-        None => Input::new()
-            .with_prompt("Everr API base URL")
-            .default(DEFAULT_API_BASE_URL.to_string())
-            .interact_text()
-            .context("failed to read API base URL")?,
+        None => prompter.prompt_api_base_url(DEFAULT_API_BASE_URL)?,
     };
 
     let mcp_setup_url = mcp_setup_url_from_api_base(&api_base_url);
@@ -46,11 +76,7 @@ pub fn login_interactive(api_base_url: Option<String>, token: Option<String>) ->
 
     let token = match token {
         Some(value) => value,
-        None => Password::new()
-            .with_prompt("Paste your Everr MCP token")
-            .allow_empty_password(false)
-            .interact()
-            .context("failed to read token")?,
+        None => prompter.prompt_token()?,
     };
 
     if token.trim().is_empty() {
@@ -111,4 +137,78 @@ fn save_session(session: &Session) -> Result<()> {
 fn session_file_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
     Ok(config_dir.join("everr").join("session.json"))
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::{Result, anyhow};
+
+    use super::{LoginPrompter, login_interactive_with, mcp_setup_url_from_api_base};
+
+    struct StubPrompter {
+        api_base_url: Option<String>,
+        token: Option<String>,
+    }
+
+    impl LoginPrompter for StubPrompter {
+        fn prompt_api_base_url(&self, _default_api_base_url: &str) -> Result<String> {
+            self.api_base_url
+                .as_ref()
+                .map(|value| value.to_string())
+                .ok_or_else(|| anyhow!("missing api base url"))
+        }
+
+        fn prompt_token(&self) -> Result<String> {
+            self.token
+                .as_ref()
+                .map(|value| value.to_string())
+                .ok_or_else(|| anyhow!("missing token"))
+        }
+    }
+
+    struct PanicPrompter;
+
+    impl LoginPrompter for PanicPrompter {
+        fn prompt_api_base_url(&self, _default_api_base_url: &str) -> Result<String> {
+            panic!("prompt_api_base_url should not be called")
+        }
+
+        fn prompt_token(&self) -> Result<String> {
+            panic!("prompt_token should not be called")
+        }
+    }
+
+    #[test]
+    fn mcp_setup_url_trims_space_and_trailing_slash() {
+        let url = mcp_setup_url_from_api_base(" https://app.everr.dev/ ");
+        assert_eq!(url, "https://app.everr.dev/dashboard/mcp-server");
+    }
+
+    #[test]
+    fn login_interactive_rejects_empty_token() {
+        let err = login_interactive_with(
+            Some("https://app.everr.dev".to_string()),
+            Some("   ".to_string()),
+            &PanicPrompter,
+        )
+        .expect_err("expected empty token to fail");
+
+        assert!(err.to_string().contains("token cannot be empty"));
+    }
+
+    #[test]
+    fn login_interactive_uses_prompter_values_when_missing_cli_args() {
+        let session = login_interactive_with(
+            None,
+            None,
+            &StubPrompter {
+                api_base_url: Some("https://dev.everr.dev".to_string()),
+                token: Some("token-123".to_string()),
+            },
+        )
+        .expect("expected prompt-driven login to succeed");
+
+        assert_eq!(session.api_base_url, "https://dev.everr.dev");
+        assert_eq!(session.token, "token-123");
+    }
 }

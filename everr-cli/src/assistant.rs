@@ -136,9 +136,8 @@ fn write_managed_block(path: &Path, block: String) -> Result<()> {
 }
 
 fn upsert_managed_block(current: &str, block: &str) -> String {
-    match (current.find(BLOCK_START), current.find(BLOCK_END)) {
-        (Some(start), Some(end_marker)) if end_marker >= start => {
-            let end = end_marker + BLOCK_END.len();
+    match managed_block_range(current) {
+        Some((start, end)) => {
             let mut out = String::with_capacity(current.len() + block.len());
             out.push_str(&current[..start]);
             out.push_str(block);
@@ -158,9 +157,8 @@ fn upsert_managed_block(current: &str, block: &str) -> String {
 }
 
 fn remove_managed_block(current: &str) -> String {
-    match (current.find(BLOCK_START), current.find(BLOCK_END)) {
-        (Some(start), Some(end_marker)) if end_marker >= start => {
-            let end = end_marker + BLOCK_END.len();
+    match managed_block_range(current) {
+        Some((start, end)) => {
             let mut out = String::with_capacity(current.len());
             out.push_str(&current[..start]);
             if end < current.len() {
@@ -169,5 +167,50 @@ fn remove_managed_block(current: &str) -> String {
             out.trim().to_string()
         }
         _ => current.to_string(),
+    }
+}
+
+fn managed_block_range(current: &str) -> Option<(usize, usize)> {
+    let start = current.find(BLOCK_START)?;
+    let end_marker = current.find(BLOCK_END)?;
+    if end_marker < start {
+        return None;
+    }
+
+    let mut end = end_marker + BLOCK_END.len();
+    if current[end..].starts_with("\r\n") {
+        end += 2;
+    } else if current[end..].starts_with('\n') {
+        end += 1;
+    }
+
+    Some((start, end))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BLOCK_START, remove_managed_block, upsert_managed_block};
+
+    #[test]
+    fn upsert_managed_block_is_idempotent() {
+        let block = format!("{BLOCK_START}\nmanaged\n<!-- EVERR_CLI_END -->\n");
+        let original = "custom content";
+        let once = upsert_managed_block(original, &block);
+        let twice = upsert_managed_block(&once, &block);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn remove_managed_block_removes_only_managed_content() {
+        let current = "before\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\nafter";
+        let updated = remove_managed_block(current);
+        assert_eq!(updated, "before\nafter");
+    }
+
+    #[test]
+    fn remove_managed_block_keeps_input_without_markers() {
+        let current = "keep me";
+        let updated = remove_managed_block(current);
+        assert_eq!(updated, "keep me");
     }
 }

@@ -5,6 +5,12 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-publish-everr-cli.yml
+      - everr-cli/**
+      - packages/docs/content/docs/cli/**
   push:
     branches: [main]
     paths:
@@ -27,6 +33,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: everr-cli
+
+      - name: Test
+        run: cargo test --manifest-path everr-cli/Cargo.toml
 
       - name: Build release binary
         run: cargo build --release --manifest-path everr-cli/Cargo.toml
@@ -64,6 +73,7 @@ jobs:
     name: Publish to GitHub Releases
     runs-on: ubuntu-latest
     needs: build-macos-arm64
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     env:
