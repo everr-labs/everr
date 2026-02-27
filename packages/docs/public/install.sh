@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GITHUB_REPO="citric-app/citric"
-RELEASE_TAG="everr-cli-main"
-BINARY_NAME="everr-darwin-arm64"
+DOWNLOAD_BASE_URL="${EVERR_DOWNLOAD_BASE_URL:-https://everr.dev}"
+BINARY_NAME="everr"
 INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_PATH="${INSTALL_DIR}/everr"
 
@@ -26,8 +25,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-binary_url="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/${BINARY_NAME}"
-checksum_url="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/${BINARY_NAME}.sha256"
+binary_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}"
+checksum_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}.sha256"
 
 echo "Downloading Everr CLI..."
 curl -fsSL "${binary_url}" -o "${tmp_dir}/${BINARY_NAME}"

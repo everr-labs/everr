@@ -1,0 +1,74 @@
+name: Everr CLI CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/build-everr-cli.yml
+      - everr-cli/**
+      - packages/docs/Dockerfile
+      - packages/docs/public/install.sh
+      - packages/docs/content/docs/cli/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-everr-cli.yml
+      - everr-cli/**
+      - packages/docs/Dockerfile
+      - packages/docs/public/install.sh
+      - packages/docs/content/docs/cli/**
+
+jobs:
+  build-macos-arm64:
+    name: Build (macOS arm64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: everr-cli
+
+      - name: Test
+        run: cargo test --manifest-path everr-cli/Cargo.toml
+
+      - name: Build release binary
+        run: cargo build --release --manifest-path everr-cli/Cargo.toml
+
+      - name: Smoke test
+        run: ./everr-cli/target/release/everr --help
+
+      - name: Package artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          cp ./everr-cli/target/release/everr ./dist/everr-darwin-arm64
+          (
+            cd dist
+            shasum -a 256 everr-darwin-arm64 > everr-darwin-arm64.sha256
+          )
+
+          BUILD_TIME_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          cat > ./dist/metadata.json <<EOF
+          {
+            "git_sha": "${GITHUB_SHA}",
+            "build_time_utc": "${BUILD_TIME_UTC}"
+          }
+          EOF
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-cli-darwin-arm64
+          path: dist/*
+          if-no-files-found: error
