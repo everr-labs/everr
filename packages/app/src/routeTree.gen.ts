@@ -23,6 +23,7 @@ import { Route as DashboardMcpServerRouteImport } from './routes/dashboard/mcp-s
 import { Route as DashboardFlakyTestsRouteImport } from './routes/dashboard/flaky-tests'
 import { Route as DashboardFailuresRouteImport } from './routes/dashboard/failures'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
+import { Route as DashboardCliTokenRouteImport } from './routes/dashboard/cli-token'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
 import { Route as DashboardAccountRouteImport } from './routes/dashboard/account'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
@@ -115,6 +116,11 @@ const DashboardFailuresRoute = DashboardFailuresRouteImport.update({
 const DashboardCostAnalysisRoute = DashboardCostAnalysisRouteImport.update({
   id: '/cost-analysis',
   path: '/cost-analysis',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCliTokenRoute = DashboardCliTokenRouteImport.update({
+  id: '/cli-token',
+  path: '/cli-token',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
@@ -239,6 +245,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp': typeof ApiMcpRoute
   '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
   '/dashboard/flaky-tests': typeof DashboardFlakyTestsRouteWithChildren
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/api/mcp': typeof ApiMcpRoute
   '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
   '/dashboard/mcp-server': typeof DashboardMcpServerRoute
@@ -310,6 +318,7 @@ export interface FileRoutesById {
   '/api/mcp': typeof ApiMcpRoute
   '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/failures': typeof DashboardFailuresRoute
   '/dashboard/flaky-tests': typeof DashboardFlakyTestsRouteWithChildren
@@ -349,6 +358,7 @@ export interface FileRouteTypes {
     | '/api/mcp'
     | '/dashboard/account'
     | '/dashboard/analytics'
+    | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
     | '/dashboard/flaky-tests'
@@ -385,6 +395,7 @@ export interface FileRouteTypes {
     | '/api/mcp'
     | '/dashboard/account'
     | '/dashboard/analytics'
+    | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
     | '/dashboard/mcp-server'
@@ -419,6 +430,7 @@ export interface FileRouteTypes {
     | '/api/mcp'
     | '/dashboard/account'
     | '/dashboard/analytics'
+    | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
     | '/dashboard/failures'
     | '/dashboard/flaky-tests'
@@ -562,6 +574,13 @@ declare module '@tanstack/react-router' {
       path: '/cost-analysis'
       fullPath: '/dashboard/cost-analysis'
       preLoaderRoute: typeof DashboardCostAnalysisRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/cli-token': {
+      id: '/dashboard/cli-token'
+      path: '/cli-token'
+      fullPath: '/dashboard/cli-token'
+      preLoaderRoute: typeof DashboardCliTokenRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/analytics': {
@@ -766,6 +785,7 @@ const DashboardRunsRouteWithChildren = DashboardRunsRoute._addFileChildren(
 interface DashboardRouteChildren {
   DashboardAccountRoute: typeof DashboardAccountRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardCliTokenRoute: typeof DashboardCliTokenRoute
   DashboardCostAnalysisRoute: typeof DashboardCostAnalysisRoute
   DashboardFailuresRoute: typeof DashboardFailuresRoute
   DashboardFlakyTestsRoute: typeof DashboardFlakyTestsRouteWithChildren
@@ -783,6 +803,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAccountRoute: DashboardAccountRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardCliTokenRoute: DashboardCliTokenRoute,
   DashboardCostAnalysisRoute: DashboardCostAnalysisRoute,
   DashboardFailuresRoute: DashboardFailuresRoute,
   DashboardFlakyTestsRoute: DashboardFlakyTestsRouteWithChildren,

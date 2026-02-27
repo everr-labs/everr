@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { createMcpApiKey } from "@/data/mcp-api-keys";
+import { createAccessToken } from "@/data/access-tokens";
 
 export const Route = createFileRoute("/dashboard/mcp-server")({
   staticData: { breadcrumb: "MCP Server", hideTimeRangePicker: true },
@@ -41,7 +41,7 @@ function McpServerSetupPage() {
     setIsGenerating(true);
 
     try {
-      const token = await createMcpApiKey();
+      const token = await createAccessToken();
       setGeneratedToken(token.value);
       setMaskedToken(token.obfuscatedValue);
     } catch (error) {
@@ -65,10 +65,9 @@ function McpServerSetupPage() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-3">
       <div>
-        <h1 className="text-xl font-bold tracking-tight">MCP Server Setup</h1>
+        <h1 className="text-xl font-bold tracking-tight">Access tokens</h1>
         <p className="text-muted-foreground">
-          Generate a Citric MCP server API token and configure your Code
-          Assistant.
+          Generate a Everr MCP access token and configure your Code Assistant.
         </p>
       </div>
 
@@ -77,7 +76,7 @@ function McpServerSetupPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <WandSparkles className="size-4" />
-              Step 1: Generate API Token
+              Step 1: Generate MCP access Token
             </CardTitle>
             <CardDescription>This token is shown only once</CardDescription>
           </CardHeader>
@@ -104,7 +103,7 @@ function McpServerSetupPage() {
 
             <div className="space-y-1">
               <label htmlFor="generated-token" className="text-xs font-medium">
-                API token
+                Access token
               </label>
               <div className="flex gap-2">
                 <Textarea
@@ -128,10 +127,11 @@ function McpServerSetupPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <SquareArrowOutUpRight className="size-4" />
-              Step 2: Configure Your MCP Client
+              Step 2: Configure Your Code Assistant
             </CardTitle>
             <CardDescription>
-              Use this endpoint in Claude Code, Cursor, or any MCP HTTP client.
+              Use this endpoint in Claude Code, Cursor, or anything that
+              supports the Model Context Protocol (MCP).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

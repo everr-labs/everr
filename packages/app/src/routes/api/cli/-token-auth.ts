@@ -1,5 +1,5 @@
 import { createMiddleware } from "@tanstack/react-start";
-import { getBearerToken, validateMcpApiKey } from "@/lib/mcp-auth";
+import { getBearerToken, validateAccessToken } from "@/lib/access-token-auth";
 import { setRequestContextInStartContext } from "@/lib/start-context";
 
 export const cliTokenAuthMiddleware = createMiddleware({
@@ -10,19 +10,18 @@ export const cliTokenAuthMiddleware = createMiddleware({
   if (!token) {
     return Response.json(
       {
-        error:
-          "Missing Bearer token. Generate an MCP API token in Everr and retry.",
+        error: "Missing Bearer token. Generate a token in Everr and retry.",
       },
       { status: 401 },
     );
   }
 
-  const validatedApiKey = await validateMcpApiKey(token);
+  const validatedApiKey = await validateAccessToken(token);
   if (!validatedApiKey) {
     return Response.json(
       {
         error:
-          "Invalid API token. Ensure the token is active and generated from MCP Server setup.",
+          "Invalid token. Ensure the token is active and generated from MCP Server setup.",
       },
       { status: 401 },
     );
