@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -77,8 +78,8 @@ pub async fn run_install_wizard() -> Result<()> {
     for item in summary {
         println!("- {item}");
     }
-    if let Err(error) = send_install_completed_notification() {
-        eprintln!("warning: failed to send install notification: {error}");
+    if let Err(error) = run_notification_permission_prompt() {
+        eprintln!("warning: failed to run notification permission prompt: {error}");
     }
     Ok(())
 }
@@ -153,7 +154,25 @@ fn is_dir_in_path(dir: &PathBuf) -> bool {
     env::split_paths(&path).any(|p| p == *dir)
 }
 
-fn send_install_completed_notification() -> Result<()> {
+fn run_notification_permission_prompt() -> Result<()> {
+    notifications::send(
+        "Everr notifications setup",
+        "Follow the instructions to enable notifications for Everr.",
+        "This is a test notification to verify that notifications are working.",
+    )?;
+
+    println!();
+    println!("Notification permission setup:");
+    println!("1. Open System Settings -> Notifications.");
+    println!("2. Enable notifications for Everr/Script Editor/Terminal.");
+    println!("3. Set style to Banners or Alerts and allow sounds.");
+    println!("Press Enter when done, and Everr will send a second test notification.");
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .context("failed to read confirmation input")?;
+
     notifications::send(
         "Everr install complete",
         "Setup finished",
