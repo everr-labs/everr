@@ -30,8 +30,7 @@ pub enum Commands {
     /// Show current git repository and branch context
     Context,
     /// CI status for current or selected branch
-    #[command(name = "current-branch-status")]
-    CurrentBranchStatus(StatusArgs),
+    Status(StatusArgs),
     /// Pipeline runs commands
     Runs {
         #[command(subcommand)]

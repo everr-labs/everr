@@ -799,20 +799,14 @@ function Home() {
                 title: "CLI",
                 detail:
                   "Use terminal-first workflows for setup, automation, and CI observability tasks.",
-                to: "cli/coming-soon",
+                to: "cli",
                 cta: "Open CLI docs",
-                comingSoon: true,
               },
             ].map((feature) => (
               <motion.div key={feature.title} variants={fadeUp}>
                 <SurfaceCard className="group h-full border-fd-border p-5 transition-all duration-300 hover:shadow-lg">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">{feature.title}</h3>
-                    {feature.comingSoon ? (
-                      <span className="inline-flex items-center rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
-                        Coming soon
-                      </span>
-                    ) : null}
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">
                     {feature.detail}
