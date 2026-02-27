@@ -13,7 +13,7 @@ fn root_help_lists_main_commands() {
         .success()
         .stdout(contains("Usage: everr <COMMAND>"))
         .stdout(contains("install"))
-        .stdout(contains("current-branch-status"))
+        .stdout(contains("status"))
         .stdout(contains("runs"));
 }
 

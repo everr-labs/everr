@@ -5,7 +5,7 @@ use predicates::str::contains;
 use support::CliTestEnv;
 
 #[test]
-fn current_branch_status_sends_expected_query_and_auth_header() {
+fn status_command_sends_expected_query_and_auth_header() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -33,7 +33,7 @@ fn current_branch_status_sends_expected_query_and_auth_header() {
     env.command()
         .current_dir(&repo_dir)
         .args([
-            "current-branch-status",
+            "status",
             "--main-branch",
             "main",
             "--from",

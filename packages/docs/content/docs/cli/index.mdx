@@ -1,0 +1,25 @@
+---
+title: CLI
+description: Use the Everr CLI to inspect CI/CD status directly from your terminal.
+---
+
+The Everr CLI helps AI agents and humans move quickly from CI/CD signal to action.
+
+It is designed so teams can inspect failures, logs, and branch status from the current repository context without switching tools.
+
+## Install
+
+Install the latest Everr CLI build:
+
+```bash
+curl -fsSL https://everr.dev/install.sh | sh
+```
+
+The installer places `everr` in `~/.local/bin` and starts setup when an interactive terminal is available.
+
+## Commands
+
+- `everr status`
+- `everr runs list`
+- `everr runs show --trace-id <trace_id>`
+- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`

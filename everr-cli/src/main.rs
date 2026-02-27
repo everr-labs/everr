@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
             cli::AssistantCommand::Init(init) => assistant::init_from_args(init)?,
         },
         Commands::Context => core::context()?,
-        Commands::CurrentBranchStatus(args) => core::status(args).await?,
+        Commands::Status(args) => core::status(args).await?,
         Commands::Runs { command } => match command {
             RunsCommand::List(args) => core::runs_list(args).await?,
             RunsCommand::Show(args) => core::runs_show(args).await?,
