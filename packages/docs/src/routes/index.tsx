@@ -469,7 +469,7 @@ function CodeAssistantViz() {
         }}
       />
       <div className="relative flex h-[430px] w-[580px] gap-2 shrink-0 flex-col overflow-hidden rounded-[10px] border border-fd-border bg-fd-card px-5 pb-4 pt-14 font-mono text-[10px] leading-4 text-fd-foreground sm:text-[11px]">
-        <div className="absolute right-4 top-3 z-10">
+        <div className="absolute left-4 top-3 z-10 lg:right-4 lg:left-auto">
           <span className="inline-flex items-center rounded-full border border-fd-border bg-fd-secondary/70 px-3 py-1 text-[10px] font-medium text-fd-foreground">
             Has the CI pipeline failed?
           </span>
