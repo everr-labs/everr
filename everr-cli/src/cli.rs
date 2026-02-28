@@ -17,6 +17,8 @@ pub enum Commands {
     Install,
     /// Remove local Everr setup artifacts
     Uninstall,
+    /// Guide GitHub App installation for the current repository
+    Connect(ConnectArgs),
     /// Authentication commands
     Auth {
         #[command(subcommand)]
@@ -87,6 +89,16 @@ pub struct StatusArgs {
 }
 
 #[derive(Args, Debug, Default)]
+pub struct ConnectArgs {
+    /// Repository in owner/name format
+    #[arg(long)]
+    pub repo: Option<String>,
+    /// Everr app base URL (defaults to active session or app.everr.dev)
+    #[arg(long)]
+    pub api_base_url: Option<String>,
+}
+
+#[derive(Args, Debug, Default)]
 pub struct ListRunsArgs {
     #[arg(long)]
     pub repo: Option<String>,
@@ -151,6 +163,9 @@ mod tests {
 
         let uninstall = Cli::try_parse_from(["everr", "uninstall"]).expect("uninstall command");
         assert!(matches!(uninstall.command, Commands::Uninstall));
+
+        let connect = Cli::try_parse_from(["everr", "connect"]).expect("connect command");
+        assert!(matches!(connect.command, Commands::Connect(_)));
     }
 
     #[test]

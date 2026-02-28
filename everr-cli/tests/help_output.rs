@@ -12,6 +12,7 @@ fn root_help_lists_main_commands() {
         .assert()
         .success()
         .stdout(contains("Usage: everr <COMMAND>"))
+        .stdout(contains("connect"))
         .stdout(contains("install"))
         .stdout(contains("status"))
         .stdout(contains("runs"));

@@ -1,7 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
-import { getBearerToken, validateMcpApiKey } from "@/lib/mcp-auth";
+import { getBearerToken, validateAccessToken } from "@/lib/access-token-auth";
 import { setRequestContextInStartContext } from "@/lib/start-context";
 import { createMcpServer } from "@/mcp/server";
 
@@ -12,18 +12,18 @@ const tokenAuthMiddleware = createMiddleware({ type: "request" }).server(
     if (!token) {
       return Response.json(
         {
-          error: "Missing Bearer token. Generate an MCP API token in Citric.",
+          error: "Missing Bearer token. Generate a token in Citric.",
         },
         { status: 401 },
       );
     }
 
-    const validatedApiKey = await validateMcpApiKey(token);
+    const validatedApiKey = await validateAccessToken(token);
     if (!validatedApiKey) {
       return Response.json(
         {
           error:
-            "Invalid API token. Ensure the token is active and generated from MCP Server setup.",
+            "Invalid token. Ensure the token is active and generated from MCP Server setup.",
         },
         { status: 401 },
       );

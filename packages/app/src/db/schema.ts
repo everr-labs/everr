@@ -68,8 +68,8 @@ export const githubInstallationTenantRelations = relations(
   }),
 );
 
-export const mcpTokens = pgTable(
-  "mcp_tokens",
+export const accessTokens = pgTable(
+  "access_tokens",
   {
     id: bigint("id", { mode: "number" })
       .primaryKey()
@@ -88,13 +88,13 @@ export const mcpTokens = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("mcp_tokens_token_hash_uq").on(table.tokenHash),
-    index("mcp_tokens_org_user_revoked_created_idx").on(
+    uniqueIndex("access_tokens_token_hash_uq").on(table.tokenHash),
+    index("access_tokens_org_user_revoked_created_idx").on(
       table.organizationId,
       table.userId,
       table.revokedAt,
       table.createdAt,
     ),
-    index("mcp_tokens_token_prefix_idx").on(table.tokenPrefix),
+    index("access_tokens_token_prefix_idx").on(table.tokenPrefix),
   ],
 );

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli::LoginArgs;
 
-const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
+pub const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Session {
@@ -33,7 +33,7 @@ impl LoginPrompter for DialoguerLoginPrompter {
 
     fn prompt_token(&self) -> Result<String> {
         Password::new()
-            .with_prompt("Paste your Everr MCP token")
+            .with_prompt("Paste your Everr access token")
             .allow_empty_password(false)
             .interact()
             .context("failed to read token")
@@ -65,11 +65,11 @@ fn login_interactive_with(
         None => prompter.prompt_api_base_url(DEFAULT_API_BASE_URL)?,
     };
 
-    let mcp_setup_url = mcp_setup_url_from_api_base(&api_base_url);
+    let cli_token_url = cli_token_url_from_api_base(&api_base_url);
     println!();
     println!("To create an access token:");
-    println!("1. Open: {mcp_setup_url}");
-    println!("2. In Step 1, click 'Generate token'.");
+    println!("1. Open: {cli_token_url}");
+    println!("2. Click 'Generate token'.");
     println!("3. Copy the token (it is shown once).");
     println!("4. Paste it below.");
     println!();
@@ -89,9 +89,9 @@ fn login_interactive_with(
     })
 }
 
-fn mcp_setup_url_from_api_base(api_base_url: &str) -> String {
+fn cli_token_url_from_api_base(api_base_url: &str) -> String {
     let trimmed = api_base_url.trim().trim_end_matches('/');
-    format!("{trimmed}/dashboard/mcp-server")
+    format!("{trimmed}/dashboard/cli-token")
 }
 
 pub fn logout() -> Result<()> {
@@ -143,7 +143,7 @@ fn session_file_path() -> Result<PathBuf> {
 mod tests {
     use anyhow::{Result, anyhow};
 
-    use super::{LoginPrompter, login_interactive_with, mcp_setup_url_from_api_base};
+    use super::{LoginPrompter, cli_token_url_from_api_base, login_interactive_with};
 
     struct StubPrompter {
         api_base_url: Option<String>,
@@ -179,9 +179,9 @@ mod tests {
     }
 
     #[test]
-    fn mcp_setup_url_trims_space_and_trailing_slash() {
-        let url = mcp_setup_url_from_api_base(" https://app.everr.dev/ ");
-        assert_eq!(url, "https://app.everr.dev/dashboard/mcp-server");
+    fn cli_token_url_trims_space_and_trailing_slash() {
+        let url = cli_token_url_from_api_base(" https://app.everr.dev/ ");
+        assert_eq!(url, "https://app.everr.dev/dashboard/cli-token");
     }
 
     #[test]

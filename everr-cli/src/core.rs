@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use crate::api::ApiClient;
 use crate::auth;
-use crate::cli::{GetLogsArgs, ListRunsArgs, ShowRunArgs, StatusArgs};
+use crate::cli::{ConnectArgs, GetLogsArgs, ListRunsArgs, ShowRunArgs, StatusArgs};
 
 pub fn context() -> Result<()> {
     let cwd = std::env::current_dir()?;
@@ -23,6 +23,30 @@ pub fn context() -> Result<()> {
         "origin": origin,
     });
     print_json(&output)?;
+    Ok(())
+}
+
+pub fn connect(args: ConnectArgs) -> Result<()> {
+    let git = resolve_git_context(std::env::current_dir()?);
+    let repo = args.repo.or(git.repo);
+    let api_base_url = resolve_api_base_url(args.api_base_url)?;
+    let install_url = github_install_start_url(&api_base_url);
+
+    println!("Connect Everr to your GitHub repository");
+    println!();
+    println!("1. Open: {install_url}");
+    println!("2. Sign in and make sure the correct Everr organization is active.");
+    if let Some(repo_name) = repo {
+        println!("3. In GitHub, choose \"Only select repositories\" and select: {repo_name}");
+    } else {
+        println!("3. In GitHub, choose the repository you want to observe.");
+        println!(
+            "   Tip: rerun inside a git repo or pass --repo owner/name for repo-specific guidance."
+        );
+    }
+    println!("4. Complete the installation.");
+    println!("5. Verify CI visibility with: everr status");
+
     Ok(())
 }
 
@@ -92,6 +116,27 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
 fn print_json(value: &Value) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
+}
+
+fn resolve_api_base_url(override_api_base_url: Option<String>) -> Result<String> {
+    if let Some(api_base_url) = override_api_base_url {
+        return Ok(api_base_url.trim().trim_end_matches('/').to_string());
+    }
+
+    if auth::has_active_session()? {
+        let session = auth::require_session()?;
+        return Ok(session
+            .api_base_url
+            .trim()
+            .trim_end_matches('/')
+            .to_string());
+    }
+
+    Ok(auth::DEFAULT_API_BASE_URL.to_string())
+}
+
+fn github_install_start_url(api_base_url: &str) -> String {
+    format!("{}/api/github/install/start", api_base_url)
 }
 
 fn run_git<const N: usize>(args: [&str; N], cwd: &PathBuf) -> Option<String> {
@@ -187,7 +232,9 @@ fn resolve_git_context(cwd: PathBuf) -> GitContext {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_branch_name, parse_repo_from_remote_url, push_opt};
+    use super::{
+        github_install_start_url, normalize_branch_name, parse_repo_from_remote_url, push_opt,
+    };
 
     #[test]
     fn normalize_branch_name_strips_local_ref_prefix() {
@@ -231,5 +278,13 @@ mod tests {
         push_opt(&mut query, "branch", None);
 
         assert_eq!(query, vec![("repo", "citric-app/citric".to_string())]);
+    }
+
+    #[test]
+    fn github_install_start_url_joins_path() {
+        assert_eq!(
+            github_install_start_url("https://app.everr.dev"),
+            "https://app.everr.dev/api/github/install/start"
+        );
     }
 }
