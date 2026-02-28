@@ -2,6 +2,10 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
+:root {
+  --global-header-height: 64px;
+}
+
 @theme {
   --color-everr: oklch(0.852 0.199 91.936);
   --color-everr-dark: oklch(0.795 0.184 86.047);
@@ -93,16 +97,42 @@
   }
 }
 
-.hero-bg {
-  background-image: linear-gradient(
-    120deg,
-    transparent 0%,
-    transparent 40%,
-    oklch(0.681 0.162 75.834 / 0.06) 60%,
-    oklch(0.681 0.162 75.834 / 0.18) 80%,
-    oklch(0.681 0.162 75.834 / 0.28) 100%
+@keyframes terminal-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.font-headline {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.product-perspective {
+  perspective: min(1400px, 100vw);
+  perspective-origin: 50% 40%;
+}
+
+.product-tilt {
+  transform: rotateX(48deg) rotateY(0deg) rotateZ(0deg);
+  transform-origin: 0px 2%;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card, transparent);
+  position: relative;
+  box-shadow:
+    rgba(0, 0, 0, 0.06) 0px 4px 24px,
+    rgba(0, 0, 0, 0.04) 0px 1px 2px;
+  mask-image: linear-gradient(
+    black 50%,
+    rgba(0, 0, 0, 0.5) 75%,
+    transparent 100%
   );
-  min-height: 100%;
 }
 
 .docs-grid-bg {
@@ -122,107 +152,21 @@
   opacity: 0.35;
 }
 
-.docs-grid-bg-strong {
-  background-image:
-    linear-gradient(
-      to right,
-      oklch(0.681 0.162 75.834 / 0.16) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      oklch(0.681 0.162 75.834 / 0.14) 1px,
-      transparent 1px
-    );
-  background-size: 34px 34px;
-  mask-image: radial-gradient(circle at top, black 20%, transparent 82%);
-  opacity: 0.48;
-}
-
-.docs-cta-glow {
-  background:
-    radial-gradient(
-      circle at 20% 20%,
-      oklch(0.852 0.199 91.936 / 0.18) 0%,
-      transparent 58%
-    ),
-    radial-gradient(
-      circle at 78% 65%,
-      oklch(0.681 0.162 75.834 / 0.16) 0%,
-      transparent 55%
-    );
-}
-
-.section-terminal-shell {
-  background: var(--color-fd-card, transparent);
-}
-
-.section-terminal-shell::before {
-  content: none;
-}
-
-.terminal-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid oklch(0.681 0.162 75.834 / 0.35);
-  background: oklch(0.852 0.199 91.936 / 0.14);
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: oklch(0.681 0.162 75.834);
-}
-
-.runtime-matrix-bg {
-  background:
-    linear-gradient(
-      to right,
-      oklch(0.681 0.162 75.834 / 0.06) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      oklch(0.681 0.162 75.834 / 0.06) 1px,
-      transparent 1px
-    ),
-    var(--color-fd-card, transparent);
-  background-size:
-    18px 18px,
-    18px 18px,
-    auto;
-}
-
-.runtime-matrix-card {
-  border: 1px solid var(--color-fd-border);
-  border-radius: 0.85rem;
-  padding: 0.75rem;
-  background: var(--color-fd-card, transparent);
-  box-shadow: 0 8px 20px -22px oklch(0 0 0 / 0.55);
-}
-
-.signal-panel-card {
-  background: var(--color-fd-card, transparent);
-  box-shadow: 0 8px 20px -22px oklch(0 0 0 / 0.55);
-}
-
-/* Reuse the navbar right-side social slot as a primary app CTA. */
+/* Style the Fumadocs githubUrl slot as a primary CTA button */
 header a[href="https://app.everr.dev"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   background: var(--color-everr-deep);
   color: white;
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1;
-  padding: 0.55rem 0.9rem;
+  padding: 0.5rem 1rem;
   transition:
     transform 150ms ease,
-    box-shadow 150ms ease,
-    opacity 150ms ease;
+    box-shadow 150ms ease;
 }
 
 header a[href="https://app.everr.dev"]:hover {
@@ -238,23 +182,6 @@ header a[href="https://app.everr.dev"]::after {
   content: "Get started";
 }
 
-.signal-lab-lanes {
-  position: relative;
-  overflow: hidden;
-}
-
-.signal-lab-lanes::after {
-  content: none;
-}
-
-.cicd-tile {
-  border: 1px solid var(--color-fd-border);
-  border-radius: 0.85rem;
-  padding: 0.75rem;
-  background: var(--color-fd-card, transparent);
-  box-shadow: 0 8px 20px -22px oklch(0 0 0 / 0.55);
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -262,9 +189,5 @@ header a[href="https://app.everr.dev"]::after {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
-  }
-
-  .signal-lab-lanes::after {
-    animation: none;
   }
 }
