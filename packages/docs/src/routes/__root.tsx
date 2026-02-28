@@ -7,7 +7,6 @@ import {
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type * as React from "react";
-import { Footer } from "@/components/footer";
 import { baseOptions } from "@/lib/layout.shared";
 import appCss from "@/styles/app.css?url";
 
@@ -47,7 +46,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body className="flex flex-col min-h-screen">
         <RootProvider>
           <HomeLayout {...baseOptions()}>{children}</HomeLayout>
-          <Footer />
         </RootProvider>
         <Scripts />
       </body>
