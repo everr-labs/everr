@@ -1,14 +1,5 @@
-import {
-  SiGithubactions,
-  SiGitlab,
-  SiJenkins,
-} from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Citrus } from "lucide-react";
-import { forwardRef, type ReactNode, useRef } from "react";
-import { AnimatedBeam } from "@/components/animated-beam";
 import { Footer } from "@/components/footer";
-import OtelLogo from "@/components/otel-logo.svg?react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -322,15 +313,18 @@ function HowItWorksSection() {
             </p>
           </div>
 
-          {/* Card 3: OTel native */}
+          {/* Card 3: Code assistant */}
           <div className="border-b border-fd-border pb-8 pt-8 md:border-b-0 md:border-r md:pb-0 md:pr-8">
             <div className="mb-4">
-              <OTelTopologyViz />
+              <CodeAssistantViz />
             </div>
-            <h3 className="font-headline mb-1 text-xl">OpenTelemetry native</h3>
+            <h3 className="font-headline mb-1 text-xl">
+              Integrates with your code assistant
+            </h3>
             <p className="leading-relaxed text-fd-muted-foreground">
-              Pipeline telemetry normalized into OTel traces stored in
-              ClickHouse. Query with standard tooling.
+              Ask your assistant about CI health directly to your code
+              assistant. Everr provides structured CI/CD context so your code
+              assistant can report failures with concrete details.
             </p>
           </div>
 
@@ -358,42 +352,42 @@ function HowItWorksSection() {
                       title: "ci / build-and-test",
                       hash: "b68df0d",
                       time: "2m ago",
-                      status: "failed",
+                      status: ["failed"],
                       branch: "main",
                     },
                     {
                       title: "ci / build-and-test",
                       hash: "f92e4d1",
                       time: "14m ago",
-                      status: "passed",
+                      status: ["passed"],
                       branch: "feat/webhooks",
                     },
                     {
                       title: "ci / deploy-preview",
                       hash: "a3c17e8",
                       time: "28m ago",
-                      status: "passed",
+                      status: ["passed"],
                       branch: "feat/webhooks",
                     },
                     {
                       title: "ci / build-and-test",
                       hash: "e71a0b3",
                       time: "1h ago",
-                      status: "passed",
+                      status: ["passed"],
                       branch: "fix/flaky-test",
                     },
                     {
                       title: "ci / build-and-test",
                       hash: "c4d82f6",
                       time: "2h ago",
-                      status: "flaky",
+                      status: ["failed", "flaky"],
                       branch: "main",
                     },
                     {
                       title: "ci / deploy-production",
                       hash: "d59f1a4",
                       time: "3h ago",
-                      status: "passed",
+                      status: ["passed"],
                       branch: "main",
                     },
                   ].map((run, i) => (
@@ -413,27 +407,30 @@ function HowItWorksSection() {
                         <span className="text-fd-border">&middot;</span>
                         <span>{run.branch}</span>
                         <span className="text-fd-border">&middot;</span>
-                        <span
-                          className={`inline-flex items-center gap-[3px] rounded-[5px] border px-1.5 py-px text-[10px] ${
-                            run.status === "failed"
-                              ? "border-red-500/15 bg-red-500/5 text-red-500"
-                              : run.status === "flaky"
-                                ? "border-yellow-500/15 bg-yellow-500/5 text-yellow-500"
-                                : "border-green-500/15 bg-green-500/5 text-green-500 dark:text-green-400"
-                          }`}
-                        >
-                          {/** biome-ignore lint/a11y/noSvgWithoutTitle: just a decorative SVG */}
-                          <svg
-                            width="8"
-                            height="8"
-                            viewBox="0 0 16 16"
-                            fill="currentColor"
-                            className="shrink-0"
+                        {run.status.map((status) => (
+                          <span
+                            key={status}
+                            className={`inline-flex items-center gap-[3px] rounded-[5px] border px-1.5 py-px text-[10px] ${
+                              status === "failed"
+                                ? "border-red-500/15 bg-red-500/5 text-red-500"
+                                : status === "flaky"
+                                  ? "border-yellow-500/15 bg-yellow-500/5 text-yellow-500"
+                                  : "border-green-500/15 bg-green-500/5 text-green-500 dark:text-green-400"
+                            }`}
                           >
-                            <circle cx="8" cy="8" r="5" />
-                          </svg>
-                          {run.status}
-                        </span>
+                            {/** biome-ignore lint/a11y/noSvgWithoutTitle: just a decorative SVG */}
+                            <svg
+                              width="8"
+                              height="8"
+                              viewBox="0 0 16 16"
+                              fill="currentColor"
+                              className="shrink-0"
+                            >
+                              <circle cx="8" cy="8" r="5" />
+                            </svg>
+                            {status}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -454,108 +451,83 @@ function HowItWorksSection() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Animated Beam Topology                                            */
-/* ------------------------------------------------------------------ */
-
-const BeamCircle = forwardRef<
-  HTMLDivElement,
-  { className?: string; children?: ReactNode }
->(({ className, children }, ref) => (
-  <div
-    ref={ref}
-    className={`z-10 flex size-12 items-center justify-center rounded-full border-2 border-fd-border bg-fd-card p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)] ${className ?? ""}`}
-  >
-    {children}
-  </div>
-));
-BeamCircle.displayName = "BeamCircle";
-
-function OTelTopologyViz() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const ghaRef = useRef<HTMLDivElement>(null);
-  const gitlabRef = useRef<HTMLDivElement>(null);
-  const jenkinsRef = useRef<HTMLDivElement>(null);
-  const otelRef = useRef<HTMLDivElement>(null);
-  const everrRef = useRef<HTMLDivElement>(null);
-
+function CodeAssistantViz() {
   return (
-    <div
-      ref={containerRef}
-      className="relative flex h-[250px] w-full items-center justify-center overflow-hidden px-4 sm:px-8"
-    >
-      <div className="flex size-full max-w-2xl flex-row items-stretch justify-between gap-10">
-        <div className="flex flex-col justify-center gap-3">
-          <BeamCircle ref={ghaRef}>
-            <SiGithubactions className="size-5" />
-          </BeamCircle>
-          <BeamCircle ref={gitlabRef}>
-            <SiGitlab className="size-5" />
-          </BeamCircle>
-          <BeamCircle ref={jenkinsRef}>
-            <SiJenkins className="size-5" />
-          </BeamCircle>
+    <div className="relative h-96 w-full overflow-hidden rounded-[10px] bg-fd-background">
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-1/2"
+        style={{
+          background:
+            "linear-gradient(to right, transparent 0%, var(--color-fd-background) 100%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-1/2"
+        style={{
+          background:
+            "linear-gradient(to bottom, transparent 0%, var(--color-fd-background) 100%)",
+        }}
+      />
+      <div className="relative flex h-[430px] w-[580px] gap-2 shrink-0 flex-col overflow-hidden rounded-[10px] border border-fd-border bg-fd-card px-5 pb-4 pt-14 font-mono text-[10px] leading-4 text-fd-foreground sm:text-[11px]">
+        <div className="absolute right-4 top-3 z-10">
+          <span className="inline-flex items-center rounded-full border border-fd-border bg-fd-secondary/70 px-3 py-1 text-[10px] font-medium text-fd-foreground">
+            Has the CI pipeline failed?
+          </span>
         </div>
-
-        <div className="flex flex-col justify-center">
-          <BeamCircle ref={otelRef} className="size-16">
-            <div className="flex flex-col items-center gap-1">
-              <OtelLogo className="size-6" />
-              <span className="text-[9px] font-semibold leading-none">
-                OTel
-              </span>
-            </div>
-          </BeamCircle>
+        <p>
+          I&apos;ll check your latest CI status with Everr from this repo and
+          report any failing workflow/job details.
+        </p>
+        <p className="text-fd-muted-foreground">
+          Background terminal finished with everr status
+        </p>
+        <p>
+          CI is currently failing. I&apos;m drilling into that run to identify
+          the exact failing job and step, then pulling step logs.
+        </p>
+        <p className="truncate text-fd-muted-foreground">
+          Background terminal finished with everr runs show --trace-id
+          c929f40ec0632c976134b35d0b87699a
+        </p>
+        <p>
+          Found failing step{" "}
+          <span className="rounded border border-fd-border/80 bg-fd-secondary px-1.5 py-0.5 text-fd-foreground">
+            E2E tests
+          </span>{" "}
+          and fetching logs to extract the concrete failure reason.
+        </p>
+        <div className="flex items-center gap-2 text-fd-muted-foreground">
+          <div className="h-px flex-1 bg-fd-border" />
+          <span className="text-[9px] uppercase tracking-wide">
+            Worked for 23s
+          </span>
+          <div className="h-px flex-1 bg-fd-border" />
         </div>
-
-        <div className="flex flex-col justify-center">
-          <BeamCircle ref={everrRef}>
-            <div className="flex flex-col items-center gap-1">
-              <Citrus className="size-4 text-everr-deep" />
-              <span className="text-[9px] font-semibold leading-none">
-                Everr
-              </span>
-            </div>
-          </BeamCircle>
-        </div>
+        <p className="font-semibold text-fd-foreground">
+          Your CI is currently failing.
+        </p>
+        <ul className="list-disc space-y-1 pl-4 text-fd-foreground/95">
+          <li>
+            Repo/branch{" "}
+            <span className="rounded border border-fd-border/80 bg-fd-secondary px-1.5 py-0.5 text-fd-foreground">
+              everr-labs/everr on main
+            </span>
+          </li>
+          <li>
+            Reason{" "}
+            <span className="rounded border border-fd-border/80 bg-fd-secondary px-1.5 py-0.5 text-fd-foreground">
+              Timed out waiting 300000ms for config.webServer
+            </span>
+          </li>
+        </ul>
+        <p className="text-fd-muted-foreground">
+          There are signs of <b>CI flakiness</b> starting from commit{" "}
+          <span className="rounded border border-fd-border/80 bg-fd-secondary px-1.5 py-0.5 text-fd-foreground">
+            f92e4d1
+          </span>
+          . Do you want me to fix it?
+        </p>
       </div>
-
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={ghaRef}
-        toRef={otelRef}
-        pathColor="#f97316"
-        gradientStartColor="#f97316"
-        gradientStopColor="#fb923c"
-        duration={5}
-      />
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={gitlabRef}
-        toRef={otelRef}
-        pathColor="#f97316"
-        gradientStartColor="#f97316"
-        gradientStopColor="#fb923c"
-        duration={5.2}
-      />
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={jenkinsRef}
-        toRef={otelRef}
-        pathColor="#f97316"
-        gradientStartColor="#f97316"
-        gradientStopColor="#fb923c"
-        duration={5.6}
-      />
-      <AnimatedBeam
-        containerRef={containerRef}
-        fromRef={otelRef}
-        toRef={everrRef}
-        pathColor="#ea580c"
-        gradientStartColor="#ea580c"
-        gradientStopColor="#fb923c"
-        duration={5.5}
-      />
     </div>
   );
 }
@@ -569,7 +541,7 @@ const WHY_ITEMS = [
     num: "01",
     question: '"Why did this pipeline break?"',
     answer:
-      "Every workflow run traced as OTel spans. Navigate the waterfall, see which step failed, and jump to logs in seconds.",
+      "Every workflow run traced as OTel spans. Navigate the waterfall, see which step failed, and jump to logs in milliseconds.",
   },
   {
     num: "02",
