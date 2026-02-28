@@ -9,6 +9,9 @@ interface RunSummarySubqueryOptions {
   includeJobCount?: boolean;
 }
 
+const CONCLUSION_EXPR =
+  "coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != ''))";
+
 /**
  * Builds a run-level deduplication subquery over traces.
  * Collapses multiple spans into one row per run grouping key.
@@ -29,7 +32,7 @@ export function runSummarySubquery({
     "anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName",
     "anyLast(ResourceAttributes['vcs.repository.name']) as repo",
     "anyLast(ResourceAttributes['vcs.ref.head.name']) as branch",
-    "coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion",
+    `${CONCLUSION_EXPR} as conclusion`,
     "max(Timestamp) as timestamp",
   ];
 
@@ -39,7 +42,9 @@ export function runSummarySubquery({
     );
   }
   if (includeDuration) {
-    selects.push("max(Duration) / 1000000 as duration");
+    selects.push(
+      `if(lowerUTF8(${CONCLUSION_EXPR}) = 'skip', 0, max(Duration) / 1000000) as duration`,
+    );
   }
   if (includeSender) {
     selects.push(

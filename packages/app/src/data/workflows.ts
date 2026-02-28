@@ -652,6 +652,8 @@ export const getWorkflowCost = createServerFn({
 					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+					AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+					AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
 					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 					AND SpanAttributes['citric.test.name'] = ''
 				GROUP BY labels
@@ -681,6 +683,8 @@ export const getWorkflowCost = createServerFn({
 					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+					AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+					AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
 					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
 					AND SpanAttributes['citric.test.name'] = ''
 				GROUP BY date, labels
