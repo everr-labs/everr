@@ -55,6 +55,8 @@ export const getCostOverview = createServerFn({
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+        AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+        AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
         AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
         AND SpanAttributes['citric.test.name'] = ''
       GROUP BY date, labels
@@ -203,6 +205,8 @@ export const getCostByRepo = createServerFn({
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+        AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+        AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
         AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
         AND SpanAttributes['citric.test.name'] = ''
         AND ResourceAttributes['vcs.repository.name'] != ''
@@ -283,6 +287,8 @@ export const getCostByWorkflow = createServerFn({
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
+        AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+        AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
         AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
         AND SpanAttributes['citric.test.name'] = ''
         AND ResourceAttributes['vcs.repository.name'] != ''

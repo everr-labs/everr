@@ -320,7 +320,11 @@ export const getRunJobs = createServerFn({
 					ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
-					max(Duration) / 1000000 as duration
+					if(
+						lowerUTF8(anyLast(ResourceAttributes['cicd.pipeline.task.run.result'])) = 'skip',
+						0,
+						max(Duration) / 1000000
+					) as duration
 			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
@@ -353,7 +357,11 @@ export const getJobSteps = createServerFn({
 					SpanName as name,
 					SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
 					StatusMessage as conclusion,
-					Duration / 1000000 as duration
+					if(
+						lowerUTF8(StatusMessage) = 'skip',
+						0,
+						Duration / 1000000
+					) as duration
 			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
@@ -394,7 +402,11 @@ export const getAllJobsSteps = createServerFn({
         SpanName as name,
         SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
         StatusMessage as conclusion,
-        Duration / 1000000 as duration
+        if(
+          lowerUTF8(StatusMessage) = 'skip',
+          0,
+          Duration / 1000000
+        ) as duration
       FROM traces
       WHERE TraceId = {traceId:String}
         AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
@@ -473,8 +485,8 @@ export const getRunSpans = createServerFn({
 				ParentSpanId as parentSpanId,
 				SpanName as name,
 				toUnixTimestamp64Milli(Timestamp) as startTime,
-				toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime,
-				intDiv(Duration, 1000000) as duration,
+				toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime,
+				if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as duration,
 				StatusMessage as conclusion,
 				ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
 				ResourceAttributes['cicd.pipeline.task.name'] as jobName,
