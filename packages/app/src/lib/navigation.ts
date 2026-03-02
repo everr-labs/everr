@@ -2,7 +2,6 @@ import {
   ChartLine,
   FlaskConical,
   GitBranch,
-  GitFork,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,10 +35,6 @@ export const navMain: NavItem[] = [
         title: "Workflows",
         url: "/dashboard/workflows",
       },
-      {
-        title: "Failures",
-        url: "/dashboard/failures",
-      },
     ],
   },
   {
@@ -52,40 +47,17 @@ export const navMain: NavItem[] = [
         title: "Test Results",
         url: "/dashboard/test-results",
       },
-      {
-        title: "Flaky Tests",
-        url: "/dashboard/flaky-tests",
-      },
-      {
-        title: "Test Performance",
-        url: "/dashboard/test-performance",
-      },
     ],
   },
   {
     title: "Insights",
-    url: "/dashboard/analytics",
+    url: "/dashboard/cost-analysis",
     icon: ChartLine,
     isActive: true,
     items: [
       {
-        title: "Analytics",
-        url: "/dashboard/analytics",
-      },
-      {
         title: "Cost Analysis",
         url: "/dashboard/cost-analysis",
-      },
-    ],
-  },
-  {
-    title: "Repositories",
-    url: "/dashboard/repos",
-    icon: GitFork,
-    items: [
-      {
-        title: "All Repositories",
-        url: "/dashboard/repos",
       },
     ],
   },

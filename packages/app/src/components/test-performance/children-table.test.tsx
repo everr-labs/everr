@@ -1,28 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    to,
-    search,
-    children,
-  }: {
-    to: string;
-    search?: (prev: Record<string, unknown>) => Record<string, unknown>;
-    children?: React.ReactNode;
-  }) => {
-    const resolvedSearch = search ? search({}) : undefined;
-    const searchStr = resolvedSearch
-      ? `?${new URLSearchParams(
-          Object.entries(resolvedSearch)
-            .filter(([, v]) => v !== undefined)
-            .map(([k, v]) => [k, String(v)]),
-        ).toString()}`
-      : "";
-    return <a href={`${to}${searchStr}`}>{children}</a>;
-  },
-}));
+import { describe, expect, it } from "vitest";
 
 import { ChildrenTable } from "./children-table";
 
@@ -36,7 +14,7 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 describe("ChildrenTable", () => {
-  it("uses suite icon and pkg navigation at root level", () => {
+  it("uses suite icon and renders package name at root level", () => {
     const { container } = renderWithProviders(
       <ChildrenTable
         data={[
@@ -53,15 +31,11 @@ describe("ChildrenTable", () => {
       />,
     );
 
-    const link = screen.getByText("my-pkg").closest("a");
-    expect(link).toHaveAttribute(
-      "href",
-      "/dashboard/test-performance?pkg=my-pkg",
-    );
+    expect(screen.getByText("my-pkg")).toBeInTheDocument();
     expect(container.querySelector("svg.lucide-folder-open")).toBeTruthy();
   });
 
-  it("uses leaf icon and path navigation for test rows", () => {
+  it("uses leaf icon and renders last segment for test rows", () => {
     const { container } = renderWithProviders(
       <ChildrenTable
         pkg="my-pkg"
@@ -79,11 +53,7 @@ describe("ChildrenTable", () => {
       />,
     );
 
-    const link = screen.getByText("test").closest("a");
-    expect(link).toHaveAttribute(
-      "href",
-      "/dashboard/test-performance?pkg=my-pkg&path=my-pkg+%3E+Describe+%3E+test",
-    );
+    expect(screen.getByText("test")).toBeInTheDocument();
     expect(container.querySelector("svg.lucide-flask-conical")).toBeTruthy();
   });
 });

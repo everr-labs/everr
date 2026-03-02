@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronRight,
@@ -32,25 +31,6 @@ interface TreeRow {
 
 function keyFor(scopePkg: string | undefined, name: string) {
   return `${scopePkg ?? "__root__"}::${name}`;
-}
-
-function buildChildSearch(childName: string, scopePkg?: string) {
-  if (!scopePkg) {
-    // Root level: child is a package name
-    return (prev: Record<string, unknown>) => ({
-      ...prev,
-      pkg: childName,
-      path: undefined,
-    });
-  }
-  // Package or deeper level: child name is already the full path.
-  // Always set pkg explicitly so nested rows navigated from root-expanded view
-  // still resolve to the correct package scope.
-  return (prev: Record<string, unknown>) => ({
-    ...prev,
-    pkg: scopePkg,
-    path: childName,
-  });
 }
 
 function childScopeFor(row: TreeRow): { pkg?: string; path?: string } {
@@ -108,7 +88,6 @@ function makeColumns(
       cellClassName: "py-1 pl-3 pr-3",
       cell: (row) => {
         const Icon = row.row.isSuite ? FolderOpen : FlaskConical;
-        const search = buildChildSearch(row.row.name, row.scopePkg);
         const displayName = row.scopePkg
           ? testNameLastSegment(row.row.name)
           : row.row.name;
@@ -137,16 +116,12 @@ function makeColumns(
               <span className="inline-block size-4 shrink-0" />
             )}
 
-            <Link
-              to="/dashboard/test-performance"
-              search={search}
-              className="flex min-w-0 flex-1 items-center gap-1 rounded"
-            >
+            <div className="flex min-w-0 flex-1 items-center gap-1 rounded">
               <Icon className="text-muted-foreground size-3 shrink-0" />
-              <span className="min-w-0 flex-1 truncate font-mono text-[11px] hover:underline">
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                 {displayName}
               </span>
-            </Link>
+            </div>
           </div>
         );
       },

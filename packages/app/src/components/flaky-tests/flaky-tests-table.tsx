@@ -66,10 +66,10 @@ export function FlakyTestsTable({ data }: FlakyTestsTableProps) {
       header: "Test",
       cell: (test) => (
         <Link
-          to="/dashboard/flaky-tests/detail"
+          to="/dashboard/runs"
           search={{
             repo: test.repo,
-            test: test.testFullName,
+            conclusion: "failure",
           }}
           className="hover:underline"
         >

@@ -43,10 +43,10 @@ export function RunsFilterBar({
         }
       >
         <SelectTrigger className="w-45">
-          <SelectValue placeholder="All repos" />
+          <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All repos</SelectItem>
+          <SelectItem value="__all__">All</SelectItem>
           {filterOptions.repos.map((r) => (
             <SelectItem key={r} value={r}>
               {r}
@@ -62,10 +62,10 @@ export function RunsFilterBar({
         }
       >
         <SelectTrigger className="w-40">
-          <SelectValue placeholder="All branches" />
+          <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All branches</SelectItem>
+          <SelectItem value="__all__">All</SelectItem>
           {filterOptions.branches.map((b) => (
             <SelectItem key={b} value={b}>
               {b}
@@ -81,10 +81,10 @@ export function RunsFilterBar({
         }
       >
         <SelectTrigger className="w-35">
-          <SelectValue placeholder="All statuses" />
+          <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All statuses</SelectItem>
+          <SelectItem value="__all__">All</SelectItem>
           <SelectItem value="success">Success</SelectItem>
           <SelectItem value="failure">Failure</SelectItem>
           <SelectItem value="cancellation">Cancelled</SelectItem>
@@ -98,10 +98,10 @@ export function RunsFilterBar({
         }
       >
         <SelectTrigger className="w-45]">
-          <SelectValue placeholder="All workflows" />
+          <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All workflows</SelectItem>
+          <SelectItem value="__all__">All</SelectItem>
           {filterOptions.workflowNames.map((w) => (
             <SelectItem key={w} value={w}>
               {w}

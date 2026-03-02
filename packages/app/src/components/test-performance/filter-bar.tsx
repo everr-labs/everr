@@ -50,10 +50,10 @@ export function TestPerfFilterBar({
         }
       >
         <SelectTrigger className="w-45">
-          <SelectValue placeholder="All repos" />
+          <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All repos</SelectItem>
+          <SelectItem value="__all__">All</SelectItem>
           {filterOptions.repos.map((r) => (
             <SelectItem key={r} value={r}>
               {r}
@@ -69,10 +69,10 @@ export function TestPerfFilterBar({
         }
       >
         <SelectTrigger className="w-40">
-          <SelectValue placeholder="All branches" />
+          <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All branches</SelectItem>
+          <SelectItem value="__all__">All</SelectItem>
           <SelectItem value="main">main only</SelectItem>
           {filterOptions.branches
             .filter((b) => b !== "main")
