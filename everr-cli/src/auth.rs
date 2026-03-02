@@ -32,10 +32,10 @@ impl LoginPrompter for DialoguerLoginPrompter {
     }
 
     fn prompt_token(&self) -> Result<String> {
-        Password::new()
+        Input::new()
             .with_prompt("Paste your Everr access token")
-            .allow_empty_password(false)
-            .interact()
+            .allow_empty(false)
+            .interact_text()
             .context("failed to read token")
     }
 }
