@@ -242,7 +242,7 @@ function HowItWorksSection() {
             </p>
           </div>
 
-          {/* Card 2: CI systems */}
+          {/* Card 2: Cross-system tracing */}
           <div className="border-b border-fd-border pb-8 pt-8 md:pl-8 md:pt-0">
             <div className="mb-4 flex items-center justify-center">
               <div className="relative h-96 w-full overflow-hidden rounded-[10px] bg-fd-background">
@@ -253,63 +253,92 @@ function HowItWorksSection() {
                       "linear-gradient(to bottom, transparent 0%, var(--color-fd-background) 100%)",
                   }}
                 />
-                <div
-                  className="pointer-events-none absolute inset-y-0 right-0 z-10 w-1/2"
-                  style={{
-                    background:
-                      "linear-gradient(to right, transparent 0%, var(--color-fd-background) 100%)",
-                  }}
-                />
                 <div className="flex flex-col overflow-hidden rounded-[10px] border border-fd-border bg-fd-card">
-                  <div className="grid grid-cols-[3fr_2fr] border-b border-fd-border bg-fd-secondary/50 px-5 py-2.5">
+                  {/* Pipeline flow header */}
+                  <div className="border-b border-fd-border bg-fd-secondary/50 px-5 py-2.5">
                     <span className="text-[10px] font-medium uppercase tracking-wide text-fd-muted-foreground">
-                      CI System
-                    </span>
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-fd-muted-foreground">
-                      Status
+                      Trace: deploy-to-production
                     </span>
                   </div>
+
+                  {/* Cross-system pipeline steps */}
                   {[
-                    { name: "GitHub Actions", supported: true },
-                    { name: "GitLab CI", supported: false },
-                    { name: "Jenkins", supported: false },
-                    { name: "CircleCI", supported: false },
-                    { name: "Buildkite", supported: false },
-                  ].map((ci) => (
+                    {
+                      system: "GitHub Actions",
+                      step: "build & test",
+                      duration: "4m 12s",
+                      color: "bg-everr/45",
+                      pct: "35%",
+                    },
+                    {
+                      system: "GitHub Actions",
+                      step: "push image",
+                      duration: "1m 08s",
+                      color: "bg-everr/45",
+                      pct: "12%",
+                    },
+                    {
+                      system: "ArgoCD",
+                      step: "sync staging",
+                      duration: "2m 34s",
+                      color: "bg-blue-500/45",
+                      pct: "22%",
+                    },
+                    {
+                      system: "ArgoCD",
+                      step: "health check",
+                      duration: "0m 48s",
+                      color: "bg-blue-500/45",
+                      pct: "8%",
+                    },
+                    {
+                      system: "GitLab CI",
+                      step: "integration tests",
+                      duration: "3m 22s",
+                      color: "bg-orange-500/45",
+                      pct: "28%",
+                    },
+                    {
+                      system: "ArgoCD",
+                      step: "promote production",
+                      duration: "1m 56s",
+                      color: "bg-blue-500/45",
+                      pct: "16%",
+                    },
+                  ].map((step) => (
                     <div
-                      key={ci.name}
-                      className="grid grid-cols-[3fr_2fr] items-center border-b border-fd-border/50 px-5 py-3.5"
+                      key={`${step.system}-${step.step}`}
+                      className="grid grid-cols-[90px_1fr_56px] items-center gap-3 border-b border-fd-border/50 px-5 py-3"
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`size-2 shrink-0 rounded-full ${ci.supported ? "bg-everr-deep" : "bg-fd-border"}`}
-                        />
-                        <span className="text-[13px] font-medium">
-                          {ci.name}
+                      <span className="truncate text-[10px] font-medium text-fd-muted-foreground">
+                        {step.system}
+                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="truncate font-mono text-[11px]">
+                          {step.step}
                         </span>
+                        <div className="h-1.5 rounded-full bg-fd-secondary/60">
+                          <div
+                            className={`h-full rounded-full ${step.color}`}
+                            style={{ width: step.pct }}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-                            ci.supported
-                              ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                              : "bg-fd-secondary/50 text-fd-muted-foreground"
-                          }`}
-                        >
-                          {ci.supported ? "Supported" : "Planned"}
-                        </span>
-                      </div>
+                      <span className="text-right font-mono text-[11px] text-fd-muted-foreground">
+                        {step.duration}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
             <h3 className="font-headline mb-1 text-xl">
-              Works with any CI system
+              Trace across systems, not just one
             </h3>
             <p className="leading-relaxed text-fd-muted-foreground">
-              GitHub Actions fully supported. GitLab CI, Jenkins, and more
-              coming soon.
+              Everr stitches traces across GitHub Actions, GitLab CI, ArgoCD,
+              and more into a single pipeline view. See the full journey from
+              push to production.
             </p>
           </div>
 
