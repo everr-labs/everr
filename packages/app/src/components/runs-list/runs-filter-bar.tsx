@@ -47,11 +47,13 @@ export function RunsFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__all__">All</SelectItem>
-          {filterOptions.repos.map((r) => (
-            <SelectItem key={r} value={r}>
-              {r}
-            </SelectItem>
-          ))}
+          {filterOptions.repos
+            .filter((r) => r !== "__all__")
+            .map((r) => (
+              <SelectItem key={r} value={r}>
+                {r}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
 
@@ -66,11 +68,13 @@ export function RunsFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__all__">All</SelectItem>
-          {filterOptions.branches.map((b) => (
-            <SelectItem key={b} value={b}>
-              {b}
-            </SelectItem>
-          ))}
+          {filterOptions.branches
+            .filter((b) => b !== "__all__")
+            .map((b) => (
+              <SelectItem key={b} value={b}>
+                {b}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
 
@@ -102,11 +106,13 @@ export function RunsFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__all__">All</SelectItem>
-          {filterOptions.workflowNames.map((w) => (
-            <SelectItem key={w} value={w}>
-              {w}
-            </SelectItem>
-          ))}
+          {filterOptions.workflowNames
+            .filter((w) => w !== "__all__")
+            .map((w) => (
+              <SelectItem key={w} value={w}>
+                {w}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
 
