@@ -34,6 +34,10 @@ vi.mock("@workos-inc/widgets", () => ({
   },
 }));
 
+vi.mock("@/components/access-token-panel", () => ({
+  AccessTokenPanel: () => <div data-testid="access-token-panel" />,
+}));
+
 import { Route } from "./account";
 
 describe("/dashboard/account route", () => {
@@ -44,6 +48,7 @@ describe("/dashboard/account route", () => {
     expect(screen.getByText("Account Settings")).toBeInTheDocument();
     expect(screen.getByTestId("user-profile")).toBeInTheDocument();
     expect(screen.getByTestId("user-security")).toBeInTheDocument();
+    expect(screen.getByTestId("access-token-panel")).toBeInTheDocument();
   });
 
   it("passes the AuthKit access token to both widgets", () => {
