@@ -7,7 +7,6 @@ import {
   LogOut,
   Monitor,
   Moon,
-  Plug,
   Sun,
   Users,
 } from "lucide-react";
@@ -125,15 +124,6 @@ export function NavUser() {
                 ))}
               </div>
             </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                render={<Link to="/api/github/install/start" reloadDocument />}
-              >
-                <Plug />
-                Connect GitHub
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem render={<Link to="/signout" />}>
               <LogOut />
