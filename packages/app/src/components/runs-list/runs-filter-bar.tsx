@@ -1,10 +1,4 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { FilterSelect } from "@/components/filter-select";
 import type { FilterOptions } from "@/data/runs-list";
 
 interface RunsFilterBarProps {
@@ -36,79 +30,33 @@ export function RunsFilterBar({
 }: RunsFilterBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select
-        value={repo || "__all__"}
-        onValueChange={(v) =>
-          onRepoChange(v === "__all__" || v == null ? undefined : v)
-        }
-      >
-        <SelectTrigger className="w-45">
-          <SelectValue placeholder="All repos" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__all__">All repos</SelectItem>
-          {filterOptions.repos.map((r) => (
-            <SelectItem key={r} value={r}>
-              {r}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <FilterSelect
+        value={repo}
+        onChange={onRepoChange}
+        items={filterOptions.repos}
+        placeholder="All repos"
+      />
 
-      <Select
-        value={branch || "__all__"}
-        onValueChange={(v) =>
-          onBranchChange(v === "__all__" || v == null ? undefined : v)
-        }
-      >
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="All branches" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__all__">All branches</SelectItem>
-          {filterOptions.branches.map((b) => (
-            <SelectItem key={b} value={b}>
-              {b}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <FilterSelect
+        value={branch}
+        onChange={onBranchChange}
+        items={filterOptions.branches}
+        placeholder="All branches"
+      />
 
-      <Select
-        value={conclusion || "__all__"}
-        onValueChange={(v) =>
-          onConclusionChange(v === "__all__" || v == null ? undefined : v)
-        }
-      >
-        <SelectTrigger className="w-35">
-          <SelectValue placeholder="All statuses" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__all__">All statuses</SelectItem>
-          <SelectItem value="success">Success</SelectItem>
-          <SelectItem value="failure">Failure</SelectItem>
-          <SelectItem value="cancellation">Cancelled</SelectItem>
-        </SelectContent>
-      </Select>
+      <FilterSelect
+        value={conclusion}
+        onChange={onConclusionChange}
+        items={["success", "failure", "cancellation"]}
+        placeholder="All statuses"
+      />
 
-      <Select
-        value={workflowName || "__all__"}
-        onValueChange={(v) =>
-          onWorkflowNameChange(v === "__all__" || v == null ? undefined : v)
-        }
-      >
-        <SelectTrigger className="w-45]">
-          <SelectValue placeholder="All workflows" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__all__">All workflows</SelectItem>
-          {filterOptions.workflowNames.map((w) => (
-            <SelectItem key={w} value={w}>
-              {w}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <FilterSelect
+        value={workflowName}
+        onChange={onWorkflowNameChange}
+        items={filterOptions.workflowNames}
+        placeholder="All workflows"
+      />
 
       <input
         type="text"

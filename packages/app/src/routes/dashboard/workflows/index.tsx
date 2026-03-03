@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { FilterSelect } from "@/components/filter-select";
 import { Pagination } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { WorkflowsFilterBar } from "@/components/workflows/workflows-filter-bar";
 import { WorkflowsTable } from "@/components/workflows/workflows-table";
 import { runFilterOptionsOptions } from "@/data/runs-list";
 import {
@@ -75,13 +75,24 @@ function WorkflowsListPage() {
         </p>
       </div>
 
-      <WorkflowsFilterBar
-        repos={filterOptions?.repos ?? []}
-        repo={repo}
-        search={search}
-        onRepoChange={(v) => updateFilter({ repo: v })}
-        onSearchChange={(v) => updateFilter({ search: v || undefined })}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterSelect
+          value={repo}
+          onChange={(v) => updateFilter({ repo: v })}
+          items={filterOptions?.repos ?? []}
+          placeholder="All repos"
+        />
+
+        <input
+          type="text"
+          placeholder="Search workflows..."
+          value={search || ""}
+          onChange={(e) =>
+            updateFilter({ search: e.target.value || undefined })
+          }
+          className="border-input bg-background placeholder:text-muted-foreground h-9 rounded-md border px-3 text-sm"
+        />
+      </div>
 
       <Card>
         <CardHeader>
