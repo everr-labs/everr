@@ -15,12 +15,14 @@ interface AccessTokenPanelProps {
   title?: string;
   description?: string;
   emptyTokenPlaceholder?: string;
+  showCopyButton?: boolean;
 }
 
 export function AccessTokenPanel({
   title = "Generate token",
   description = "This token is shown only once",
   emptyTokenPlaceholder = "<generate-a-token-first>",
+  showCopyButton = true,
 }: AccessTokenPanelProps) {
   const [generatedToken, setGeneratedToken] = useState<string>("");
   const [maskedToken, setMaskedToken] = useState<string>("");
@@ -49,13 +51,6 @@ export function AccessTokenPanel({
     } finally {
       setIsGenerating(false);
     }
-  }
-
-  async function copyToClipboard(value: string) {
-    if (!value) {
-      return;
-    }
-    await navigator.clipboard.writeText(value);
   }
 
   return (
@@ -98,13 +93,17 @@ export function AccessTokenPanel({
               readOnly
               value={generatedToken || emptyTokenPlaceholder}
             />
-            <Button
-              variant="outline"
-              disabled={!generatedToken}
-              onClick={() => void copyToClipboard(generatedToken)}
-            >
-              Copy
-            </Button>
+            {showCopyButton ? (
+              <Button
+                variant="outline"
+                disabled={!generatedToken}
+                onClick={() =>
+                  void navigator.clipboard.writeText(generatedToken)
+                }
+              >
+                Copy
+              </Button>
+            ) : null}
           </div>
         </div>
       </CardContent>

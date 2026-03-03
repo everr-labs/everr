@@ -16,7 +16,7 @@ function CliTokenPage() {
         </p>
       </div>
 
-      <AccessTokenPanel />
+      <AccessTokenPanel showCopyButton={false} />
     </div>
   );
 }

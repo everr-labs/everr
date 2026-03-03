@@ -3,14 +3,11 @@ import { useAuth } from "@workos/authkit-tanstack-react-start/client";
 import { useTheme } from "better-themes";
 import {
   BadgeCheck,
-  Bell,
   ChevronsUpDown,
-  CreditCard,
   LogOut,
   Monitor,
   Moon,
   Plug,
-  Sparkles,
   Sun,
   Users,
 } from "lucide-react";
@@ -93,13 +90,6 @@ export function NavUser() {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Sparkles />
-                Upgrade to Pro
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
               <DropdownMenuItem render={<Link to="/dashboard/account" />}>
                 <BadgeCheck />
                 Account
@@ -112,14 +102,6 @@ export function NavUser() {
                   Users Management
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem>
-                <CreditCard />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell />
-                Notifications
-              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <div className="flex items-center justify-between px-2 py-1.5 text-xs">
