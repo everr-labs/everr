@@ -10,22 +10,26 @@ const widgetMocks = vi.hoisted(() => ({
   userSecurityProps: [] as Array<{ authToken: string }>,
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({
-    options,
-  }),
-  Link: (props: {
-    to: string;
-    className?: string;
-    reloadDocument?: boolean;
-    children: any;
-  }) => (
-    <a href={props.to} className={props.className}>
-      {props.children}
-    </a>
-  ),
-  useNavigate: () => vi.fn(),
-}));
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({
+      options,
+    }),
+    Link: (props: {
+      to: string;
+      className?: string;
+      reloadDocument?: boolean;
+      children: any;
+    }) => (
+      <a href={props.to} className={props.className}>
+        {props.children}
+      </a>
+    ),
+    useNavigate: () => vi.fn(),
+  };
+});
 
 vi.mock("@workos/authkit-tanstack-react-start/client", () => ({
   useAccessToken: () => ({
