@@ -34,13 +34,11 @@ export function WorkflowsFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__all__">All</SelectItem>
-          {repos
-            .filter((r) => r !== "__all__")
-            .map((r) => (
-              <SelectItem key={r} value={r}>
-                {r}
-              </SelectItem>
-            ))}
+          {repos.map((r) => (
+            <SelectItem key={r} value={r}>
+              {r}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 

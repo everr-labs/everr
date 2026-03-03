@@ -39,13 +39,11 @@ export function FlakyTestsFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__all__">All</SelectItem>
-          {filterOptions.repos
-            .filter((r) => r !== "__all__")
-            .map((r) => (
-              <SelectItem key={r} value={r}>
-                {r}
-              </SelectItem>
-            ))}
+          {filterOptions.repos.map((r) => (
+            <SelectItem key={r} value={r}>
+              {r}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
@@ -60,13 +58,11 @@ export function FlakyTestsFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__all__">All</SelectItem>
-          {filterOptions.branches
-            .filter((b) => b !== "__all__")
-            .map((b) => (
-              <SelectItem key={b} value={b}>
-                {b}
-              </SelectItem>
-            ))}
+          {filterOptions.branches.map((b) => (
+            <SelectItem key={b} value={b}>
+              {b}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 

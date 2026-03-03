@@ -53,15 +53,6 @@ export function Footer() {
               <li>
                 <Link
                   to="/docs/$"
-                  params={{ _splat: "mcp/getting-started" }}
-                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
-                >
-                  MCP Reference
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/docs/$"
                   params={{ _splat: "cli" }}
                   className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
                 >
