@@ -3,6 +3,9 @@ import { AccessTokenPanel } from "@/components/access-token-panel";
 
 export const Route = createFileRoute("/dashboard/cli-token")({
   staticData: { breadcrumb: "CLI Token", hideTimeRangePicker: true },
+  head: () => ({
+    meta: [{ title: "Everr - CLI Token" }],
+  }),
   component: CliTokenPage,
 });
 

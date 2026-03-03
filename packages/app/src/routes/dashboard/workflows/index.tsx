@@ -15,6 +15,9 @@ import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/workflows/")({
   staticData: { breadcrumb: "Workflows" },
+  head: () => ({
+    meta: [{ title: "Everr - Workflows" }],
+  }),
   component: WorkflowsListPage,
   validateSearch: TimeRangeSearchSchema.extend({
     page: z.coerce.number().default(1),

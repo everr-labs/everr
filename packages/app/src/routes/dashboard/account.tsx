@@ -27,6 +27,9 @@ import { deleteCurrentUserAccount } from "@/data/account-settings";
 
 export const Route = createFileRoute("/dashboard/account")({
   staticData: { breadcrumb: "Account Settings", hideTimeRangePicker: true },
+  head: () => ({
+    meta: [{ title: "Everr - Account Settings" }],
+  }),
   component: AccountSettingsPage,
 });
 

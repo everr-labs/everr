@@ -29,6 +29,9 @@ import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },
+  head: () => ({
+    meta: [{ title: "Everr - Repositories" }],
+  }),
   component: RepoDetailPage,
   validateSearch: TimeRangeSearchSchema.extend({
     name: z.string().default(""),

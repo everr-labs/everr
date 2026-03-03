@@ -24,6 +24,9 @@ import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/cost-analysis")({
   staticData: { breadcrumb: "Cost Analysis" },
+  head: () => ({
+    meta: [{ title: "Everr - Cost Analysis" }],
+  }),
   component: CostAnalysisPage,
   validateSearch: TimeRangeSearchSchema,
   loaderDeps: ({ search }) => withTimeRange(search),

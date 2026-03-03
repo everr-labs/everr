@@ -30,10 +30,10 @@ export function WorkflowsFilterBar({
         }
       >
         <SelectTrigger className="w-45">
-          <SelectValue placeholder="All" />
+          <SelectValue placeholder="All repos" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All</SelectItem>
+          <SelectItem value="__all__">All repos</SelectItem>
           {repos.map((r) => (
             <SelectItem key={r} value={r}>
               {r}
