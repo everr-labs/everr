@@ -1,6 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
-import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getGithubAppInstallStatus } from "@/data/onboarding";
 

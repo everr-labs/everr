@@ -8,7 +8,10 @@ export const Route = createFileRoute("/cli/device")({
   validateSearch: z.object({
     code: z.string().optional(),
   }),
-  loader: async ({ location }) => {
+  loaderDeps: ({ search }) => ({
+    code: search.code,
+  }),
+  loader: async ({ location, deps }) => {
     const auth = await getAuth();
 
     if (!auth.user) {
@@ -17,7 +20,7 @@ export const Route = createFileRoute("/cli/device")({
     }
 
     return {
-      deviceCode: location.search.code?.toUpperCase() ?? "",
+      deviceCode: deps.code?.toUpperCase() ?? "",
     };
   },
   component: CliDeviceApprovalPage,

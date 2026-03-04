@@ -222,11 +222,17 @@ export async function pollDeviceAuthorization(
     return { status: "authorization_pending" };
   }
 
+  if (auth.status !== "approved") {
+    return { status: "access_denied" };
+  }
+
+  const approvedByUserId = auth.approvedByUserId;
+  const approvedForOrganizationId = auth.approvedForOrganizationId;
+  const approvedForTenantId = auth.approvedForTenantId;
   if (
-    auth.status !== "approved" ||
-    !auth.approvedByUserId ||
-    !auth.approvedForOrganizationId ||
-    !auth.approvedForTenantId
+    !approvedByUserId ||
+    !approvedForOrganizationId ||
+    approvedForTenantId == null
   ) {
     return { status: "access_denied" };
   }
@@ -240,8 +246,8 @@ export async function pollDeviceAuthorization(
 
   await db.transaction(async (tx) => {
     await tx.insert(accessTokens).values({
-      organizationId: auth.approvedForOrganizationId,
-      userId: auth.approvedByUserId,
+      organizationId: approvedForOrganizationId,
+      userId: approvedByUserId,
       name: `cli-device-${crypto.randomUUID().slice(0, 8)}`,
       tokenHash,
       tokenPrefix,
