@@ -5,7 +5,12 @@ const KEYS: [&str; 1] = ["EVERR_API_BASE_URL"];
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("manifest dir"));
-    let env_paths = [manifest_dir.join(".env.prod"), manifest_dir.join(".env")];
+    let env_paths = [
+        manifest_dir.join(".env.prod"),
+        manifest_dir.join(".env.prod.example"),
+        manifest_dir.join(".env"),
+        manifest_dir.join(".env.example"),
+    ];
 
     for key in KEYS {
         println!("cargo:rerun-if-env-changed={key}");
