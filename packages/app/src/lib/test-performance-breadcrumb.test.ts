@@ -3,14 +3,14 @@ import { buildTestPerformanceBreadcrumb } from "./test-performance-breadcrumb";
 
 describe("buildTestPerformanceBreadcrumb", () => {
   it("returns root label when pkg/path are missing", () => {
-    expect(buildTestPerformanceBreadcrumb({})).toBe("Test Performance");
+    expect(buildTestPerformanceBreadcrumb({})).toBe("Tests Overview");
   });
 
   it("returns root and pkg segments when pkg is set", () => {
     const result = buildTestPerformanceBreadcrumb({ pkg: "my-pkg" });
     expect(result).toEqual([
       {
-        label: "Test Performance",
+        label: "Tests Overview",
         search: { pkg: undefined, path: undefined },
       },
       { label: "my-pkg", search: { pkg: "my-pkg", path: undefined } },
@@ -25,7 +25,7 @@ describe("buildTestPerformanceBreadcrumb", () => {
 
     expect(result).toEqual([
       {
-        label: "Test Performance",
+        label: "Tests Overview",
         search: { pkg: undefined, path: undefined },
       },
       { label: "my-pkg", search: { pkg: "my-pkg", path: undefined } },
@@ -48,7 +48,7 @@ describe("buildTestPerformanceBreadcrumb", () => {
 
     expect(result).toEqual([
       {
-        label: "Test Performance",
+        label: "Tests Overview",
         search: { pkg: undefined, path: undefined },
       },
       { label: "pkg", search: { pkg: "pkg", path: undefined } },

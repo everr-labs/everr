@@ -39,13 +39,13 @@ export const navMain: NavItem[] = [
   },
   {
     title: "Testing",
-    url: "/dashboard/test-results",
+    url: "/dashboard/tests-overview",
     icon: FlaskConical,
     isActive: true,
     items: [
       {
-        title: "Test Results",
-        url: "/dashboard/test-results",
+        title: "Tests Overview",
+        url: "/dashboard/tests-overview",
       },
     ],
   },

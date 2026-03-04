@@ -15,7 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as SetupOrganizationRouteImport } from './routes/setup/organization'
 import { Route as DashboardUsersManagementRouteImport } from './routes/dashboard/users-management'
-import { Route as DashboardTestResultsRouteImport } from './routes/dashboard/test-results'
+import { Route as DashboardTestsOverviewRouteImport } from './routes/dashboard/tests-overview'
 import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
 import { Route as DashboardReposRouteImport } from './routes/dashboard/repos'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
@@ -69,9 +69,9 @@ const DashboardUsersManagementRoute =
     path: '/users-management',
     getParentRoute: () => DashboardRoute,
   } as any)
-const DashboardTestResultsRoute = DashboardTestResultsRouteImport.update({
-  id: '/test-results',
-  path: '/test-results',
+const DashboardTestsOverviewRoute = DashboardTestsOverviewRouteImport.update({
+  id: '/tests-overview',
+  path: '/tests-overview',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardRunsRoute = DashboardRunsRouteImport.update({
@@ -196,7 +196,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
-  '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -224,7 +224,7 @@ export interface FileRoutesByTo {
   '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/repos': typeof DashboardReposRoute
-  '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
@@ -254,7 +254,7 @@ export interface FileRoutesById {
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
-  '/dashboard/test-results': typeof DashboardTestResultsRoute
+  '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -286,7 +286,7 @@ export interface FileRouteTypes {
     | '/dashboard/cost-analysis'
     | '/dashboard/repos'
     | '/dashboard/runs'
-    | '/dashboard/test-results'
+    | '/dashboard/tests-overview'
     | '/dashboard/users-management'
     | '/setup/organization'
     | '/dashboard/'
@@ -314,7 +314,7 @@ export interface FileRouteTypes {
     | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
     | '/dashboard/repos'
-    | '/dashboard/test-results'
+    | '/dashboard/tests-overview'
     | '/dashboard/users-management'
     | '/setup/organization'
     | '/dashboard'
@@ -343,7 +343,7 @@ export interface FileRouteTypes {
     | '/dashboard/cost-analysis'
     | '/dashboard/repos'
     | '/dashboard/runs'
-    | '/dashboard/test-results'
+    | '/dashboard/tests-overview'
     | '/dashboard/users-management'
     | '/setup/organization'
     | '/dashboard/'
@@ -422,11 +422,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardUsersManagementRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/test-results': {
-      id: '/dashboard/test-results'
-      path: '/test-results'
-      fullPath: '/dashboard/test-results'
-      preLoaderRoute: typeof DashboardTestResultsRouteImport
+    '/dashboard/tests-overview': {
+      id: '/dashboard/tests-overview'
+      path: '/tests-overview'
+      fullPath: '/dashboard/tests-overview'
+      preLoaderRoute: typeof DashboardTestsOverviewRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/runs': {
@@ -621,7 +621,7 @@ interface DashboardRouteChildren {
   DashboardCostAnalysisRoute: typeof DashboardCostAnalysisRoute
   DashboardReposRoute: typeof DashboardReposRoute
   DashboardRunsRoute: typeof DashboardRunsRouteWithChildren
-  DashboardTestResultsRoute: typeof DashboardTestResultsRoute
+  DashboardTestsOverviewRoute: typeof DashboardTestsOverviewRoute
   DashboardUsersManagementRoute: typeof DashboardUsersManagementRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardWorkflowsIndexRoute: typeof DashboardWorkflowsIndexRoute
@@ -634,7 +634,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCostAnalysisRoute: DashboardCostAnalysisRoute,
   DashboardReposRoute: DashboardReposRoute,
   DashboardRunsRoute: DashboardRunsRouteWithChildren,
-  DashboardTestResultsRoute: DashboardTestResultsRoute,
+  DashboardTestsOverviewRoute: DashboardTestsOverviewRoute,
   DashboardUsersManagementRoute: DashboardUsersManagementRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardWorkflowsIndexRoute: DashboardWorkflowsIndexRoute,

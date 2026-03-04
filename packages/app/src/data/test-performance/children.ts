@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
-import { leafTestFilter, testFullNameExpr } from "../sql-helpers";
+import { testFullNameExpr } from "../sql-helpers";
 
 // Filter options (repos + branches that have test data)
 export interface TestPerfFilterOptions {
@@ -102,55 +102,92 @@ export const getTestPerfChildren = createServerFn({
 
     const isRoot = !data.pkg;
 
+    console.log("isRoot", isRoot);
+
     if (isRoot) {
-      const conditions = [...baseConditions];
-      // Root level: return packages with aggregate leaf-only metrics
-      conditions.push("SpanAttributes['citric.test.package'] != ''");
-      const leafScopeConditions: string[] = [
-        "SpanAttributes['citric.test.package'] != ''",
-      ];
-      if (data.repo) {
-        leafScopeConditions.push(
-          "ResourceAttributes['vcs.repository.name'] = {repo:String}",
-        );
-      }
-      if (data.branch) {
-        leafScopeConditions.push(
-          "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
-        );
-      }
-      conditions.push(
-        leafTestFilter({
-          leftExpr: `tuple(SpanAttributes['citric.test.package'], ${testFullNameExpr(null)})`,
-          rightExpr:
-            "tuple(SpanAttributes['citric.test.package'], SpanAttributes['citric.test.parent_test'])",
-          extraConditions: leafScopeConditions,
-        }),
-      );
-      const whereClause = conditions.join("\n          AND ");
+      const rootConditions = [...baseConditions];
+      rootConditions.push("SpanAttributes['citric.test.package'] != ''");
+      const rootWhere = rootConditions.join("\n          AND ");
 
       const sql = `
-        SELECT
-          name,
-          1 as is_suite,
-          countDistinct(tuple(run_id, head_sha)) as executions,
-          avg(test_duration) as avg_duration,
-          quantile(0.95)(test_duration) as p95_duration,
-          round(countIf(test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate
-        FROM (
+        WITH executions AS (
           SELECT
-            SpanAttributes['citric.test.package'] as name,
+            SpanAttributes['citric.test.package'] as pkg_name,
+            SpanAttributes['citric.test.name'] as name,
+            SpanAttributes['citric.test.parent_test'] as parent_test,
             ${testFullNameExpr()},
+            if(
+              SpanAttributes['citric.test.parent_test'] != '',
+              concat(
+                replaceAll(SpanAttributes['citric.test.parent_test'], ' > ', '/'),
+                '/',
+                SpanAttributes['citric.test.name']
+              ),
+              SpanAttributes['citric.test.name']
+            ) as normalized_full_name,
             ResourceAttributes['cicd.pipeline.run.id'] as run_id,
             ResourceAttributes['vcs.ref.head.revision'] as head_sha,
             anyLast(SpanAttributes['citric.test.result']) as test_result,
             anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
           FROM traces
-          WHERE ${whereClause}
-          GROUP BY name, test_full_name, run_id, head_sha
+          WHERE ${rootWhere}
+          GROUP BY pkg_name, name, parent_test, test_full_name, normalized_full_name, run_id, head_sha
+        ),
+        direct_children AS (
+          SELECT DISTINCT
+            pkg_name,
+            name as child_name,
+            normalized_full_name as child_full_name
+          FROM executions
+          WHERE parent_test = ''
+        ),
+        child_rows AS (
+          SELECT
+            c.pkg_name,
+            c.child_name,
+            e.run_id,
+            e.head_sha,
+            e.test_result,
+            e.test_duration
+          FROM direct_children c
+          INNER JOIN executions e
+            ON e.pkg_name = c.pkg_name
+            AND (
+              e.normalized_full_name = c.child_full_name
+              OR startsWith(e.normalized_full_name, concat(c.child_full_name, '/'))
+            )
+        ),
+        child_run_rollup AS (
+          SELECT
+            pkg_name,
+            child_name,
+            run_id,
+            head_sha,
+            sum(test_duration) as child_run_duration,
+            if(countIf(test_result = 'fail') > 0, 1, 0) as child_run_has_fail
+          FROM child_rows
+          GROUP BY pkg_name, child_name, run_id, head_sha
+        ),
+        package_run_rollup AS (
+          SELECT
+            pkg_name,
+            run_id,
+            head_sha,
+            sum(child_run_duration) as run_duration,
+            if(countIf(child_run_has_fail = 1) > 0, 1, 0) as run_has_fail
+          FROM child_run_rollup
+          GROUP BY pkg_name, run_id, head_sha
         )
-        GROUP BY name
-        ORDER BY name
+        SELECT
+          pkg_name as name,
+          1 as is_suite,
+          countDistinct(tuple(run_id, head_sha)) as executions,
+          avg(run_duration) as avg_duration,
+          quantile(0.95)(run_duration) as p95_duration,
+          round(countIf(run_has_fail = 1) * 100.0 / nullIf(count(), 0), 1) as failure_rate
+        FROM package_run_rollup
+        GROUP BY pkg_name
+        ORDER BY pkg_name
       `;
 
       const result = await query<{
@@ -180,10 +217,11 @@ export const getTestPerfChildren = createServerFn({
     params.pkg = data.pkg;
 
     const parentTest = data.path ?? "";
+    params.parentTest = parentTest;
+
     childConditions.push(
       "SpanAttributes['citric.test.parent_test'] = {parentTest:String}",
     );
-    params.parentTest = parentTest;
 
     const childWhere = childConditions.join("\n          AND ");
 

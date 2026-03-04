@@ -6,11 +6,11 @@ export function buildTestPerformanceBreadcrumb(search: {
   path?: string;
 }): string | BreadcrumbSegment[] {
   const { path, pkg } = search;
-  if (!pkg && !path) return "Test Performance";
+  if (!pkg && !path) return "Tests Overview";
 
   const segments: BreadcrumbSegment[] = [
     {
-      label: "Test Performance",
+      label: "Tests Overview",
       search: { pkg: undefined, path: undefined },
     },
   ];

@@ -1,16 +1,9 @@
-import {
-  ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import type { LogEntry } from "@/data/runs";
 import { useLogSummarizer } from "@/hooks/use-log-summarizer";
 import { getMarkerClass, parseLogs } from "@/lib/log-parser";
-import { extractLogText } from "@/lib/log-text-extractor";
 import { aggregateLogVolume } from "@/lib/log-volume";
 import { cn } from "@/lib/utils";
 import { LogSummaryPanel } from "./log-summary-panel";
@@ -26,15 +19,7 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
   const volumeData = useMemo(() => aggregateLogVolume(lines), [lines]);
   const logContentRef = useRef<HTMLDivElement>(null);
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null);
-  const { isAvailable, status, summary, error, summarize, reset } =
-    useLogSummarizer();
-
-  const isRunning = status === "creating" || status === "summarizing";
-
-  const handleSummarize = () => {
-    const text = extractLogText(logs);
-    summarize(text, stepName);
-  };
+  const { status, summary, error, reset } = useLogSummarizer();
 
   const handleBarClick = (firstLineIndex: number) => {
     if (logContentRef.current) {
@@ -211,24 +196,6 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
                 Collapse
               </button>
             </>
-          )}
-          {isAvailable && (
-            <button
-              type="button"
-              onClick={handleSummarize}
-              disabled={isRunning}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "h-6 gap-1 px-2 text-xs",
-              )}
-            >
-              {isRunning ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Sparkles className="size-3" />
-              )}
-              Summarize
-            </button>
           )}
         </div>
       </div>

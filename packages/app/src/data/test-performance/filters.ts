@@ -28,11 +28,17 @@ export function buildFilterConditions(
   fromISO: string,
   toISO: string,
   data: TestPerformanceFilterInput,
+  options?: {
+    includeSkipResults?: boolean;
+  },
 ): BuildFilterResult {
+  const includeSkipResults = options?.includeSkipResults ?? false;
   const conditions: string[] = [
     "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
     "SpanAttributes['citric.test.name'] != ''",
-    "SpanAttributes['citric.test.result'] IN ('pass', 'fail')",
+    includeSkipResults
+      ? "SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')"
+      : "SpanAttributes['citric.test.result'] IN ('pass', 'fail')",
   ];
   const params: Record<string, unknown> = {
     fromTime: fromISO,
@@ -85,6 +91,7 @@ export function buildFilterConditions(
     }
     scopeConditions.push(
       leafTestFilter({
+        leftExpr: "test_full_name",
         extraConditions: leafScopeConditions,
       }),
     );
