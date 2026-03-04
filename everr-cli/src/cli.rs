@@ -17,20 +17,12 @@ pub enum Commands {
     Install,
     /// Remove local Everr setup artifacts
     Uninstall,
-    /// Guide GitHub App installation for the current repository
-    Connect(ConnectArgs),
-    /// Authentication commands
-    Auth {
-        #[command(subcommand)]
-        command: AuthCommand,
-    },
-    /// Global assistant integration
-    Assistant {
-        #[command(subcommand)]
-        command: AssistantCommand,
-    },
-    /// Show current git repository and branch context
-    Context,
+    /// Log in and persist a local session
+    Login(LoginArgs),
+    /// Log out and clear the local session
+    Logout,
+    /// Integrate Everr CLI with your code assistant
+    SetupAssistant(AssistantInitArgs),
     /// CI status for current or selected branch
     Status(StatusArgs),
     /// Pipeline runs commands
@@ -40,29 +32,8 @@ pub enum Commands {
     },
 }
 
-#[derive(Subcommand, Debug)]
-pub enum AuthCommand {
-    /// Log in and persist a local session
-    Login(LoginArgs),
-    /// Log out and clear the local session
-    Logout,
-}
-
-#[derive(Args, Debug)]
-pub struct LoginArgs {
-    /// API base URL to use for requests
-    #[arg(long)]
-    pub api_base_url: Option<String>,
-    /// Access token (if omitted, wizard prompts securely)
-    #[arg(long)]
-    pub token: Option<String>,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum AssistantCommand {
-    /// Initialize global assistant integration files
-    Init(AssistantInitArgs),
-}
+#[derive(Args, Debug, Default)]
+pub struct LoginArgs {}
 
 #[derive(Subcommand, Debug)]
 pub enum RunsCommand {
@@ -86,16 +57,6 @@ pub struct StatusArgs {
     pub from: Option<String>,
     #[arg(long)]
     pub to: Option<String>,
-}
-
-#[derive(Args, Debug, Default)]
-pub struct ConnectArgs {
-    /// Repository in owner/name format
-    #[arg(long)]
-    pub repo: Option<String>,
-    /// Everr app base URL (defaults to active session or app.everr.dev)
-    #[arg(long)]
-    pub api_base_url: Option<String>,
 }
 
 #[derive(Args, Debug, Default)]
@@ -154,18 +115,18 @@ pub enum AssistantKind {
 mod tests {
     use clap::Parser;
 
-    use super::{AssistantCommand, AssistantKind, Cli, Commands, RunsCommand};
+    use super::{AssistantKind, Cli, Commands, RunsCommand};
 
     #[test]
     fn parses_top_level_commands() {
-        let context = Cli::try_parse_from(["everr", "context"]).expect("context command");
-        assert!(matches!(context.command, Commands::Context));
+        let login = Cli::try_parse_from(["everr", "login"]).expect("login command");
+        assert!(matches!(login.command, Commands::Login(_)));
+
+        let logout = Cli::try_parse_from(["everr", "logout"]).expect("logout command");
+        assert!(matches!(logout.command, Commands::Logout));
 
         let uninstall = Cli::try_parse_from(["everr", "uninstall"]).expect("uninstall command");
         assert!(matches!(uninstall.command, Commands::Uninstall));
-
-        let connect = Cli::try_parse_from(["everr", "connect"]).expect("connect command");
-        assert!(matches!(connect.command, Commands::Connect(_)));
     }
 
     #[test]
@@ -192,9 +153,9 @@ mod tests {
     }
 
     #[test]
-    fn validates_required_assistants_for_assistant_init() {
-        let err = Cli::try_parse_from(["everr", "assistant", "init"])
-            .expect_err("assistant init should require --assistant");
+    fn validates_required_assistants_for_setup_assistant() {
+        let err = Cli::try_parse_from(["everr", "setup-assistant"])
+            .expect_err("setup-assistant should require --assistant");
         assert!(err.to_string().contains("--assistant"));
     }
 
@@ -248,23 +209,19 @@ mod tests {
     }
 
     #[test]
-    fn assistant_init_supports_repeated_assistant_flags() {
+    fn setup_assistant_supports_repeated_assistant_flags() {
         let cli = Cli::try_parse_from([
             "everr",
-            "assistant",
-            "init",
+            "setup-assistant",
             "--assistant",
             "codex",
             "--assistant",
             "cursor",
         ])
-        .expect("assistant init command");
+        .expect("setup-assistant command");
 
-        let Commands::Assistant {
-            command: AssistantCommand::Init(args),
-        } = cli.command
-        else {
-            panic!("expected assistant init command");
+        let Commands::SetupAssistant(args) = cli.command else {
+            panic!("expected setup-assistant command");
         };
 
         assert_eq!(

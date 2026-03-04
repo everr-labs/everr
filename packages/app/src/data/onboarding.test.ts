@@ -17,12 +17,10 @@ import {
   getAuth,
   switchToOrganization,
 } from "@workos/authkit-tanstack-react-start";
+import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import { ensureTenantForOrganizationId } from "@/data/tenants";
 import { getWorkOS } from "@/lib/workos";
-import {
-  CreateOrganizationInputSchema,
-  createOrganizationForCurrentUser,
-} from "./onboarding";
+import { createOrganizationForCurrentUser } from "./onboarding";
 
 const mockedGetAuth = vi.mocked(getAuth);
 const mockedSwitchToOrganization = vi.mocked(switchToOrganization);

@@ -3,21 +3,12 @@ import {
   getAuth,
   switchToOrganization,
 } from "@workos/authkit-tanstack-react-start";
-import { z } from "zod";
-import { ensureTenantForOrganizationId } from "@/data/tenants";
+import { CreateOrganizationInputSchema } from "@/common/organization-name";
+import {
+  ensureTenantForOrganizationId,
+  getGithubInstallationsForTenant,
+} from "@/data/tenants";
 import { getWorkOS } from "@/lib/workos";
-
-export const CreateOrganizationInputSchema = z.object({
-  organizationName: z
-    .string()
-    .trim()
-    .min(2, "Organization name must be at least 2 characters")
-    .max(100, "Organization name must be at most 100 characters"),
-});
-
-export type CreateOrganizationInput = z.infer<
-  typeof CreateOrganizationInputSchema
->;
 
 export type OnboardingErrorCode =
   | "UNAUTHENTICATED"
@@ -149,3 +140,22 @@ export const createOrganizationForCurrentUser = createServerFn({
       organizationName: data.organizationName,
     };
   });
+
+export const getGithubAppInstallStatus = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const auth = await getAuth();
+  if (!auth.user || !auth.organizationId) {
+    return [];
+  }
+
+  const tenantId = await ensureTenantForOrganizationId(auth.organizationId);
+  const installations = await getGithubInstallationsForTenant(tenantId);
+
+  return installations.map((installation) => ({
+    installed: installation.status === "active",
+    installationId: installation.installationId,
+    installedAt: installation.createdAt,
+    status: installation.status,
+  }));
+});

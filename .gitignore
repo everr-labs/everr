@@ -16,6 +16,7 @@ collector/build
 
 # local env files
 .env
+.env.prod
 .env*.local
 
 .tools

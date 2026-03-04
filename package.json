@@ -2,6 +2,8 @@
   "name": "citric",
   "private": true,
   "scripts": {
+    "build:cli:prod": "./scripts/build-cli-prod.sh",
+    "build:cli:dev": "./scripts/build-cli-dev.sh",
     "dev:app": "cd packages/app && pnpm dev",
     "build": "pnpm -r build",
     "check": "biome check",

@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAllJobsSteps, getRunDetails, getRunJobs } from "@/data/runs";
-import { cliTokenAuthMiddleware } from "../-token-auth";
+import { cliAuthMiddleware } from "../-auth";
 
 export const Route = createFileRoute("/api/cli/runs/$traceId")({
   server: {
-    middleware: [cliTokenAuthMiddleware],
+    middleware: [cliAuthMiddleware],
     handlers: {
       GET: async ({ params }) => {
         const traceId = params.traceId;

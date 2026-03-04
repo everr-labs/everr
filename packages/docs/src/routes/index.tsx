@@ -187,7 +187,7 @@ function HowItWorksSection() {
                         my-project
                       </span>{" "}
                       <span className="mr-0.5 text-everr-deep">%</span>{" "}
-                      <span>everr connect</span>
+                      <span>everr login</span>
                     </span>
                     <span className="block whitespace-nowrap">&nbsp;</span>
                     <span className="block whitespace-nowrap">

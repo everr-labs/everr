@@ -2,56 +2,14 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::Result;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::api::ApiClient;
 use crate::auth;
-use crate::cli::{ConnectArgs, GetLogsArgs, ListRunsArgs, ShowRunArgs, StatusArgs};
-
-pub fn context() -> Result<()> {
-    let cwd = std::env::current_dir()?;
-    let git_root = run_git(["rev-parse", "--show-toplevel"], &cwd);
-    let branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], &cwd).map(normalize_branch_name);
-    let origin = run_git(["config", "--get", "remote.origin.url"], &cwd);
-    let repo = origin.as_deref().and_then(parse_repo_from_remote_url);
-
-    let output = json!({
-        "cwd": cwd.display().to_string(),
-        "gitRoot": git_root,
-        "repo": repo,
-        "branch": branch,
-        "origin": origin,
-    });
-    print_json(&output)?;
-    Ok(())
-}
-
-pub fn connect(args: ConnectArgs) -> Result<()> {
-    let git = resolve_git_context(std::env::current_dir()?);
-    let repo = args.repo.or(git.repo);
-    let api_base_url = resolve_api_base_url(args.api_base_url)?;
-    let install_url = github_install_start_url(&api_base_url);
-
-    println!("Connect Everr to your GitHub repository");
-    println!();
-    println!("1. Open: {install_url}");
-    println!("2. Sign in and make sure the correct Everr organization is active.");
-    if let Some(repo_name) = repo {
-        println!("3. In GitHub, choose \"Only select repositories\" and select: {repo_name}");
-    } else {
-        println!("3. In GitHub, choose the repository you want to observe.");
-        println!(
-            "   Tip: rerun inside a git repo or pass --repo owner/name for repo-specific guidance."
-        );
-    }
-    println!("4. Complete the installation.");
-    println!("5. Verify CI visibility with: everr status");
-
-    Ok(())
-}
+use crate::cli::{GetLogsArgs, ListRunsArgs, ShowRunArgs, StatusArgs};
 
 pub async fn status(args: StatusArgs) -> Result<()> {
-    let session = auth::require_session()?;
+    let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let git = resolve_git_context(std::env::current_dir()?);
     let repo = args.repo.or(git.repo);
@@ -70,7 +28,7 @@ pub async fn status(args: StatusArgs) -> Result<()> {
 }
 
 pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
-    let session = auth::require_session()?;
+    let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let git = resolve_git_context(std::env::current_dir()?);
     let repo = args.repo.or(git.repo);
@@ -93,7 +51,7 @@ pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
 }
 
 pub async fn runs_show(args: ShowRunArgs) -> Result<()> {
-    let session = auth::require_session()?;
+    let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let payload = client.get_run_details(&args.trace_id).await?;
     print_json(&payload)?;
@@ -101,7 +59,7 @@ pub async fn runs_show(args: ShowRunArgs) -> Result<()> {
 }
 
 pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
-    let session = auth::require_session()?;
+    let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let query = vec![
         ("jobName", args.job_name),
@@ -116,27 +74,6 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
 fn print_json(value: &Value) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
-}
-
-fn resolve_api_base_url(override_api_base_url: Option<String>) -> Result<String> {
-    if let Some(api_base_url) = override_api_base_url {
-        return Ok(api_base_url.trim().trim_end_matches('/').to_string());
-    }
-
-    if auth::has_active_session()? {
-        let session = auth::require_session()?;
-        return Ok(session
-            .api_base_url
-            .trim()
-            .trim_end_matches('/')
-            .to_string());
-    }
-
-    Ok(auth::DEFAULT_API_BASE_URL.to_string())
-}
-
-fn github_install_start_url(api_base_url: &str) -> String {
-    format!("{}/api/github/install/start", api_base_url)
 }
 
 fn run_git<const N: usize>(args: [&str; N], cwd: &PathBuf) -> Option<String> {
@@ -232,9 +169,7 @@ fn resolve_git_context(cwd: PathBuf) -> GitContext {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        github_install_start_url, normalize_branch_name, parse_repo_from_remote_url, push_opt,
-    };
+    use super::{normalize_branch_name, parse_repo_from_remote_url, push_opt};
 
     #[test]
     fn normalize_branch_name_strips_local_ref_prefix() {
@@ -278,13 +213,5 @@ mod tests {
         push_opt(&mut query, "branch", None);
 
         assert_eq!(query, vec![("repo", "citric-app/citric".to_string())]);
-    }
-
-    #[test]
-    fn github_install_start_url_joins_path() {
-        assert_eq!(
-            github_install_start_url("https://app.everr.dev"),
-            "https://app.everr.dev/api/github/install/start"
-        );
     }
 }

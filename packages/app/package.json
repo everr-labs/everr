@@ -11,7 +11,6 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
@@ -31,6 +30,7 @@
     "@tanstack/react-router-ssr-query": "1.160.0",
     "@tanstack/react-start": "1.160.0",
     "@tanstack/router-plugin": "1.160.0",
+    "@tanstack/zod-adapter": "^1.163.3",
     "@workos-inc/node": "^8.0.0",
     "@workos-inc/widgets": "^1.8.2",
     "@workos/authkit-tanstack-react-start": "^0.5.0",
@@ -40,6 +40,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "drizzle-orm": "^0.45.1",
+    "jose": "^6.1.3",
     "lucide-react": "^0.564.0",
     "pg": "^8.18.0",
     "react": "19.2.4",

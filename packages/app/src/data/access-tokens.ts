@@ -24,6 +24,7 @@ export const createAccessToken = createServerFn({ method: "POST" }).handler(
     const tokenPrefix = getAccessTokenPrefix(value);
 
     try {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const [token] = await db
         .insert(accessTokens)
         .values({
@@ -32,6 +33,7 @@ export const createAccessToken = createServerFn({ method: "POST" }).handler(
           name,
           tokenHash,
           tokenPrefix,
+          expiresAt,
         })
         .returning({
           id: accessTokens.id,

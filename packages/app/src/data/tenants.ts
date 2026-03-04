@@ -105,3 +105,17 @@ export async function setGithubInstallationStatus(
       eq(githubInstallationTenants.githubInstallationId, githubInstallationId),
     );
 }
+
+export async function getGithubInstallationsForTenant(tenantId: number) {
+  const installations = await db
+    .select({
+      installationId: githubInstallationTenants.githubInstallationId,
+      status: githubInstallationTenants.status,
+      createdAt: githubInstallationTenants.createdAt,
+      updatedAt: githubInstallationTenants.updatedAt,
+    })
+    .from(githubInstallationTenants)
+    .where(eq(githubInstallationTenants.tenantId, tenantId));
+
+  return installations;
+}

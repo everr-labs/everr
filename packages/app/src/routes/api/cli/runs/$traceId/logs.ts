@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getStepLogs } from "@/data/runs";
-import { cliTokenAuthMiddleware } from "../../-token-auth";
+import { cliAuthMiddleware } from "../../-auth";
 
 const StepLogsQuerySchema = z.object({
   jobName: z.string().min(1),
@@ -14,7 +14,7 @@ const StepLogsQuerySchema = z.object({
 
 export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
   server: {
-    middleware: [cliTokenAuthMiddleware],
+    middleware: [cliAuthMiddleware],
     handlers: {
       GET: async ({ params, request }) => {
         const traceId = params.traceId;

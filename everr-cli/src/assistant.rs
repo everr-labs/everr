@@ -7,6 +7,7 @@ use crate::cli::{AssistantInitArgs, AssistantKind};
 
 const BLOCK_START: &str = "<!-- EVERR_CLI_START -->";
 const BLOCK_END: &str = "<!-- EVERR_CLI_END -->";
+const ASSISTANT_INSTRUCTIONS: &str = include_str!("../assets/assistant-instructions.md");
 
 pub fn init_from_args(args: AssistantInitArgs) -> Result<()> {
     init_assistants(&args.assistants)
@@ -113,7 +114,8 @@ fn path_for_assistant(assistant: AssistantKind) -> Result<PathBuf> {
 
 fn content_for_assistant() -> String {
     format!(
-        "{BLOCK_START}\n#\nUse Everr CLI from the current project directory to see what is wrong with CI.\nWhen CI fails, use Everr to identify the failing workflow/job/step and inspect logs.\n\nQuick commands:\n- `everr status`: checks CI health, with info about recent runs for the current repo/branch (or the branch passed with flags).\n- `everr runs list`\n- `everr runs show --trace-id <trace_id>`\n- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`\n{BLOCK_END}\n"
+        "{BLOCK_START}\n{}\n{BLOCK_END}\n",
+        ASSISTANT_INSTRUCTIONS.trim_end()
     )
 }
 

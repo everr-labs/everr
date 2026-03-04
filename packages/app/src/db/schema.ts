@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   bigint,
   index,
+  integer,
   pgEnum,
   pgTable,
   text,
@@ -80,6 +81,7 @@ export const accessTokens = pgTable(
     tokenPrefix: text("token_prefix").notNull(),
     tokenHash: text("token_hash").notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -96,5 +98,50 @@ export const accessTokens = pgTable(
       table.createdAt,
     ),
     index("access_tokens_token_prefix_idx").on(table.tokenPrefix),
+    index("access_tokens_revoked_expires_idx").on(
+      table.revokedAt,
+      table.expiresAt,
+    ),
+  ],
+);
+
+export const cliDeviceAuthorizationStatusEnum = pgEnum(
+  "cli_device_authorization_status",
+  ["pending", "approved", "denied", "consumed", "expired"],
+);
+
+export const cliDeviceAuthorizations = pgTable(
+  "cli_device_authorizations",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    deviceCodeHash: text("device_code_hash").notNull(),
+    userCode: text("user_code").notNull(),
+    status: cliDeviceAuthorizationStatusEnum("status")
+      .notNull()
+      .default("pending"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    pollIntervalSeconds: integer("poll_interval_seconds").notNull().default(5),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+    approvedByUserId: text("approved_by_user_id"),
+    approvedForOrganizationId: text("approved_for_organization_id"),
+    approvedForTenantId: bigint("approved_for_tenant_id", { mode: "number" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("cli_device_authorizations_device_code_hash_uq").on(
+      table.deviceCodeHash,
+    ),
+    uniqueIndex("cli_device_authorizations_user_code_uq").on(table.userCode),
+    index("cli_device_authorizations_status_expires_idx").on(
+      table.status,
+      table.expiresAt,
+    ),
   ],
 );

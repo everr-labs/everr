@@ -49,7 +49,7 @@ export const Route = createFileRoute("/dashboard")({
     }
 
     if (!auth.organizationId) {
-      throw redirect({ to: "/setup/organization" });
+      throw redirect({ to: "/onboarding/organization" });
     }
 
     return { user: auth.user, organizationId: auth.organizationId };

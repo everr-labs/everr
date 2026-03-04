@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getRunsList } from "@/data/runs-list";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
-import { cliTokenAuthMiddleware } from "./-token-auth";
+import { cliAuthMiddleware } from "./-auth";
 
 const RunsListQuerySchema = z.object({
   from: z.string().optional(),
@@ -17,7 +17,7 @@ const RunsListQuerySchema = z.object({
 
 export const Route = createFileRoute("/api/cli/runs")({
   server: {
-    middleware: [cliTokenAuthMiddleware],
+    middleware: [cliAuthMiddleware],
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);

@@ -7,7 +7,7 @@ mod install;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{AuthCommand, Cli, Commands, RunsCommand};
+use cli::{Cli, Commands, RunsCommand};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,15 +19,9 @@ async fn main() -> Result<()> {
             assistant::remove_managed_prompts()?;
             auth::logout()?;
         }
-        Commands::Connect(args) => core::connect(args)?,
-        Commands::Auth { command } => match command {
-            AuthCommand::Login(login) => auth::login(login).await?,
-            AuthCommand::Logout => auth::logout()?,
-        },
-        Commands::Assistant { command } => match command {
-            cli::AssistantCommand::Init(init) => assistant::init_from_args(init)?,
-        },
-        Commands::Context => core::context()?,
+        Commands::Login(login) => auth::login(login).await?,
+        Commands::Logout => auth::logout()?,
+        Commands::SetupAssistant(init) => assistant::init_from_args(init)?,
         Commands::Status(args) => core::status(args).await?,
         Commands::Runs { command } => match command {
             RunsCommand::List(args) => core::runs_list(args).await?,
