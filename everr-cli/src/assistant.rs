@@ -113,10 +113,27 @@ fn path_for_assistant(assistant: AssistantKind) -> Result<PathBuf> {
 }
 
 fn content_for_assistant() -> String {
+    let command_name = command_name();
+    let instructions = render_assistant_instructions(&command_name);
     format!(
         "{BLOCK_START}\n{}\n{BLOCK_END}\n",
-        ASSISTANT_INSTRUCTIONS.trim_end()
+        instructions.trim_end()
     )
+}
+
+fn render_assistant_instructions(command_name: &str) -> String {
+    ASSISTANT_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
+}
+
+fn command_name() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "everr".to_string())
 }
 
 fn write_managed_block(path: &Path, block: String) -> Result<()> {
@@ -191,7 +208,9 @@ fn managed_block_range(current: &str) -> Option<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BLOCK_START, remove_managed_block, upsert_managed_block};
+    use super::{
+        BLOCK_START, render_assistant_instructions, remove_managed_block, upsert_managed_block,
+    };
 
     #[test]
     fn upsert_managed_block_is_idempotent() {
@@ -214,5 +233,12 @@ mod tests {
         let current = "keep me";
         let updated = remove_managed_block(current);
         assert_eq!(updated, "keep me");
+    }
+
+    #[test]
+    fn assistant_instructions_use_dev_command_name() {
+        let rendered = render_assistant_instructions("everr-dev");
+        assert!(rendered.contains("`everr-dev status`"));
+        assert!(rendered.contains("`everr-dev runs list`"));
     }
 }

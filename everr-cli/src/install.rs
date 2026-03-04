@@ -1,8 +1,4 @@
-use std::env;
-use std::fs;
-use std::path::PathBuf;
-
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use dialoguer::MultiSelect;
 
 use crate::assistant;
@@ -26,8 +22,6 @@ impl AssistantSelector for DialoguerAssistantSelector {
 }
 
 pub async fn run_install_wizard() -> Result<()> {
-    install_command_binary()?;
-
     if !auth::has_active_session()? {
         auth::login(LoginArgs {}).await?;
     }
@@ -87,39 +81,6 @@ fn selected_assistants_from_indexes(indexes: &[usize]) -> Result<Vec<AssistantKi
     }
 
     Ok(selected)
-}
-
-fn install_command_binary() -> Result<()> {
-    let source = env::current_exe().context("failed to resolve current executable path")?;
-    let destination_dir = command_install_dir()?;
-    fs::create_dir_all(&destination_dir)
-        .with_context(|| format!("failed to create {}", destination_dir.display()))?;
-    let destination = destination_dir.join("everr");
-
-    let source_canonical = fs::canonicalize(&source).ok();
-    let destination_canonical = fs::canonicalize(&destination).ok();
-    match (
-        source_canonical.as_deref(),
-        destination_canonical.as_deref(),
-    ) {
-        (Some(source_path), Some(destination_path)) if source_path == destination_path => {}
-        _ => {
-            fs::copy(&source, &destination).with_context(|| {
-                format!(
-                    "failed to copy binary from {} to {}",
-                    source.display(),
-                    destination.display()
-                )
-            })?;
-        }
-    }
-
-    Ok(())
-}
-
-fn command_install_dir() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("failed to resolve home dir")?;
-    Ok(home.join(".local").join("bin"))
 }
 
 #[cfg(test)]

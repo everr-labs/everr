@@ -208,7 +208,7 @@ pub async fn require_session_with_refresh() -> Result<Session> {
 fn load_session_from_disk() -> Result<Session> {
     let path = session_file_path()?;
     if !path.exists() {
-        bail!("no active session; run `everr login`");
+        bail!("no active session; run `{}`", login_command_hint());
     }
     let raw =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
@@ -259,5 +259,48 @@ fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Ses
 
 fn session_file_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
-    Ok(config_dir.join("everr").join("session.json"))
+    Ok(config_dir.join(session_namespace()).join("session.json"))
+}
+
+fn login_command_hint() -> String {
+    format!("{} login", command_name())
+}
+
+fn session_namespace() -> &'static str {
+    session_namespace_for_command(&command_name())
+}
+
+fn command_name() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "everr".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::session_namespace_for_command;
+
+    #[test]
+    fn session_namespace_uses_dev_namespace_for_everr_dev() {
+        assert_eq!(session_namespace_for_command("everr-dev"), "everr-dev");
+    }
+
+    #[test]
+    fn session_namespace_uses_default_namespace_for_non_dev_binaries() {
+        assert_eq!(session_namespace_for_command("everr"), "everr");
+        assert_eq!(session_namespace_for_command("custom-name"), "everr");
+    }
+}
+
+fn session_namespace_for_command(command_name: &str) -> &'static str {
+    if command_name == "everr-dev" {
+        "everr-dev"
+    } else {
+        "everr"
+    }
 }

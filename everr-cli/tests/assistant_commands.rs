@@ -92,7 +92,11 @@ fn uninstall_removes_managed_block_but_keeps_unrelated_content() {
         "# Keep this\n\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\n",
     );
 
-    env.command().arg("uninstall").assert().success();
+    env.command()
+        .arg("uninstall")
+        .write_stdin("\n")
+        .assert()
+        .success();
 
     let content = fs::read_to_string(codex_file).expect("codex file should remain");
     assert!(content.contains("# Keep this"));
@@ -124,8 +128,14 @@ fn uninstall_logs_out_and_removes_managed_blocks_for_all_assistants() {
 
     env.command()
         .arg("uninstall")
+        .write_stdin("\n")
         .assert()
         .success()
+        .stdout(contains("The uninstall command will:"))
+        .stdout(contains("Press Enter to continue, or Ctrl+C to abort."))
+        .stdout(contains("Does not remove the CLI binary automatically:"))
+        .stdout(contains("To remove the CLI binary, run:"))
+        .stdout(contains("rm \""))
         .stdout(contains("Logged out."));
 
     let codex_content = fs::read_to_string(codex_file).expect("codex file should remain");

@@ -18,11 +18,19 @@ export interface RunListItem {
   sender: string;
   headSha?: string;
   jobCount: number;
+  failingSteps?: FailingStepSummary[];
 }
 
 export interface RunsListResult {
   runs: RunListItem[];
   totalCount: number;
+}
+
+export interface FailingStepSummary {
+  jobName: string;
+  jobId: string;
+  stepNumber: number;
+  stepName: string;
 }
 
 const RunsListInputSchema = z.object({
@@ -138,24 +146,82 @@ export const getRunsList = createServerFn({
       query<{ total: string }>(countSql, params),
     ]);
 
+    const runs: RunListItem[] = dataResult.map((row) => ({
+      traceId: row.trace_id,
+      runId: row.run_id,
+      runAttempt: Number(row.run_attempt),
+      workflowName: row.workflowName || "Workflow",
+      repo: row.repo,
+      branch: row.branch,
+      conclusion: row.conclusion,
+      duration: Number(row.duration),
+      timestamp: row.timestamp,
+      sender: row.sender,
+      headSha: row.headSha,
+      jobCount: Number(row.jobCount),
+    }));
+
+    const failingTraceIds = runs
+      .filter((run) => isFailingConclusion(run.conclusion))
+      .map((run) => run.traceId);
+
+    if (failingTraceIds.length > 0) {
+      const failingStepsSql = `
+        SELECT
+            TraceId as trace_id,
+            ResourceAttributes['cicd.pipeline.task.name'] as jobName,
+            ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
+            SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
+            anyLast(SpanName) as stepName
+          FROM traces
+          WHERE TraceId IN {traceIds:Array(String)}
+            AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
+            AND lowerUTF8(StatusMessage) NOT IN ('success', 'skip')
+          GROUP BY trace_id, jobName, jobId, stepNumber
+      `;
+
+      const failingStepsResult = await query<{
+        trace_id: string;
+        jobName: string;
+        jobId: string;
+        stepNumber: string;
+        stepName: string;
+      }>(failingStepsSql, { traceIds: failingTraceIds });
+
+      const failingStepsByTraceId = new Map<string, FailingStepSummary[]>();
+      for (const row of failingStepsResult) {
+        const current = failingStepsByTraceId.get(row.trace_id) ?? [];
+        current.push({
+          jobName: row.jobName,
+          jobId: row.jobId,
+          stepNumber: Number(row.stepNumber),
+          stepName: row.stepName,
+        });
+        failingStepsByTraceId.set(row.trace_id, current);
+      }
+
+      for (const run of runs) {
+        if (!isFailingConclusion(run.conclusion)) {
+          continue;
+        }
+        run.failingSteps = failingStepsByTraceId.get(run.traceId) ?? [];
+        run.failingSteps.sort(
+          (a, b) =>
+            a.jobId.localeCompare(b.jobId) || a.stepNumber - b.stepNumber,
+        );
+      }
+    }
+
     return {
-      runs: dataResult.map((row) => ({
-        traceId: row.trace_id,
-        runId: row.run_id,
-        runAttempt: Number(row.run_attempt),
-        workflowName: row.workflowName || "Workflow",
-        repo: row.repo,
-        branch: row.branch,
-        conclusion: row.conclusion,
-        duration: Number(row.duration),
-        timestamp: row.timestamp,
-        sender: row.sender,
-        headSha: row.headSha,
-        jobCount: Number(row.jobCount),
-      })),
+      runs,
       totalCount: countResult.length > 0 ? Number(countResult[0].total) : 0,
     } satisfies RunsListResult;
   });
+
+function isFailingConclusion(conclusion: string): boolean {
+  const normalized = conclusion.trim().toLowerCase();
+  return normalized === "failure" || normalized === "failed";
+}
 
 export interface FilterOptions {
   repos: string[];
