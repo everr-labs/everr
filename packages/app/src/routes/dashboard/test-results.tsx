@@ -181,16 +181,6 @@ function TestResultsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Results by Package</CardTitle>
-          <CardDescription>Test results grouped by package</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PackageResultsTable data={byPackage ?? []} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>Slowest Tests</CardTitle>
           <CardDescription>
             Top 20 tests by average execution time
@@ -198,6 +188,16 @@ function TestResultsPage() {
         </CardHeader>
         <CardContent>
           <SlowestTestsTable data={slowest ?? []} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Results by Package</CardTitle>
+          <CardDescription>Test results grouped by package</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PackageResultsTable data={byPackage ?? []} />
         </CardContent>
       </Card>
     </div>
