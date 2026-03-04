@@ -20,11 +20,11 @@ interface SuccessRateMiniChartProps {
 const chartConfig = {
   totalRuns: {
     label: "Total Runs",
-    color: "hsl(var(--muted))",
+    color: "hsl(217, 91%, 60%)",
   },
   successRate: {
     label: "Success Rate",
-    color: "hsl(142, 71%, 45%)",
+    color: "hsl(176, 71%, 45%)",
   },
 } satisfies ChartConfig;
 

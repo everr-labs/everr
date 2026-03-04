@@ -29,7 +29,7 @@ interface RepoSuccessRateChartProps {
 const chartConfig = {
   totalRuns: {
     label: "Total Runs",
-    color: "hsl(var(--muted))",
+    color: "hsl(217, 91%, 60%)",
   },
   successRate: {
     label: "Success Rate",
