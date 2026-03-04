@@ -14,7 +14,7 @@ CREATE TABLE "cli_device_authorizations" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "access_tokens" ADD COLUMN "expires_at" timestamp with time zone NOT NULL;--> statement-breakpoint
+ALTER TABLE "access_tokens" ADD COLUMN "expires_at" timestamp with time zone DEFAULT now() + interval '30 days' NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "cli_device_authorizations_device_code_hash_uq" ON "cli_device_authorizations" USING btree ("device_code_hash");--> statement-breakpoint
 CREATE UNIQUE INDEX "cli_device_authorizations_user_code_uq" ON "cli_device_authorizations" USING btree ("user_code");--> statement-breakpoint
 CREATE INDEX "cli_device_authorizations_status_expires_idx" ON "cli_device_authorizations" USING btree ("status","expires_at");--> statement-breakpoint
