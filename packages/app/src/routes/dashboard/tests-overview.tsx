@@ -136,48 +136,6 @@ function TestPerformancePage() {
   const isLeaf = isChildrenReady && children.length === 0 && (pkg || path);
   const hasChildren = isChildrenReady && children.length > 0;
 
-  const failureHotspots = useMemo(() => {
-    const grouped = new Map<
-      string,
-      {
-        testName: string;
-        failureCount: number;
-        latestTimestamp: string;
-        avgDuration: number;
-        latestTraceId: string;
-      }
-    >();
-    for (const row of failures ?? []) {
-      const existing = grouped.get(row.testName);
-      if (!existing) {
-        grouped.set(row.testName, {
-          testName: row.testName,
-          failureCount: 1,
-          latestTimestamp: row.timestamp,
-          avgDuration: row.duration,
-          latestTraceId: row.traceId,
-        });
-        continue;
-      }
-      const newer = row.timestamp > existing.latestTimestamp;
-      existing.failureCount += 1;
-      existing.avgDuration =
-        (existing.avgDuration * (existing.failureCount - 1) + row.duration) /
-        existing.failureCount;
-      if (newer) {
-        existing.latestTimestamp = row.timestamp;
-        existing.latestTraceId = row.traceId;
-      }
-    }
-    return Array.from(grouped.values())
-      .sort(
-        (a, b) =>
-          b.failureCount - a.failureCount ||
-          b.latestTimestamp.localeCompare(a.latestTimestamp),
-      )
-      .slice(0, 20);
-  }, [failures]);
-
   const executionTotalSeries = useMemo(
     () => (statsTrend ?? []).map((d) => d.totalExecutions),
     [statsTrend],
@@ -517,10 +475,8 @@ function TestPerformancePage() {
                 repo={repo}
                 branch={branch}
                 timeRange={timeRange}
-                fetchChildren={(scope) => {
-                  console.log("scope", scope);
-
-                  return queryClient.fetchQuery(
+                fetchChildren={(scope) =>
+                  queryClient.fetchQuery(
                     testPerfChildrenOptions({
                       timeRange,
                       repo,
@@ -528,8 +484,8 @@ function TestPerformancePage() {
                       pkg: scope.pkg,
                       path: scope.path,
                     }),
-                  );
-                }}
+                  )
+                }
               />
             )}
           </Panel>
