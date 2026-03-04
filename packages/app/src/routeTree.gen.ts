@@ -16,21 +16,13 @@ import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as SetupOrganizationRouteImport } from './routes/setup/organization'
 import { Route as DashboardUsersManagementRouteImport } from './routes/dashboard/users-management'
 import { Route as DashboardTestResultsRouteImport } from './routes/dashboard/test-results'
-import { Route as DashboardTestPerformanceRouteImport } from './routes/dashboard/test-performance'
 import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
 import { Route as DashboardReposRouteImport } from './routes/dashboard/repos'
-import { Route as DashboardMcpServerRouteImport } from './routes/dashboard/mcp-server'
-import { Route as DashboardFlakyTestsRouteImport } from './routes/dashboard/flaky-tests'
-import { Route as DashboardFailuresRouteImport } from './routes/dashboard/failures'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
 import { Route as DashboardCliTokenRouteImport } from './routes/dashboard/cli-token'
-import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
 import { Route as DashboardAccountRouteImport } from './routes/dashboard/account'
-import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
-import { Route as DashboardFlakyTestsIndexRouteImport } from './routes/dashboard/flaky-tests/index'
-import { Route as DashboardFlakyTestsDetailRouteImport } from './routes/dashboard/flaky-tests/detail'
 import { Route as ApiGithubInstallEventsRouteImport } from './routes/api/github/install-events'
 import { Route as ApiCliStatusRouteImport } from './routes/api/cli/status'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
@@ -82,12 +74,6 @@ const DashboardTestResultsRoute = DashboardTestResultsRouteImport.update({
   path: '/test-results',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardTestPerformanceRoute =
-  DashboardTestPerformanceRouteImport.update({
-    id: '/test-performance',
-    path: '/test-performance',
-    getParentRoute: () => DashboardRoute,
-  } as any)
 const DashboardRunsRoute = DashboardRunsRouteImport.update({
   id: '/runs',
   path: '/runs',
@@ -96,21 +82,6 @@ const DashboardRunsRoute = DashboardRunsRouteImport.update({
 const DashboardReposRoute = DashboardReposRouteImport.update({
   id: '/repos',
   path: '/repos',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardMcpServerRoute = DashboardMcpServerRouteImport.update({
-  id: '/mcp-server',
-  path: '/mcp-server',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardFlakyTestsRoute = DashboardFlakyTestsRouteImport.update({
-  id: '/flaky-tests',
-  path: '/flaky-tests',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardFailuresRoute = DashboardFailuresRouteImport.update({
-  id: '/failures',
-  path: '/failures',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardCostAnalysisRoute = DashboardCostAnalysisRouteImport.update({
@@ -123,20 +94,10 @@ const DashboardCliTokenRoute = DashboardCliTokenRouteImport.update({
   path: '/cli-token',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
-  getParentRoute: () => DashboardRoute,
-} as any)
 const DashboardAccountRoute = DashboardAccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => DashboardRoute,
-} as any)
-const ApiMcpRoute = ApiMcpRouteImport.update({
-  id: '/api/mcp',
-  path: '/api/mcp',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardWorkflowsIndexRoute = DashboardWorkflowsIndexRouteImport.update({
   id: '/workflows/',
@@ -148,18 +109,6 @@ const DashboardRunsIndexRoute = DashboardRunsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRunsRoute,
 } as any)
-const DashboardFlakyTestsIndexRoute =
-  DashboardFlakyTestsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => DashboardFlakyTestsRoute,
-  } as any)
-const DashboardFlakyTestsDetailRoute =
-  DashboardFlakyTestsDetailRouteImport.update({
-    id: '/detail',
-    path: '/detail',
-    getParentRoute: () => DashboardFlakyTestsRoute,
-  } as any)
 const ApiGithubInstallEventsRoute = ApiGithubInstallEventsRouteImport.update({
   id: '/api/github/install-events',
   path: '/api/github/install-events',
@@ -242,17 +191,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
-  '/api/mcp': typeof ApiMcpRoute
   '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
-  '/dashboard/failures': typeof DashboardFailuresRoute
-  '/dashboard/flaky-tests': typeof DashboardFlakyTestsRouteWithChildren
-  '/dashboard/mcp-server': typeof DashboardMcpServerRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
-  '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
@@ -262,8 +205,6 @@ export interface FileRoutesByFullPath {
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
-  '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
-  '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -279,15 +220,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signout': typeof SignoutRoute
-  '/api/mcp': typeof ApiMcpRoute
   '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
-  '/dashboard/failures': typeof DashboardFailuresRoute
-  '/dashboard/mcp-server': typeof DashboardMcpServerRoute
   '/dashboard/repos': typeof DashboardReposRoute
-  '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
@@ -296,8 +232,6 @@ export interface FileRoutesByTo {
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
-  '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
-  '/dashboard/flaky-tests': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs': typeof DashboardRunsIndexRoute
   '/dashboard/workflows': typeof DashboardWorkflowsIndexRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -315,17 +249,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
-  '/api/mcp': typeof ApiMcpRoute
   '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
-  '/dashboard/failures': typeof DashboardFailuresRoute
-  '/dashboard/flaky-tests': typeof DashboardFlakyTestsRouteWithChildren
-  '/dashboard/mcp-server': typeof DashboardMcpServerRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
-  '/dashboard/test-performance': typeof DashboardTestPerformanceRoute
   '/dashboard/test-results': typeof DashboardTestResultsRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/setup/organization': typeof SetupOrganizationRoute
@@ -335,8 +263,6 @@ export interface FileRoutesById {
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
-  '/dashboard/flaky-tests/detail': typeof DashboardFlakyTestsDetailRoute
-  '/dashboard/flaky-tests/': typeof DashboardFlakyTestsIndexRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -355,17 +281,11 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/signout'
-    | '/api/mcp'
     | '/dashboard/account'
-    | '/dashboard/analytics'
     | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
-    | '/dashboard/failures'
-    | '/dashboard/flaky-tests'
-    | '/dashboard/mcp-server'
     | '/dashboard/repos'
     | '/dashboard/runs'
-    | '/dashboard/test-performance'
     | '/dashboard/test-results'
     | '/dashboard/users-management'
     | '/setup/organization'
@@ -375,8 +295,6 @@ export interface FileRouteTypes {
     | '/api/cli/runs'
     | '/api/cli/status'
     | '/api/github/install-events'
-    | '/dashboard/flaky-tests/detail'
-    | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
     | '/api/cli/runs/$traceId'
@@ -392,15 +310,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/signout'
-    | '/api/mcp'
     | '/dashboard/account'
-    | '/dashboard/analytics'
     | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
-    | '/dashboard/failures'
-    | '/dashboard/mcp-server'
     | '/dashboard/repos'
-    | '/dashboard/test-performance'
     | '/dashboard/test-results'
     | '/dashboard/users-management'
     | '/setup/organization'
@@ -409,8 +322,6 @@ export interface FileRouteTypes {
     | '/api/cli/runs'
     | '/api/cli/status'
     | '/api/github/install-events'
-    | '/dashboard/flaky-tests/detail'
-    | '/dashboard/flaky-tests'
     | '/dashboard/runs'
     | '/dashboard/workflows'
     | '/api/cli/runs/$traceId'
@@ -427,17 +338,11 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/signout'
-    | '/api/mcp'
     | '/dashboard/account'
-    | '/dashboard/analytics'
     | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
-    | '/dashboard/failures'
-    | '/dashboard/flaky-tests'
-    | '/dashboard/mcp-server'
     | '/dashboard/repos'
     | '/dashboard/runs'
-    | '/dashboard/test-performance'
     | '/dashboard/test-results'
     | '/dashboard/users-management'
     | '/setup/organization'
@@ -447,8 +352,6 @@ export interface FileRouteTypes {
     | '/api/cli/runs'
     | '/api/cli/status'
     | '/api/github/install-events'
-    | '/dashboard/flaky-tests/detail'
-    | '/dashboard/flaky-tests/'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
     | '/api/cli/runs/$traceId'
@@ -466,7 +369,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   SignoutRoute: typeof SignoutRoute
-  ApiMcpRoute: typeof ApiMcpRoute
   SetupOrganizationRoute: typeof SetupOrganizationRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
@@ -527,13 +429,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTestResultsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/test-performance': {
-      id: '/dashboard/test-performance'
-      path: '/test-performance'
-      fullPath: '/dashboard/test-performance'
-      preLoaderRoute: typeof DashboardTestPerformanceRouteImport
-      parentRoute: typeof DashboardRoute
-    }
     '/dashboard/runs': {
       id: '/dashboard/runs'
       path: '/runs'
@@ -546,27 +441,6 @@ declare module '@tanstack/react-router' {
       path: '/repos'
       fullPath: '/dashboard/repos'
       preLoaderRoute: typeof DashboardReposRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/mcp-server': {
-      id: '/dashboard/mcp-server'
-      path: '/mcp-server'
-      fullPath: '/dashboard/mcp-server'
-      preLoaderRoute: typeof DashboardMcpServerRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/flaky-tests': {
-      id: '/dashboard/flaky-tests'
-      path: '/flaky-tests'
-      fullPath: '/dashboard/flaky-tests'
-      preLoaderRoute: typeof DashboardFlakyTestsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/failures': {
-      id: '/dashboard/failures'
-      path: '/failures'
-      fullPath: '/dashboard/failures'
-      preLoaderRoute: typeof DashboardFailuresRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/cost-analysis': {
@@ -583,26 +457,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCliTokenRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/analytics': {
-      id: '/dashboard/analytics'
-      path: '/analytics'
-      fullPath: '/dashboard/analytics'
-      preLoaderRoute: typeof DashboardAnalyticsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
     '/dashboard/account': {
       id: '/dashboard/account'
       path: '/account'
       fullPath: '/dashboard/account'
       preLoaderRoute: typeof DashboardAccountRouteImport
       parentRoute: typeof DashboardRoute
-    }
-    '/api/mcp': {
-      id: '/api/mcp'
-      path: '/api/mcp'
-      fullPath: '/api/mcp'
-      preLoaderRoute: typeof ApiMcpRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/dashboard/workflows/': {
       id: '/dashboard/workflows/'
@@ -617,20 +477,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/runs/'
       preLoaderRoute: typeof DashboardRunsIndexRouteImport
       parentRoute: typeof DashboardRunsRoute
-    }
-    '/dashboard/flaky-tests/': {
-      id: '/dashboard/flaky-tests/'
-      path: '/'
-      fullPath: '/dashboard/flaky-tests/'
-      preLoaderRoute: typeof DashboardFlakyTestsIndexRouteImport
-      parentRoute: typeof DashboardFlakyTestsRoute
-    }
-    '/dashboard/flaky-tests/detail': {
-      id: '/dashboard/flaky-tests/detail'
-      path: '/detail'
-      fullPath: '/dashboard/flaky-tests/detail'
-      preLoaderRoute: typeof DashboardFlakyTestsDetailRouteImport
-      parentRoute: typeof DashboardFlakyTestsRoute
     }
     '/api/github/install-events': {
       id: '/api/github/install-events'
@@ -733,19 +579,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface DashboardFlakyTestsRouteChildren {
-  DashboardFlakyTestsDetailRoute: typeof DashboardFlakyTestsDetailRoute
-  DashboardFlakyTestsIndexRoute: typeof DashboardFlakyTestsIndexRoute
-}
-
-const DashboardFlakyTestsRouteChildren: DashboardFlakyTestsRouteChildren = {
-  DashboardFlakyTestsDetailRoute: DashboardFlakyTestsDetailRoute,
-  DashboardFlakyTestsIndexRoute: DashboardFlakyTestsIndexRoute,
-}
-
-const DashboardFlakyTestsRouteWithChildren =
-  DashboardFlakyTestsRoute._addFileChildren(DashboardFlakyTestsRouteChildren)
-
 interface DashboardRunsTraceIdRouteRouteChildren {
   DashboardRunsTraceIdTraceRoute: typeof DashboardRunsTraceIdTraceRoute
   DashboardRunsTraceIdIndexRoute: typeof DashboardRunsTraceIdIndexRoute
@@ -784,15 +617,10 @@ const DashboardRunsRouteWithChildren = DashboardRunsRoute._addFileChildren(
 
 interface DashboardRouteChildren {
   DashboardAccountRoute: typeof DashboardAccountRoute
-  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardCliTokenRoute: typeof DashboardCliTokenRoute
   DashboardCostAnalysisRoute: typeof DashboardCostAnalysisRoute
-  DashboardFailuresRoute: typeof DashboardFailuresRoute
-  DashboardFlakyTestsRoute: typeof DashboardFlakyTestsRouteWithChildren
-  DashboardMcpServerRoute: typeof DashboardMcpServerRoute
   DashboardReposRoute: typeof DashboardReposRoute
   DashboardRunsRoute: typeof DashboardRunsRouteWithChildren
-  DashboardTestPerformanceRoute: typeof DashboardTestPerformanceRoute
   DashboardTestResultsRoute: typeof DashboardTestResultsRoute
   DashboardUsersManagementRoute: typeof DashboardUsersManagementRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
@@ -802,15 +630,10 @@ interface DashboardRouteChildren {
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAccountRoute: DashboardAccountRoute,
-  DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardCliTokenRoute: DashboardCliTokenRoute,
   DashboardCostAnalysisRoute: DashboardCostAnalysisRoute,
-  DashboardFailuresRoute: DashboardFailuresRoute,
-  DashboardFlakyTestsRoute: DashboardFlakyTestsRouteWithChildren,
-  DashboardMcpServerRoute: DashboardMcpServerRoute,
   DashboardReposRoute: DashboardReposRoute,
   DashboardRunsRoute: DashboardRunsRouteWithChildren,
-  DashboardTestPerformanceRoute: DashboardTestPerformanceRoute,
   DashboardTestResultsRoute: DashboardTestResultsRoute,
   DashboardUsersManagementRoute: DashboardUsersManagementRoute,
   DashboardIndexRoute: DashboardIndexRoute,
@@ -850,7 +673,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
   SignoutRoute: SignoutRoute,
-  ApiMcpRoute: ApiMcpRoute,
   SetupOrganizationRoute: SetupOrganizationRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,

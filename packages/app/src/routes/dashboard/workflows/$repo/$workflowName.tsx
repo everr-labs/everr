@@ -47,6 +47,9 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 export const Route = createFileRoute(
   "/dashboard/workflows/$repo/$workflowName",
 )({
+  head: ({ params }) => ({
+    meta: [{ title: `Everr - ${decodeURIComponent(params.workflowName)}` }],
+  }),
   component: WorkflowDetailPage,
   validateSearch: TimeRangeSearchSchema,
   pendingComponent: WorkflowDetailSkeleton,

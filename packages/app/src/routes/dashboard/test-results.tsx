@@ -1,8 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { PackageResultsTable } from "@/components/results/package-results-table";
 import { SlowestTestsTable } from "@/components/results/slowest-tests-table";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
+import {
+  TestPerfTreemap,
+  type TreemapSizeMetric,
+} from "@/components/test-performance";
 import {
   Card,
   CardContent,
@@ -11,6 +16,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { testPerfChildrenOptions } from "@/data/test-performance";
 import {
   slowestTestsOptions,
   testDurationTrendOptions,
@@ -21,20 +28,28 @@ import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/test-results")({
   staticData: { breadcrumb: "Test Results" },
+  head: () => ({
+    meta: [{ title: "Everr - Test Results" }],
+  }),
   component: TestResultsPage,
   validateSearch: TimeRangeSearchSchema,
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
-    queryClient.prefetchQuery(testResultsSummaryOptions({ timeRange }));
-    queryClient.prefetchQuery(testResultsByPackageOptions({ timeRange }));
-    queryClient.prefetchQuery(slowestTestsOptions({ timeRange }));
-    queryClient.prefetchQuery(testDurationTrendOptions({ timeRange }));
+    await Promise.all([
+      queryClient.prefetchQuery(testResultsSummaryOptions({ timeRange })),
+      queryClient.prefetchQuery(testResultsByPackageOptions({ timeRange })),
+      queryClient.prefetchQuery(slowestTestsOptions({ timeRange })),
+      queryClient.prefetchQuery(testDurationTrendOptions({ timeRange })),
+      queryClient.prefetchQuery(testPerfChildrenOptions({ timeRange })),
+    ]);
   },
   pendingComponent: TestResultsSkeleton,
 });
 
 function TestResultsPage() {
   const { timeRange } = Route.useLoaderDeps();
+  const [treemapSizeMetric, setTreemapSizeMetric] =
+    useState<TreemapSizeMetric>("avgDuration");
 
   const { data: summary } = useQuery(testResultsSummaryOptions({ timeRange }));
   const { data: byPackage } = useQuery(
@@ -43,6 +58,9 @@ function TestResultsPage() {
   const { data: slowest } = useQuery(slowestTestsOptions({ timeRange }));
   const { data: durationTrend } = useQuery(
     testDurationTrendOptions({ timeRange }),
+  );
+  const { data: treemapChildren } = useQuery(
+    testPerfChildrenOptions({ timeRange }),
   );
 
   if (!summary) return null;
@@ -102,6 +120,62 @@ function TestResultsPage() {
         </CardHeader>
         <CardContent>
           <TestDurationTrendChart data={durationTrend ?? []} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle>Execution Treemap</CardTitle>
+              <CardDescription>
+                Size ={" "}
+                {treemapSizeMetric === "avgDuration"
+                  ? "average duration"
+                  : treemapSizeMetric === "p95Duration"
+                    ? "p95 duration"
+                    : "failure rate"}
+                , color = failure rate
+              </CardDescription>
+            </div>
+            <ToggleGroup
+              value={[treemapSizeMetric]}
+              variant="outline"
+              size="sm"
+              spacing={0}
+              onValueChange={(value) => {
+                const selected = value[0];
+                if (!selected) return;
+                if (
+                  selected === "avgDuration" ||
+                  selected === "p95Duration" ||
+                  selected === "failureRate"
+                ) {
+                  setTreemapSizeMetric(selected);
+                }
+              }}
+              aria-label="Treemap size metric"
+            >
+              <ToggleGroupItem
+                value="avgDuration"
+                aria-label="Average duration"
+              >
+                Avg
+              </ToggleGroupItem>
+              <ToggleGroupItem value="p95Duration" aria-label="P95 duration">
+                P95
+              </ToggleGroupItem>
+              <ToggleGroupItem value="failureRate" aria-label="Failure rate">
+                Fail %
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <TestPerfTreemap
+            data={treemapChildren ?? []}
+            sizeMetric={treemapSizeMetric}
+          />
         </CardContent>
       </Card>
 

@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAccessToken } from "@workos/authkit-tanstack-react-start/client";
 import { UserProfile, UserSecurity } from "@workos-inc/widgets";
 import { useState } from "react";
+import { AccessTokenPanel } from "@/components/access-token-panel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,9 +14,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
+  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -25,6 +27,9 @@ import { deleteCurrentUserAccount } from "@/data/account-settings";
 
 export const Route = createFileRoute("/dashboard/account")({
   staticData: { breadcrumb: "Account Settings", hideTimeRangePicker: true },
+  head: () => ({
+    meta: [{ title: "Everr - Account Settings" }],
+  }),
   component: AccountSettingsPage,
 });
 
@@ -76,6 +81,27 @@ function AccountSettingsPage() {
 
       <UserProfile authToken={accessToken} />
       <UserSecurity authToken={accessToken} />
+      <AccessTokenPanel
+        title="CLI Token"
+        description="Generate an access token for the Everr CLI."
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle>GitHub Connection</CardTitle>
+          <CardDescription>
+            Connect or update your GitHub App installation for this workspace.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            to="/api/github/install/start"
+            reloadDocument
+            className={buttonVariants({ size: "sm" })}
+          >
+            Connect GitHub
+          </Link>
+        </CardContent>
+      </Card>
 
       <Card className="border-destructive/40">
         <CardHeader className="flex flex-row items-center justify-between gap-3">

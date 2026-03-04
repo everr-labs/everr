@@ -10,12 +10,27 @@ const widgetMocks = vi.hoisted(() => ({
   userSecurityProps: [] as Array<{ authToken: string }>,
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({
-    options,
-  }),
-  useNavigate: () => vi.fn(),
-}));
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({
+      options,
+    }),
+    Link: (props: {
+      to: string;
+      className?: string;
+      reloadDocument?: boolean;
+      children: any;
+    }) => (
+      <a href={props.to} className={props.className}>
+        {props.children}
+      </a>
+    ),
+    useNavigate: () => vi.fn(),
+  };
+});
 
 vi.mock("@workos/authkit-tanstack-react-start/client", () => ({
   useAccessToken: () => ({
@@ -34,6 +49,10 @@ vi.mock("@workos-inc/widgets", () => ({
   },
 }));
 
+vi.mock("@/components/access-token-panel", () => ({
+  AccessTokenPanel: () => <div data-testid="access-token-panel" />,
+}));
+
 import { Route } from "./account";
 
 describe("/dashboard/account route", () => {
@@ -44,6 +63,7 @@ describe("/dashboard/account route", () => {
     expect(screen.getByText("Account Settings")).toBeInTheDocument();
     expect(screen.getByTestId("user-profile")).toBeInTheDocument();
     expect(screen.getByTestId("user-security")).toBeInTheDocument();
+    expect(screen.getByTestId("access-token-panel")).toBeInTheDocument();
   });
 
   it("passes the AuthKit access token to both widgets", () => {

@@ -36,6 +36,9 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/")({
   staticData: { breadcrumb: "Overview" },
+  head: () => ({
+    meta: [{ title: "Everr - Overview" }],
+  }),
   component: DashboardPage,
   validateSearch: TimeRangeSearchSchema,
 });

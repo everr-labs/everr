@@ -24,13 +24,30 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "TanStack Start Starter",
+        title: "Everr",
       },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "icon",
+        href: "/favicon.ico",
+      },
+      {
+        rel: "icon",
+        type: "image/png",
+        href: "/logo192.png",
+      },
+      {
+        rel: "apple-touch-icon",
+        href: "/logo192.png",
+      },
+      {
+        rel: "manifest",
+        href: "/manifest.json",
       },
     ],
   }),

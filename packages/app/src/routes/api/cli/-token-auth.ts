@@ -20,8 +20,7 @@ export const cliTokenAuthMiddleware = createMiddleware({
   if (!validatedApiKey) {
     return Response.json(
       {
-        error:
-          "Invalid token. Ensure the token is active and generated from MCP Server setup.",
+        error: "Invalid token. Ensure the token is active and valid.",
       },
       { status: 401 },
     );
