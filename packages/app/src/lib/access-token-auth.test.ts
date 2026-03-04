@@ -27,6 +27,7 @@ const mocked = vi.hoisted(() => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(() => "and_clause"),
   eq: vi.fn(() => "eq_clause"),
+  gt: vi.fn(() => "gt_clause"),
   isNull: vi.fn(() => "is_null_clause"),
 }));
 
@@ -34,10 +35,6 @@ vi.mock("@/db/client", () => ({
   db: {
     select: mocked.select,
   },
-}));
-
-vi.mock("@/lib/workos", () => ({
-  getWorkOS: vi.fn(),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -48,6 +45,7 @@ vi.mock("@/db/schema", () => ({
     name: "access_tokens.name",
     tokenHash: "access_tokens.token_hash",
     revokedAt: "access_tokens.revoked_at",
+    expiresAt: "access_tokens.expires_at",
   },
   tenants: {
     id: "tenants.id",
@@ -55,22 +53,10 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import { getWorkOS } from "@/lib/workos";
 import { getBearerToken, validateAccessToken } from "./access-token-auth";
-
-const listOrganizationMemberships = vi.fn();
-const mockedGetWorkOS = vi.mocked(getWorkOS);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  listOrganizationMemberships.mockResolvedValue({
-    data: [{ id: "om_123", status: "active" }],
-  });
-  mockedGetWorkOS.mockReturnValue({
-    userManagement: {
-      listOrganizationMemberships,
-    },
-  } as never);
 });
 
 describe("getBearerToken", () => {
@@ -104,7 +90,6 @@ describe("validateAccessToken", () => {
     expect(mocked.select).toHaveBeenCalledTimes(1);
     expect(mocked.selectInnerJoin).toHaveBeenCalledTimes(1);
     expect(mocked.selectWhere).toHaveBeenCalledTimes(1);
-    expect(listOrganizationMemberships).not.toHaveBeenCalled();
   });
 
   it("returns mapped token fields when token is valid", async () => {
@@ -125,27 +110,6 @@ describe("validateAccessToken", () => {
       userId: "user_123",
       name: "access-token-abcdef12",
     });
-    expect(listOrganizationMemberships).toHaveBeenCalledWith({
-      userId: "user_123",
-      organizationId: "org_123",
-      statuses: ["active"],
-      limit: 1,
-    });
-  });
-
-  it("returns null when user has no active membership in organization", async () => {
-    mocked.selectLimit.mockResolvedValue([
-      {
-        tokenId: 9,
-        tenantId: 77,
-        organizationId: "org_123",
-        userId: "user_123",
-        name: "access-token-abcdef12",
-      },
-    ]);
-    listOrganizationMemberships.mockResolvedValue({ data: [] });
-
-    await expect(validateAccessToken("eacc_valid")).resolves.toBeNull();
   });
 
   it("accepts both legacy and new token prefixes", async () => {

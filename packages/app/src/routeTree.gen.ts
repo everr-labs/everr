@@ -13,14 +13,16 @@ import { Route as SignoutRouteImport } from './routes/signout'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as SetupOrganizationRouteImport } from './routes/setup/organization'
+import { Route as OnboardingOrganizationRouteImport } from './routes/onboarding.organization'
+import { Route as OnboardingGithubRouteImport } from './routes/onboarding.github'
+import { Route as OnboardingCliRouteImport } from './routes/onboarding.cli'
 import { Route as DashboardUsersManagementRouteImport } from './routes/dashboard/users-management'
 import { Route as DashboardTestsOverviewRouteImport } from './routes/dashboard/tests-overview'
 import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
 import { Route as DashboardReposRouteImport } from './routes/dashboard/repos'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
-import { Route as DashboardCliTokenRouteImport } from './routes/dashboard/cli-token'
 import { Route as DashboardAccountRouteImport } from './routes/dashboard/account'
+import { Route as CliDeviceRouteImport } from './routes/cli/device'
 import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
 import { Route as ApiGithubInstallEventsRouteImport } from './routes/api/github/install-events'
@@ -35,6 +37,9 @@ import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/i
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
+import { Route as ApiCliAuthDeviceStartRouteImport } from './routes/api/cli/auth/device/start'
+import { Route as ApiCliAuthDevicePollRouteImport } from './routes/api/cli/auth/device/poll'
+import { Route as ApiCliAuthDeviceApproveRouteImport } from './routes/api/cli/auth/device/approve'
 import { Route as DashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as DashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
@@ -58,9 +63,19 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRoute,
 } as any)
-const SetupOrganizationRoute = SetupOrganizationRouteImport.update({
-  id: '/setup/organization',
-  path: '/setup/organization',
+const OnboardingOrganizationRoute = OnboardingOrganizationRouteImport.update({
+  id: '/onboarding/organization',
+  path: '/onboarding/organization',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingGithubRoute = OnboardingGithubRouteImport.update({
+  id: '/onboarding/github',
+  path: '/onboarding/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingCliRoute = OnboardingCliRouteImport.update({
+  id: '/onboarding/cli',
+  path: '/onboarding/cli',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardUsersManagementRoute =
@@ -89,15 +104,15 @@ const DashboardCostAnalysisRoute = DashboardCostAnalysisRouteImport.update({
   path: '/cost-analysis',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardCliTokenRoute = DashboardCliTokenRouteImport.update({
-  id: '/cli-token',
-  path: '/cli-token',
-  getParentRoute: () => DashboardRoute,
-} as any)
 const DashboardAccountRoute = DashboardAccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => DashboardRoute,
+} as any)
+const CliDeviceRoute = CliDeviceRouteImport.update({
+  id: '/cli/device',
+  path: '/cli/device',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardWorkflowsIndexRoute = DashboardWorkflowsIndexRouteImport.update({
   id: '/workflows/',
@@ -174,6 +189,21 @@ const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => ApiCliRunsTraceIdRoute,
 } as any)
+const ApiCliAuthDeviceStartRoute = ApiCliAuthDeviceStartRouteImport.update({
+  id: '/api/cli/auth/device/start',
+  path: '/api/cli/auth/device/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliAuthDevicePollRoute = ApiCliAuthDevicePollRouteImport.update({
+  id: '/api/cli/auth/device/poll',
+  path: '/api/cli/auth/device/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliAuthDeviceApproveRoute = ApiCliAuthDeviceApproveRouteImport.update({
+  id: '/api/cli/auth/device/approve',
+  path: '/api/cli/auth/device/approve',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRunsTraceIdJobsJobIdIndexRoute =
   DashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
     id: '/jobs/$jobId/',
@@ -191,14 +221,16 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
+  '/cli/device': typeof CliDeviceRoute
   '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
-  '/setup/organization': typeof SetupOrganizationRoute
+  '/onboarding/cli': typeof OnboardingCliRoute
+  '/onboarding/github': typeof OnboardingGithubRoute
+  '/onboarding/organization': typeof OnboardingOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -213,6 +245,9 @@ export interface FileRoutesByFullPath {
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
   '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
+  '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
+  '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
+  '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -220,13 +255,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signout': typeof SignoutRoute
+  '/cli/device': typeof CliDeviceRoute
   '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
-  '/setup/organization': typeof SetupOrganizationRoute
+  '/onboarding/cli': typeof OnboardingCliRoute
+  '/onboarding/github': typeof OnboardingGithubRoute
+  '/onboarding/organization': typeof OnboardingOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
@@ -240,6 +277,9 @@ export interface FileRoutesByTo {
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
   '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdIndexRoute
+  '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
+  '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
+  '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboard/runs/$traceId/jobs/$jobId': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -249,14 +289,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
+  '/cli/device': typeof CliDeviceRoute
   '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/cli-token': typeof DashboardCliTokenRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
-  '/setup/organization': typeof SetupOrganizationRoute
+  '/onboarding/cli': typeof OnboardingCliRoute
+  '/onboarding/github': typeof OnboardingGithubRoute
+  '/onboarding/organization': typeof OnboardingOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -271,6 +313,9 @@ export interface FileRoutesById {
   '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
   '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
   '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
+  '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
+  '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
+  '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
   '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -281,14 +326,16 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/signout'
+    | '/cli/device'
     | '/dashboard/account'
-    | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
     | '/dashboard/repos'
     | '/dashboard/runs'
     | '/dashboard/tests-overview'
     | '/dashboard/users-management'
-    | '/setup/organization'
+    | '/onboarding/cli'
+    | '/onboarding/github'
+    | '/onboarding/organization'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
@@ -303,6 +350,9 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId/trace'
     | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId/'
+    | '/api/cli/auth/device/approve'
+    | '/api/cli/auth/device/poll'
+    | '/api/cli/auth/device/start'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboard/runs/$traceId/jobs/$jobId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -310,13 +360,15 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/signout'
+    | '/cli/device'
     | '/dashboard/account'
-    | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
     | '/dashboard/repos'
     | '/dashboard/tests-overview'
     | '/dashboard/users-management'
-    | '/setup/organization'
+    | '/onboarding/cli'
+    | '/onboarding/github'
+    | '/onboarding/organization'
     | '/dashboard'
     | '/api/auth/callback'
     | '/api/cli/runs'
@@ -330,6 +382,9 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId/trace'
     | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId'
+    | '/api/cli/auth/device/approve'
+    | '/api/cli/auth/device/poll'
+    | '/api/cli/auth/device/start'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboard/runs/$traceId/jobs/$jobId'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -338,14 +393,16 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/signout'
+    | '/cli/device'
     | '/dashboard/account'
-    | '/dashboard/cli-token'
     | '/dashboard/cost-analysis'
     | '/dashboard/repos'
     | '/dashboard/runs'
     | '/dashboard/tests-overview'
     | '/dashboard/users-management'
-    | '/setup/organization'
+    | '/onboarding/cli'
+    | '/onboarding/github'
+    | '/onboarding/organization'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
@@ -360,6 +417,9 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId/trace'
     | '/dashboard/workflows/$repo/$workflowName'
     | '/dashboard/runs/$traceId/'
+    | '/api/cli/auth/device/approve'
+    | '/api/cli/auth/device/poll'
+    | '/api/cli/auth/device/start'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboard/runs/$traceId/jobs/$jobId/'
     | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -369,13 +429,19 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   SignoutRoute: typeof SignoutRoute
-  SetupOrganizationRoute: typeof SetupOrganizationRoute
+  CliDeviceRoute: typeof CliDeviceRoute
+  OnboardingCliRoute: typeof OnboardingCliRoute
+  OnboardingGithubRoute: typeof OnboardingGithubRoute
+  OnboardingOrganizationRoute: typeof OnboardingOrganizationRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliStatusRoute: typeof ApiCliStatusRoute
   ApiGithubInstallEventsRoute: typeof ApiGithubInstallEventsRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
+  ApiCliAuthDeviceApproveRoute: typeof ApiCliAuthDeviceApproveRoute
+  ApiCliAuthDevicePollRoute: typeof ApiCliAuthDevicePollRoute
+  ApiCliAuthDeviceStartRoute: typeof ApiCliAuthDeviceStartRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -408,11 +474,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/setup/organization': {
-      id: '/setup/organization'
-      path: '/setup/organization'
-      fullPath: '/setup/organization'
-      preLoaderRoute: typeof SetupOrganizationRouteImport
+    '/onboarding/organization': {
+      id: '/onboarding/organization'
+      path: '/onboarding/organization'
+      fullPath: '/onboarding/organization'
+      preLoaderRoute: typeof OnboardingOrganizationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding/github': {
+      id: '/onboarding/github'
+      path: '/onboarding/github'
+      fullPath: '/onboarding/github'
+      preLoaderRoute: typeof OnboardingGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding/cli': {
+      id: '/onboarding/cli'
+      path: '/onboarding/cli'
+      fullPath: '/onboarding/cli'
+      preLoaderRoute: typeof OnboardingCliRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/users-management': {
@@ -450,19 +530,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCostAnalysisRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/cli-token': {
-      id: '/dashboard/cli-token'
-      path: '/cli-token'
-      fullPath: '/dashboard/cli-token'
-      preLoaderRoute: typeof DashboardCliTokenRouteImport
-      parentRoute: typeof DashboardRoute
-    }
     '/dashboard/account': {
       id: '/dashboard/account'
       path: '/account'
       fullPath: '/dashboard/account'
       preLoaderRoute: typeof DashboardAccountRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/cli/device': {
+      id: '/cli/device'
+      path: '/cli/device'
+      fullPath: '/cli/device'
+      preLoaderRoute: typeof CliDeviceRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/workflows/': {
       id: '/dashboard/workflows/'
@@ -562,6 +642,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliRunsTraceIdLogsRouteImport
       parentRoute: typeof ApiCliRunsTraceIdRoute
     }
+    '/api/cli/auth/device/start': {
+      id: '/api/cli/auth/device/start'
+      path: '/api/cli/auth/device/start'
+      fullPath: '/api/cli/auth/device/start'
+      preLoaderRoute: typeof ApiCliAuthDeviceStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/auth/device/poll': {
+      id: '/api/cli/auth/device/poll'
+      path: '/api/cli/auth/device/poll'
+      fullPath: '/api/cli/auth/device/poll'
+      preLoaderRoute: typeof ApiCliAuthDevicePollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/auth/device/approve': {
+      id: '/api/cli/auth/device/approve'
+      path: '/api/cli/auth/device/approve'
+      fullPath: '/api/cli/auth/device/approve'
+      preLoaderRoute: typeof ApiCliAuthDeviceApproveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/runs/$traceId/jobs/$jobId/': {
       id: '/dashboard/runs/$traceId/jobs/$jobId/'
       path: '/jobs/$jobId'
@@ -617,7 +718,6 @@ const DashboardRunsRouteWithChildren = DashboardRunsRoute._addFileChildren(
 
 interface DashboardRouteChildren {
   DashboardAccountRoute: typeof DashboardAccountRoute
-  DashboardCliTokenRoute: typeof DashboardCliTokenRoute
   DashboardCostAnalysisRoute: typeof DashboardCostAnalysisRoute
   DashboardReposRoute: typeof DashboardReposRoute
   DashboardRunsRoute: typeof DashboardRunsRouteWithChildren
@@ -630,7 +730,6 @@ interface DashboardRouteChildren {
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAccountRoute: DashboardAccountRoute,
-  DashboardCliTokenRoute: DashboardCliTokenRoute,
   DashboardCostAnalysisRoute: DashboardCostAnalysisRoute,
   DashboardReposRoute: DashboardReposRoute,
   DashboardRunsRoute: DashboardRunsRouteWithChildren,
@@ -673,13 +772,19 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
   SignoutRoute: SignoutRoute,
-  SetupOrganizationRoute: SetupOrganizationRoute,
+  CliDeviceRoute: CliDeviceRoute,
+  OnboardingCliRoute: OnboardingCliRoute,
+  OnboardingGithubRoute: OnboardingGithubRoute,
+  OnboardingOrganizationRoute: OnboardingOrganizationRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliStatusRoute: ApiCliStatusRoute,
   ApiGithubInstallEventsRoute: ApiGithubInstallEventsRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
+  ApiCliAuthDeviceApproveRoute: ApiCliAuthDeviceApproveRoute,
+  ApiCliAuthDevicePollRoute: ApiCliAuthDevicePollRoute,
+  ApiCliAuthDeviceStartRoute: ApiCliAuthDeviceStartRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

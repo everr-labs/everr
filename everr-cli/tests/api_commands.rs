@@ -233,5 +233,5 @@ fn commands_require_existing_session() {
         .args(["runs", "list"])
         .assert()
         .failure()
-        .stderr(contains("no active session; run `everr auth login`"));
+        .stderr(contains("no active session; run `everr login`"));
 }

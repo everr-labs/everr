@@ -95,6 +95,7 @@ describe("createAccessToken", () => {
         name: expect.stringMatching(/^access-token-[a-f0-9]{8}$/),
         tokenHash: "hashed_test_token",
         tokenPrefix: "eacc_test_prefix_",
+        expiresAt: expect.any(Date),
       }),
     );
   });

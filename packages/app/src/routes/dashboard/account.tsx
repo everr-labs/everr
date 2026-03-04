@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAccessToken } from "@workos/authkit-tanstack-react-start/client";
 import { UserProfile, UserSecurity } from "@workos-inc/widgets";
 import { useState } from "react";
-import { AccessTokenPanel } from "@/components/access-token-panel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,10 +80,6 @@ function AccountSettingsPage() {
 
       <UserProfile authToken={accessToken} />
       <UserSecurity authToken={accessToken} />
-      <AccessTokenPanel
-        title="CLI Token"
-        description="Generate an access token for the Everr CLI."
-      />
       <Card>
         <CardHeader>
           <CardTitle>GitHub Connection</CardTitle>

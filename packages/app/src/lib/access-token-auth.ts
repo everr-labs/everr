@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { accessTokens, tenants } from "@/db/schema";
-import { getWorkOS } from "@/lib/workos";
 
 export type ValidAccessToken = {
   tokenId: number;
@@ -14,32 +13,6 @@ export type ValidAccessToken = {
 
 function hashAccessToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
-}
-
-async function hasOrganizationReadAccess(
-  userId: string,
-  organizationId: string,
-): Promise<boolean> {
-  try {
-    const workos = getWorkOS();
-    const memberships = await workos.userManagement.listOrganizationMemberships(
-      {
-        userId,
-        organizationId,
-        statuses: ["active"],
-        limit: 1,
-      },
-    );
-
-    return memberships.data.length > 0;
-  } catch (error) {
-    console.error("[access-token-auth] org_access_check_failed", {
-      userId,
-      organizationId,
-      error,
-    });
-    return false;
-  }
 }
 
 export function getBearerToken(headers: Headers): string | null {
@@ -78,20 +51,12 @@ export async function validateAccessToken(
       and(
         eq(accessTokens.tokenHash, tokenHash),
         isNull(accessTokens.revokedAt),
+        gt(accessTokens.expiresAt, new Date()),
       ),
     )
     .limit(1);
 
   if (!storedToken) {
-    return null;
-  }
-
-  const hasReadAccess = await hasOrganizationReadAccess(
-    storedToken.userId,
-    storedToken.organizationId,
-  );
-
-  if (!hasReadAccess) {
     return null;
   }
 

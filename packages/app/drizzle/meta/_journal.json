@@ -22,6 +22,13 @@
       "when": 1772249600000,
       "tag": "0002_access_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772610000000,
+      "tag": "0003_cli_device_auth",
+      "breakpoints": true
     }
   ]
 }

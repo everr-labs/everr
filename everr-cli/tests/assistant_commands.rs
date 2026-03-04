@@ -14,7 +14,7 @@ fn assistant_init_codex_creates_managed_block() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["assistant", "init", "--assistant", "codex"])
+        .args(["setup-assistant", "--assistant", "codex"])
         .assert()
         .success()
         .stdout(contains("Configured Codex at"));
@@ -31,12 +31,12 @@ fn assistant_init_is_idempotent_for_existing_managed_block() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["assistant", "init", "--assistant", "codex"])
+        .args(["setup-assistant", "--assistant", "codex"])
         .assert()
         .success();
 
     env.command()
-        .args(["assistant", "init", "--assistant", "codex"])
+        .args(["setup-assistant", "--assistant", "codex"])
         .assert()
         .success();
 
@@ -52,7 +52,7 @@ fn assistant_init_preserves_existing_user_content() {
     write_file(&codex_file, "# My custom instructions\n");
 
     env.command()
-        .args(["assistant", "init", "--assistant", "codex"])
+        .args(["setup-assistant", "--assistant", "codex"])
         .assert()
         .success();
 
@@ -67,8 +67,7 @@ fn assistant_init_multiple_assistants_creates_all_files() {
 
     env.command()
         .args([
-            "assistant",
-            "init",
+            "setup-assistant",
             "--assistant",
             "codex",
             "--assistant",

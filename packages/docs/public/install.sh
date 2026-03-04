@@ -28,7 +28,7 @@ trap cleanup EXIT
 binary_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}"
 checksum_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}.sha256"
 
-echo "Downloading Everr CLI..."
+echo "Downloading Everr CLI from ${binary_url}..."
 curl -fsSL "${binary_url}" -o "${tmp_dir}/${BINARY_NAME}"
 curl -fsSL "${checksum_url}" -o "${tmp_dir}/${BINARY_NAME}.sha256"
 

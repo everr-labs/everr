@@ -1,13 +1,21 @@
 use std::fs;
+use std::io::{self, Write};
 use std::path::PathBuf;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
-use dialoguer::{Input, Password};
+use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
 use crate::cli::LoginArgs;
 
-pub const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
+const BUILT_API_BASE_URL: Option<&str> = option_env!("EVERR_API_BASE_URL");
+
+#[derive(Debug)]
+struct AuthConfig {
+    api_base_url: String,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Session {
@@ -15,33 +23,32 @@ pub struct Session {
     pub token: String,
 }
 
-trait LoginPrompter {
-    fn prompt_api_base_url(&self, default_api_base_url: &str) -> Result<String>;
-    fn prompt_token(&self) -> Result<String>;
+#[derive(Debug, Deserialize)]
+struct DeviceAuthorizationResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    verification_uri_complete: Option<String>,
+    expires_in: u64,
+    interval: Option<u64>,
 }
 
-struct DialoguerLoginPrompter;
-
-impl LoginPrompter for DialoguerLoginPrompter {
-    fn prompt_api_base_url(&self, default_api_base_url: &str) -> Result<String> {
-        Input::new()
-            .with_prompt("Everr API base URL")
-            .default(default_api_base_url.to_string())
-            .interact_text()
-            .context("failed to read API base URL")
-    }
-
-    fn prompt_token(&self) -> Result<String> {
-        Input::new()
-            .with_prompt("Paste your Everr access token")
-            .allow_empty(false)
-            .interact_text()
-            .context("failed to read token")
-    }
+#[derive(Debug, Deserialize)]
+struct DeviceTokenResponse {
+    access_token: String,
 }
 
-pub async fn login(args: LoginArgs) -> Result<()> {
-    let session = login_interactive(args.api_base_url, args.token)?;
+#[derive(Debug, Deserialize)]
+struct DeviceErrorResponse {
+    error: String,
+}
+
+pub async fn login(_args: LoginArgs) -> Result<()> {
+    let config = resolve_auth_config()?;
+    let client = build_http_client()?;
+    let token = exchange_device_flow(&client, &config).await?;
+    let session = build_session(config.api_base_url, token)?;
+
     save_session(&session)?;
     println!(
         "Logged in. Session saved at {}",
@@ -50,48 +57,131 @@ pub async fn login(args: LoginArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn login_interactive(api_base_url: Option<String>, token: Option<String>) -> Result<Session> {
-    let prompter = DialoguerLoginPrompter;
-    login_interactive_with(api_base_url, token, &prompter)
-}
+async fn exchange_device_flow(
+    client: &reqwest::Client,
+    config: &AuthConfig,
+) -> Result<DeviceTokenResponse> {
+    let authorization_response = client
+        .post(format!("{}/api/cli/auth/device/start", config.api_base_url))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .context("failed to start CLI device authorization")?;
 
-fn login_interactive_with(
-    api_base_url: Option<String>,
-    token: Option<String>,
-    prompter: &dyn LoginPrompter,
-) -> Result<Session> {
-    let api_base_url = match api_base_url {
-        Some(url) => url,
-        None => prompter.prompt_api_base_url(DEFAULT_API_BASE_URL)?,
-    };
-
-    let cli_token_url = cli_token_url_from_api_base(&api_base_url);
-    println!();
-    println!("To create an access token:");
-    println!("1. Open: {cli_token_url}");
-    println!("2. Click 'Generate token'.");
-    println!("3. Copy the token (it is shown once).");
-    println!("4. Paste it below.");
-    println!();
-
-    let token = match token {
-        Some(value) => value,
-        None => prompter.prompt_token()?,
-    };
-
-    if token.trim().is_empty() {
-        bail!("token cannot be empty");
+    if !authorization_response.status().is_success() {
+        let status = authorization_response.status();
+        let body = authorization_response
+            .text()
+            .await
+            .unwrap_or_else(|_| "<failed to read body>".to_string());
+        bail!("device authorization failed with {status}: {body}");
     }
 
-    Ok(Session {
-        api_base_url,
-        token,
-    })
+    let authorization_body = authorization_response
+        .json::<DeviceAuthorizationResponse>()
+        .await
+        .context("failed to parse device authorization response")?;
+
+    show_device_sign_in_prompt(&authorization_body);
+    println!("Waiting for authentication...");
+
+    let deadline = Instant::now() + Duration::from_secs(authorization_body.expires_in);
+    let mut poll_interval = authorization_body.interval.unwrap_or(5);
+
+    loop {
+        if Instant::now() >= deadline {
+            bail!("device authentication expired before completion");
+        }
+
+        thread::sleep(Duration::from_secs(poll_interval));
+
+        let token_response = client
+            .post(format!("{}/api/cli/auth/device/poll", config.api_base_url))
+            .header(CONTENT_TYPE, "application/json")
+            .body(format!(
+                "{{\"device_code\":\"{}\"}}",
+                authorization_body.device_code
+            ))
+            .send()
+            .await
+            .context("failed while polling for CLI access token")?;
+
+        if token_response.status().is_success() {
+            let token_body = token_response
+                .json::<DeviceTokenResponse>()
+                .await
+                .context("failed to parse authentication response")?;
+            return Ok(token_body);
+        }
+
+        let error_body = token_response
+            .json::<DeviceErrorResponse>()
+            .await
+            .unwrap_or(DeviceErrorResponse {
+                error: "unknown_error".to_string(),
+            });
+
+        match error_body.error.as_str() {
+            "authorization_pending" => continue,
+            "slow_down" => {
+                poll_interval += 5;
+                continue;
+            }
+            "access_denied" => bail!("device authentication was denied"),
+            "expired_token" => bail!("device authentication token expired"),
+            _ => bail!("device authentication failed: {}", error_body.error),
+        }
+    }
 }
 
-fn cli_token_url_from_api_base(api_base_url: &str) -> String {
-    let trimmed = api_base_url.trim().trim_end_matches('/');
-    format!("{trimmed}/dashboard/cli-token")
+fn show_device_sign_in_prompt(authorization: &DeviceAuthorizationResponse) {
+    let verification_url = authorization
+        .verification_uri_complete
+        .as_deref()
+        .unwrap_or(authorization.verification_uri.as_str());
+    let visit_line = format!("Auth URL: {verification_url}");
+    let code_line = format!("Your code: {}", authorization.user_code);
+    let lines = ["Let's get you signed in", "", &visit_line, &code_line];
+    let content_width = lines
+        .iter()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    let border = format!("+{}+", "-".repeat(content_width + 2));
+
+    println!();
+    println!("{border}");
+    for line in lines {
+        println!("| {:<width$} |", line, width = content_width);
+    }
+    println!("{border}");
+    println!();
+    println!("Press <Enter> to open the verification URL in your browser...");
+
+    let mut input = String::new();
+    if io::stdout().flush().is_err() {
+        return;
+    }
+    let Ok(bytes_read) = io::stdin().read_line(&mut input) else {
+        return;
+    };
+    if bytes_read == 0 {
+        return;
+    }
+    if let Err(error) = webbrowser::open(verification_url) {
+        eprintln!(
+            "Could not open browser automatically. Open this URL manually: {verification_url} ({error})"
+        );
+    }
+}
+
+fn trimmed_non_empty(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }
 
 pub fn logout() -> Result<()> {
@@ -111,10 +201,14 @@ pub fn has_active_session() -> Result<bool> {
     Ok(session_file_path()?.exists())
 }
 
-pub fn require_session() -> Result<Session> {
+pub async fn require_session_with_refresh() -> Result<Session> {
+    load_session_from_disk()
+}
+
+fn load_session_from_disk() -> Result<Session> {
     let path = session_file_path()?;
     if !path.exists() {
-        bail!("no active session; run `everr auth login`");
+        bail!("no active session; run `everr login`");
     }
     let raw =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
@@ -134,81 +228,36 @@ fn save_session(session: &Session) -> Result<()> {
     Ok(())
 }
 
+fn resolve_auth_config() -> Result<AuthConfig> {
+    let api_base_url = BUILT_API_BASE_URL
+        .and_then(trimmed_non_empty)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Missing BUILT_API_BASE_URL (EVERR_API_BASE_URL at build time). Rebuild everr with EVERR_API_BASE_URL set."
+            )
+        })?
+        .to_string();
+
+    Ok(AuthConfig { api_base_url })
+}
+
+fn build_http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .build()
+        .context("failed to build HTTP client")
+}
+
+fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Session> {
+    if token.access_token.trim().is_empty() {
+        bail!("received an empty access token");
+    }
+    Ok(Session {
+        api_base_url,
+        token: token.access_token,
+    })
+}
+
 fn session_file_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
     Ok(config_dir.join("everr").join("session.json"))
-}
-
-#[cfg(test)]
-mod tests {
-    use anyhow::{Result, anyhow};
-
-    use super::{LoginPrompter, cli_token_url_from_api_base, login_interactive_with};
-
-    struct StubPrompter {
-        api_base_url: Option<String>,
-        token: Option<String>,
-    }
-
-    impl LoginPrompter for StubPrompter {
-        fn prompt_api_base_url(&self, _default_api_base_url: &str) -> Result<String> {
-            self.api_base_url
-                .as_ref()
-                .map(|value| value.to_string())
-                .ok_or_else(|| anyhow!("missing api base url"))
-        }
-
-        fn prompt_token(&self) -> Result<String> {
-            self.token
-                .as_ref()
-                .map(|value| value.to_string())
-                .ok_or_else(|| anyhow!("missing token"))
-        }
-    }
-
-    struct PanicPrompter;
-
-    impl LoginPrompter for PanicPrompter {
-        fn prompt_api_base_url(&self, _default_api_base_url: &str) -> Result<String> {
-            panic!("prompt_api_base_url should not be called")
-        }
-
-        fn prompt_token(&self) -> Result<String> {
-            panic!("prompt_token should not be called")
-        }
-    }
-
-    #[test]
-    fn cli_token_url_trims_space_and_trailing_slash() {
-        let url = cli_token_url_from_api_base(" https://app.everr.dev/ ");
-        assert_eq!(url, "https://app.everr.dev/dashboard/cli-token");
-    }
-
-    #[test]
-    fn login_interactive_rejects_empty_token() {
-        let err = login_interactive_with(
-            Some("https://app.everr.dev".to_string()),
-            Some("   ".to_string()),
-            &PanicPrompter,
-        )
-        .expect_err("expected empty token to fail");
-
-        assert!(err.to_string().contains("token cannot be empty"));
-    }
-
-    #[test]
-    fn login_interactive_uses_prompter_values_when_missing_cli_args() {
-        let session = login_interactive_with(
-            None,
-            None,
-            &StubPrompter {
-                api_base_url: Some("https://dev.everr.dev".to_string()),
-                token: Some("token-123".to_string()),
-            },
-        )
-        .expect("expected prompt-driven login to succeed");
-
-        assert_eq!(session.api_base_url, "https://dev.everr.dev");
-        assert_eq!(session.token, "token-123");
-    }
 }

@@ -1,5 +1,6 @@
 mod support;
 
+use predicates::prelude::*;
 use predicates::str::contains;
 use support::CliTestEnv;
 
@@ -12,8 +13,10 @@ fn root_help_lists_main_commands() {
         .assert()
         .success()
         .stdout(contains("Usage: everr <COMMAND>"))
-        .stdout(contains("connect"))
         .stdout(contains("install"))
+        .stdout(contains("login"))
+        .stdout(contains("logout"))
+        .stdout(contains("setup-assistant"))
         .stdout(contains("status"))
         .stdout(contains("runs"));
 }
@@ -33,13 +36,24 @@ fn runs_help_lists_pipeline_subcommands() {
 }
 
 #[test]
-fn assistant_init_help_lists_supported_assistants() {
+fn setup_assistant_help_lists_supported_assistants() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["assistant", "init", "--help"])
+        .args(["setup-assistant", "--help"])
         .assert()
         .success()
         .stdout(contains("--assistant <ASSISTANTS>"))
         .stdout(contains("possible values: codex, claude, cursor"));
+}
+
+#[test]
+fn auth_login_help_does_not_list_removed_config_flags() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["login", "--help"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("--token").not());
 }

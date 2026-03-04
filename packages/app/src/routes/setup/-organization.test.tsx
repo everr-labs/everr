@@ -3,14 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const routerMocks = vi.hoisted(() => {
-  let loaderData: { user: { email?: string } } = {
+  let loaderData: {
+    user: { email?: string };
+    organizationId: string | null;
+    organizationName: string | null;
+  } = {
     user: { email: "user@example.com" },
+    organizationId: null,
+    organizationName: null,
   };
 
   return {
     navigate: vi.fn(),
     redirect: vi.fn((args: unknown) => args),
-    setLoaderData: (data: { user: { email?: string } }) => {
+    setLoaderData: (data: typeof loaderData) => {
       loaderData = data;
     },
     getLoaderData: () => loaderData,
@@ -41,16 +47,20 @@ vi.mock("@/data/onboarding", () => ({
 
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 import { createOrganizationForCurrentUser } from "@/data/onboarding";
-import { Route } from "./organization";
+import { Route } from "../onboarding.organization";
 
 const mockedGetAuth = vi.mocked(getAuth);
 const mockedGetSignInUrl = vi.mocked(getSignInUrl);
 const mockedCreateOrganization = vi.mocked(createOrganizationForCurrentUser);
 
-describe("/setup/organization route", () => {
+describe("/onboarding/organization route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    routerMocks.setLoaderData({ user: { email: "user@example.com" } });
+    routerMocks.setLoaderData({
+      user: { email: "user@example.com" },
+      organizationId: null,
+      organizationName: null,
+    });
   });
 
   describe("loader", () => {
@@ -65,11 +75,11 @@ describe("/setup/organization route", () => {
       ).rejects.toEqual({ href: "https://auth.example/sign-in" });
 
       expect(mockedGetSignInUrl).toHaveBeenCalledWith({
-        data: "/setup/organization",
+        data: "/onboarding/organization",
       });
     });
 
-    it("redirects users with active org to dashboard", async () => {
+    it("redirects users with active org to github onboarding step", async () => {
       mockedGetAuth.mockResolvedValue({
         user: { id: "user_123", email: "user@example.com" },
         organizationId: "org_123",
@@ -77,7 +87,7 @@ describe("/setup/organization route", () => {
 
       await expect(
         (Route.options.loader as () => Promise<unknown>)(),
-      ).rejects.toEqual({ to: "/dashboard" });
+      ).rejects.toEqual({ to: "/onboarding/github" });
     });
 
     it("returns user data when authenticated without organization", async () => {
@@ -90,12 +100,29 @@ describe("/setup/organization route", () => {
 
       expect(result).toEqual({
         user: { id: "user_123", email: "user@example.com" },
+        organizationId: null,
+        organizationName: null,
       });
     });
   });
 
   describe("component", () => {
-    it("creates org and navigates to dashboard", async () => {
+    it("prefills organization name when current organization name is available", async () => {
+      routerMocks.setLoaderData({
+        user: { email: "user@example.com" },
+        organizationId: "org_123",
+        organizationName: "Acme Existing",
+      });
+
+      const Component = Route.options.component as React.ComponentType;
+      render(<Component />);
+
+      expect(screen.getByLabelText("Organization name")).toHaveValue(
+        "Acme Existing",
+      );
+    });
+
+    it("creates org and navigates to github onboarding step", async () => {
       const user = userEvent.setup();
       mockedCreateOrganization.mockResolvedValue({
         organizationId: "org_new",
@@ -107,13 +134,15 @@ describe("/setup/organization route", () => {
 
       await user.type(screen.getByLabelText("Organization name"), "Acme");
       await user.click(
-        screen.getByRole("button", { name: "Create organization" }),
+        screen.getByRole("button", { name: /create and continue|continue/i }),
       );
 
       expect(mockedCreateOrganization).toHaveBeenCalledWith({
         data: { organizationName: "Acme" },
       });
-      expect(routerMocks.navigate).toHaveBeenCalledWith({ to: "/dashboard" });
+      expect(routerMocks.navigate).toHaveBeenCalledWith({
+        to: "/onboarding/github",
+      });
     });
 
     it("shows server error and does not navigate when setup API fails", async () => {
@@ -127,7 +156,7 @@ describe("/setup/organization route", () => {
 
       await user.type(screen.getByLabelText("Organization name"), "Acme");
       await user.click(
-        screen.getByRole("button", { name: "Create organization" }),
+        screen.getByRole("button", { name: /create and continue|continue/i }),
       );
 
       expect(screen.getByText("Session switch failed")).toBeInTheDocument();
@@ -145,7 +174,7 @@ describe("/setup/organization route", () => {
 
       await user.type(screen.getByLabelText("Organization name"), "Acme");
       await user.click(
-        screen.getByRole("button", { name: "Create organization" }),
+        screen.getByRole("button", { name: /create and continue|continue/i }),
       );
 
       expect(screen.getByText("Backend unavailable")).toBeInTheDocument();
@@ -167,19 +196,17 @@ describe("/setup/organization route", () => {
 
       await user.type(screen.getByLabelText("Organization name"), "Acme");
       const submitButton = screen.getByRole("button", {
-        name: "Create organization",
+        name: /create and continue|continue/i,
       });
 
       await user.click(submitButton);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: "Creating organization..." }),
+          screen.getByRole("button", { name: "Saving..." }),
         ).toBeDisabled();
       });
 
-      await user.click(
-        screen.getByRole("button", { name: "Creating organization..." }),
-      );
+      await user.click(screen.getByRole("button", { name: "Saving..." }));
 
       expect(mockedCreateOrganization).toHaveBeenCalledTimes(1);
 
