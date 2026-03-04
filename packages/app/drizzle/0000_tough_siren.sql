@@ -1,10 +1,4 @@
-DO $$
-BEGIN
-  CREATE TYPE "public"."installation_status" AS ENUM('active', 'suspended', 'uninstalled');
-EXCEPTION
-  WHEN duplicate_object THEN NULL;
-END $$;
---> statement-breakpoint
+CREATE TYPE "public"."installation_status" AS ENUM('active', 'suspended', 'uninstalled');--> statement-breakpoint
 CREATE TABLE "github_installation_tenants" (
 	"github_installation_id" bigint PRIMARY KEY NOT NULL,
 	"tenant_id" bigint NOT NULL,
