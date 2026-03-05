@@ -57,4 +57,6 @@ services:
       INGRESS_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
       INGRESS_WEBHOOK_SECRET: wGCfsTLYEx2jdkotdN91mOKU0z+0S1BWRrIphK0Gsh4=
       INGRESS_COLLECTOR_URL: "http://collector:8080/webhook/github"
+      INGRESS_TENANT_RESOLUTION_URL: "http://host.docker.internal:5173/api/github/tenant-resolution"
+      INGRESS_TENANT_RESOLUTION_SECRET: "dev-ingress-tenant-secret"
       INGRESS_INSTALLATION_EVENTS_URL: "http://host.docker.internal:5173/api/github/install-events"
