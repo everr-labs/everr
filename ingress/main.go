@@ -59,7 +59,7 @@ func main() {
 		cfg:    cfg,
 		logger: logger.Named("ingress"),
 	}
-	s.store = newEventStore(db, cfg)
+	s.store = newEventStore(db, cfg, s.logger.Named("store"))
 
 	tenantResolver := newTenantResolver(cfg.TenantResolutionURL, cfg.TenantResolutionSecret, httpClient, cfg.TenantCacheTTL)
 
