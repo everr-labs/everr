@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v67/github"
+	"go.uber.org/zap"
 )
 
 type githubWebhookWithInstallation interface {
@@ -39,10 +40,11 @@ type tenantResolver struct {
 	secret      string
 	httpClient  HTTPDoer
 	cache       *tenantCache
+	logger      *zap.Logger
 }
 
 // newTenantResolver creates a resolver that maps installation IDs to tenant IDs via app API.
-func newTenantResolver(resolutionURL, secret string, httpClient HTTPDoer, cacheTTL time.Duration) *tenantResolver {
+func newTenantResolver(resolutionURL, secret string, httpClient HTTPDoer, cacheTTL time.Duration, logger *zap.Logger) *tenantResolver {
 	parsedURL, parseErr := url.Parse(resolutionURL)
 	return &tenantResolver{
 		baseURL:     parsedURL,
@@ -50,6 +52,7 @@ func newTenantResolver(resolutionURL, secret string, httpClient HTTPDoer, cacheT
 		secret:      secret,
 		httpClient:  httpClient,
 		cache:       newTenantCache(cacheTTL),
+		logger:      logger,
 	}
 }
 
@@ -96,21 +99,27 @@ func (c *tenantCache) set(installationID, tenantID int64) {
 // ResolveTenantID loads a tenant ID for an installation, using cache first and app API as fallback.
 func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int64) (int64, error) {
 	if r == nil {
+		r.logger.Error("tenant resolver is nil")
 		return 0, errors.New("tenant resolver is nil")
 	}
 	if r.secret == "" {
+		r.logger.Error("tenant resolution secret is empty")
 		return 0, errors.New("tenant resolution secret is empty")
 	}
 	if r.httpClient == nil {
+		r.logger.Error("tenant resolver HTTP client is nil")
 		return 0, errors.New("tenant resolver HTTP client is nil")
 	}
 	if r.urlParseErr != nil {
+		r.logger.Error("parse tenant resolution URL", zap.Error(r.urlParseErr))
 		return 0, fmt.Errorf("parse tenant resolution URL: %w", r.urlParseErr)
 	}
 	if r.baseURL == nil {
+		r.logger.Error("tenant resolution URL is empty")
 		return 0, errors.New("tenant resolution URL is empty")
 	}
 	if tenantID, ok := r.cache.get(installationID); ok {
+		r.logger.Debug("tenant ID found in cache", zap.Int64("installation_id", installationID), zap.Int64("tenant_id", tenantID))
 		return tenantID, nil
 	}
 
@@ -121,6 +130,7 @@ func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
+		r.logger.Error("build tenant resolution request error", zap.Error(err))
 		return 0, fmt.Errorf("build tenant resolution request: %w", err)
 	}
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
@@ -128,6 +138,7 @@ func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int
 	req.Header.Set(headerIngressSignatureSHA256, signIngressRequest(r.secret, timestamp, req.Method, req.URL.RequestURI()))
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
+		r.logger.Error("tenant resolution request failed", zap.Error(err))
 		return 0, fmt.Errorf("tenant resolution request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -136,8 +147,10 @@ func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int
 		bodyPreview, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		err := fmt.Errorf("tenant resolution status=%d body=%q", resp.StatusCode, string(bodyPreview))
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			r.logger.Error("tenant resolution failed (terminal)", zap.Int("status", resp.StatusCode), zap.String("body", string(bodyPreview)))
 			return 0, &terminalError{Err: err}
 		}
+		r.logger.Error("tenant resolution failed", zap.Int("status", resp.StatusCode), zap.String("body", string(bodyPreview)))
 		return 0, err
 	}
 
@@ -145,11 +158,13 @@ func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int
 		TenantID int64 `json:"tenant_id"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		r.logger.Error("decode tenant resolution response error", zap.Error(err))
 		return 0, fmt.Errorf("decode tenant resolution response: %w", err)
 	}
 
 	tenantID := payload.TenantID
 	if tenantID == 0 {
+		r.logger.Error("tenant resolution response missing tenant id")
 		return 0, errors.New("tenant resolution response missing tenant id")
 	}
 
