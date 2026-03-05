@@ -16,6 +16,7 @@ type installationEventForwarder struct {
 	logger     *zap.Logger
 }
 
+// newInstallationEventForwarder builds a forwarder for installation-related webhooks.
 func newInstallationEventForwarder(appURL string, httpClient HTTPDoer, logger *zap.Logger) *installationEventForwarder {
 	if appURL == "" {
 		return nil
@@ -23,6 +24,7 @@ func newInstallationEventForwarder(appURL string, httpClient HTTPDoer, logger *z
 	return &installationEventForwarder{appURL: appURL, httpClient: httpClient, logger: logger}
 }
 
+// forwardEvent relays the original webhook request to the app install-events endpoint.
 func (f *installationEventForwarder) forwardEvent(ctx context.Context, event webhookEvent) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.appURL, bytes.NewReader(event.Body))
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// retryDelay computes exponential backoff with bounded jitter for failed event retries.
 func retryDelay(attempt int) time.Duration {
 	if attempt < 1 {
 		attempt = 1
@@ -27,6 +28,7 @@ func retryDelay(attempt int) time.Duration {
 	return delay
 }
 
+// isRetryableStatus reports whether an HTTP status should be retried by workers.
 func isRetryableStatus(status int) bool {
 	if status == http.StatusRequestTimeout || status == http.StatusTooManyRequests {
 		return true
@@ -34,6 +36,7 @@ func isRetryableStatus(status int) bool {
 	return status >= 500 && status <= 599
 }
 
+// cloneHeaders returns a deep copy of HTTP headers for safe async storage/replay.
 func cloneHeaders(h http.Header) map[string][]string {
 	cloned := make(map[string][]string, len(h))
 	for k, vals := range h {
@@ -44,6 +47,7 @@ func cloneHeaders(h http.Header) map[string][]string {
 	return cloned
 }
 
+// firstHeader finds the first value for a header key using case-insensitive matching.
 func firstHeader(headers map[string][]string, key string) string {
 	for hk, values := range headers {
 		if strings.EqualFold(hk, key) && len(values) > 0 {
@@ -53,6 +57,7 @@ func firstHeader(headers map[string][]string, key string) string {
 	return ""
 }
 
+// stripHopHeaders removes hop-by-hop headers that must not be forwarded.
 func stripHopHeaders(header http.Header) {
 	hopByHop := []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Host", "Content-Length"}
 	for _, key := range hopByHop {
@@ -60,6 +65,7 @@ func stripHopHeaders(header http.Header) {
 	}
 }
 
+// truncateString caps a string to at most n bytes.
 func truncateString(value string, n int) string {
 	if len(value) <= n {
 		return value
@@ -67,6 +73,7 @@ func truncateString(value string, n int) string {
 	return value[:n]
 }
 
+// envString returns a trimmed environment value or fallback when unset.
 func envString(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
@@ -74,6 +81,7 @@ func envString(key, fallback string) string {
 	return fallback
 }
 
+// envInt parses an integer environment value, returning fallback on parse failure.
 func envInt(key string, fallback int) int {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
@@ -86,6 +94,7 @@ func envInt(key string, fallback int) int {
 	return n
 }
 
+// envDuration parses a duration environment value, returning fallback on parse failure.
 func envDuration(key string, fallback time.Duration) time.Duration {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {

@@ -79,6 +79,7 @@ type terminalError struct {
 	Err error
 }
 
+// Error returns the wrapped terminal error message.
 func (e *terminalError) Error() string {
 	if e == nil || e.Err == nil {
 		return "terminal error"
@@ -86,6 +87,7 @@ func (e *terminalError) Error() string {
 	return e.Err.Error()
 }
 
+// Unwrap exposes the underlying error for errors.Is/errors.As checks.
 func (e *terminalError) Unwrap() error { return e.Err }
 
 type HTTPDoer interface {

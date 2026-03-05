@@ -30,6 +30,7 @@ type tenantResolver struct {
 	cache *tenantCache
 }
 
+// newTenantResolver creates a resolver that maps GitHub installation IDs to tenant IDs.
 func newTenantResolver(db *sql.DB, cacheTTL time.Duration) *tenantResolver {
 	return &tenantResolver{
 		db:    db,
@@ -37,6 +38,7 @@ func newTenantResolver(db *sql.DB, cacheTTL time.Duration) *tenantResolver {
 	}
 }
 
+// newTenantCache creates an optional TTL cache for installation-to-tenant lookups.
 func newTenantCache(ttl time.Duration) *tenantCache {
 	if ttl <= 0 {
 		return nil
@@ -47,6 +49,7 @@ func newTenantCache(ttl time.Duration) *tenantCache {
 	}
 }
 
+// get returns a cached tenant ID when the entry exists and has not expired.
 func (c *tenantCache) get(installationID int64) (int64, bool) {
 	if c == nil {
 		return 0, false
@@ -62,6 +65,7 @@ func (c *tenantCache) get(installationID int64) (int64, bool) {
 	return entry.tenantID, true
 }
 
+// set stores a tenant mapping in cache with a TTL-based expiration timestamp.
 func (c *tenantCache) set(installationID, tenantID int64) {
 	if c == nil {
 		return
@@ -74,6 +78,7 @@ func (c *tenantCache) set(installationID, tenantID int64) {
 	c.mu.Unlock()
 }
 
+// ResolveTenantID loads a tenant ID for an installation, using cache first and Postgres as fallback.
 func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int64) (int64, error) {
 	if r == nil {
 		return 0, errors.New("tenant resolver is nil")
@@ -99,6 +104,7 @@ func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int
 	return tenantID, nil
 }
 
+// installationIDFromWebhookEvent extracts installation.id from a parsed GitHub webhook event.
 func installationIDFromWebhookEvent(event githubWebhookWithInstallation) (int64, error) {
 	if event == nil {
 		return 0, errMissingInstallationID

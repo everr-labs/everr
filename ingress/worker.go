@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// runWorker continuously claims and processes due events until shutdown.
 func (s *server) runWorker(ctx context.Context, workerID int) {
 	ticker := time.NewTicker(s.cfg.PollInterval)
 	defer ticker.Stop()
@@ -39,6 +40,7 @@ func (s *server) runWorker(ctx context.Context, workerID int) {
 	}
 }
 
+// runCleanupLoop periodically prunes old done/dead events from the queue table.
 func (s *server) runCleanupLoop(ctx context.Context) {
 	ticker := time.NewTicker(s.cfg.CleanupInterval)
 	defer ticker.Stop()

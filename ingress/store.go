@@ -13,10 +13,12 @@ type eventStore struct {
 	cfg config
 }
 
+// newEventStore returns a Postgres-backed queue store for webhook events.
 func newEventStore(db *sql.DB, cfg config) *eventStore {
 	return &eventStore{db: db, cfg: cfg}
 }
 
+// enqueueEvent persists a validated webhook and resolves duplicate/conflict semantics by delivery ID.
 func (s *eventStore) enqueueEvent(ctx context.Context, source, eventID, bodySHA string, headers map[string][]string, body []byte) (string, error) {
 	headersJSON, err := json.Marshal(headers)
 	if err != nil {
@@ -52,6 +54,7 @@ func (s *eventStore) enqueueEvent(ctx context.Context, source, eventID, bodySHA 
 	return "conflict", nil
 }
 
+// claimEvents leases the next batch of due events for worker processing.
 func (s *eventStore) claimEvents(ctx context.Context) ([]webhookEvent, error) {
 	const claimQ = `
 		WITH cte AS (
@@ -100,6 +103,7 @@ func (s *eventStore) claimEvents(ctx context.Context) ([]webhookEvent, error) {
 	return events, nil
 }
 
+// finalizeEvent transitions a claimed event into done, failed, or dead state.
 func (s *eventStore) finalizeEvent(ctx context.Context, event webhookEvent, result eventResult, errorClass, lastError string) error {
 	switch result {
 	case eventDone:
@@ -132,6 +136,7 @@ func (s *eventStore) finalizeEvent(ctx context.Context, event webhookEvent, resu
 	}
 }
 
+// cleanup deletes aged done and dead events according to configured retention windows.
 func (s *eventStore) cleanup(ctx context.Context) error {
 	if _, err := s.cleanupStatus(ctx, "done", "done_at", s.cfg.RetentionDoneDays); err != nil {
 		return err
@@ -140,6 +145,7 @@ func (s *eventStore) cleanup(ctx context.Context) error {
 	return err
 }
 
+// cleanupStatus deletes a bounded batch of old rows for one terminal status.
 func (s *eventStore) cleanupStatus(ctx context.Context, status, timeField string, retentionDays int) (int64, error) {
 	if retentionDays <= 0 {
 		return 0, nil

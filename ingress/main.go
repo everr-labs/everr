@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// main boots the ingress service, wiring storage, workers, and HTTP ingress.
 func main() {
 	logger, err := zap.NewProduction()
 	if err != nil {

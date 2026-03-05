@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// handleWebhook validates a GitHub webhook request and enqueues it for async processing.
 func (s *server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.logger.Debug("rejecting non-post webhook request", zap.String("method", r.Method))

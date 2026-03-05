@@ -18,6 +18,7 @@ type eventProcessor struct {
 	logger           *zap.Logger
 }
 
+// newEventProcessor creates the background event processor with all required dependencies.
 func newEventProcessor(cfg config, store *eventStore, tenantResolver *tenantResolver, replayer *collectorReplayer, installForwarder *installationEventForwarder, logger *zap.Logger) *eventProcessor {
 	return &eventProcessor{
 		cfg:              cfg,
@@ -29,6 +30,7 @@ func newEventProcessor(cfg config, store *eventStore, tenantResolver *tenantReso
 	}
 }
 
+// processEvent resolves tenant context and routes a claimed event to the correct downstream target.
 func (p *eventProcessor) processEvent(ctx context.Context, event webhookEvent) error {
 	childCtx, cancel := context.WithTimeout(ctx, p.cfg.ReplayTimeout)
 	defer cancel()
@@ -100,6 +102,7 @@ func (p *eventProcessor) processEvent(ctx context.Context, event webhookEvent) e
 	return p.store.finalizeEvent(childCtx, event, eventDone, "", "")
 }
 
+// retryOrDead marks a failed event for retry or dead-lettering based on attempt limits.
 func (p *eventProcessor) retryOrDead(ctx context.Context, event webhookEvent, errorClass, message string) error {
 	if event.Attempts >= p.cfg.MaxAttempts {
 		return p.store.finalizeEvent(ctx, event, eventDead, errorClass, message)

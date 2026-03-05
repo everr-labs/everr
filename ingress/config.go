@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// loadConfig reads ingress settings from environment variables and validates required values.
 func loadConfig() (config, error) {
 	cfg := config{
 		ListenAddr:            envString("INGRESS_LISTEN_ADDR", defaultListenAddr),

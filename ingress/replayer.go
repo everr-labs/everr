@@ -17,10 +17,12 @@ type collectorReplayer struct {
 	logger       *zap.Logger
 }
 
+// newCollectorReplayer builds the client responsible for replaying workflow webhooks to the collector.
 func newCollectorReplayer(collectorURL string, httpClient HTTPDoer, logger *zap.Logger) *collectorReplayer {
 	return &collectorReplayer{collectorURL: collectorURL, httpClient: httpClient, logger: logger}
 }
 
+// replayEvent forwards the stored webhook payload to the collector with tenant attribution header.
 func (r *collectorReplayer) replayEvent(ctx context.Context, event webhookEvent, tenantID int64) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.collectorURL, bytes.NewReader(event.Body))
 	if err != nil {
