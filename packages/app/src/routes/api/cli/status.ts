@@ -106,7 +106,7 @@ export const Route = createFileRoute("/api/cli/status")({
             runId: run.runId,
             workflowName: run.workflowName,
             conclusion: run.conclusion,
-            duration: run.duration,
+            durationMs: run.duration,
             timestamp: run.timestamp,
           }));
 
@@ -149,16 +149,16 @@ export const Route = createFileRoute("/api/cli/status")({
             runId: latestRun.runId,
             workflowName: latestRun.workflowName,
             conclusion: latestRun.conclusion,
-            duration: latestRun.duration,
+            durationMs: latestRun.duration,
             timestamp: latestRun.timestamp,
           },
           failingPipelines,
           slowdown: {
             detected: slowdownDetected,
             thresholdPct: slowdownThresholdPct,
-            latestDuration: latestRun.duration,
-            mainRecentAvgDuration: mainRecentAvg,
-            mainOlderAvgDuration: mainOlderAvg,
+            latestDurationMs: latestRun.duration,
+            mainRecentAvgDurationMs: mainRecentAvg,
+            mainOlderAvgDurationMs: mainOlderAvg,
             slowdownVsRecentPct,
             slowdownVsOlderPct,
           },
@@ -167,7 +167,7 @@ export const Route = createFileRoute("/api/cli/status")({
               ? `Found ${failingPipelines.length} failing pipeline(s) in recent branch runs.`
               : slowdownDetected
                 ? "No recent branch failures, but latest pipeline duration is slower than main baselines."
-                : `Everything looks good. Latest pipeline duration is ${latestRun.duration.toFixed(2)} seconds.`,
+                : `Everything looks good. Latest pipeline duration is ${(latestRun.duration / 1000).toFixed(2)} seconds.`,
         });
       },
     },
