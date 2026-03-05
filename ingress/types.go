@@ -9,43 +9,46 @@ import (
 )
 
 const (
-	headerTenantID         = "X-Everr-Tenant-Id"
-	sourceGitHub           = "github"
-	defaultListenAddr      = ":8081"
-	defaultPath            = "/webhook/github"
-	defaultWorkerCount     = 2
-	defaultWorkerBatchSize = 10
-	defaultPollInterval    = 2 * time.Second
-	defaultLockDuration    = 2 * time.Minute
-	defaultMaxAttempts     = 10
-	defaultReplayTimeout   = 30 * time.Second
-	defaultConnectTimeout  = 10 * time.Second
-	defaultTenantCacheTTL  = time.Minute
-	defaultDoneDays        = 7
-	defaultDeadDays        = 30
-	cleanupBatchSize       = 500
+	headerTenantID               = "X-Everr-Tenant-Id"
+	headerIngressTimestamp       = "X-Everr-Ingress-Timestamp"
+	headerIngressSignatureSHA256 = "X-Everr-Ingress-Signature-256"
+	sourceGitHub                 = "github"
+	defaultListenAddr            = ":8081"
+	defaultPath                  = "/webhook/github"
+	defaultWorkerCount           = 2
+	defaultWorkerBatchSize       = 10
+	defaultPollInterval          = 2 * time.Second
+	defaultLockDuration          = 2 * time.Minute
+	defaultMaxAttempts           = 10
+	defaultReplayTimeout         = 30 * time.Second
+	defaultConnectTimeout        = 10 * time.Second
+	defaultTenantCacheTTL        = time.Minute
+	defaultDoneDays              = 7
+	defaultDeadDays              = 30
+	cleanupBatchSize             = 500
 )
 
 type config struct {
-	ListenAddr            string
-	Path                  string
-	PostgresDSN           string
-	WebhookSecret         string
-	CollectorURL          string
-	InstallationEventsURL string
-	Source                string
-	WorkerCount           int
-	WorkerBatchSize       int
-	PollInterval          time.Duration
-	LockDuration          time.Duration
-	MaxAttempts           int
-	ReplayTimeout         time.Duration
-	ReplayConnectTimeout  time.Duration
-	TenantCacheTTL        time.Duration
-	RetentionDoneDays     int
-	RetentionDeadDays     int
-	CleanupInterval       time.Duration
-	ShutdownGracePeriod   time.Duration
+	ListenAddr             string
+	Path                   string
+	PostgresDSN            string
+	WebhookSecret          string
+	CollectorURL           string
+	TenantResolutionURL    string
+	TenantResolutionSecret string
+	InstallationEventsURL  string
+	Source                 string
+	WorkerCount            int
+	WorkerBatchSize        int
+	PollInterval           time.Duration
+	LockDuration           time.Duration
+	MaxAttempts            int
+	ReplayTimeout          time.Duration
+	ReplayConnectTimeout   time.Duration
+	TenantCacheTTL         time.Duration
+	RetentionDoneDays      int
+	RetentionDeadDays      int
+	CleanupInterval        time.Duration
 }
 
 type server struct {
@@ -59,7 +62,7 @@ type webhookEvent struct {
 	ID       int64
 	Source   string
 	EventID  string
-	Headers  map[string][]string
+	Headers  http.Header
 	Body     []byte
 	Attempts int
 }
@@ -73,7 +76,6 @@ const (
 )
 
 var errMissingInstallationID = errors.New("missing installation.id")
-var errTenantNotFound = errors.New("tenant mapping not found for installation")
 
 type terminalError struct {
 	Err error

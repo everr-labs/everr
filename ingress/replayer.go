@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 
@@ -24,49 +21,30 @@ func newCollectorReplayer(collectorURL string, httpClient HTTPDoer, logger *zap.
 
 // replayEvent forwards the stored webhook payload to the collector with tenant attribution header.
 func (r *collectorReplayer) replayEvent(ctx context.Context, event webhookEvent, tenantID int64) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.collectorURL, bytes.NewReader(event.Body))
+	statusCode, err := forwardWebhook(
+		ctx,
+		r.httpClient,
+		r.collectorURL,
+		event.Headers,
+		event.Body,
+		"collector",
+		func(header http.Header) {
+			header.Set(headerTenantID, strconv.FormatInt(tenantID, 10))
+		},
+	)
 	if err != nil {
-		return err
-	}
-
-	for key, values := range event.Headers {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
-	stripHopHeaders(req.Header)
-	req.Header.Set(headerTenantID, strconv.FormatInt(tenantID, 10))
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		r.logger.Warn("replay request failed",
+		r.logger.Warn("replay rejected",
 			zap.String("event_id", event.EventID),
 			zap.Int64("tenant_id", tenantID),
+			zap.Int("status_code", statusCode),
 			zap.Error(err),
 		)
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		r.logger.Debug("replay accepted",
-			zap.String("event_id", event.EventID),
-			zap.Int64("tenant_id", tenantID),
-			zap.Int("status_code", resp.StatusCode),
-		)
-		return nil
-	}
-
-	bodyPreview, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-	err = fmt.Errorf("collector status=%d body=%q", resp.StatusCode, string(bodyPreview))
-	r.logger.Warn("replay rejected by collector",
+	r.logger.Debug("replay accepted",
 		zap.String("event_id", event.EventID),
 		zap.Int64("tenant_id", tenantID),
-		zap.Int("status_code", resp.StatusCode),
+		zap.Int("status_code", statusCode),
 	)
-	if isRetryableStatus(resp.StatusCode) {
-		return err
-	}
-
-	return &terminalError{Err: err}
+	return nil
 }

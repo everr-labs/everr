@@ -60,9 +60,13 @@ func main() {
 		logger: logger.Named("ingress"),
 	}
 	s.store = newEventStore(db, cfg)
-	tenantResolver := newTenantResolver(db, cfg.TenantCacheTTL)
+
+	tenantResolver := newTenantResolver(cfg.TenantResolutionURL, cfg.TenantResolutionSecret, httpClient, cfg.TenantCacheTTL)
+
 	replayer := newCollectorReplayer(cfg.CollectorURL, httpClient, s.logger.Named("replayer"))
+
 	installForwarder := newInstallationEventForwarder(cfg.InstallationEventsURL, httpClient, s.logger.Named("install_forwarder"))
+
 	s.processor = newEventProcessor(cfg, s.store, tenantResolver, replayer, installForwarder, s.logger.Named("processor"))
 
 	ctxRun, cancelRun := context.WithCancel(context.Background())
@@ -97,6 +101,7 @@ func main() {
 		zap.String("listen_addr", cfg.ListenAddr),
 		zap.String("path", cfg.Path),
 		zap.String("collector_url", cfg.CollectorURL),
+		zap.String("tenant_resolution_url", cfg.TenantResolutionURL),
 		zap.String("installation_events_url", cfg.InstallationEventsURL),
 		zap.String("source", cfg.Source),
 		zap.Int("worker_count", cfg.WorkerCount),

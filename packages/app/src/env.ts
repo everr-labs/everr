@@ -9,6 +9,7 @@ export const env = createEnv({
   extends: [dbEnv, clickhouseEnv, githubEnv],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
+    INGRESS_TENANT_RESOLUTION_SECRET: z.string().min(32),
   },
 
   /**
@@ -25,6 +26,8 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    INGRESS_TENANT_RESOLUTION_SECRET:
+      process.env.INGRESS_TENANT_RESOLUTION_SECRET,
   },
 
   /**

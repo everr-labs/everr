@@ -36,27 +36,6 @@ func isRetryableStatus(status int) bool {
 	return status >= 500 && status <= 599
 }
 
-// cloneHeaders returns a deep copy of HTTP headers for safe async storage/replay.
-func cloneHeaders(h http.Header) map[string][]string {
-	cloned := make(map[string][]string, len(h))
-	for k, vals := range h {
-		v := make([]string, len(vals))
-		copy(v, vals)
-		cloned[k] = v
-	}
-	return cloned
-}
-
-// firstHeader finds the first value for a header key using case-insensitive matching.
-func firstHeader(headers map[string][]string, key string) string {
-	for hk, values := range headers {
-		if strings.EqualFold(hk, key) && len(values) > 0 {
-			return strings.TrimSpace(values[0])
-		}
-	}
-	return ""
-}
-
 // stripHopHeaders removes hop-by-hop headers that must not be forwarded.
 func stripHopHeaders(header http.Header) {
 	hopByHop := []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Host", "Content-Length"}

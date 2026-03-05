@@ -41,7 +41,7 @@ flowchart LR
 1. Claim due rows using `FOR UPDATE SKIP LOCKED`.
 2. Parse webhook event from stored bytes (`github.ParseWebHook`).
 3. If event type is `installation` or `installation_repositories`, forward original headers/body to app install-events endpoint (`INGRESS_INSTALLATION_EVENTS_URL`) and stop.
-4. For workflow events, extract `installation.id` and resolve tenant from `github_installation_tenants`.
+4. For workflow events, extract `installation.id` and resolve tenant from app API (`INGRESS_TENANT_RESOLUTION_URL`) using HMAC auth headers (`X-Everr-Ingress-Timestamp`, `X-Everr-Ingress-Signature-256`).
 5. Replay original headers/body to collector, adding `X-Everr-Tenant-Id`.
 6. Mark event state:
 - `done` on success.
@@ -74,7 +74,7 @@ Key fields:
 - [http_handler.go](http_handler.go): ingress HTTP endpoint.
 - [store.go](store.go): queue persistence/claim/finalize/cleanup.
 - [processor.go](processor.go): process orchestration.
-- [tenant.go](tenant.go): tenant lookup + TTL cache.
+- [tenant.go](tenant.go): tenant lookup API client + TTL cache.
 - [replayer.go](replayer.go): replay transport to collector.
 - [worker.go](worker.go): worker loops.
 - [config.go](config.go): env config parsing/validation.
@@ -86,6 +86,8 @@ Required:
 - `INGRESS_POSTGRES_DSN`
 - `INGRESS_WEBHOOK_SECRET`
 - `INGRESS_COLLECTOR_URL`
+- `INGRESS_TENANT_RESOLUTION_URL`
+- `INGRESS_TENANT_RESOLUTION_SECRET`
 - `INGRESS_INSTALLATION_EVENTS_URL`
 
 Main optional settings (with defaults):

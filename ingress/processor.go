@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/go-github/v67/github"
 	"go.uber.org/zap"
@@ -40,7 +41,7 @@ func (p *eventProcessor) processEvent(ctx context.Context, event webhookEvent) e
 		zap.Int("attempt", event.Attempts),
 	)
 
-	eventType := firstHeader(event.Headers, "X-GitHub-Event")
+	eventType := strings.TrimSpace(event.Headers.Get("X-GitHub-Event"))
 	if eventType == "" {
 		return p.store.finalizeEvent(childCtx, event, eventDead, "terminal", "missing X-GitHub-Event header")
 	}
@@ -51,11 +52,7 @@ func (p *eventProcessor) processEvent(ctx context.Context, event webhookEvent) e
 		}
 
 		if err := p.installForwarder.forwardEvent(childCtx, event); err != nil {
-			var terr *terminalError
-			if errors.As(err, &terr) {
-				return p.store.finalizeEvent(childCtx, event, eventDead, "terminal", terr.Error())
-			}
-			return p.retryOrDead(childCtx, event, "retryable", fmt.Sprintf("forward installation event failed: %v", err))
+			return p.finalizeStepError(childCtx, event, "forward installation event failed", err)
 		}
 
 		p.logger.Info("installation event forwarded", zap.Int64("event_pk", event.ID), zap.String("event_id", event.EventID), zap.String("event_type", eventType))
@@ -78,18 +75,11 @@ func (p *eventProcessor) processEvent(ctx context.Context, event webhookEvent) e
 
 	tenantID, err := p.tenantResolver.ResolveTenantID(childCtx, installationID)
 	if err != nil {
-		if errors.Is(err, errTenantNotFound) {
-			return p.store.finalizeEvent(childCtx, event, eventDead, "terminal", err.Error())
-		}
-		return p.retryOrDead(childCtx, event, "retryable", fmt.Sprintf("resolve tenant: %v", err))
+		return p.finalizeStepError(childCtx, event, "resolve tenant failed", err)
 	}
 
 	if err := p.replayer.replayEvent(childCtx, event, tenantID); err != nil {
-		var terr *terminalError
-		if errors.As(err, &terr) {
-			return p.store.finalizeEvent(childCtx, event, eventDead, "terminal", terr.Error())
-		}
-		return p.retryOrDead(childCtx, event, "retryable", fmt.Sprintf("replay request failed: %v", err))
+		return p.finalizeStepError(childCtx, event, "replay request failed", err)
 	}
 
 	p.logger.Info("event processed",
@@ -108,4 +98,12 @@ func (p *eventProcessor) retryOrDead(ctx context.Context, event webhookEvent, er
 		return p.store.finalizeEvent(ctx, event, eventDead, errorClass, message)
 	}
 	return p.store.finalizeEvent(ctx, event, eventFail, errorClass, message)
+}
+
+func (p *eventProcessor) finalizeStepError(ctx context.Context, event webhookEvent, message string, err error) error {
+	var terr *terminalError
+	if errors.As(err, &terr) {
+		return p.store.finalizeEvent(ctx, event, eventDead, "terminal", terr.Error())
+	}
+	return p.retryOrDead(ctx, event, "retryable", fmt.Sprintf("%s: %v", message, err))
 }

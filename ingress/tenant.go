@@ -2,8 +2,16 @@ package main
 
 import (
 	"context"
-	"database/sql"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,15 +34,22 @@ type tenantCache struct {
 }
 
 type tenantResolver struct {
-	db    *sql.DB
-	cache *tenantCache
+	baseURL     *url.URL
+	urlParseErr error
+	secret      string
+	httpClient  HTTPDoer
+	cache       *tenantCache
 }
 
-// newTenantResolver creates a resolver that maps GitHub installation IDs to tenant IDs.
-func newTenantResolver(db *sql.DB, cacheTTL time.Duration) *tenantResolver {
+// newTenantResolver creates a resolver that maps installation IDs to tenant IDs via app API.
+func newTenantResolver(resolutionURL, secret string, httpClient HTTPDoer, cacheTTL time.Duration) *tenantResolver {
+	parsedURL, parseErr := url.Parse(resolutionURL)
 	return &tenantResolver{
-		db:    db,
-		cache: newTenantCache(cacheTTL),
+		baseURL:     parsedURL,
+		urlParseErr: parseErr,
+		secret:      secret,
+		httpClient:  httpClient,
+		cache:       newTenantCache(cacheTTL),
 	}
 }
 
@@ -78,30 +93,79 @@ func (c *tenantCache) set(installationID, tenantID int64) {
 	c.mu.Unlock()
 }
 
-// ResolveTenantID loads a tenant ID for an installation, using cache first and Postgres as fallback.
+// ResolveTenantID loads a tenant ID for an installation, using cache first and app API as fallback.
 func (r *tenantResolver) ResolveTenantID(ctx context.Context, installationID int64) (int64, error) {
 	if r == nil {
 		return 0, errors.New("tenant resolver is nil")
+	}
+	if r.secret == "" {
+		return 0, errors.New("tenant resolution secret is empty")
+	}
+	if r.httpClient == nil {
+		return 0, errors.New("tenant resolver HTTP client is nil")
+	}
+	if r.urlParseErr != nil {
+		return 0, fmt.Errorf("parse tenant resolution URL: %w", r.urlParseErr)
+	}
+	if r.baseURL == nil {
+		return 0, errors.New("tenant resolution URL is empty")
 	}
 	if tenantID, ok := r.cache.get(installationID); ok {
 		return tenantID, nil
 	}
 
-	const q = `
-		SELECT tenant_id
-		FROM github_installation_tenants
-		WHERE github_installation_id = $1 AND status = 'active'
-		LIMIT 1
-	`
-	var tenantID int64
-	if err := r.db.QueryRowContext(ctx, q, installationID).Scan(&tenantID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, errTenantNotFound
+	reqURL := *r.baseURL
+	query := reqURL.Query()
+	query.Set("installation_id", strconv.FormatInt(installationID, 10))
+	reqURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return 0, fmt.Errorf("build tenant resolution request: %w", err)
+	}
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	req.Header.Set(headerIngressTimestamp, timestamp)
+	req.Header.Set(headerIngressSignatureSHA256, signIngressRequest(r.secret, timestamp, req.Method, req.URL.RequestURI()))
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("tenant resolution request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyPreview, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		err := fmt.Errorf("tenant resolution status=%d body=%q", resp.StatusCode, string(bodyPreview))
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			return 0, &terminalError{Err: err}
 		}
 		return 0, err
 	}
+
+	var payload struct {
+		TenantID int64 `json:"tenant_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return 0, fmt.Errorf("decode tenant resolution response: %w", err)
+	}
+
+	tenantID := payload.TenantID
+	if tenantID == 0 {
+		return 0, errors.New("tenant resolution response missing tenant id")
+	}
+
 	r.cache.set(installationID, tenantID)
 	return tenantID, nil
+}
+
+// signIngressRequest builds the HMAC digest used to authenticate ingress->app tenant resolution calls.
+func signIngressRequest(secret, timestamp, method, requestURI string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write([]byte(method))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write([]byte(requestURI))
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 // installationIDFromWebhookEvent extracts installation.id from a parsed GitHub webhook event.

@@ -34,7 +34,7 @@ func (s *server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	headers := cloneHeaders(r.Header)
+	headers := r.Header.Clone()
 	bodyHash := sha256.Sum256(payload)
 	bodySHA := hex.EncodeToString(bodyHash[:])
 
