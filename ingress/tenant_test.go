@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v67/github"
+	"go.uber.org/zap"
 )
 
 func int64Ptr(v int64) *int64 { return &v }
@@ -72,7 +73,7 @@ func TestResolveTenantIDFromAPIAndCache(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	resolver := newTenantResolver(ts.URL, "test-secret", ts.Client(), time.Minute)
+	resolver := newTenantResolver(ts.URL, "test-secret", ts.Client(), time.Minute, zap.NewNop().Named("tenant_resolver"))
 
 	first, err := resolver.ResolveTenantID(context.Background(), 123)
 	if err != nil {
@@ -102,7 +103,7 @@ func TestResolveTenantIDReturnsTerminalErrorFor4xx(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	resolver := newTenantResolver(ts.URL, "test-secret", ts.Client(), 0)
+	resolver := newTenantResolver(ts.URL, "test-secret", ts.Client(), 0, zap.NewNop().Named("tenant_resolver"))
 	_, err := resolver.ResolveTenantID(context.Background(), 123)
 	if err == nil {
 		t.Fatalf("expected error for 4xx tenant resolution response")
@@ -122,7 +123,7 @@ func TestResolveTenantIDReturnsRetryableErrorFor5xx(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	resolver := newTenantResolver(ts.URL, "test-secret", ts.Client(), 0)
+	resolver := newTenantResolver(ts.URL, "test-secret", ts.Client(), 0, zap.NewNop().Named("tenant_resolver"))
 	_, err := resolver.ResolveTenantID(context.Background(), 123)
 	if err == nil {
 		t.Fatalf("expected error for 5xx tenant resolution response")

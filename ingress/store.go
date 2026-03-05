@@ -6,16 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type eventStore struct {
-	db  *sql.DB
-	cfg config
+	db     *sql.DB
+	cfg    config
+	logger *zap.Logger
 }
 
 // newEventStore returns a Postgres-backed queue store for webhook events.
-func newEventStore(db *sql.DB, cfg config) *eventStore {
-	return &eventStore{db: db, cfg: cfg}
+func newEventStore(db *sql.DB, cfg config, logger *zap.Logger) *eventStore {
+	return &eventStore{db: db, cfg: cfg, logger: logger}
 }
 
 // enqueueEvent persists a validated webhook and resolves duplicate/conflict semantics by delivery ID.
@@ -76,9 +79,12 @@ func (s *eventStore) claimEvents(ctx context.Context) ([]webhookEvent, error) {
 		RETURNING e.id, e.source, e.event_id, e.headers, e.body, e.attempts
 	`
 
+	s.logger.Debug("claiming events", zap.Int("batch_size", s.cfg.WorkerBatchSize), zap.Duration("lock_duration", s.cfg.LockDuration))
+
 	lockSeconds := int64(s.cfg.LockDuration / time.Second)
 	rows, err := s.db.QueryContext(ctx, claimQ, s.cfg.WorkerBatchSize, lockSeconds)
 	if err != nil {
+		s.logger.Error("claim events failed", zap.Error(err))
 		return nil, err
 	}
 	defer rows.Close()
@@ -88,15 +94,18 @@ func (s *eventStore) claimEvents(ctx context.Context) ([]webhookEvent, error) {
 		var e webhookEvent
 		var headersRaw []byte
 		if err := rows.Scan(&e.ID, &e.Source, &e.EventID, &headersRaw, &e.Body, &e.Attempts); err != nil {
+			s.logger.Error("scan event failed", zap.Error(err))
 			return nil, err
 		}
 		if err := json.Unmarshal(headersRaw, &e.Headers); err != nil {
+			s.logger.Error("decode headers failed", zap.Error(err))
 			return nil, fmt.Errorf("decode headers for id=%d: %w", e.ID, err)
 		}
 		events = append(events, e)
 	}
 
 	if err := rows.Err(); err != nil {
+		s.logger.Error("claim events failed", zap.Error(err))
 		return nil, err
 	}
 
@@ -139,6 +148,7 @@ func (s *eventStore) finalizeEvent(ctx context.Context, event webhookEvent, resu
 // cleanup deletes aged done and dead events according to configured retention windows.
 func (s *eventStore) cleanup(ctx context.Context) error {
 	if _, err := s.cleanupStatus(ctx, "done", "done_at", s.cfg.RetentionDoneDays); err != nil {
+		s.logger.Error("cleanup done failed", zap.Error(err))
 		return err
 	}
 	_, err := s.cleanupStatus(ctx, "dead", "dead_at", s.cfg.RetentionDeadDays)
@@ -148,6 +158,7 @@ func (s *eventStore) cleanup(ctx context.Context) error {
 // cleanupStatus deletes a bounded batch of old rows for one terminal status.
 func (s *eventStore) cleanupStatus(ctx context.Context, status, timeField string, retentionDays int) (int64, error) {
 	if retentionDays <= 0 {
+		s.logger.Debug("cleanup status skipped", zap.String("status", status), zap.Int("retention_days", retentionDays))
 		return 0, nil
 	}
 
@@ -164,6 +175,7 @@ func (s *eventStore) cleanupStatus(ctx context.Context, status, timeField string
 	`, timeField, timeField)
 	res, err := s.db.ExecContext(ctx, q, status, retentionDays, cleanupBatchSize)
 	if err != nil {
+		s.logger.Error("cleanup status failed", zap.Error(err))
 		return 0, err
 	}
 	return res.RowsAffected()
