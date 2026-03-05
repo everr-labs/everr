@@ -4,6 +4,7 @@ mod auth;
 mod cli;
 mod core;
 mod install;
+mod uninstall;
 
 use anyhow::Result;
 use clap::Parser;
@@ -15,10 +16,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Install => install::run_install_wizard().await?,
-        Commands::Uninstall => {
-            assistant::remove_managed_prompts()?;
-            auth::logout()?;
-        }
+        Commands::Uninstall => uninstall::run_uninstall()?,
         Commands::Login(login) => auth::login(login).await?,
         Commands::Logout => auth::logout()?,
         Commands::SetupAssistant(init) => assistant::init_from_args(init)?,

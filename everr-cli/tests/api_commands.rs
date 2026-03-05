@@ -105,6 +105,39 @@ fn runs_list_sends_filter_query_params() {
 }
 
 #[test]
+fn runs_list_defaults_branch_to_current_git_branch() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/default-branch",
+        "git@github.com:citric-app/citric.git",
+    );
+    let mut server = Server::new();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/default-branch".into()),
+        ]))
+        .with_status(200)
+        .with_body(r#"{"runs":[],"totalCount":0}"#)
+        .create();
+
+    env.command()
+        .current_dir(&repo_dir)
+        .args(["runs", "list"])
+        .assert()
+        .success()
+        .stdout(contains("\"runs\": []"));
+
+    mock.assert();
+}
+
+#[test]
 fn runs_show_calls_trace_id_endpoint() {
     let env = CliTestEnv::new();
     let mut server = Server::new();

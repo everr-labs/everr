@@ -6,7 +6,6 @@ CLI_DIR="${ROOT_DIR}/everr-cli"
 PUBLIC_DIR="${ROOT_DIR}/packages/docs/public"
 OUTPUT_BIN="${PUBLIC_DIR}/everr"
 OUTPUT_SHA="${PUBLIC_DIR}/everr.sha256"
-CLI_ENV_MANIFEST="${PUBLIC_DIR}/everr.cli.env"
 ENV_FILE="${CLI_DIR}/.env.prod"
 EXAMPLE_ENV_FILE="${CLI_DIR}/.env.prod.example"
 
@@ -28,7 +27,6 @@ if [[ -z "${EVERR_API_BASE_URL:-}" ]]; then
 fi
 
 mkdir -p "${PUBLIC_DIR}"
-echo "prod" > "${CLI_ENV_MANIFEST}"
 
 echo "Building everr CLI (release)..."
 cargo build --release --manifest-path "${CLI_DIR}/Cargo.toml"
@@ -47,7 +45,6 @@ fi
 
 echo "Wrote ${OUTPUT_BIN}"
 echo "Wrote ${OUTPUT_SHA}"
-echo "Wrote ${CLI_ENV_MANIFEST}"
 
 cp "${OUTPUT_BIN}" "$HOME/.local/bin/everr"
 chmod +x "$HOME/.local/bin/everr"
