@@ -10,20 +10,22 @@ import (
 )
 
 type eventProcessor struct {
-	cfg            config
-	store          *eventStore
-	tenantResolver *tenantResolver
-	replayer       *collectorReplayer
-	logger         *zap.Logger
+	cfg              config
+	store            *eventStore
+	tenantResolver   *tenantResolver
+	replayer         *collectorReplayer
+	installForwarder *installationEventForwarder
+	logger           *zap.Logger
 }
 
-func newEventProcessor(cfg config, store *eventStore, tenantResolver *tenantResolver, replayer *collectorReplayer, logger *zap.Logger) *eventProcessor {
+func newEventProcessor(cfg config, store *eventStore, tenantResolver *tenantResolver, replayer *collectorReplayer, installForwarder *installationEventForwarder, logger *zap.Logger) *eventProcessor {
 	return &eventProcessor{
-		cfg:            cfg,
-		store:          store,
-		tenantResolver: tenantResolver,
-		replayer:       replayer,
-		logger:         logger,
+		cfg:              cfg,
+		store:            store,
+		tenantResolver:   tenantResolver,
+		replayer:         replayer,
+		installForwarder: installForwarder,
+		logger:           logger,
 	}
 }
 
@@ -39,6 +41,23 @@ func (p *eventProcessor) processEvent(ctx context.Context, event webhookEvent) e
 	eventType := firstHeader(event.Headers, "X-GitHub-Event")
 	if eventType == "" {
 		return p.store.finalizeEvent(childCtx, event, eventDead, "terminal", "missing X-GitHub-Event header")
+	}
+	if eventType == "installation" || eventType == "installation_repositories" {
+		if p.installForwarder == nil {
+			p.logger.Debug("installation event forwarding disabled, dropping event", zap.String("event_type", eventType), zap.String("event_id", event.EventID))
+			return p.store.finalizeEvent(childCtx, event, eventDone, "", "")
+		}
+
+		if err := p.installForwarder.forwardEvent(childCtx, event); err != nil {
+			var terr *terminalError
+			if errors.As(err, &terr) {
+				return p.store.finalizeEvent(childCtx, event, eventDead, "terminal", terr.Error())
+			}
+			return p.retryOrDead(childCtx, event, "retryable", fmt.Sprintf("forward installation event failed: %v", err))
+		}
+
+		p.logger.Info("installation event forwarded", zap.Int64("event_pk", event.ID), zap.String("event_id", event.EventID), zap.String("event_type", eventType))
+		return p.store.finalizeEvent(childCtx, event, eventDone, "", "")
 	}
 
 	parsedEvent, err := github.ParseWebHook(eventType, event.Body)

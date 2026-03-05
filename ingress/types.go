@@ -27,24 +27,25 @@ const (
 )
 
 type config struct {
-	ListenAddr           string
-	Path                 string
-	PostgresDSN          string
-	WebhookSecret        string
-	CollectorURL         string
-	Source               string
-	WorkerCount          int
-	WorkerBatchSize      int
-	PollInterval         time.Duration
-	LockDuration         time.Duration
-	MaxAttempts          int
-	ReplayTimeout        time.Duration
-	ReplayConnectTimeout time.Duration
-	TenantCacheTTL       time.Duration
-	RetentionDoneDays    int
-	RetentionDeadDays    int
-	CleanupInterval      time.Duration
-	ShutdownGracePeriod  time.Duration
+	ListenAddr            string
+	Path                  string
+	PostgresDSN           string
+	WebhookSecret         string
+	CollectorURL          string
+	InstallationEventsURL string
+	Source                string
+	WorkerCount           int
+	WorkerBatchSize       int
+	PollInterval          time.Duration
+	LockDuration          time.Duration
+	MaxAttempts           int
+	ReplayTimeout         time.Duration
+	ReplayConnectTimeout  time.Duration
+	TenantCacheTTL        time.Duration
+	RetentionDoneDays     int
+	RetentionDeadDays     int
+	CleanupInterval       time.Duration
+	ShutdownGracePeriod   time.Duration
 }
 
 type server struct {

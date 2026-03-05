@@ -40,9 +40,10 @@ flowchart LR
 
 1. Claim due rows using `FOR UPDATE SKIP LOCKED`.
 2. Parse webhook event from stored bytes (`github.ParseWebHook`).
-3. Extract `installation.id` and resolve tenant from `github_installation_tenants`.
-4. Replay original headers/body to collector, adding `X-Everr-Tenant-Id`.
-5. Mark event state:
+3. If event type is `installation` or `installation_repositories`, forward original headers/body to app install-events endpoint (`INGRESS_INSTALLATION_EVENTS_URL`) and stop.
+4. For workflow events, extract `installation.id` and resolve tenant from `github_installation_tenants`.
+5. Replay original headers/body to collector, adding `X-Everr-Tenant-Id`.
+6. Mark event state:
 - `done` on success.
 - `failed` with exponential backoff on retryable errors.
 - `dead` on terminal errors or after max attempts.
@@ -85,6 +86,7 @@ Required:
 - `INGRESS_POSTGRES_DSN`
 - `INGRESS_WEBHOOK_SECRET`
 - `INGRESS_COLLECTOR_URL`
+- `INGRESS_INSTALLATION_EVENTS_URL`
 
 Main optional settings (with defaults):
 
