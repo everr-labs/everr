@@ -44,6 +44,11 @@ jobs:
             ~/.cache/go-build
             ./collector/.tools
           key: go-cache-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            go-cache-
+      - name: Warm module cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: go mod download
 
       - name: Make install-tools
         if: steps.cache.outputs.cache-hit != 'true'
@@ -64,6 +69,7 @@ jobs:
           cache: false
 
       - name: Cache Go
+        id: cache
         timeout-minutes: 5
         uses: actions/cache@v4
         with:
@@ -73,7 +79,11 @@ jobs:
             ~/.cache/go-build
             ./collector/.tools
           key: go-cache-${{ hashFiles('**/go.sum') }}
-          fail-on-cache-miss: true
+          restore-keys: |
+            go-cache-
+      - name: Warm module cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: go mod download
 
       - name: Make lint-all
         run: make lint-all
@@ -113,6 +123,7 @@ jobs:
           cache: false
 
       - name: Cache Go
+        id: cache
         timeout-minutes: 5
         uses: actions/cache@v4
         with:
@@ -122,7 +133,11 @@ jobs:
             ~/.cache/go-build
             ./collector/.tools
           key: go-cache-${{ hashFiles('**/go.sum') }}
-          fail-on-cache-miss: true
+          restore-keys: |
+            go-cache-
+      - name: Warm module cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: go mod download
 
       - name: Make build
         run: make build
@@ -142,6 +157,7 @@ jobs:
           cache: false
 
       - name: Cache Go
+        id: cache
         timeout-minutes: 5
         uses: actions/cache@v4
         with:
@@ -151,7 +167,11 @@ jobs:
             ~/.cache/go-build
             ./collector/.tools
           key: go-cache-${{ hashFiles('**/go.sum') }}
-          fail-on-cache-miss: true
+          restore-keys: |
+            go-cache-
+      - name: Warm module cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: go mod download
 
       - name: Make test-all
         run: make test-all
