@@ -37,7 +37,6 @@ func TestCreateTracesReceiver(t *testing.T) {
 				cfg.ServerConfig.NetAddr.Endpoint = "localhost:8080"
 				cfg.GitHubAPIConfig.Auth.AppID = 1
 				cfg.GitHubAPIConfig.Auth.PrivateKeyPath = "/path/to/key.pem"
-				cfg.TenantResolution.PostgresDSN = "postgres://user:pass@localhost:5432/citric?sslmode=disable"
 				require.NoError(t, cfg.Validate(), "error validating default config")
 
 				rcvr, err := newTracesReceiver(

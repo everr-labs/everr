@@ -26,7 +26,7 @@ import (
 
 const maxLogArchiveSize = 256 * 1024 * 1024 // 256 MB
 
-func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool, tenantID int64) (*plog.Logs, error) {
+func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool) (*plog.Logs, error) {
 	e, ok := event.(*github.WorkflowRunEvent)
 	if !ok {
 		return nil, nil
@@ -43,7 +43,7 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 	allLogs := logs.ResourceLogs().AppendEmpty()
 	attrs := allLogs.Resource().Attributes()
 
-	setWorkflowRunEventAttributes(attrs, e, config, tenantID)
+	setWorkflowRunEventAttributes(attrs, e, config)
 
 	url, _, err := ghClient.Actions.GetWorkflowRunAttemptLogs(ctx, e.GetRepo().GetOwner().GetLogin(), e.GetRepo().GetName(), e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt(), 10)
 

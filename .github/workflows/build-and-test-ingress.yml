@@ -1,0 +1,39 @@
+name: Build & Test Ingress
+
+defaults:
+  run:
+    working-directory: ./ingress
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-test-ingress.yml
+      - ingress/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-test-ingress.yml
+      - ingress/**
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.3.0
+        with:
+          go-version-file: ingress/go.mod
+          cache: true
+          cache-dependency-path: ingress/go.sum
+
+      - name: Run tests
+        run: go test -v ./...

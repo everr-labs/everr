@@ -129,7 +129,7 @@ func TestEventToTracesTraces(t *testing.T) {
 			event, err := github.ParseWebHook(test.eventType, payload)
 			require.NoError(t, err)
 
-			traces, err := eventToTraces(event, &Config{}, logger, 1)
+			traces, err := eventToTraces(event, &Config{}, logger)
 
 			if test.expectedError != nil {
 				require.Error(t, err)
@@ -227,7 +227,7 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 			event, err := github.ParseWebHook("workflow_job", payload)
 			require.NoError(t, err)
 
-			traces, err := eventToTraces(event, &Config{}, logger, 1)
+			traces, err := eventToTraces(event, &Config{}, logger)
 			require.NoError(t, err)
 
 			rs := traces.ResourceSpans().At(0)

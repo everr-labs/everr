@@ -3,6 +3,11 @@ services:
     build: ./clickhouse
     ports:
       - "8123:8123"
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: citric
@@ -11,8 +16,14 @@ services:
       APP_RO_PASSWORD: app-dev
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse
+
   postgres:
-    image: postgres:18.1-alpine3.23
+    image: postgres:18.3-alpine3.23
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     ports:
       - "5432:5432"
     environment:
@@ -20,16 +31,32 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./volumes/postgres:/var/lib/postgresql
-  mailpit:
-    image: axllent/mailpit
-    restart: unless-stopped
-    volumes:
-      - ./volumes/mailpit:/data
+      - ./ingress/migrations/001_create_webhook_events.sql:/docker-entrypoint-initdb.d/001_create_webhook_events.sql:ro
+
+  collector:
+    build: ./collector
+    depends_on:
+      clickhouse:
+        condition: service_healthy
     ports:
-      - 8025:8025
-      - 1025:1025
+      - "8080:8080"
+    volumes:
+      - ./collector/config.yml:/etc/citric-collector/config.yaml:ro
+      - ./collector/dev-everr-app.pem:/etc/citric-collector/dev-everr-app.pem:ro
+
+  ingress:
+    build: ./ingress
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3333:3333"
     environment:
-      MP_MAX_MESSAGES: 5000
-      MP_DATABASE: /data/mailpit.db
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      INGRESS_LISTEN_ADDR: ":3333"
+      INGRESS_PATH: "/webhook/github"
+      INGRESS_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
+      INGRESS_WEBHOOK_SECRET: wGCfsTLYEx2jdkotdN91mOKU0z+0S1BWRrIphK0Gsh4=
+      INGRESS_COLLECTOR_URL: "http://collector:8080/webhook/github"
+      INGRESS_TENANT_RESOLUTION_URL: "http://host.docker.internal:5173/api/github/tenant-resolution"
+      INGRESS_TENANT_RESOLUTION_SECRET: "dev-ingress-tenant-secret"
+      INGRESS_INSTALLATION_EVENTS_URL: "http://host.docker.internal:5173/api/github/install-events"

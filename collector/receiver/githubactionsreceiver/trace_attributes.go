@@ -16,11 +16,8 @@ import (
 	"github.com/get-citric/citric/collector/semconv"
 )
 
-func createResourceAttributes(resource pcommon.Resource, event interface{}, config *Config, logger *zap.Logger, tenantID int64) {
+func createResourceAttributes(resource pcommon.Resource, event interface{}, config *Config, logger *zap.Logger) {
 	attrs := resource.Attributes()
-	if tenantID != 0 {
-		attrs.PutInt(semconv.CitricTenantID, tenantID)
-	}
 
 	switch e := event.(type) {
 	case *github.WorkflowJobEvent:
@@ -65,7 +62,7 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 		attrs.PutStr(string(conventions.VCSRepositoryNameKey), e.GetRepo().GetFullName())
 
 	case *github.WorkflowRunEvent:
-		setWorkflowRunEventAttributes(attrs, e, config, tenantID)
+		setWorkflowRunEventAttributes(attrs, e, config)
 
 	default:
 		logger.Error("unknown event type")

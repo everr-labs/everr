@@ -4,7 +4,7 @@
 
 ### Set up `devtunnels`
 
-> [!NOTE]  
+> [!NOTE]
 > The follwing steps are for setting up `devtunnels` for the first time. If you have already set up the devtunnel, you can skip to the last step and directly start the tunnel via `devtunnel host`.
 > You may need to repeat the steps if the tunnel is not used for more than 30 days.
 
@@ -53,10 +53,15 @@ pnpm build
           auth:
             app_id: <app-id>
             private_key_path: ./dev-citric-app.pem
-        tenant_resolution:
-          postgres_dsn: postgresql://<user>:<pass>@<host>:5432/<db>?sslmode=disable
-        event_forwarding:
-          installation_events_url: https://<app-domain>/api/github/install-events
+    processors:
+      resource/tenant:
+        attributes:
+          - key: citric.tenant.id
+            from_context: metadata.x-everr-tenant-id
+            action: upsert
+          - key: citric.tenant.id
+            action: convert
+            converted_type: int
     ```
 13. Try to redeliver the ping to validate that everything is ok
 
@@ -106,7 +111,7 @@ make run
 
 ### Run the app
 
-> [!NOTE]  
+> [!NOTE]
 > When running the app for the first time you need to push the db schema to postgres. You can do this by running `pnpm db:push` inside the `packages/app` directory.
 
 ```bash

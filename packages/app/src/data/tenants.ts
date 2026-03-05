@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { githubInstallationTenants, tenants } from "@/db/schema";
 
@@ -118,4 +118,26 @@ export async function getGithubInstallationsForTenant(tenantId: number) {
     .where(eq(githubInstallationTenants.tenantId, tenantId));
 
   return installations;
+}
+
+export async function getActiveTenantForGithubInstallation(
+  githubInstallationId: number,
+): Promise<number | null> {
+  const [mapping] = await db
+    .select({
+      tenantId: githubInstallationTenants.tenantId,
+    })
+    .from(githubInstallationTenants)
+    .where(
+      and(
+        eq(
+          githubInstallationTenants.githubInstallationId,
+          githubInstallationId,
+        ),
+        eq(githubInstallationTenants.status, "active"),
+      ),
+    )
+    .limit(1);
+
+  return mapping?.tenantId ?? null;
 }
