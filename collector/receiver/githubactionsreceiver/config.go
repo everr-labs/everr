@@ -5,7 +5,6 @@ package githubactionsreceiver // import "github.com/open-telemetry/opentelemetry
 
 import (
 	"errors"
-	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -16,7 +15,6 @@ var errMissingEndpointFromConfig = errors.New("missing receiver server endpoint 
 var errMissingAppID = errors.New("missing app_id")
 var errMissingPrivateKeyPath = errors.New("missing private_key_path")
 var errBaseURLAndUploadURL = errors.New("both base_url and upload_url must be set if one is set")
-var errMissingTenantPostgresDSN = errors.New("missing tenant_resolution.postgres_dsn")
 
 // GitHubAPIAuthConfig defines authentication configuration for GitHub API
 type GitHubAPIAuthConfig struct {
@@ -31,16 +29,6 @@ type GitHubAPIConfig struct {
 	UploadURL string              `mapstructure:"upload_url"` // github enterprise upload url. Default is empty
 }
 
-type TenantResolutionConfig struct {
-	PostgresDSN string        `mapstructure:"postgres_dsn"` // postgres DSN for installation_id -> tenant_id lookup
-	CacheTTL    time.Duration `mapstructure:"cache_ttl"`    // cache TTL for tenant lookups. Default is 1m
-}
-
-type EventForwardingConfig struct {
-	InstallationEventsURL string        `mapstructure:"installation_events_url"` // app endpoint for forwarding installation events
-	Timeout               time.Duration `mapstructure:"timeout"`                 // forwarding request timeout. Default is 5s
-}
-
 // Config defines configuration for GitHub Actions receiver
 type Config struct {
 	confighttp.ServerConfig `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
@@ -50,8 +38,6 @@ type Config struct {
 	ServiceNamePrefix       string                   `mapstructure:"service_name_prefix"` // service name prefix. Default is empty
 	ServiceNameSuffix       string                   `mapstructure:"service_name_suffix"` // service name suffix. Default is empty
 	GitHubAPIConfig         GitHubAPIConfig          `mapstructure:"gh_api"`              // github api configuration
-	TenantResolution        TenantResolutionConfig   `mapstructure:"tenant_resolution"`   // tenant resolution configuration
-	EventForwarding         EventForwardingConfig    `mapstructure:"event_forwarding"`    // forwarding configuration for selected events
 }
 
 var _ component.Config = (*Config)(nil)
@@ -70,10 +56,6 @@ func (cfg *Config) Validate() error {
 	if cfg.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
 		errs = multierr.Append(errs, errMissingPrivateKeyPath)
 	}
-	if cfg.TenantResolution.PostgresDSN == "" {
-		errs = multierr.Append(errs, errMissingTenantPostgresDSN)
-	}
-
 	if cfg.GitHubAPIConfig.BaseURL != "" && cfg.GitHubAPIConfig.UploadURL == "" || cfg.GitHubAPIConfig.BaseURL == "" && cfg.GitHubAPIConfig.UploadURL != "" {
 		errs = multierr.Append(errs, errBaseURLAndUploadURL)
 	}

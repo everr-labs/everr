@@ -1,23 +1,15 @@
-extensions:
-
 receivers:
   githubactions:
     path: /webhook/github
-    endpoint: 0.0.0.0:3333
+    endpoint: 0.0.0.0:8080
     secret: WEBHOOKSECRETFROMGHAPP
     gh_api:
       auth:
         app_id: 1234
-        private_key_path: /path/to/key.pem
-    tenant_resolution:
-      postgres_dsn: postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
-    event_forwarding:
-      installation_events_url: https://app.example.com/api/github/install-events
-      timeout: 5s
+        private_key_path: /etc/citric-collector/dev-everr-app.pem
 
 processors:
   batch:
-
   resource:
     attributes:
       - action: insert
@@ -30,23 +22,22 @@ exporters:
   debug:
     verbosity: detailed
   clickhouse:
-    endpoint: "http://localhost:8123"
-    username: "collector_rw"
-    password: "change-me-strong"
-    database: "otel"
+    endpoint: http://localhost:8123
+    username: collector_rw
+    password: collector-dev
+    database: otel
     create_schema: false
     ttl: 72h
 
 service:
-  extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
       receivers: [githubactions]
-      processors: [resource]
+      processors: [resource, batch]
       exporters: [clickhouse, debug]
     logs:
       receivers: [githubactions]
-      processors: []
+      processors: [resource, batch]
       exporters: [clickhouse, debug]
 
   telemetry:

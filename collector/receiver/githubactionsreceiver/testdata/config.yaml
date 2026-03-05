@@ -5,5 +5,3 @@ githubactions/valid_config:
     auth:
       app_id: 1
       private_key_path: "/path/to/key.pem"
-  tenant_resolution:
-    postgres_dsn: "postgres://user:pass@localhost:5432/citric?sslmode=disable"

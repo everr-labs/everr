@@ -29,7 +29,7 @@ func mapConclusion(conclusion string) string {
 	}
 }
 
-func eventToTraces(event interface{}, config *Config, logger *zap.Logger, tenantID int64) (*ptrace.Traces, error) {
+func eventToTraces(event interface{}, config *Config, logger *zap.Logger) (*ptrace.Traces, error) {
 	logger.Debug("Determining event")
 	traces := ptrace.NewTraces()
 	resourceSpans := traces.ResourceSpans().AppendEmpty()
@@ -39,7 +39,7 @@ func eventToTraces(event interface{}, config *Config, logger *zap.Logger, tenant
 	case *github.WorkflowJobEvent:
 		logger.Info("Processing WorkflowJobEvent", zap.Int64("job_id", e.WorkflowJob.GetID()), zap.String("job_name", e.GetWorkflowJob().GetName()), zap.String("repo", e.GetRepo().GetFullName()))
 		jobResource := resourceSpans.Resource()
-		createResourceAttributes(jobResource, e, config, logger, tenantID)
+		createResourceAttributes(jobResource, e, config, logger)
 
 		traceID, err := generateTraceID(e.GetWorkflowJob().GetRunID(), int(e.GetWorkflowJob().GetRunAttempt()))
 		if err != nil {
@@ -63,7 +63,7 @@ func eventToTraces(event interface{}, config *Config, logger *zap.Logger, tenant
 			return nil, fmt.Errorf("failed to generate trace ID: %w", err)
 		}
 
-		createResourceAttributes(runResource, e, config, logger, tenantID)
+		createResourceAttributes(runResource, e, config, logger)
 		_, err = createRootSpan(resourceSpans, e, traceID, logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create root span: %w", err)
