@@ -39,8 +39,8 @@ pnpm build
 8. In the app settings page, scroll to **Private keys** and click **Generate a private key** to download the `.pem` file.
 9. Move the downloaded `.pem` file into `collector/` and set restrictive permissions:
    ```bash
-   mv ~/Downloads/<your-app-name>*.pem collector/dev-citric-app.pem
-   chmod 600 collector/dev-citric-app.pem
+   mv ~/Downloads/<your-app-name>*.pem collector/dev-everr-app.pem
+   chmod 600 collector/dev-everr-app.pem
    ```
 10. Install the app on the repository you want to observe.
 11. Get the **App ID** from the GitHub App settings page (shown at the top of the page).
@@ -52,7 +52,7 @@ pnpm build
         gh_api:
           auth:
             app_id: <app-id>
-            private_key_path: ./dev-citric-app.pem
+            private_key_path: ./dev-everr-app.pem
     processors:
       resource/tenant:
         attributes:

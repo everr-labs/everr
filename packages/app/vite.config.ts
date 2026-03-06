@@ -7,8 +7,10 @@ import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 
-const config = defineConfig({
+const config = defineConfig(() => ({
   server: {
+    allowedHosts: ["host.docker.internal"],
+    host: "0.0.0.0",
     port: 5173,
   },
   resolve: {
@@ -30,6 +32,6 @@ const config = defineConfig({
     nitro(),
     viteReact(),
   ],
-});
+}));
 
 export default config;
