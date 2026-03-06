@@ -32,6 +32,7 @@ services:
     volumes:
       - ./volumes/postgres:/var/lib/postgresql
       - ./ingress/migrations/001_create_webhook_events.sql:/docker-entrypoint-initdb.d/001_create_webhook_events.sql:ro
+      - ./ingress/migrations/002_topic_webhook_events.sql:/docker-entrypoint-initdb.d/002_topic_webhook_events.sql:ro
 
   collector:
     build: ./collector
@@ -43,6 +44,23 @@ services:
     volumes:
       - ./collector/config.yml:/etc/citric-collector/config.yaml:ro
       - ./collector/dev-everr-app.pem:/etc/citric-collector/dev-everr-app.pem:ro
+
+  cdevents:
+    build: ./cdevents
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      CDEVENTS_LISTEN_ADDR: ":8082"
+      CDEVENTS_PATH: "/webhook/github"
+      CDEVENTS_CLICKHOUSE_ADDR: "clickhouse:9000"
+      CDEVENTS_CLICKHOUSE_DATABASE: "otel"
+      CDEVENTS_CLICKHOUSE_USERNAME: "collector_rw"
+      CDEVENTS_CLICKHOUSE_PASSWORD: "collector-dev"
+      CDEVENTS_BATCH_SIZE: "100"
+      CDEVENTS_FLUSH_INTERVAL: "5s"
 
   ingress:
     build: ./ingress
@@ -59,6 +77,7 @@ services:
       INGRESS_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
       INGRESS_WEBHOOK_SECRET: "${INGRESS_WEBHOOK_SECRET:-wGCfsTLYEx2jdkotdN91mOKU0z+0S1BWRrIphK0Gsh4=}"
       INGRESS_COLLECTOR_URL: "http://collector:8080/webhook/github"
+      INGRESS_CDEVENTS_URL: "http://cdevents:8082/webhook/github"
       INGRESS_TENANT_RESOLUTION_URL: "http://host.docker.internal:5173/api/github/tenant-resolution"
       INGRESS_TENANT_RESOLUTION_SECRET: "dev-ingress-tenant-secret-32-char-min"
       INGRESS_INSTALLATION_EVENTS_URL: "http://host.docker.internal:5173/api/github/install-events"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -34,6 +35,7 @@ type config struct {
 	PostgresDSN            string
 	WebhookSecret          string
 	CollectorURL           string
+	CDEventsURL            string
 	TenantResolutionURL    string
 	TenantResolutionSecret string
 	InstallationEventsURL  string
@@ -62,8 +64,10 @@ type webhookEvent struct {
 	ID       int64
 	Source   string
 	EventID  string
+	Topic    string
 	Headers  http.Header
 	Body     []byte
+	TenantID int64
 	Attempts int
 }
 
@@ -94,4 +98,9 @@ func (e *terminalError) Unwrap() error { return e.Err }
 
 type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
+}
+
+type replayTarget interface {
+	Name() string
+	replayEvent(ctx context.Context, event webhookEvent, tenantID int64) error
 }

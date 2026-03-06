@@ -33,6 +33,17 @@ func (s *server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing X-GitHub-Delivery", http.StatusBadRequest)
 		return
 	}
+	eventType := strings.TrimSpace(r.Header.Get("X-GitHub-Event"))
+	topics := topicsForEventType(eventType)
+	if len(topics) == 0 {
+		s.logger.Info("webhook ignored: no interested topics",
+			zap.String("source", s.cfg.Source),
+			zap.String("event_id", eventID),
+			zap.String("event_type", eventType),
+		)
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
 
 	headers := r.Header.Clone()
 	bodyHash := sha256.Sum256(payload)
@@ -41,7 +52,7 @@ func (s *server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	enqueueStatus, err := s.store.enqueueEvent(ctx, s.cfg.Source, eventID, bodySHA, headers, payload)
+	enqueueStatus, err := s.store.enqueueEvent(ctx, s.cfg.Source, eventID, bodySHA, topics, headers, payload)
 	if err != nil {
 		s.logger.Error("enqueue failed",
 			zap.String("source", s.cfg.Source),

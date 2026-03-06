@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,39 +23,68 @@ func newEventStore(db *sql.DB, cfg config, logger *zap.Logger) *eventStore {
 }
 
 // enqueueEvent persists a validated webhook and resolves duplicate/conflict semantics by delivery ID.
-func (s *eventStore) enqueueEvent(ctx context.Context, source, eventID, bodySHA string, headers map[string][]string, body []byte) (string, error) {
+func (s *eventStore) enqueueEvent(ctx context.Context, source, eventID, bodySHA string, topics []string, headers map[string][]string, body []byte) (string, error) {
+	if len(topics) == 0 {
+		return "", errors.New("at least one topic is required")
+	}
+
 	headersJSON, err := json.Marshal(headers)
 	if err != nil {
 		return "", err
 	}
 
-	const insertQ = `
-		INSERT INTO webhook_events (source, event_id, body_sha256, headers, body)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (source, event_id) DO NOTHING
-	`
-	res, err := s.db.ExecContext(ctx, insertQ, source, eventID, bodySHA, headersJSON, body)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
+	const insertQ = `
+		INSERT INTO webhook_events (source, event_id, topic, body_sha256, headers, body)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (source, event_id, topic) DO NOTHING
+	`
+	const existingQ = `SELECT body_sha256 FROM webhook_events WHERE source=$1 AND event_id=$2 AND topic=$3`
+
+	insertedAny := false
+	duplicateCount := 0
+
+	for _, topic := range topics {
+		res, err := tx.ExecContext(ctx, insertQ, source, eventID, topic, bodySHA, headersJSON, body)
+		if err != nil {
+			return "", err
+		}
+
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return "", err
+		}
+		if affected > 0 {
+			insertedAny = true
+			continue
+		}
+
+		var existingSHA string
+		if err := tx.QueryRowContext(ctx, existingQ, source, eventID, topic).Scan(&existingSHA); err != nil {
+			return "", err
+		}
+		if existingSHA != bodySHA {
+			return "conflict", nil
+		}
+		duplicateCount++
+	}
+
+	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return "", err
-	}
-	if affected > 0 {
+	if insertedAny {
 		return "inserted", nil
 	}
-
-	const existingQ = `SELECT body_sha256 FROM webhook_events WHERE source=$1 AND event_id=$2`
-	var existingSHA string
-	if err := s.db.QueryRowContext(ctx, existingQ, source, eventID).Scan(&existingSHA); err != nil {
-		return "", err
-	}
-	if existingSHA == bodySHA {
+	if duplicateCount == len(topics) {
 		return "duplicate", nil
 	}
-	return "conflict", nil
+	return "", fmt.Errorf("unexpected enqueue outcome for event_id=%s", eventID)
 }
 
 // claimEvents leases the next batch of due events for worker processing.
@@ -76,7 +106,7 @@ func (s *eventStore) claimEvents(ctx context.Context) ([]webhookEvent, error) {
 		    locked_until = now() + ($2 * interval '1 second')
 		FROM cte
 		WHERE e.id = cte.id
-		RETURNING e.id, e.source, e.event_id, e.headers, e.body, e.attempts
+		RETURNING e.id, e.source, e.event_id, e.topic, e.headers, e.body, e.tenant_id, e.attempts
 	`
 
 	s.logger.Debug("claiming events", zap.Int("batch_size", s.cfg.WorkerBatchSize), zap.Duration("lock_duration", s.cfg.LockDuration))
@@ -93,9 +123,13 @@ func (s *eventStore) claimEvents(ctx context.Context) ([]webhookEvent, error) {
 	for rows.Next() {
 		var e webhookEvent
 		var headersRaw []byte
-		if err := rows.Scan(&e.ID, &e.Source, &e.EventID, &headersRaw, &e.Body, &e.Attempts); err != nil {
+		var tenantID sql.NullInt64
+		if err := rows.Scan(&e.ID, &e.Source, &e.EventID, &e.Topic, &headersRaw, &e.Body, &tenantID, &e.Attempts); err != nil {
 			s.logger.Error("scan event failed", zap.Error(err))
 			return nil, err
+		}
+		if tenantID.Valid {
+			e.TenantID = tenantID.Int64
 		}
 		if err := json.Unmarshal(headersRaw, &e.Headers); err != nil {
 			s.logger.Error("decode headers failed", zap.Error(err))
@@ -110,6 +144,17 @@ func (s *eventStore) claimEvents(ctx context.Context) ([]webhookEvent, error) {
 	}
 
 	return events, nil
+}
+
+// persistTenantID stores the resolved tenant on the queued topic row so retries can reuse it.
+func (s *eventStore) persistTenantID(ctx context.Context, event webhookEvent, tenantID int64) error {
+	const q = `
+		UPDATE webhook_events
+		SET tenant_id=$2
+		WHERE id=$1
+	`
+	_, err := s.db.ExecContext(ctx, q, event.ID, tenantID)
+	return err
 }
 
 // finalizeEvent transitions a claimed event into done, failed, or dead state.

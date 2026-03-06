@@ -63,11 +63,14 @@ func main() {
 
 	tenantResolver := newTenantResolver(cfg.TenantResolutionURL, cfg.TenantResolutionSecret, httpClient, cfg.TenantCacheTTL, s.logger.Named("tenant_resolver"))
 
-	replayer := newCollectorReplayer(cfg.CollectorURL, httpClient, s.logger.Named("replayer"))
+	replayers := map[string]replayTarget{
+		topicCollector: newCollectorReplayer(cfg.CollectorURL, httpClient, s.logger.Named("collector_replayer")),
+		topicCDEvents:  newCDEventsReplayer(cfg.CDEventsURL, httpClient, s.logger.Named("cdevents_replayer")),
+	}
 
 	installForwarder := newInstallationEventForwarder(cfg.InstallationEventsURL, httpClient, s.logger.Named("install_forwarder"))
 
-	s.processor = newEventProcessor(cfg, s.store, tenantResolver, replayer, installForwarder, s.logger.Named("processor"))
+	s.processor = newEventProcessor(cfg, s.store, tenantResolver, replayers, installForwarder, s.logger.Named("processor"))
 
 	ctxRun, cancelRun := context.WithCancel(context.Background())
 	defer cancelRun()
@@ -101,6 +104,7 @@ func main() {
 		zap.String("listen_addr", cfg.ListenAddr),
 		zap.String("path", cfg.Path),
 		zap.String("collector_url", cfg.CollectorURL),
+		zap.String("cdevents_url", cfg.CDEventsURL),
 		zap.String("tenant_resolution_url", cfg.TenantResolutionURL),
 		zap.String("installation_events_url", cfg.InstallationEventsURL),
 		zap.String("source", cfg.Source),

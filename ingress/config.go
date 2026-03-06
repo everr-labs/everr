@@ -15,6 +15,7 @@ func loadConfig() (config, error) {
 		PostgresDSN:            strings.TrimSpace(os.Getenv("INGRESS_POSTGRES_DSN")),
 		WebhookSecret:          strings.TrimSpace(os.Getenv("INGRESS_WEBHOOK_SECRET")),
 		CollectorURL:           strings.TrimSpace(os.Getenv("INGRESS_COLLECTOR_URL")),
+		CDEventsURL:            strings.TrimSpace(os.Getenv("INGRESS_CDEVENTS_URL")),
 		TenantResolutionURL:    strings.TrimSpace(os.Getenv("INGRESS_TENANT_RESOLUTION_URL")),
 		TenantResolutionSecret: strings.TrimSpace(os.Getenv("INGRESS_TENANT_RESOLUTION_SECRET")),
 		InstallationEventsURL:  strings.TrimSpace(os.Getenv("INGRESS_INSTALLATION_EVENTS_URL")),
@@ -40,6 +41,9 @@ func loadConfig() (config, error) {
 	}
 	if cfg.CollectorURL == "" {
 		return config{}, errors.New("INGRESS_COLLECTOR_URL is required")
+	}
+	if cfg.CDEventsURL == "" {
+		return config{}, errors.New("INGRESS_CDEVENTS_URL is required")
 	}
 	if cfg.TenantResolutionURL == "" {
 		return config{}, errors.New("INGRESS_TENANT_RESOLUTION_URL is required")
