@@ -115,10 +115,7 @@ fn path_for_assistant(assistant: AssistantKind) -> Result<PathBuf> {
 fn content_for_assistant() -> String {
     let command_name = command_name();
     let instructions = render_assistant_instructions(&command_name);
-    format!(
-        "{BLOCK_START}\n{}\n{BLOCK_END}\n",
-        instructions.trim_end()
-    )
+    format!("{BLOCK_START}\n{}\n{BLOCK_END}\n", instructions.trim_end())
 }
 
 fn render_assistant_instructions(command_name: &str) -> String {
@@ -209,7 +206,7 @@ fn managed_block_range(current: &str) -> Option<(usize, usize)> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BLOCK_START, render_assistant_instructions, remove_managed_block, upsert_managed_block,
+        BLOCK_START, remove_managed_block, render_assistant_instructions, upsert_managed_block,
     };
 
     #[test]

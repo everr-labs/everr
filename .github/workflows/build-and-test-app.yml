@@ -8,7 +8,6 @@ concurrency:
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - .github/**
       - packages/app/**

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getRunsList } from "@/data/runs-list";
+import { getWaitPipelineStatus } from "@/data/wait-pipeline";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 import { cliAuthMiddleware } from "./-auth";
 
@@ -13,6 +14,8 @@ const RunsListQuerySchema = z.object({
   conclusion: z.string().optional(),
   workflowName: z.string().optional(),
   runId: z.string().optional(),
+  commit: z.string().optional(),
+  waitMode: z.enum(["pipeline"]).optional(),
 });
 
 export const Route = createFileRoute("/api/cli/runs")({
@@ -30,6 +33,8 @@ export const Route = createFileRoute("/api/cli/runs")({
           conclusion: url.searchParams.get("conclusion") ?? undefined,
           workflowName: url.searchParams.get("workflowName") ?? undefined,
           runId: url.searchParams.get("runId") ?? undefined,
+          commit: url.searchParams.get("commit") ?? undefined,
+          waitMode: url.searchParams.get("waitMode") ?? undefined,
         });
 
         if (!parsed.success) {
@@ -43,6 +48,28 @@ export const Route = createFileRoute("/api/cli/runs")({
         }
 
         const data = parsed.data;
+        if (data.waitMode === "pipeline") {
+          if (!data.repo || !data.branch || !data.commit) {
+            return Response.json(
+              {
+                error:
+                  "Invalid query parameters for wait-pipeline. Required: repo, branch, commit.",
+              },
+              { status: 400 },
+            );
+          }
+
+          const result = await getWaitPipelineStatus({
+            data: {
+              repo: data.repo,
+              branch: data.branch,
+              commit: data.commit,
+            },
+          });
+
+          return Response.json(result);
+        }
+
         const result = await getRunsList({
           data: {
             timeRange: {

@@ -39,6 +39,14 @@ impl ApiClient {
         self.get_json("/runs", query).await
     }
 
+    pub async fn get_wait_pipeline_status(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/runs", query).await
+    }
+
+    pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/test-history", query).await
+    }
+
     pub async fn get_run_details(&self, trace_id: &str) -> Result<Value> {
         let path = format!("/runs/{trace_id}");
         self.get_json(&path, &[]).await
