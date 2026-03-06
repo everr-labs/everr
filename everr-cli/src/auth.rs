@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, bail};
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
+use tokio::time::sleep;
 
 use crate::cli::LoginArgs;
 
@@ -82,26 +83,52 @@ async fn exchange_device_flow(
         .await
         .context("failed to parse device authorization response")?;
 
-    show_device_sign_in_prompt(&authorization_body);
+    exchange_device_flow_with_prompt(
+        client,
+        config,
+        authorization_body,
+        show_device_sign_in_prompt,
+    )
+    .await
+}
+
+async fn exchange_device_flow_with_prompt<F>(
+    client: &reqwest::Client,
+    config: &AuthConfig,
+    authorization_body: DeviceAuthorizationResponse,
+    show_prompt: F,
+) -> Result<DeviceTokenResponse>
+where
+    F: FnOnce(String, &str),
+{
+    let DeviceAuthorizationResponse {
+        device_code,
+        user_code,
+        verification_uri,
+        verification_uri_complete,
+        expires_in,
+        interval,
+    } = authorization_body;
+
+    let verification_url = verification_uri_complete.unwrap_or(verification_uri);
+
+    show_prompt(verification_url, &user_code);
     println!("Waiting for authentication...");
 
-    let deadline = Instant::now() + Duration::from_secs(authorization_body.expires_in);
-    let mut poll_interval = authorization_body.interval.unwrap_or(5);
+    let deadline = Instant::now() + Duration::from_secs(expires_in);
+    let mut poll_interval = interval.unwrap_or(5);
 
     loop {
         if Instant::now() >= deadline {
             bail!("device authentication expired before completion");
         }
 
-        thread::sleep(Duration::from_secs(poll_interval));
+        sleep(Duration::from_secs(poll_interval)).await;
 
         let token_response = client
             .post(format!("{}/api/cli/auth/device/poll", config.api_base_url))
             .header(CONTENT_TYPE, "application/json")
-            .body(format!(
-                "{{\"device_code\":\"{}\"}}",
-                authorization_body.device_code
-            ))
+            .body(format!("{{\"device_code\":\"{}\"}}", device_code))
             .send()
             .await
             .context("failed while polling for CLI access token")?;
@@ -134,13 +161,9 @@ async fn exchange_device_flow(
     }
 }
 
-fn show_device_sign_in_prompt(authorization: &DeviceAuthorizationResponse) {
-    let verification_url = authorization
-        .verification_uri_complete
-        .as_deref()
-        .unwrap_or(authorization.verification_uri.as_str());
+fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
     let visit_line = format!("Auth URL: {verification_url}");
-    let code_line = format!("Your code: {}", authorization.user_code);
+    let code_line = format!("Your code: {user_code}");
     let lines = ["Let's get you signed in", "", &visit_line, &code_line];
     let content_width = lines
         .iter()
@@ -158,21 +181,23 @@ fn show_device_sign_in_prompt(authorization: &DeviceAuthorizationResponse) {
     println!();
     println!("Press <Enter> to open the verification URL in your browser...");
 
-    let mut input = String::new();
-    if io::stdout().flush().is_err() {
-        return;
-    }
-    let Ok(bytes_read) = io::stdin().read_line(&mut input) else {
-        return;
-    };
-    if bytes_read == 0 {
-        return;
-    }
-    if let Err(error) = webbrowser::open(verification_url) {
-        eprintln!(
-            "Could not open browser automatically. Open this URL manually: {verification_url} ({error})"
-        );
-    }
+    let _ = thread::spawn(move || {
+        let mut input = String::new();
+        if io::stdout().flush().is_err() {
+            return;
+        }
+        let Ok(bytes_read) = io::stdin().read_line(&mut input) else {
+            return;
+        };
+        if bytes_read == 0 {
+            return;
+        }
+        if let Err(error) = webbrowser::open(&verification_url) {
+            eprintln!(
+                "Could not open browser automatically. Open this URL manually: {verification_url} ({error})"
+            );
+        }
+    });
 }
 
 fn trimmed_non_empty(value: &str) -> Option<&str> {
@@ -283,7 +308,14 @@ fn command_name() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::session_namespace_for_command;
+    use std::thread;
+    use std::time::Duration;
+
+    use super::{
+        AuthConfig, DeviceAuthorizationResponse, exchange_device_flow_with_prompt,
+        session_namespace_for_command,
+    };
+    use mockito::{Matcher, Server};
 
     #[test]
     fn session_namespace_uses_dev_namespace_for_everr_dev() {
@@ -294,6 +326,48 @@ mod tests {
     fn session_namespace_uses_default_namespace_for_non_dev_binaries() {
         assert_eq!(session_namespace_for_command("everr"), "everr");
         assert_eq!(session_namespace_for_command("custom-name"), "everr");
+    }
+
+    #[tokio::test]
+    async fn exchange_device_flow_polls_without_waiting_for_prompt_completion() {
+        let mut server = Server::new_async().await;
+        let poll = server
+            .mock("POST", "/api/cli/auth/device/poll")
+            .match_header(
+                "content-type",
+                Matcher::Regex("application/json.*".to_string()),
+            )
+            .match_body("{\"device_code\":\"device-code-123\"}")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body("{\"access_token\":\"token-123\"}")
+            .expect(1)
+            .create_async()
+            .await;
+
+        let client = reqwest::Client::new();
+        let config = AuthConfig {
+            api_base_url: server.url(),
+        };
+        let authorization = DeviceAuthorizationResponse {
+            device_code: "device-code-123".to_string(),
+            user_code: "user-code-123".to_string(),
+            verification_uri: "https://example.com/device".to_string(),
+            verification_uri_complete: None,
+            expires_in: 5,
+            interval: Some(0),
+        };
+
+        let token = exchange_device_flow_with_prompt(&client, &config, authorization, |_, _| {
+            let _ = thread::spawn(|| {
+                thread::sleep(Duration::from_millis(250));
+            });
+        })
+        .await
+        .expect("device flow should complete");
+
+        assert_eq!(token.access_token, "token-123");
+        poll.assert_async().await;
     }
 }
 
