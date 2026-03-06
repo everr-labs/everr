@@ -17,12 +17,18 @@ processors:
         from_attribute: ci.github.workflow.run.name
       - action: delete
         key: ci.github.workflow.run.name
+      - action: upsert
+        key: citric.tenant.id
+        from_context: metadata.x-everr-tenant-id
+      - action: convert
+        key: citric.tenant.id
+        converted_type: int
 
 exporters:
   debug:
     verbosity: detailed
   clickhouse:
-    endpoint: http://localhost:8123
+    endpoint: http://clickhouse:8123
     username: collector_rw
     password: collector-dev
     database: otel
