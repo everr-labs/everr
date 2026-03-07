@@ -22,11 +22,6 @@ on:
     paths:
       - .github/workflows/validate-infra.yml
       - infra/**
-  push:
-    branches: [gio/infra]
-    paths:
-      - .github/workflows/validate-infra.yml
-      - infra/**
 
 jobs:
   validate:
