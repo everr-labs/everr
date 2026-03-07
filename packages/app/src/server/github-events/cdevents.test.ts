@@ -188,6 +188,36 @@ describe("BufferedCDEventsWriter", () => {
     await writer.close();
   });
 
+  it("keeps the batch-size-triggering write pending and propagates insert failures", async () => {
+    const inserter = new FakeInserter(false);
+    const writer = new BufferedCDEventsWriter(inserter, createTestConfig());
+
+    const firstWrite = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    const secondWrite = writer.writeRows([{ deliveryId: "2" } as CDEventRow]);
+    let secondSettled = false;
+    void secondWrite.then(
+      () => {
+        secondSettled = true;
+      },
+      () => {
+        secondSettled = true;
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(inserter.batches).toHaveLength(1);
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(secondSettled).toBe(false);
+
+    inserter.pending[0]?.reject(new Error("temporary failure"));
+
+    await expect(firstWrite).rejects.toThrow("temporary failure");
+    await expect(secondWrite).rejects.toThrow("temporary failure");
+    await writer.close();
+  });
+
   it("flushes on timer only after the insert succeeds", async () => {
     const inserter = new FakeInserter(false);
     const writer = new BufferedCDEventsWriter(

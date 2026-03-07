@@ -35,12 +35,6 @@ export interface CDEventInserter {
   insert(rows: CDEventRow[]): Promise<void>;
 }
 
-type PendingCDEventsWrite = {
-  rows: CDEventRow[];
-  resolve: () => void;
-  reject: (reason?: unknown) => void;
-};
-
 function createDeferred<T>() {
   let resolve: (value: T | PromiseLike<T>) => void = () => undefined;
   let reject: (reason?: unknown) => void = () => undefined;
@@ -366,12 +360,13 @@ export class ClickHouseCDEventInserter implements CDEventInserter {
 }
 
 export class BufferedCDEventsWriter {
-  private pendingWrites: PendingCDEventsWrite[] = [];
-  private bufferedRowCount = 0;
+  private pendingWrites: CDEventRow[] = [];
   private firstQueuedAt: number | null = null;
   private flushPromise: Promise<void> | null = null;
   private flushTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
   private closed = false;
+
+  private pendingFlush: ReturnType<typeof createDeferred<void>> | null = null;
 
   constructor(
     private readonly inserter: CDEventInserter,
@@ -387,24 +382,24 @@ export class BufferedCDEventsWriter {
       throw new Error("cdevents writer is closed");
     }
 
-    const deferred = createDeferred<void>();
-    if (this.pendingWrites.length === 0) {
+    if (!this.pendingFlush) {
+      this.pendingFlush = createDeferred<void>();
       this.firstQueuedAt = Date.now();
     }
 
-    this.pendingWrites.push({
-      rows,
-      resolve: deferred.resolve,
-      reject: deferred.reject,
-    });
-    this.bufferedRowCount += rows.length;
-    if (this.bufferedRowCount >= this.config.cdeventsBatchSize) {
+    const promise = this.pendingFlush.promise;
+
+    for (const row of rows) {
+      this.pendingWrites.push(row);
+    }
+
+    if (this.pendingWrites.length >= this.config.cdeventsBatchSize) {
       this.triggerFlush();
     } else {
       this.scheduleFlushTimer();
     }
 
-    await deferred.promise;
+    await promise;
   }
 
   async close() {
@@ -424,7 +419,7 @@ export class BufferedCDEventsWriter {
       }
     }
 
-    if (this.pendingWrites.length > 0) {
+    if (this.pendingFlush) {
       try {
         await this.flushPending();
       } catch (error) {
@@ -477,45 +472,38 @@ export class BufferedCDEventsWriter {
       return this.flushPromise;
     }
 
-    if (this.pendingWrites.length === 0) {
+    if (this.pendingFlush === null) {
       return;
     }
 
     this.clearFlushTimer();
 
+    const deferred = this.pendingFlush;
+
+    this.pendingFlush = null;
     const batch = this.pendingWrites;
     this.pendingWrites = [];
-    this.bufferedRowCount = 0;
     this.firstQueuedAt = null;
 
-    const rows: CDEventRow[] = [];
-    for (const entry of batch) {
-      rows.push(...entry.rows);
-    }
-
     this.flushPromise = this.inserter
-      .insert(rows)
+      .insert(batch)
       .then(() => {
-        for (const entry of batch) {
-          entry.resolve();
-        }
+        deferred.resolve();
       })
       .catch((error) => {
-        for (const entry of batch) {
-          entry.reject(error);
-        }
+        deferred.reject(error);
         throw error;
       })
       .finally(() => {
         this.flushPromise = null;
 
-        if (this.pendingWrites.length === 0) {
+        if (this.pendingFlush === null) {
           return;
         }
 
         if (
           this.closed ||
-          this.bufferedRowCount >= this.config.cdeventsBatchSize
+          this.pendingWrites.length >= this.config.cdeventsBatchSize
         ) {
           this.triggerFlush();
           return;
