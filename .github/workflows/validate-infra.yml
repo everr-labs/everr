@@ -1,5 +1,9 @@
 name: Validate Infra
 
+# TODO: Replace the current AdministratorAccess-backed GitHub Actions IAM user/group
+# with a least-privilege policy once the Everr infra workflows and required AWS
+# permissions are stable.
+
 defaults:
   run:
     working-directory: ./infra
@@ -31,7 +35,6 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       AWS_DEFAULT_REGION: eu-central-1
       TF_VAR_clickhouse_organization_id: ${{ secrets.CLICKHOUSE_ORGANIZATION_ID }}
       TF_VAR_clickhouse_token_key: ${{ secrets.CLICKHOUSE_TOKEN_KEY }}
