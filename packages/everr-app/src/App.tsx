@@ -415,7 +415,6 @@ function DesktopApp() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
-      <section className="flex min-h-screen items-center justify-center px-6 py-14 max-[620px]:px-4 max-[620px]:py-10">
         <Card className="w-full max-w-[860px] overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
           <CardHeader
             className="gap-5 border-b border-[color:var(--settings-border-soft)] px-6 pb-6 pt-16 max-[620px]:px-5"
@@ -435,20 +434,7 @@ function DesktopApp() {
                     : "Manage your desktop connection, assistant integrations, and launch behavior from one panel."}
                 </CardDescription>
               </div>
-
-              <div className="grid gap-2">
-                <Badge variant={signedIn ? "default" : "outline"} className="justify-self-start">
-                  {signedIn ? "Signed in" : "Signed out"}
-                </Badge>
-                <Badge variant="outline" className="justify-self-start">
-                  {hostLabel}
-                </Badge>
-              </div>
             </div>
-
-            {showingWizard ? (
-              <WizardStepper currentStep={wizardStep} setupStatus={setupStatus} />
-            ) : null}
           </CardHeader>
 
           <CardContent className="grid gap-0 px-0">
@@ -530,7 +516,6 @@ function DesktopApp() {
             )}
           </CardContent>
         </Card>
-      </section>
     </main>
   );
 }
@@ -945,46 +930,6 @@ function SettingsPanel({
           </Button>
         }
       />
-    </div>
-  );
-}
-
-function WizardStepper({
-  currentStep,
-  setupStatus,
-}: {
-  currentStep: number;
-  setupStatus: SetupStatus;
-}) {
-  return (
-    <div className="grid gap-3 xl:grid-cols-4">
-      {WIZARD_STEPS.map((step, index) => {
-        const complete = isWizardStepComplete(index, setupStatus);
-
-        return (
-          <div
-            key={step.id}
-            className={cn(
-              "rounded-2xl border px-4 py-3 transition-colors",
-              index === currentStep
-                ? "border-white/18 bg-white/[0.08]"
-                : complete
-                  ? "border-white/10 bg-white/[0.04]"
-                  : "border-white/6 bg-transparent",
-            )}
-          >
-            <p className="m-0 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--settings-text-soft)]">
-              {step.eyebrow}
-            </p>
-            <p className="m-0 mt-1 text-sm font-semibold text-[var(--settings-text)]">
-              {step.label}
-            </p>
-            <p className="m-0 mt-1 text-xs text-[var(--settings-text-muted)]">
-              {complete ? "Complete" : index === currentStep ? "Current" : "Pending"}
-            </p>
-          </div>
-        );
-      })}
     </div>
   );
 }

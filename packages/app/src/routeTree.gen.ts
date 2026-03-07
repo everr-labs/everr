@@ -13,6 +13,7 @@ import { Route as SignoutRouteImport } from './routes/signout'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
 import { Route as OnboardingOrganizationRouteImport } from './routes/onboarding.organization'
 import { Route as OnboardingGithubRouteImport } from './routes/onboarding.github'
 import { Route as OnboardingCliRouteImport } from './routes/onboarding.cli'
@@ -25,8 +26,6 @@ import { Route as DashboardAccountRouteImport } from './routes/dashboard/account
 import { Route as CliDeviceRouteImport } from './routes/cli/device'
 import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
-import { Route as ApiGithubTenantResolutionRouteImport } from './routes/api/github/tenant-resolution'
-import { Route as ApiGithubInstallEventsRouteImport } from './routes/api/github/install-events'
 import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
 import { Route as ApiCliStatusRouteImport } from './routes/api/cli/status'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
@@ -65,6 +64,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
+} as any)
+const WebhookGithubRoute = WebhookGithubRouteImport.update({
+  id: '/webhook/github',
+  path: '/webhook/github',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingOrganizationRoute = OnboardingOrganizationRouteImport.update({
   id: '/onboarding/organization',
@@ -126,17 +130,6 @@ const DashboardRunsIndexRoute = DashboardRunsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRunsRoute,
-} as any)
-const ApiGithubTenantResolutionRoute =
-  ApiGithubTenantResolutionRouteImport.update({
-    id: '/api/github/tenant-resolution',
-    path: '/api/github/tenant-resolution',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiGithubInstallEventsRoute = ApiGithubInstallEventsRouteImport.update({
-  id: '/api/github/install-events',
-  path: '/api/github/install-events',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCliTestHistoryRoute = ApiCliTestHistoryRouteImport.update({
   id: '/api/cli/test-history',
@@ -250,14 +243,13 @@ export interface FileRoutesByFullPath {
   '/onboarding/cli': typeof OnboardingCliRoute
   '/onboarding/github': typeof OnboardingGithubRoute
   '/onboarding/organization': typeof OnboardingOrganizationRoute
+  '/webhook/github': typeof WebhookGithubRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
-  '/api/github/install-events': typeof ApiGithubInstallEventsRoute
-  '/api/github/tenant-resolution': typeof ApiGithubTenantResolutionRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
@@ -286,13 +278,12 @@ export interface FileRoutesByTo {
   '/onboarding/cli': typeof OnboardingCliRoute
   '/onboarding/github': typeof OnboardingGithubRoute
   '/onboarding/organization': typeof OnboardingOrganizationRoute
+  '/webhook/github': typeof WebhookGithubRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
-  '/api/github/install-events': typeof ApiGithubInstallEventsRoute
-  '/api/github/tenant-resolution': typeof ApiGithubTenantResolutionRoute
   '/dashboard/runs': typeof DashboardRunsIndexRoute
   '/dashboard/workflows': typeof DashboardWorkflowsIndexRoute
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
@@ -324,14 +315,13 @@ export interface FileRoutesById {
   '/onboarding/cli': typeof OnboardingCliRoute
   '/onboarding/github': typeof OnboardingGithubRoute
   '/onboarding/organization': typeof OnboardingOrganizationRoute
+  '/webhook/github': typeof WebhookGithubRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
-  '/api/github/install-events': typeof ApiGithubInstallEventsRoute
-  '/api/github/tenant-resolution': typeof ApiGithubTenantResolutionRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
@@ -364,14 +354,13 @@ export interface FileRouteTypes {
     | '/onboarding/cli'
     | '/onboarding/github'
     | '/onboarding/organization'
+    | '/webhook/github'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
     | '/api/cli/runs'
     | '/api/cli/status'
     | '/api/cli/test-history'
-    | '/api/github/install-events'
-    | '/api/github/tenant-resolution'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
     | '/api/cli/notifier/failures'
@@ -400,13 +389,12 @@ export interface FileRouteTypes {
     | '/onboarding/cli'
     | '/onboarding/github'
     | '/onboarding/organization'
+    | '/webhook/github'
     | '/dashboard'
     | '/api/auth/callback'
     | '/api/cli/runs'
     | '/api/cli/status'
     | '/api/cli/test-history'
-    | '/api/github/install-events'
-    | '/api/github/tenant-resolution'
     | '/dashboard/runs'
     | '/dashboard/workflows'
     | '/api/cli/notifier/failures'
@@ -437,14 +425,13 @@ export interface FileRouteTypes {
     | '/onboarding/cli'
     | '/onboarding/github'
     | '/onboarding/organization'
+    | '/webhook/github'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
     | '/api/cli/runs'
     | '/api/cli/status'
     | '/api/cli/test-history'
-    | '/api/github/install-events'
-    | '/api/github/tenant-resolution'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
     | '/api/cli/notifier/failures'
@@ -470,12 +457,11 @@ export interface RootRouteChildren {
   OnboardingCliRoute: typeof OnboardingCliRoute
   OnboardingGithubRoute: typeof OnboardingGithubRoute
   OnboardingOrganizationRoute: typeof OnboardingOrganizationRoute
+  WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliStatusRoute: typeof ApiCliStatusRoute
   ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
-  ApiGithubInstallEventsRoute: typeof ApiGithubInstallEventsRoute
-  ApiGithubTenantResolutionRoute: typeof ApiGithubTenantResolutionRoute
   ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
@@ -513,6 +499,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/webhook/github': {
+      id: '/webhook/github'
+      path: '/webhook/github'
+      fullPath: '/webhook/github'
+      preLoaderRoute: typeof WebhookGithubRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/onboarding/organization': {
       id: '/onboarding/organization'
@@ -597,20 +590,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/runs/'
       preLoaderRoute: typeof DashboardRunsIndexRouteImport
       parentRoute: typeof DashboardRunsRoute
-    }
-    '/api/github/tenant-resolution': {
-      id: '/api/github/tenant-resolution'
-      path: '/api/github/tenant-resolution'
-      fullPath: '/api/github/tenant-resolution'
-      preLoaderRoute: typeof ApiGithubTenantResolutionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/github/install-events': {
-      id: '/api/github/install-events'
-      path: '/api/github/install-events'
-      fullPath: '/api/github/install-events'
-      preLoaderRoute: typeof ApiGithubInstallEventsRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/cli/test-history': {
       id: '/api/cli/test-history'
@@ -837,12 +816,11 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingCliRoute: OnboardingCliRoute,
   OnboardingGithubRoute: OnboardingGithubRoute,
   OnboardingOrganizationRoute: OnboardingOrganizationRoute,
+  WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliStatusRoute: ApiCliStatusRoute,
   ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
-  ApiGithubInstallEventsRoute: ApiGithubInstallEventsRoute,
-  ApiGithubTenantResolutionRoute: ApiGithubTenantResolutionRoute,
   ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,

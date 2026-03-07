@@ -1,0 +1,291 @@
+import type { Pool } from "pg";
+import { pool } from "@/db/client";
+import { getGitHubEventsConfig } from "./config";
+import type {
+  EnqueueStatus,
+  FinalizeResult,
+  WebhookEventRecord,
+  WebhookHeaders,
+  WebhookTopic,
+} from "./types";
+
+export interface WebhookEventStore {
+  enqueueEvent(args: {
+    source: string;
+    eventId: string;
+    bodySha256: string;
+    topics: readonly WebhookTopic[];
+    headers: WebhookHeaders;
+    body: Buffer;
+  }): Promise<EnqueueStatus>;
+  claimEvents(): Promise<WebhookEventRecord[]>;
+  persistTenantId(eventId: number, tenantId: number): Promise<void>;
+  finalizeEvent(args: {
+    eventId: number;
+    attempts: number;
+    result: FinalizeResult;
+    errorClass?: string;
+    lastError?: string;
+  }): Promise<void>;
+  cleanup(): Promise<void>;
+}
+
+export function retryDelayMs(attempt: number): number {
+  const safeAttempt = attempt < 1 ? 1 : attempt;
+  const baseMs = Math.min(2 ** safeAttempt * 1000, 900_000);
+  const jitter = Math.random() * 0.4 - 0.2;
+  return Math.max(1000, Math.round(baseMs + baseMs * jitter));
+}
+
+function truncate(value: string | undefined, limit: number): string | null {
+  if (!value) {
+    return null;
+  }
+  return value.length <= limit ? value : value.slice(0, limit);
+}
+
+export class PostgresWebhookEventStore implements WebhookEventStore {
+  constructor(
+    private readonly db: Pool,
+    private readonly config = getGitHubEventsConfig(),
+  ) {}
+
+  async enqueueEvent(args: {
+    source: string;
+    eventId: string;
+    bodySha256: string;
+    topics: readonly WebhookTopic[];
+    headers: WebhookHeaders;
+    body: Buffer;
+  }): Promise<EnqueueStatus> {
+    if (args.topics.length === 0) {
+      throw new Error("at least one topic is required");
+    }
+
+    const client = await this.db.connect();
+    try {
+      await client.query("BEGIN");
+
+      let insertedAny = false;
+      let duplicateCount = 0;
+      const headersJson = JSON.stringify(args.headers);
+
+      for (const topic of args.topics) {
+        const insertResult = await client.query(
+          `
+            INSERT INTO webhook_events (source, event_id, topic, body_sha256, headers, body)
+            VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+            ON CONFLICT (source, event_id, topic) DO NOTHING
+          `,
+          [
+            args.source,
+            args.eventId,
+            topic,
+            args.bodySha256,
+            headersJson,
+            args.body,
+          ],
+        );
+
+        if (insertResult.rowCount && insertResult.rowCount > 0) {
+          insertedAny = true;
+          continue;
+        }
+
+        const existing = await client.query<{ body_sha256: string }>(
+          `
+            SELECT body_sha256
+            FROM webhook_events
+            WHERE source = $1 AND event_id = $2 AND topic = $3
+          `,
+          [args.source, args.eventId, topic],
+        );
+
+        const existingSha = existing.rows[0]?.body_sha256;
+        if (existingSha !== args.bodySha256) {
+          await client.query("ROLLBACK");
+          return "conflict";
+        }
+
+        duplicateCount += 1;
+      }
+
+      await client.query("COMMIT");
+
+      if (insertedAny) {
+        return "inserted";
+      }
+
+      if (duplicateCount === args.topics.length) {
+        return "duplicate";
+      }
+
+      throw new Error(`unexpected enqueue result for ${args.eventId}`);
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async claimEvents(): Promise<WebhookEventRecord[]> {
+    const result = await this.db.query<{
+      id: string;
+      source: string;
+      event_id: string;
+      topic: WebhookTopic;
+      headers: WebhookHeaders;
+      body: Buffer;
+      tenant_id: string | null;
+      attempts: number;
+    }>(
+      `
+        WITH cte AS (
+          SELECT id
+          FROM webhook_events
+          WHERE status IN ('queued', 'failed')
+            AND next_attempt_at <= now()
+            AND (locked_until IS NULL OR locked_until <= now())
+          ORDER BY received_at
+          FOR UPDATE SKIP LOCKED
+          LIMIT $1
+        )
+        UPDATE webhook_events AS events
+        SET status = 'processing',
+            attempts = attempts + 1,
+            locked_until = now() + ($2 * interval '1 millisecond')
+        FROM cte
+        WHERE events.id = cte.id
+        RETURNING
+          events.id,
+          events.source,
+          events.event_id,
+          events.topic,
+          events.headers,
+          events.body,
+          events.tenant_id,
+          events.attempts
+      `,
+      [this.config.workerBatchSize, this.config.lockDurationMs],
+    );
+
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      source: row.source,
+      eventId: row.event_id,
+      topic: row.topic,
+      headers: row.headers,
+      body: row.body,
+      tenantId: row.tenant_id ? Number(row.tenant_id) : null,
+      attempts: row.attempts,
+    }));
+  }
+
+  async persistTenantId(eventId: number, tenantId: number) {
+    await this.db.query(
+      `
+        UPDATE webhook_events
+        SET tenant_id = $2
+        WHERE id = $1
+      `,
+      [eventId, tenantId],
+    );
+  }
+
+  async finalizeEvent(args: {
+    eventId: number;
+    attempts: number;
+    result: FinalizeResult;
+    errorClass?: string;
+    lastError?: string;
+  }) {
+    if (args.result === "done") {
+      await this.db.query(
+        `
+          UPDATE webhook_events
+          SET status = 'done',
+              done_at = now(),
+              locked_until = NULL,
+              last_error = NULL,
+              error_class = NULL
+          WHERE id = $1
+        `,
+        [args.eventId],
+      );
+      return;
+    }
+
+    if (args.result === "dead") {
+      await this.db.query(
+        `
+          UPDATE webhook_events
+          SET status = 'dead',
+              dead_at = now(),
+              locked_until = NULL,
+              next_attempt_at = now(),
+              last_error = $2,
+              error_class = $3
+          WHERE id = $1
+        `,
+        [args.eventId, truncate(args.lastError, 1024), args.errorClass ?? null],
+      );
+      return;
+    }
+
+    const delayMs = retryDelayMs(args.attempts);
+    await this.db.query(
+      `
+        UPDATE webhook_events
+        SET status = 'failed',
+            locked_until = NULL,
+            next_attempt_at = now() + ($2 * interval '1 millisecond'),
+            last_error = $3,
+            error_class = $4
+        WHERE id = $1
+      `,
+      [
+        args.eventId,
+        delayMs,
+        truncate(args.lastError, 1024),
+        args.errorClass ?? null,
+      ],
+    );
+  }
+
+  async cleanup() {
+    await this.cleanupStatus("done", "done_at", this.config.retentionDoneDays);
+    await this.cleanupStatus("dead", "dead_at", this.config.retentionDeadDays);
+  }
+
+  private async cleanupStatus(
+    status: "done" | "dead",
+    timeField: "done_at" | "dead_at",
+    retentionDays: number,
+  ) {
+    await this.db.query(
+      `
+        DELETE FROM webhook_events
+        WHERE ctid IN (
+          SELECT ctid
+          FROM webhook_events
+          WHERE status = $1
+            AND ${timeField} IS NOT NULL
+            AND ${timeField} < now() - ($2 * interval '1 day')
+          LIMIT 500
+        )
+      `,
+      [status, retentionDays],
+    );
+  }
+}
+
+let webhookEventStore: PostgresWebhookEventStore | undefined;
+
+export function getWebhookEventStore(): PostgresWebhookEventStore {
+  if (!webhookEventStore) {
+    webhookEventStore = new PostgresWebhookEventStore(pool);
+  }
+
+  return webhookEventStore;
+}

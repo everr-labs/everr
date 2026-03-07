@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS otel.cdevents_raw (
+CREATE TABLE IF NOT EXISTS app.cdevents (
     tenant_id UInt64,
     delivery_id String CODEC(ZSTD(1)),
     event_kind LowCardinality(String) CODEC(ZSTD(1)),

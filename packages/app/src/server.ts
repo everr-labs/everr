@@ -12,6 +12,11 @@ console.log("[startup] Migrating database...");
 await migrate(db, { migrationsFolder: "./drizzle" });
 console.log("[startup] Database migrated.");
 
+console.log("[startup] Starting GitHub event runtime...");
+const { ensureAppRuntimeStarted } = await import("./start");
+await ensureAppRuntimeStarted();
+console.log("[startup] GitHub event runtime started.");
+
 const handler = defineHandlerCallback((ctx) => {
   return defaultStreamHandler(ctx);
 });

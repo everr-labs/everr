@@ -10,8 +10,8 @@
 
 1. Install and setup [`devtunnels`](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/get-started?tabs=macos#install).
 2. Login via `devtunnel user login`
-3. Create a tunnel via `devtunnel create -a -d 'OTel collector' citric`
-4. Configure the tunnel `devtunnel port create -p 3333`
+3. Create a tunnel via `devtunnel create -a -d 'Everr app' everr`
+4. Configure the tunnel `devtunnel port create -p 5173`
 5. Start the tunnel `devtunnel host`
 
 ### Start clickhouse
@@ -32,7 +32,7 @@ pnpm build
 1. On GitHub, go to [Settings -> Developer settings -> GitHub Apps](https://github.com/settings/apps) and click **New GitHub App**.
 2. Choose an app name and set a homepage URL.
 3. Under **Webhook**, enable **Active** and set the webhook URL to your tunnel URL with the receiver path, for example: `https://<your-tunnel>/webhook/github`.
-4. Set a webhook secret and store it in `collector/config.yml` as `receivers.githubactions.secret`.
+4. Set a webhook secret and store it in both `packages/app/.env` as `GITHUB_APP_WEBHOOK_SECRET` and in `collector/config.yml` as `receivers.githubactions.secret`.
 5. Under **Repository permissions**, set **Actions** to **Read-only**.
 6. Under **Subscribe to events**, select **Workflow job** and **Workflow run**.
 7. Create the app.
@@ -112,7 +112,7 @@ make run
 ### Run the app
 
 > [!NOTE]
-> When running the app for the first time you need to push the db schema to postgres. You can do this by running `pnpm db:push` inside the `packages/app` directory.
+> The app now owns the GitHub webhook ingress, queue polling, and cdevents writes. Start it after Postgres and ClickHouse are up.
 
 ```bash
 pnpm dev
