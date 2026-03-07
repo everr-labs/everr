@@ -44,7 +44,6 @@ export async function handleGitHubWebhookRequest(
 
   const bodyText = await request.text();
   if (!(await verify(webhookSecret, bodyText, signatureHeader))) {
-    console.error("invalid signature", signatureHeader, bodyText);
     return new Response("invalid signature", { status: 401 });
   }
 

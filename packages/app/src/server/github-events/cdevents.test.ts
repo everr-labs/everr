@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BufferedCDEventsWriter,
   type CDEventInserter,
   type CDEventRow,
+  formatClickHouseDateTime64,
   transformToCDEventRows,
 } from "./cdevents";
 import { getGitHubEventsConfig } from "./config";
@@ -13,6 +14,12 @@ function readFixture(relativePath: string): Buffer {
 }
 
 describe("transformToCDEventRows", () => {
+  it("formats Date values for ClickHouse DateTime64 input", () => {
+    expect(
+      formatClickHouseDateTime64(new Date("2026-03-07T18:01:02.123Z")),
+    ).toBe("2026-03-07 18:01:02.123");
+  });
+
   it("transforms workflow_run completed payloads", () => {
     const rows = transformToCDEventRows({
       eventType: "workflow_run",
@@ -93,19 +100,34 @@ describe("transformToCDEventRows", () => {
   });
 });
 
+function createDeferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void = () => undefined;
+  let reject: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 class FakeInserter implements CDEventInserter {
   readonly batches: CDEventRow[][] = [];
+  readonly pending = [] as ReturnType<typeof createDeferred<void>>[];
 
-  constructor(private failures = 0) {}
+  constructor(private readonly autoResolve = true) {}
 
-  async insert(rows: CDEventRow[]) {
-    if (this.failures > 0) {
-      this.failures -= 1;
-      throw new Error("temporary failure");
+  insert = vi.fn(async (rows: CDEventRow[]) => {
+    this.batches.push([...rows]);
+
+    if (this.autoResolve) {
+      return;
     }
 
-    this.batches.push([...rows]);
-  }
+    const deferred = createDeferred<void>();
+    this.pending.push(deferred);
+    return deferred.promise;
+  });
 }
 
 function createTestConfig(
@@ -115,82 +137,196 @@ function createTestConfig(
     ...getGitHubEventsConfig(),
     cdeventsBatchSize: 2,
     cdeventsFlushIntervalMs: 20,
-    cdeventsFlushRetryDelayMs: 10,
     ...overrides,
   };
 }
 
-async function waitForBatches(inserter: FakeInserter, want: number) {
-  const deadline = Date.now() + 1000;
-  while (Date.now() < deadline) {
-    if (inserter.batches.length >= want) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-
-  throw new Error(`expected at least ${want} batches`);
-}
-
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.resolve();
 });
 
 describe("BufferedCDEventsWriter", () => {
-  it("flushes on batch size", async () => {
-    const inserter = new FakeInserter();
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  it("flushes on batch size only after the insert succeeds", async () => {
+    const inserter = new FakeInserter(false);
     const writer = new BufferedCDEventsWriter(inserter, createTestConfig());
 
-    try {
-      await writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
-      await writer.writeRows([{ deliveryId: "2" } as CDEventRow]);
+    const firstWrite = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    let firstSettled = false;
+    void firstWrite.finally(() => {
+      firstSettled = true;
+    });
+    await Promise.resolve();
+    expect(firstSettled).toBe(false);
+    expect(inserter.batches).toHaveLength(0);
 
-      await waitForBatches(inserter, 1);
-    } finally {
-      await writer.close();
-    }
+    const secondWrite = writer.writeRows([{ deliveryId: "2" } as CDEventRow]);
+    let secondSettled = false;
+    void secondWrite.finally(() => {
+      secondSettled = true;
+    });
+
+    await vi.waitFor(() => {
+      expect(inserter.batches).toHaveLength(1);
+    });
+    expect(firstSettled).toBe(false);
+    expect(secondSettled).toBe(false);
+
+    inserter.pending[0]?.resolve();
+
+    await expect(firstWrite).resolves.toBeUndefined();
+    await expect(secondWrite).resolves.toBeUndefined();
+    expect(inserter.batches[0]?.map((row) => row.deliveryId)).toEqual([
+      "1",
+      "2",
+    ]);
+
+    await writer.close();
   });
 
-  it("flushes on timer", async () => {
-    const inserter = new FakeInserter();
+  it("flushes on timer only after the insert succeeds", async () => {
+    const inserter = new FakeInserter(false);
     const writer = new BufferedCDEventsWriter(
       inserter,
       createTestConfig({ cdeventsBatchSize: 10 }),
     );
 
-    try {
-      await writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
-      await waitForBatches(inserter, 1);
-    } finally {
-      await writer.close();
-    }
+    const writePromise = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    let settled = false;
+    void writePromise.finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(19);
+    expect(inserter.batches).toHaveLength(0);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(inserter.batches).toHaveLength(1);
+    expect(settled).toBe(false);
+
+    inserter.pending[0]?.resolve();
+
+    await expect(writePromise).resolves.toBeUndefined();
+    await writer.close();
   });
 
-  it("retries after transient failure", async () => {
-    const inserter = new FakeInserter(1);
+  it("batches concurrent writes into a single timer flush", async () => {
+    const inserter = new FakeInserter(false);
     const writer = new BufferedCDEventsWriter(
       inserter,
       createTestConfig({ cdeventsBatchSize: 10 }),
     );
 
-    try {
-      await writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
-      await waitForBatches(inserter, 1);
-    } finally {
-      await writer.close();
-    }
+    const firstWrite = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    const secondWrite = writer.writeRows([{ deliveryId: "2" } as CDEventRow]);
+
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(inserter.batches).toHaveLength(1);
+    expect(inserter.batches[0]?.map((row) => row.deliveryId)).toEqual([
+      "1",
+      "2",
+    ]);
+
+    inserter.pending[0]?.resolve();
+
+    await expect(firstWrite).resolves.toBeUndefined();
+    await expect(secondWrite).resolves.toBeUndefined();
+    await writer.close();
+  });
+
+  it("keeps writes queued during an in-flight flush for the next flush", async () => {
+    const inserter = new FakeInserter(false);
+    const writer = new BufferedCDEventsWriter(inserter, createTestConfig());
+
+    const firstWrite = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    const secondWrite = writer.writeRows([{ deliveryId: "2" } as CDEventRow]);
+    await vi.waitFor(() => {
+      expect(inserter.batches).toHaveLength(1);
+    });
+
+    const thirdWrite = writer.writeRows([{ deliveryId: "3" } as CDEventRow]);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(inserter.batches).toHaveLength(1);
+
+    inserter.pending[0]?.resolve();
+    await expect(firstWrite).resolves.toBeUndefined();
+    await expect(secondWrite).resolves.toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(inserter.batches).toHaveLength(2);
+    expect(inserter.batches[1]?.map((row) => row.deliveryId)).toEqual(["3"]);
+
+    inserter.pending[1]?.resolve();
+    await expect(thirdWrite).resolves.toBeUndefined();
+    await writer.close();
+  });
+
+  it("rejects failed flushes without re-buffering them", async () => {
+    const inserter = new FakeInserter(false);
+    const writer = new BufferedCDEventsWriter(
+      inserter,
+      createTestConfig({ cdeventsBatchSize: 10 }),
+    );
+
+    const firstWrite = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    const secondWrite = writer.writeRows([{ deliveryId: "2" } as CDEventRow]);
+
+    await vi.advanceTimersByTimeAsync(20);
+    expect(inserter.batches).toHaveLength(1);
+
+    inserter.pending[0]?.reject(new Error("temporary failure"));
+
+    await expect(firstWrite).rejects.toThrow("temporary failure");
+    await expect(secondWrite).rejects.toThrow("temporary failure");
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(inserter.batches).toHaveLength(1);
+    await writer.close();
   });
 
   it("flushes pending rows on close", async () => {
-    const inserter = new FakeInserter();
+    const inserter = new FakeInserter(false);
     const writer = new BufferedCDEventsWriter(
       inserter,
       createTestConfig({ cdeventsBatchSize: 10 }),
     );
 
-    await writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
-    await writer.close();
+    const writePromise = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    const closePromise = writer.close();
 
-    expect(inserter.batches).toHaveLength(1);
+    await vi.waitFor(() => {
+      expect(inserter.batches).toHaveLength(1);
+    });
+
+    inserter.pending[0]?.resolve();
+
+    await expect(writePromise).resolves.toBeUndefined();
+    await expect(closePromise).resolves.toBeUndefined();
+  });
+
+  it("propagates close flush failures", async () => {
+    const inserter = new FakeInserter(false);
+    const writer = new BufferedCDEventsWriter(
+      inserter,
+      createTestConfig({ cdeventsBatchSize: 10 }),
+    );
+
+    const writePromise = writer.writeRows([{ deliveryId: "1" } as CDEventRow]);
+    const closePromise = writer.close();
+
+    await vi.waitFor(() => {
+      expect(inserter.batches).toHaveLength(1);
+    });
+
+    inserter.pending[0]?.reject(new Error("temporary failure"));
+
+    await expect(writePromise).rejects.toThrow("temporary failure");
+    await expect(closePromise).rejects.toThrow("temporary failure");
   });
 });

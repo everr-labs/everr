@@ -19,7 +19,6 @@ export type GitHubEventsConfig = {
   cdeventsClickHouseDatabase: string;
   cdeventsBatchSize: number;
   cdeventsFlushIntervalMs: number;
-  cdeventsFlushRetryDelayMs: number;
 };
 
 const durationUnits = {
@@ -116,10 +115,6 @@ export function getGitHubEventsConfig(): GitHubEventsConfig {
     ),
     cdeventsBatchSize: readPositiveInteger("CDEVENTS_BATCH_SIZE", 100),
     cdeventsFlushIntervalMs: readDuration("CDEVENTS_FLUSH_INTERVAL", 5_000),
-    cdeventsFlushRetryDelayMs: readDuration(
-      "CDEVENTS_FLUSH_RETRY_DELAY",
-      1_000,
-    ),
   };
 
   return cachedConfig;

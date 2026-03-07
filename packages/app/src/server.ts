@@ -1,4 +1,3 @@
-// TODO!: we can remove this file entirely once we have a proper server-side migration system
 import {
   createStartHandler,
   defaultStreamHandler,
@@ -8,14 +7,21 @@ import { createServerEntry } from "@tanstack/react-start/server-entry";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "@/db/client";
 
+function ensureAppRuntimeStarted(): Promise<void> {
+  if (!import.meta.env.SSR || process.env.NODE_ENV === "test") {
+    return Promise.resolve();
+  }
+
+  return import("./server/github-events/runtime").then((runtime) =>
+    runtime.ensureGitHubEventsRuntimeForAppStart(),
+  );
+}
+
 console.log("[startup] Migrating database...");
 await migrate(db, { migrationsFolder: "./drizzle" });
 console.log("[startup] Database migrated.");
 
-console.log("[startup] Starting GitHub event runtime...");
-const { ensureAppRuntimeStarted } = await import("./start");
 await ensureAppRuntimeStarted();
-console.log("[startup] GitHub event runtime started.");
 
 const handler = defineHandlerCallback((ctx) => {
   return defaultStreamHandler(ctx);
