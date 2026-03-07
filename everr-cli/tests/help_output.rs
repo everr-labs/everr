@@ -18,6 +18,7 @@ fn root_help_lists_main_commands() {
         .stdout(contains("logout"))
         .stdout(contains("setup-assistant"))
         .stdout(contains("status"))
+        .stdout(contains("wait-pipeline"))
         .stdout(contains("runs"));
 }
 

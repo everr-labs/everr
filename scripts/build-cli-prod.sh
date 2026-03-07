@@ -6,25 +6,6 @@ CLI_DIR="${ROOT_DIR}/everr-cli"
 PUBLIC_DIR="${ROOT_DIR}/packages/docs/public"
 OUTPUT_BIN="${PUBLIC_DIR}/everr"
 OUTPUT_SHA="${PUBLIC_DIR}/everr.sha256"
-ENV_FILE="${CLI_DIR}/.env.prod"
-EXAMPLE_ENV_FILE="${CLI_DIR}/.env.prod.example"
-
-if [[ -f "${ENV_FILE}" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "${ENV_FILE}"
-  set +a
-elif [[ -f "${EXAMPLE_ENV_FILE}" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "${EXAMPLE_ENV_FILE}"
-  set +a
-fi
-
-if [[ -z "${EVERR_API_BASE_URL:-}" ]]; then
-  echo "Missing EVERR_API_BASE_URL. Set it in ${ENV_FILE}, ${EXAMPLE_ENV_FILE}, or your shell env." >&2
-  exit 1
-fi
 
 mkdir -p "${PUBLIC_DIR}"
 

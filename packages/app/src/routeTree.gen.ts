@@ -27,6 +27,7 @@ import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
 import { Route as ApiGithubTenantResolutionRouteImport } from './routes/api/github/tenant-resolution'
 import { Route as ApiGithubInstallEventsRouteImport } from './routes/api/github/install-events'
+import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
 import { Route as ApiCliStatusRouteImport } from './routes/api/cli/status'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
@@ -37,6 +38,7 @@ import { Route as DashboardRunsTraceIdTraceRouteImport } from './routes/dashboar
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
+import { Route as ApiCliNotifierFailuresRouteImport } from './routes/api/cli/notifier/failures'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as ApiCliAuthDeviceStartRouteImport } from './routes/api/cli/auth/device/start'
 import { Route as ApiCliAuthDevicePollRouteImport } from './routes/api/cli/auth/device/poll'
@@ -136,6 +138,11 @@ const ApiGithubInstallEventsRoute = ApiGithubInstallEventsRouteImport.update({
   path: '/api/github/install-events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCliTestHistoryRoute = ApiCliTestHistoryRouteImport.update({
+  id: '/api/cli/test-history',
+  path: '/api/cli/test-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCliStatusRoute = ApiCliStatusRouteImport.update({
   id: '/api/cli/status',
   path: '/api/cli/status',
@@ -191,6 +198,11 @@ const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   path: '/$traceId',
   getParentRoute: () => ApiCliRunsRoute,
 } as any)
+const ApiCliNotifierFailuresRoute = ApiCliNotifierFailuresRouteImport.update({
+  id: '/api/cli/notifier/failures',
+  path: '/api/cli/notifier/failures',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -243,10 +255,12 @@ export interface FileRoutesByFullPath {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
+  '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
   '/api/github/tenant-resolution': typeof ApiGithubTenantResolutionRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
+  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -276,10 +290,12 @@ export interface FileRoutesByTo {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
+  '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
   '/api/github/tenant-resolution': typeof ApiGithubTenantResolutionRoute
   '/dashboard/runs': typeof DashboardRunsIndexRoute
   '/dashboard/workflows': typeof DashboardWorkflowsIndexRoute
+  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -313,10 +329,12 @@ export interface FileRoutesById {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/status': typeof ApiCliStatusRoute
+  '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/github/install-events': typeof ApiGithubInstallEventsRoute
   '/api/github/tenant-resolution': typeof ApiGithubTenantResolutionRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
   '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
+  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -351,10 +369,12 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/cli/runs'
     | '/api/cli/status'
+    | '/api/cli/test-history'
     | '/api/github/install-events'
     | '/api/github/tenant-resolution'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
+    | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -384,10 +404,12 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/cli/runs'
     | '/api/cli/status'
+    | '/api/cli/test-history'
     | '/api/github/install-events'
     | '/api/github/tenant-resolution'
     | '/dashboard/runs'
     | '/dashboard/workflows'
+    | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -420,10 +442,12 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/cli/runs'
     | '/api/cli/status'
+    | '/api/cli/test-history'
     | '/api/github/install-events'
     | '/api/github/tenant-resolution'
     | '/dashboard/runs/'
     | '/dashboard/workflows/'
+    | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -449,8 +473,10 @@ export interface RootRouteChildren {
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliStatusRoute: typeof ApiCliStatusRoute
+  ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
   ApiGithubInstallEventsRoute: typeof ApiGithubInstallEventsRoute
   ApiGithubTenantResolutionRoute: typeof ApiGithubTenantResolutionRoute
+  ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
   ApiCliAuthDeviceApproveRoute: typeof ApiCliAuthDeviceApproveRoute
@@ -586,6 +612,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubInstallEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cli/test-history': {
+      id: '/api/cli/test-history'
+      path: '/api/cli/test-history'
+      fullPath: '/api/cli/test-history'
+      preLoaderRoute: typeof ApiCliTestHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cli/status': {
       id: '/api/cli/status'
       path: '/api/cli/status'
@@ -655,6 +688,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/runs/$traceId'
       preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
       parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/cli/notifier/failures': {
+      id: '/api/cli/notifier/failures'
+      path: '/api/cli/notifier/failures'
+      fullPath: '/api/cli/notifier/failures'
+      preLoaderRoute: typeof ApiCliNotifierFailuresRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/cli/runs/$traceId/logs': {
       id: '/api/cli/runs/$traceId/logs'
@@ -800,8 +840,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliStatusRoute: ApiCliStatusRoute,
+  ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
   ApiGithubInstallEventsRoute: ApiGithubInstallEventsRoute,
   ApiGithubTenantResolutionRoute: ApiGithubTenantResolutionRoute,
+  ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
   ApiCliAuthDeviceApproveRoute: ApiCliAuthDeviceApproveRoute,
