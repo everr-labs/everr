@@ -36,3 +36,15 @@ dist
 
 # rust
 target
+
+# Terraform infra
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform.tfvars
+terraform.tfvars.json
