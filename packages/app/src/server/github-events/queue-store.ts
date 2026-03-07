@@ -19,14 +19,14 @@ export interface WebhookEventStore {
     body: Buffer;
   }): Promise<EnqueueStatus>;
   claimEvents(): Promise<WebhookEventRecord[]>;
-  persistTenantId(eventId: number, tenantId: number): Promise<void>;
+  renewEventLock(args: { eventId: number; attempts: number }): Promise<boolean>;
   finalizeEvent(args: {
     eventId: number;
     attempts: number;
     result: FinalizeResult;
     errorClass?: string;
     lastError?: string;
-  }): Promise<void>;
+  }): Promise<boolean>;
   cleanup(): Promise<void>;
 }
 
@@ -137,7 +137,6 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
       topic: WebhookTopic;
       headers: WebhookHeaders;
       body: Buffer;
-      tenant_id: string | null;
       attempts: number;
     }>(
       `
@@ -164,7 +163,6 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
           events.topic,
           events.headers,
           events.body,
-          events.tenant_id,
           events.attempts
       `,
       [this.config.workerBatchSize, this.config.lockDurationMs],
@@ -177,20 +175,23 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
       topic: row.topic,
       headers: row.headers,
       body: row.body,
-      tenantId: row.tenant_id ? Number(row.tenant_id) : null,
       attempts: row.attempts,
     }));
   }
 
-  async persistTenantId(eventId: number, tenantId: number) {
-    await this.db.query(
+  async renewEventLock(args: { eventId: number; attempts: number }) {
+    const result = await this.db.query(
       `
         UPDATE webhook_events
-        SET tenant_id = $2
+        SET locked_until = now() + ($3 * interval '1 millisecond')
         WHERE id = $1
+          AND attempts = $2
+          AND status = 'processing'
       `,
-      [eventId, tenantId],
+      [args.eventId, args.attempts, this.config.lockDurationMs],
     );
+
+    return (result.rowCount ?? 0) > 0;
   }
 
   async finalizeEvent(args: {
@@ -201,7 +202,7 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
     lastError?: string;
   }) {
     if (args.result === "done") {
-      await this.db.query(
+      const result = await this.db.query(
         `
           UPDATE webhook_events
           SET status = 'done',
@@ -210,47 +211,61 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
               last_error = NULL,
               error_class = NULL
           WHERE id = $1
+            AND attempts = $2
+            AND status = 'processing'
         `,
-        [args.eventId],
+        [args.eventId, args.attempts],
       );
-      return;
+      return (result.rowCount ?? 0) > 0;
     }
 
     if (args.result === "dead") {
-      await this.db.query(
+      const result = await this.db.query(
         `
           UPDATE webhook_events
           SET status = 'dead',
               dead_at = now(),
               locked_until = NULL,
               next_attempt_at = now(),
-              last_error = $2,
-              error_class = $3
+              last_error = $3,
+              error_class = $4
           WHERE id = $1
+            AND attempts = $2
+            AND status = 'processing'
         `,
-        [args.eventId, truncate(args.lastError, 1024), args.errorClass ?? null],
+        [
+          args.eventId,
+          args.attempts,
+          truncate(args.lastError, 1024),
+          args.errorClass ?? null,
+        ],
       );
-      return;
+      return (result.rowCount ?? 0) > 0;
     }
 
     const delayMs = retryDelayMs(args.attempts);
-    await this.db.query(
+    const result = await this.db.query(
       `
         UPDATE webhook_events
         SET status = 'failed',
             locked_until = NULL,
-            next_attempt_at = now() + ($2 * interval '1 millisecond'),
-            last_error = $3,
-            error_class = $4
+            next_attempt_at = now() + ($3 * interval '1 millisecond'),
+            last_error = $4,
+            error_class = $5
         WHERE id = $1
+          AND attempts = $2
+          AND status = 'processing'
       `,
       [
         args.eventId,
+        args.attempts,
         delayMs,
         truncate(args.lastError, 1024),
         args.errorClass ?? null,
       ],
     );
+
+    return (result.rowCount ?? 0) > 0;
   }
 
   async cleanup() {

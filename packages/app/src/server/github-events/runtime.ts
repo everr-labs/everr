@@ -71,13 +71,34 @@ export class GitHubEventsRuntime implements ManagedRuntime {
 
   private async runWorkerLoop(workerId: number): Promise<void> {
     while (!this.abortController.signal.aborted) {
+      let shouldSleep = true;
+
       try {
         const events = await this.store.claimEvents();
-        for (const event of events) {
-          await this.processEvent(event);
+        if (events.length > 0) {
+          shouldSleep = false;
+
+          const results = await Promise.allSettled(
+            events.map((event) =>
+              this.processEvent(event, {}, this.abortController.signal),
+            ),
+          );
+
+          for (const result of results) {
+            if (result.status === "rejected") {
+              console.error("[github-events] event processing failed", {
+                workerId,
+                error: result.reason,
+              });
+            }
+          }
         }
       } catch (error) {
         console.error("[github-events] worker failed", { workerId, error });
+      }
+
+      if (!shouldSleep) {
+        continue;
       }
 
       try {

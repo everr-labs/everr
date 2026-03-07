@@ -45,9 +45,13 @@ class StubStore implements WebhookEventStore {
     return [];
   }
 
-  async persistTenantId() {}
+  async renewEventLock() {
+    return true;
+  }
 
-  async finalizeEvent() {}
+  async finalizeEvent() {
+    return true;
+  }
 
   async cleanup() {}
 }

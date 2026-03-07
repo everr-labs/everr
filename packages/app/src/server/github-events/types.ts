@@ -12,7 +12,6 @@ export type WebhookEventRecord = {
   topic: WebhookTopic;
   headers: WebhookHeaders;
   body: Buffer;
-  tenantId: number | null;
   attempts: number;
 };
 

@@ -87,7 +87,6 @@ Retries are isolated by topic. A collector failure does not re-run cdevents, and
 ### `collector`
 
 - resolve tenant id in-process from the GitHub installation mapping
-- persist `tenant_id` on the queue row
 - replay the original webhook to `INGRESS_COLLECTOR_URL`
 - finalize only the `collector` row
 

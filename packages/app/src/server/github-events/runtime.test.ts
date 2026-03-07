@@ -32,6 +32,17 @@ function buildRuntimeFactory() {
   return { createRuntime, runtimes };
 }
 
+function createDeferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void = () => undefined;
+  let reject: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 async function loadRuntimeModule() {
   vi.stubEnv(
     "DATABASE_URL",
@@ -62,7 +73,6 @@ describe("GitHubEventsRuntime", () => {
             eventId: "delivery-1",
             topic: "collector",
             attempts: 1,
-            tenantId: null,
             headers: {
               "x-github-event": ["workflow_run"],
             },
@@ -120,6 +130,102 @@ describe("GitHubEventsRuntime", () => {
     await runtime.close();
 
     expect(writer.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("drains claimed work without an extra poll sleep and processes a batch concurrently", async () => {
+    const { GitHubEventsRuntime } = await loadRuntimeModule();
+    const firstRelease = createDeferred<void>();
+    const firstStarted = createDeferred<void>();
+    const secondStarted = createDeferred<void>();
+    const claimEvents = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          source: "github",
+          eventId: "delivery-1",
+          topic: "collector",
+          attempts: 1,
+          headers: {
+            "x-github-event": ["workflow_run"],
+          },
+          body: Buffer.from("{}"),
+        },
+        {
+          id: 2,
+          source: "github",
+          eventId: "delivery-2",
+          topic: "collector",
+          attempts: 1,
+          headers: {
+            "x-github-event": ["workflow_run"],
+          },
+          body: Buffer.from("{}"),
+        },
+      ])
+      .mockResolvedValue([])
+      .mockResolvedValue([]);
+    const store = {
+      claimEvents,
+      cleanup: vi.fn().mockResolvedValue(undefined),
+    };
+    const writer = {
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const sleep = vi.fn((delay: number, signal?: AbortSignal) => {
+      if (delay !== 5) {
+        return new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject(new Error("aborted")),
+            {
+              once: true,
+            },
+          );
+        });
+      }
+
+      return new Promise<void>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+          once: true,
+        });
+      });
+    });
+    const runtime = new GitHubEventsRuntime({
+      config: createTestConfig({
+        workerCount: 1,
+        pollIntervalMs: 5,
+        cleanupIntervalMs: 10_000,
+      }),
+      store: store as never,
+      writer,
+      processEvent: async (event) => {
+        if (event.id === 1) {
+          firstStarted.resolve();
+          await firstRelease.promise;
+          return;
+        }
+
+        secondStarted.resolve();
+      },
+      sleep,
+    });
+
+    runtime.start();
+
+    await firstStarted.promise;
+    await secondStarted.promise;
+
+    expect(sleep).not.toHaveBeenCalledWith(5, expect.anything());
+
+    firstRelease.resolve();
+
+    await vi.waitFor(() => {
+      expect(claimEvents).toHaveBeenCalledTimes(2);
+      expect(sleep).toHaveBeenCalledWith(5, expect.anything());
+    });
+
+    await runtime.close();
   });
 });
 

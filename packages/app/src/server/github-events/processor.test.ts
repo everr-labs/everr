@@ -18,16 +18,16 @@ import type { WebhookEventRecord } from "./types";
 import { topicCDEvents, topicCollector } from "./types";
 
 class StubStore implements WebhookEventStore {
-  finalized:
-    | {
-        eventId: number;
-        attempts: number;
-        result: "done" | "dead" | "failed";
-        errorClass?: string;
-        lastError?: string;
-      }
-    | undefined;
-  persistedTenantId: number | undefined;
+  finalizeCalls: Array<{
+    eventId: number;
+    attempts: number;
+    result: "done" | "dead" | "failed";
+    errorClass?: string;
+    lastError?: string;
+  }> = [];
+  renewCalls: Array<{ eventId: number; attempts: number }> = [];
+  finalizeResults: Array<boolean | Error> = [true];
+  renewResults: Array<boolean | Error> = [true];
 
   async enqueueEvent(
     _args: Parameters<WebhookEventStore["enqueueEvent"]>[0],
@@ -39,8 +39,14 @@ class StubStore implements WebhookEventStore {
     return [];
   }
 
-  async persistTenantId(_eventId: number, tenantId: number) {
-    this.persistedTenantId = tenantId;
+  async renewEventLock(args: { eventId: number; attempts: number }) {
+    this.renewCalls.push(args);
+    const next = this.renewResults.shift() ?? true;
+    if (next instanceof Error) {
+      throw next;
+    }
+
+    return next;
   }
 
   async finalizeEvent(args: {
@@ -50,7 +56,13 @@ class StubStore implements WebhookEventStore {
     errorClass?: string;
     lastError?: string;
   }) {
-    this.finalized = args;
+    this.finalizeCalls.push(args);
+    const next = this.finalizeResults.shift() ?? true;
+    if (next instanceof Error) {
+      throw next;
+    }
+
+    return next;
   }
 
   async cleanup() {}
@@ -80,7 +92,6 @@ function buildEvent(
     eventId: "delivery-1",
     topic,
     attempts: 1,
-    tenantId: null,
     headers: {
       "x-github-event": ["workflow_run"],
     },
@@ -101,7 +112,7 @@ function buildEvent(
 }
 
 describe("processWebhookEvent", () => {
-  it("marks collector deliveries done and persists tenant id", async () => {
+  it("marks collector deliveries done after resolving the tenant", async () => {
     const store = new StubStore();
     let collectorCalls = 0;
 
@@ -113,8 +124,7 @@ describe("processWebhookEvent", () => {
       },
     });
 
-    expect(store.finalized).toMatchObject({ result: "done" });
-    expect(store.persistedTenantId).toBe(42);
+    expect(store.finalizeCalls.at(-1)).toMatchObject({ result: "done" });
     expect(collectorCalls).toBe(1);
   });
 
@@ -129,7 +139,7 @@ describe("processWebhookEvent", () => {
       },
     });
 
-    expect(store.finalized).toMatchObject({
+    expect(store.finalizeCalls.at(-1)).toMatchObject({
       result: "failed",
       errorClass: "retryable",
     });
@@ -144,7 +154,7 @@ describe("processWebhookEvent", () => {
       handleCDEvents: async () => new Response("bad request", { status: 400 }),
     });
 
-    expect(store.finalized).toMatchObject({
+    expect(store.finalizeCalls.at(-1)).toMatchObject({
       result: "dead",
       errorClass: "terminal",
     });
@@ -159,9 +169,52 @@ describe("processWebhookEvent", () => {
       handleCDEvents: async () => new Response("unavailable", { status: 503 }),
     });
 
-    expect(store.finalized).toMatchObject({
+    expect(store.finalizeCalls.at(-1)).toMatchObject({
       result: "failed",
       errorClass: "retryable",
     });
+  });
+
+  it("retries finalization after a transient store failure without replaying the side effect", async () => {
+    const store = new StubStore();
+    store.finalizeResults = [new Error("db unavailable"), true];
+    let collectorCalls = 0;
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await processWebhookEvent(buildEvent(topicCollector), {
+      store,
+      tenantResolver: new StubTenantResolver(42) as never,
+      replayCollector: async () => {
+        collectorCalls += 1;
+      },
+      sleep,
+    });
+
+    expect(collectorCalls).toBe(1);
+    expect(store.finalizeCalls).toHaveLength(2);
+    expect(store.renewCalls).toEqual([{ eventId: 1, attempts: 1 }]);
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops finalization retries when the claim has already been lost", async () => {
+    const store = new StubStore();
+    store.finalizeResults = [new Error("db unavailable"), false];
+    store.renewResults = [false];
+    let collectorCalls = 0;
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await processWebhookEvent(buildEvent(topicCollector), {
+      store,
+      tenantResolver: new StubTenantResolver(42) as never,
+      replayCollector: async () => {
+        collectorCalls += 1;
+      },
+      sleep,
+    });
+
+    expect(collectorCalls).toBe(1);
+    expect(store.finalizeCalls).toHaveLength(1);
+    expect(store.renewCalls).toEqual([{ eventId: 1, attempts: 1 }]);
+    expect(sleep).not.toHaveBeenCalled();
   });
 });

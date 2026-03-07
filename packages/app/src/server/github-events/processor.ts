@@ -7,6 +7,7 @@ import {
   parseQueuedWorkflowEvent,
 } from "./payloads";
 import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
+import { sleep } from "./sleep";
 import { getTenantResolver, type TenantResolver } from "./tenant-resolver";
 import type { WebhookEventRecord } from "./types";
 import { TerminalEventError, topicCDEvents, topicCollector } from "./types";
@@ -17,7 +18,10 @@ type ProcessorDependencies = {
   tenantResolver?: TenantResolver;
   replayCollector?: typeof replayWebhookToCollector;
   handleCDEvents?: typeof handleCDEventsRequest;
+  sleep?: typeof sleep;
 };
+
+const finalizeRetryDelayMs = 1000;
 
 function responseToError(name: string, response: Response): Error {
   const message = `${name} status=${response.status}`;
@@ -35,6 +39,7 @@ function responseToError(name: string, response: Response): Error {
 export async function processWebhookEvent(
   event: WebhookEventRecord,
   dependencies: ProcessorDependencies = {},
+  signal?: AbortSignal,
 ) {
   const config = dependencies.config ?? getGitHubEventsConfig();
   const store = dependencies.store ?? getWebhookEventStore();
@@ -42,28 +47,29 @@ export async function processWebhookEvent(
   const replayCollector =
     dependencies.replayCollector ?? replayWebhookToCollector;
   const handleCDEvents = dependencies.handleCDEvents ?? handleCDEventsRequest;
+  const sleepFn = dependencies.sleep ?? sleep;
 
   const eventType = firstHeader(event.headers, "x-github-event")?.trim() ?? "";
   if (!eventType) {
-    await store.finalizeEvent({
-      eventId: event.id,
-      attempts: event.attempts,
-      result: "dead",
-      errorClass: "terminal",
-      lastError: "missing x-github-event header",
-    });
+    await finalizeClaim(
+      {
+        store,
+        sleepFn,
+        eventId: event.id,
+        attempts: event.attempts,
+        result: "dead",
+        errorClass: "terminal",
+        lastError: "missing x-github-event header",
+      },
+      signal,
+    );
     return;
   }
 
   try {
     const parsedEvent = parseQueuedWorkflowEvent(eventType, event.body);
     const installationId = installationIdFromQueuedEvent(parsedEvent);
-    const tenantId =
-      event.tenantId ?? (await tenantResolver.resolveTenantId(installationId));
-
-    if (!event.tenantId) {
-      await store.persistTenantId(event.id, tenantId);
-    }
+    const tenantId = await tenantResolver.resolveTenantId(installationId);
 
     if (event.topic === topicCollector) {
       await replayCollector(event, tenantId, config);
@@ -85,20 +91,79 @@ export async function processWebhookEvent(
       throw new TerminalEventError(`unsupported topic "${event.topic}"`);
     }
 
-    await store.finalizeEvent({
-      eventId: event.id,
-      attempts: event.attempts,
-      result: "done",
-    });
+    await finalizeClaim(
+      {
+        store,
+        sleepFn,
+        eventId: event.id,
+        attempts: event.attempts,
+        result: "done",
+      },
+      signal,
+    );
   } catch (error) {
     const isTerminal = error instanceof TerminalEventError;
-    await store.finalizeEvent({
-      eventId: event.id,
-      attempts: event.attempts,
-      result:
-        isTerminal || event.attempts >= config.maxAttempts ? "dead" : "failed",
-      errorClass: isTerminal ? "terminal" : "retryable",
-      lastError: error instanceof Error ? error.message : String(error),
-    });
+    const result =
+      isTerminal || event.attempts >= config.maxAttempts ? "dead" : "failed";
+
+    await finalizeClaim(
+      {
+        store,
+        sleepFn,
+        eventId: event.id,
+        attempts: event.attempts,
+        result,
+        errorClass: isTerminal ? "terminal" : "retryable",
+        lastError: error instanceof Error ? error.message : String(error),
+      },
+      signal,
+    );
+  }
+}
+
+async function finalizeClaim(
+  args: {
+    store: WebhookEventStore;
+    sleepFn: typeof sleep;
+    eventId: number;
+    attempts: number;
+    result: "done" | "dead" | "failed";
+    errorClass?: string;
+    lastError?: string;
+  },
+  signal?: AbortSignal,
+) {
+  while (true) {
+    try {
+      return await args.store.finalizeEvent({
+        eventId: args.eventId,
+        attempts: args.attempts,
+        result: args.result,
+        errorClass: args.errorClass,
+        lastError: args.lastError,
+      });
+    } catch {
+      if (signal?.aborted) {
+        throw signal.reason instanceof Error
+          ? signal.reason
+          : new Error("aborted");
+      }
+
+      try {
+        const renewed = await args.store.renewEventLock({
+          eventId: args.eventId,
+          attempts: args.attempts,
+        });
+
+        if (!renewed) {
+          return false;
+        }
+      } catch {
+        // Best effort only. If the database is temporarily unavailable, retry
+        // finalization without replaying the side effect.
+      }
+
+      await args.sleepFn(finalizeRetryDelayMs, signal);
+    }
   }
 }
