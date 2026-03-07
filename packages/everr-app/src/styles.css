@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans:
+    "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  --settings-shell: #050505;
+  --settings-shell-bottom: #0b0b0b;
+  --settings-panel: rgba(15, 15, 15, 0.98);
+  --settings-panel-strong: rgba(255, 255, 255, 0.04);
+  --settings-border: rgba(255, 255, 255, 0.1);
+  --settings-border-soft: rgba(255, 255, 255, 0.08);
+  --settings-text: #fafafa;
+  --settings-text-muted: rgba(255, 255, 255, 0.68);
+  --settings-text-soft: rgba(255, 255, 255, 0.42);
+  --settings-panel-shadow: 0 28px 60px rgba(0, 0, 0, 0.4);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100vh;
+  }
+
+  html[data-window="notification"],
+  body[data-window="notification"],
+  body[data-window="notification"] #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply m-0 bg-transparent font-sans antialiased;
+    color: var(--settings-text);
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  code {
+    @apply break-words font-mono text-[0.78rem] text-white/72;
+  }
+}
