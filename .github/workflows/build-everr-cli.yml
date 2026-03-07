@@ -6,7 +6,6 @@ concurrency:
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - .github/workflows/build-everr-cli.yml
       - everr-cli/**
@@ -45,4 +44,4 @@ jobs:
         run: cargo build --release --manifest-path everr-cli/Cargo.toml
 
       - name: Smoke test
-        run: ./everr-cli/target/release/everr --help
+        run: ./target/release/everr --help

@@ -27,7 +27,10 @@ fn print_uninstall_effects(cli_path: &Path) {
     println!("The uninstall command will:");
     println!("- Removes Everr-managed assistant instructions from Codex/Claude/Cursor files.");
     println!("- Logs out and removes the local Everr session.");
-    println!("- Does not remove the CLI binary automatically: {}", cli_path.display());
+    println!(
+        "- Does not remove the CLI binary automatically: {}",
+        cli_path.display()
+    );
     println!();
     println!("Press Enter to continue, or Ctrl+C to abort.");
 }

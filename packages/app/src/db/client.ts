@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/db.env";
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: dbEnv.DATABASE_URL,
 });
 

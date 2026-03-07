@@ -5,6 +5,7 @@
     "build:cli:prod": "./scripts/build-cli-prod.sh",
     "build:cli:dev": "./scripts/build-cli-dev.sh",
     "build:cli": "pnpm build:cli:dev && pnpm build:cli:prod",
+    "build:app": "./scripts/build-everr-app.sh",
     "dev:app": "cd packages/app && pnpm dev",
     "build": "pnpm -r build",
     "check": "biome check",

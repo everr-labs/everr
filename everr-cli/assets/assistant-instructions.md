@@ -6,3 +6,6 @@ Quick commands:
 - `everr runs list`
 - `everr runs show --trace-id <trace_id>`
 - `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`
+- `everr test-history --module <module> --test-name <name>`
+- `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete. Will probably take a while, CI normally take around 10/20 minutes
+- `everr wait-pipeline --commit <sha>`

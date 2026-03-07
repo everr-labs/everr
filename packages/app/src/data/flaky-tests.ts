@@ -360,6 +360,26 @@ export interface TestExecution {
   timestamp: string;
 }
 
+const TestHistoryInputSchema = z
+  .object({
+    timeRange: TimeRangeSchema,
+    repo: z.string(),
+    testFullName: z.string().optional(),
+    testModule: z.string().optional(),
+    testName: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    const hasFullName = Boolean(value.testFullName);
+    const hasTestModule = Boolean(value.testModule);
+    const hasTestName = Boolean(value.testName);
+    if (!hasFullName && !hasTestModule && !hasTestName) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide testFullName, testModule, or testName.",
+      });
+    }
+  });
+
 const TestDetailInputSchema = z.object({
   timeRange: TimeRangeSchema,
   repo: z.string(),
@@ -370,11 +390,44 @@ export type TestDetailInput = z.infer<typeof TestDetailInputSchema>;
 export const getTestHistory = createServerFn({
   method: "GET",
 })
-  .inputValidator(TestDetailInputSchema)
-  .handler(async ({ data: { timeRange, repo, testFullName } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .inputValidator(TestHistoryInputSchema)
+  .handler(
+    async ({
+      data: { timeRange, repo, testFullName, testModule, testName },
+    }) => {
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
+      const whereConditions = [
+        "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
+        "SpanAttributes['citric.test.name'] != ''",
+        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+      ];
+      const params: Record<string, unknown> = {
+        repo,
+        fromTime: fromISO,
+        toTime: toISO,
+      };
 
-    const sql = `
+      if (testFullName) {
+        whereConditions.push(
+          `${testFullNameExpr(null)} = {testFullName:String}`,
+        );
+        params.testFullName = testFullName;
+      }
+      if (testModule) {
+        whereConditions.push(
+          "SpanAttributes['citric.test.parent_test'] = {testModule:String}",
+        );
+        params.testModule = testModule;
+      }
+      if (testName) {
+        whereConditions.push(
+          "SpanAttributes['citric.test.name'] ILIKE {testNamePattern:String}",
+        );
+        params.testNamePattern = `%${testName}%`;
+      }
+      const whereClause = whereConditions.join("\n\t\t\t\t\tAND ");
+
+      const sql = `
 			SELECT
 				trace_id,
 				run_id,
@@ -401,44 +454,42 @@ export const getTestHistory = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as job_name,
 					max(Timestamp) as timestamp
 				FROM traces
-				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND SpanAttributes['citric.test.name'] != ''
-					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-					AND ${testFullNameExpr(null)} = {testFullName:String}
+				WHERE ${whereClause}
 				GROUP BY trace_id
 			)
 			ORDER BY timestamp DESC
 			LIMIT 100
 		`;
 
-    const result = await query<{
-      trace_id: string;
-      run_id: string;
-      run_attempt: string;
-      head_sha: string;
-      head_branch: string;
-      test_result: string;
-      test_duration: string;
-      runner_name: string;
-      workflow_name: string;
-      job_name: string;
-      timestamp: string;
-    }>(sql, { repo, testFullName, fromTime: fromISO, toTime: toISO });
+      const result = await query<{
+        trace_id: string;
+        run_id: string;
+        run_attempt: string;
+        head_sha: string;
+        head_branch: string;
+        test_result: string;
+        test_duration: string;
+        runner_name: string;
+        workflow_name: string;
+        job_name: string;
+        timestamp: string;
+      }>(sql, params);
 
-    return result.map((row) => ({
-      traceId: row.trace_id,
-      runId: row.run_id,
-      runAttempt: Number(row.run_attempt),
-      headSha: row.head_sha,
-      headBranch: row.head_branch,
-      testResult: row.test_result,
-      testDuration: Number(row.test_duration),
-      runnerName: row.runner_name,
-      workflowName: row.workflow_name,
-      jobName: row.job_name,
-      timestamp: row.timestamp,
-    })) satisfies TestExecution[];
-  });
+      return result.map((row) => ({
+        traceId: row.trace_id,
+        runId: row.run_id,
+        runAttempt: Number(row.run_attempt),
+        headSha: row.head_sha,
+        headBranch: row.head_branch,
+        testResult: row.test_result,
+        testDuration: Number(row.test_duration),
+        runnerName: row.runner_name,
+        workflowName: row.workflow_name,
+        jobName: row.job_name,
+        timestamp: row.timestamp,
+      })) satisfies TestExecution[];
+    },
+  );
 
 // Runner breakdown for a specific test
 export interface RunnerFlakiness {

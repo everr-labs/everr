@@ -1,14 +1,22 @@
 import { relations, sql } from "drizzle-orm";
 import {
   bigint,
+  customType,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export const tenants = pgTable(
   "tenants",
@@ -145,5 +153,47 @@ export const cliDeviceAuthorizations = pgTable(
       table.status,
       table.expiresAt,
     ),
+  ],
+);
+
+export const webhookEvents = pgTable(
+  "webhook_events",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    source: text("source").notNull(),
+    eventId: text("event_id").notNull(),
+    topic: text("topic").notNull(),
+    bodySha256: text("body_sha256").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    headers: jsonb("headers").$type<Record<string, string[]>>().notNull(),
+    body: bytea("body").notNull(),
+    tenantId: bigint("tenant_id", { mode: "number" }),
+    status: text("status").notNull().default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    lastError: text("last_error"),
+    errorClass: text("error_class"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    deadAt: timestamp("dead_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("webhook_events_source_event_id_topic_key").on(
+      table.source,
+      table.eventId,
+      table.topic,
+    ),
+    index("webhook_events_claim_idx")
+      .on(table.nextAttemptAt, table.receivedAt)
+      .where(sql`${table.status} in ('queued', 'failed')`),
+    index("webhook_events_dead_idx")
+      .on(table.deadAt)
+      .where(sql`${table.status} = 'dead'`),
   ],
 );
