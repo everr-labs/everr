@@ -20,5 +20,5 @@ GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
 GRANT SELECT ON app.* TO app_ro;
 
 -- The app-side cdevents worker writes normalized rows directly into app.cdevents.
-GRANT INSERT ON app.* TO app_cdevents_rw;
+GRANT SELECT, INSERT  ON app.* TO app_cdevents_rw;
 SQL
