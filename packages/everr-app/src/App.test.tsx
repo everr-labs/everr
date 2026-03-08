@@ -334,7 +334,7 @@ describe("desktop window", () => {
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("preselects detected assistants on the assistant step", async () => {
+  it("does not preselect assistants on the assistant step", async () => {
     renderMainApp({
       signedIn: true,
       cliInstalled: false,
@@ -345,8 +345,8 @@ describe("desktop window", () => {
     });
 
     expect(await screen.findByText("Select assistants to integrate")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: /codex/i })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: /cursor/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /codex/i })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /cursor/i })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
   });
 
@@ -378,6 +378,31 @@ describe("desktop window", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save choices" }));
 
     expect(await screen.findByText("Install the Everr CLI")).toBeInTheDocument();
+  });
+
+  it("keeps all assistants deselected after saving an empty selection", async () => {
+    renderMainApp({
+      selectedAssistants: ["codex", "cursor"],
+      assistantStepSeen: true,
+      assistantStatuses: defaultAssistantStatuses().map((status) => ({
+        ...status,
+        configured: status.assistant === "codex" || status.assistant === "cursor",
+      })),
+    });
+
+    const codex = await screen.findByRole("checkbox", { name: /codex/i });
+    const cursor = screen.getByRole("checkbox", { name: /cursor/i });
+    const claude = screen.getByRole("checkbox", { name: /claude/i });
+
+    fireEvent.click(codex);
+    fireEvent.click(cursor);
+    fireEvent.click(screen.getByRole("button", { name: "Save integrations" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /codex/i })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: /cursor/i })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
+    });
   });
 
   it("advances from CLI installation to launch-at-login setup", async () => {

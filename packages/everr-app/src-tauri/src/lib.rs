@@ -12,7 +12,7 @@ use everr_core::git::resolve_git_context;
 use everr_core::notifier::FailureTracker;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::{
@@ -42,17 +42,6 @@ struct RuntimeState {
     session_store: SessionStore,
     settings: Arc<Mutex<AppSettings>>,
     notifier: Arc<Mutex<NotifierState>>,
-    tray: TrayHandles,
-}
-
-#[derive(Clone)]
-struct TrayHandles {
-    auth_status: MenuItem<tauri::Wry>,
-    settings: MenuItem<tauri::Wry>,
-    sign_in: MenuItem<tauri::Wry>,
-    sign_out: MenuItem<tauri::Wry>,
-    cli_status: MenuItem<tauri::Wry>,
-    install_cli: MenuItem<tauri::Wry>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -216,7 +205,6 @@ fn update_base_url(
     })
     .map_err(|error| error.to_string())?;
 
-    refresh_tray_status(state.inner()).map_err(|error| error.to_string())?;
     emit_settings_changed(&app);
 
     get_settings(state)
@@ -239,14 +227,12 @@ fn sign_out(state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String
         .session_store
         .clear_session()
         .map_err(|error| error.to_string())?;
-    refresh_tray_status(state.inner()).map_err(|error| error.to_string())?;
     get_auth_status(state)
 }
 
 #[tauri::command]
-fn install_cli(state: State<'_, RuntimeState>) -> Result<CliInstallStatusResponse, String> {
-    install_cli_bundle(&state.tray.auth_status.app_handle()).map_err(|error| error.to_string())?;
-    refresh_tray_status(state.inner()).map_err(|error| error.to_string())?;
+fn install_cli(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
+    install_cli_bundle(&app).map_err(|error| error.to_string())?;
     get_cli_install_status()
 }
 
@@ -399,15 +385,13 @@ pub fn run() {
 
             let session_store = SessionStore::for_namespace(APP_NAMESPACE);
             let settings = load_app_settings(&session_store)?;
-            let tray = build_tray(app.handle())?;
+            build_tray(app.handle())?;
             let runtime = RuntimeState {
                 session_store,
                 settings: Arc::new(Mutex::new(settings)),
                 notifier: Arc::new(Mutex::new(NotifierState::default())),
-                tray,
             };
 
-            refresh_tray_status(&runtime)?;
             app.manage(runtime.clone());
             if wizard_incomplete(&runtime)? {
                 open_settings_window(app.handle())?;
@@ -437,29 +421,10 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn build_tray(app: &AppHandle) -> Result<TrayHandles> {
-    let auth_status =
-        MenuItem::with_id(app, "auth_status", "Auth: checking...", false, None::<&str>)?;
+fn build_tray(app: &AppHandle) -> Result<()> {
     let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-    let sign_in = MenuItem::with_id(app, "sign_in", "Sign in", true, None::<&str>)?;
-    let sign_out = MenuItem::with_id(app, "sign_out", "Sign out", true, None::<&str>)?;
-    let cli_status = MenuItem::with_id(app, "cli_status", "CLI: checking...", false, None::<&str>)?;
-    let install_cli = MenuItem::with_id(app, "install_cli", "Install CLI", true, None::<&str>)?;
-    let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(
-        app,
-        &[
-            &auth_status,
-            &settings,
-            &sign_in,
-            &sign_out,
-            &cli_status,
-            &install_cli,
-            &separator,
-            &quit,
-        ],
-    )?;
+    let menu = Menu::with_items(app, &[&settings, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id("everr-app")
         .menu(&menu)
@@ -477,40 +442,12 @@ fn build_tray(app: &AppHandle) -> Result<TrayHandles> {
             "settings" => {
                 let _ = open_settings_window(app);
             }
-            "sign_in" => {
-                if let Some(runtime) = app.try_state::<RuntimeState>() {
-                    let app = app.clone();
-                    let runtime = runtime.inner().clone();
-                    tauri::async_runtime::spawn(async move {
-                        let _ = sign_in_inner(app, runtime).await;
-                    });
-                }
-            }
-            "sign_out" => {
-                if let Some(runtime) = app.try_state::<RuntimeState>() {
-                    let _ = runtime.session_store.clear_session();
-                    let _ = refresh_tray_status(runtime.inner());
-                }
-            }
-            "install_cli" => {
-                let _ = install_cli_bundle(app);
-                if let Some(runtime) = app.try_state::<RuntimeState>() {
-                    let _ = refresh_tray_status(runtime.inner());
-                }
-            }
             "quit" => app.exit(0),
             _ => {}
         })
         .build(app)?;
 
-    Ok(TrayHandles {
-        auth_status,
-        settings,
-        sign_in,
-        sign_out,
-        cli_status,
-        install_cli,
-    })
+    Ok(())
 }
 
 async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
@@ -520,40 +457,9 @@ async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
         let _ = webbrowser::open(&verification_url);
     })
     .await?;
-    refresh_tray_status(&state)?;
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("everr://auth-changed", ());
     }
-    Ok(())
-}
-
-fn refresh_tray_status(state: &RuntimeState) -> Result<()> {
-    let is_signed_in = state.session_store.has_active_session()?;
-    let cli_installed = cli_install_path()?.exists();
-    let auth_available = !current_base_url(state)?.is_empty();
-
-    state.tray.auth_status.set_text(if !auth_available {
-        "Auth: unavailable"
-    } else if is_signed_in {
-        "Auth: signed in"
-    } else {
-        "Auth: signed out"
-    })?;
-    state.tray.settings.set_enabled(true)?;
-    state
-        .tray
-        .sign_in
-        .set_enabled(auth_available && !is_signed_in)?;
-    state
-        .tray
-        .sign_out
-        .set_enabled(auth_available && is_signed_in)?;
-    state.tray.cli_status.set_text(if cli_installed {
-        "CLI: installed"
-    } else {
-        "CLI: not installed"
-    })?;
-    state.tray.install_cli.set_enabled(!cli_installed)?;
     Ok(())
 }
 
@@ -673,7 +579,6 @@ fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStat
     let assistant_statuses = assistant::assistant_statuses()?;
     let launch_at_login_enabled = app.autolaunch().is_enabled()?;
     let settings = current_settings(state)?;
-    let wizard_state = response_wizard_state(&settings.wizard_state, &assistant_statuses);
 
     Ok(SetupStatusResponse {
         auth_status: auth_status_response(state)?,
@@ -681,7 +586,7 @@ fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStat
         settings: SettingsResponse {
             base_url: settings.base_url,
         },
-        wizard_state,
+        wizard_state: settings.wizard_state,
         assistant_statuses,
         launch_at_login_enabled,
     })
@@ -693,21 +598,6 @@ fn current_settings(state: &RuntimeState) -> Result<AppSettings> {
         .lock()
         .map_err(|_| anyhow!("failed to lock settings"))
         .map(|settings| settings.clone())
-}
-
-fn response_wizard_state(
-    stored: &WizardState,
-    assistant_statuses: &[AssistantStatus],
-) -> WizardState {
-    let mut response = stored.clone();
-    if response.selected_assistants.is_empty() {
-        response.selected_assistants = assistant_statuses
-            .iter()
-            .filter(|status| status.configured)
-            .map(|status| status.assistant)
-            .collect();
-    }
-    response
 }
 
 fn update_settings<F>(state: &RuntimeState, mutate: F) -> Result<()>
@@ -1055,9 +945,39 @@ fn open_settings_window(app: &AppHandle) -> Result<()> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| anyhow!("settings window not found"))?;
+
+    if let Some(pos) = settings_window_position(app, &window) {
+        let _ = window.set_position(LogicalPosition::new(pos.0, pos.1));
+    }
+
     window.show()?;
     window.set_focus()?;
     Ok(())
+}
+
+fn settings_window_position(app: &AppHandle, window: &WebviewWindow) -> Option<(f64, f64)> {
+    let tray = app.tray_by_id("everr-app")?;
+    let tray_rect = tray.rect().ok()??;
+
+    let scale = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.scale_factor())
+        .unwrap_or(1.0);
+
+    let tray_pos = tray_rect.position.to_logical::<f64>(scale);
+    let tray_size = tray_rect.size.to_logical::<f64>(scale);
+
+    let window_width = window
+        .outer_size()
+        .map(|s| s.width as f64 / scale)
+        .unwrap_or(620.0);
+
+    let x = tray_pos.x + tray_size.width / 2.0 - window_width / 2.0;
+    let y = tray_pos.y + tray_size.height + 4.0;
+
+    Some((x, y))
 }
 
 fn value_has_wizard_metadata(value: &Value) -> bool {
@@ -1098,12 +1018,11 @@ fn apply_wizard_migration(settings: &mut AppSettings, should_complete_wizard: bo
 #[cfg(test)]
 mod tests {
     use everr_core::api::FailureNotification;
-    use everr_core::assistant::{AssistantKind, AssistantStatus};
     use serde_json::json;
 
     use super::{
-        apply_wizard_migration, response_wizard_state, value_has_wizard_metadata, AppSettings,
-        NotificationQueue, WizardState,
+        apply_wizard_migration, value_has_wizard_metadata, AppSettings, NotificationQueue,
+        WizardState,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1218,26 +1137,4 @@ mod tests {
         })));
     }
 
-    #[test]
-    fn response_wizard_state_falls_back_to_configured_assistants() {
-        let wizard_state = WizardState::default();
-        let statuses = vec![
-            AssistantStatus {
-                assistant: AssistantKind::Codex,
-                detected: true,
-                configured: true,
-                path: "/tmp/.codex/AGENTS.md".to_string(),
-            },
-            AssistantStatus {
-                assistant: AssistantKind::Claude,
-                detected: false,
-                configured: false,
-                path: "/tmp/.claude/CLAUDE.md".to_string(),
-            },
-        ];
-
-        let response = response_wizard_state(&wizard_state, &statuses);
-
-        assert_eq!(response.selected_assistants, vec![AssistantKind::Codex]);
-    }
 }

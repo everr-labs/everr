@@ -1,13 +1,13 @@
-import type { InputHTMLAttributes } from "react";
-import { cn } from "../../lib/utils";
+import { Input as InputPrimitive } from "@base-ui/react/input";
+import { cn } from "@/lib/utils";
 
-function Input({ className, type = "text", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
-    <input
-      data-slot="input"
+    <InputPrimitive
       type={type}
+      data-slot="input"
       className={cn(
-        "flex h-11 w-full min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white outline-none transition-colors placeholder:text-white/38 focus-visible:border-white/20 focus-visible:ring-2 focus-visible:ring-white/12 disabled:cursor-not-allowed disabled:opacity-50",
+        "bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-7 rounded-md border px-2 py-0.5 text-sm transition-colors file:h-6 file:text-xs/relaxed file:font-medium focus-visible:ring-2 aria-invalid:ring-2 md:text-xs/relaxed file:text-foreground placeholder:text-muted-foreground w-full min-w-0 outline-none file:inline-flex file:border-0 file:bg-transparent disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
