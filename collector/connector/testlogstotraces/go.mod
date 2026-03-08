@@ -1,11 +1,11 @@
-module github.com/get-citric/citric/collector/connector/testlogstotraces
+module github.com/everr-labs/everr/collector/connector/testlogstotraces
 
 go 1.25.5
 
-replace github.com/get-citric/citric/collector/semconv => ../../semconv
+replace github.com/everr-labs/everr/collector/semconv => ../../semconv
 
 require (
-	github.com/get-citric/citric/collector/semconv v0.0.0-00010101000000-000000000000
+	github.com/everr-labs/everr/collector/semconv v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.51.0
 	go.opentelemetry.io/collector/connector v0.145.0

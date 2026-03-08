@@ -70,7 +70,7 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
   return {
     dedupe_key: "one",
     trace_id: "trace-one",
-    repo: "citric-app/citric",
+    repo: "everr-labs/everr",
     branch: "feature/granola",
     workflow_name: "CI",
     failure_time: "2026-03-07T13:32:00Z",
@@ -186,6 +186,13 @@ function renderMainApp(options: RenderMainOptions = {}) {
   mockWindows("main");
   mockIPC(
     (cmd, args) => {
+      const payload = (args ?? {}) as {
+        assistants?: AssistantKind[];
+        baseUrl?: string;
+        enabled?: boolean;
+        step?: "assistants" | "launch_at_login";
+      };
+
       switch (cmd) {
         case "get_setup_status":
           return setupStatus;
@@ -193,7 +200,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
           setupStatus = {
             ...setupStatus,
             settings: {
-              base_url: args.baseUrl as string,
+              base_url: payload.baseUrl ?? setupStatus.settings.base_url,
             },
           };
           return setupStatus.settings;
@@ -225,7 +232,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
           };
           return setupStatus.cli_status;
         case "configure_assistants": {
-          const selected = (args.assistants as AssistantKind[]) ?? [];
+          const selected = payload.assistants ?? [];
           setupStatus = {
             ...setupStatus,
             wizard_state: {
@@ -246,11 +253,11 @@ function renderMainApp(options: RenderMainOptions = {}) {
             wizard_state: {
               ...setupStatus.wizard_state,
               assistant_step_seen:
-                args.step === "assistants"
+                payload.step === "assistants"
                   ? true
                   : setupStatus.wizard_state.assistant_step_seen,
               launch_at_login_step_seen:
-                args.step === "launch_at_login"
+                payload.step === "launch_at_login"
                   ? true
                   : setupStatus.wizard_state.launch_at_login_step_seen,
             },
@@ -259,7 +266,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
         case "set_launch_at_login":
           setupStatus = {
             ...setupStatus,
-            launch_at_login_enabled: Boolean(args.enabled),
+            launch_at_login_enabled: Boolean(payload.enabled),
             wizard_state: {
               ...setupStatus.wizard_state,
               launch_at_login_step_seen: true,
@@ -429,7 +436,7 @@ describe("notification window", () => {
     await flushNotificationRender();
 
     expect(screen.getByText("CI")).toBeInTheDocument();
-    expect(screen.getByText("citric-app/citric")).toBeInTheDocument();
+    expect(screen.getByText("everr-labs/everr")).toBeInTheDocument();
     expect(screen.getByText("feature/granola")).toBeInTheDocument();
     expect(screen.getByText("test • Step 3: Run suite")).toBeInTheDocument();
     expect(screen.getByText("3m ago")).toBeInTheDocument();

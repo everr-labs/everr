@@ -57,8 +57,8 @@ export const getCostOverview = createServerFn({
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
         AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
         AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
-        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-        AND SpanAttributes['citric.test.name'] = ''
+        AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+        AND SpanAttributes['everr.test.name'] = ''
       GROUP BY date, labels
       ORDER BY date ASC, totalDurationMs DESC
     `;
@@ -207,8 +207,8 @@ export const getCostByRepo = createServerFn({
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
         AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
         AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
-        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-        AND SpanAttributes['citric.test.name'] = ''
+        AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+        AND SpanAttributes['everr.test.name'] = ''
         AND ResourceAttributes['vcs.repository.name'] != ''
       GROUP BY repo, labels
       ORDER BY totalDurationMs DESC
@@ -289,8 +289,8 @@ export const getCostByWorkflow = createServerFn({
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
         AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
         AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
-        AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-        AND SpanAttributes['citric.test.name'] = ''
+        AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+        AND SpanAttributes['everr.test.name'] = ''
         AND ResourceAttributes['vcs.repository.name'] != ''
         AND ResourceAttributes['cicd.pipeline.name'] != ''
       GROUP BY repo, workflow, labels

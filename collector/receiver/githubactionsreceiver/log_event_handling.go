@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
 
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-labs/everr/collector/semconv"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 )
 
@@ -173,7 +173,7 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 					record.SetSpanID(spanID)
 					record.SetTraceID(traceID)
 				}
-				record.Attributes().PutInt(semconv.CitricGitHubWorkflowJobStepNumber, int64(stepNumber))
+				record.Attributes().PutInt(semconv.EverrGitHubWorkflowJobStepNumber, int64(stepNumber))
 				record.SetTimestamp(pcommon.NewTimestampFromTime(parsedTime))
 				record.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 				record.Body().SetStr(line)

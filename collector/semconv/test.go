@@ -3,13 +3,13 @@
 
 package semconv
 
-// Citric — Test attributes (no OTel standard yet)
+// Everr — Test attributes (no OTel standard yet)
 const (
-	CitricTestName            = "citric.test.name"
-	CitricTestResult          = "citric.test.result"
-	CitricTestDurationSeconds = "citric.test.duration_seconds"
-	CitricTestFramework       = "citric.test.framework"
-	CitricTestIsSubtest       = "citric.test.is_subtest"
-	CitricTestPackage         = "citric.test.package"
-	CitricTestParentTest      = "citric.test.parent_test"
+	EverrTestName            = "everr.test.name"
+	EverrTestResult          = "everr.test.result"
+	EverrTestDurationSeconds = "everr.test.duration_seconds"
+	EverrTestFramework       = "everr.test.framework"
+	EverrTestIsSubtest       = "everr.test.is_subtest"
+	EverrTestPackage         = "everr.test.package"
+	EverrTestParentTest      = "everr.test.parent_test"
 )

@@ -14,7 +14,7 @@ fn status_command_sends_expected_query_and_auth_header() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/tests",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let mut server = Server::new();
 
@@ -24,7 +24,7 @@ fn status_command_sends_expected_query_and_auth_header() {
         .mock("GET", "/api/cli/status")
         .match_header("authorization", "Bearer token-123")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/tests".into()),
             Matcher::UrlEncoded("mainBranch".into(), "main".into()),
             Matcher::UrlEncoded("from".into(), "now-1h".into()),
@@ -58,7 +58,7 @@ fn runs_list_sends_filter_query_params() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/tests",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let mut server = Server::new();
 
@@ -68,7 +68,7 @@ fn runs_list_sends_filter_query_params() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/tests".into()),
             Matcher::UrlEncoded("conclusion".into(), "failure".into()),
             Matcher::UrlEncoded("workflowName".into(), "Build & Test App".into()),
@@ -114,7 +114,7 @@ fn runs_list_defaults_branch_to_current_git_branch() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/default-branch",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let mut server = Server::new();
 
@@ -124,7 +124,7 @@ fn runs_list_defaults_branch_to_current_git_branch() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/default-branch".into()),
         ]))
         .with_status(200)
@@ -245,7 +245,7 @@ fn test_history_sends_expected_query_and_auth_header() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/test-history",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let mut server = Server::new();
 
@@ -255,7 +255,7 @@ fn test_history_sends_expected_query_and_auth_header() {
         .mock("GET", "/api/cli/test-history")
         .match_header("authorization", "Bearer token-xyz")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("testModule".into(), "suite".into()),
             Matcher::UrlEncoded("testName".into(), "test".into()),
             Matcher::UrlEncoded("from".into(), "now-7d".into()),
@@ -291,7 +291,7 @@ fn test_history_supports_test_name_without_module() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/test-history-no-module",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let mut server = Server::new();
 
@@ -301,7 +301,7 @@ fn test_history_supports_test_name_without_module() {
         .mock("GET", "/api/cli/test-history")
         .match_header("authorization", "Bearer token-xyz")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("testName".into(), "my-test".into()),
         ]))
         .with_status(200)
@@ -324,7 +324,7 @@ fn test_history_supports_module_without_test_name() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/test-history-module-only",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let mut server = Server::new();
 
@@ -334,7 +334,7 @@ fn test_history_supports_module_without_test_name() {
         .mock("GET", "/api/cli/test-history")
         .match_header("authorization", "Bearer token-xyz")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("testModule".into(), "suite".into()),
         ]))
         .with_status(200)
@@ -358,7 +358,7 @@ fn test_history_requires_at_least_one_filter() {
     env.write_session(&server.url(), "token-xyz");
 
     env.command()
-        .args(["test-history", "--repo", "citric-app/citric"])
+        .args(["test-history", "--repo", "everr-labs/everr"])
         .assert()
         .failure()
         .stderr(contains(
@@ -409,7 +409,7 @@ fn wait_polls_until_head_sha_run_is_found() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/wait-for-run",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let head_sha = git_head_sha(&repo_dir);
     let mut server = Server::new();
@@ -420,14 +420,14 @@ fn wait_polls_until_head_sha_run_is_found() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
             Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"citric-app/citric","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":false,"activeRuns":[],"completedRuns":[]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":false,"activeRuns":[],"completedRuns":[]}}"#
         ))
         .expect(1)
         .create();
@@ -436,14 +436,14 @@ fn wait_polls_until_head_sha_run_is_found() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
             Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"citric-app/citric","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/citric-app/citric/actions/runs/42","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":125,"activeJobs":["test","lint"]}}],"completedRuns":[{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/citric-app/citric/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z","durationSeconds":59,"activeJobs":[]}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":125,"activeJobs":["test","lint"]}}],"completedRuns":[{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z","durationSeconds":59,"activeJobs":[]}}]}}"#
         ))
         .expect(1)
         .create();
@@ -452,14 +452,14 @@ fn wait_polls_until_head_sha_run_is_found() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
             Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"citric-app/citric","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/citric-app/citric/actions/runs/42","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}},{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/citric-app/citric/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}},{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -497,7 +497,7 @@ fn wait_uses_explicit_commit_when_provided() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/wait-explicit-commit",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let target_commit = "deadbeefcafebabefeedface1234567890abcdef";
     let mut server = Server::new();
@@ -508,7 +508,7 @@ fn wait_uses_explicit_commit_when_provided() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded(
                 "branch".into(),
                 "feature/wait-explicit-commit".into(),
@@ -518,7 +518,7 @@ fn wait_uses_explicit_commit_when_provided() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"citric-app/citric","branch":"feature/wait-explicit-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"77","workflowName":"CI","htmlUrl":"https://github.com/citric-app/citric/actions/runs/77","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-explicit-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"77","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/77","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -550,7 +550,7 @@ fn wait_accepts_short_commit_sha_prefix() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/wait-short-commit",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let short_commit = "7f14b13";
     let mut server = Server::new();
@@ -561,14 +561,14 @@ fn wait_accepts_short_commit_sha_prefix() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-short-commit".into()),
             Matcher::UrlEncoded("commit".into(), short_commit.into()),
             Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"citric-app/citric","branch":"feature/wait-short-commit","commit":"{short_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","workflowName":"CI","htmlUrl":"https://github.com/citric-app/citric/actions/runs/88","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-short-commit","commit":"{short_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -598,7 +598,7 @@ fn wait_times_out_when_head_sha_is_not_found() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/wait-timeout",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let head_sha = git_head_sha(&repo_dir);
     let mut server = Server::new();
@@ -609,14 +609,14 @@ fn wait_times_out_when_head_sha_is_not_found() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-timeout".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
             Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"citric-app/citric","branch":"feature/wait-timeout","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"99","workflowName":"CI","htmlUrl":"https://github.com/citric-app/citric/actions/runs/99","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":3,"activeJobs":["test"]}}],"completedRuns":[]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-timeout","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"99","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/99","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":3,"activeJobs":["test"]}}],"completedRuns":[]}}"#
         ))
         .expect(1)
         .create();
@@ -645,7 +645,7 @@ fn wait_finishes_status_row_before_api_error() {
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/wait-api-error",
-        "git@github.com:citric-app/citric.git",
+        "git@github.com:everr-labs/everr.git",
     );
     let mut server = Server::new();
 
@@ -655,14 +655,14 @@ fn wait_finishes_status_row_before_api_error() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-api-error".into()),
             Matcher::UrlEncoded("commit".into(), git_head_sha(&repo_dir)),
             Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"citric-app/citric","branch":"feature/wait-api-error","commit":"{}","pipelineFound":false,"activeRuns":[],"completedRuns":[]}}"#,
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-api-error","commit":"{}","pipelineFound":false,"activeRuns":[],"completedRuns":[]}}"#,
             git_head_sha(&repo_dir)
         ))
         .expect(1)
@@ -672,7 +672,7 @@ fn wait_finishes_status_row_before_api_error() {
         .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "citric-app/citric".into()),
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-api-error".into()),
             Matcher::UrlEncoded("commit".into(), git_head_sha(&repo_dir)),
             Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),

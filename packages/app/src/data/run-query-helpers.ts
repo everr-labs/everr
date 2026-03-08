@@ -38,7 +38,7 @@ export function runSummarySubquery({
 
   if (includeRunAttempt) {
     selects.push(
-      "anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt",
+      "anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt",
     );
   }
   if (includeDuration) {

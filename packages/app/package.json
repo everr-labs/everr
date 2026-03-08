@@ -1,5 +1,5 @@
 {
-  "name": "@citric/app",
+  "name": "@everr/app",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
-    "@citric/datemath": "workspace:*",
+    "@everr/datemath": "workspace:*",
     "@clickhouse/client": "^1.17.0",
     "@fontsource-variable/noto-sans": "^5.2.10",
     "@octokit/webhooks-methods": "^6.0.0",

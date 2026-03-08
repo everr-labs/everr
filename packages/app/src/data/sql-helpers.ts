@@ -14,8 +14,8 @@
  */
 export function testFullNameExpr(
   alias: string | null = "test_full_name",
-  parentAttr = "SpanAttributes['citric.test.parent_test']",
-  nameAttr = "SpanAttributes['citric.test.name']",
+  parentAttr = "SpanAttributes['everr.test.parent_test']",
+  nameAttr = "SpanAttributes['everr.test.name']",
 ): string {
   const expr = `if(${parentAttr} != '', concat(${parentAttr}, '/', ${nameAttr}), ${nameAttr})`;
   return alias ? `${expr} as ${alias}` : expr;
@@ -38,7 +38,7 @@ export function leafTestFilter(
     fromParam = "fromTime",
     toParam = "toTime",
     leftExpr = testFullNameExpr(null),
-    rightExpr = "SpanAttributes['citric.test.parent_test']",
+    rightExpr = "SpanAttributes['everr.test.parent_test']",
     extraConditions = [],
   } = opts;
   const scopedConditions =
@@ -49,7 +49,7 @@ export function leafTestFilter(
   return `${leftExpr} NOT IN (
     SELECT DISTINCT ${rightExpr}
     FROM traces
-    WHERE SpanAttributes['citric.test.parent_test'] != ''
+    WHERE SpanAttributes['everr.test.parent_test'] != ''
       AND Timestamp >= {${fromParam}:String} AND Timestamp <= {${toParam}:String}
       ${scopedConditions}
   )`;

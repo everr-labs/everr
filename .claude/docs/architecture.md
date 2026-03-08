@@ -2,7 +2,7 @@
 
 ## Overview
 
-Citric provides CI/CD observability for GitHub Actions using OpenTelemetry standards. The system captures workflow telemetry via webhooks and stores it in ClickHouse for querying and visualization.
+Everr provides CI/CD observability for GitHub Actions using OpenTelemetry standards. The system captures workflow telemetry via webhooks and stores it in ClickHouse for querying and visualization.
 
 ```
 GitHub Actions → Webhook → OTel Collector → ClickHouse → Web Dashboard

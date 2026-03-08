@@ -1,4 +1,4 @@
-import { isValid, resolve } from "@citric/datemath";
+import { isValid, resolve } from "@everr/datemath";
 import { ChevronDownIcon, Clock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";

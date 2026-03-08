@@ -1,4 +1,4 @@
-# Citric
+# Everr
 
 ## Development
 
@@ -56,10 +56,10 @@ pnpm build
     processors:
       resource/tenant:
         attributes:
-          - key: citric.tenant.id
+          - key: everr.tenant.id
             from_context: metadata.x-everr-tenant-id
             action: upsert
-          - key: citric.tenant.id
+          - key: everr.tenant.id
             action: convert
             converted_type: int
     ```
@@ -68,21 +68,21 @@ pnpm build
 ### GitHub installation ownership model
 
 - A GitHub App `installation_id` is scoped to the install target account (user/org), not the individual user who clicks install.
-- Citric enforces exclusive mapping: one `installation_id` can be linked to only one tenant.
+- Everr enforces exclusive mapping: one `installation_id` can be linked to only one tenant.
 - If another tenant tries to link the same installation, the app returns `github_install=error&reason=already_linked`.
 - This prevents cross-tenant takeover of the same installation mapping.
 
 Downsides:
 
-- A customer cannot intentionally share one GitHub installation across multiple Citric tenants.
-- If a customer accidentally creates multiple Citric orgs, they must consolidate to one org or uninstall/reinstall with a different GitHub account scope.
+- A customer cannot intentionally share one GitHub installation across multiple Everr tenants.
+- If a customer accidentally creates multiple Everr orgs, they must consolidate to one org or uninstall/reinstall with a different GitHub account scope.
 - Customer support may be needed to resolve mistaken links (for example, unlinking and relinking the installation).
 - True cross-tenant shared views require a different data model than a single-tenant installation mapping.
 
 Practical examples:
 
 - Same tenant, different users:
-  User A and User B both belong to the same Citric org and both click install for the same GitHub org. They resolve to the same `installation_id`, and linking succeeds (no ownership conflict).
+  User A and User B both belong to the same Everr org and both click install for the same GitHub org. They resolve to the same `installation_id`, and linking succeeds (no ownership conflict).
 - Different tenants, same GitHub org install:
   Tenant A links installation `12345`. Tenant B later tries to link installation `12345` and receives `github_install=error&reason=already_linked`.
 - Repo selection changes:

@@ -77,7 +77,7 @@ export async function processWebhookEvent(
       const headers = recordToHeaders(event.headers);
       headers.set(tenantHeaderName, String(tenantId));
       const response = await handleCDEvents(
-        new Request("http://citric.internal/cdevents", {
+        new Request("http://everr.internal/cdevents", {
           method: "POST",
           headers,
           body: new Uint8Array(event.body),

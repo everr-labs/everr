@@ -18,8 +18,8 @@ import (
 
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
-	"github.com/get-citric/citric/collector/connector/testlogstotraces/internal/metadata"
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/internal/metadata"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 func buildTestLogs(lines []string, resourceAttrs map[string]any, jobName string, stepNumber int64, traceID pcommon.TraceID, spanID pcommon.SpanID) plog.Logs {
@@ -43,7 +43,7 @@ func buildTestLogs(lines []string, resourceAttrs map[string]any, jobName string,
 		record := sl.LogRecords().AppendEmpty()
 		record.Body().SetStr(line)
 		record.SetTimestamp(pcommon.NewTimestampFromTime(baseTime.Add(time.Duration(i) * time.Millisecond)))
-		record.Attributes().PutInt(semconv.CitricGitHubWorkflowJobStepNumber, stepNumber)
+		record.Attributes().PutInt(semconv.EverrGitHubWorkflowJobStepNumber, stepNumber)
 		record.SetTraceID(traceID)
 		record.SetSpanID(spanID)
 	}
@@ -69,8 +69,8 @@ func TestConnectorGoTestPatterns(t *testing.T) {
 			"--- FAIL: TestBar (0.200s)",
 		},
 		map[string]any{
-			string(conventions.CICDPipelineRunIDKey):  int64(123),
-			semconv.CitricGitHubWorkflowRunRunAttempt: int64(1),
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
 		},
 		"test-job",
 		1,
@@ -127,8 +127,8 @@ func TestConnectorVitestPatterns(t *testing.T) {
 			" ↓ src/lib/formatting.test.ts > formatDuration > is skipped",
 		},
 		map[string]any{
-			string(conventions.CICDPipelineRunIDKey):  int64(123),
-			semconv.CitricGitHubWorkflowRunRunAttempt: int64(1),
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
 		},
 		"test-job",
 		1,
@@ -170,7 +170,7 @@ func TestConnectorVitestPatterns(t *testing.T) {
 	assert.Equal(t, ptrace.StatusCodeUnset, skipSpan.Status().Code())
 
 	// Verify framework attribute is vitest
-	framework, ok := passSpan.Attributes().Get(semconv.CitricTestFramework)
+	framework, ok := passSpan.Attributes().Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "vitest", framework.Str())
 }
@@ -192,8 +192,8 @@ func TestConnectorNoTestPatterns(t *testing.T) {
 			"no test patterns here",
 		},
 		map[string]any{
-			string(conventions.CICDPipelineRunIDKey):  int64(123),
-			semconv.CitricGitHubWorkflowRunRunAttempt: int64(1),
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
 		},
 		"build-job",
 		1,
@@ -223,9 +223,9 @@ func TestConnectorResourceAttributesPropagated(t *testing.T) {
 			"--- PASS: TestFoo (0.100s)",
 		},
 		map[string]any{
-			string(conventions.CICDPipelineRunIDKey):  int64(123),
-			semconv.CitricGitHubWorkflowRunRunAttempt: int64(1),
-			string(conventions.VCSProviderNameKey):    "github",
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+			string(conventions.VCSProviderNameKey):   "github",
 		},
 		"test-job",
 		1,
@@ -269,8 +269,8 @@ func TestConnectorSubtestHierarchy(t *testing.T) {
 			"--- PASS: TestParent (0.005s)",
 		},
 		map[string]any{
-			string(conventions.CICDPipelineRunIDKey):  int64(123),
-			semconv.CitricGitHubWorkflowRunRunAttempt: int64(1),
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
 		},
 		"test-job",
 		1,
@@ -341,7 +341,7 @@ func TestConnectorMissingResourceAttributes(t *testing.T) {
 	record := sl.LogRecords().AppendEmpty()
 	record.Body().SetStr("=== RUN   TestFoo")
 	record.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-	record.Attributes().PutInt(semconv.CitricGitHubWorkflowJobStepNumber, 1)
+	record.Attributes().PutInt(semconv.EverrGitHubWorkflowJobStepNumber, 1)
 
 	err = c.ConsumeLogs(context.Background(), logs)
 	require.NoError(t, err)

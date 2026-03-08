@@ -54,7 +54,7 @@
 - cdevents tests: supported workflow mappings, ignored unsupported events/actions, missing headers, malformed payloads, batching, timer flush, retry after transient ClickHouse failure, flush on close, and inserts landing directly in `app.cdevents`.
 - Schema/infra tests: no `otel.cdevents_raw` table creation, no cdevents materialized view creation, and writer credentials limited to direct inserts on `app.cdevents`.
 - Startup tests: bootstrap is SSR-only, skipped in tests, safe on repeated imports/HMR, and only one runtime starts per process.
-- Verification commands: `pnpm --filter @citric/app typecheck`, `pnpm --filter @citric/app test`, and `pnpm --filter @citric/app build`.
+- Verification commands: `pnpm --filter @everr/app typecheck`, `pnpm --filter @everr/app test`, and `pnpm --filter @everr/app build`.
 
 **Assumptions**
 - Collector stays external and continues to receive replayed webhooks over HTTP via `INGRESS_COLLECTOR_URL`.

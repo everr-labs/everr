@@ -10,11 +10,11 @@ const (
 	VCSRefHeadRevisionAuthorEmail = "vcs.ref.head.revision.author.email"
 )
 
-// Citric — Git commit attributes with no OTel/contrib equivalent
+// Everr — Git commit attributes with no OTel/contrib equivalent
 const (
-	CitricGitHeadCommitCommitterName  = "citric.git.head_commit.committer.name"
-	CitricGitHeadCommitCommitterEmail = "citric.git.head_commit.committer.email"
-	CitricGitHeadCommitMessage        = "citric.git.head_commit.message"
-	CitricGitHeadCommitTimestamp      = "citric.git.head_commit.timestamp"
-	CitricGitPullRequestsURL          = "citric.git.pull_requests.url"
+	EverrGitHeadCommitCommitterName  = "everr.git.head_commit.committer.name"
+	EverrGitHeadCommitCommitterEmail = "everr.git.head_commit.committer.email"
+	EverrGitHeadCommitMessage        = "everr.git.head_commit.message"
+	EverrGitHeadCommitTimestamp      = "everr.git.head_commit.timestamp"
+	EverrGitPullRequestsURL          = "everr.git.pull_requests.url"
 )

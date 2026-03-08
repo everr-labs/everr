@@ -13,7 +13,7 @@ import (
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap"
 
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 func createResourceAttributes(resource pcommon.Resource, event interface{}, config *Config, logger *zap.Logger) {
@@ -26,8 +26,8 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 
 		attrs.PutStr(string(conventions.CICDPipelineNameKey), e.GetWorkflowJob().GetWorkflowName())
 
-		attrs.PutStr(semconv.CitricGitHubWorkflowJobCreatedAt, e.GetWorkflowJob().GetCreatedAt().Format(time.RFC3339))
-		attrs.PutStr(semconv.CitricGitHubWorkflowJobCompletedAt, e.GetWorkflowJob().GetCompletedAt().Format(time.RFC3339))
+		attrs.PutStr(semconv.EverrGitHubWorkflowJobCreatedAt, e.GetWorkflowJob().GetCreatedAt().Format(time.RFC3339))
+		attrs.PutStr(semconv.EverrGitHubWorkflowJobCompletedAt, e.GetWorkflowJob().GetCompletedAt().Format(time.RFC3339))
 		attrs.PutStr(string(conventions.CICDPipelineTaskRunResultKey), mapConclusion(e.GetWorkflowJob().GetConclusion()))
 		attrs.PutStr(string(conventions.VCSRefHeadNameKey), e.GetWorkflowJob().GetHeadBranch())
 		attrs.PutStr(string(conventions.VCSRefHeadTypeKey), "branch")
@@ -48,13 +48,13 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 		}
 
 		attrs.PutStr(string(conventions.CICDPipelineTaskNameKey), e.GetWorkflowJob().GetName())
-		attrs.PutInt(semconv.CitricGitHubWorkflowJobRunAttempt, e.GetWorkflowJob().GetRunAttempt())
+		attrs.PutInt(semconv.EverrGitHubWorkflowJobRunAttempt, e.GetWorkflowJob().GetRunAttempt())
 		attrs.PutInt(string(conventions.CICDPipelineRunIDKey), e.GetWorkflowJob().GetRunID())
 		attrs.PutStr(semconv.CICDPipelineWorkerGroupName, e.GetWorkflowJob().GetRunnerGroupName())
 		attrs.PutStr(string(conventions.CICDWorkerNameKey), e.GetWorkflowJob().GetRunnerName())
 		attrs.PutStr(semconv.CICDPipelineTaskRunSenderLogin, e.GetSender().GetLogin())
-		attrs.PutStr(semconv.CitricGitHubWorkflowJobStartedAt, e.GetWorkflowJob().GetStartedAt().Format(time.RFC3339))
-		attrs.PutStr(semconv.CitricGitHubWorkflowJobStatus, e.GetWorkflowJob().GetStatus())
+		attrs.PutStr(semconv.EverrGitHubWorkflowJobStartedAt, e.GetWorkflowJob().GetStartedAt().Format(time.RFC3339))
+		attrs.PutStr(semconv.EverrGitHubWorkflowJobStatus, e.GetWorkflowJob().GetStatus())
 
 		attrs.PutStr(string(conventions.VCSProviderNameKey), "github")
 

@@ -29,7 +29,7 @@ importers:
       '@base-ui/react':
         specifier: ^1.2.0
         version: 1.2.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@citric/datemath':
+      '@everr/datemath':
         specifier: workspace:*
         version: link:../datemath
       '@clickhouse/client':

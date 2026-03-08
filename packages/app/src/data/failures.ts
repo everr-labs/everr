@@ -33,7 +33,7 @@ export const getFailurePatterns = createServerFn({
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 				AND StatusMessage != ''
 			GROUP BY pattern
 			ORDER BY count DESC
@@ -82,7 +82,7 @@ export const getFailureTrend = createServerFn({
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 				AND StatusMessage != ''
 			GROUP BY date
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
@@ -122,7 +122,7 @@ export const getFailuresByRepo = createServerFn({
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 				AND StatusMessage != ''
 				AND ResourceAttributes['vcs.repository.name'] != ''
 			GROUP BY repo

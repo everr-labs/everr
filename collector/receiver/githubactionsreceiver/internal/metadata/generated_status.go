@@ -8,7 +8,7 @@ import (
 
 var (
 	Type      = component.MustNewType("githubactions")
-	ScopeName = "github.com/get-citric/citric/collector/receiver/githubactionsreceiver"
+	ScopeName = "github.com/everr-labs/everr/collector/receiver/githubactionsreceiver"
 )
 
 const (

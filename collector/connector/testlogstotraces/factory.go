@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
 
-	"github.com/get-citric/citric/collector/connector/testlogstotraces/internal/metadata"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/internal/metadata"
 )
 
 // NewFactory creates a new testlogstotraces connector factory.

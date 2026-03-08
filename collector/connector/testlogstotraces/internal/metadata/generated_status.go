@@ -6,7 +6,7 @@ import (
 
 var (
 	Type      = component.MustNewType("testlogstotraces")
-	ScopeName = "github.com/get-citric/citric/collector/connector/testlogstotraces"
+	ScopeName = "github.com/everr-labs/everr/collector/connector/testlogstotraces"
 )
 
 const (

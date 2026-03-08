@@ -30,7 +30,7 @@ describe("buildFilterConditions", () => {
       });
 
     const sql = conditions.join("\n");
-    expect(sql).toContain("SpanAttributes['citric.test.parent_test'] = ''");
+    expect(sql).toContain("SpanAttributes['everr.test.parent_test'] = ''");
     expect(aggregateByRun).toBe(true);
     expect(scopeConditions).toHaveLength(0);
   });
@@ -48,7 +48,7 @@ describe("buildFilterConditions", () => {
 
     const sql = conditions.join("\n");
     expect(sql).toContain(
-      "SpanAttributes['citric.test.name'] = {exactPath:String}",
+      "SpanAttributes['everr.test.name'] = {exactPath:String}",
     );
     expect(aggregateByRun).toBe(false);
   });

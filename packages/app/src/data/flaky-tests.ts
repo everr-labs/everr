@@ -53,8 +53,8 @@ function buildFlakyTestConditions(
 ): { conditions: string[]; params: Record<string, unknown> } {
   const conditions: string[] = [
     "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
-    "SpanAttributes['citric.test.name'] != ''",
-    "SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')",
+    "SpanAttributes['everr.test.name'] != ''",
+    "SpanAttributes['everr.test.result'] IN ('pass', 'fail', 'skip')",
   ];
   const params: Record<string, unknown> = {
     fromTime: fromISO,
@@ -90,7 +90,7 @@ export const getFlakyTestFilterOptions = createServerFn({
 			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.repository.name'] != ''
-				AND SpanAttributes['citric.test.name'] != ''
+				AND SpanAttributes['everr.test.name'] != ''
 			ORDER BY repo
 			LIMIT 100`,
     ),
@@ -99,7 +99,7 @@ export const getFlakyTestFilterOptions = createServerFn({
 			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.ref.head.name'] != ''
-				AND SpanAttributes['citric.test.name'] != ''
+				AND SpanAttributes['everr.test.name'] != ''
 			ORDER BY branch
 			LIMIT 100`,
     ),
@@ -153,12 +153,12 @@ export const getFlakyTests = createServerFn({
 			FROM (
 				SELECT
 					ResourceAttributes['vcs.repository.name'] as repo,
-					SpanAttributes['citric.test.package'] as test_package,
+					SpanAttributes['everr.test.package'] as test_package,
 					${testFullNameExpr()},
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					anyLast(SpanAttributes['citric.test.result']) as test_result,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+					anyLast(SpanAttributes['everr.test.result']) as test_result,
+					anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration,
 					max(Timestamp) as timestamp
 				FROM traces
 				WHERE ${whereClause}
@@ -242,11 +242,11 @@ export const getFlakyTestSummary = createServerFn({
 					countIf(test_result = 'pass') as pass_count
 				FROM (
 					SELECT
-						SpanAttributes['citric.test.parent_test'] as parent_test,
-						SpanAttributes['citric.test.name'] as test_name,
+						SpanAttributes['everr.test.parent_test'] as parent_test,
+						SpanAttributes['everr.test.name'] as test_name,
 						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-						anyLast(SpanAttributes['citric.test.result']) as test_result
+						anyLast(SpanAttributes['everr.test.result']) as test_result
 					FROM traces
 					WHERE ${whereClause}
 					GROUP BY parent_test, test_name, run_id, head_sha
@@ -318,7 +318,7 @@ export const getFlakinessTrend = createServerFn({
 						${testFullNameExpr()},
 						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-						anyLast(SpanAttributes['citric.test.result']) as test_result,
+						anyLast(SpanAttributes['everr.test.result']) as test_result,
 						max(Timestamp) as timestamp
 					FROM traces
 					WHERE ${whereClause}
@@ -398,7 +398,7 @@ export const getTestHistory = createServerFn({
       const { fromISO, toISO } = resolveTimeRange(timeRange);
       const whereConditions = [
         "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
-        "SpanAttributes['citric.test.name'] != ''",
+        "SpanAttributes['everr.test.name'] != ''",
         "ResourceAttributes['vcs.repository.name'] = {repo:String}",
       ];
       const params: Record<string, unknown> = {
@@ -415,13 +415,13 @@ export const getTestHistory = createServerFn({
       }
       if (testModule) {
         whereConditions.push(
-          "SpanAttributes['citric.test.parent_test'] = {testModule:String}",
+          "SpanAttributes['everr.test.parent_test'] = {testModule:String}",
         );
         params.testModule = testModule;
       }
       if (testName) {
         whereConditions.push(
-          "SpanAttributes['citric.test.name'] ILIKE {testNamePattern:String}",
+          "SpanAttributes['everr.test.name'] ILIKE {testNamePattern:String}",
         );
         params.testNamePattern = `%${testName}%`;
       }
@@ -444,11 +444,11 @@ export const getTestHistory = createServerFn({
 				SELECT
 					TraceId as trace_id,
 					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-					toUInt32OrZero(anyLast(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
+					toUInt32OrZero(anyLast(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
 					anyLast(ResourceAttributes['vcs.ref.head.revision']) as head_sha,
 					anyLast(ResourceAttributes['vcs.ref.head.name']) as head_branch,
-					anyLast(SpanAttributes['citric.test.result']) as test_result,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+					anyLast(SpanAttributes['everr.test.result']) as test_result,
+					anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration,
 					anyLast(ResourceAttributes['cicd.worker.name']) as runner_name,
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflow_name,
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as job_name,
@@ -524,15 +524,15 @@ export const getRunnerFlakiness = createServerFn({
 				SELECT
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					anyLast(SpanAttributes['citric.test.result']) as test_result,
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+					anyLast(SpanAttributes['everr.test.result']) as test_result,
+					anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration,
 					anyLast(ResourceAttributes['cicd.worker.name']) as runner_name
 				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND SpanAttributes['citric.test.name'] != ''
+					AND SpanAttributes['everr.test.name'] != ''
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ${testFullNameExpr(null)} = {testFullName:String}
-					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')
+					AND SpanAttributes['everr.test.result'] IN ('pass', 'fail')
 				GROUP BY run_id, head_sha
 			)
 			GROUP BY runner_name
@@ -576,14 +576,14 @@ export const getTestDailyResults = createServerFn({
 				SELECT
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					anyLast(SpanAttributes['citric.test.result']) as test_result,
+					anyLast(SpanAttributes['everr.test.result']) as test_result,
 					max(Timestamp) as timestamp
 				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND SpanAttributes['citric.test.name'] != ''
+					AND SpanAttributes['everr.test.name'] != ''
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ${testFullNameExpr(null)} = {testFullName:String}
-					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')
+					AND SpanAttributes['everr.test.result'] IN ('pass', 'fail', 'skip')
 				GROUP BY run_id, head_sha
 			)
 			GROUP BY date
@@ -623,11 +623,11 @@ export const getFlakyTestNames = createServerFn({
 						${testFullNameExpr()},
 						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 						ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-						anyLast(SpanAttributes['citric.test.result']) as test_result
+						anyLast(SpanAttributes['everr.test.result']) as test_result
 					FROM traces
 					WHERE Timestamp >= now() - INTERVAL 30 DAY
-						AND SpanAttributes['citric.test.name'] != ''
-						AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')
+						AND SpanAttributes['everr.test.name'] != ''
+						AND SpanAttributes['everr.test.result'] IN ('pass', 'fail')
 						AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					GROUP BY test_full_name, run_id, head_sha
 				)

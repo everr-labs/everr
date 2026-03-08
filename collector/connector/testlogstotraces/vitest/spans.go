@@ -9,8 +9,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/get-citric/citric/collector/connector/testlogstotraces/gotest"
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/gotest"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 // GenerateSpans creates OpenTelemetry spans from parsed Vitest test results.
@@ -64,25 +64,25 @@ func createTestSpan(ctx *gotest.TestParseContext, scopeSpans ptrace.ScopeSpans, 
 	}
 
 	// Set status — only mark failures as errors; all other outcomes stay Unset.
-	// The test outcome is carried by the citric.test.result attribute.
+	// The test outcome is carried by the everr.test.result attribute.
 	if test.Result == gotest.TestResultFail {
 		span.Status().SetCode(ptrace.StatusCodeError)
 	}
 
 	// Set attributes
 	attrs := span.Attributes()
-	attrs.PutStr(semconv.CitricTestName, test.Name)
-	attrs.PutStr(semconv.CitricTestResult, string(test.Result))
-	attrs.PutDouble(semconv.CitricTestDurationSeconds, test.Duration.Seconds())
-	attrs.PutStr(semconv.CitricTestFramework, "vitest")
-	attrs.PutBool(semconv.CitricTestIsSubtest, test.IsSubtest())
+	attrs.PutStr(semconv.EverrTestName, test.Name)
+	attrs.PutStr(semconv.EverrTestResult, string(test.Result))
+	attrs.PutDouble(semconv.EverrTestDurationSeconds, test.Duration.Seconds())
+	attrs.PutStr(semconv.EverrTestFramework, "vitest")
+	attrs.PutBool(semconv.EverrTestIsSubtest, test.IsSubtest())
 
 	if test.Package != "" {
-		attrs.PutStr(semconv.CitricTestPackage, test.Package)
+		attrs.PutStr(semconv.EverrTestPackage, test.Package)
 	}
 
 	if test.ParentTest != "" {
-		attrs.PutStr(semconv.CitricTestParentTest, test.ParentTest)
+		attrs.PutStr(semconv.EverrTestParentTest, test.ParentTest)
 	}
 
 	// Recursively create spans for subtests

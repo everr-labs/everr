@@ -1,4 +1,4 @@
-# Citric
+# Everr
 
 CI/CD observability platform built on OpenTelemetry. Collects telemetry from GitHub Actions workflows and stores data in ClickHouse for visualization and analysis.
 
@@ -34,7 +34,7 @@ make test-all         # Run Go tests
 ## Development Environment
 
 - The dev server (`pnpm dev`) is always running in a separate terminal - do not start it
-- ClickHouse is running locally with the `citric` database
+- ClickHouse is running locally with the `everr` database
 - Changes to the web app will hot-reload automatically
 
 ## Guidelines

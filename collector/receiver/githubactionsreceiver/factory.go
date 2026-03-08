@@ -6,8 +6,8 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/get-citric/citric/collector/internal/sharedcomponent"
-	"github.com/get-citric/citric/collector/receiver/githubactionsreceiver/internal/metadata"
+	"github.com/everr-labs/everr/collector/internal/sharedcomponent"
+	"github.com/everr-labs/everr/collector/receiver/githubactionsreceiver/internal/metadata"
 )
 
 // This file implements factory for GitHub Actions receiver.

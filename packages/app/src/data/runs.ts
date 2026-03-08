@@ -61,7 +61,7 @@ async function getRawStepLogs(params: {
 		FROM logs
 		WHERE TraceId = {traceId:String}
 			AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
-			AND LogAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
+			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 		ORDER BY Timestamp ${order}
 		${limitClause}
 	`;
@@ -94,7 +94,7 @@ async function isFailedPipelineStep(params: {
 		FROM traces
 		WHERE TraceId = {traceId:String}
 			AND ResourceAttributes['cicd.pipeline.task.name'] = {jobName:String}
-			AND SpanAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
+			AND SpanAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 			AND (
 				lowerUTF8(StatusMessage) IN ('failure', 'failed')
 				OR lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
@@ -153,7 +153,7 @@ export function buildFailingStepLogsSql(): string {
 				FROM logs
 				WHERE TraceId = {traceId:String}
 					AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
-					AND LogAttributes['citric.github.workflow_job_step.number'] = {stepNumber:String}
+					AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 			),
 			anchors AS (
 				SELECT groupArray(line_no) AS anchor_line_nos
@@ -228,8 +228,8 @@ export const getLatestRuns = createServerFn({
     const runSummarySql = runSummarySubquery({
       whereClause: `ResourceAttributes['cicd.pipeline.run.id'] != ''
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['citric.test.name'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.test.name'] = ''
 				AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}`,
       groupByExpr: "TraceId",
       groupByAlias: "trace_id",
@@ -274,7 +274,7 @@ export const getRunDetails = createServerFn({
     const sql = `
 			SELECT
 					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-					anyLast(toUInt32OrZero(ResourceAttributes['citric.github.workflow_job.run_attempt'])) as run_attempt,
+					anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
 					anyLast(ResourceAttributes['vcs.repository.name']) as repo,
 					anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
 					coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
@@ -355,7 +355,7 @@ export const getJobSteps = createServerFn({
     const sql = `
 			SELECT
 					SpanName as name,
-					SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
+					SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
 					StatusMessage as conclusion,
 					if(
 						lowerUTF8(StatusMessage) = 'skip',
@@ -365,7 +365,7 @@ export const getJobSteps = createServerFn({
 			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
-				AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
 			ORDER BY toUInt32OrZero(stepNumber)
 		`;
 
@@ -400,7 +400,7 @@ export const getAllJobsSteps = createServerFn({
       SELECT
         ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
         SpanName as name,
-        SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
+        SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
         StatusMessage as conclusion,
         if(
           lowerUTF8(StatusMessage) = 'skip',
@@ -410,7 +410,7 @@ export const getAllJobsSteps = createServerFn({
       FROM traces
       WHERE TraceId = {traceId:String}
         AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
-        AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
+        AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
       ORDER BY jobId, toUInt32OrZero(stepNumber)
     `;
     const rows = await query<{
@@ -490,21 +490,21 @@ export const getRunSpans = createServerFn({
 				StatusMessage as conclusion,
 				ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
 				ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-				SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
-				ResourceAttributes['citric.github.workflow_job.created_at'] as createdAt,
-				ResourceAttributes['citric.github.workflow_job.started_at'] as startedAt,
+				SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
+				ResourceAttributes['everr.github.workflow_job.created_at'] as createdAt,
+				ResourceAttributes['everr.github.workflow_job.started_at'] as startedAt,
 				ResourceAttributes['vcs.ref.head.name'] as headBranch,
 				ResourceAttributes['vcs.ref.head.revision'] as headSha,
 				ResourceAttributes['cicd.worker.name'] as runnerName,
 				ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
 				ResourceAttributes['cicd.pipeline.task.run.sender.login'] as sender,
-				ResourceAttributes['citric.github.workflow_job.run_attempt'] as runAttempt,
+				ResourceAttributes['everr.github.workflow_job.run_attempt'] as runAttempt,
 				ResourceAttributes['cicd.pipeline.task.run.url.full'] as htmlUrl,
-				SpanAttributes['citric.test.name'] as testName,
-				SpanAttributes['citric.test.result'] as testResult,
-				SpanAttributes['citric.test.duration_seconds'] as testDuration,
-				SpanAttributes['citric.test.framework'] as testFramework,
-				SpanAttributes['citric.test.is_subtest'] as isSubtest
+				SpanAttributes['everr.test.name'] as testName,
+				SpanAttributes['everr.test.result'] as testResult,
+				SpanAttributes['everr.test.duration_seconds'] as testDuration,
+				SpanAttributes['everr.test.framework'] as testFramework,
+				SpanAttributes['everr.test.is_subtest'] as isSubtest
 			FROM traces
 			WHERE TraceId = {traceId:String}
 			ORDER BY startTime ASC

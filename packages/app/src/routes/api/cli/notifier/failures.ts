@@ -116,11 +116,11 @@ export const Route = createFileRoute("/api/cli/notifier/failures")({
                 TraceId as trace_id,
                 ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
                 ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-                SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
+                SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
                 anyLast(SpanName) as stepName
               FROM traces
               WHERE TraceId IN {traceIds:Array(String)}
-                AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
+                AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
                 AND lowerUTF8(StatusMessage) NOT IN ('success', 'skip')
               GROUP BY trace_id, jobId, jobName, stepNumber
             `,

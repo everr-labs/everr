@@ -541,8 +541,8 @@ export const getWorkflowTopFailingJobs = createServerFn({
 				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.name'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['citric.test.name'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.test.name'] = ''
 			GROUP BY jobName
 			ORDER BY failureCount DESC
 			LIMIT 10
@@ -585,7 +585,7 @@ export const getWorkflowFailureReasons = createServerFn({
 				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 				AND StatusMessage != ''
 			GROUP BY pattern
 			ORDER BY count DESC
@@ -654,8 +654,8 @@ export const getWorkflowCost = createServerFn({
 					AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
 					AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 					AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
-					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-					AND SpanAttributes['citric.test.name'] = ''
+					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+					AND SpanAttributes['everr.test.name'] = ''
 				GROUP BY labels
 			`,
         {
@@ -685,8 +685,8 @@ export const getWorkflowCost = createServerFn({
 					AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
 					AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 					AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
-					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-					AND SpanAttributes['citric.test.name'] = ''
+					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+					AND SpanAttributes['everr.test.name'] = ''
 				GROUP BY date, labels
 				ORDER BY date ASC
 			`,
@@ -762,8 +762,8 @@ export const getWorkflowRecentRuns = createServerFn({
 				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['citric.test.name'] = ''`,
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.test.name'] = ''`,
       groupByExpr: "TraceId",
       groupByAlias: "trace_id",
       includeRunAttempt: true,

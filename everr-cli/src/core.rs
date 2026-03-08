@@ -354,20 +354,20 @@ mod tests {
     #[test]
     fn parse_repo_from_remote_rejects_invalid_values() {
         assert_eq!(
-            parse_repo_from_remote_url("https://github.com/citric-app"),
+            parse_repo_from_remote_url("https://github.com/everr-app"),
             None
         );
-        assert_eq!(parse_repo_from_remote_url("citric-app"), None);
+        assert_eq!(parse_repo_from_remote_url("everr-app"), None);
         assert_eq!(parse_repo_from_remote_url(""), None);
     }
 
     #[test]
     fn push_opt_only_includes_present_values() {
         let mut query = Vec::new();
-        push_opt(&mut query, "repo", Some("citric-app/citric".to_string()));
+        push_opt(&mut query, "repo", Some("everr-labs/everr".to_string()));
         push_opt(&mut query, "branch", None);
 
-        assert_eq!(query, vec![("repo", "citric-app/citric".to_string())]);
+        assert_eq!(query, vec![("repo", "everr-labs/everr".to_string())]);
     }
 
     #[test]
