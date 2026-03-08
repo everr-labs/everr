@@ -1,0 +1,76 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@tanstack/react-start", () => ({
+  createServerFn: vi.fn(() => ({
+    inputValidator: () => ({
+      handler: (fn: (...args: unknown[]) => unknown) => fn,
+    }),
+  })),
+}));
+
+vi.mock("@/lib/clickhouse", () => ({
+  query: vi.fn(),
+}));
+
+import { query } from "@/lib/clickhouse";
+import { getWaitPipelineStatus } from "./wait-pipeline";
+
+const mockedQuery = vi.mocked(query);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("getWaitPipelineStatus", () => {
+  it("matches short commit SHA prefixes in the pipeline query", async () => {
+    mockedQuery.mockResolvedValue([
+      {
+        subjectId: "88",
+        subjectName: "CI",
+        htmlUrl: "https://github.com/everr-labs/everr/actions/runs/88",
+        phase: "finished",
+        conclusion: "success",
+        lastEventTime: "2026-03-06T10:01:00Z",
+        eventKind: "pipelinerun",
+        pipelineRunId: "",
+        durationSeconds: "61",
+      },
+    ]);
+
+    const result = await getWaitPipelineStatus({
+      data: {
+        repo: "everr-labs/everr",
+        branch: "feature/wait-short-commit",
+        commit: "7f14b13",
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "AND startsWith(sha, {commit:String})",
+    );
+    expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
+      repo: "everr-labs/everr",
+      branch: "feature/wait-short-commit",
+      commit: "7f14b13",
+    });
+    expect(result).toEqual({
+      repo: "everr-labs/everr",
+      branch: "feature/wait-short-commit",
+      commit: "7f14b13",
+      pipelineFound: true,
+      activeRuns: [],
+      completedRuns: [
+        {
+          runId: "88",
+          workflowName: "CI",
+          phase: "finished",
+          conclusion: "success",
+          lastEventTime: "2026-03-06T10:01:00Z",
+          durationSeconds: 61,
+          activeJobs: [],
+        },
+      ],
+    });
+  });
+});

@@ -32,7 +32,7 @@ export const getWaitPipelineStatus = createServerFn({
       FROM app.cdevents
       WHERE repository = {repo:String}
         AND ref = {branch:String}
-        AND sha = {commit:String}
+        AND startsWith(sha, {commit:String})
         AND event_time >= now() - INTERVAL 14 DAY
       GROUP BY subject_id
       ORDER BY lastEventTime DESC

@@ -593,6 +593,52 @@ fn wait_accepts_short_commit_sha_prefix() {
 }
 
 #[test]
+fn wait_fails_when_completed_runs_include_failure() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/wait-failed-run",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let head_sha = git_head_sha(&repo_dir);
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let poll = server
+        .mock("GET", "/api/cli/runs")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/wait-failed-run".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+        ]))
+        .with_status(200)
+        .with_body(format!(
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-failed-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","phase":"finished","conclusion":"failure","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+        ))
+        .expect(1)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args([
+            "wait-pipeline",
+            "--timeout-seconds",
+            "2",
+            "--interval-seconds",
+            "0",
+        ])
+        .assert()
+        .failure()
+        .stdout(contains("\"conclusion\": \"failure\""))
+        .stderr(contains("pipeline finished with failed run(s): CI"));
+
+    poll.assert();
+}
+
+#[test]
 fn wait_times_out_when_head_sha_is_not_found() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
