@@ -49,7 +49,7 @@ describe("getGitHubEventsConfig", () => {
     const { getGitHubEventsConfig } = await import("./config");
     expect(getGitHubEventsConfig()).toMatchObject({
       source: "github-enterprise",
-      collectorURL: "https://collector.example.com/hook",
+      collectorURL: "https://collector.example.com",
       workerCount: 2,
       workerBatchSize: 10,
       maxAttempts: 10,
