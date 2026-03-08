@@ -37,9 +37,6 @@ type SetupStatus = {
     status: "installed" | "not_installed";
     install_path: string;
   };
-  settings: {
-    base_url: string;
-  };
   wizard_state: {
     wizard_completed: boolean;
     assistant_step_seen: boolean;
@@ -124,9 +121,6 @@ function createSetupStatus({
       status: cliInstalled ? "installed" : "not_installed",
       install_path: "/tmp/everr/bin/everr",
     },
-    settings: {
-      base_url: "http://localhost:5173",
-    },
     wizard_state: {
       wizard_completed: wizardCompleted,
       assistant_step_seen: assistantStepSeen,
@@ -188,7 +182,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
     (cmd, args) => {
       const payload = (args ?? {}) as {
         assistants?: AssistantKind[];
-        baseUrl?: string;
         enabled?: boolean;
         step?: "assistants" | "launch_at_login";
       };
@@ -196,14 +189,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
       switch (cmd) {
         case "get_setup_status":
           return setupStatus;
-        case "update_base_url":
-          setupStatus = {
-            ...setupStatus,
-            settings: {
-              base_url: payload.baseUrl ?? setupStatus.settings.base_url,
-            },
-          };
-          return setupStatus.settings;
         case "start_sign_in":
           setupStatus = {
             ...setupStatus,
@@ -313,7 +298,7 @@ describe("desktop window", () => {
     renderMainApp();
 
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByDisplayValue("http://localhost:5173")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
     expect(screen.queryByText("Authenticate your Everr account")).not.toBeInTheDocument();
     expect(screen.getByText("Background tasks")).toBeInTheDocument();
   });
@@ -392,7 +377,6 @@ describe("desktop window", () => {
 
     const codex = await screen.findByRole("checkbox", { name: /codex/i });
     const cursor = screen.getByRole("checkbox", { name: /cursor/i });
-    const claude = screen.getByRole("checkbox", { name: /claude/i });
 
     fireEvent.click(codex);
     fireEvent.click(cursor);

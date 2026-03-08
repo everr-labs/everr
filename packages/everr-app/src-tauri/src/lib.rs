@@ -1,17 +1,20 @@
 use std::collections::VecDeque;
 use std::fs;
-use std::path::PathBuf;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use everr_core::api::{ApiClient, FailureNotification};
 use everr_core::assistant::{self, AssistantKind, AssistantStatus};
-use everr_core::auth::{login_with_prompt, AuthConfig, SessionStore};
+use everr_core::auth::{is_no_active_session_error, login_with_prompt, AuthConfig, SessionStore};
+use everr_core::build;
 use everr_core::git::resolve_git_context;
 use everr_core::notifier::FailureTracker;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
@@ -27,10 +30,7 @@ use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
-const APP_NAMESPACE: &str = "everr";
-const CLI_COMMAND_NAME: &str = "everr";
 const POLL_INTERVAL_SECONDS: u64 = 45;
-const API_BASE_URL: &str = "http://localhost:5173";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
@@ -47,7 +47,8 @@ struct RuntimeState {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 struct AppSettings {
-    base_url: String,
+    #[serde(default)]
+    completed_base_url: Option<String>,
     #[serde(flatten)]
     wizard_state: WizardState,
 }
@@ -55,7 +56,7 @@ struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            base_url: API_BASE_URL.to_string(),
+            completed_base_url: None,
             wizard_state: WizardState::default(),
         }
     }
@@ -90,16 +91,9 @@ struct CliInstallStatusResponse {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-struct SettingsResponse {
-    base_url: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "snake_case")]
 struct SetupStatusResponse {
     auth_status: AuthStatusResponse,
     cli_status: CliInstallStatusResponse,
-    settings: SettingsResponse,
     wizard_state: WizardState,
     assistant_statuses: Vec<AssistantStatus>,
     launch_at_login_enabled: bool,
@@ -161,13 +155,8 @@ fn get_auth_status(state: State<'_, RuntimeState>) -> Result<AuthStatusResponse,
 }
 
 #[tauri::command]
-fn get_cli_install_status() -> Result<CliInstallStatusResponse, String> {
-    cli_install_status_response().map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn get_settings(state: State<'_, RuntimeState>) -> Result<SettingsResponse, String> {
-    settings_response(state.inner()).map_err(|error| error.to_string())
+fn get_cli_install_status(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
+    cli_install_status_response(&app).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -187,27 +176,6 @@ fn get_active_notification(
         .lock()
         .map_err(|_| "failed to lock notifier state".to_string())?;
     Ok(notifier.queue.active().cloned())
-}
-
-#[tauri::command]
-fn update_base_url(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-    base_url: String,
-) -> Result<SettingsResponse, String> {
-    let trimmed = base_url.trim();
-    if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
-        return Err("Base URL must start with http:// or https://".to_string());
-    }
-
-    update_settings(state.inner(), |settings| {
-        settings.base_url = trimmed.to_string();
-    })
-    .map_err(|error| error.to_string())?;
-
-    emit_settings_changed(&app);
-
-    get_settings(state)
 }
 
 #[tauri::command]
@@ -233,7 +201,7 @@ fn sign_out(state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String
 #[tauri::command]
 fn install_cli(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
     install_cli_bundle(&app).map_err(|error| error.to_string())?;
-    get_cli_install_status()
+    get_cli_install_status(app)
 }
 
 #[tauri::command]
@@ -242,7 +210,8 @@ fn configure_assistants(
     state: State<'_, RuntimeState>,
     assistants: Vec<AssistantKind>,
 ) -> Result<SetupStatusResponse, String> {
-    assistant::sync_assistants(&assistants, CLI_COMMAND_NAME).map_err(|error| error.to_string())?;
+    assistant::sync_assistants(&assistants, build::command_name())
+        .map_err(|error| error.to_string())?;
     update_settings(state.inner(), |settings| {
         settings.wizard_state.selected_assistants = assistants;
         settings.wizard_state.assistant_step_seen = true;
@@ -295,7 +264,7 @@ fn complete_setup_wizard(
 ) -> Result<SetupStatusResponse, String> {
     if !state
         .session_store
-        .has_active_session()
+        .has_active_session_for_api_base_url(build::default_api_base_url())
         .map_err(|error| error.to_string())?
     {
         return Err("Sign in before finishing setup.".to_string());
@@ -309,6 +278,7 @@ fn complete_setup_wizard(
     }
 
     update_settings(state.inner(), |settings| {
+        settings.completed_base_url = Some(build::default_api_base_url().to_string());
         settings.wizard_state.wizard_completed = true;
         settings.wizard_state.assistant_step_seen = true;
         settings.wizard_state.launch_at_login_step_seen = true;
@@ -336,7 +306,7 @@ fn trigger_test_notification(
     app: AppHandle,
     state: State<'_, RuntimeState>,
 ) -> Result<TestNotificationResponse, String> {
-    let notification = build_test_notification(state.inner()).map_err(|error| error.to_string())?;
+    let notification = build_test_notification().map_err(|error| error.to_string())?;
     let shown = {
         let mut notifier = state
             .notifier
@@ -383,8 +353,12 @@ pub fn run() {
                 None::<Vec<&str>>,
             ))?;
 
-            let session_store = SessionStore::for_namespace(APP_NAMESPACE);
+            let session_store = SessionStore::for_namespace(build::session_namespace());
+            let _ = session_store.clear_mismatched_session(build::default_api_base_url())?;
             let settings = load_app_settings(&session_store)?;
+            if let Err(error) = sync_installed_cli(app.handle()) {
+                eprintln!("[everr-app] failed to sync installed CLI: {error}");
+            }
             build_tray(app.handle())?;
             let runtime = RuntimeState {
                 session_store,
@@ -402,9 +376,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_auth_status,
             get_setup_status,
-            get_settings,
             get_active_notification,
-            update_base_url,
             start_sign_in,
             sign_out,
             install_cli,
@@ -451,7 +423,7 @@ fn build_tray(app: &AppHandle) -> Result<()> {
 }
 
 async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
-    let auth_config = current_auth_config(&state)?;
+    let auth_config = current_auth_config();
 
     login_with_prompt(&auth_config, &state.session_store, |verification_url, _| {
         let _ = webbrowser::open(&verification_url);
@@ -466,15 +438,19 @@ async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
 fn install_cli_bundle(app: &AppHandle) -> Result<()> {
     let bundled_cli_path = bundled_cli_path(app)?;
     let install_path = cli_install_path()?;
+    install_cli_from_path(&bundled_cli_path, &install_path)
+}
+
+fn install_cli_from_path(source_path: &Path, install_path: &Path) -> Result<()> {
     if let Some(parent) = install_path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
 
-    fs::copy(&bundled_cli_path, &install_path).with_context(|| {
+    fs::copy(source_path, install_path).with_context(|| {
         format!(
             "failed to copy bundled CLI from {} to {}",
-            bundled_cli_path.display(),
+            source_path.display(),
             install_path.display()
         )
     })?;
@@ -494,6 +470,48 @@ fn install_cli_bundle(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
+fn sync_installed_cli(app: &AppHandle) -> Result<bool> {
+    let install_path = cli_install_path()?;
+    if !install_path.exists() {
+        return Ok(false);
+    }
+
+    let bundled_cli_path = bundled_cli_path(app)?;
+    sync_installed_cli_from_paths(&bundled_cli_path, &install_path)
+}
+
+fn sync_installed_cli_from_paths(bundled_cli_path: &Path, install_path: &Path) -> Result<bool> {
+    if !install_path.exists() {
+        return Ok(false);
+    }
+
+    if cli_sha256(bundled_cli_path)? == cli_sha256(install_path)? {
+        return Ok(false);
+    }
+
+    install_cli_from_path(bundled_cli_path, install_path)?;
+    Ok(true)
+}
+
+fn cli_sha256(path: &Path) -> Result<[u8; 32]> {
+    let mut file =
+        fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8 * 1024];
+
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    Ok(hasher.finalize().into())
+}
+
 fn cli_install_path() -> Result<PathBuf> {
     let home = dirs::home_dir().context("failed to resolve home directory")?;
     Ok(home.join(".local").join("bin").join("everr"))
@@ -507,16 +525,6 @@ fn bundled_cli_path(app: &AppHandle) -> Result<PathBuf> {
     let direct = resource_dir.join("everr");
     if direct.exists() {
         return Ok(direct);
-    }
-
-    let preserved_source_path = resource_dir
-        .join("_up_")
-        .join("_up_")
-        .join("docs")
-        .join("public")
-        .join("everr");
-    if preserved_source_path.exists() {
-        return Ok(preserved_source_path);
     }
 
     Err(anyhow!(
@@ -538,7 +546,10 @@ fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
 
 fn auth_status_response(state: &RuntimeState) -> Result<AuthStatusResponse> {
     let session_path = state.session_store.session_file_path()?;
-    let status = if state.session_store.has_active_session()? {
+    let status = if state
+        .session_store
+        .has_active_session_for_api_base_url(build::default_api_base_url())?
+    {
         "signed_in"
     } else {
         "signed_out"
@@ -550,7 +561,11 @@ fn auth_status_response(state: &RuntimeState) -> Result<AuthStatusResponse> {
     })
 }
 
-fn cli_install_status_response() -> Result<CliInstallStatusResponse> {
+fn cli_install_status_response(app: &AppHandle) -> Result<CliInstallStatusResponse> {
+    if let Err(error) = sync_installed_cli(app) {
+        eprintln!("[everr-app] failed to sync installed CLI: {error}");
+    }
+
     let install_path = cli_install_path()?;
     let status = if install_path.exists() {
         "installed"
@@ -564,17 +579,6 @@ fn cli_install_status_response() -> Result<CliInstallStatusResponse> {
     })
 }
 
-fn settings_response(state: &RuntimeState) -> Result<SettingsResponse> {
-    let settings = state
-        .settings
-        .lock()
-        .map_err(|_| anyhow!("failed to lock settings"))?;
-
-    Ok(SettingsResponse {
-        base_url: settings.base_url.clone(),
-    })
-}
-
 fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStatusResponse> {
     let assistant_statuses = assistant::assistant_statuses()?;
     let launch_at_login_enabled = app.autolaunch().is_enabled()?;
@@ -582,10 +586,7 @@ fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStat
 
     Ok(SetupStatusResponse {
         auth_status: auth_status_response(state)?,
-        cli_status: cli_install_status_response()?,
-        settings: SettingsResponse {
-            base_url: settings.base_url,
-        },
+        cli_status: cli_install_status_response(app)?,
         wizard_state: settings.wizard_state,
         assistant_statuses,
         launch_at_login_enabled,
@@ -593,11 +594,13 @@ fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStat
 }
 
 fn current_settings(state: &RuntimeState) -> Result<AppSettings> {
-    state
+    let mut settings = state
         .settings
         .lock()
         .map_err(|_| anyhow!("failed to lock settings"))
-        .map(|settings| settings.clone())
+        .map(|settings| settings.clone())?;
+    apply_runtime_settings(&mut settings);
+    Ok(settings)
 }
 
 fn update_settings<F>(state: &RuntimeState, mutate: F) -> Result<()>
@@ -622,7 +625,7 @@ fn wizard_incomplete(state: &RuntimeState) -> Result<bool> {
     Ok(!current_settings(state)?.wizard_state.wizard_completed)
 }
 
-fn build_test_notification(state: &RuntimeState) -> Result<FailureNotification> {
+fn build_test_notification() -> Result<FailureNotification> {
     let now = OffsetDateTime::now_utc();
     let timestamp = now
         .format(&Rfc3339)
@@ -638,10 +641,7 @@ fn build_test_notification(state: &RuntimeState) -> Result<FailureNotification> 
         ),
         None => ("local repository".to_string(), "current branch".to_string()),
     };
-    let details_url = format!(
-        "{}/dashboard",
-        current_base_url(state)?.trim_end_matches('/')
-    );
+    let details_url = format!("{}/dashboard", current_base_url().trim_end_matches('/'));
 
     Ok(FailureNotification {
         dedupe_key: format!("dev-settings-test-{nonce}"),
@@ -658,9 +658,13 @@ fn build_test_notification(state: &RuntimeState) -> Result<FailureNotification> 
 }
 
 async fn poll_and_notify(app: &AppHandle, state: &RuntimeState) -> Result<()> {
-    let session = match state.session_store.load_session() {
+    let session = match state
+        .session_store
+        .load_session_for_api_base_url(build::default_api_base_url())
+    {
         Ok(session) => session,
-        Err(_) => return Ok(()),
+        Err(error) if is_no_active_session_error(&error) => return Ok(()),
+        Err(error) => return Err(error),
     };
 
     let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
@@ -670,8 +674,6 @@ async fn poll_and_notify(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         None => return Ok(()),
     };
 
-    let mut session = session;
-    session.api_base_url = current_base_url(state)?;
     let client = ApiClient::from_session(&session)?;
     let response = client
         .get_owned_failures(git_email, git.repo.as_deref(), git.branch.as_deref())
@@ -881,18 +883,14 @@ fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
     Ok((x as f64 / scale_factor, y as f64 / scale_factor))
 }
 
-fn current_auth_config(state: &RuntimeState) -> Result<AuthConfig> {
-    Ok(AuthConfig {
-        api_base_url: current_base_url(state)?,
-    })
+fn current_auth_config() -> AuthConfig {
+    AuthConfig {
+        api_base_url: current_base_url().to_string(),
+    }
 }
 
-fn current_base_url(state: &RuntimeState) -> Result<String> {
-    let settings = state
-        .settings
-        .lock()
-        .map_err(|_| anyhow!("failed to lock settings"))?;
-    Ok(settings.base_url.clone())
+fn current_base_url() -> &'static str {
+    build::default_api_base_url()
 }
 
 fn settings_file_path(session_store: &SessionStore) -> Result<PathBuf> {
@@ -921,8 +919,12 @@ fn load_app_settings(session_store: &SessionStore) -> Result<AppSettings> {
         &mut settings,
         needs_legacy_wizard_migration(session_store, path.exists(), has_wizard_metadata)?,
     );
+    let completed_base_url_migrated = migrate_completed_base_url(&mut settings);
 
-    if migrated || should_persist && settings.wizard_state.wizard_completed {
+    if migrated
+        || completed_base_url_migrated
+        || should_persist && settings.wizard_state.wizard_completed
+    {
         save_app_settings(session_store, &settings)?;
     }
 
@@ -946,38 +948,9 @@ fn open_settings_window(app: &AppHandle) -> Result<()> {
         .get_webview_window("main")
         .ok_or_else(|| anyhow!("settings window not found"))?;
 
-    if let Some(pos) = settings_window_position(app, &window) {
-        let _ = window.set_position(LogicalPosition::new(pos.0, pos.1));
-    }
-
     window.show()?;
     window.set_focus()?;
     Ok(())
-}
-
-fn settings_window_position(app: &AppHandle, window: &WebviewWindow) -> Option<(f64, f64)> {
-    let tray = app.tray_by_id("everr-app")?;
-    let tray_rect = tray.rect().ok()??;
-
-    let scale = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| m.scale_factor())
-        .unwrap_or(1.0);
-
-    let tray_pos = tray_rect.position.to_logical::<f64>(scale);
-    let tray_size = tray_rect.size.to_logical::<f64>(scale);
-
-    let window_width = window
-        .outer_size()
-        .map(|s| s.width as f64 / scale)
-        .unwrap_or(620.0);
-
-    let x = tray_pos.x + tray_size.width / 2.0 - window_width / 2.0;
-    let y = tray_pos.y + tray_size.height + 4.0;
-
-    Some((x, y))
 }
 
 fn value_has_wizard_metadata(value: &Value) -> bool {
@@ -1015,14 +988,33 @@ fn apply_wizard_migration(settings: &mut AppSettings, should_complete_wizard: bo
     true
 }
 
+fn migrate_completed_base_url(settings: &mut AppSettings) -> bool {
+    if settings.wizard_state.wizard_completed && settings.completed_base_url.is_none() {
+        settings.completed_base_url = Some(current_base_url().to_string());
+        return true;
+    }
+
+    false
+}
+
+fn apply_runtime_settings(settings: &mut AppSettings) {
+    if settings.wizard_state.wizard_completed
+        && settings.completed_base_url.as_deref() != Some(current_base_url())
+    {
+        settings.wizard_state.wizard_completed = false;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use everr_core::api::FailureNotification;
     use serde_json::json;
+    use tempfile::tempdir;
 
     use super::{
-        apply_wizard_migration, value_has_wizard_metadata, AppSettings, NotificationQueue,
-        WizardState,
+        apply_runtime_settings, apply_wizard_migration, current_base_url,
+        migrate_completed_base_url, sync_installed_cli_from_paths, value_has_wizard_metadata,
+        AppSettings, NotificationQueue, WizardState,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1108,7 +1100,7 @@ mod tests {
     #[test]
     fn legacy_settings_are_marked_complete_during_migration() {
         let mut settings = AppSettings {
-            base_url: "http://localhost:5173".to_string(),
+            completed_base_url: None,
             wizard_state: WizardState::default(),
         };
 
@@ -1137,4 +1129,101 @@ mod tests {
         })));
     }
 
+    #[test]
+    fn completed_wizard_gets_current_build_base_url_during_migration() {
+        let mut settings = AppSettings {
+            completed_base_url: None,
+            wizard_state: WizardState {
+                wizard_completed: true,
+                assistant_step_seen: true,
+                launch_at_login_step_seen: true,
+                selected_assistants: Vec::new(),
+            },
+        };
+
+        assert!(migrate_completed_base_url(&mut settings));
+        assert_eq!(
+            settings.completed_base_url.as_deref(),
+            Some(current_base_url())
+        );
+    }
+
+    #[test]
+    fn mismatched_completed_base_url_reopens_the_wizard() {
+        let mut settings = AppSettings {
+            completed_base_url: Some("https://app.everr.dev".to_string()),
+            wizard_state: WizardState {
+                wizard_completed: true,
+                assistant_step_seen: true,
+                launch_at_login_step_seen: true,
+                selected_assistants: Vec::new(),
+            },
+        };
+
+        apply_runtime_settings(&mut settings);
+        assert!(!settings.wizard_state.wizard_completed);
+    }
+
+    #[test]
+    fn legacy_base_url_field_is_ignored_during_deserialization() {
+        let settings = serde_json::from_value::<AppSettings>(json!({
+            "base_url": "https://app.everr.dev",
+            "wizard_completed": true,
+            "assistant_step_seen": true,
+            "launch_at_login_step_seen": true,
+            "selected_assistants": ["codex"],
+        }))
+        .expect("parse settings");
+
+        assert_eq!(settings.completed_base_url, None);
+        assert!(settings.wizard_state.wizard_completed);
+        assert_eq!(
+            settings.wizard_state.selected_assistants,
+            vec![super::AssistantKind::Codex]
+        );
+    }
+
+    #[test]
+    fn sync_installed_cli_returns_false_when_install_is_missing() {
+        let temp = tempdir().expect("tempdir");
+        let bundled = temp.path().join("bundled-everr");
+        let installed = temp.path().join("installed-everr");
+
+        std::fs::write(&bundled, b"bundled").expect("write bundled cli");
+
+        assert!(!sync_installed_cli_from_paths(&bundled, &installed).expect("sync cli install"));
+        assert!(!installed.exists());
+    }
+
+    #[test]
+    fn sync_installed_cli_returns_false_when_hashes_match() {
+        let temp = tempdir().expect("tempdir");
+        let bundled = temp.path().join("bundled-everr");
+        let installed = temp.path().join("installed-everr");
+
+        std::fs::write(&bundled, b"same").expect("write bundled cli");
+        std::fs::write(&installed, b"same").expect("write installed cli");
+
+        assert!(!sync_installed_cli_from_paths(&bundled, &installed).expect("sync cli install"));
+        assert_eq!(
+            std::fs::read(&installed).expect("read installed cli"),
+            b"same"
+        );
+    }
+
+    #[test]
+    fn sync_installed_cli_replaces_outdated_binary() {
+        let temp = tempdir().expect("tempdir");
+        let bundled = temp.path().join("bundled-everr");
+        let installed = temp.path().join("installed-everr");
+
+        std::fs::write(&bundled, b"new-cli").expect("write bundled cli");
+        std::fs::write(&installed, b"old-cli").expect("write installed cli");
+
+        assert!(sync_installed_cli_from_paths(&bundled, &installed).expect("sync cli install"));
+        assert_eq!(
+            std::fs::read(&installed).expect("read installed cli"),
+            b"new-cli"
+        );
+    }
 }

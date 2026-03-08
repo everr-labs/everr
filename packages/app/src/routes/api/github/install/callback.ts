@@ -107,7 +107,11 @@ export const Route = createFileRoute("/api/github/install/callback")({
           );
         }
 
-        return redirectToDashboard(callbackURL.origin, "linked");
+        const successUrl = new URL(
+          "/onboarding/github-success",
+          callbackURL.origin,
+        );
+        return Response.redirect(successUrl.toString(), 302);
       },
     },
   },
