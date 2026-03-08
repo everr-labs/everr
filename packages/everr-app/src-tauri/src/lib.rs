@@ -673,7 +673,6 @@ fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStat
     let assistant_statuses = assistant::assistant_statuses()?;
     let launch_at_login_enabled = app.autolaunch().is_enabled()?;
     let settings = current_settings(state)?;
-    let wizard_state = response_wizard_state(&settings.wizard_state, &assistant_statuses);
 
     Ok(SetupStatusResponse {
         auth_status: auth_status_response(state)?,
@@ -681,7 +680,7 @@ fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStat
         settings: SettingsResponse {
             base_url: settings.base_url,
         },
-        wizard_state,
+        wizard_state: settings.wizard_state,
         assistant_statuses,
         launch_at_login_enabled,
     })
@@ -693,21 +692,6 @@ fn current_settings(state: &RuntimeState) -> Result<AppSettings> {
         .lock()
         .map_err(|_| anyhow!("failed to lock settings"))
         .map(|settings| settings.clone())
-}
-
-fn response_wizard_state(
-    stored: &WizardState,
-    assistant_statuses: &[AssistantStatus],
-) -> WizardState {
-    let mut response = stored.clone();
-    if response.selected_assistants.is_empty() {
-        response.selected_assistants = assistant_statuses
-            .iter()
-            .filter(|status| status.configured)
-            .map(|status| status.assistant)
-            .collect();
-    }
-    response
 }
 
 fn update_settings<F>(state: &RuntimeState, mutate: F) -> Result<()>
@@ -1098,12 +1082,11 @@ fn apply_wizard_migration(settings: &mut AppSettings, should_complete_wizard: bo
 #[cfg(test)]
 mod tests {
     use everr_core::api::FailureNotification;
-    use everr_core::assistant::{AssistantKind, AssistantStatus};
     use serde_json::json;
 
     use super::{
-        apply_wizard_migration, response_wizard_state, value_has_wizard_metadata, AppSettings,
-        NotificationQueue, WizardState,
+        apply_wizard_migration, value_has_wizard_metadata, AppSettings, NotificationQueue,
+        WizardState,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1218,26 +1201,4 @@ mod tests {
         })));
     }
 
-    #[test]
-    fn response_wizard_state_falls_back_to_configured_assistants() {
-        let wizard_state = WizardState::default();
-        let statuses = vec![
-            AssistantStatus {
-                assistant: AssistantKind::Codex,
-                detected: true,
-                configured: true,
-                path: "/tmp/.codex/AGENTS.md".to_string(),
-            },
-            AssistantStatus {
-                assistant: AssistantKind::Claude,
-                detected: false,
-                configured: false,
-                path: "/tmp/.claude/CLAUDE.md".to_string(),
-            },
-        ];
-
-        let response = response_wizard_state(&wizard_state, &statuses);
-
-        assert_eq!(response.selected_assistants, vec![AssistantKind::Codex]);
-    }
 }

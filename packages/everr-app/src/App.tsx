@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import {
@@ -8,10 +9,10 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Separator } from "./components/ui/separator";
+import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";
 import {
   formatNotificationAbsoluteTime,
@@ -23,6 +24,7 @@ const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
 const NOTIFICATION_WINDOW_LABEL = "notification";
 const SETTINGS_CHANGED_EVENT = "everr://settings-changed";
 const AUTH_CHANGED_EVENT = "everr://auth-changed";
+const SETTINGS_TOAST_ID = "settings-feedback";
 
 const WIZARD_STEPS = [
   {
@@ -115,11 +117,6 @@ type FailureNotification = {
   step_name?: string;
 };
 
-type FlashMessage = {
-  tone: "success" | "error";
-  text: string;
-};
-
 function App() {
   const [windowLabel] = useState(resolveWindowLabel);
 
@@ -147,11 +144,18 @@ function DesktopApp() {
   const [assistantDraftDirty, setAssistantDraftDirty] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const [busy, setBusy] = useState<BusyAction>(null);
-  const [message, setMessage] = useState<FlashMessage | null>(null);
 
   const signedIn = setupStatus?.auth_status.status === "signed_in";
   const cliInstalled = setupStatus?.cli_status.status === "installed";
   const showingWizard = setupStatus ? !setupStatus.wizard_state.wizard_completed : false;
+
+  function showSuccessToast(text: string) {
+    toast.success(text, { id: SETTINGS_TOAST_ID });
+  }
+
+  function showErrorToast(error: unknown) {
+    toast.error(toErrorMessageText(error), { id: SETTINGS_TOAST_ID });
+  }
 
   function syncSetupStatus(next: SetupStatus, preserveAssistantDraft = false) {
     setSetupStatus(next);
@@ -204,16 +208,12 @@ function DesktopApp() {
 
   async function signIn() {
     setBusy("signin");
-    setMessage(null);
     try {
       await invoke("start_sign_in");
       await refresh(false);
-      setMessage({
-        tone: "success",
-        text: "Signed in.",
-      });
+      showSuccessToast("Signed in.");
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -221,16 +221,12 @@ function DesktopApp() {
 
   async function installCli() {
     setBusy("install");
-    setMessage(null);
     try {
       await invoke("install_cli");
       await refresh(false);
-      setMessage({
-        tone: "success",
-        text: "CLI installed.",
-      });
+      showSuccessToast("CLI installed.");
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -238,19 +234,15 @@ function DesktopApp() {
 
   async function saveBaseUrl() {
     setBusy("save");
-    setMessage(null);
     try {
       const nextSettings = await invoke<Settings>("update_base_url", {
         baseUrl: baseUrlInput,
       });
       setBaseUrlInput(nextSettings.base_url);
       await refresh(assistantDraftDirty);
-      setMessage({
-        tone: "success",
-        text: "Base URL updated.",
-      });
+      showSuccessToast("Base URL updated.");
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -258,16 +250,12 @@ function DesktopApp() {
 
   async function logout() {
     setBusy("logout");
-    setMessage(null);
     try {
       await invoke("sign_out");
       await refresh(false);
-      setMessage({
-        tone: "success",
-        text: "Logged out.",
-      });
+      showSuccessToast("Logged out.");
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -275,22 +263,19 @@ function DesktopApp() {
 
   async function saveAssistants() {
     setBusy("assistants");
-    setMessage(null);
     try {
       const next = await invoke<SetupStatus>("configure_assistants", {
         assistants: assistantSelection,
       });
       setAssistantDraftDirty(false);
       syncSetupStatus(next);
-      setMessage({
-        tone: "success",
-        text:
-          assistantSelection.length > 0
-            ? "Assistant integrations updated."
-            : "Assistant integrations cleared.",
-      });
+      showSuccessToast(
+        assistantSelection.length > 0
+          ? "Assistant integrations updated."
+          : "Assistant integrations cleared.",
+      );
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -298,16 +283,14 @@ function DesktopApp() {
 
   async function updateLaunchAtLogin(enabled: boolean) {
     setBusy("launch");
-    setMessage(null);
     try {
       const next = await invoke<SetupStatus>("set_launch_at_login", { enabled });
       syncSetupStatus(next, assistantDraftDirty);
-      setMessage({
-        tone: "success",
-        text: enabled ? "Launch at login enabled." : "Launch at login disabled.",
-      });
+      showSuccessToast(
+        enabled ? "Launch at login enabled." : "Launch at login disabled.",
+      );
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -322,7 +305,6 @@ function DesktopApp() {
 
   async function finishWizard() {
     setBusy("finish");
-    setMessage(null);
     try {
       if (
         setupStatus &&
@@ -332,12 +314,9 @@ function DesktopApp() {
       }
       const next = await invoke<SetupStatus>("complete_setup_wizard");
       syncSetupStatus(next, assistantDraftDirty);
-      setMessage({
-        tone: "success",
-        text: "Setup complete.",
-      });
+      showSuccessToast("Setup complete.");
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -363,15 +342,15 @@ function DesktopApp() {
 
   async function skipOptionalWizardStep(step: OptionalSetupStep) {
     setBusy(step === "assistants" ? "assistants" : "launch");
-    setMessage(null);
     try {
       await markOptionalStepSeen(step);
-      setMessage({
-        tone: "success",
-        text: step === "assistants" ? "Skipped assistant setup for now." : "Skipped launch at login for now.",
-      });
+      showSuccessToast(
+        step === "assistants"
+          ? "Skipped assistant setup for now."
+          : "Skipped launch at login for now.",
+      );
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -379,18 +358,15 @@ function DesktopApp() {
 
   async function triggerTestNotification() {
     setBusy("notify");
-    setMessage(null);
     try {
       const result = await invoke<TestNotificationResponse>("trigger_test_notification");
-      setMessage({
-        tone: "success",
-        text:
-          result.status === "shown"
-            ? "Test notification displayed."
-            : "Test notification queued behind the active notification.",
-      });
+      showSuccessToast(
+        result.status === "shown"
+          ? "Test notification displayed."
+          : "Test notification queued behind the active notification.",
+      );
     } catch (error) {
-      setMessage(toErrorMessage(error));
+      showErrorToast(error);
     } finally {
       setBusy(null);
     }
@@ -413,7 +389,9 @@ function DesktopApp() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
+    <>
+      <Toaster closeButton position="top-right" richColors visibleToasts={1} />
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
         <Card className="w-full max-w-[860px] overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
           <CardHeader
             className="gap-5 border-b border-[color:var(--settings-border-soft)] px-6 pb-6 pt-16 max-[620px]:px-5"
@@ -424,9 +402,9 @@ function DesktopApp() {
                 <p className="m-0 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[var(--settings-text-soft)]">
                   Everr App
                 </p>
-                <CardTitle className="text-[clamp(2rem,5vw,2.8rem)] leading-none tracking-[-0.04em]">
+                <h1 className="m-0 text-[clamp(2rem,5vw,2.8rem)] font-medium leading-none tracking-[-0.04em]">
                   {showingWizard ? "Installation wizard" : "Settings"}
-                </CardTitle>
+                </h1>
                 <CardDescription className="max-w-[52ch] text-[0.95rem] leading-6 text-[var(--settings-text-muted)]">
                   {showingWizard
                     ? "Authenticate, choose assistant integrations, install the CLI, and decide whether Everr should start in the background when you log in."
@@ -437,24 +415,6 @@ function DesktopApp() {
           </CardHeader>
 
           <CardContent className="grid gap-0 px-0">
-            {message ? (
-              <>
-                <div className="px-6 pt-5 max-[620px]:px-5">
-                  <p
-                    className={cn(
-                      "m-0 rounded-2xl border px-4 py-3 text-sm leading-6",
-                      message.tone === "error"
-                        ? "border-white/14 bg-white/[0.05] text-white"
-                        : "border-white/10 bg-white/[0.04] text-[var(--settings-text-muted)]",
-                    )}
-                  >
-                    {message.text}
-                  </p>
-                </div>
-                <Separator className="mt-5 bg-[var(--settings-border-soft)]" />
-              </>
-            ) : null}
-
             {showingWizard ? (
               <WizardPanel
                 assistantSelection={assistantSelection}
@@ -515,7 +475,8 @@ function DesktopApp() {
             )}
           </CardContent>
         </Card>
-    </main>
+      </main>
+    </>
   );
 }
 
@@ -1156,10 +1117,10 @@ function NotificationApp() {
 
   if (!notification) {
     return (
-      <main className="min-h-screen bg-white">
-        <section className="notificationCard grid min-h-screen items-center bg-white px-[18px] py-4">
+      <main className="h-screen bg-white">
+        <section className="notificationCard grid h-full items-center bg-white px-[18px] py-4">
           <div className="grid min-w-0 gap-1">
-            <p className="m-0 text-[0.58rem] font-medium tracking-[0.01em] text-[#aaaaaa]">
+            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-[#b0b0b0]">
               Everr
             </p>
             <h1 className="m-0 text-[0.8rem] font-semibold text-[#121212]">
@@ -1179,69 +1140,78 @@ function NotificationApp() {
   const failureScope = formatFailureScope(notification);
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="h-screen bg-white">
       <section
-        className="notificationCard relative grid min-h-screen grid-cols-[minmax(0,1fr)_auto] items-center gap-4 bg-white px-[18px] py-4"
+        className="notificationCard group relative flex h-full flex-col bg-white"
         onMouseEnter={pauseAutoDismiss}
         onMouseLeave={resumeAutoDismiss}
       >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute left-[18px] top-4 z-10 size-[18px] rounded-full border border-black bg-black p-0 text-white hover:bg-black focus-visible:ring-2 focus-visible:ring-black/20"
+        <button
+          type="button"
+          className="absolute right-3 top-3 z-10 flex size-[18px] items-center justify-center rounded-full bg-[#e8e8e8] text-[#888] opacity-0 transition-opacity duration-150 hover:bg-[#ddd] hover:text-[#555] group-hover:opacity-100 disabled:pointer-events-none"
           aria-label="Dismiss"
           disabled={busy !== null}
           onClick={() => void handleDismiss()}
         >
-          <MacCloseGlyph />
-        </Button>
-        <div className="grid min-w-0 gap-0.5 pl-7 pr-2">
-          <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-[#121212]">
-            {notification.workflow_name}
-          </h1>
-          <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-[#767676]">
-            <span className="truncate">{notification.repo}</span>
-            <span className="text-[#b3b3b3]">•</span>
-            <span>{notification.branch}</span>
-          </p>
-          {failureScope ? (
-            <p className="m-0 text-[0.66rem] leading-[1.35] text-[#7c7c7c]">{failureScope}</p>
-          ) : null}
-          <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-[#a1a1a1]">
-            <span>{absoluteTime}</span>
-            <span className="text-[#cccccc]">·</span>
-            <span>{relativeTime}</span>
-          </p>
+          <svg
+            className="size-[8px]"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <path d="M2 2 10 10" />
+            <path d="M10 2 2 10" />
+          </svg>
+        </button>
+
+        <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
+          <div className="grid min-w-0 flex-1 gap-[3px]">
+            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-[#b0b0b0]">
+              Everr
+            </p>
+            <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-[#121212]">
+              {notification.workflow_name}
+            </h1>
+            <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-[#767676]">
+              <span className="truncate">{notification.repo}</span>
+              <span className="text-[#b3b3b3]">•</span>
+              <span>{notification.branch}</span>
+            </p>
+            {failureScope ? (
+              <p className="m-0 text-[0.66rem] leading-[1.35] text-[#7c7c7c]">{failureScope}</p>
+            ) : null}
+            <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-[#a1a1a1]">
+              <span>{absoluteTime}</span>
+              <span className="text-[#cccccc]">·</span>
+              <span>{relativeTime}</span>
+            </p>
+          </div>
+
+          <div className="flex min-w-0 shrink-0 items-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 min-w-0 rounded-[10px] bg-[#171717] px-3.5 text-[0.72rem] font-semibold text-white hover:bg-black"
+              disabled={busy !== null}
+              onClick={() => void handleOpenRun()}
+            >
+              {busy === "open" ? "Opening..." : "Open run"}
+            </Button>
+          </div>
         </div>
 
-        <div className="flex min-w-0 items-start self-start pt-[2px]">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 min-w-0 rounded-[10px] bg-[#171717] px-3.5 text-[0.72rem] font-semibold text-white hover:bg-black"
-            disabled={busy !== null}
-            onClick={() => void handleOpenRun()}
-          >
-            {busy === "open" ? "Opening..." : "Open run"}
-          </Button>
+        <div className="h-[3px] w-full shrink-0 bg-[#f0f0f0]">
+          <div
+            key={notification.dedupe_key}
+            className="notification-progress h-full"
+            style={{ animationDuration: `${AUTO_DISMISS_MS}ms` }}
+            data-paused={hovered || undefined}
+          />
         </div>
       </section>
     </main>
-  );
-}
-
-function MacCloseGlyph() {
-  return (
-    <svg
-      className="size-2 stroke-white"
-      viewBox="0 0 12 12"
-      fill="none"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    >
-      <path d="M3.25 3.25 8.75 8.75" />
-      <path d="M8.75 3.25 3.25 8.75" />
-    </svg>
   );
 }
 
@@ -1266,13 +1236,7 @@ function resolveWizardStepIndex(setupStatus: SetupStatus): number {
 }
 
 function defaultAssistantSelection(setupStatus: SetupStatus): AssistantKind[] {
-  if (setupStatus.wizard_state.selected_assistants.length > 0) {
-    return setupStatus.wizard_state.selected_assistants;
-  }
-
-  return setupStatus.assistant_statuses
-    .filter((status) => status.detected || status.configured)
-    .map((status) => status.assistant);
+  return setupStatus.wizard_state.selected_assistants;
 }
 
 function assistantLabel(assistant: AssistantKind): string {
@@ -1306,11 +1270,12 @@ function formatFailureScope(notification: FailureNotification): string | null {
   return null;
 }
 
-function toErrorMessage(error: unknown): FlashMessage {
-  return {
-    tone: "error",
-    text: String(error),
-  };
+function toErrorMessageText(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }
 
 function resolveWindowLabel(): string {
