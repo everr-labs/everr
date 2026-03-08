@@ -97,10 +97,14 @@ export function SpanDetailPanel({
                 <span className="font-medium">{span.testFramework}</span>
               </div>
             )}
-            {span.isSubtest && (
+            {(span.isSuite || span.isSubtest) && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground w-20">Type</span>
-                <span className="font-medium">Subtest</span>
+                <span className="font-medium">
+                  {[span.isSuite && "Suite", span.isSubtest && "Subtest"]
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>
               </div>
             )}
           </>

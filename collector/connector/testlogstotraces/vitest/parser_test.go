@@ -161,6 +161,7 @@ func TestSubtestHierarchy(t *testing.T) {
 	assert.Equal(t, "src/lib/formatting.test.ts > formatDuration", describeBlock.Name)
 	assert.Equal(t, "src/lib/formatting.test.ts", describeBlock.Package)
 	assert.False(t, describeBlock.IsSubtest(), "describe block should not be a subtest")
+	assert.True(t, describeBlock.IsSuite(), "describe block should be a suite")
 
 	// Describe block should have 2 children
 	require.Len(t, describeBlock.Subtests, 2, "describe block should have 2 subtests")
@@ -169,11 +170,13 @@ func TestSubtestHierarchy(t *testing.T) {
 	assert.Equal(t, "src/lib/formatting.test.ts > formatDuration > formats milliseconds", child1.Name)
 	assert.Equal(t, "src/lib/formatting.test.ts > formatDuration", child1.ParentTest)
 	assert.True(t, child1.IsSubtest())
+	assert.False(t, child1.IsSuite())
 	assert.Equal(t, gotest.TestResultPass, child1.Result)
 
 	child2 := describeBlock.Subtests[1]
 	assert.Equal(t, "src/lib/formatting.test.ts > formatDuration > formats seconds", child2.Name)
 	assert.True(t, child2.IsSubtest())
+	assert.False(t, child2.IsSuite())
 }
 
 func TestDeeplyNestedHierarchy(t *testing.T) {
@@ -195,17 +198,23 @@ func TestDeeplyNestedHierarchy(t *testing.T) {
 	require.Len(t, ctx.RootTests, 1)
 	level1 := ctx.RootTests[0]
 	assert.Equal(t, "src/test.ts > level1", level1.Name)
+	assert.True(t, level1.IsSuite())
+	assert.False(t, level1.IsSubtest())
 
 	require.Len(t, level1.Subtests, 1)
 	level2 := level1.Subtests[0]
 	assert.Equal(t, "src/test.ts > level1 > level2", level2.Name)
 	assert.Equal(t, "src/test.ts > level1", level2.ParentTest)
+	assert.True(t, level2.IsSuite())
+	assert.True(t, level2.IsSubtest())
 
 	require.Len(t, level2.Subtests, 1)
 	test := level2.Subtests[0]
 	assert.Equal(t, "src/test.ts > level1 > level2 > test name", test.Name)
 	assert.Equal(t, "src/test.ts > level1 > level2", test.ParentTest)
 	assert.Equal(t, gotest.TestResultPass, test.Result)
+	assert.False(t, test.IsSuite())
+	assert.True(t, test.IsSubtest())
 }
 
 func TestSpanGeneration(t *testing.T) {
@@ -256,6 +265,10 @@ func TestSpanGeneration(t *testing.T) {
 	assert.Equal(t, traceID, describeSpan.TraceID())
 	assert.Equal(t, stepSpanID, describeSpan.ParentSpanID())
 
+	isSuite, ok := describeSpan.Attributes().Get(semconv.EverrTestIsSuite)
+	require.True(t, ok)
+	assert.True(t, isSuite.Bool())
+
 	// The pass span
 	passSpan, ok := spanMap["formats milliseconds"]
 	require.True(t, ok, "formats milliseconds span not found")
@@ -266,6 +279,10 @@ func TestSpanGeneration(t *testing.T) {
 	framework, ok := passSpan.Attributes().Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "vitest", framework.Str())
+
+	isSuite, ok = passSpan.Attributes().Get(semconv.EverrTestIsSuite)
+	require.True(t, ok)
+	assert.False(t, isSuite.Bool())
 
 	// The fail span
 	failSpan, ok := spanMap["fails on negative"]
@@ -305,6 +322,10 @@ func TestSpanGenerationFileLevelTest(t *testing.T) {
 	pkg, ok := span.Attributes().Get(semconv.EverrTestPackage)
 	require.True(t, ok)
 	assert.Equal(t, "src/simple.test.ts", pkg.Str())
+
+	isSuite, ok := span.Attributes().Get(semconv.EverrTestIsSuite)
+	require.True(t, ok)
+	assert.False(t, isSuite.Bool())
 }
 
 func TestNoTestsGeneratesNilSpans(t *testing.T) {

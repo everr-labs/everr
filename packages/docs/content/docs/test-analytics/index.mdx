@@ -37,6 +37,7 @@ Each test span includes the following attributes:
 | `everr.test.duration_seconds` | Test execution duration in seconds |
 | `everr.test.framework` | Test framework (`go` or `vitest`) |
 | `everr.test.package` | Go package path or Vitest file path |
+| `everr.test.is_suite` | Whether this span groups child test spans |
 | `everr.test.is_subtest` | Whether this is a subtest/nested describe |
 | `everr.test.parent_test` | Parent test name for subtests |
 

@@ -10,6 +10,7 @@ const (
 	EverrTestDurationSeconds = "everr.test.duration_seconds"
 	EverrTestFramework       = "everr.test.framework"
 	EverrTestIsSubtest       = "everr.test.is_subtest"
+	EverrTestIsSuite         = "everr.test.is_suite"
 	EverrTestPackage         = "everr.test.package"
 	EverrTestParentTest      = "everr.test.parent_test"
 )
