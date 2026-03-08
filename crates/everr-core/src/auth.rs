@@ -7,6 +7,8 @@ use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 
+const NO_ACTIVE_SESSION: &str = "no active session";
+
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
     pub api_base_url: String,
@@ -24,15 +26,6 @@ pub struct SessionStore {
 }
 
 impl SessionStore {
-    pub fn for_command(command_name: &str) -> Self {
-        let namespace = if command_name == "everr-dev" {
-            "everr-dev".to_string()
-        } else {
-            "everr".to_string()
-        };
-        Self { namespace }
-    }
-
     pub fn for_namespace(namespace: impl Into<String>) -> Self {
         Self {
             namespace: namespace.into(),
@@ -51,7 +44,7 @@ impl SessionStore {
     pub fn load_session(&self) -> Result<Session> {
         let path = self.session_file_path()?;
         if !path.exists() {
-            bail!("no active session");
+            bail!(NO_ACTIVE_SESSION);
         }
 
         let raw = fs::read_to_string(&path)
@@ -85,6 +78,39 @@ impl SessionStore {
 
     pub fn has_active_session(&self) -> Result<bool> {
         Ok(self.session_file_path()?.exists())
+    }
+
+    pub fn load_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<Session> {
+        let session = self.load_session()?;
+        if session_matches_api_base_url(&session.api_base_url, expected_api_base_url) {
+            return Ok(session);
+        }
+
+        self.clear_session()?;
+        bail!(NO_ACTIVE_SESSION);
+    }
+
+    pub fn has_active_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<bool> {
+        match self.load_session_for_api_base_url(expected_api_base_url) {
+            Ok(_) => Ok(true),
+            Err(error) if is_no_active_session_error(&error) => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn clear_mismatched_session(&self, expected_api_base_url: &str) -> Result<bool> {
+        let session = match self.load_session() {
+            Ok(session) => session,
+            Err(error) if is_no_active_session_error(&error) => return Ok(false),
+            Err(error) => return Err(error),
+        };
+
+        if session_matches_api_base_url(&session.api_base_url, expected_api_base_url) {
+            return Ok(false);
+        }
+
+        self.clear_session()?;
+        Ok(true)
     }
 }
 
@@ -229,6 +255,14 @@ fn build_http_client() -> Result<reqwest::Client> {
         .context("failed to build HTTP client")
 }
 
+pub fn is_no_active_session_error(error: &anyhow::Error) -> bool {
+    error.to_string() == NO_ACTIVE_SESSION
+}
+
+fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
+    actual.trim_end_matches('/') == expected.trim_end_matches('/')
+}
+
 fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Session> {
     if token.access_token.trim().is_empty() {
         bail!("received an empty access token");
@@ -241,22 +275,53 @@ fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Ses
 
 #[cfg(test)]
 mod tests {
-    use super::SessionStore;
+    use std::sync::Mutex;
+
+    use tempfile::tempdir;
+
+    use super::{Session, SessionStore};
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn session_namespace_uses_dev_namespace_for_everr_dev() {
-        assert_eq!(
-            SessionStore::for_command("everr-dev").namespace(),
-            "everr-dev"
-        );
+    fn session_namespace_is_fixed() {
+        assert_eq!(SessionStore::for_namespace("everr").namespace(), "everr");
     }
 
     #[test]
-    fn session_namespace_uses_default_namespace_for_other_commands() {
-        assert_eq!(SessionStore::for_command("everr").namespace(), "everr");
-        assert_eq!(
-            SessionStore::for_command("custom-name").namespace(),
-            "everr"
-        );
+    fn load_session_for_api_base_url_clears_mismatched_session() {
+        let _guard = ENV_LOCK.lock().expect("lock env");
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).expect("create home dir");
+
+        let original_home = std::env::var_os("HOME");
+        let original_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        unsafe {
+            std::env::set_var("HOME", &home);
+            std::env::remove_var("XDG_CONFIG_HOME");
+        }
+
+        let store = SessionStore::for_namespace("everr");
+        let session = Session {
+            api_base_url: "https://app.everr.dev".to_string(),
+            token: "token-123".to_string(),
+        };
+        store.save_session(&session).expect("save session");
+
+        let error = store
+            .load_session_for_api_base_url("http://localhost:5173")
+            .expect_err("mismatched session should be rejected");
+        assert_eq!(error.to_string(), "no active session");
+        assert!(!store.session_file_path().expect("session path").exists());
+
+        match original_home {
+            Some(value) => unsafe { std::env::set_var("HOME", value) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+        match original_xdg {
+            Some(value) => unsafe { std::env::set_var("XDG_CONFIG_HOME", value) },
+            None => unsafe { std::env::remove_var("XDG_CONFIG_HOME") },
+        }
     }
 }

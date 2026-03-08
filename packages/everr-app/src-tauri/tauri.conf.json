@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "dev.everr.everr-app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "sh -c '../../scripts/ensure-tauri-cli-resource.sh debug && pnpm dev'",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "sh -c '../../scripts/ensure-tauri-cli-resource.sh release && pnpm build'",
     "frontendDist": "../dist"
   },
   "app": {
@@ -35,8 +35,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "resources": ["../../docs/public/everr"],
+    "targets": ["app"],
+    "resources": {
+      "../../../target/desktop-resources/everr": "everr"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

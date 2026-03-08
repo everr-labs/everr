@@ -10,7 +10,6 @@ import {
   CardDescription,
   CardHeader,
 } from "./components/ui/card";
-import { Input } from "./components/ui/input";
 import { Separator } from "./components/ui/separator";
 import { Toaster } from "./components/ui/sonner";
 import { cn } from "./lib/utils";
@@ -53,7 +52,6 @@ type AssistantKind = "codex" | "claude" | "cursor";
 type BusyAction =
   | "signin"
   | "install"
-  | "save"
   | "logout"
   | "notify"
   | "assistants"
@@ -69,10 +67,6 @@ type AuthStatus = {
 type CliInstallStatus = {
   status: "installed" | "not_installed";
   install_path: string;
-};
-
-type Settings = {
-  base_url: string;
 };
 
 type WizardState = {
@@ -92,7 +86,6 @@ type AssistantStatus = {
 type SetupStatus = {
   auth_status: AuthStatus;
   cli_status: CliInstallStatus;
-  settings: Settings;
   wizard_state: WizardState;
   assistant_statuses: AssistantStatus[];
   launch_at_login_enabled: boolean;
@@ -139,7 +132,6 @@ function App() {
 
 function DesktopApp() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
-  const [baseUrlInput, setBaseUrlInput] = useState("");
   const [assistantSelection, setAssistantSelection] = useState<AssistantKind[]>([]);
   const [assistantDraftDirty, setAssistantDraftDirty] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
@@ -159,7 +151,6 @@ function DesktopApp() {
 
   function syncSetupStatus(next: SetupStatus, preserveAssistantDraft = false) {
     setSetupStatus(next);
-    setBaseUrlInput(next.settings.base_url);
     setWizardStep(resolveWizardStepIndex(next));
     setAssistantSelection((current) =>
       preserveAssistantDraft ? current : defaultAssistantSelection(next),
@@ -225,22 +216,6 @@ function DesktopApp() {
       await invoke("install_cli");
       await refresh(false);
       showSuccessToast("CLI installed.");
-    } catch (error) {
-      showErrorToast(error);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function saveBaseUrl() {
-    setBusy("save");
-    try {
-      const nextSettings = await invoke<Settings>("update_base_url", {
-        baseUrl: baseUrlInput,
-      });
-      setBaseUrlInput(nextSettings.base_url);
-      await refresh(assistantDraftDirty);
-      showSuccessToast("Base URL updated.");
     } catch (error) {
       showErrorToast(error);
     } finally {
@@ -419,7 +394,6 @@ function DesktopApp() {
               <WizardPanel
                 assistantSelection={assistantSelection}
                 assistantStatuses={setupStatus.assistant_statuses}
-                baseUrlInput={baseUrlInput}
                 busy={busy}
                 cliStatus={setupStatus.cli_status}
                 currentStep={wizardStep}
@@ -434,11 +408,9 @@ function DesktopApp() {
                   );
                 }}
                 onBack={() => setWizardStep((current) => Math.max(current - 1, 0))}
-                onBaseUrlChange={setBaseUrlInput}
                 onFinish={finishWizard}
                 onInstallCli={installCli}
                 onSaveAssistants={saveAssistants}
-                onSaveBaseUrl={saveBaseUrl}
                 onSetLaunchAtLogin={updateLaunchAtLogin}
                 onSignIn={signIn}
                 onSkipAssistants={() => void skipOptionalWizardStep("assistants")}
@@ -450,7 +422,6 @@ function DesktopApp() {
               <SettingsPanel
                 assistantSelection={assistantSelection}
                 assistantStatuses={setupStatus.assistant_statuses}
-                baseUrlInput={baseUrlInput}
                 busy={busy}
                 cliStatus={setupStatus.cli_status}
                 launchAtLoginEnabled={setupStatus.launch_at_login_enabled}
@@ -462,11 +433,9 @@ function DesktopApp() {
                       : [...current, assistant],
                   );
                 }}
-                onBaseUrlChange={setBaseUrlInput}
                 onInstallCli={installCli}
                 onLogout={logout}
                 onSaveAssistants={saveAssistants}
-                onSaveBaseUrl={saveBaseUrl}
                 onSetLaunchAtLogin={updateLaunchAtLogin}
                 onSignIn={signIn}
                 onTriggerTestNotification={triggerTestNotification}
@@ -483,7 +452,6 @@ function DesktopApp() {
 function WizardPanel({
   assistantSelection,
   assistantStatuses,
-  baseUrlInput,
   busy,
   cliStatus,
   currentStep,
@@ -491,11 +459,9 @@ function WizardPanel({
   onAdvance,
   onAssistantToggle,
   onBack,
-  onBaseUrlChange,
   onFinish,
   onInstallCli,
   onSaveAssistants,
-  onSaveBaseUrl,
   onSetLaunchAtLogin,
   onSignIn,
   onSkipAssistants,
@@ -505,7 +471,6 @@ function WizardPanel({
 }: {
   assistantSelection: AssistantKind[];
   assistantStatuses: AssistantStatus[];
-  baseUrlInput: string;
   busy: BusyAction;
   cliStatus: CliInstallStatus;
   currentStep: number;
@@ -513,11 +478,9 @@ function WizardPanel({
   onAdvance: () => Promise<void>;
   onAssistantToggle: (assistant: AssistantKind) => void;
   onBack: () => void;
-  onBaseUrlChange: (nextValue: string) => void;
   onFinish: () => Promise<void>;
   onInstallCli: () => Promise<void>;
   onSaveAssistants: () => Promise<void>;
-  onSaveBaseUrl: () => Promise<void>;
   onSetLaunchAtLogin: (enabled: boolean) => Promise<void>;
   onSignIn: () => Promise<void>;
   onSkipAssistants: () => void;
@@ -596,7 +559,7 @@ function WizardPanel({
               {currentStep === 2 ? (
                 <WizardStepSection
                   title="Install the Everr CLI"
-                  description="The desktop app bundles the CLI and installs it into your local bin directory so the assistant instructions and terminal workflows can call it."
+                  description="The desktop app bundles the CLI, installs it into your local bin directory, and keeps it updated automatically when the bundled binary changes."
                   badge={cliInstalled ? "Installed" : "Required"}
                   action={
                     <Button
@@ -650,39 +613,7 @@ function WizardPanel({
               ) : null}
             </CardContent>
           </Card>
-
-          <Card className="border-[color:var(--settings-border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]">
-            <CardContent className="grid gap-5 px-5 py-5">
-              <div className="grid gap-1">
-                <p className="m-0 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--settings-text-soft)]">
-                  Backend
-                </p>
-                <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-                  Update the Everr base URL before authenticating if you are pointing this build at a non-default environment.
-                </p>
-              </div>
-
-              <label className="grid gap-2">
-                <span className="text-[0.72rem] font-medium uppercase tracking-[0.14em] text-[var(--settings-text-soft)]">
-                  Base URL
-                </span>
-                <Input
-                  type="url"
-                  value={baseUrlInput}
-                  onChange={(event) => onBaseUrlChange(event.currentTarget.value)}
-                  placeholder="http://localhost:5173"
-                />
-              </label>
-
-              <Button
-                variant="outline"
-                disabled={busy !== null}
-                onClick={() => void onSaveBaseUrl()}
-              >
-                {busy === "save" ? "Saving..." : "Save URL"}
-              </Button>
-            </CardContent>
-          </Card>
+         
         </div>
       </div>
 
@@ -715,16 +646,13 @@ function WizardPanel({
 function SettingsPanel({
   assistantSelection,
   assistantStatuses,
-  baseUrlInput,
   busy,
   cliStatus,
   launchAtLoginEnabled,
   onAssistantToggle,
-  onBaseUrlChange,
   onInstallCli,
   onLogout,
   onSaveAssistants,
-  onSaveBaseUrl,
   onSetLaunchAtLogin,
   onSignIn,
   onTriggerTestNotification,
@@ -732,16 +660,13 @@ function SettingsPanel({
 }: {
   assistantSelection: AssistantKind[];
   assistantStatuses: AssistantStatus[];
-  baseUrlInput: string;
   busy: BusyAction;
   cliStatus: CliInstallStatus;
   launchAtLoginEnabled: boolean;
   onAssistantToggle: (assistant: AssistantKind) => void;
-  onBaseUrlChange: (nextValue: string) => void;
   onInstallCli: () => Promise<void>;
   onLogout: () => Promise<void>;
   onSaveAssistants: () => Promise<void>;
-  onSaveBaseUrl: () => Promise<void>;
   onSetLaunchAtLogin: (enabled: boolean) => Promise<void>;
   onSignIn: () => Promise<void>;
   onTriggerTestNotification: () => Promise<void>;
@@ -750,7 +675,7 @@ function SettingsPanel({
   const cliInstalled = cliStatus.status === "installed";
 
   return (
-    <div className="grid gap-0">
+    <div className="grid divide-y divide-white/[0.06]">
       <SettingsSection
         title="Account"
         description={
@@ -758,7 +683,6 @@ function SettingsPanel({
             ? "This desktop app is connected and ready to poll your failures."
             : "Sign in to connect this desktop app to your Everr account."
         }
-        badge={<Badge variant={signedIn ? "default" : "outline"}>{signedIn ? "Active" : "Local only"}</Badge>}
         action={
           <Button
             variant={signedIn ? "outline" : "default"}
@@ -776,8 +700,6 @@ function SettingsPanel({
           </Button>
         }
       />
-
-      <Separator className="bg-[var(--settings-border-soft)]" />
 
       <SettingsSection
         title="Assistants"
@@ -799,12 +721,9 @@ function SettingsPanel({
         />
       </SettingsSection>
 
-      <Separator className="bg-[var(--settings-border-soft)]" />
-
       <SettingsSection
         title="CLI"
-        description="Install the bundled Everr CLI into your local bin directory."
-        badge={<Badge variant={cliInstalled ? "default" : "outline"}>{cliInstalled ? "Installed" : "Not installed"}</Badge>}
+        description="Install the bundled Everr CLI into your local bin directory. Everr will keep it updated automatically after that."
         action={
           <Button
             className="min-w-[132px] max-[620px]:w-full"
@@ -820,12 +739,9 @@ function SettingsPanel({
         </p>
       </SettingsSection>
 
-      <Separator className="bg-[var(--settings-border-soft)]" />
-
       <SettingsSection
         title="Background tasks"
         description="Control whether Everr should start automatically after you log in."
-        badge={<Badge variant={launchAtLoginEnabled ? "default" : "outline"}>{launchAtLoginEnabled ? "Enabled" : "Disabled"}</Badge>}
         action={
           <Button
             className="min-w-[132px] max-[620px]:w-full"
@@ -847,35 +763,6 @@ function SettingsPanel({
 
       {import.meta.env.DEV && (
         <>
-          <Separator className="bg-[var(--settings-border-soft)]" />
-
-          <SettingsSection
-            title="Backend"
-            description="Choose which Everr backend this desktop app talks to."
-            action={
-              <Button
-                className="min-w-[112px] max-[620px]:w-full"
-                disabled={busy !== null}
-                onClick={() => void onSaveBaseUrl()}
-              >
-                {busy === "save" ? "Saving..." : "Save URL"}
-              </Button>
-            }
-          >
-            <label className="grid gap-2">
-              <span className="text-[0.74rem] font-medium uppercase tracking-[0.14em] text-[var(--settings-text-soft)]">
-                Base URL
-              </span>
-              <Input
-                type="url"
-                value={baseUrlInput}
-                onChange={(event) => onBaseUrlChange(event.currentTarget.value)}
-              />
-            </label>
-          </SettingsSection>
-
-          <Separator className="bg-[var(--settings-border-soft)]" />
-
           <SettingsSection
             title="Developer"
             description="Preview the notification surface without waiting for a failed pipeline."
@@ -935,14 +822,12 @@ function WizardStepSection({
 function SettingsSection({
   title,
   description,
-  badge,
   action,
   children,
   compact = false,
 }: {
   title: string;
   description: string;
-  badge?: ReactNode;
   action?: ReactNode;
   children?: ReactNode;
   compact?: boolean;
@@ -956,10 +841,7 @@ function SettingsSection({
     >
       <div className="flex items-start justify-between gap-4 max-[620px]:flex-col max-[620px]:items-stretch">
         <div className="grid gap-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="m-0 text-[1rem] font-semibold">{title}</h2>
-            {badge}
-          </div>
+          <h2 className="m-0 text-[1rem] font-semibold">{title}</h2>
           <p className="m-0 max-w-[46ch] text-[0.92rem] leading-6 text-[var(--settings-text-muted)]">
             {description}
           </p>
@@ -983,33 +865,50 @@ function AssistantChecklist({
   onToggle: (assistant: AssistantKind) => void;
 }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-2">
       {statuses.map((status) => {
         const checked = selection.includes(status.assistant);
 
         return (
           <label
             key={status.assistant}
-            className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 transition-colors hover:bg-white/[0.05]"
+            className={cn(
+              "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
+              checked
+                ? "border-white/15 bg-white/[0.06]"
+                : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]",
+            )}
           >
             <input
               type="checkbox"
               checked={checked}
               onChange={() => onToggle(status.assistant)}
-              className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent"
+              className="h-4 w-4 shrink-0 rounded border-white/20 bg-transparent accent-white"
             />
-            <span className="grid gap-1">
-              <span className="text-sm font-semibold capitalize text-[var(--settings-text)]">
-                {assistantLabel(status.assistant)}
+            <span className="grid min-w-0 flex-1 gap-0.5">
+              <span className="flex items-center gap-2">
+                <span className="text-sm font-medium text-[var(--settings-text)]">
+                  {assistantLabel(status.assistant)}
+                </span>
+                <span
+                  className={cn(
+                    "inline-block size-1.5 rounded-full",
+                    status.configured
+                      ? "bg-emerald-400"
+                      : status.detected
+                        ? "bg-amber-400"
+                        : "bg-white/20",
+                  )}
+                />
               </span>
-              <span className="text-xs leading-5 text-[var(--settings-text-muted)]">
+              <span className="text-xs text-[var(--settings-text-muted)]">
                 {status.configured
-                  ? "Everr currently manages this assistant file."
+                  ? "Managed by Everr"
                   : status.detected
-                    ? "Detected locally and ready to configure."
-                    : "No local footprint detected, but you can still configure it."}
+                    ? "Detected \u2014 ready to configure"
+                    : "Not detected"}
               </span>
-              <span className="text-[0.72rem] text-[var(--settings-text-soft)]">
+              <span className="truncate text-[0.68rem] text-[var(--settings-text-soft)]">
                 {status.path}
               </span>
             </span>

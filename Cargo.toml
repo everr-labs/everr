@@ -1,3 +1,7 @@
 [workspace]
-members = ["crates/everr-core", "everr-cli", "packages/everr-app/src-tauri"]
+members = [
+    "crates/everr-core",
+    "crates/everr-cli",
+    "packages/everr-app/src-tauri",
+]
 resolver = "2"

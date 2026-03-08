@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 
 const BLOCK_START: &str = "<!-- EVERR_CLI_START -->";
 const BLOCK_END: &str = "<!-- EVERR_CLI_END -->";
-const ASSISTANT_INSTRUCTIONS: &str =
-    include_str!("../../../everr-cli/assets/assistant-instructions.md");
+const ASSISTANT_INSTRUCTIONS: &str = include_str!("../assets/assistant-instructions.md");
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -334,9 +333,9 @@ mod tests {
 
     #[test]
     fn assistant_instructions_use_requested_command_name() {
-        let rendered = render_assistant_instructions("everr-dev");
-        assert!(rendered.contains("`everr-dev status`"));
-        assert!(rendered.contains("`everr-dev runs list`"));
+        let rendered = render_assistant_instructions("everr");
+        assert!(rendered.contains("`everr status`"));
+        assert!(rendered.contains("`everr runs list`"));
     }
 
     fn sync_assistants_for_home(
