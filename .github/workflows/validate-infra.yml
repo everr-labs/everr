@@ -56,7 +56,7 @@ jobs:
         id: plan
         if: ${{ github.event_name == 'pull_request' && env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.TF_VAR_clickhouse_organization_id != '' && env.TF_VAR_clickhouse_token_key != '' && env.TF_VAR_clickhouse_token_secret != '' }}
         continue-on-error: true
-        run: tofu plan -no-color -input=false -lock=false > plan.txt 2>&1
+        run: tofu plan -no-color -input=false -lock=false 2>&1 | tee plan.txt
 
       - name: Comment plan on PR
         if: ${{ github.event_name == 'pull_request' && env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.TF_VAR_clickhouse_organization_id != '' && env.TF_VAR_clickhouse_token_key != '' && env.TF_VAR_clickhouse_token_secret != '' }}
