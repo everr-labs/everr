@@ -1,0 +1,120 @@
+name: Validate Infra
+
+# TODO: Replace the current AdministratorAccess-backed GitHub Actions IAM user/group
+# with a least-privilege policy once the Everr infra workflows and required AWS
+# permissions are stable.
+
+defaults:
+  run:
+    working-directory: ./infra
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/validate-infra.yml
+      - infra/**
+  push:
+    branches: [gio/infra]
+    paths:
+      - .github/workflows/validate-infra.yml
+      - infra/**
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: eu-central-1
+      TF_VAR_clickhouse_organization_id: ${{ secrets.CLICKHOUSE_ORGANIZATION_ID }}
+      TF_VAR_clickhouse_token_key: ${{ secrets.CLICKHOUSE_TOKEN_KEY }}
+      TF_VAR_clickhouse_token_secret: ${{ secrets.CLICKHOUSE_TOKEN_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Check formatting
+        id: fmt
+        run: tofu fmt -check -recursive
+
+      - name: Init
+        id: init
+        run: tofu init
+
+      - name: Validate
+        id: validate
+        run: tofu validate -no-color
+
+      - name: Plan
+        id: plan
+        if: ${{ github.event_name == 'pull_request' && env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.TF_VAR_clickhouse_organization_id != '' && env.TF_VAR_clickhouse_token_key != '' && env.TF_VAR_clickhouse_token_secret != '' }}
+        continue-on-error: true
+        run: tofu plan -no-color -input=false
+
+      - name: Comment plan on PR
+        if: ${{ github.event_name == 'pull_request' && env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.TF_VAR_clickhouse_organization_id != '' && env.TF_VAR_clickhouse_token_key != '' && env.TF_VAR_clickhouse_token_secret != '' }}
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
+        with:
+          script: |
+            const marker = '<!-- infra-plan-comment -->';
+            const truncate = (value) => {
+              if (!value) return '';
+              return value.length > 60000 ? `${value.slice(0, 60000)}\n...truncated...` : value;
+            };
+
+            const planStdout = truncate(`tofu\n${process.env.PLAN_STDOUT || ''}`);
+            const body = `${marker}
+            #### OpenTofu Plan \`${process.env.PLAN_OUTCOME}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`text
+            ${planStdout}
+            \`\`\`
+
+            </details>`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+            });
+            const existing = comments.find((comment) => comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+      - name: Fail if plan failed
+        if: ${{ steps.plan.outcome == 'failure' }}
+        run: exit 1
