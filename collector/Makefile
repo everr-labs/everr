@@ -51,11 +51,11 @@ test-all:
 
 .PHONY: dockerbuild
 dockerbuild:
-	docker build . -t everr-dev/everr-collector:localdev
+	docker build . -t everr-labs/everr-collector:localdev
 
 .PHONY: dockerrun
 dockerrun: dockerbuild
-	docker run -v ./config.yml:/etc/everr-collector/config.yml -t everr-dev/everr-collector:localdev
+	docker run -v ./config.yml:/etc/everr-collector/config.yml -t everr-labs/everr-collector:localdev
 
 .PHONY: tidy-all
 tidy-all:

@@ -5,7 +5,7 @@ describe("buildWaitPipelineStatus", () => {
   it("maps active taskrun jobs onto their pipeline run", () => {
     const result = buildWaitPipelineStatus(
       {
-        repo: "everr-dev/everr",
+        repo: "everr-labs/everr",
         branch: "main",
         commit: "abc123",
       },

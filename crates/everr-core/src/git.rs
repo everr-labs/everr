@@ -114,16 +114,16 @@ mod tests {
     #[test]
     fn parse_repo_from_remote_supports_ssh_and_http_urls() {
         assert_eq!(
-            parse_repo_from_remote_url("git@github.com:everr-dev/everr.git"),
-            Some("everr-dev/everr".to_string())
+            parse_repo_from_remote_url("git@github.com:everr-labs/everr.git"),
+            Some("everr-labs/everr".to_string())
         );
         assert_eq!(
             parse_repo_from_remote_url("https://github.com/everr-labs/everr.git"),
-            Some("everr-dev/everr".to_string())
+            Some("everr-labs/everr".to_string())
         );
         assert_eq!(
             parse_repo_from_remote_url("http://github.com/everr-labs/everr"),
-            Some("everr-dev/everr".to_string())
+            Some("everr-labs/everr".to_string())
         );
     }
 }

@@ -70,7 +70,7 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
   return {
     dedupe_key: "one",
     trace_id: "trace-one",
-    repo: "everr-dev/everr",
+    repo: "everr-labs/everr",
     branch: "feature/granola",
     workflow_name: "CI",
     failure_time: "2026-03-07T13:32:00Z",
@@ -436,7 +436,7 @@ describe("notification window", () => {
     await flushNotificationRender();
 
     expect(screen.getByText("CI")).toBeInTheDocument();
-    expect(screen.getByText("everr-dev/everr")).toBeInTheDocument();
+    expect(screen.getByText("everr-labs/everr")).toBeInTheDocument();
     expect(screen.getByText("feature/granola")).toBeInTheDocument();
     expect(screen.getByText("test • Step 3: Run suite")).toBeInTheDocument();
     expect(screen.getByText("3m ago")).toBeInTheDocument();

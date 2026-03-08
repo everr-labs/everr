@@ -31,7 +31,7 @@ mod tests {
         let failure = FailureNotification {
             dedupe_key: "key-1".to_string(),
             trace_id: "trace-1".to_string(),
-            repo: "everr-dev/everr".to_string(),
+            repo: "everr-labs/everr".to_string(),
             branch: "main".to_string(),
             workflow_name: "build".to_string(),
             failure_time: "2026-03-07T10:00:00Z".to_string(),
