@@ -49,12 +49,11 @@ jobs:
 
       - name: Check formatting
         id: fmt
-        continue-on-error: true
         run: tofu fmt -check -recursive
 
       - name: Init
         id: init
-        run: tofu init -backend=false
+        run: tofu init
 
       - name: Validate
         id: validate
@@ -64,17 +63,13 @@ jobs:
         id: plan
         if: ${{ github.event_name == 'pull_request' && env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.TF_VAR_clickhouse_organization_id != '' && env.TF_VAR_clickhouse_token_key != '' && env.TF_VAR_clickhouse_token_secret != '' }}
         continue-on-error: true
-        run: tofu plan -no-color -input=false -lock=false
+        run: tofu plan -no-color -input=false
 
       - name: Comment plan on PR
         if: ${{ github.event_name == 'pull_request' && env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.TF_VAR_clickhouse_organization_id != '' && env.TF_VAR_clickhouse_token_key != '' && env.TF_VAR_clickhouse_token_secret != '' }}
         uses: actions/github-script@v7
         env:
-          FMT_OUTCOME: ${{ steps.fmt.outcome }}
-          INIT_OUTCOME: ${{ steps.init.outcome }}
-          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
-          VALIDATE_STDOUT: ${{ steps.validate.outputs.stdout }}
           PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
         with:
           script: |
@@ -84,20 +79,8 @@ jobs:
               return value.length > 60000 ? `${value.slice(0, 60000)}\n...truncated...` : value;
             };
 
-            const validateStdout = truncate(process.env.VALIDATE_STDOUT);
             const planStdout = truncate(`tofu\n${process.env.PLAN_STDOUT || ''}`);
             const body = `${marker}
-            #### OpenTofu Format and Style \`${process.env.FMT_OUTCOME}\`
-            #### OpenTofu Initialization \`${process.env.INIT_OUTCOME}\`
-            #### OpenTofu Validation \`${process.env.VALIDATE_OUTCOME}\`
-            <details><summary>Validation Output</summary>
-
-            \`\`\`text
-            ${validateStdout}
-            \`\`\`
-
-            </details>
-
             #### OpenTofu Plan \`${process.env.PLAN_OUTCOME}\`
 
             <details><summary>Show Plan</summary>
@@ -106,9 +89,7 @@ jobs:
             ${planStdout}
             \`\`\`
 
-            </details>
-
-            *Pusher: @${context.actor}, Action: \`${context.eventName}\`, Working Directory: \`./infra\`, Workflow: \`${context.workflow}\`*`;
+            </details>`;
 
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
