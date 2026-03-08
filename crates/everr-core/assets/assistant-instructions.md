@@ -7,10 +7,9 @@ Quick commands:
 - `everr runs show --trace-id <trace_id>`
 - `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`
 - `everr test-history --module <module> --test-name <name>`
-- `everr slowest-tests`: shows repo-wide aggregates by default; add `--branch <name>` to scope it
+- `everr slowest-tests`: shows repo-wide aggregates for non-suite tests by default; add `--branch <name>` to scope it
 - `everr slowest-jobs`: shows repo-wide aggregates by default; add `--branch <name>` to scope it
-- `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete. Will probably take a while, CI normally take around 10/20 minutes
-- `everr wait-pipeline --commit <sha>`
+- `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit
 
 Output schema notes:
 - All commands print JSON.

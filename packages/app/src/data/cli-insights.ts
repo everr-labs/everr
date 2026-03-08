@@ -71,6 +71,7 @@ export const getSlowestTests = createServerFn({
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
       "SpanAttributes['everr.test.name'] != ''",
       "SpanAttributes['everr.test.result'] IN ('pass', 'fail', 'skip')",
+      "lowerUTF8(SpanAttributes['everr.test.is_suite']) IN ('false', '0')",
       "ResourceAttributes['vcs.repository.name'] = {repo:String}",
     ];
     const params: Record<string, unknown> = {
