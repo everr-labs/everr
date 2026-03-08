@@ -644,9 +644,10 @@ fn wait_polls_until_head_sha_run_is_found() {
         .stdout(contains("\"pipelineFound\": true"))
         .stdout(contains("\"runId\": \"42\""))
         .stdout(contains("\"runId\": \"41\""))
-        .stderr(contains("Refresh rate: every 0s"))
+        .stderr(contains("Waiting for pipeline for commit"))
+        .stderr(contains("(refresh: 0s)"))
         .stderr(contains(
-            "Active runs:\n- CI (duration: 2m 5s; usually takes: 1m 58s (avg of 3); active jobs: test, lint)",
+            "Active runs:\n- CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test, lint)",
         ))
         .stderr(contains("Completed runs: Lint"))
         .stderr(predicate::str::contains("Elapsed: ").not())

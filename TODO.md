@@ -1,8 +1,7 @@
 everr status clean output
-Add to Agents.md output schema
 Cursor integration with the correct .mdc format
-Add slowest-tests command
-Add slowest-jobs command
-Add an "usually takes" info on each active run, based on the avg of the last 3 runs of the same type (if available)
+Annotation system after optimizations (jobs or tests):
+- date, model type (e.g. GPT-5.4) and annotation
 
 Add a suggestion on watching the CI when fixing a previous failing CI run
+Collect runner resources usage x job

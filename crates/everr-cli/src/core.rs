@@ -249,7 +249,6 @@ struct WaitRunStatus {
     conclusion: String,
     duration_seconds: u64,
     usual_duration_seconds: Option<u64>,
-    usual_duration_sample_size: usize,
     active_jobs: Vec<String>,
 }
 
@@ -261,8 +260,10 @@ fn format_wait_status(
 ) -> String {
     let mut status = String::new();
     let short_commit = shorten_commit(target_commit);
-    let _ = writeln!(status, "Waiting for pipeline for commit {short_commit}");
-    let _ = writeln!(status, "Refresh rate: every {interval_seconds}s");
+    let _ = writeln!(
+        status,
+        "Waiting for pipeline for commit {short_commit} (refresh: {interval_seconds}s)"
+    );
     if active_runs.is_empty() {
         let _ = writeln!(status, "Active runs: none");
     } else {
@@ -274,9 +275,8 @@ fn format_wait_status(
             )];
             if let Some(usual_duration_seconds) = run.usual_duration_seconds {
                 details.push(format!(
-                    "usually takes: {} (avg of {})",
-                    format_elapsed_duration(usual_duration_seconds),
-                    run.usual_duration_sample_size
+                    "usually takes: {}",
+                    format_elapsed_duration(usual_duration_seconds)
                 ));
             }
             details.push(format!(
@@ -354,11 +354,6 @@ fn extract_wait_runs(payload: &Value, key: &str) -> Vec<WaitRunStatus> {
                 .and_then(Value::as_u64)
                 .unwrap_or(0),
             usual_duration_seconds: item.get("usualDurationSeconds").and_then(Value::as_u64),
-            usual_duration_sample_size: item
-                .get("usualDurationSampleSize")
-                .and_then(Value::as_u64)
-                .map(|value| value as usize)
-                .unwrap_or(0),
             active_jobs: item
                 .get("activeJobs")
                 .and_then(Value::as_array)
@@ -470,7 +465,6 @@ mod tests {
                 conclusion: String::new(),
                 duration_seconds: 139,
                 usual_duration_seconds: None,
-                usual_duration_sample_size: 0,
                 active_jobs: vec!["Lint".to_string(), "Build".to_string()],
             }],
             vec![WaitRunStatus {
@@ -478,7 +472,6 @@ mod tests {
                 conclusion: "success".to_string(),
                 duration_seconds: 0,
                 usual_duration_seconds: None,
-                usual_duration_sample_size: 0,
                 active_jobs: Vec::new(),
             }],
         );
@@ -486,7 +479,7 @@ mod tests {
         assert!(status.ends_with('\n'));
         let display = status.trim_end_matches('\n');
         assert!(!display.ends_with('\n'));
-        assert_eq!(display.lines().count(), 5);
+        assert_eq!(display.lines().count(), 4);
     }
 
     #[test]
@@ -501,7 +494,6 @@ mod tests {
                     conclusion: "failure".to_string(),
                     duration_seconds: 0,
                     usual_duration_seconds: None,
-                    usual_duration_sample_size: 0,
                     active_jobs: Vec::new(),
                 },
                 WaitRunStatus {
@@ -509,7 +501,6 @@ mod tests {
                     conclusion: "success".to_string(),
                     duration_seconds: 0,
                     usual_duration_seconds: None,
-                    usual_duration_sample_size: 0,
                     active_jobs: Vec::new(),
                 },
             ],
@@ -530,16 +521,13 @@ mod tests {
                 conclusion: String::new(),
                 duration_seconds: 125,
                 usual_duration_seconds: Some(118),
-                usual_duration_sample_size: 3,
                 active_jobs: vec!["test".to_string()],
             }],
             Vec::new(),
         );
 
         assert!(
-            status.contains(
-                "CI (duration: 2m 5s; usually takes: 1m 58s (avg of 3); active jobs: test)"
-            )
+            status.contains("CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test)")
         );
     }
 }
