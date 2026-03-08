@@ -1,12 +1,12 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { Gauge } from "lucide-react";
+import { Citrus } from "lucide-react";
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
       title: (
         <span className="flex items-center gap-1.5 font-semibold">
-          <Gauge className="size-5" />
+          <Citrus className="size-5" />
           Everr
         </span>
       ),
