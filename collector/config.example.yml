@@ -6,7 +6,7 @@ receivers:
     gh_api:
       auth:
         app_id: 1234
-        private_key_path: /etc/citric-collector/dev-everr-app.pem
+        private_key_path: /etc/everr-collector/dev-everr-app.pem
 
 processors:
   batch:
@@ -18,10 +18,10 @@ processors:
       - action: delete
         key: ci.github.workflow.run.name
       - action: upsert
-        key: citric.tenant.id
+        key: everr.tenant.id
         from_context: metadata.x-everr-tenant-id
       - action: convert
-        key: citric.tenant.id
+        key: everr.tenant.id
         converted_type: int
 
 exporters:

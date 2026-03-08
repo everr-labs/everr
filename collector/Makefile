@@ -27,7 +27,7 @@ build-debug: install-tools
 
 .PHONY: run
 run: build
-	$(CUSTOM_COL_DIR)/citric-collector --config ./config.yml
+	$(CUSTOM_COL_DIR)/everr-collector --config ./config.yml
 
 .PHONY: for-all
 for-all:
@@ -51,11 +51,11 @@ test-all:
 
 .PHONY: dockerbuild
 dockerbuild:
-	docker build . -t get-citric/citric-collector:localdev
+	docker build . -t everr-dev/everr-collector:localdev
 
 .PHONY: dockerrun
 dockerrun: dockerbuild
-	docker run -v ./config.yml:/etc/citric-collector/config.yml -t get-citric/citric-collector:localdev
+	docker run -v ./config.yml:/etc/everr-collector/config.yml -t everr-dev/everr-collector:localdev
 
 .PHONY: tidy-all
 tidy-all:

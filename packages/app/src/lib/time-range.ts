@@ -1,4 +1,4 @@
-import { isValid, resolve } from "@citric/datemath";
+import { isValid, resolve } from "@everr/datemath";
 import { z } from "zod";
 
 export const TimeRangeSchema = z.object({ from: z.string(), to: z.string() });

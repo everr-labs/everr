@@ -152,7 +152,6 @@ function DesktopApp() {
   const signedIn = setupStatus?.auth_status.status === "signed_in";
   const cliInstalled = setupStatus?.cli_status.status === "installed";
   const showingWizard = setupStatus ? !setupStatus.wizard_state.wizard_completed : false;
-  const hostLabel = formatBaseUrlLabel(setupStatus?.settings.base_url ?? baseUrlInput);
 
   function syncSetupStatus(next: SetupStatus, preserveAssistantDraft = false) {
     setSetupStatus(next);
@@ -1266,21 +1265,6 @@ function resolveWizardStepIndex(setupStatus: SetupStatus): number {
   return 3;
 }
 
-function isWizardStepComplete(step: number, setupStatus: SetupStatus): boolean {
-  switch (step) {
-    case 0:
-      return setupStatus.auth_status.status === "signed_in";
-    case 1:
-      return setupStatus.wizard_state.assistant_step_seen;
-    case 2:
-      return setupStatus.cli_status.status === "installed";
-    case 3:
-      return setupStatus.wizard_state.launch_at_login_step_seen;
-    default:
-      return false;
-  }
-}
-
 function defaultAssistantSelection(setupStatus: SetupStatus): AssistantKind[] {
   if (setupStatus.wizard_state.selected_assistants.length > 0) {
     return setupStatus.wizard_state.selected_assistants;
@@ -1320,19 +1304,6 @@ function formatFailureScope(notification: FailureNotification): string | null {
   }
 
   return null;
-}
-
-function formatBaseUrlLabel(value: string): string {
-  if (!value.trim() || value === "Loading...") {
-    return "Connection not set";
-  }
-
-  try {
-    const url = new URL(value);
-    return url.host;
-  } catch {
-    return value;
-  }
 }
 
 function toErrorMessage(error: unknown): FlashMessage {

@@ -1,7 +1,7 @@
 //go:build tools
 // +build tools
 
-package tools // import "github.com/get-citric/citric/collector/internal/tools"
+package tools // import "github.com/everr-dev/everr/collector/internal/tools"
 
 // This file exists to ensure consistent versioning and tooling installs based on
 // https://go.dev/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module

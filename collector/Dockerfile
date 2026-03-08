@@ -11,13 +11,13 @@ RUN make build
 # STAGE 2 - final image
 FROM alpine:3.23
 
-ARG BIN_PATH=/collector/build/citric-collector
+ARG BIN_PATH=/collector/build/everr-collector
 ARG UID=10001
 
 RUN adduser -D -u ${UID} collector
-COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/citric-collector
+COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/everr-collector
 
 USER collector
 
-ENTRYPOINT ["/usr/bin/citric-collector"]
-CMD ["--config=/etc/citric-collector/config.yaml"]
+ENTRYPOINT ["/usr/bin/everr-collector"]
+CMD ["--config=/etc/everr-collector/config.yaml"]

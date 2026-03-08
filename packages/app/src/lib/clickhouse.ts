@@ -41,7 +41,7 @@ export async function query<T>(
     query_params: params,
     format: "JSONEachRow",
     clickhouse_settings: {
-      SQL_citric_tenant_id: await resolveTenantIdForQuery(),
+      SQL_everr_tenant_id: await resolveTenantIdForQuery(),
     },
   });
 

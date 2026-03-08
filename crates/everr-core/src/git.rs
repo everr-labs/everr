@@ -114,16 +114,16 @@ mod tests {
     #[test]
     fn parse_repo_from_remote_supports_ssh_and_http_urls() {
         assert_eq!(
-            parse_repo_from_remote_url("git@github.com:citric-app/citric.git"),
-            Some("citric-app/citric".to_string())
+            parse_repo_from_remote_url("git@github.com:everr-dev/everr.git"),
+            Some("everr-dev/everr".to_string())
         );
         assert_eq!(
-            parse_repo_from_remote_url("https://github.com/citric-app/citric.git"),
-            Some("citric-app/citric".to_string())
+            parse_repo_from_remote_url("https://github.com/everr-dev/everr.git"),
+            Some("everr-dev/everr".to_string())
         );
         assert_eq!(
-            parse_repo_from_remote_url("http://github.com/citric-app/citric"),
-            Some("citric-app/citric".to_string())
+            parse_repo_from_remote_url("http://github.com/everr-dev/everr"),
+            Some("everr-dev/everr".to_string())
         );
     }
 }

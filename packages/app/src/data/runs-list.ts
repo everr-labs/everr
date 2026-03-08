@@ -58,8 +58,8 @@ export const getRunsList = createServerFn({
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
       "ResourceAttributes['cicd.pipeline.run.id'] != ''",
       "ResourceAttributes['cicd.pipeline.task.run.result'] != ''",
-      "SpanAttributes['citric.github.workflow_job_step.number'] = ''",
-      "SpanAttributes['citric.test.name'] = ''",
+      "SpanAttributes['everr.github.workflow_job_step.number'] = ''",
+      "SpanAttributes['everr.test.name'] = ''",
     ];
     const params: Record<string, unknown> = {
       fromTime: fromISO,
@@ -171,11 +171,11 @@ export const getRunsList = createServerFn({
             TraceId as trace_id,
             ResourceAttributes['cicd.pipeline.task.name'] as jobName,
             ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-            SpanAttributes['citric.github.workflow_job_step.number'] as stepNumber,
+            SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
             anyLast(SpanName) as stepName
           FROM traces
           WHERE TraceId IN {traceIds:Array(String)}
-            AND SpanAttributes['citric.github.workflow_job_step.number'] != ''
+            AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
             AND lowerUTF8(StatusMessage) NOT IN ('success', 'skip')
           GROUP BY trace_id, jobName, jobId, stepNumber
       `;
@@ -301,8 +301,8 @@ export const searchRuns = createServerFn({
           whereClause: `Timestamp >= now() - INTERVAL 90 DAY
             AND ResourceAttributes['cicd.pipeline.run.id'] != ''
             AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
-            AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-            AND SpanAttributes['citric.test.name'] = ''
+            AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+            AND SpanAttributes['everr.test.name'] = ''
             AND (ResourceAttributes['cicd.pipeline.run.id'] LIKE {pattern:String}
               OR ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String})`,
           groupByExpr: "TraceId",

@@ -37,7 +37,7 @@ export const getRepoStats = createServerFn({
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 				GROUP BY run_id
 			)
@@ -141,8 +141,8 @@ export const getRepoDurationTrend = createServerFn({
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['citric.test.name'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.test.name'] = ''
 			GROUP BY date
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
@@ -190,7 +190,7 @@ export const getRepoRecentRuns = createServerFn({
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 			GROUP BY trace_id
 			ORDER BY timestamp DESC
@@ -248,7 +248,7 @@ export const getTopFailingJobs = createServerFn({
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.name'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 			GROUP BY jobName
 			HAVING failureCount > 0
 			ORDER BY failureCount DESC
@@ -309,7 +309,7 @@ export const getActiveBranches = createServerFn({
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-					AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 				GROUP BY branch, trace_id
 			)

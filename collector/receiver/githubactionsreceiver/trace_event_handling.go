@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-dev/everr/collector/semconv"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 )
 
@@ -193,9 +193,9 @@ func createSpan(scopeSpans ptrace.ScopeSpans, step *github.TaskStep, job *github
 	span.SetParentSpanID(parentSpanID)
 
 	span.Attributes().PutStr(string(conventions.CICDPipelineTaskNameKey), step.GetName())
-	span.Attributes().PutStr(semconv.CitricGitHubWorkflowJobStepStatus, step.GetStatus())
+	span.Attributes().PutStr(semconv.EverrGitHubWorkflowJobStepStatus, step.GetStatus())
 	span.Attributes().PutStr(string(conventions.CICDPipelineTaskRunResultKey), mapConclusion(step.GetConclusion()))
-	span.Attributes().PutInt(semconv.CitricGitHubWorkflowJobStepNumber, step.GetNumber())
+	span.Attributes().PutInt(semconv.EverrGitHubWorkflowJobStepNumber, step.GetNumber())
 
 	spanID, err := generateStepSpanID(job.GetRunID(), int(job.GetRunAttempt()), job.GetName(), step.GetNumber())
 	if err != nil {
@@ -208,8 +208,8 @@ func createSpan(scopeSpans ptrace.ScopeSpans, step *github.TaskStep, job *github
 	if step.GetCompletedAt().IsZero() {
 		step.CompletedAt = step.StartedAt
 	}
-	span.Attributes().PutStr(semconv.CitricGitHubWorkflowJobStepStartedAt, step.GetStartedAt().Format(time.RFC3339))
-	span.Attributes().PutStr(semconv.CitricGitHubWorkflowJobStepCompletedAt, step.GetCompletedAt().Format(time.RFC3339))
+	span.Attributes().PutStr(semconv.EverrGitHubWorkflowJobStepStartedAt, step.GetStartedAt().Format(time.RFC3339))
+	span.Attributes().PutStr(semconv.EverrGitHubWorkflowJobStepCompletedAt, step.GetCompletedAt().Format(time.RFC3339))
 	setSpanTimes(span, step.GetStartedAt().Time, step.GetCompletedAt().Time)
 
 	span.SetName(step.GetName())

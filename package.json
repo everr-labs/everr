@@ -1,5 +1,5 @@
 {
-  "name": "citric",
+  "name": "everr",
   "private": true,
   "scripts": {
     "build:cli:prod": "./scripts/build-cli-prod.sh",

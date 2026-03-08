@@ -95,7 +95,7 @@ describe("/api/cli/notifier/failures", () => {
       {
         traceId: "trace-123",
         runId: "run-123",
-        repo: "citric-app/citric",
+        repo: "everr-dev/everr",
         branch: "main",
         workflowName: "CI",
         failureTime: "2026-03-07T13:32:00Z",
@@ -122,7 +122,7 @@ describe("/api/cli/notifier/failures", () => {
         {
           dedupe_key: "trace-123:2026-03-07T13:32:00Z",
           trace_id: "trace-123",
-          repo: "citric-app/citric",
+          repo: "everr-dev/everr",
           branch: "main",
           workflow_name: "CI",
           failure_time: "2026-03-07T13:32:00Z",
@@ -138,7 +138,7 @@ describe("/api/cli/notifier/failures", () => {
     const handler = getHandler();
     const response = await handler({
       request: new Request(
-        "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com&repo=citric-app/citric&branch=feature%2Fgranola",
+        "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com&repo=everr-dev/everr&branch=feature%2Fgranola",
       ),
       context: {
         auth: {
@@ -151,7 +151,7 @@ describe("/api/cli/notifier/failures", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
       gitEmail: "dev@example.com",
-      repo: "citric-app/citric",
+      repo: "everr-dev/everr",
       branch: "feature/granola",
     });
   });
@@ -161,7 +161,7 @@ describe("/api/cli/notifier/failures", () => {
       {
         traceId: "trace-123",
         runId: "run-123",
-        repo: "citric-app/citric",
+        repo: "everr-dev/everr",
         branch: "main",
         workflowName: "CI",
         failureTime: "2026-03-07T13:32:00Z",
@@ -216,7 +216,7 @@ describe("/api/cli/notifier/failures", () => {
       {
         traceId: "trace-123",
         runId: "run-123",
-        repo: "citric-app/citric",
+        repo: "everr-dev/everr",
         branch: "main",
         workflowName: "CI",
         failureTime: "2026-03-07T13:32:00Z",

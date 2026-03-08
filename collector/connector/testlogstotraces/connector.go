@@ -18,9 +18,9 @@ import (
 
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
-	"github.com/get-citric/citric/collector/connector/testlogstotraces/gotest"
-	"github.com/get-citric/citric/collector/connector/testlogstotraces/vitest"
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-dev/everr/collector/connector/testlogstotraces/gotest"
+	"github.com/everr-dev/everr/collector/connector/testlogstotraces/vitest"
+	"github.com/everr-dev/everr/collector/semconv"
 )
 
 type testLogsToTracesConnector struct {
@@ -66,7 +66,7 @@ func (c *testLogsToTracesConnector) ConsumeLogs(ctx context.Context, ld plog.Log
 		}
 		runID := runIDVal.Int()
 
-		runAttemptVal, ok := resourceAttrs.Get(semconv.CitricGitHubWorkflowRunRunAttempt)
+		runAttemptVal, ok := resourceAttrs.Get(semconv.EverrGitHubWorkflowRunRunAttempt)
 		if !ok {
 			continue
 		}
@@ -91,7 +91,7 @@ func (c *testLogsToTracesConnector) ConsumeLogs(ctx context.Context, ld plog.Log
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				record := scopeLogs.LogRecords().At(k)
 
-				stepNumVal, ok := record.Attributes().Get(semconv.CitricGitHubWorkflowJobStepNumber)
+				stepNumVal, ok := record.Attributes().Get(semconv.EverrGitHubWorkflowJobStepNumber)
 				if !ok {
 					continue
 				}

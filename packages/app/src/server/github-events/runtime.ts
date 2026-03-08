@@ -229,18 +229,16 @@ export class GitHubEventsRuntimeManager {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __citricGitHubEventsRuntimeManager:
-    | GitHubEventsRuntimeManager
-    | undefined;
+  var __everrGitHubEventsRuntimeManager: GitHubEventsRuntimeManager | undefined;
 }
 
 function getGitHubEventsRuntimeManager(): GitHubEventsRuntimeManager {
-  if (!globalThis.__citricGitHubEventsRuntimeManager) {
-    globalThis.__citricGitHubEventsRuntimeManager =
+  if (!globalThis.__everrGitHubEventsRuntimeManager) {
+    globalThis.__everrGitHubEventsRuntimeManager =
       new GitHubEventsRuntimeManager();
   }
 
-  return globalThis.__citricGitHubEventsRuntimeManager;
+  return globalThis.__everrGitHubEventsRuntimeManager;
 }
 
 export function ensureGitHubEventsRuntimeForAppStart(): Promise<void> {

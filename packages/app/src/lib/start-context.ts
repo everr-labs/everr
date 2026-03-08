@@ -1,12 +1,12 @@
 import { getGlobalStartContext } from "@tanstack/react-start";
 
-type CitricRequestContext = {
+type EverrRequestContext = {
   organizationId: string;
   userId: string;
   tenantId: number;
 };
 
-type CitricGlobalStartContext = {
+type EverrGlobalStartContext = {
   organizationId?: string;
   userId?: string;
   tenantId?: number;
@@ -14,13 +14,13 @@ type CitricGlobalStartContext = {
 
 function getStartContextOrNull() {
   try {
-    return getGlobalStartContext() as CitricGlobalStartContext | null;
+    return getGlobalStartContext() as EverrGlobalStartContext | null;
   } catch {
     return null;
   }
 }
 
-export function setRequestContextInStartContext(context: CitricRequestContext) {
+export function setRequestContextInStartContext(context: EverrRequestContext) {
   const startContext = getStartContextOrNull();
   if (!startContext) {
     return;
@@ -31,7 +31,7 @@ export function setRequestContextInStartContext(context: CitricRequestContext) {
   startContext.tenantId = context.tenantId;
 }
 
-export function getRequestContextFromStartContext(): CitricRequestContext | null {
+export function getRequestContextFromStartContext(): EverrRequestContext | null {
   const startContext = getStartContextOrNull();
   if (!startContext) {
     return null;

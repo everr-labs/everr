@@ -18,7 +18,7 @@ function HomePage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-4xl font-bold">Welcome to Citric</h1>
+      <h1 className="text-4xl font-bold">Welcome to Everr</h1>
       <div className="flex flex-col items-center gap-4">
         <p className="text-lg text-muted-foreground">
           Sign in to access your dashboard

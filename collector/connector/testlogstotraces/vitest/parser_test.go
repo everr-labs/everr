@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/get-citric/citric/collector/connector/testlogstotraces/gotest"
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-dev/everr/collector/connector/testlogstotraces/gotest"
+	"github.com/everr-dev/everr/collector/semconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -263,7 +263,7 @@ func TestSpanGeneration(t *testing.T) {
 	assert.Equal(t, describeSpan.SpanID(), passSpan.ParentSpanID())
 
 	// Verify framework attribute
-	framework, ok := passSpan.Attributes().Get(semconv.CitricTestFramework)
+	framework, ok := passSpan.Attributes().Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "vitest", framework.Str())
 
@@ -302,7 +302,7 @@ func TestSpanGenerationFileLevelTest(t *testing.T) {
 	assert.Equal(t, stepSpanID, span.ParentSpanID())
 
 	// Verify package attribute
-	pkg, ok := span.Attributes().Get(semconv.CitricTestPackage)
+	pkg, ok := span.Attributes().Get(semconv.EverrTestPackage)
 	require.True(t, ok)
 	assert.Equal(t, "src/simple.test.ts", pkg.Str())
 }

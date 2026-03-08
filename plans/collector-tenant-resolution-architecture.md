@@ -17,7 +17,7 @@ This keeps component responsibilities clean and aligns better with Collector des
 ### What exists today
 - `githubactionsreceiver` extracts `installation_id` from webhook payloads.
 - Receiver resolves `installation_id -> tenant_id` via Postgres lookup.
-- Receiver writes `citric.tenant.id` onto resource attributes before export.
+- Receiver writes `everr.tenant.id` onto resource attributes before export.
 
 ### Technical implications
 - Receiver has infrastructure coupling (Postgres DSN, cache behavior, connectivity).
@@ -52,7 +52,7 @@ Receiver responsibilities:
 - Emit telemetry with stable source identifiers only.
 
 Receiver output attributes should include:
-- `citric.github.installation_id` (required)
+- `everr.github.installation_id` (required)
 - Existing GitHub workflow/run/job attributes
 
 Receiver should not:
@@ -62,17 +62,17 @@ Receiver should not:
 
 ## 2) Processor (`tenantenricherprocessor`)
 Processor responsibilities:
-- Read `citric.github.installation_id` from resource attrs.
+- Read `everr.github.installation_id` from resource attrs.
 - Resolve `tenant_id` via resolver service.
-- Write `citric.tenant.id` resource attribute.
+- Write `everr.tenant.id` resource attribute.
 - Enforce fail-closed behavior by default.
 
 Suggested processor config:
 ```yaml
 tenantenricher:
   resolver: tenantresolver
-  source_attribute: citric.github.installation_id
-  target_attribute: citric.tenant.id
+  source_attribute: everr.github.installation_id
+  target_attribute: everr.tenant.id
   on_missing_source: error      # error | passthrough | drop
   on_resolve_error: error       # error | passthrough | drop
   cache_ttl: 10s                # optional processor-local cache
@@ -108,9 +108,9 @@ Processor references extension by name.
 ## Data Flow (Target)
 
 1. Webhook arrives at `githubactionsreceiver`.
-2. Receiver emits pdata with `citric.github.installation_id`.
+2. Receiver emits pdata with `everr.github.installation_id`.
 3. `tenantenricherprocessor` resolves tenant via `tenantresolverextension`.
-4. Processor writes `citric.tenant.id`.
+4. Processor writes `everr.tenant.id`.
 5. Exporters (ClickHouse/etc.) consume only enriched records.
 
 ---
@@ -142,7 +142,7 @@ Optional escape hatch for local/dev:
 - Tighten cache TTL and document consistency window.
 
 ## Phase 1: Add source attribute in receiver
-- Ensure receiver always emits `citric.github.installation_id`.
+- Ensure receiver always emits `everr.github.installation_id`.
 - Keep existing direct tenant attribution temporarily for backward compatibility.
 
 ## Phase 2: Introduce extension + processor
@@ -182,7 +182,7 @@ Optional escape hatch for local/dev:
 
 ## Unit tests
 - Processor handles missing source attr per policy.
-- Processor sets `citric.tenant.id` on success.
+- Processor sets `everr.tenant.id` on success.
 - Resolver handles no rows, db errors, timeouts.
 - Cache behavior (hit/miss/expiry/invalidate).
 
@@ -235,7 +235,7 @@ Log fields:
 3. Fail-closed behavior is configurable and default in production.
 4. Mapping changes propagate within documented bound (or immediate with invalidation).
 5. Observability metrics and alerts are in place for resolver health.
-6. Existing dashboards/queries continue to work with `citric.tenant.id` unchanged.
+6. Existing dashboards/queries continue to work with `everr.tenant.id` unchanged.
 
 ---
 

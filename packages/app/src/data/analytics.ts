@@ -35,8 +35,8 @@ export const getDurationTrends = createServerFn({
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['citric.test.name'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.test.name'] = ''
 			GROUP BY date
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
@@ -78,26 +78,26 @@ export const getQueueTimeAnalysis = createServerFn({
 			SELECT
 				toDate(Timestamp) as date,
 				avg(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.created_at']))
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
 				) * 1000 as avgQueueTime,
 				quantile(0.5)(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.created_at']))
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
 				) * 1000 as p50QueueTime,
 				quantile(0.95)(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.created_at']))
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
 				) * 1000 as p95QueueTime,
 				max(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['citric.github.workflow_job.created_at']))
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
+					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
 				) * 1000 as maxQueueTime
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['citric.github.workflow_job.created_at'] != ''
-				AND ResourceAttributes['citric.github.workflow_job.started_at'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND ResourceAttributes['everr.github.workflow_job.created_at'] != ''
+				AND ResourceAttributes['everr.github.workflow_job.started_at'] != ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 			GROUP BY date
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
@@ -200,7 +200,7 @@ export const getRunnerUtilization = createServerFn({
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
-				AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
+				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 			GROUP BY labels
 			ORDER BY totalJobs DESC
 			LIMIT 20

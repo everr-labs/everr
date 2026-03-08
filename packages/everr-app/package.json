@@ -1,5 +1,5 @@
 {
-  "name": "@citric/everr-app",
+  "name": "@everr/everr-app",
   "private": true,
   "version": "0.1.0",
   "type": "module",

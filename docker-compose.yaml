@@ -10,7 +10,7 @@ services:
       retries: 20
     environment:
       CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: citric
+      CLICKHOUSE_PASSWORD: everr
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
       COLLECTOR_RW_PASSWORD: collector-dev
       APP_RO_PASSWORD: app-dev
@@ -41,5 +41,5 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./collector/config.yml:/etc/citric-collector/config.yaml:ro
-      - ./collector/dev-everr-app.pem:/etc/citric-collector/dev-everr-app.pem:ro
+      - ./collector/config.yml:/etc/everr-collector/config.yaml:ro
+      - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro

@@ -1110,7 +1110,7 @@ mod tests {
         FailureNotification {
             dedupe_key: dedupe_key.to_string(),
             trace_id: format!("trace-{dedupe_key}"),
-            repo: "citric-app/citric".to_string(),
+            repo: "everr-dev/everr".to_string(),
             branch: "main".to_string(),
             workflow_name: "CI".to_string(),
             failure_time: "2026-03-07T10:00:00Z".to_string(),

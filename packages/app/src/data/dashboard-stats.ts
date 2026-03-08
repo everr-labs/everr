@@ -139,8 +139,8 @@ export const getDashboardDurationStats = createServerFn({
 		FROM traces
 		WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 			AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-			AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-			AND SpanAttributes['citric.test.name'] = ''
+			AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+			AND SpanAttributes['everr.test.name'] = ''
 	`;
 
     const result = await query<{
@@ -183,8 +183,8 @@ export const getTopFailingJobs = createServerFn({
 		WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 			AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
 			AND ResourceAttributes['cicd.pipeline.task.name'] != ''
-			AND SpanAttributes['citric.github.workflow_job_step.number'] = ''
-			AND SpanAttributes['citric.test.name'] = ''
+			AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+			AND SpanAttributes['everr.test.name'] = ''
 		GROUP BY jobName, repo
 		ORDER BY failureCount DESC
 		LIMIT 5

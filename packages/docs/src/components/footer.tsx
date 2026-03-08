@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Citrus } from "lucide-react";
+import { Gauge } from "lucide-react";
 
 export function Footer() {
   return (
@@ -9,7 +9,7 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
             <div className="flex items-center justify-center gap-2 font-semibold sm:justify-start">
-              <Citrus className="size-8" />
+              <Gauge className="size-8" />
               <span className="text-2xl">Everr</span>
             </div>
             <p className="mt-4 text-sm text-fd-muted-foreground">

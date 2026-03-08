@@ -35,10 +35,10 @@ export function buildFilterConditions(
   const includeSkipResults = options?.includeSkipResults ?? false;
   const conditions: string[] = [
     "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
-    "SpanAttributes['citric.test.name'] != ''",
+    "SpanAttributes['everr.test.name'] != ''",
     includeSkipResults
-      ? "SpanAttributes['citric.test.result'] IN ('pass', 'fail', 'skip')"
-      : "SpanAttributes['citric.test.result'] IN ('pass', 'fail')",
+      ? "SpanAttributes['everr.test.result'] IN ('pass', 'fail', 'skip')"
+      : "SpanAttributes['everr.test.result'] IN ('pass', 'fail')",
   ];
   const params: Record<string, unknown> = {
     fromTime: fromISO,
@@ -53,12 +53,12 @@ export function buildFilterConditions(
     params.repo = data.repo;
   }
   if (data.pkg) {
-    conditions.push("SpanAttributes['citric.test.package'] = {pkg:String}");
+    conditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
     params.pkg = data.pkg;
   }
   if (data.testName) {
     conditions.push(
-      "SpanAttributes['citric.test.name'] ILIKE {testName:String}",
+      "SpanAttributes['everr.test.name'] ILIKE {testName:String}",
     );
     params.testName = `%${data.testName}%`;
   }
@@ -71,11 +71,11 @@ export function buildFilterConditions(
 
   if (data.path) {
     // name already contains the full test path for both vitest and Go tests
-    conditions.push("SpanAttributes['citric.test.name'] = {exactPath:String}");
+    conditions.push("SpanAttributes['everr.test.name'] = {exactPath:String}");
     params.exactPath = data.path;
   } else if (data.pkg) {
     // Package level: show direct children only (describe blocks / top-level tests)
-    conditions.push("SpanAttributes['citric.test.parent_test'] = ''");
+    conditions.push("SpanAttributes['everr.test.parent_test'] = ''");
   } else {
     // Root level: show only leaf tests (exclude suites)
     const leafScopeConditions: string[] = [];
@@ -158,12 +158,10 @@ export function executionsSubquery(
   }
 
   if (includeResult) {
-    selects.push(
-      "anyLast(SpanAttributes['citric.test.result']) as test_result",
-    );
+    selects.push("anyLast(SpanAttributes['everr.test.result']) as test_result");
   }
   selects.push(
-    "anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration",
+    "anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration",
   );
   if (includeTimestamp) {
     selects.push("max(Timestamp) as timestamp");

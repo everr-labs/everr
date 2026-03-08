@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-dev/everr/collector/semconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -221,15 +221,15 @@ func TestSpanGeneration(t *testing.T) {
 
 	// Verify attributes
 	fooAttrs := fooSpan.Attributes()
-	testName, ok := fooAttrs.Get(semconv.CitricTestName)
+	testName, ok := fooAttrs.Get(semconv.EverrTestName)
 	require.True(t, ok)
 	assert.Equal(t, "TestFoo", testName.Str())
 
-	result, ok := fooAttrs.Get(semconv.CitricTestResult)
+	result, ok := fooAttrs.Get(semconv.EverrTestResult)
 	require.True(t, ok)
 	assert.Equal(t, "pass", result.Str())
 
-	framework, ok := fooAttrs.Get(semconv.CitricTestFramework)
+	framework, ok := fooAttrs.Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "go", framework.Str())
 
@@ -289,11 +289,11 @@ func TestSpanGenerationWithSubtests(t *testing.T) {
 	assert.Equal(t, parentSpan.SpanID(), childSpan.ParentSpanID())
 
 	// Verify is_subtest attribute
-	isSubtest, ok := childSpan.Attributes().Get(semconv.CitricTestIsSubtest)
+	isSubtest, ok := childSpan.Attributes().Get(semconv.EverrTestIsSubtest)
 	require.True(t, ok)
 	assert.True(t, isSubtest.Bool())
 
-	isSubtest, ok = parentSpan.Attributes().Get(semconv.CitricTestIsSubtest)
+	isSubtest, ok = parentSpan.Attributes().Get(semconv.EverrTestIsSubtest)
 	require.True(t, ok)
 	assert.False(t, isSubtest.Bool())
 }
@@ -392,7 +392,7 @@ func TestPackageParsing(t *testing.T) {
 		require.NotNil(t, traces)
 
 		span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-		pkg, ok := span.Attributes().Get(semconv.CitricTestPackage)
+		pkg, ok := span.Attributes().Get(semconv.EverrTestPackage)
 		require.True(t, ok, "package attribute should be present")
 		assert.Equal(t, "github.com/foo/bar", pkg.Str())
 	})

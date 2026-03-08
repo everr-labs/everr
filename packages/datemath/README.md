@@ -1,17 +1,17 @@
-# @citric/datemath
+# @everr/datemath
 
 Elasticsearch-compatible date math expression parser and evaluator.
 
 ## Installation
 
 ```bash
-pnpm add @citric/datemath
+pnpm add @everr/datemath
 ```
 
 ## Quick start
 
 ```ts
-import { resolve, isValid } from "@citric/datemath";
+import { resolve, isValid } from "@everr/datemath";
 
 // "1 hour ago, rounded down to the start of the hour"
 const date = resolve("now-1h/h");

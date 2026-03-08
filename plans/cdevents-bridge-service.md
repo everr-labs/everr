@@ -236,7 +236,7 @@ Create `otel.cdevents_raw` with explicit `tenant_id`.
 Create `app.cdevents` and `app.cdevents_mv`.
 
 ## 3. RLS
-Apply row-level security using `tenant_id = toUInt64(getSetting('SQL_citric_tenant_id'))`.
+Apply row-level security using `tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))`.
 
 ## Ingress Refactor Plan
 

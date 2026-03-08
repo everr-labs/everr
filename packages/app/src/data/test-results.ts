@@ -58,7 +58,7 @@ export const getTestResultsSummary = createServerFn({
 					${testFullNameExpr()},
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					anyLast(SpanAttributes['citric.test.result']) as test_result
+					anyLast(SpanAttributes['everr.test.result']) as test_result
 				FROM traces
 				WHERE ${whereClause}
 				GROUP BY test_full_name, run_id, head_sha
@@ -118,12 +118,12 @@ export const getTestDurationTrend = createServerFn({
 					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
 					${testFullNameExpr()},
-					anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration,
+					anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration,
 					max(Timestamp) as timestamp
 				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND SpanAttributes['citric.test.name'] != ''
-					AND SpanAttributes['citric.test.result'] IN ('pass', 'fail')
+					AND SpanAttributes['everr.test.name'] != ''
+					AND SpanAttributes['everr.test.result'] IN ('pass', 'fail')
 				GROUP BY run_id, head_sha, test_full_name
 			)
 			GROUP BY date

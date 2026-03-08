@@ -329,7 +329,7 @@ mod tests {
             "everr",
             "test-history",
             "--repo",
-            "citric-app/citric",
+            "everr-dev/everr",
             "--module",
             "suite",
             "--test-name",
@@ -352,7 +352,7 @@ mod tests {
             panic!("expected test-history command");
         };
 
-        assert_eq!(repo.as_deref(), Some("citric-app/citric"));
+        assert_eq!(repo.as_deref(), Some("everr-dev/everr"));
         assert_eq!(test_name.as_deref(), Some("test"));
         assert_eq!(test_module.as_deref(), Some("suite"));
         assert_eq!(from.as_deref(), Some("now-7d"));

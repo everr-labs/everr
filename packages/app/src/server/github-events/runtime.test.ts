@@ -54,7 +54,7 @@ async function loadRuntimeModule() {
 afterEach(() => {
   vi.resetModules();
   vi.unstubAllEnvs();
-  Reflect.deleteProperty(globalThis, "__citricGitHubEventsRuntimeManager");
+  Reflect.deleteProperty(globalThis, "__everrGitHubEventsRuntimeManager");
 });
 
 describe("GitHubEventsRuntime", () => {

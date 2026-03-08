@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/get-citric/citric/collector/receiver/githubactionsreceiver/internal/metadata"
-	"github.com/get-citric/citric/collector/semconv"
+	"github.com/everr-dev/everr/collector/receiver/githubactionsreceiver/internal/metadata"
+	"github.com/everr-dev/everr/collector/semconv"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -211,8 +211,8 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 			desc:            "WorkflowJobEvent Step Attributes",
 			payloadFilePath: "./testdata/completed/5_workflow_job_completed.json",
 			expectedSteps: []map[string]string{
-				{string(conventions.CICDPipelineTaskNameKey): "Set up job", semconv.CitricGitHubWorkflowJobStepNumber: "1"},
-				{string(conventions.CICDPipelineTaskNameKey): "Run actions/checkout@v3", semconv.CitricGitHubWorkflowJobStepNumber: "2"},
+				{string(conventions.CICDPipelineTaskNameKey): "Set up job", semconv.EverrGitHubWorkflowJobStepNumber: "1"},
+				{string(conventions.CICDPipelineTaskNameKey): "Run actions/checkout@v3", semconv.EverrGitHubWorkflowJobStepNumber: "2"},
 			},
 		},
 	}

@@ -21,7 +21,7 @@ export const getTestPerfFilterOptions = createServerFn({
       FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
         AND ResourceAttributes['vcs.repository.name'] != ''
-        AND SpanAttributes['citric.test.name'] != ''
+        AND SpanAttributes['everr.test.name'] != ''
       ORDER BY repo
       LIMIT 100`,
     ),
@@ -30,7 +30,7 @@ export const getTestPerfFilterOptions = createServerFn({
       FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
         AND ResourceAttributes['vcs.ref.head.name'] != ''
-        AND SpanAttributes['citric.test.name'] != ''
+        AND SpanAttributes['everr.test.name'] != ''
       ORDER BY branch
       LIMIT 100`,
     ),
@@ -79,8 +79,8 @@ export const getTestPerfChildren = createServerFn({
 
     const baseConditions = [
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
-      "SpanAttributes['citric.test.name'] != ''",
-      "SpanAttributes['citric.test.result'] IN ('pass', 'fail')",
+      "SpanAttributes['everr.test.name'] != ''",
+      "SpanAttributes['everr.test.result'] IN ('pass', 'fail')",
     ];
     const params: Record<string, unknown> = {
       fromTime: fromISO,
@@ -106,29 +106,29 @@ export const getTestPerfChildren = createServerFn({
 
     if (isRoot) {
       const rootConditions = [...baseConditions];
-      rootConditions.push("SpanAttributes['citric.test.package'] != ''");
+      rootConditions.push("SpanAttributes['everr.test.package'] != ''");
       const rootWhere = rootConditions.join("\n          AND ");
 
       const sql = `
         WITH executions AS (
           SELECT
-            SpanAttributes['citric.test.package'] as pkg_name,
-            SpanAttributes['citric.test.name'] as name,
-            SpanAttributes['citric.test.parent_test'] as parent_test,
+            SpanAttributes['everr.test.package'] as pkg_name,
+            SpanAttributes['everr.test.name'] as name,
+            SpanAttributes['everr.test.parent_test'] as parent_test,
             ${testFullNameExpr()},
             if(
-              SpanAttributes['citric.test.parent_test'] != '',
+              SpanAttributes['everr.test.parent_test'] != '',
               concat(
-                replaceAll(SpanAttributes['citric.test.parent_test'], ' > ', '/'),
+                replaceAll(SpanAttributes['everr.test.parent_test'], ' > ', '/'),
                 '/',
-                SpanAttributes['citric.test.name']
+                SpanAttributes['everr.test.name']
               ),
-              SpanAttributes['citric.test.name']
+              SpanAttributes['everr.test.name']
             ) as normalized_full_name,
             ResourceAttributes['cicd.pipeline.run.id'] as run_id,
             ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-            anyLast(SpanAttributes['citric.test.result']) as test_result,
-            anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
+            anyLast(SpanAttributes['everr.test.result']) as test_result,
+            anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration
           FROM traces
           WHERE ${rootWhere}
           GROUP BY pkg_name, name, parent_test, test_full_name, normalized_full_name, run_id, head_sha
@@ -211,25 +211,21 @@ export const getTestPerfChildren = createServerFn({
 
     // Package or deeper level: return direct children with suite flag in one query
     const childConditions = [...baseConditions];
-    childConditions.push(
-      "SpanAttributes['citric.test.package'] = {pkg:String}",
-    );
+    childConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
     params.pkg = data.pkg;
 
     const parentTest = data.path ?? "";
     params.parentTest = parentTest;
 
     childConditions.push(
-      "SpanAttributes['citric.test.parent_test'] = {parentTest:String}",
+      "SpanAttributes['everr.test.parent_test'] = {parentTest:String}",
     );
 
     const childWhere = childConditions.join("\n          AND ");
 
     const suiteConditions = [...baseConditions];
-    suiteConditions.push(
-      "SpanAttributes['citric.test.package'] = {pkg:String}",
-    );
-    suiteConditions.push("SpanAttributes['citric.test.parent_test'] != ''");
+    suiteConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
+    suiteConditions.push("SpanAttributes['everr.test.parent_test'] != ''");
     const suiteWhere = suiteConditions.join("\n          AND ");
 
     const sql = `
@@ -242,18 +238,18 @@ export const getTestPerfChildren = createServerFn({
         round(countIf(c.test_result = 'fail') * 100.0 / nullIf(count(), 0), 1) as failure_rate
       FROM (
         SELECT
-          SpanAttributes['citric.test.name'] as name,
+          SpanAttributes['everr.test.name'] as name,
           ${testFullNameExpr()},
           ResourceAttributes['cicd.pipeline.run.id'] as run_id,
           ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-          anyLast(SpanAttributes['citric.test.result']) as test_result,
-          anyLast(toFloat64OrZero(SpanAttributes['citric.test.duration_seconds'])) as test_duration
+          anyLast(SpanAttributes['everr.test.result']) as test_result,
+          anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration
         FROM traces
         WHERE ${childWhere}
         GROUP BY name, test_full_name, run_id, head_sha
       ) c
       LEFT JOIN (
-        SELECT DISTINCT SpanAttributes['citric.test.parent_test'] as name
+        SELECT DISTINCT SpanAttributes['everr.test.parent_test'] as name
         FROM traces
         WHERE ${suiteWhere}
       ) s USING (name)
