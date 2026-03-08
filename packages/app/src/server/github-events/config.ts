@@ -21,6 +21,35 @@ export type GitHubEventsConfig = {
   cdeventsFlushIntervalMs: number;
 };
 
+const githubEventsConfigConstants = {
+  workerCount: 2,
+  workerBatchSize: 10,
+  maxAttempts: 10,
+  pollIntervalMs: 2_000,
+  lockDurationMs: 120_000,
+  replayTimeoutMs: 30_000,
+  tenantCacheTTLms: 60_000,
+  retentionDoneDays: 7,
+  retentionDeadDays: 30,
+  cleanupIntervalMs: 3_600_000,
+  cdeventsBatchSize: 100,
+  cdeventsFlushIntervalMs: 5_000,
+} satisfies Pick<
+  GitHubEventsConfig,
+  | "workerCount"
+  | "workerBatchSize"
+  | "maxAttempts"
+  | "pollIntervalMs"
+  | "lockDurationMs"
+  | "replayTimeoutMs"
+  | "tenantCacheTTLms"
+  | "retentionDoneDays"
+  | "retentionDeadDays"
+  | "cleanupIntervalMs"
+  | "cdeventsBatchSize"
+  | "cdeventsFlushIntervalMs"
+>;
+
 let cachedConfig: GitHubEventsConfig | undefined;
 
 export function getGitHubEventsConfig(): GitHubEventsConfig {
@@ -31,22 +60,11 @@ export function getGitHubEventsConfig(): GitHubEventsConfig {
   cachedConfig = {
     source: githubEventsEnv.INGRESS_SOURCE,
     collectorURL: githubEventsEnv.INGRESS_COLLECTOR_URL,
-    workerCount: githubEventsEnv.INGRESS_WORKER_COUNT,
-    workerBatchSize: githubEventsEnv.INGRESS_WORKER_BATCH_SIZE,
-    maxAttempts: githubEventsEnv.INGRESS_MAX_ATTEMPTS,
-    pollIntervalMs: githubEventsEnv.INGRESS_POLL_INTERVAL,
-    lockDurationMs: githubEventsEnv.INGRESS_LOCK_DURATION,
-    replayTimeoutMs: githubEventsEnv.INGRESS_REPLAY_TIMEOUT,
-    tenantCacheTTLms: githubEventsEnv.INGRESS_TENANT_CACHE_TTL,
-    retentionDoneDays: githubEventsEnv.INGRESS_RETENTION_DONE_DAYS,
-    retentionDeadDays: githubEventsEnv.INGRESS_RETENTION_DEAD_DAYS,
-    cleanupIntervalMs: githubEventsEnv.INGRESS_CLEANUP_INTERVAL,
+    ...githubEventsConfigConstants,
     cdeventsClickHouseURL: githubEventsEnv.CDEVENTS_CLICKHOUSE_URL,
     cdeventsClickHouseUsername: githubEventsEnv.CDEVENTS_CLICKHOUSE_USERNAME,
     cdeventsClickHousePassword: githubEventsEnv.CDEVENTS_CLICKHOUSE_PASSWORD,
     cdeventsClickHouseDatabase: githubEventsEnv.CDEVENTS_CLICKHOUSE_DATABASE,
-    cdeventsBatchSize: githubEventsEnv.CDEVENTS_BATCH_SIZE,
-    cdeventsFlushIntervalMs: githubEventsEnv.CDEVENTS_FLUSH_INTERVAL,
   };
 
   return cachedConfig;

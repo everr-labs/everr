@@ -40,7 +40,7 @@ describe("getWaitPipelineStatus", () => {
       .mockResolvedValueOnce([
         {
           workflow_name: "CI",
-          usualDurationSeconds: "57",
+          usualDurationSeconds: "57.6",
           sampleCount: "3",
         },
       ]);
@@ -59,11 +59,14 @@ describe("getWaitPipelineStatus", () => {
     );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
       repo: "everr-labs/everr",
-      branch: "feature/wait-short-commi",
+      branch: "feature/wait-short-commit",
       commit: "7f14b13",
     });
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "AND event_kind = 'pipelinerun'",
+    );
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
+      "toUInt64(round(avg(duration_seconds))) as usualDurationSeconds",
     );
     expect(mockedQuery.mock.calls[1]?.[1]).toEqual({
       repo: "everr-labs/everr",
@@ -84,7 +87,7 @@ describe("getWaitPipelineStatus", () => {
           conclusion: "success",
           lastEventTime: "2026-03-06T10:01:00Z",
           durationSeconds: 61,
-          usualDurationSeconds: 57,
+          usualDurationSeconds: 58,
           usualDurationSampleSize: 3,
           activeJobs: [],
         },

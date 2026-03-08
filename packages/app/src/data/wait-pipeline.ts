@@ -55,7 +55,7 @@ export const getWaitPipelineStatus = createServerFn({
       )
       SELECT
         workflow_name,
-        avg(duration_seconds) as usualDurationSeconds,
+        toUInt64(round(avg(duration_seconds))) as usualDurationSeconds,
         count() as sampleCount
       FROM (
         SELECT
@@ -87,7 +87,7 @@ export const getWaitPipelineStatus = createServerFn({
       baselines.map((row) => [
         row.workflow_name,
         {
-          durationSeconds: Number(row.usualDurationSeconds),
+          durationSeconds: Math.round(Number(row.usualDurationSeconds)),
           sampleSize: Number(row.sampleCount),
         },
       ]),

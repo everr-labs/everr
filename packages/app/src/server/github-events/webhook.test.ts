@@ -4,22 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.hoisted(() => {
   process.env.INGRESS_SOURCE = "github";
   process.env.INGRESS_COLLECTOR_URL = "http://localhost:8080/webhook/github";
-  process.env.INGRESS_WORKER_COUNT = "2";
-  process.env.INGRESS_WORKER_BATCH_SIZE = "10";
-  process.env.INGRESS_MAX_ATTEMPTS = "10";
-  process.env.INGRESS_POLL_INTERVAL = "2000ms";
-  process.env.INGRESS_LOCK_DURATION = "120000ms";
-  process.env.INGRESS_REPLAY_TIMEOUT = "30000ms";
-  process.env.INGRESS_TENANT_CACHE_TTL = "60000ms";
-  process.env.INGRESS_RETENTION_DONE_DAYS = "7";
-  process.env.INGRESS_RETENTION_DEAD_DAYS = "30";
-  process.env.INGRESS_CLEANUP_INTERVAL = "3600000ms";
   process.env.CDEVENTS_CLICKHOUSE_URL = "http://localhost:8123";
   process.env.CDEVENTS_CLICKHOUSE_USERNAME = "app_cdevents_rw";
   process.env.CDEVENTS_CLICKHOUSE_PASSWORD = "app-cdevents-dev";
   process.env.CDEVENTS_CLICKHOUSE_DATABASE = "app";
-  process.env.CDEVENTS_BATCH_SIZE = "100";
-  process.env.CDEVENTS_FLUSH_INTERVAL = "5000ms";
 });
 
 vi.mock("@/data/tenants", () => ({
