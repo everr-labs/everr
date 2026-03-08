@@ -12,11 +12,6 @@ processors:
   batch:
   resource:
     attributes:
-      - action: insert
-        key: ci.github.workflow.name
-        from_attribute: ci.github.workflow.run.name
-      - action: delete
-        key: ci.github.workflow.run.name
       - action: upsert
         key: everr.tenant.id
         from_context: metadata.x-everr-tenant-id
