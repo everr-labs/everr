@@ -47,6 +47,14 @@ impl ApiClient {
         self.get_json("/test-history", query).await
     }
 
+    pub async fn get_slowest_tests(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/slowest-tests", query).await
+    }
+
+    pub async fn get_slowest_jobs(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/slowest-jobs", query).await
+    }
+
     pub async fn get_run_details(&self, trace_id: &str) -> Result<Value> {
         let path = format!("/runs/{trace_id}");
         self.get_json(&path, &[]).await

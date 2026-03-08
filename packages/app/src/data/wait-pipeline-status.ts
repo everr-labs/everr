@@ -7,6 +7,8 @@ export interface WaitPipelineRun {
   conclusion: string;
   lastEventTime: string;
   durationSeconds: number;
+  usualDurationSeconds: number | null;
+  usualDurationSampleSize: number;
   activeJobs: string[];
 }
 
@@ -47,9 +49,15 @@ export interface WaitPipelineRow {
   durationSeconds: string;
 }
 
+export interface WaitPipelineDurationBaseline {
+  durationSeconds: number;
+  sampleSize: number;
+}
+
 export function buildWaitPipelineStatus(
   data: z.infer<typeof WaitPipelineStatusInputSchema>,
   rows: WaitPipelineRow[],
+  durationBaselinesByWorkflow = new Map<string, WaitPipelineDurationBaseline>(),
 ): WaitPipelineStatusResult {
   const jobs: WaitPipelineJob[] = rows
     .filter(
@@ -81,15 +89,21 @@ export function buildWaitPipelineStatus(
 
   const runs: WaitPipelineRun[] = rows
     .filter((row) => row.eventKind === "pipelinerun")
-    .map((row) => ({
-      runId: row.subjectId,
-      workflowName: row.subjectName,
-      phase: row.phase,
-      conclusion: row.conclusion,
-      lastEventTime: row.lastEventTime,
-      durationSeconds: Number(row.durationSeconds),
-      activeJobs: activeJobsByRunId.get(row.subjectId) ?? [],
-    }));
+    .map((row) => {
+      const baseline = durationBaselinesByWorkflow.get(row.subjectName);
+
+      return {
+        runId: row.subjectId,
+        workflowName: row.subjectName,
+        phase: row.phase,
+        conclusion: row.conclusion,
+        lastEventTime: row.lastEventTime,
+        durationSeconds: Number(row.durationSeconds),
+        usualDurationSeconds: baseline?.durationSeconds ?? null,
+        usualDurationSampleSize: baseline?.sampleSize ?? 0,
+        activeJobs: activeJobsByRunId.get(row.subjectId) ?? [],
+      };
+    });
 
   return {
     repo: data.repo,

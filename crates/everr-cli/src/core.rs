@@ -9,7 +9,10 @@ use tokio::time::sleep;
 
 use crate::api::ApiClient;
 use crate::auth;
-use crate::cli::{GetLogsArgs, ListRunsArgs, ShowRunArgs, StatusArgs, TestHistoryArgs, WaitArgs};
+use crate::cli::{
+    GetLogsArgs, ListRunsArgs, ShowRunArgs, SlowestJobsArgs, SlowestTestsArgs, StatusArgs,
+    TestHistoryArgs, WaitArgs,
+};
 
 pub async fn status(args: StatusArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
@@ -95,6 +98,46 @@ pub async fn test_history(args: TestHistoryArgs) -> Result<()> {
     push_opt(&mut query, "to", args.to);
 
     let payload = client.get_test_history(&query).await?;
+    print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn slowest_tests(args: SlowestTestsArgs) -> Result<()> {
+    let session = auth::require_session_with_refresh().await?;
+    let client = ApiClient::from_session(&session)?;
+    let cwd = std::env::current_dir()?;
+    let git = resolve_git_context(&cwd);
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+    let branch = args.branch.or(git.branch);
+
+    let mut query: Vec<(&str, String)> = vec![("repo", repo), ("limit", args.limit.to_string())];
+    push_opt(&mut query, "branch", branch);
+    push_opt(&mut query, "from", args.from);
+    push_opt(&mut query, "to", args.to);
+
+    let payload = client.get_slowest_tests(&query).await?;
+    print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn slowest_jobs(args: SlowestJobsArgs) -> Result<()> {
+    let session = auth::require_session_with_refresh().await?;
+    let client = ApiClient::from_session(&session)?;
+    let cwd = std::env::current_dir()?;
+    let git = resolve_git_context(&cwd);
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+    let branch = args.branch.or(git.branch);
+
+    let mut query: Vec<(&str, String)> = vec![("repo", repo), ("limit", args.limit.to_string())];
+    push_opt(&mut query, "branch", branch);
+    push_opt(&mut query, "from", args.from);
+    push_opt(&mut query, "to", args.to);
+
+    let payload = client.get_slowest_jobs(&query).await?;
     print_json(&payload)?;
     Ok(())
 }
@@ -207,6 +250,8 @@ struct WaitRunStatus {
     workflow_name: String,
     conclusion: String,
     duration_seconds: u64,
+    usual_duration_seconds: Option<u64>,
+    usual_duration_sample_size: usize,
     active_jobs: Vec<String>,
 }
 
@@ -225,13 +270,22 @@ fn format_wait_status(
     } else {
         let _ = writeln!(status, "Active runs:");
         for run in active_runs {
-            let _ = writeln!(
-                status,
-                "- {} (duration: {}; active jobs: {})",
-                run.workflow_name,
-                format_elapsed_duration(run.duration_seconds),
+            let mut details = vec![format!(
+                "duration: {}",
+                format_elapsed_duration(run.duration_seconds)
+            )];
+            if let Some(usual_duration_seconds) = run.usual_duration_seconds {
+                details.push(format!(
+                    "usually takes: {} (avg of {})",
+                    format_elapsed_duration(usual_duration_seconds),
+                    run.usual_duration_sample_size
+                ));
+            }
+            details.push(format!(
+                "active jobs: {}",
                 format_name_list(&run.active_jobs)
-            );
+            ));
+            let _ = writeln!(status, "- {} ({})", run.workflow_name, details.join("; "));
         }
     }
     let _ = writeln!(
@@ -300,6 +354,12 @@ fn extract_wait_runs(payload: &Value, key: &str) -> Vec<WaitRunStatus> {
             duration_seconds: item
                 .get("durationSeconds")
                 .and_then(Value::as_u64)
+                .unwrap_or(0),
+            usual_duration_seconds: item.get("usualDurationSeconds").and_then(Value::as_u64),
+            usual_duration_sample_size: item
+                .get("usualDurationSampleSize")
+                .and_then(Value::as_u64)
+                .map(|value| value as usize)
                 .unwrap_or(0),
             active_jobs: item
                 .get("activeJobs")
@@ -411,12 +471,16 @@ mod tests {
                 workflow_name: "Build & Test Collector".to_string(),
                 conclusion: String::new(),
                 duration_seconds: 139,
+                usual_duration_seconds: None,
+                usual_duration_sample_size: 0,
                 active_jobs: vec!["Lint".to_string(), "Build".to_string()],
             }],
             vec![WaitRunStatus {
                 workflow_name: "Build & Test Ingress".to_string(),
                 conclusion: "success".to_string(),
                 duration_seconds: 0,
+                usual_duration_seconds: None,
+                usual_duration_sample_size: 0,
                 active_jobs: Vec::new(),
             }],
         );
@@ -438,12 +502,16 @@ mod tests {
                     workflow_name: "Build & Test Collector".to_string(),
                     conclusion: "failure".to_string(),
                     duration_seconds: 0,
+                    usual_duration_seconds: None,
+                    usual_duration_sample_size: 0,
                     active_jobs: Vec::new(),
                 },
                 WaitRunStatus {
                     workflow_name: "Build & Test App".to_string(),
                     conclusion: "success".to_string(),
                     duration_seconds: 0,
+                    usual_duration_seconds: None,
+                    usual_duration_sample_size: 0,
                     active_jobs: Vec::new(),
                 },
             ],
@@ -451,6 +519,29 @@ mod tests {
 
         assert!(
             status.contains("Completed runs: Build & Test Collector (failed), Build & Test App")
+        );
+    }
+
+    #[test]
+    fn wait_status_output_includes_usual_duration_when_available() {
+        let status = format_wait_status(
+            "df0c52b63dfa0123456789",
+            5,
+            vec![WaitRunStatus {
+                workflow_name: "CI".to_string(),
+                conclusion: String::new(),
+                duration_seconds: 125,
+                usual_duration_seconds: Some(118),
+                usual_duration_sample_size: 3,
+                active_jobs: vec!["test".to_string()],
+            }],
+            Vec::new(),
+        );
+
+        assert!(
+            status.contains(
+                "CI (duration: 2m 5s; usually takes: 1m 58s (avg of 3); active jobs: test)"
+            )
         );
     }
 }

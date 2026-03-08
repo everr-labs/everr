@@ -381,6 +381,102 @@ fn test_history_requires_repo_when_git_context_is_missing() {
 }
 
 #[test]
+fn slowest_tests_sends_expected_query_and_auth_header() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/slow-tests",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-slow");
+
+    let mock = server
+        .mock("GET", "/api/cli/slowest-tests")
+        .match_header("authorization", "Bearer token-slow")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/slow-tests".into()),
+            Matcher::UrlEncoded("from".into(), "now-24h".into()),
+            Matcher::UrlEncoded("to".into(), "now".into()),
+            Matcher::UrlEncoded("limit".into(), "15".into()),
+        ]))
+        .with_status(200)
+        .with_body(
+            r#"{"repo":"everr-labs/everr","branch":"feature/slow-tests","timeRange":{"from":"now-24h","to":"now"},"limit":15,"items":[{"testFullName":"suite/test","avgDurationSeconds":12.5}]}"#,
+        )
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args([
+            "slowest-tests",
+            "--from",
+            "now-24h",
+            "--to",
+            "now",
+            "--limit",
+            "15",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("\"testFullName\": \"suite/test\""));
+
+    mock.assert();
+}
+
+#[test]
+fn slowest_tests_requires_repo_when_git_context_is_missing() {
+    let env = CliTestEnv::new();
+    let server = mock_api_server();
+    env.write_session(&server.url(), "token-slow");
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&env.home_dir)
+        .args(["slowest-tests"])
+        .assert()
+        .failure()
+        .stderr(contains("failed to resolve repository; provide --repo"));
+}
+
+#[test]
+fn slowest_jobs_sends_expected_query_and_auth_header() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/slow-jobs",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-jobs");
+
+    let mock = server
+        .mock("GET", "/api/cli/slowest-jobs")
+        .match_header("authorization", "Bearer token-jobs")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/slow-jobs".into()),
+            Matcher::UrlEncoded("limit".into(), "5".into()),
+        ]))
+        .with_status(200)
+        .with_body(
+            r#"{"repo":"everr-labs/everr","branch":"feature/slow-jobs","timeRange":{"from":"now-7d","to":"now"},"limit":5,"items":[{"workflowName":"CI","jobName":"integration","avgDurationSeconds":420.0}]}"#,
+        )
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["slowest-jobs", "--limit", "5"])
+        .assert()
+        .success()
+        .stdout(contains("\"jobName\": \"integration\""));
+
+    mock.assert();
+}
+
+#[test]
 fn api_errors_are_reported_to_the_user() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
@@ -443,7 +539,7 @@ fn wait_polls_until_head_sha_run_is_found() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":125,"activeJobs":["test","lint"]}}],"completedRuns":[{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z","durationSeconds":59,"activeJobs":[]}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":125,"usualDurationSeconds":118,"usualDurationSampleSize":3,"activeJobs":["test","lint"]}}],"completedRuns":[{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z","durationSeconds":59,"usualDurationSeconds":57,"usualDurationSampleSize":3,"activeJobs":[]}}]}}"#
         ))
         .expect(1)
         .create();
@@ -480,7 +576,7 @@ fn wait_polls_until_head_sha_run_is_found() {
         .stdout(contains("\"runId\": \"41\""))
         .stderr(contains("Refresh rate: every 0s"))
         .stderr(contains(
-            "Active runs:\n- CI (duration: 2m 5s; active jobs: test, lint)",
+            "Active runs:\n- CI (duration: 2m 5s; usually takes: 1m 58s (avg of 3); active jobs: test, lint)",
         ))
         .stderr(contains("Completed runs: Lint"))
         .stderr(predicate::str::contains("Elapsed: ").not())

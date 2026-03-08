@@ -23,19 +23,27 @@ beforeEach(() => {
 
 describe("getWaitPipelineStatus", () => {
   it("matches short commit SHA prefixes in the pipeline query", async () => {
-    mockedQuery.mockResolvedValue([
-      {
-        subjectId: "88",
-        subjectName: "CI",
-        htmlUrl: "https://github.com/everr-labs/everr/actions/runs/88",
-        phase: "finished",
-        conclusion: "success",
-        lastEventTime: "2026-03-06T10:01:00Z",
-        eventKind: "pipelinerun",
-        pipelineRunId: "",
-        durationSeconds: "61",
-      },
-    ]);
+    mockedQuery
+      .mockResolvedValueOnce([
+        {
+          subjectId: "88",
+          subjectName: "CI",
+          htmlUrl: "https://github.com/everr-labs/everr/actions/runs/88",
+          phase: "finished",
+          conclusion: "success",
+          lastEventTime: "2026-03-06T10:01:00Z",
+          eventKind: "pipelinerun",
+          pipelineRunId: "",
+          durationSeconds: "61",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          workflow_name: "CI",
+          usualDurationSeconds: "57",
+          sampleCount: "3",
+        },
+      ]);
 
     const result = await getWaitPipelineStatus({
       data: {
@@ -45,11 +53,19 @@ describe("getWaitPipelineStatus", () => {
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "AND startsWith(sha, {commit:String})",
     );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
+      repo: "everr-labs/everr",
+      branch: "feature/wait-short-commit",
+      commit: "7f14b13",
+    });
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
+      "AND event_kind = 'pipelinerun'",
+    );
+    expect(mockedQuery.mock.calls[1]?.[1]).toEqual({
       repo: "everr-labs/everr",
       branch: "feature/wait-short-commit",
       commit: "7f14b13",
@@ -68,6 +84,8 @@ describe("getWaitPipelineStatus", () => {
           conclusion: "success",
           lastEventTime: "2026-03-06T10:01:00Z",
           durationSeconds: 61,
+          usualDurationSeconds: 57,
+          usualDurationSampleSize: 3,
           activeJobs: [],
         },
       ],

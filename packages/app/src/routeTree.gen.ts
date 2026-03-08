@@ -29,6 +29,8 @@ import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
 import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
 import { Route as ApiCliStatusRouteImport } from './routes/api/cli/status'
+import { Route as ApiCliSlowestTestsRouteImport } from './routes/api/cli/slowest-tests'
+import { Route as ApiCliSlowestJobsRouteImport } from './routes/api/cli/slowest-jobs'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as DashboardRunsTraceIdRouteRouteImport } from './routes/dashboard/runs/$traceId/route'
@@ -147,6 +149,16 @@ const ApiCliStatusRoute = ApiCliStatusRouteImport.update({
   path: '/api/cli/status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCliSlowestTestsRoute = ApiCliSlowestTestsRouteImport.update({
+  id: '/api/cli/slowest-tests',
+  path: '/api/cli/slowest-tests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliSlowestJobsRoute = ApiCliSlowestJobsRouteImport.update({
+  id: '/api/cli/slowest-jobs',
+  path: '/api/cli/slowest-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
   id: '/api/cli/runs',
   path: '/api/cli/runs',
@@ -255,6 +267,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
+  '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
@@ -290,6 +304,8 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
+  '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/dashboard/runs': typeof DashboardRunsIndexRoute
@@ -329,6 +345,8 @@ export interface FileRoutesById {
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
+  '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/status': typeof ApiCliStatusRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/dashboard/runs/': typeof DashboardRunsIndexRoute
@@ -369,6 +387,8 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
     | '/api/cli/runs'
+    | '/api/cli/slowest-jobs'
+    | '/api/cli/slowest-tests'
     | '/api/cli/status'
     | '/api/cli/test-history'
     | '/dashboard/runs/'
@@ -404,6 +424,8 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/api/auth/callback'
     | '/api/cli/runs'
+    | '/api/cli/slowest-jobs'
+    | '/api/cli/slowest-tests'
     | '/api/cli/status'
     | '/api/cli/test-history'
     | '/dashboard/runs'
@@ -442,6 +464,8 @@ export interface FileRouteTypes {
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
     | '/api/cli/runs'
+    | '/api/cli/slowest-jobs'
+    | '/api/cli/slowest-tests'
     | '/api/cli/status'
     | '/api/cli/test-history'
     | '/dashboard/runs/'
@@ -473,6 +497,8 @@ export interface RootRouteChildren {
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
+  ApiCliSlowestJobsRoute: typeof ApiCliSlowestJobsRoute
+  ApiCliSlowestTestsRoute: typeof ApiCliSlowestTestsRoute
   ApiCliStatusRoute: typeof ApiCliStatusRoute
   ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
   ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRoute
@@ -623,6 +649,20 @@ declare module '@tanstack/react-router' {
       path: '/api/cli/status'
       fullPath: '/api/cli/status'
       preLoaderRoute: typeof ApiCliStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/slowest-tests': {
+      id: '/api/cli/slowest-tests'
+      path: '/api/cli/slowest-tests'
+      fullPath: '/api/cli/slowest-tests'
+      preLoaderRoute: typeof ApiCliSlowestTestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/slowest-jobs': {
+      id: '/api/cli/slowest-jobs'
+      path: '/api/cli/slowest-jobs'
+      fullPath: '/api/cli/slowest-jobs'
+      preLoaderRoute: typeof ApiCliSlowestJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cli/runs': {
@@ -840,6 +880,8 @@ const rootRouteChildren: RootRouteChildren = {
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
+  ApiCliSlowestJobsRoute: ApiCliSlowestJobsRoute,
+  ApiCliSlowestTestsRoute: ApiCliSlowestTestsRoute,
   ApiCliStatusRoute: ApiCliStatusRoute,
   ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
   ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRoute,
