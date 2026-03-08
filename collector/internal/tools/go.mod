@@ -1,4 +1,4 @@
-module github.com/everr-dev/everr/collector/internal/tools
+module github.com/everr-labs/everr/collector/internal/tools
 
 go 1.25.5
 

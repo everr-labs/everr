@@ -13,7 +13,7 @@ describe("buildWaitPipelineStatus", () => {
         {
           subjectId: "42",
           subjectName: "CI",
-          htmlUrl: "https://github.com/everr-dev/everr/actions/runs/42",
+          htmlUrl: "https://github.com/everr-labs/everr/actions/runs/42",
           phase: "started",
           conclusion: "",
           lastEventTime: "2026-03-06T10:00:00Z",
@@ -24,7 +24,7 @@ describe("buildWaitPipelineStatus", () => {
         {
           subjectId: "job-1",
           subjectName: "test",
-          htmlUrl: "https://github.com/everr-dev/everr/actions/runs/42/job/1",
+          htmlUrl: "https://github.com/everr-labs/everr/actions/runs/42/job/1",
           phase: "started",
           conclusion: "",
           lastEventTime: "2026-03-06T10:00:01Z",
@@ -35,7 +35,7 @@ describe("buildWaitPipelineStatus", () => {
         {
           subjectId: "job-2",
           subjectName: "lint",
-          htmlUrl: "https://github.com/everr-dev/everr/actions/runs/42/job/2",
+          htmlUrl: "https://github.com/everr-labs/everr/actions/runs/42/job/2",
           phase: "finished",
           conclusion: "success",
           lastEventTime: "2026-03-06T10:00:10Z",

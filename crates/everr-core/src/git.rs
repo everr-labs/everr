@@ -118,11 +118,11 @@ mod tests {
             Some("everr-dev/everr".to_string())
         );
         assert_eq!(
-            parse_repo_from_remote_url("https://github.com/everr-dev/everr.git"),
+            parse_repo_from_remote_url("https://github.com/everr-labs/everr.git"),
             Some("everr-dev/everr".to_string())
         );
         assert_eq!(
-            parse_repo_from_remote_url("http://github.com/everr-dev/everr"),
+            parse_repo_from_remote_url("http://github.com/everr-labs/everr"),
             Some("everr-dev/everr".to_string())
         );
     }

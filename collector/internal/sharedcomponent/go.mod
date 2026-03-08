@@ -1,4 +1,4 @@
-module github.com/everr-dev/everr/collector/internal/sharedcomponent
+module github.com/everr-labs/everr/collector/internal/sharedcomponent
 
 go 1.25.5
 

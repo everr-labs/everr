@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent, config *Config) {

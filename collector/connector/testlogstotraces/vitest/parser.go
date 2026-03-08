@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/everr-dev/everr/collector/connector/testlogstotraces/gotest"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/gotest"
 )
 
 var (

@@ -18,9 +18,9 @@ import (
 
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
-	"github.com/everr-dev/everr/collector/connector/testlogstotraces/gotest"
-	"github.com/everr-dev/everr/collector/connector/testlogstotraces/vitest"
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/gotest"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/vitest"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 type testLogsToTracesConnector struct {

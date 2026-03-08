@@ -9,8 +9,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/everr-dev/everr/collector/connector/testlogstotraces/gotest"
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/gotest"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 // GenerateSpans creates OpenTelemetry spans from parsed Vitest test results.

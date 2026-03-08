@@ -1,15 +1,15 @@
-module github.com/everr-dev/everr/collector/receiver/githubactionsreceiver
+module github.com/everr-labs/everr/collector/receiver/githubactionsreceiver
 
 go 1.25.5
 
-replace github.com/everr-dev/everr/collector/internal/sharedcomponent => ../../internal/sharedcomponent
+replace github.com/everr-labs/everr/collector/internal/sharedcomponent => ../../internal/sharedcomponent
 
-replace github.com/everr-dev/everr/collector/semconv => ../../semconv
+replace github.com/everr-labs/everr/collector/semconv => ../../semconv
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.17.0
-	github.com/everr-dev/everr/collector/internal/sharedcomponent v0.0.0-00010101000000-000000000000
-	github.com/everr-dev/everr/collector/semconv v0.0.0-00010101000000-000000000000
+	github.com/everr-labs/everr/collector/internal/sharedcomponent v0.0.0-00010101000000-000000000000
+	github.com/everr-labs/everr/collector/semconv v0.0.0-00010101000000-000000000000
 	github.com/google/go-github/v67 v67.0.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/client v1.51.0

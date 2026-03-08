@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/everr-dev/everr/collector/receiver/githubactionsreceiver/internal/metadata"
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/receiver/githubactionsreceiver/internal/metadata"
+	"github.com/everr-labs/everr/collector/semconv"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"

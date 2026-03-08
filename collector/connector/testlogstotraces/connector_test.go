@@ -18,8 +18,8 @@ import (
 
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
-	"github.com/everr-dev/everr/collector/connector/testlogstotraces/internal/metadata"
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/internal/metadata"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 func buildTestLogs(lines []string, resourceAttrs map[string]any, jobName string, stepNumber int64, traceID pcommon.TraceID, spanID pcommon.SpanID) plog.Logs {

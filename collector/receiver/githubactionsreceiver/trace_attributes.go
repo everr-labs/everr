@@ -13,7 +13,7 @@ import (
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap"
 
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/semconv"
 )
 
 func createResourceAttributes(resource pcommon.Resource, event interface{}, config *Config, logger *zap.Logger) {

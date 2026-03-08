@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
 
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/semconv"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 )
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/everr-dev/everr/collector/semconv"
+	"github.com/everr-labs/everr/collector/semconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/everr-dev/everr/collector/receiver/githubactionsreceiver/internal/metadata"
+	"github.com/everr-labs/everr/collector/receiver/githubactionsreceiver/internal/metadata"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/receiver/receivertest"
