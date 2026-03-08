@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
+const NOTIFICATION_AUTO_DISMISS_MS = 2 * 60_000;
 
 type AssistantKind = "codex" | "claude" | "cursor";
 
@@ -476,14 +477,28 @@ describe("notification window", () => {
     expect(await screen.findByText("No active notifications")).toBeInTheDocument();
   });
 
-  it("auto-dismisses after ten seconds", async () => {
+  it("does not auto-dismiss before two minutes", async () => {
     vi.useFakeTimers();
 
     const { dismissSpy } = renderNotificationApp();
     await flushNotificationRender();
     expect(screen.getByText("CI")).toBeInTheDocument();
 
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS - 1_000);
+    await flushNotificationRender();
+
+    expect(dismissSpy).not.toHaveBeenCalled();
+    expect(screen.getByText("CI")).toBeInTheDocument();
+  });
+
+  it("auto-dismisses after two minutes", async () => {
+    vi.useFakeTimers();
+
+    const { dismissSpy } = renderNotificationApp();
+    await flushNotificationRender();
+    expect(screen.getByText("CI")).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS);
     await flushNotificationRender();
 
     expect(dismissSpy).toHaveBeenCalledTimes(1);
@@ -497,11 +512,11 @@ describe("notification window", () => {
     const card = screen.getByText("CI");
 
     fireEvent.mouseEnter(card.closest(".notificationCard") as HTMLElement);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS);
     expect(dismissSpy).not.toHaveBeenCalled();
 
     fireEvent.mouseLeave(card.closest(".notificationCard") as HTMLElement);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS);
     await flushNotificationRender();
 
     expect(dismissSpy).toHaveBeenCalledTimes(1);

@@ -9,13 +9,28 @@ concurrency:
 on:
   pull_request:
     paths:
-      - .github/**
-      - packages/app/**
-      - pnpm-lock.yaml
+      - .github/workflows/build-and-test-app.yml
+      - .nvmrc
       - biome.json
+      - package.json
+      - packages/app/**
+      - packages/datemath/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - vitest.config.ts
 
   push:
     branches: [main]
+    paths:
+      - .github/workflows/build-and-test-app.yml
+      - .nvmrc
+      - biome.json
+      - package.json
+      - packages/app/**
+      - packages/datemath/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - vitest.config.ts
 
 jobs:
   ci:
@@ -37,21 +52,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: build packages
-        run: pnpm -C packages/datemath build
+      - name: Build shared packages
+        run: pnpm -r --filter @everr/datemath build
 
       - name: Lint
-        run: pnpm check
+        run: pnpm exec biome check packages/app packages/datemath
 
       - name: Typecheck
-        run: pnpm -r typecheck
+        run: pnpm -r --filter @everr/app... typecheck
 
       - name: Test
-        run: pnpm test
+        run: pnpm -r --filter @everr/app... test
 
       - name: Generate migrations
         run: |
-          DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mock" pnpm -C packages/app db:generate
+          DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mock" pnpm -r --filter @everr/app db:generate
 
       - name: Ensure no unstaged/changed files
         run: |
@@ -62,4 +77,4 @@ jobs:
             exit 1
           fi
       - name: Build
-        run: pnpm -C packages/app build
+        run: pnpm -r --filter @everr/app build

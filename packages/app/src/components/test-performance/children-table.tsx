@@ -4,12 +4,17 @@ import {
   ChevronRight,
   FlaskConical,
   FolderOpen,
+  Package,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import type { TestPerfChild } from "@/data/test-performance";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
+import {
+  getTestPerfHierarchyKind,
+  getTestPerfHierarchyKindLabel,
+} from "./hierarchy-kind";
 
 interface ChildrenTableProps {
   data: TestPerfChild[];
@@ -107,12 +112,19 @@ function makeColumns(
       className: "pb-1 pl-3 pr-3 font-medium",
       cellClassName: "py-1 pl-3 pr-3",
       cell: (row) => {
-        const Icon = row.row.isSuite ? FolderOpen : FlaskConical;
+        const nodeKind = getTestPerfHierarchyKind(row.row, row.scopePkg);
+        const Icon =
+          nodeKind === "package"
+            ? Package
+            : nodeKind === "suite"
+              ? FolderOpen
+              : FlaskConical;
         const search = buildChildSearch(row.row.name, row.scopePkg);
         const displayName = row.scopePkg
           ? testNameLastSegment(row.row.name)
           : row.row.name;
         const isExpanded = Boolean(expanded[row.key]);
+        const nodeKindLabel = getTestPerfHierarchyKindLabel(nodeKind);
         return (
           <div
             className="group -mx-1 flex items-center gap-1 rounded px-1 py-0.5"
@@ -125,7 +137,11 @@ function makeColumns(
                   void onToggle(row);
                 }}
                 className="text-muted-foreground hover:text-foreground inline-flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted"
-                aria-label={isExpanded ? "Collapse suite" : "Expand suite"}
+                aria-label={
+                  isExpanded
+                    ? `Collapse ${nodeKindLabel.toLowerCase()}`
+                    : `Expand ${nodeKindLabel.toLowerCase()}`
+                }
               >
                 {isExpanded ? (
                   <ChevronDown className="size-3" />

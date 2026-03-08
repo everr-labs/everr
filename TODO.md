@@ -5,3 +5,4 @@ Annotation system after optimizations (jobs or tests):
 
 Add a suggestion on watching the CI when fixing a previous failing CI run
 Collect runner resources usage x job
+Add --limit and --offset
