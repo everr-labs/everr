@@ -36,9 +36,9 @@ pub enum Commands {
     WaitPipeline(WaitArgs),
     /// Show historical executions for a specific test
     TestHistory(TestHistoryArgs),
-    /// Show the slowest tests in the selected time range
+    /// Show the slowest tests in the selected time range, repo-wide by default
     SlowestTests(SlowestTestsArgs),
-    /// Show the slowest jobs in the selected time range
+    /// Show the slowest jobs in the selected time range, repo-wide by default
     SlowestJobs(SlowestJobsArgs),
     /// Pipeline runs commands
     Runs {

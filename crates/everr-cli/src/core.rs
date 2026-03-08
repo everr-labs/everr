@@ -110,10 +110,9 @@ pub async fn slowest_tests(args: SlowestTestsArgs) -> Result<()> {
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
-    let branch = args.branch.or(git.branch);
 
     let mut query: Vec<(&str, String)> = vec![("repo", repo), ("limit", args.limit.to_string())];
-    push_opt(&mut query, "branch", branch);
+    push_opt(&mut query, "branch", args.branch);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
 
@@ -130,10 +129,9 @@ pub async fn slowest_jobs(args: SlowestJobsArgs) -> Result<()> {
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
-    let branch = args.branch.or(git.branch);
 
     let mut query: Vec<(&str, String)> = vec![("repo", repo), ("limit", args.limit.to_string())];
-    push_opt(&mut query, "branch", branch);
+    push_opt(&mut query, "branch", args.branch);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
 

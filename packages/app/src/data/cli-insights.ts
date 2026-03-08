@@ -82,6 +82,10 @@ export const getSlowestTests = createServerFn({
     const leafScopeConditions = [
       "ResourceAttributes['vcs.repository.name'] = {repo:String}",
     ];
+    const normalizedTestFullNameExpr = testFullNameExpr(
+      "test_full_name",
+      "replaceAll(SpanAttributes['everr.test.parent_test'], ' > ', '/')",
+    );
 
     if (data.branch) {
       conditions.push(
@@ -97,7 +101,7 @@ export const getSlowestTests = createServerFn({
       WITH executions AS (
         SELECT
           SpanAttributes['everr.test.package'] as test_package,
-          ${testFullNameExpr()},
+          ${normalizedTestFullNameExpr},
           ResourceAttributes['cicd.pipeline.run.id'] as run_id,
           ResourceAttributes['vcs.ref.head.revision'] as head_sha,
           anyLast(SpanAttributes['everr.test.result']) as test_result,
@@ -120,7 +124,9 @@ export const getSlowestTests = createServerFn({
         max(last_seen) as last_seen
       FROM executions
       WHERE ${leafTestFilter({
-        leftExpr: "test_full_name",
+        leftExpr: "tuple(test_package, test_full_name)",
+        rightExpr:
+          "tuple(SpanAttributes['everr.test.package'], replaceAll(SpanAttributes['everr.test.parent_test'], ' > ', '/'))",
         extraConditions: leafScopeConditions,
       })}
       GROUP BY test_package, test_full_name

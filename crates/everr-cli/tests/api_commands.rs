@@ -381,7 +381,7 @@ fn test_history_requires_repo_when_git_context_is_missing() {
 }
 
 #[test]
-fn slowest_tests_sends_expected_query_and_auth_header() {
+fn slowest_tests_defaults_to_repo_wide_query_and_auth_header() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -397,14 +397,13 @@ fn slowest_tests_sends_expected_query_and_auth_header() {
         .match_header("authorization", "Bearer token-slow")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("branch".into(), "feature/slow-tests".into()),
             Matcher::UrlEncoded("from".into(), "now-24h".into()),
             Matcher::UrlEncoded("to".into(), "now".into()),
             Matcher::UrlEncoded("limit".into(), "15".into()),
         ]))
         .with_status(200)
         .with_body(
-            r#"{"repo":"everr-labs/everr","branch":"feature/slow-tests","timeRange":{"from":"now-24h","to":"now"},"limit":15,"items":[{"testFullName":"suite/test","avgDurationSeconds":12.5}]}"#,
+            r#"{"repo":"everr-labs/everr","branch":null,"timeRange":{"from":"now-24h","to":"now"},"limit":15,"items":[{"testFullName":"suite/test","avgDurationSeconds":12.5}]}"#,
         )
         .create();
 
@@ -441,7 +440,43 @@ fn slowest_tests_requires_repo_when_git_context_is_missing() {
 }
 
 #[test]
-fn slowest_jobs_sends_expected_query_and_auth_header() {
+fn slowest_tests_respects_explicit_branch_filter() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/slow-tests",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-slow-branch");
+
+    let mock = server
+        .mock("GET", "/api/cli/slowest-tests")
+        .match_header("authorization", "Bearer token-slow-branch")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "main".into()),
+            Matcher::UrlEncoded("limit".into(), "10".into()),
+        ]))
+        .with_status(200)
+        .with_body(
+            r#"{"repo":"everr-labs/everr","branch":"main","timeRange":{"from":"now-7d","to":"now"},"limit":10,"items":[]}"#,
+        )
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["slowest-tests", "--branch", "main"])
+        .assert()
+        .success()
+        .stdout(contains("\"branch\": \"main\""));
+
+    mock.assert();
+}
+
+#[test]
+fn slowest_jobs_defaults_to_repo_wide_query_and_auth_header() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -457,12 +492,11 @@ fn slowest_jobs_sends_expected_query_and_auth_header() {
         .match_header("authorization", "Bearer token-jobs")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("branch".into(), "feature/slow-jobs".into()),
             Matcher::UrlEncoded("limit".into(), "5".into()),
         ]))
         .with_status(200)
         .with_body(
-            r#"{"repo":"everr-labs/everr","branch":"feature/slow-jobs","timeRange":{"from":"now-7d","to":"now"},"limit":5,"items":[{"workflowName":"CI","jobName":"integration","avgDurationSeconds":420.0}]}"#,
+            r#"{"repo":"everr-labs/everr","branch":null,"timeRange":{"from":"now-7d","to":"now"},"limit":5,"items":[{"workflowName":"CI","jobName":"integration","avgDurationSeconds":420.0}]}"#,
         )
         .create();
 
@@ -472,6 +506,42 @@ fn slowest_jobs_sends_expected_query_and_auth_header() {
         .assert()
         .success()
         .stdout(contains("\"jobName\": \"integration\""));
+
+    mock.assert();
+}
+
+#[test]
+fn slowest_jobs_respects_explicit_branch_filter() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/slow-jobs",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-jobs-branch");
+
+    let mock = server
+        .mock("GET", "/api/cli/slowest-jobs")
+        .match_header("authorization", "Bearer token-jobs-branch")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "release".into()),
+            Matcher::UrlEncoded("limit".into(), "10".into()),
+        ]))
+        .with_status(200)
+        .with_body(
+            r#"{"repo":"everr-labs/everr","branch":"release","timeRange":{"from":"now-7d","to":"now"},"limit":10,"items":[]}"#,
+        )
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["slowest-jobs", "--branch", "release"])
+        .assert()
+        .success()
+        .stdout(contains("\"branch\": \"release\""));
 
     mock.assert();
 }

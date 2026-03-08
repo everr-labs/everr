@@ -52,7 +52,12 @@ describe("getSlowestTests", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("test_full_name");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("NOT IN (");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "tuple(test_package, test_full_name) NOT IN",
+    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "tuple(SpanAttributes['everr.test.package'], replaceAll(SpanAttributes['everr.test.parent_test'], ' > ', '/'))",
+    );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",

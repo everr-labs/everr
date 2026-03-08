@@ -59,7 +59,7 @@ describe("getWaitPipelineStatus", () => {
     );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
       repo: "everr-labs/everr",
-      branch: "feature/wait-short-commit",
+      branch: "feature/wait-short-commi",
       commit: "7f14b13",
     });
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(

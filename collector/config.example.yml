@@ -30,16 +30,19 @@ exporters:
     create_schema: false
     ttl: 72h
 
+connectors:
+  testlogstotraces:
+
 service:
   pipelines:
     traces:
-      receivers: [githubactions]
+      receivers: [githubactions, testlogstotraces]
       processors: [resource, batch]
       exporters: [clickhouse, debug]
     logs:
       receivers: [githubactions]
       processors: [resource, batch]
-      exporters: [clickhouse, debug]
+      exporters: [clickhouse, debug, testlogstotraces]
 
   telemetry:
     metrics:
