@@ -394,7 +394,7 @@ function DesktopApp() {
       <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
         <Card className="w-full max-w-[860px] overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
           <CardHeader
-            className="gap-5 border-b border-[color:var(--settings-border-soft)] px-6 pb-6 pt-16 max-[620px]:px-5"
+            className="gap-5 border-b border-[color:var(--settings-border-soft)] px-6 pb-6 pt-8 max-[620px]:px-5"
             data-tauri-drag-region
           >
             <div className="flex items-start justify-between gap-4 max-[720px]:flex-col">
@@ -752,33 +752,6 @@ function SettingsPanel({
   return (
     <div className="grid gap-0">
       <SettingsSection
-        title="Backend"
-        description="Choose which Everr backend this desktop app talks to."
-        action={
-          <Button
-            className="min-w-[112px] max-[620px]:w-full"
-            disabled={busy !== null}
-            onClick={() => void onSaveBaseUrl()}
-          >
-            {busy === "save" ? "Saving..." : "Save URL"}
-          </Button>
-        }
-      >
-        <label className="grid gap-2">
-          <span className="text-[0.74rem] font-medium uppercase tracking-[0.14em] text-[var(--settings-text-soft)]">
-            Base URL
-          </span>
-          <Input
-            type="url"
-            value={baseUrlInput}
-            onChange={(event) => onBaseUrlChange(event.currentTarget.value)}
-          />
-        </label>
-      </SettingsSection>
-
-      <Separator className="bg-[var(--settings-border-soft)]" />
-
-      <SettingsSection
         title="Account"
         description={
           signedIn
@@ -872,24 +845,55 @@ function SettingsPanel({
         </p>
       </SettingsSection>
 
-      <Separator className="bg-[var(--settings-border-soft)]" />
+      {import.meta.env.DEV && (
+        <>
+          <Separator className="bg-[var(--settings-border-soft)]" />
 
-      <SettingsSection
-        title="Developer"
-        description="Preview the notification surface without waiting for a failed pipeline."
-        compact
-        action={
-          <Button
-            variant="outline"
-            size="sm"
-            className="min-w-[136px] max-[620px]:w-full"
-            disabled={busy !== null}
-            onClick={() => void onTriggerTestNotification()}
+          <SettingsSection
+            title="Backend"
+            description="Choose which Everr backend this desktop app talks to."
+            action={
+              <Button
+                className="min-w-[112px] max-[620px]:w-full"
+                disabled={busy !== null}
+                onClick={() => void onSaveBaseUrl()}
+              >
+                {busy === "save" ? "Saving..." : "Save URL"}
+              </Button>
+            }
           >
-            {busy === "notify" ? "Triggering..." : "Test notification"}
-          </Button>
-        }
-      />
+            <label className="grid gap-2">
+              <span className="text-[0.74rem] font-medium uppercase tracking-[0.14em] text-[var(--settings-text-soft)]">
+                Base URL
+              </span>
+              <Input
+                type="url"
+                value={baseUrlInput}
+                onChange={(event) => onBaseUrlChange(event.currentTarget.value)}
+              />
+            </label>
+          </SettingsSection>
+
+          <Separator className="bg-[var(--settings-border-soft)]" />
+
+          <SettingsSection
+            title="Developer"
+            description="Preview the notification surface without waiting for a failed pipeline."
+            compact
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-w-[136px] max-[620px]:w-full"
+                disabled={busy !== null}
+                onClick={() => void onTriggerTestNotification()}
+              >
+                {busy === "notify" ? "Triggering..." : "Test notification"}
+              </Button>
+            }
+          />
+        </>
+      )}
     </div>
   );
 }
