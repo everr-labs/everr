@@ -21,7 +21,7 @@ export const getWaitPipelineStatus = createServerFn({
         argMax(event_phase, event_time) as phase,
         argMax(outcome, event_time) as conclusion,
         max(event_time) as lastEventTime,
-        argMax(pipeline_run_id, event_time) as pipelineRunId,
+        argMax(attributes['pipeline.run_id'], event_time) as pipelineRunId,
         greatest(
           0,
           dateDiff(

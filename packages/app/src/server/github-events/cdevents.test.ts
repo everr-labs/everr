@@ -23,6 +23,78 @@ function readFixture(relativePath: string): Buffer {
   return readFileSync(new URL(relativePath, import.meta.url));
 }
 
+function buildWorkflowRunPayload(args: {
+  action: "requested" | "in_progress" | "completed";
+  id: number;
+  authorEmail?: string;
+  conclusion?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  runStartedAt?: string;
+}): Buffer {
+  return Buffer.from(
+    JSON.stringify({
+      action: args.action,
+      installation: { id: 123 },
+      workflow_run: {
+        id: args.id,
+        name: "Tests",
+        html_url: `https://github.com/acme/repo/actions/runs/${args.id}`,
+        head_commit: args.authorEmail
+          ? {
+              author: {
+                email: args.authorEmail,
+              },
+            }
+          : undefined,
+        head_branch: "main",
+        head_sha: "abc123",
+        conclusion: args.conclusion,
+        created_at: args.createdAt ?? "2026-03-05T10:00:00Z",
+        updated_at: args.updatedAt,
+        run_started_at: args.runStartedAt,
+      },
+      repository: {
+        full_name: "acme/repo",
+        html_url: "https://github.com/acme/repo",
+      },
+    }),
+  );
+}
+
+function buildWorkflowJobPayload(args: {
+  action: "in_progress" | "completed";
+  id: number;
+  runId: number;
+  conclusion?: string;
+  createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+}): Buffer {
+  return Buffer.from(
+    JSON.stringify({
+      action: args.action,
+      installation: { id: 123 },
+      workflow_job: {
+        id: args.id,
+        run_id: args.runId,
+        name: "test",
+        html_url: `https://github.com/acme/repo/actions/runs/${args.runId}/job/${args.id}`,
+        head_branch: "main",
+        head_sha: "abc123",
+        conclusion: args.conclusion,
+        created_at: args.createdAt ?? "2026-03-05T10:00:00Z",
+        started_at: args.startedAt,
+        completed_at: args.completedAt,
+      },
+      repository: {
+        full_name: "acme/repo",
+        html_url: "https://github.com/acme/repo",
+      },
+    }),
+  );
+}
+
 describe("transformToCDEventRows", () => {
   it("formats Date values for ClickHouse DateTime64 input", () => {
     expect(
@@ -47,16 +119,50 @@ describe("transformToCDEventRows", () => {
       tenantId: 42,
       subjectId: "6454805877",
       outcome: "success",
+      attributes: {
+        "author.email": "k@ko.wal.ski",
+        "pipeline.run_id": "6454805877",
+      },
     });
     expect(rows[0]?.cdeventJson).toContain(
       "dev.cdevents.pipelinerun.finished.0.2.0",
     );
   });
 
+  it("transforms workflow_run in-progress payloads", () => {
+    const rows = transformToCDEventRows({
+      eventType: "workflow_run",
+      deliveryId: "delivery-2",
+      tenantId: 7,
+      body: buildWorkflowRunPayload({
+        action: "in_progress",
+        id: 456,
+        authorEmail: "dev@example.com",
+        createdAt: "2026-03-05T09:59:00Z",
+        updatedAt: "2026-03-05T10:00:15Z",
+        runStartedAt: "2026-03-05T10:00:00Z",
+      }),
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      eventKind: "pipelinerun",
+      eventPhase: "started",
+      subjectId: "456",
+      attributes: {
+        "author.email": "dev@example.com",
+        "pipeline.run_id": "456",
+      },
+    });
+    expect(rows[0]?.cdeventJson).toContain(
+      "dev.cdevents.pipelinerun.started.0.2.0",
+    );
+  });
+
   it("transforms workflow_job completed payloads", () => {
     const rows = transformToCDEventRows({
       eventType: "workflow_job",
-      deliveryId: "delivery-2",
+      deliveryId: "delivery-3",
       tenantId: 7,
       body: readFixture(
         "../../../../../collector/receiver/githubactionsreceiver/testdata/completed/9_workflow_job_completed.json",
@@ -67,39 +173,63 @@ describe("transformToCDEventRows", () => {
     expect(rows[0]).toMatchObject({
       eventKind: "taskrun",
       eventPhase: "finished",
-      pipelineRunId: "6454805877",
       subjectName: "test",
+      attributes: {
+        "pipeline.run_id": "6454805877",
+      },
     });
   });
 
   it("transforms workflow_run requested payloads", () => {
     const rows = transformToCDEventRows({
       eventType: "workflow_run",
-      deliveryId: "delivery-3",
+      deliveryId: "delivery-4",
       tenantId: 9,
-      body: Buffer.from(`{
-        "action":"requested",
-        "installation":{"id":123},
-        "workflow_run":{
-          "id":123,
-          "name":"Tests",
-          "html_url":"https://github.com/acme/repo/actions/runs/123",
-          "head_branch":"main",
-          "head_sha":"abc123",
-          "created_at":"2026-03-05T10:00:00Z"
-        },
-        "repository":{"full_name":"acme/repo","html_url":"https://github.com/acme/repo"}
-      }`),
+      body: buildWorkflowRunPayload({
+        action: "requested",
+        id: 123,
+        authorEmail: "dev@example.com",
+      }),
     });
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.eventPhase).toBe("queued");
+    expect(rows[0]).toMatchObject({
+      eventPhase: "queued",
+      attributes: {
+        "author.email": "dev@example.com",
+        "pipeline.run_id": "123",
+      },
+    });
+  });
+
+  it("transforms workflow_job in-progress payloads", () => {
+    const rows = transformToCDEventRows({
+      eventType: "workflow_job",
+      deliveryId: "delivery-5",
+      tenantId: 1,
+      body: buildWorkflowJobPayload({
+        action: "in_progress",
+        id: 999,
+        runId: 123,
+        startedAt: "2026-03-05T10:00:05Z",
+      }),
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      eventKind: "taskrun",
+      eventPhase: "started",
+      subjectId: "999",
+      attributes: {
+        "pipeline.run_id": "123",
+      },
+    });
   });
 
   it("ignores queued workflow_job payloads", () => {
     const rows = transformToCDEventRows({
       eventType: "workflow_job",
-      deliveryId: "delivery-4",
+      deliveryId: "delivery-6",
       tenantId: 1,
       body: readFixture(
         "../../../../../collector/receiver/githubactionsreceiver/testdata/queued/1_workflow_job_queued.json",
