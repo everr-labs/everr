@@ -13,12 +13,14 @@ import (
 
 var errMissingEndpointFromConfig = errors.New("missing receiver server endpoint from config")
 var errMissingAppID = errors.New("missing app_id")
-var errMissingPrivateKeyPath = errors.New("missing private_key_path")
+var errMissingPrivateKey = errors.New("missing one of private_key or private_key_path")
+var errMultiplePrivateKeySources = errors.New("only one of private_key or private_key_path may be set")
 var errBaseURLAndUploadURL = errors.New("both base_url and upload_url must be set if one is set")
 
 // GitHubAPIAuthConfig defines authentication configuration for GitHub API
 type GitHubAPIAuthConfig struct {
 	AppID          int64  `mapstructure:"app_id"`           // github app id for API access. Default is 0
+	PrivateKey     string `mapstructure:"private_key"`      // github app private key PEM content for API access. Default is empty
 	PrivateKeyPath string `mapstructure:"private_key_path"` // github app private key path for API access. Default is empty
 }
 
@@ -53,8 +55,16 @@ func (cfg *Config) Validate() error {
 	if cfg.GitHubAPIConfig.Auth.AppID == 0 {
 		errs = multierr.Append(errs, errMissingAppID)
 	}
-	if cfg.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
-		errs = multierr.Append(errs, errMissingPrivateKeyPath)
+
+	privateKeyConfigured := cfg.GitHubAPIConfig.Auth.PrivateKey != ""
+	privateKeyPathConfigured := cfg.GitHubAPIConfig.Auth.PrivateKeyPath != ""
+
+	if !privateKeyConfigured && !privateKeyPathConfigured {
+		errs = multierr.Append(errs, errMissingPrivateKey)
+	}
+
+	if privateKeyConfigured && privateKeyPathConfigured {
+		errs = multierr.Append(errs, errMultiplePrivateKeySources)
 	}
 	if cfg.GitHubAPIConfig.BaseURL != "" && cfg.GitHubAPIConfig.UploadURL == "" || cfg.GitHubAPIConfig.BaseURL == "" && cfg.GitHubAPIConfig.UploadURL != "" {
 		errs = multierr.Append(errs, errBaseURLAndUploadURL)

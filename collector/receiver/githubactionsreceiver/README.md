@@ -30,7 +30,9 @@ The following settings are required:
 - `gh_api`: GitHub API configuration details used to retrieve workflow logs
   - `auth`: GitHub App authentication details
     - `app_id` GitHub App ID
-    - `private_key_path` Path to the GitHub App private key file
+    - exactly one of:
+      - `private_key` GitHub App private key PEM content
+      - `private_key_path` Path to the GitHub App private key file
 
 The following settings are optional:
 
@@ -51,6 +53,23 @@ receivers:
       auth:
         app_id: 123
         private_key_path: /path/to/key.pem
+```
+
+Or with inline PEM content:
+
+```yaml
+receivers:
+  githubactions:
+    endpoint: localhost:19418
+    path: /events
+    secret: It's a Secret to Everybody
+    gh_api:
+      auth:
+        app_id: 123
+        private_key: |
+          -----BEGIN RSA PRIVATE KEY-----
+          ...
+          -----END RSA PRIVATE KEY-----
 ```
 
 The full list of settings exposed for this receiver are documented [here](./config.go) with a detailed sample configuration [here](./testdata/config.yaml)
@@ -161,7 +180,7 @@ After creating the GitHub App, you can install it on your repository.
 
 ##### Configure the Receiver to use the GitHub App
 
-When configuring the receiver, you need to provide the **App ID** and path to the private key file. The Installation ID is resolved from each webhook payload (`installation.id`).
+When configuring the receiver, you need to provide the **App ID** and exactly one private key source: either inline PEM content or a path to the private key file. The Installation ID is resolved from each webhook payload (`installation.id`).
 
 example:
 
