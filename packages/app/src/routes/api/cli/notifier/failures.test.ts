@@ -205,6 +205,8 @@ describe("/api/cli/notifier/failures", () => {
 
     const payload = await response.json();
     expect(payload.failures[0]).toMatchObject({
+      details_url:
+        "http://localhost/dashboard/runs/trace-123/jobs/job-1/steps/1",
       job_name: "test",
       step_number: "1",
       step_name: "Install dependencies",

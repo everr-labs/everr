@@ -526,8 +526,6 @@ mod tests {
             Vec::new(),
         );
 
-        assert!(
-            status.contains("CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test)")
-        );
+        assert!(status.contains("CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test)"));
     }
 }

@@ -72,7 +72,7 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
     branch: "feature/granola",
     workflow_name: "CI",
     failure_time: "2026-03-07T13:32:00Z",
-    details_url: "https://example.com/dashboard/runs/trace-one",
+    details_url: "https://example.com/dashboard/runs/trace-one/jobs/job-one/steps/3",
     job_name: "test",
     step_number: "3",
     step_name: "Run suite",
@@ -143,6 +143,7 @@ function renderNotificationApp(initialNotification = createNotification()) {
     activeNotification = null;
     return null;
   });
+  const copySpy = vi.fn(() => null);
 
   mockWindows("notification");
   mockIPC(
@@ -154,6 +155,8 @@ function renderNotificationApp(initialNotification = createNotification()) {
           return dismissSpy();
         case "open_notification_target":
           return openSpy();
+        case "copy_notification_auto_fix_prompt":
+          return copySpy();
         default:
           throw new Error(`Unexpected IPC command: ${cmd}`);
       }
@@ -166,6 +169,7 @@ function renderNotificationApp(initialNotification = createNotification()) {
   return {
     dismissSpy,
     openSpy,
+    copySpy,
     setNotification(nextNotification: FailureNotification | null) {
       activeNotification = nextNotification;
     },
@@ -475,6 +479,18 @@ describe("notification window", () => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
     expect(await screen.findByText("No active notifications")).toBeInTheDocument();
+  });
+
+  it("copies the auto-fix prompt without dismissing the notification", async () => {
+    const { copySpy } = renderNotificationApp();
+
+    await screen.findByText("CI");
+    fireEvent.click(screen.getByRole("button", { name: "Copy auto-fix prompt" }));
+
+    await waitFor(() => {
+      expect(copySpy).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText("CI")).toBeInTheDocument();
   });
 
   it("does not auto-dismiss before two minutes", async () => {
