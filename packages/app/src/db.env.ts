@@ -8,6 +8,7 @@ export const dbEnv = createEnv({
     DATABASE_PORT: z.coerce.number().int().positive(),
     DATABASE_USER: z.string(),
     DATABASE_PASSWORD: z.string(),
+    DATABASE_SSL: z.string().optional(),
   },
   runtimeEnv: {
     DATABASE_HOST: process.env.DATABASE_HOST,
@@ -15,5 +16,6 @@ export const dbEnv = createEnv({
     DATABASE_PORT: process.env.DATABASE_PORT,
     DATABASE_USER: process.env.DATABASE_USER,
     DATABASE_PASSWORD: process.env.DATABASE_PASSWORD,
+    DATABASE_SSL: process.env.DATABASE_SSL,
   },
 });
