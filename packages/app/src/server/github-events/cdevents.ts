@@ -14,6 +14,8 @@ const headerGitHubDelivery = "x-github-delivery";
 const headerTenantId = "x-everr-tenant-id";
 const cdeventsSpecVersion = "0.4.1";
 
+type CDEventAttributes = Record<string, string>;
+
 export type CDEventRow = {
   tenantId: number;
   deliveryId: string;
@@ -23,12 +25,12 @@ export type CDEventRow = {
   subjectId: string;
   subjectName: string;
   subjectURL: string;
-  pipelineRunId: string;
   repository: string;
   sha: string;
   gitRef: string;
   outcome: string;
   cdeventJson: string;
+  attributes: CDEventAttributes;
 };
 
 export interface CDEventInserter {
@@ -74,6 +76,21 @@ function buildCDEventJSON(args: {
   });
 }
 
+function buildAttributes(
+  entries: Array<readonly [string, string | null | undefined]>,
+): CDEventAttributes {
+  const attributes: CDEventAttributes = {};
+  for (const [key, value] of entries) {
+    if (!value) {
+      continue;
+    }
+
+    attributes[key] = value;
+  }
+
+  return attributes;
+}
+
 function transformWorkflowRun(
   event: Extract<ParsedQueuedWorkflowEvent, { eventType: "workflow_run" }>,
   deliveryId: string,
@@ -91,6 +108,11 @@ function transformWorkflowRun(
   const subjectId = String(workflowRun.id);
   const sha = workflowRun.head_sha ?? "";
   const gitRef = workflowRun.head_branch ?? "";
+  const authorEmail = workflowRun.head_commit?.author?.email ?? null;
+  const attributes = buildAttributes([
+    ["pipeline.run_id", subjectId],
+    ["author.email", authorEmail],
+  ]);
 
   if (event.payload.action === "requested") {
     const timestamp = parseTimestamp(
@@ -108,7 +130,6 @@ function transformWorkflowRun(
         subjectId,
         subjectName,
         subjectURL,
-        pipelineRunId: "",
         repository: repositoryName,
         sha,
         gitRef,
@@ -124,6 +145,7 @@ function transformWorkflowRun(
             url: subjectURL,
           },
         }),
+        attributes,
       },
     ];
   }
@@ -144,7 +166,6 @@ function transformWorkflowRun(
         subjectId,
         subjectName,
         subjectURL,
-        pipelineRunId: "",
         repository: repositoryName,
         sha,
         gitRef,
@@ -160,6 +181,7 @@ function transformWorkflowRun(
             url: subjectURL,
           },
         }),
+        attributes,
       },
     ];
   }
@@ -181,7 +203,6 @@ function transformWorkflowRun(
         subjectId,
         subjectName,
         subjectURL,
-        pipelineRunId: "",
         repository: repositoryName,
         sha,
         gitRef,
@@ -198,6 +219,7 @@ function transformWorkflowRun(
             ...(outcome ? { outcome } : {}),
           },
         }),
+        attributes,
       },
     ];
   }
@@ -223,6 +245,7 @@ function transformWorkflowJob(
   const pipelineRunId = String(workflowJob.run_id);
   const sha = workflowJob.head_sha ?? "";
   const gitRef = workflowJob.head_branch ?? "";
+  const attributes = buildAttributes([["pipeline.run_id", pipelineRunId]]);
 
   if (event.payload.action === "in_progress") {
     const timestamp = parseTimestamp(
@@ -239,7 +262,6 @@ function transformWorkflowJob(
         subjectId,
         subjectName,
         subjectURL,
-        pipelineRunId,
         repository: repositoryName,
         sha,
         gitRef,
@@ -259,6 +281,7 @@ function transformWorkflowJob(
             },
           },
         }),
+        attributes,
       },
     ];
   }
@@ -280,7 +303,6 @@ function transformWorkflowJob(
         subjectId,
         subjectName,
         subjectURL,
-        pipelineRunId,
         repository: repositoryName,
         sha,
         gitRef,
@@ -301,6 +323,7 @@ function transformWorkflowJob(
             ...(outcome ? { outcome } : {}),
           },
         }),
+        attributes,
       },
     ];
   }
@@ -348,12 +371,12 @@ export class ClickHouseCDEventInserter implements CDEventInserter {
         subject_id: row.subjectId,
         subject_name: row.subjectName,
         subject_url: row.subjectURL,
-        pipeline_run_id: row.pipelineRunId,
         repository: row.repository,
         sha: row.sha,
         ref: row.gitRef,
         outcome: row.outcome,
         cdevent_json: row.cdeventJson,
+        attributes: row.attributes,
       })),
     });
   }

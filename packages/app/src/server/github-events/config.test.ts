@@ -39,7 +39,7 @@ describe("getGitHubEventsConfig", () => {
   it("parses explicit overrides through t3 env", async () => {
     stubGitHubEventsEnv({
       INGRESS_SOURCE: "github-enterprise",
-      INGRESS_COLLECTOR_URL: "https://collector.example.com/hook",
+      INGRESS_COLLECTOR_URL: "https://collector.example.com",
       CDEVENTS_CLICKHOUSE_URL: "https://clickhouse.example.com",
       CDEVENTS_CLICKHOUSE_USERNAME: "writer",
       CDEVENTS_CLICKHOUSE_PASSWORD: "secret-value",

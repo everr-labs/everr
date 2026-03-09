@@ -57,6 +57,9 @@ describe("getWaitPipelineStatus", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "AND startsWith(sha, {commit:String})",
     );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "argMax(attributes['pipeline.run_id'], event_time) as pipelineRunId",
+    );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
       repo: "everr-labs/everr",
       branch: "feature/wait-short-commit",

@@ -52,6 +52,16 @@ const githubEventsConfigConstants = {
 
 let cachedConfig: GitHubEventsConfig | undefined;
 
+function resolveCollectorURL(rawURL: string): string {
+  const url = new URL(rawURL);
+
+  if (url.pathname === "/" || url.pathname === "") {
+    url.pathname = "/hook";
+  }
+
+  return url.toString();
+}
+
 export function getGitHubEventsConfig(): GitHubEventsConfig {
   if (cachedConfig) {
     return cachedConfig;
@@ -59,7 +69,7 @@ export function getGitHubEventsConfig(): GitHubEventsConfig {
 
   cachedConfig = {
     source: githubEventsEnv.INGRESS_SOURCE,
-    collectorURL: githubEventsEnv.INGRESS_COLLECTOR_URL,
+    collectorURL: resolveCollectorURL(githubEventsEnv.INGRESS_COLLECTOR_URL),
     ...githubEventsConfigConstants,
     cdeventsClickHouseURL: githubEventsEnv.CDEVENTS_CLICKHOUSE_URL,
     cdeventsClickHouseUsername: githubEventsEnv.CDEVENTS_CLICKHOUSE_USERNAME,

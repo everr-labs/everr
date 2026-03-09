@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::auth::Session;
@@ -83,6 +84,11 @@ impl ApiClient {
         serde_json::from_value(value).context("failed to decode owned failures response")
     }
 
+    pub async fn get_tray_status(&self) -> Result<TrayStatusResponse> {
+        let value = self.get_json("/tray-status", &[]).await?;
+        serde_json::from_value(value).context("failed to decode tray status response")
+    }
+
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
         let response = self
             .http
@@ -128,4 +134,11 @@ pub struct FailureNotification {
     pub step_name: Option<String>,
 }
 
-use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct TrayStatusResponse {
+    pub verified_match: bool,
+    pub running_count: usize,
+    pub unresolved_failures: Vec<FailureNotification>,
+    pub failed_runs_dashboard_url: String,
+    pub auto_fix_prompt: String,
+}

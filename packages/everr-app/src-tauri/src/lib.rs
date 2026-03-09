@@ -6,16 +6,19 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
-use everr_core::api::{ApiClient, FailureNotification};
+use arboard::Clipboard;
+use everr_core::api::{ApiClient, FailureNotification, TrayStatusResponse};
 use everr_core::assistant::{self, AssistantKind, AssistantStatus};
-use everr_core::auth::{is_no_active_session_error, login_with_prompt, AuthConfig, SessionStore};
+use everr_core::auth::{
+    is_no_active_session_error, login_with_prompt, AuthConfig, Session, SessionStore,
+};
 use everr_core::build;
 use everr_core::git::resolve_git_context;
 use everr_core::notifier::FailureTracker;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::{
@@ -31,17 +34,27 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
 const POLL_INTERVAL_SECONDS: u64 = 45;
+const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 124.0;
 const NOTIFICATION_WINDOW_MARGIN: f64 = 16.0;
+const TRAY_ICON_ID: &str = "everr-app";
+const TRAY_MENU_RUNNING_STATUS_ID: &str = "tray_running_status";
+const TRAY_MENU_FAILED_STATUS_ID: &str = "tray_failed_status";
+const TRAY_MENU_OPEN_FAILED_RUNS_ID: &str = "tray_open_failed_runs";
+const TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID: &str = "tray_copy_auto_fix_prompt";
+const TRAY_MENU_INSERTION_INDEX: usize = 2;
+const SETTINGS_MENU_ID: &str = "settings";
+const QUIT_MENU_ID: &str = "quit";
 
 #[derive(Clone)]
 struct RuntimeState {
     session_store: SessionStore,
     settings: Arc<Mutex<AppSettings>>,
     notifier: Arc<Mutex<NotifierState>>,
+    tray: Arc<Mutex<TrayState>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -118,6 +131,71 @@ struct NotifierState {
     queue: NotificationQueue,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct TraySnapshot {
+    running_count: usize,
+    unresolved_failures: Vec<FailureNotification>,
+    failed_runs_dashboard_url: Option<String>,
+    auto_fix_prompt: Option<String>,
+}
+
+impl TraySnapshot {
+    fn failed_count(&self) -> usize {
+        self.unresolved_failures.len()
+    }
+}
+
+impl From<TrayStatusResponse> for TraySnapshot {
+    fn from(response: TrayStatusResponse) -> Self {
+        Self {
+            running_count: response.running_count,
+            unresolved_failures: response.unresolved_failures,
+            failed_runs_dashboard_url: option_string(response.failed_runs_dashboard_url),
+            auto_fix_prompt: option_string(response.auto_fix_prompt),
+        }
+    }
+}
+
+struct TrayState {
+    snapshot: TraySnapshot,
+    menu: Option<TrayMenu>,
+}
+
+impl Default for TrayState {
+    fn default() -> Self {
+        Self {
+            snapshot: TraySnapshot::default(),
+            menu: None,
+        }
+    }
+}
+
+impl TrayState {
+    fn replace_snapshot(&mut self, snapshot: TraySnapshot) {
+        self.snapshot = snapshot;
+    }
+
+    fn clear_snapshot(&mut self) {
+        self.snapshot = TraySnapshot::default();
+    }
+}
+
+#[derive(Clone)]
+struct TrayMenu {
+    menu: Menu<tauri::Wry>,
+    running_status: MenuItem<tauri::Wry>,
+    failed_status: MenuItem<tauri::Wry>,
+    open_failed_runs: MenuItem<tauri::Wry>,
+    copy_auto_fix_prompt: MenuItem<tauri::Wry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TrayMenuModel {
+    running_status_label: String,
+    failed_status_label: String,
+    show_failed_actions: bool,
+}
+
 #[derive(Debug, Default)]
 struct NotificationQueue {
     active: Option<FailureNotification>,
@@ -190,11 +268,13 @@ async fn start_sign_in(
 }
 
 #[tauri::command]
-fn sign_out(state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String> {
+fn sign_out(app: AppHandle, state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String> {
     state
         .session_store
         .clear_session()
         .map_err(|error| error.to_string())?;
+    clear_tray_snapshot(&app, state.inner()).map_err(|error| error.to_string())?;
+    emit_auth_changed(&app);
     get_auth_status(state)
 }
 
@@ -302,6 +382,11 @@ fn open_notification_target(app: AppHandle, state: State<'_, RuntimeState>) -> R
 }
 
 #[tauri::command]
+fn copy_notification_auto_fix_prompt(app: AppHandle) -> Result<(), String> {
+    copy_tray_auto_fix_prompt(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn trigger_test_notification(
     app: AppHandle,
     state: State<'_, RuntimeState>,
@@ -359,14 +444,23 @@ pub fn run() {
             if let Err(error) = sync_installed_cli(app.handle()) {
                 eprintln!("[everr-app] failed to sync installed CLI: {error}");
             }
-            build_tray(app.handle())?;
             let runtime = RuntimeState {
                 session_store,
                 settings: Arc::new(Mutex::new(settings)),
                 notifier: Arc::new(Mutex::new(NotifierState::default())),
+                tray: Arc::new(Mutex::new(TrayState::default())),
             };
 
             app.manage(runtime.clone());
+            let tray_menu = build_tray(app.handle())?;
+            {
+                let mut tray = runtime
+                    .tray
+                    .lock()
+                    .map_err(|_| anyhow!("failed to lock tray state"))?;
+                tray.menu = Some(tray_menu);
+            }
+            sync_tray_ui(app.handle(), &runtime)?;
             if wizard_incomplete(&runtime)? {
                 open_settings_window(app.handle())?;
             }
@@ -387,20 +481,21 @@ pub fn run() {
             complete_setup_wizard,
             dismiss_active_notification,
             open_notification_target,
+            copy_notification_auto_fix_prompt,
             trigger_test_notification
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-fn build_tray(app: &AppHandle) -> Result<()> {
-    let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&settings, &quit])?;
+fn build_tray(app: &AppHandle) -> Result<TrayMenu> {
+    let tray_menu = build_tray_menu(app)?;
+    let initial_snapshot = TraySnapshot::default();
 
-    let mut builder = TrayIconBuilder::with_id("everr-app")
-        .menu(&menu)
-        .tooltip("Everr App");
+    let mut builder = TrayIconBuilder::with_id(TRAY_ICON_ID)
+        .menu(&tray_menu.menu)
+        .title(format_tray_title(&initial_snapshot))
+        .tooltip(format_tray_tooltip(&initial_snapshot));
     if let Some(icon) = app.default_window_icon().cloned() {
         builder = builder.icon(icon);
         #[cfg(target_os = "macos")]
@@ -411,15 +506,21 @@ fn build_tray(app: &AppHandle) -> Result<()> {
 
     builder
         .on_menu_event(move |app, event| match event.id().as_ref() {
-            "settings" => {
+            SETTINGS_MENU_ID => {
                 let _ = open_settings_window(app);
             }
-            "quit" => app.exit(0),
+            TRAY_MENU_OPEN_FAILED_RUNS_ID => {
+                let _ = open_tray_failed_runs(app);
+            }
+            TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID => {
+                let _ = copy_tray_auto_fix_prompt(app);
+            }
+            QUIT_MENU_ID => app.exit(0),
             _ => {}
         })
         .build(app)?;
 
-    Ok(())
+    Ok(tray_menu)
 }
 
 async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
@@ -429,9 +530,10 @@ async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
         let _ = webbrowser::open(&verification_url);
     })
     .await?;
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.emit("everr://auth-changed", ());
+    if let Err(error) = refresh_tray_status(&app, &state).await {
+        eprintln!("[everr-app] failed to refresh tray status after sign-in: {error}");
     }
+    emit_auth_changed(&app);
     Ok(())
 }
 
@@ -621,6 +723,240 @@ fn emit_settings_changed(app: &AppHandle) {
     }
 }
 
+fn emit_auth_changed(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit(AUTH_CHANGED_EVENT, ());
+    }
+}
+
+fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
+    let running_status = MenuItem::with_id(
+        app,
+        TRAY_MENU_RUNNING_STATUS_ID,
+        "Running pipelines: 0",
+        false,
+        None::<&str>,
+    )?;
+    let failed_status = MenuItem::with_id(
+        app,
+        TRAY_MENU_FAILED_STATUS_ID,
+        "Unresolved failed pipelines: 0",
+        false,
+        None::<&str>,
+    )?;
+    let open_failed_runs = MenuItem::with_id(
+        app,
+        TRAY_MENU_OPEN_FAILED_RUNS_ID,
+        "Open failed runs",
+        true,
+        None::<&str>,
+    )?;
+    let copy_auto_fix_prompt = MenuItem::with_id(
+        app,
+        TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID,
+        "Copy auto-fix prompt",
+        true,
+        None::<&str>,
+    )?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let settings = MenuItem::with_id(app, SETTINGS_MENU_ID, "Settings", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, QUIT_MENU_ID, "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &running_status,
+            &failed_status,
+            &separator,
+            &settings,
+            &quit,
+        ],
+    )?;
+
+    Ok(TrayMenu {
+        menu,
+        running_status,
+        failed_status,
+        open_failed_runs,
+        copy_auto_fix_prompt,
+    })
+}
+
+fn update_tray_snapshot(
+    app: &AppHandle,
+    state: &RuntimeState,
+    snapshot: TraySnapshot,
+) -> Result<()> {
+    {
+        let mut tray = state
+            .tray
+            .lock()
+            .map_err(|_| anyhow!("failed to lock tray state"))?;
+        tray.replace_snapshot(snapshot);
+    }
+    sync_tray_ui(app, state)
+}
+
+fn clear_tray_snapshot(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    {
+        let mut tray = state
+            .tray
+            .lock()
+            .map_err(|_| anyhow!("failed to lock tray state"))?;
+        tray.clear_snapshot();
+    }
+    sync_tray_ui(app, state)
+}
+
+fn sync_tray_ui(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    let (title, tooltip, menu_model, menu) = {
+        let tray = state
+            .tray
+            .lock()
+            .map_err(|_| anyhow!("failed to lock tray state"))?;
+        (
+            format_tray_title(&tray.snapshot),
+            format_tray_tooltip(&tray.snapshot),
+            build_tray_menu_model(&tray.snapshot),
+            tray.menu.clone(),
+        )
+    };
+
+    if let Some(tray_icon) = app.tray_by_id(TRAY_ICON_ID) {
+        tray_icon.set_title(Some(title))?;
+        tray_icon.set_tooltip(Some(tooltip))?;
+    }
+
+    if let Some(menu) = menu {
+        sync_tray_menu(&menu, &menu_model)?;
+    }
+
+    Ok(())
+}
+
+fn sync_tray_menu(menu: &TrayMenu, model: &TrayMenuModel) -> Result<()> {
+    menu.running_status.set_text(&model.running_status_label)?;
+    menu.failed_status.set_text(&model.failed_status_label)?;
+
+    let has_open_action = menu.menu.get(TRAY_MENU_OPEN_FAILED_RUNS_ID).is_some();
+    if model.show_failed_actions {
+        if !has_open_action {
+            menu.menu
+                .insert(&menu.open_failed_runs, TRAY_MENU_INSERTION_INDEX)?;
+        }
+
+        if menu.menu.get(TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID).is_none() {
+            menu.menu
+                .insert(&menu.copy_auto_fix_prompt, TRAY_MENU_INSERTION_INDEX + 1)?;
+        }
+    } else {
+        if has_open_action {
+            menu.menu.remove(&menu.open_failed_runs)?;
+        }
+
+        if menu.menu.get(TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID).is_some() {
+            menu.menu.remove(&menu.copy_auto_fix_prompt)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn build_tray_menu_model(snapshot: &TraySnapshot) -> TrayMenuModel {
+    TrayMenuModel {
+        running_status_label: format!("Running pipelines: {}", snapshot.running_count),
+        failed_status_label: format!("Unresolved failed pipelines: {}", snapshot.failed_count()),
+        show_failed_actions: snapshot.failed_count() > 0,
+    }
+}
+
+fn format_tray_title(snapshot: &TraySnapshot) -> String {
+    format!("R{} F{}", snapshot.running_count, snapshot.failed_count())
+}
+
+fn format_tray_tooltip(snapshot: &TraySnapshot) -> String {
+    format!(
+        "Everr App | Running pipelines: {} | Unresolved failed pipelines: {}",
+        snapshot.running_count,
+        snapshot.failed_count()
+    )
+}
+
+fn tray_failed_runs_target(snapshot: &TraySnapshot) -> Option<&str> {
+    if snapshot.failed_count() == 0 {
+        return None;
+    }
+
+    snapshot.failed_runs_dashboard_url.as_deref()
+}
+
+fn tray_auto_fix_prompt(snapshot: &TraySnapshot) -> Option<&str> {
+    if snapshot.failed_count() == 0 {
+        return None;
+    }
+
+    snapshot.auto_fix_prompt.as_deref()
+}
+
+fn open_tray_failed_runs(app: &AppHandle) -> Result<()> {
+    let Some(state) = app.try_state::<RuntimeState>() else {
+        return Ok(());
+    };
+    let target = {
+        let tray = state
+            .tray
+            .lock()
+            .map_err(|_| anyhow!("failed to lock tray state"))?;
+        tray_failed_runs_target(&tray.snapshot).map(str::to_owned)
+    };
+
+    let Some(target) = target else {
+        return Ok(());
+    };
+
+    webbrowser::open(&target).with_context(|| format!("failed to open tray target {target}"))?;
+    Ok(())
+}
+
+fn copy_tray_auto_fix_prompt(app: &AppHandle) -> Result<()> {
+    let Some(state) = app.try_state::<RuntimeState>() else {
+        return Ok(());
+    };
+    let prompt = {
+        let tray = state
+            .tray
+            .lock()
+            .map_err(|_| anyhow!("failed to lock tray state"))?;
+        tray_auto_fix_prompt(&tray.snapshot).map(str::to_owned)
+    };
+
+    let Some(prompt) = prompt else {
+        return Ok(());
+    };
+
+    let mut clipboard = Clipboard::new().context("failed to access clipboard")?;
+    clipboard
+        .set_text(prompt)
+        .context("failed to copy tray auto-fix prompt")?;
+    Ok(())
+}
+
+async fn refresh_tray_status(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    let session = state
+        .session_store
+        .load_session_for_api_base_url(build::default_api_base_url())?;
+    refresh_tray_status_with_session(app, state, &session).await
+}
+
+async fn refresh_tray_status_with_session(
+    app: &AppHandle,
+    state: &RuntimeState,
+    session: &Session,
+) -> Result<()> {
+    let client = ApiClient::from_session(session)?;
+    let response = client.get_tray_status().await?;
+    update_tray_snapshot(app, state, TraySnapshot::from(response))
+}
+
 fn wizard_incomplete(state: &RuntimeState) -> Result<bool> {
     Ok(!current_settings(state)?.wizard_state.wizard_completed)
 }
@@ -631,6 +967,8 @@ fn build_test_notification() -> Result<FailureNotification> {
         .format(&Rfc3339)
         .context("failed to format test notification timestamp")?;
     let nonce = now.unix_timestamp_nanos();
+    let trace_id = format!("trace-dev-settings-test-{nonce}");
+    let job_id = format!("job-dev-settings-test-{nonce}");
     let (repo, branch) = match std::env::current_dir()
         .ok()
         .map(|cwd| resolve_git_context(&cwd))
@@ -641,11 +979,14 @@ fn build_test_notification() -> Result<FailureNotification> {
         ),
         None => ("local repository".to_string(), "current branch".to_string()),
     };
-    let details_url = format!("{}/dashboard", current_base_url().trim_end_matches('/'));
+    let details_url = format!(
+        "{}/dashboard/runs/{trace_id}/jobs/{job_id}/steps/1",
+        current_base_url().trim_end_matches('/')
+    );
 
     Ok(FailureNotification {
         dedupe_key: format!("dev-settings-test-{nonce}"),
-        trace_id: format!("trace-dev-settings-test-{nonce}"),
+        trace_id,
         repo,
         branch,
         workflow_name: "Test notification".to_string(),
@@ -663,9 +1004,16 @@ async fn poll_and_notify(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         .load_session_for_api_base_url(build::default_api_base_url())
     {
         Ok(session) => session,
-        Err(error) if is_no_active_session_error(&error) => return Ok(()),
+        Err(error) if is_no_active_session_error(&error) => {
+            clear_tray_snapshot(app, state)?;
+            return Ok(());
+        }
         Err(error) => return Err(error),
     };
+
+    if let Err(error) = refresh_tray_status_with_session(app, state, &session).await {
+        eprintln!("[everr-app] tray status poll failed: {error}");
+    }
 
     let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
     let git = resolve_git_context(&current_dir);
@@ -893,6 +1241,14 @@ fn current_base_url() -> &'static str {
     build::default_api_base_url()
 }
 
+fn option_string(value: String) -> Option<String> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
 fn settings_file_path(session_store: &SessionStore) -> Result<PathBuf> {
     let session_path = session_store.session_file_path()?;
     let parent = session_path
@@ -1012,9 +1368,11 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        apply_runtime_settings, apply_wizard_migration, current_base_url,
-        migrate_completed_base_url, sync_installed_cli_from_paths, value_has_wizard_metadata,
-        AppSettings, NotificationQueue, WizardState,
+        apply_runtime_settings, apply_wizard_migration, build_tray_menu_model, current_base_url,
+        format_tray_title, format_tray_tooltip, migrate_completed_base_url,
+        sync_installed_cli_from_paths, tray_auto_fix_prompt, tray_failed_runs_target,
+        value_has_wizard_metadata, AppSettings, NotificationQueue, TraySnapshot, TrayState,
+        WizardState,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1062,6 +1420,17 @@ mod tests {
         assert_eq!(queue.pending.len(), 1);
     }
 
+    fn tray_snapshot_with_failures() -> TraySnapshot {
+        TraySnapshot {
+            running_count: 3,
+            unresolved_failures: vec![failure("one"), failure("two")],
+            failed_runs_dashboard_url: Some(
+                "https://example.com/dashboard/runs?conclusion=failure".to_string(),
+            ),
+            auto_fix_prompt: Some("Investigate and fix the pipelines.".to_string()),
+        }
+    }
+
     #[test]
     fn advance_promotes_next_notification() {
         let mut queue = NotificationQueue::default();
@@ -1095,6 +1464,59 @@ mod tests {
         assert!(!queue.advance());
         assert!(queue.active().is_none());
         assert!(queue.pending.is_empty());
+    }
+
+    #[test]
+    fn tray_title_and_tooltip_include_running_and_failed_counts() {
+        let snapshot = tray_snapshot_with_failures();
+
+        assert_eq!(format_tray_title(&snapshot), "R3 F2");
+        assert_eq!(
+            format_tray_tooltip(&snapshot),
+            "Everr App | Running pipelines: 3 | Unresolved failed pipelines: 2"
+        );
+    }
+
+    #[test]
+    fn tray_menu_model_shows_failed_actions_when_failures_exist() {
+        let snapshot = tray_snapshot_with_failures();
+        let model = build_tray_menu_model(&snapshot);
+
+        assert_eq!(model.running_status_label, "Running pipelines: 3");
+        assert_eq!(model.failed_status_label, "Unresolved failed pipelines: 2");
+        assert!(model.show_failed_actions);
+    }
+
+    #[test]
+    fn tray_menu_model_hides_failed_actions_when_failures_are_empty() {
+        let model = build_tray_menu_model(&TraySnapshot::default());
+
+        assert_eq!(model.running_status_label, "Running pipelines: 0");
+        assert_eq!(model.failed_status_label, "Unresolved failed pipelines: 0");
+        assert!(!model.show_failed_actions);
+    }
+
+    #[test]
+    fn clearing_tray_state_resets_counts_and_cached_actions() {
+        let mut tray = TrayState::default();
+        tray.replace_snapshot(tray_snapshot_with_failures());
+
+        tray.clear_snapshot();
+
+        assert_eq!(tray.snapshot, TraySnapshot::default());
+    }
+
+    #[test]
+    fn tray_actions_are_noops_when_cached_targets_are_missing() {
+        let snapshot = TraySnapshot {
+            running_count: 1,
+            unresolved_failures: vec![failure("one")],
+            failed_runs_dashboard_url: None,
+            auto_fix_prompt: None,
+        };
+
+        assert_eq!(tray_failed_runs_target(&snapshot), None);
+        assert_eq!(tray_auto_fix_prompt(&snapshot), None);
     }
 
     #[test]

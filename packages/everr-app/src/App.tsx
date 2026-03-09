@@ -18,7 +18,7 @@ import {
   formatNotificationRelativeTime,
 } from "./notification-time";
 
-const AUTO_DISMISS_MS = 2 * 60_000;
+const AUTO_DISMISS_MS = 40_000;
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
 const NOTIFICATION_WINDOW_LABEL = "notification";
 const SETTINGS_CHANGED_EVENT = "everr://settings-changed";
@@ -921,7 +921,7 @@ function AssistantChecklist({
 
 function NotificationApp() {
   const [notification, setNotification] = useState<FailureNotification | null>(null);
-  const [busy, setBusy] = useState<"dismiss" | "open" | null>(null);
+  const [busy, setBusy] = useState<"dismiss" | "open" | "copy" | null>(null);
   const [hovered, setHovered] = useState(false);
   const [remainingMs, setRemainingMs] = useState(AUTO_DISMISS_MS);
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
@@ -998,6 +998,15 @@ function NotificationApp() {
     try {
       await invoke("open_notification_target");
       await refreshNotification();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleCopyAutoFixPrompt() {
+    setBusy("copy");
+    try {
+      await invoke("copy_notification_auto_fix_prompt");
     } finally {
       setBusy(null);
     }
@@ -1092,15 +1101,24 @@ function NotificationApp() {
             </p>
           </div>
 
-          <div className="flex min-w-0 shrink-0 items-center">
+          <div className="flex min-w-0 shrink-0 flex-col items-stretch gap-2">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 min-w-0 rounded-[10px] bg-[#171717] px-3.5 text-[0.72rem] font-semibold text-white hover:bg-black"
+              className="h-8 min-w-0 whitespace-nowrap rounded-[10px] bg-[#171717] px-3.5 text-[0.72rem] font-semibold text-white hover:bg-black"
               disabled={busy !== null}
               onClick={() => void handleOpenRun()}
             >
               {busy === "open" ? "Opening..." : "Open run"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 min-w-0 whitespace-nowrap rounded-[10px] border-[#dcdcdc] bg-white px-3.5 text-[0.72rem] font-semibold text-[#4b4b4b] hover:bg-[#f7f7f7]"
+              disabled={busy !== null}
+              onClick={() => void handleCopyAutoFixPrompt()}
+            >
+              {busy === "copy" ? "Copying..." : "Copy auto-fix prompt"}
             </Button>
           </div>
         </div>

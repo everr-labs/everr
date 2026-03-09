@@ -20,6 +20,15 @@ const workflowRunSchema = z.object({
       id: z.number().int(),
       name: z.string().nullish(),
       html_url: z.string().nullish(),
+      head_commit: z
+        .object({
+          author: z
+            .object({
+              email: z.string().nullish(),
+            })
+            .optional(),
+        })
+        .optional(),
       head_branch: z.string().nullish(),
       head_sha: z.string().nullish(),
       conclusion: z.string().nullish(),
