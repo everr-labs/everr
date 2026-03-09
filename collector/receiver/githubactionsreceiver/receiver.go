@@ -291,11 +291,31 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 }
 
 func (gar *githubActionsReceiver) githubClientForInstallation(installationID int64) (*github.Client, error) {
-	if gar.config.GitHubAPIConfig.Auth.AppID == 0 || gar.config.GitHubAPIConfig.Auth.PrivateKeyPath == "" {
+	if gar.config.GitHubAPIConfig.Auth.AppID == 0 {
 		return nil, errMissingGitHubAuth
 	}
 
-	itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, gar.config.GitHubAPIConfig.Auth.AppID, installationID, gar.config.GitHubAPIConfig.Auth.PrivateKeyPath)
+	privateKey := gar.config.GitHubAPIConfig.Auth.PrivateKey
+	privateKeyPath := gar.config.GitHubAPIConfig.Auth.PrivateKeyPath
+
+	if privateKey == "" && privateKeyPath == "" {
+		return nil, errMissingGitHubAuth
+	}
+
+	if privateKey != "" && privateKeyPath != "" {
+		return nil, errMultiplePrivateKeySources
+	}
+
+	var (
+		itr *ghinstallation.Transport
+		err error
+	)
+
+	if privateKey != "" {
+		itr, err = ghinstallation.New(http.DefaultTransport, gar.config.GitHubAPIConfig.Auth.AppID, installationID, []byte(privateKey))
+	} else {
+		itr, err = ghinstallation.NewKeyFromFile(http.DefaultTransport, gar.config.GitHubAPIConfig.Auth.AppID, installationID, privateKeyPath)
+	}
 	if err != nil {
 		return nil, err
 	}

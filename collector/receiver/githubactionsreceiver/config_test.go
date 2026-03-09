@@ -38,14 +38,32 @@ func TestValidateConfig(t *testing.T) {
 				},
 				GitHubAPIConfig: GitHubAPIConfig{
 					Auth: GitHubAPIAuthConfig{
-						AppID:          1,
-						PrivateKeyPath: "path",
+						AppID:      1,
+						PrivateKey: "pem",
 					},
 				},
 			},
 		},
 		{
 			desc:   "Valid Secret and auth",
+			expect: nil,
+			conf: &Config{
+				ServerConfig: confighttp.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: "localhost:8080",
+					},
+				},
+				Secret: "mysecret",
+				GitHubAPIConfig: GitHubAPIConfig{
+					Auth: GitHubAPIAuthConfig{
+						AppID:      1,
+						PrivateKey: "pem",
+					},
+				},
+			},
+		},
+		{
+			desc:   "Valid Secret and auth with private key path",
 			expect: nil,
 			conf: &Config{
 				ServerConfig: confighttp.ServerConfig{
@@ -76,14 +94,14 @@ func TestValidateConfig(t *testing.T) {
 						},
 						GitHubAPIConfig: GitHubAPIConfig{
 							Auth: GitHubAPIAuthConfig{
-								PrivateKeyPath: "path",
+								PrivateKey: "pem",
 							},
 						},
 					},
 				},
 				{
-					desc:   "Missing Private Key Path",
-					expect: errMissingPrivateKeyPath,
+					desc:   "Missing Private Key",
+					expect: errMissingPrivateKey,
 					conf: &Config{
 						ServerConfig: confighttp.ServerConfig{
 							NetAddr: confignet.AddrConfig{
@@ -93,6 +111,24 @@ func TestValidateConfig(t *testing.T) {
 						GitHubAPIConfig: GitHubAPIConfig{
 							Auth: GitHubAPIAuthConfig{
 								AppID: 1,
+							},
+						},
+					},
+				},
+				{
+					desc:   "Both Private Key sources set",
+					expect: errMultiplePrivateKeySources,
+					conf: &Config{
+						ServerConfig: confighttp.ServerConfig{
+							NetAddr: confignet.AddrConfig{
+								Endpoint: "localhost:8080",
+							},
+						},
+						GitHubAPIConfig: GitHubAPIConfig{
+							Auth: GitHubAPIAuthConfig{
+								AppID:          1,
+								PrivateKey:     "pem",
+								PrivateKeyPath: "path",
 							},
 						},
 					},
@@ -112,8 +148,8 @@ func TestValidateConfig(t *testing.T) {
 								GitHubAPIConfig: GitHubAPIConfig{
 									UploadURL: "upload",
 									Auth: GitHubAPIAuthConfig{
-										AppID:          1,
-										PrivateKeyPath: "path",
+										AppID:      1,
+										PrivateKey: "pem",
 									},
 								},
 							},
@@ -130,8 +166,8 @@ func TestValidateConfig(t *testing.T) {
 								GitHubAPIConfig: GitHubAPIConfig{
 									BaseURL: "base",
 									Auth: GitHubAPIAuthConfig{
-										AppID:          1,
-										PrivateKeyPath: "path",
+										AppID:      1,
+										PrivateKey: "pem",
 									},
 								},
 							},
