@@ -54,10 +54,11 @@ function createDeferred<T>() {
 }
 
 async function loadRuntimeModule() {
-  vi.stubEnv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/postgres",
-  );
+  vi.stubEnv("DATABASE_HOST", "localhost");
+  vi.stubEnv("DATABASE_NAME", "postgres");
+  vi.stubEnv("DATABASE_PORT", "5432");
+  vi.stubEnv("DATABASE_USER", "postgres");
+  vi.stubEnv("DATABASE_PASSWORD", "postgres");
   return import("./runtime");
 }
 

@@ -4,7 +4,11 @@ import * as schema from "@/db/schema";
 import { dbEnv } from "@/db.env";
 
 export const pool = new Pool({
-  connectionString: dbEnv.DATABASE_URL,
+  host: dbEnv.DATABASE_HOST,
+  database: dbEnv.DATABASE_NAME,
+  port: dbEnv.DATABASE_PORT,
+  user: dbEnv.DATABASE_USER,
+  password: dbEnv.DATABASE_PASSWORD,
 });
 
 export const db = drizzle(pool, { schema });
