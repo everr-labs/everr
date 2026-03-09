@@ -5,7 +5,7 @@ import { env } from "@/env";
 import { getRequestContextFromStartContext } from "@/lib/start-context";
 
 export const clickhouse = createClient({
-  url: `http://${env.CLICKHOUSE_HOST}:${env.CLICKHOUSE_PORT}`,
+  url: env.CLICKHOUSE_URL,
   username: env.CLICKHOUSE_USERNAME,
   password: env.CLICKHOUSE_PASSWORD,
   database: env.CLICKHOUSE_DATABASE,
