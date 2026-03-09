@@ -7,6 +7,13 @@ use serde::{Deserialize, Serialize};
 const BLOCK_START: &str = "<!-- EVERR_CLI_START -->";
 const BLOCK_END: &str = "<!-- EVERR_CLI_END -->";
 const ASSISTANT_INSTRUCTIONS: &str = include_str!("../assets/assistant-instructions.md");
+const CURSOR_RULE_HEADER: &str = concat!(
+    "---\n",
+    "description: Use Everr CLI to inspect CI health, failures, and logs before guessing.\n",
+    "globs:\n",
+    "alwaysApply: true\n",
+    "---\n\n"
+);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,19 +43,25 @@ pub fn init_assistants(assistants: &[AssistantKind], command_name: &str) -> Resu
 
     for assistant in assistants {
         let path = path_for_assistant(*assistant)?;
-        write_managed_block(&path, content_for_assistant(command_name))?;
+        write_managed_block(
+            &path,
+            *assistant,
+            content_for_assistant(*assistant, command_name),
+        )?;
     }
 
     Ok(())
 }
 
 pub fn sync_assistants(assistants: &[AssistantKind], command_name: &str) -> Result<()> {
-    let managed_block = content_for_assistant(command_name);
-
     for assistant in AssistantKind::ALL {
         let path = path_for_assistant(assistant)?;
         if assistants.contains(&assistant) {
-            write_managed_block(&path, managed_block.clone())?;
+            write_managed_block(
+                &path,
+                assistant,
+                content_for_assistant(assistant, command_name),
+            )?;
             continue;
         }
 
@@ -81,7 +94,6 @@ pub fn assistant_path(assistant: AssistantKind) -> Result<PathBuf> {
 }
 
 pub fn refresh_existing_managed_prompts(command_name: &str) -> Result<Vec<AssistantKind>> {
-    let managed_block = content_for_assistant(command_name);
     let mut refreshed = Vec::new();
 
     for assistant in AssistantKind::ALL {
@@ -96,7 +108,11 @@ pub fn refresh_existing_managed_prompts(command_name: &str) -> Result<Vec<Assist
             continue;
         }
 
-        let next = upsert_managed_block(&current, &managed_block);
+        let next = upsert_managed_block(
+            assistant,
+            &current,
+            &content_for_assistant(assistant, command_name),
+        );
         if next == current {
             continue;
         }
@@ -156,9 +172,14 @@ fn resolve_home_dir() -> Result<PathBuf> {
     dirs::home_dir().context("failed to resolve home dir")
 }
 
-fn content_for_assistant(command_name: &str) -> String {
+fn content_for_assistant(assistant: AssistantKind, command_name: &str) -> String {
     let instructions = render_assistant_instructions(command_name);
-    format!("{BLOCK_START}\n{}\n{BLOCK_END}\n", instructions.trim_end())
+    let managed_body = format!("{BLOCK_START}\n{}\n{BLOCK_END}\n", instructions.trim_end());
+
+    match assistant {
+        AssistantKind::Cursor => format!("{CURSOR_RULE_HEADER}{managed_body}"),
+        AssistantKind::Codex | AssistantKind::Claude => managed_body,
+    }
 }
 
 fn render_assistant_instructions(command_name: &str) -> String {
@@ -186,7 +207,7 @@ fn remove_managed_prompt_at(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn write_managed_block(path: &Path, block: String) -> Result<()> {
+fn write_managed_block(path: &Path, assistant: AssistantKind, block: String) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
@@ -195,7 +216,7 @@ fn write_managed_block(path: &Path, block: String) -> Result<()> {
     let next = if path.exists() {
         let current = fs::read_to_string(path)
             .with_context(|| format!("failed to read {}", path.display()))?;
-        upsert_managed_block(&current, &block)
+        upsert_managed_block(assistant, &current, &block)
     } else {
         block
     };
@@ -204,24 +225,34 @@ fn write_managed_block(path: &Path, block: String) -> Result<()> {
     Ok(())
 }
 
-fn upsert_managed_block(current: &str, block: &str) -> String {
-    match managed_block_range(current) {
-        Some((start, end)) => {
-            let mut out = String::with_capacity(current.len() + block.len());
-            out.push_str(&current[..start]);
-            out.push_str(block);
-            if end < current.len() {
-                out.push_str(&current[end..]);
-            }
-            out
-        }
-        None => {
-            if current.trim().is_empty() {
+fn upsert_managed_block(assistant: AssistantKind, current: &str, block: &str) -> String {
+    match assistant {
+        AssistantKind::Cursor => {
+            let remaining = remove_managed_block(current);
+            if remaining.trim().is_empty() {
                 block.to_string()
             } else {
-                format!("{current}\n\n{block}")
+                format!("{}\n\n{}\n", block.trim_end(), remaining.trim())
             }
         }
+        AssistantKind::Codex | AssistantKind::Claude => match managed_block_range(current) {
+            Some((start, end)) => {
+                let mut out = String::with_capacity(current.len() + block.len());
+                out.push_str(&current[..start]);
+                out.push_str(block);
+                if end < current.len() {
+                    out.push_str(&current[end..]);
+                }
+                out
+            }
+            None => {
+                if current.trim().is_empty() {
+                    block.to_string()
+                } else {
+                    format!("{current}\n\n{block}")
+                }
+            }
+        },
     }
 }
 
@@ -264,8 +295,8 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        AssistantKind, assistant_root_for_home, path_for_assistant_in, remove_managed_block,
-        render_assistant_instructions, upsert_managed_block,
+        AssistantKind, assistant_root_for_home, content_for_assistant, path_for_assistant_in,
+        remove_managed_block, render_assistant_instructions, upsert_managed_block,
     };
 
     #[test]
@@ -295,9 +326,20 @@ mod tests {
     fn upsert_managed_block_is_idempotent() {
         let block = "<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\n";
         let original = "custom content";
-        let once = upsert_managed_block(original, block);
-        let twice = upsert_managed_block(&once, block);
+        let once = upsert_managed_block(AssistantKind::Codex, original, block);
+        let twice = upsert_managed_block(AssistantKind::Codex, &once, block);
         assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn cursor_upsert_keeps_managed_rule_at_top_with_frontmatter() {
+        let block = content_for_assistant(AssistantKind::Cursor, "everr");
+        let updated = upsert_managed_block(AssistantKind::Cursor, "# custom note\n", &block);
+
+        assert!(updated.starts_with("---\n"));
+        assert!(updated.contains("alwaysApply: true"));
+        assert!(updated.contains("`everr slowest-tests`"));
+        assert!(updated.trim_end().ends_with("# custom note"));
     }
 
     #[test]
@@ -343,12 +385,14 @@ mod tests {
         assistants: &[AssistantKind],
         command_name: &str,
     ) -> anyhow::Result<()> {
-        let managed_block = super::content_for_assistant(command_name);
-
         for assistant in AssistantKind::ALL {
             let path = path_for_assistant_in(home, assistant);
             if assistants.contains(&assistant) {
-                super::write_managed_block(&path, managed_block.clone())?;
+                super::write_managed_block(
+                    &path,
+                    assistant,
+                    super::content_for_assistant(assistant, command_name),
+                )?;
                 continue;
             }
 

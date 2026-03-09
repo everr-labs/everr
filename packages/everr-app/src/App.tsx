@@ -18,7 +18,7 @@ import {
   formatNotificationRelativeTime,
 } from "./notification-time";
 
-const AUTO_DISMISS_MS = 10_000;
+const AUTO_DISMISS_MS = 2 * 60_000;
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
 const NOTIFICATION_WINDOW_LABEL = "notification";
 const SETTINGS_CHANGED_EVENT = "everr://settings-changed";

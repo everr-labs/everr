@@ -12,11 +12,14 @@ concurrency:
 on:
   pull_request:
     paths:
-      - .github/**
+      - .github/workflows/build-and-test-collector.yml
       - collector/**
 
   push:
     branches: [main]
+    paths:
+      - .github/workflows/build-and-test-collector.yml
+      - collector/**
 
 jobs:
   install-tools:

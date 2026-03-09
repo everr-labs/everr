@@ -191,7 +191,7 @@ code {
 
 .notification-progress {
   background: var(--primary);
-  animation: notification-progress-shrink 10s linear forwards;
+  animation: notification-progress-shrink 120s linear forwards;
   transform-origin: left;
 }
 

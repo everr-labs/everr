@@ -217,6 +217,7 @@ export interface Span {
   testDuration?: number;
   testFramework?: string;
   isSubtest?: boolean;
+  isSuite?: boolean;
 }
 
 export const getLatestRuns = createServerFn({
@@ -504,7 +505,8 @@ export const getRunSpans = createServerFn({
 				SpanAttributes['everr.test.result'] as testResult,
 				SpanAttributes['everr.test.duration_seconds'] as testDuration,
 				SpanAttributes['everr.test.framework'] as testFramework,
-				SpanAttributes['everr.test.is_subtest'] as isSubtest
+				SpanAttributes['everr.test.is_subtest'] as isSubtest,
+				SpanAttributes['everr.test.is_suite'] as isSuite
 			FROM traces
 			WHERE TraceId = {traceId:String}
 			ORDER BY startTime ASC
@@ -535,6 +537,7 @@ export const getRunSpans = createServerFn({
       testDuration: string;
       testFramework: string;
       isSubtest: string;
+      isSuite: string;
     }>(sql, { traceId });
 
     const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
@@ -585,6 +588,7 @@ export const getRunSpans = createServerFn({
         testDuration: row.testDuration ? Number(row.testDuration) : undefined,
         testFramework: row.testFramework || undefined,
         isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
+        isSuite: row.isSuite === "true" || row.isSuite === "1",
       };
     }) satisfies Span[];
   });

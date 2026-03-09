@@ -151,17 +151,55 @@ func TestSubtestHierarchy(t *testing.T) {
 	parent := ctx.RootTests[0]
 	assert.Equal(t, "TestParent", parent.Name)
 	assert.False(t, parent.IsSubtest())
+	assert.True(t, parent.IsSuite())
 	require.Len(t, parent.Subtests, 2, "parent should have 2 subtests")
 
 	child1 := parent.Subtests[0]
 	assert.Equal(t, "TestParent/Child1", child1.Name)
 	assert.Equal(t, "TestParent", child1.ParentTest)
 	assert.True(t, child1.IsSubtest())
+	assert.False(t, child1.IsSuite())
 
 	child2 := parent.Subtests[1]
 	assert.Equal(t, "TestParent/Child2", child2.Name)
 	assert.Equal(t, "TestParent", child2.ParentTest)
 	assert.True(t, child2.IsSubtest())
+	assert.False(t, child2.IsSuite())
+}
+
+func TestNestedSuiteFlags(t *testing.T) {
+	logger := zap.NewNop()
+	ctx := NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
+	parser := NewParser(ctx, logger)
+
+	lines := []string{
+		"=== RUN   TestRoot",
+		"=== RUN   TestRoot/Level1",
+		"=== RUN   TestRoot/Level1/Level2",
+		"        --- PASS: TestRoot/Level1/Level2 (0.001s)",
+		"    --- PASS: TestRoot/Level1 (0.002s)",
+		"--- PASS: TestRoot (0.003s)",
+	}
+
+	baseTime := time.Now()
+	for i, line := range lines {
+		parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+	}
+	parser.Finalize()
+
+	require.Len(t, ctx.RootTests, 1)
+	root := ctx.RootTests[0]
+	require.Len(t, root.Subtests, 1)
+	level1 := root.Subtests[0]
+	require.Len(t, level1.Subtests, 1)
+	level2 := level1.Subtests[0]
+
+	assert.True(t, root.IsSuite())
+	assert.False(t, root.IsSubtest())
+	assert.True(t, level1.IsSuite())
+	assert.True(t, level1.IsSubtest())
+	assert.False(t, level2.IsSuite())
+	assert.True(t, level2.IsSubtest())
 }
 
 func TestSpanGeneration(t *testing.T) {
@@ -233,6 +271,10 @@ func TestSpanGeneration(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "go", framework.Str())
 
+	isSuite, ok := fooAttrs.Get(semconv.EverrTestIsSuite)
+	require.True(t, ok)
+	assert.False(t, isSuite.Bool())
+
 	// Verify TestBar span (failed)
 	require.NotEqual(t, ptrace.Span{}, barSpan, "TestBar span not found")
 	assert.Equal(t, ptrace.StatusCodeError, barSpan.Status().Code())
@@ -296,6 +338,14 @@ func TestSpanGenerationWithSubtests(t *testing.T) {
 	isSubtest, ok = parentSpan.Attributes().Get(semconv.EverrTestIsSubtest)
 	require.True(t, ok)
 	assert.False(t, isSubtest.Bool())
+
+	isSuite, ok := parentSpan.Attributes().Get(semconv.EverrTestIsSuite)
+	require.True(t, ok)
+	assert.True(t, isSuite.Bool())
+
+	isSuite, ok = childSpan.Attributes().Get(semconv.EverrTestIsSuite)
+	require.True(t, ok)
+	assert.False(t, isSuite.Bool())
 }
 
 func TestPackageParsing(t *testing.T) {
@@ -493,6 +543,19 @@ func TestTestInfoIsSubtest(t *testing.T) {
 
 	child := &TestInfo{Name: "TestRoot/Child", ParentTest: "TestRoot"}
 	assert.True(t, child.IsSubtest())
+}
+
+func TestTestInfoIsSuite(t *testing.T) {
+	leaf := &TestInfo{Name: "TestLeaf"}
+	assert.False(t, leaf.IsSuite())
+
+	parent := &TestInfo{
+		Name: "TestParent",
+		Subtests: []*TestInfo{
+			{Name: "TestParent/Child"},
+		},
+	}
+	assert.True(t, parent.IsSuite())
 }
 
 // countResults recursively counts pass/fail/skip results

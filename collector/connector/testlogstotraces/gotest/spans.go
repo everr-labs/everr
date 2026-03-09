@@ -77,6 +77,7 @@ func (ctx *TestParseContext) createTestSpan(scopeSpans ptrace.ScopeSpans, test *
 	attrs.PutDouble(semconv.EverrTestDurationSeconds, test.Duration.Seconds())
 	attrs.PutStr(semconv.EverrTestFramework, "go")
 	attrs.PutBool(semconv.EverrTestIsSubtest, test.IsSubtest())
+	attrs.PutBool(semconv.EverrTestIsSuite, test.IsSuite())
 
 	if test.Package != "" {
 		attrs.PutStr(semconv.EverrTestPackage, test.Package)

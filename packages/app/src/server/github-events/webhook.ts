@@ -4,12 +4,7 @@ import { getGitHubEventsConfig } from "./config";
 import { headersToRecord } from "./headers";
 import { handleInstallationEvent } from "./install-events";
 import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
-import {
-  githubEventSource,
-  topicCDEvents,
-  topicCollector,
-  type WebhookTopic,
-} from "./types";
+import { topicCDEvents, topicCollector, type WebhookTopic } from "./types";
 
 function topicsForEventType(eventType: string): WebhookTopic[] {
   if (eventType === "workflow_run" || eventType === "workflow_job") {
@@ -78,7 +73,7 @@ export async function handleGitHubWebhookRequest(
   const bodySha256 = createHash("sha256").update(body).digest("hex");
   const store = dependencies.store ?? getWebhookEventStore();
   const enqueueStatus = await store.enqueueEvent({
-    source: getGitHubEventsConfig().source || githubEventSource,
+    source: getGitHubEventsConfig().source,
     eventId,
     bodySha256,
     topics,

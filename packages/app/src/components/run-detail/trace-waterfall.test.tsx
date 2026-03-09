@@ -419,5 +419,26 @@ describe("TraceWaterfall", () => {
         screen.queryByRole("heading", { name: "Job A" }),
       ).not.toBeInTheDocument();
     });
+
+    it("shows suite and subtest types independently in the detail panel", async () => {
+      const user = userEvent.setup();
+      const spans: Span[] = [
+        makeSpan({
+          spanId: "suite-subtest",
+          name: "Nested Suite",
+          testName: "src/test.ts > outer > inner",
+          testResult: "pass",
+          testFramework: "vitest",
+          isSuite: true,
+          isSubtest: true,
+        }),
+      ];
+
+      render(<TraceWaterfall spans={spans} traceId="t1" />);
+
+      await user.click(screen.getByRole("button", { name: /Nested Suite/ }));
+
+      expect(screen.getByText("Suite, Subtest")).toBeInTheDocument();
+    });
   });
 });

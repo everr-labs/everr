@@ -37,6 +37,11 @@ func (t *TestInfo) IsSubtest() bool {
 	return t.ParentTest != ""
 }
 
+// IsSuite returns true if this test contains child tests.
+func (t *TestInfo) IsSuite() bool {
+	return len(t.Subtests) > 0
+}
+
 // TestParseContext holds state during log parsing for a single step.
 type TestParseContext struct {
 	// Identifiers for span generation

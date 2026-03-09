@@ -1,5 +1,15 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.hoisted(() => {
+  process.env.INGRESS_SOURCE = "github";
+  process.env.INGRESS_COLLECTOR_URL = "http://localhost:8080/webhook/github";
+  process.env.CDEVENTS_CLICKHOUSE_URL = "http://localhost:8123";
+  process.env.CDEVENTS_CLICKHOUSE_USERNAME = "app_cdevents_rw";
+  process.env.CDEVENTS_CLICKHOUSE_PASSWORD = "app-cdevents-dev";
+  process.env.CDEVENTS_CLICKHOUSE_DATABASE = "app";
+});
+
 import {
   BufferedCDEventsWriter,
   type CDEventInserter,

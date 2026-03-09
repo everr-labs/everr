@@ -36,6 +36,10 @@ pub enum Commands {
     WaitPipeline(WaitArgs),
     /// Show historical executions for a specific test
     TestHistory(TestHistoryArgs),
+    /// Show the slowest tests in the selected time range, repo-wide by default
+    SlowestTests(SlowestTestsArgs),
+    /// Show the slowest jobs in the selected time range, repo-wide by default
+    SlowestJobs(SlowestJobsArgs),
     /// Pipeline runs commands
     Runs {
         #[command(subcommand)]
@@ -98,6 +102,34 @@ pub struct TestHistoryArgs {
     pub to: Option<String>,
 }
 
+#[derive(Args, Debug)]
+pub struct SlowestTestsArgs {
+    #[arg(long)]
+    pub repo: Option<String>,
+    #[arg(long)]
+    pub branch: Option<String>,
+    #[arg(long)]
+    pub from: Option<String>,
+    #[arg(long)]
+    pub to: Option<String>,
+    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u32).range(1..=100))]
+    pub limit: u32,
+}
+
+#[derive(Args, Debug)]
+pub struct SlowestJobsArgs {
+    #[arg(long)]
+    pub repo: Option<String>,
+    #[arg(long)]
+    pub branch: Option<String>,
+    #[arg(long)]
+    pub from: Option<String>,
+    #[arg(long)]
+    pub to: Option<String>,
+    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u32).range(1..=100))]
+    pub limit: u32,
+}
+
 #[derive(Args, Debug, Default)]
 pub struct ListRunsArgs {
     #[arg(long)]
@@ -154,7 +186,10 @@ pub enum AssistantKind {
 mod tests {
     use clap::Parser;
 
-    use super::{AssistantKind, Cli, Commands, RunsCommand, TestHistoryArgs, WaitArgs};
+    use super::{
+        AssistantKind, Cli, Commands, RunsCommand, SlowestJobsArgs, SlowestTestsArgs,
+        TestHistoryArgs, WaitArgs,
+    };
 
     #[test]
     fn parses_top_level_commands() {
@@ -400,5 +435,52 @@ mod tests {
 
         assert_eq!(test_name, None);
         assert_eq!(test_module.as_deref(), Some("suite"));
+    }
+
+    #[test]
+    fn slowest_tests_parses_optional_filters() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "slowest-tests",
+            "--repo",
+            "everr-labs/everr",
+            "--branch",
+            "main",
+            "--from",
+            "now-24h",
+            "--to",
+            "now",
+            "--limit",
+            "25",
+        ])
+        .expect("slowest-tests command");
+
+        let Commands::SlowestTests(SlowestTestsArgs {
+            repo,
+            branch,
+            from,
+            to,
+            limit,
+        }) = cli.command
+        else {
+            panic!("expected slowest-tests command");
+        };
+
+        assert_eq!(repo.as_deref(), Some("everr-labs/everr"));
+        assert_eq!(branch.as_deref(), Some("main"));
+        assert_eq!(from.as_deref(), Some("now-24h"));
+        assert_eq!(to.as_deref(), Some("now"));
+        assert_eq!(limit, 25);
+    }
+
+    #[test]
+    fn slowest_jobs_defaults_to_limit_ten() {
+        let cli = Cli::try_parse_from(["everr", "slowest-jobs"]).expect("slowest-jobs command");
+
+        let Commands::SlowestJobs(SlowestJobsArgs { limit, .. }) = cli.command else {
+            panic!("expected slowest-jobs command");
+        };
+
+        assert_eq!(limit, 10);
     }
 }

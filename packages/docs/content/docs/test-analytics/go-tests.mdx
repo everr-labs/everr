@@ -37,7 +37,7 @@ The parser recognizes the standard Go test verbose output patterns:
 
 Go subtests (created with `t.Run()`) are automatically detected via the `/` separator in test names. For example, `TestParser/valid_input` is recognized as a subtest of `TestParser`.
 
-Each subtest becomes its own span with `everr.test.is_subtest` set to `true` and `everr.test.parent_test` pointing to the parent test name.
+Each subtest becomes its own span with `everr.test.is_subtest` set to `true` and `everr.test.parent_test` pointing to the parent test name. Parent tests that contain subtests also get `everr.test.is_suite=true`, so a nested Go test can be both a subtest and a suite when it contains further children.
 
 ## Generated span attributes
 
@@ -48,5 +48,6 @@ Each subtest becomes its own span with `everr.test.is_subtest` set to `true` and
 | `everr.test.duration_seconds` | Duration from the test output |
 | `everr.test.framework` | `go` |
 | `everr.test.package` | Go package path |
+| `everr.test.is_suite` | `true` for tests that contain child subtests |
 | `everr.test.is_subtest` | `true` for subtests |
 | `everr.test.parent_test` | Parent test name (for subtests) |

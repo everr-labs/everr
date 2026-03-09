@@ -7,5 +7,20 @@ Quick commands:
 - `everr runs show --trace-id <trace_id>`
 - `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`
 - `everr test-history --module <module> --test-name <name>`
-- `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete. Will probably take a while, CI normally take around 10/20 minutes
-- `everr wait-pipeline --commit <sha>`
+- `everr slowest-tests`: shows repo-wide aggregates for non-suite tests by default; add `--branch <name>` to scope it
+- `everr slowest-jobs`: shows repo-wide aggregates by default; add `--branch <name>` to scope it
+- `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit
+
+Output schema notes:
+- All commands print JSON.
+- `status`: `{ status, repo, branch, mainBranch, inspectedRuns, latestPipeline, failingPipelines, slowdown, message }`
+- `runs list`: `{ runs, totalCount }`
+- `runs show`: `{ run, jobs, steps }`
+- `runs logs`: `{ logs }`
+- `test-history`: array of `{ traceId, runId, runAttempt, headSha, headBranch, testResult, testDuration, runnerName, workflowName, jobName, timestamp }`
+- `slowest-tests`: `{ repo, branch, timeRange, limit, items }` where `branch` is `null` for repo-wide results
+- `slowest-tests.items[]`: `{ testPackage, testFullName, avgDurationSeconds, p95DurationSeconds, maxDurationSeconds, executions, passCount, failCount, skipCount, lastSeen }`
+- `slowest-jobs`: `{ repo, branch, timeRange, limit, items }` where `branch` is `null` for repo-wide results
+- `slowest-jobs.items[]`: `{ workflowName, jobName, avgDurationSeconds, p95DurationSeconds, maxDurationSeconds, executions, successCount, failureCount, skipCount, lastSeen }`
+- `wait-pipeline`: `{ repo, branch, commit, pipelineFound, activeRuns, completedRuns }`
+- `wait-pipeline.activeRuns[]` and `wait-pipeline.completedRuns[]`: `{ runId, workflowName, phase, conclusion, lastEventTime, durationSeconds, usualDurationSeconds, usualDurationSampleSize, activeJobs }`

@@ -429,7 +429,7 @@ function TestPerformancePage() {
           title="Execution Treemap"
           description={`Size = ${getTreemapMetricLabel(
             treemapSizeMetric,
-          )}, color = failure rate. Click a block to drill down.`}
+          )}, color = failure rate, tag = package / suite / test. Click a block to drill down.`}
           queries={[]}
           inset="flush-content"
           action={
@@ -459,10 +459,10 @@ function TestPerformancePage() {
       {!isLeaf && hasChildren && (
         <div className={`grid gap-6`}>
           <Panel
-            title={!pkg ? "Suites" : "Tests"}
+            title={!pkg ? "Packages" : "Suites & Tests"}
             description={
               !pkg
-                ? "Browse the test suites"
+                ? "Browse packages and drill into suites or individual tests"
                 : "Drill into suites/tests and compare failures and duration trends"
             }
             queries={[]}

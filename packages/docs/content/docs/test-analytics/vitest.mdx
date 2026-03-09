@@ -55,7 +55,7 @@ This is parsed as:
 - **Describe block**: `parseConfig`
 - **Test name**: `handles empty input`
 
-Nested describe blocks are automatically detected, with `everr.test.is_subtest` set for nested entries and `everr.test.parent_test` pointing to the parent.
+Nested describe blocks are automatically detected. Describe nodes get `everr.test.is_suite=true`, nested entries get `everr.test.is_subtest=true`, and `everr.test.parent_test` points to the parent node. A nested describe block can therefore be both a suite and a subtest.
 
 ## Generated span attributes
 
@@ -66,5 +66,6 @@ Nested describe blocks are automatically detected, with `everr.test.is_subtest` 
 | `everr.test.duration_seconds` | Duration from the test output |
 | `everr.test.framework` | `vitest` |
 | `everr.test.package` | File path (e.g. `src/utils.test.ts`) |
+| `everr.test.is_suite` | `true` for describe blocks that contain child tests |
 | `everr.test.is_subtest` | `true` for tests within describe blocks |
 | `everr.test.parent_test` | Parent describe block name |

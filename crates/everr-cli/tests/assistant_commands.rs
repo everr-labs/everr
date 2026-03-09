@@ -83,6 +83,25 @@ fn assistant_init_multiple_assistants_creates_all_files() {
 }
 
 #[test]
+fn assistant_init_writes_cursor_rules_in_mdc_format() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["setup-assistant", "--assistant", "cursor"])
+        .assert()
+        .success()
+        .stdout(contains("Configured Cursor at"));
+
+    let cursor_file = env.home_dir.join(".cursor").join("rules").join("everr.mdc");
+    let content = fs::read_to_string(cursor_file).expect("cursor file should exist");
+
+    assert!(content.starts_with("---\n"));
+    assert!(content.contains("alwaysApply: true"));
+    assert!(content.contains(BLOCK_START));
+    assert!(content.contains("`everr slowest-tests`"));
+}
+
+#[test]
 fn uninstall_removes_managed_block_but_keeps_unrelated_content() {
     let env = CliTestEnv::new();
     let codex_file = env.home_dir.join(".codex").join("AGENTS.md");

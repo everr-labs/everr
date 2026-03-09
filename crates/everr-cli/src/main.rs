@@ -22,6 +22,8 @@ async fn main() -> Result<()> {
         Commands::SetupAssistant(init) => assistant::init_from_args(init)?,
         Commands::Status(args) => core::status(args).await?,
         Commands::TestHistory(args) => core::test_history(args).await?,
+        Commands::SlowestTests(args) => core::slowest_tests(args).await?,
+        Commands::SlowestJobs(args) => core::slowest_jobs(args).await?,
         Commands::WaitPipeline(args) => core::wait(args).await?,
         Commands::Runs { command } => match command {
             RunsCommand::List(args) => core::runs_list(args).await?,
