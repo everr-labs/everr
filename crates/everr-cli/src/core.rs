@@ -141,13 +141,19 @@ pub async fn wait(args: WaitArgs) -> Result<()> {
             .get("pipelineFound")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let active_runs = payload
-            .get("activeRuns")
-            .and_then(Value::as_array)
-            .map_or(0, Vec::len);
-        if pipeline_found && active_runs == 0 {
+        let active_runs = extract_wait_runs(&payload, "activeRuns");
+        let completed_runs = extract_wait_runs(&payload, "completedRuns");
+
+        if pipeline_found && active_runs.is_empty() {
             finish_wait_status_block(wait_status_lines)?;
             print_json(&payload)?;
+            let failed_runs = failed_wait_run_names(&completed_runs);
+            if !failed_runs.is_empty() {
+                bail!(
+                    "pipeline finished with failed run(s): {}",
+                    failed_runs.join(", ")
+                );
+            }
             return Ok(());
         }
 
@@ -158,7 +164,7 @@ pub async fn wait(args: WaitArgs) -> Result<()> {
                     bail!(
                         "timed out after {}s waiting for {} active run(s) to finish for commit {} on {repo}@{branch}",
                         timeout_seconds,
-                        active_runs,
+                        active_runs.len(),
                         target_commit
                     );
                 }
@@ -175,8 +181,8 @@ pub async fn wait(args: WaitArgs) -> Result<()> {
             format_wait_status(
                 &target_commit,
                 args.interval_seconds,
-                extract_wait_runs(&payload, "activeRuns"),
-                extract_named_values(&payload, "completedRuns", "workflowName"),
+                active_runs,
+                completed_runs,
             )
         } else {
             format_wait_status(
@@ -199,6 +205,7 @@ fn print_json(value: &Value) -> Result<()> {
 
 struct WaitRunStatus {
     workflow_name: String,
+    conclusion: String,
     duration_seconds: u64,
     active_jobs: Vec<String>,
 }
@@ -207,7 +214,7 @@ fn format_wait_status(
     target_commit: &str,
     interval_seconds: u64,
     active_runs: Vec<WaitRunStatus>,
-    completed_run_names: Vec<String>,
+    completed_runs: Vec<WaitRunStatus>,
 ) -> String {
     let mut status = String::new();
     let short_commit = shorten_commit(target_commit);
@@ -230,7 +237,7 @@ fn format_wait_status(
     let _ = writeln!(
         status,
         "Completed runs: {}",
-        format_name_list(&completed_run_names)
+        format_completed_run_list(&completed_runs)
     );
     status
 }
@@ -285,6 +292,11 @@ fn extract_wait_runs(payload: &Value, key: &str) -> Vec<WaitRunStatus> {
                 .and_then(Value::as_str)
                 .unwrap_or("unknown")
                 .to_string(),
+            conclusion: item
+                .get("conclusion")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
             duration_seconds: item
                 .get("durationSeconds")
                 .and_then(Value::as_u64)
@@ -301,23 +313,43 @@ fn extract_wait_runs(payload: &Value, key: &str) -> Vec<WaitRunStatus> {
         .collect()
 }
 
-fn extract_named_values(payload: &Value, key: &str, field: &str) -> Vec<String> {
-    payload
-        .get(key)
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|item| item.get(field).and_then(Value::as_str))
-        .map(ToOwned::to_owned)
-        .collect()
-}
-
 fn format_name_list(names: &[String]) -> String {
     if names.is_empty() {
         "none".to_string()
     } else {
         names.join(", ")
     }
+}
+
+fn format_completed_run_list(runs: &[WaitRunStatus]) -> String {
+    if runs.is_empty() {
+        return "none".to_string();
+    }
+
+    let mut formatted = String::new();
+    for (index, run) in runs.iter().enumerate() {
+        if index > 0 {
+            formatted.push_str(", ");
+        }
+        formatted.push_str(&run.workflow_name);
+        if is_failure_conclusion(&run.conclusion) {
+            formatted.push_str(" (failed)");
+        }
+    }
+
+    formatted
+}
+
+fn failed_wait_run_names<'a>(runs: &'a [WaitRunStatus]) -> Vec<&'a str> {
+    runs.iter()
+        .filter(|run| is_failure_conclusion(&run.conclusion))
+        .map(|run| run.workflow_name.as_str())
+        .collect()
+}
+
+fn is_failure_conclusion(conclusion: &str) -> bool {
+    let normalized = conclusion.trim();
+    normalized.eq_ignore_ascii_case("failure") || normalized.eq_ignore_ascii_case("failed")
 }
 
 fn shorten_commit(commit: &str) -> &str {
@@ -377,15 +409,48 @@ mod tests {
             5,
             vec![WaitRunStatus {
                 workflow_name: "Build & Test Collector".to_string(),
+                conclusion: String::new(),
                 duration_seconds: 139,
                 active_jobs: vec!["Lint".to_string(), "Build".to_string()],
             }],
-            vec!["Build & Test Ingress".to_string()],
+            vec![WaitRunStatus {
+                workflow_name: "Build & Test Ingress".to_string(),
+                conclusion: "success".to_string(),
+                duration_seconds: 0,
+                active_jobs: Vec::new(),
+            }],
         );
 
         assert!(status.ends_with('\n'));
         let display = status.trim_end_matches('\n');
         assert!(!display.ends_with('\n'));
         assert_eq!(display.lines().count(), 5);
+    }
+
+    #[test]
+    fn wait_status_output_marks_failed_completed_runs() {
+        let status = format_wait_status(
+            "df0c52b63dfa0123456789",
+            5,
+            Vec::new(),
+            vec![
+                WaitRunStatus {
+                    workflow_name: "Build & Test Collector".to_string(),
+                    conclusion: "failure".to_string(),
+                    duration_seconds: 0,
+                    active_jobs: Vec::new(),
+                },
+                WaitRunStatus {
+                    workflow_name: "Build & Test App".to_string(),
+                    conclusion: "success".to_string(),
+                    duration_seconds: 0,
+                    active_jobs: Vec::new(),
+                },
+            ],
+        );
+
+        assert!(
+            status.contains("Completed runs: Build & Test Collector (failed), Build & Test App")
+        );
     }
 }
