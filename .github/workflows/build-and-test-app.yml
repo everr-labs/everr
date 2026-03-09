@@ -66,7 +66,7 @@ jobs:
 
       - name: Generate migrations
         run: |
-          DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mock" pnpm -r --filter @everr/app db:generate
+          DATABASE_HOST="localhost", DATABASE_NAME="mock", DATABASE_PORT="5432", DATABASE_USER="postgres", DATABASE_PASSWORD="postgres" pnpm -r --filter @everr/app db:generate
 
       - name: Ensure no unstaged/changed files
         run: |
