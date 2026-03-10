@@ -63,10 +63,14 @@ export function parseDuration(input: string): number | null {
 
 /**
  * Detect the hierarchy separator used in a test name.
- * Vitest uses " > " (e.g., "pkg > Describe > test"), Go uses "/" (e.g., "TestSuite/SubTest").
+ * Vitest uses " > " (e.g., "pkg > Describe > test"),
+ * Rust uses "::" (e.g., "module::suite::test"),
+ * and Go uses "/" (e.g., "TestSuite/SubTest").
  */
 export function testNameSeparator(name: string): string {
-  return name.includes(" > ") ? " > " : "/";
+  if (name.includes(" > ")) return " > ";
+  if (name.includes("::")) return "::";
+  return "/";
 }
 
 /** Extract the last segment of a hierarchical test name for display. */

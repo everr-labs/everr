@@ -206,6 +206,63 @@ func TestConnectorVitestPatternsWithWorkspacePrefixAndANSI(t *testing.T) {
 	require.Equal(t, 3, tracesSink.SpanCount(), "should have produced 3 spans")
 }
 
+func TestConnectorRustTestPatterns(t *testing.T) {
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			"Running unittests src/lib.rs (target/debug/deps/everr_core-142b5ddf69d45992)",
+			"running 2 tests",
+			"test assistant::tests::assistant_instructions_use_requested_command_name ... ok",
+			"test assistant::tests::sync_assistants_updates_only_selected_targets ... FAILED",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"test-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	require.Equal(t, 4, tracesSink.SpanCount(), "should have produced 4 Rust test spans")
+	traces := tracesSink.AllTraces()
+	require.Len(t, traces, 1)
+
+	scopeSpans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0)
+	assert.Equal(t, "rusttest", scopeSpans.Scope().Name())
+
+	spans := scopeSpans.Spans()
+	spanMap := make(map[string]ptrace.Span)
+	for i := 0; i < spans.Len(); i++ {
+		span := spans.At(i)
+		spanMap[span.Name()] = span
+	}
+
+	passSpan, ok := spanMap["assistant_instructions_use_requested_command_name"]
+	require.True(t, ok, "pass span not found")
+	assert.Equal(t, ptrace.StatusCodeUnset, passSpan.Status().Code())
+
+	failSpan, ok := spanMap["sync_assistants_updates_only_selected_targets"]
+	require.True(t, ok, "fail span not found")
+	assert.Equal(t, ptrace.StatusCodeError, failSpan.Status().Code())
+
+	framework, ok := passSpan.Attributes().Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "rust", framework.Str())
+}
+
 func TestConnectorNoTestPatterns(t *testing.T) {
 	tracesSink := &consumertest.TracesSink{}
 	set := connectortest.NewNopSettings(metadata.Type)

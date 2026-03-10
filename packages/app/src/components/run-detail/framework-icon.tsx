@@ -1,7 +1,8 @@
-import { siGo, siVitest } from "simple-icons";
+import { siGo, siRust, siVitest } from "simple-icons";
 
 const frameworks: Record<string, { path: string; hex: string }> = {
   go: siGo,
+  rust: siRust,
   vitest: siVitest,
 };
 

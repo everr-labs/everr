@@ -5,6 +5,7 @@
  * Note: this produces a compound key for grouping, not a display name.
  * Test frameworks use different native separators for display:
  * - Vitest: " > " (e.g., "pkg > Describe > test")
+ * - Rust: "::" (e.g., "module::suite::test")
  * - Go: "/" (e.g., "TestSuite/SubTest")
  * See `testNameSeparator()` in lib/formatting.ts for display parsing.
  *

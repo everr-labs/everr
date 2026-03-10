@@ -79,7 +79,10 @@ function isDescendant(
   return (
     value.pkg === target.pkg &&
     typeof value.path === "string" &&
-    (value.path === targetName || value.path.startsWith(`${targetName} > `))
+    (value.path === targetName ||
+      value.path.startsWith(`${targetName} > `) ||
+      value.path.startsWith(`${targetName}::`) ||
+      value.path.startsWith(`${targetName}/`))
   );
 }
 

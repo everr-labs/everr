@@ -7,7 +7,7 @@ Everr can parse verbose test output from your CI workflow logs and generate Open
 
 ## How it works
 
-1. Your CI workflows run tests with **verbose output** enabled
+1. Your CI workflows run tests with output that includes **individual test results**
 2. Everr ingests workflow logs for your workspace
 3. The `testlogstotraces` connector parses the log output and identifies test results
 4. Each test becomes a span with attributes like name, result, duration, and framework
@@ -18,13 +18,14 @@ Everr can parse verbose test output from your CI workflow logs and generate Open
 | Framework | Flag | Status |
 |-----------|------|--------|
 | [Go tests](/docs/test-analytics/go-tests) | `go test -v` | Supported |
+| [Rust tests](/docs/test-analytics/rust-tests) | `cargo test` | Supported |
 | [Vitest](/docs/test-analytics/vitest) | `--reporter=verbose` | Supported |
 
 More test frameworks will be supported in the future.
 
 ## Requirements
 
-The key requirement is that **tests must produce verbose output** so Everr can parse individual test results. Standard (non-verbose) test output only reports summary pass/fail and cannot be parsed into per-test spans.
+The key requirement is that your test command must emit **individual test results** so Everr can parse them into per-test spans. For Go and Vitest this means enabling verbose reporters; for Rust, standard `cargo test` output already includes per-test result lines.
 
 ## Span attributes
 
@@ -35,7 +36,7 @@ Each test span includes the following attributes:
 | `everr.test.name` | Test name (e.g. `TestParseConfig` or `renders login form`) |
 | `everr.test.result` | Result: `pass`, `fail`, or `skip` |
 | `everr.test.duration_seconds` | Test execution duration in seconds |
-| `everr.test.framework` | Test framework (`go` or `vitest`) |
+| `everr.test.framework` | Test framework (`go`, `rust`, or `vitest`) |
 | `everr.test.package` | Go package path or Vitest file path |
 | `everr.test.is_suite` | Whether this span groups child test spans |
 | `everr.test.is_subtest` | Whether this is a subtest/nested describe |
@@ -45,5 +46,6 @@ Each test span includes the following attributes:
 
 <Cards>
   <Card title="Go Tests" href="/docs/test-analytics/go-tests" description="Set up test analytics for Go projects" />
+  <Card title="Rust Tests" href="/docs/test-analytics/rust-tests" description="Set up test analytics for cargo test" />
   <Card title="Vitest" href="/docs/test-analytics/vitest" description="Set up test analytics for Vitest projects" />
 </Cards>

@@ -19,6 +19,7 @@ import (
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
 	"github.com/everr-labs/everr/collector/connector/testlogstotraces/gotest"
+	"github.com/everr-labs/everr/collector/connector/testlogstotraces/rusttest"
 	"github.com/everr-labs/everr/collector/connector/testlogstotraces/vitest"
 	"github.com/everr-labs/everr/collector/semconv"
 )
@@ -51,7 +52,7 @@ func (c *testLogsToTracesConnector) Shutdown(_ context.Context) error {
 	return nil
 }
 
-// ConsumeLogs processes incoming logs, detects Go test patterns, and emits traces.
+// ConsumeLogs processes incoming logs, detects supported test patterns, and emits traces.
 func (c *testLogsToTracesConnector) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	var allTestTraces *ptrace.Traces
 
@@ -128,19 +129,30 @@ func (c *testLogsToTracesConnector) ConsumeLogs(ctx context.Context, ld plog.Log
 				vitestCtx := gotest.NewParseContext(runID, runAttempt, jobName, stepNum, traceID, spanID)
 				vitestParser := vitest.NewParser(vitestCtx, c.logger)
 
+				// Try Rust test parser
+				rustCtx := gotest.NewParseContext(runID, runAttempt, jobName, stepNum, traceID, spanID)
+				rustParser := rusttest.NewParser(rustCtx, c.logger)
+
 				for _, rec := range records {
 					goParser.ProcessLine(rec.body, rec.timestamp)
 					vitestParser.ProcessLine(rec.body, rec.timestamp)
+					rustParser.ProcessLine(rec.body, rec.timestamp)
 				}
 				goParser.Finalize()
 				vitestParser.Finalize()
+				rustParser.Finalize()
 
-				// Use whichever parser detected more tests
+				// Use whichever parser detected more tests.
 				var spans *ptrace.Traces
-				if goCtx.TestCount() >= vitestCtx.TestCount() && goCtx.HasTests() {
+				switch {
+				case goCtx.TestCount() >= vitestCtx.TestCount() &&
+					goCtx.TestCount() >= rustCtx.TestCount() &&
+					goCtx.HasTests():
 					spans = goCtx.GenerateSpans(testResourceAttrs)
-				} else if vitestCtx.HasTests() {
+				case vitestCtx.TestCount() >= rustCtx.TestCount() && vitestCtx.HasTests():
 					spans = vitest.GenerateSpans(vitestCtx, testResourceAttrs)
+				case rustCtx.HasTests():
+					spans = rusttest.GenerateSpans(rustCtx, testResourceAttrs)
 				}
 
 				if spans != nil {
