@@ -279,9 +279,14 @@ describe("/api/cli/tray-status", () => {
       step_number: "3",
       step_name: "Run suite",
     });
-    expect(payload.auto_fix_prompt).toContain("everr status");
+    expect(payload.auto_fix_prompt).toContain(
+      "everr runs show --trace-id <trace_id>",
+    );
+    expect(payload.auto_fix_prompt).toContain(
+      "everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>",
+    );
     expect(payload.auto_fix_prompt).toContain("trace-123");
     expect(payload.auto_fix_prompt).toContain("feature/granola");
-    expect(payload.auto_fix_prompt).toContain("http://localhost/dashboard");
+    expect(payload.auto_fix_prompt).not.toContain("http://localhost/dashboard");
   });
 });
