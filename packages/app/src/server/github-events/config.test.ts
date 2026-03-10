@@ -54,7 +54,7 @@ describe("getGitHubEventsConfig", () => {
       workerBatchSize: 10,
       maxAttempts: 10,
       pollIntervalMs: 2_000,
-      lockDurationMs: 120_000,
+      lockDurationMs: 1120_000,
       replayTimeoutMs: 30_000,
       tenantCacheTTLms: 60_000,
       retentionDoneDays: 7,
