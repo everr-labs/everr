@@ -699,9 +699,6 @@ function WhySection() {
           {WHY_ITEMS.map((item, i) => (
             <div key={item.num} className="contents">
               <div>
-                <span className="font-headline mb-6 block font-mono text-6xl text-fd-muted-foreground/20">
-                  {item.num}
-                </span>
                 <h3 className="font-headline mb-3 text-lg italic">
                   {item.question}
                 </h3>
