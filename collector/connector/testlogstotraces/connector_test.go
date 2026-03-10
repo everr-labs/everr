@@ -220,8 +220,8 @@ func TestConnectorRustTestPatterns(t *testing.T) {
 		[]string{
 			"Running unittests src/lib.rs (target/debug/deps/everr_core-142b5ddf69d45992)",
 			"running 2 tests",
-			"test assistant::tests::assistant_instructions_use_requested_command_name ... ok",
-			"test assistant::tests::sync_assistants_updates_only_selected_targets ... FAILED",
+			"test assistant::tests::assistant_instructions_use_requested_command_name ... ok <0.055s>",
+			"test assistant::tests::sync_assistants_updates_only_selected_targets ... FAILED <0.250s>",
 		},
 		map[string]any{
 			string(conventions.CICDPipelineRunIDKey): int64(123),
@@ -261,6 +261,10 @@ func TestConnectorRustTestPatterns(t *testing.T) {
 	framework, ok := passSpan.Attributes().Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "rust", framework.Str())
+
+	duration, ok := passSpan.Attributes().Get(semconv.EverrTestDurationSeconds)
+	require.True(t, ok)
+	assert.InDelta(t, 0.055, duration.Double(), 0.0001)
 }
 
 func TestConnectorNoTestPatterns(t *testing.T) {

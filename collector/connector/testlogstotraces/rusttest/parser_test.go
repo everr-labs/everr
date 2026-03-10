@@ -25,9 +25,9 @@ func TestParseCargoTestOutputBuildsModuleHierarchy(t *testing.T) {
 	lines := []string{
 		"Running unittests src/lib.rs (target/debug/deps/everr_core-142b5ddf69d45992)",
 		"running 2 tests",
-		"test assistant::tests::assistant_instructions_use_requested_command_name ... ok",
-		"test assistant::tests::sync_assistants_updates_only_selected_targets ... FAILED",
-		"test auth::tests::session_namespace_is_fixed ... ignored",
+		"test assistant::tests::assistant_instructions_use_requested_command_name ... ok <0.055s>",
+		"test assistant::tests::sync_assistants_updates_only_selected_targets ... FAILED <0.250s>",
+		"test auth::tests::session_namespace_is_fixed ... ignored <0.000s>",
 	}
 
 	baseTime := time.Now()
@@ -63,6 +63,7 @@ func TestParseCargoTestOutputBuildsModuleHierarchy(t *testing.T) {
 	assert.Equal(t, "assistant::tests", firstLeaf.ParentTest)
 	assert.Equal(t, gotest.TestResultPass, firstLeaf.Result)
 	assert.Equal(t, "everr_core", firstLeaf.Package)
+	assert.Equal(t, 55*time.Millisecond, firstLeaf.Duration)
 
 	secondLeaf := testsNode.Subtests[1]
 	assert.Equal(
@@ -71,11 +72,16 @@ func TestParseCargoTestOutputBuildsModuleHierarchy(t *testing.T) {
 		secondLeaf.Name,
 	)
 	assert.Equal(t, gotest.TestResultFail, secondLeaf.Result)
+	assert.Equal(t, 250*time.Millisecond, secondLeaf.Duration)
 
 	auth := ctx.RootTests[1]
 	assert.Equal(t, "auth", auth.Name)
 	assert.Equal(t, "everr_core", auth.Package)
 	assert.Equal(t, gotest.TestResultSkip, auth.Result)
+	assert.Equal(t, 0*time.Millisecond, auth.Duration)
+
+	assert.Equal(t, 250*time.Millisecond, testsNode.Duration)
+	assert.Equal(t, 250*time.Millisecond, assistant.Duration)
 }
 
 func TestParseCargoTestOutputKeepsTargetsSeparated(t *testing.T) {
@@ -111,7 +117,7 @@ func TestParseDocTestsUsesCrateNameAsPackage(t *testing.T) {
 	lines := []string{
 		"Doc-tests everr_core",
 		"running 1 test",
-		"test src/lib.rs - some_docs_example (line 42) ... ok",
+		"test src/lib.rs - some_docs_example (line 42) ... ok <0.120s>",
 	}
 
 	baseTime := time.Now()
@@ -124,6 +130,39 @@ func TestParseDocTestsUsesCrateNameAsPackage(t *testing.T) {
 	assert.Equal(t, "src/lib.rs - some_docs_example (line 42)", ctx.RootTests[0].Name)
 	assert.Equal(t, "everr_core", ctx.RootTests[0].Package)
 	assert.Equal(t, gotest.TestResultPass, ctx.RootTests[0].Result)
+	assert.Equal(t, 120*time.Millisecond, ctx.RootTests[0].Duration)
+}
+
+func TestParseCargoTestOutputHandlesPlainAndTimedFormats(t *testing.T) {
+	logger := zap.NewNop()
+	ctx := gotest.NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
+	parser := NewParser(ctx, logger)
+
+	lines := []string{
+		"Running unittests src/lib.rs (target/debug/deps/everr_core-142b5ddf69d45992)",
+		"test assistant::tests::plain_output ... ok",
+		"test assistant::tests::timed_output ... ok <0.333s>",
+		"\x1b[31mtest assistant::tests::time_limited ... FAILED (time limit exceeded) <1.500s>\x1b[0m",
+	}
+
+	baseTime := time.Now()
+	for i, line := range lines {
+		parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+	}
+	parser.Finalize()
+
+	require.Len(t, ctx.RootTests, 1)
+	testsNode := ctx.RootTests[0].Subtests[0]
+	require.Len(t, testsNode.Subtests, 3)
+
+	assert.Equal(t, gotest.TestResultPass, testsNode.Subtests[0].Result)
+	assert.Equal(t, 0*time.Millisecond, testsNode.Subtests[0].Duration)
+
+	assert.Equal(t, gotest.TestResultPass, testsNode.Subtests[1].Result)
+	assert.Equal(t, 333*time.Millisecond, testsNode.Subtests[1].Duration)
+
+	assert.Equal(t, gotest.TestResultFail, testsNode.Subtests[2].Result)
+	assert.Equal(t, 1500*time.Millisecond, testsNode.Subtests[2].Duration)
 }
 
 func TestSpanGeneration(t *testing.T) {
@@ -136,8 +175,8 @@ func TestSpanGeneration(t *testing.T) {
 
 	lines := []string{
 		"Running unittests src/lib.rs (target/debug/deps/everr_core-142b5ddf69d45992)",
-		"test assistant::tests::assistant_instructions_use_requested_command_name ... ok",
-		"test assistant::tests::sync_assistants_updates_only_selected_targets ... FAILED",
+		"test assistant::tests::assistant_instructions_use_requested_command_name ... ok <0.055s>",
+		"test assistant::tests::sync_assistants_updates_only_selected_targets ... FAILED <0.250s>",
 	}
 
 	baseTime := time.Now()
@@ -191,6 +230,10 @@ func TestSpanGeneration(t *testing.T) {
 	pkg, ok := attrs.Get(semconv.EverrTestPackage)
 	require.True(t, ok)
 	assert.Equal(t, "everr_core", pkg.Str())
+
+	duration, ok := attrs.Get(semconv.EverrTestDurationSeconds)
+	require.True(t, ok)
+	assert.InDelta(t, 0.055, duration.Double(), 0.0001)
 
 	require.NotEqual(t, ptrace.Span{}, failSpan, "fail span not found")
 	assert.Equal(t, ptrace.StatusCodeError, failSpan.Status().Code())

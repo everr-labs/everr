@@ -5,6 +5,7 @@ package rusttest
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	testResultPattern    = regexp.MustCompile(`^test\s+(.+?)\s+\.\.\.\s+(ok|FAILED|ignored(?:,.*)?)$`)
+	testResultPattern    = regexp.MustCompile(`^test\s+(.+?)\s+\.\.\.\s+(ok|FAILED(?:\s+\([^)]+\))?|ignored(?:,.*)?)(?:\s+<([0-9.]+)s>)?$`)
 	runningTargetPattern = regexp.MustCompile(`^Running\s+.+?\s+\((.+)\)$`)
 	docTestsPattern      = regexp.MustCompile(`^Doc-tests\s+(\S+)$`)
 	ansiPattern          = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -55,7 +56,8 @@ func (p *Parser) ProcessLine(line string, timestamp time.Time) {
 	if matches := testResultPattern.FindStringSubmatch(trimmed); matches != nil {
 		fullName := strings.TrimSpace(matches[1])
 		result := parseResult(matches[2])
-		p.addTest(fullName, result, timestamp)
+		duration := parseDuration(matches[3])
+		p.addTest(fullName, result, duration, timestamp)
 	}
 }
 
@@ -68,7 +70,7 @@ func parseResult(raw string) gotest.TestResult {
 	switch {
 	case raw == "ok":
 		return gotest.TestResultPass
-	case raw == "FAILED":
+	case strings.HasPrefix(raw, "FAILED"):
 		return gotest.TestResultFail
 	case strings.HasPrefix(raw, "ignored"):
 		return gotest.TestResultSkip
@@ -77,7 +79,20 @@ func parseResult(raw string) gotest.TestResult {
 	}
 }
 
-func (p *Parser) addTest(fullName string, result gotest.TestResult, timestamp time.Time) {
+func parseDuration(raw string) time.Duration {
+	if raw == "" {
+		return 0
+	}
+
+	seconds, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0
+	}
+
+	return time.Duration(seconds * float64(time.Second))
+}
+
+func (p *Parser) addTest(fullName string, result gotest.TestResult, duration time.Duration, timestamp time.Time) {
 	parts := splitTestName(fullName)
 	parentTest := ""
 	if len(parts) > 1 {
@@ -88,9 +103,10 @@ func (p *Parser) addTest(fullName string, result gotest.TestResult, timestamp ti
 		Name:       fullName,
 		Package:    p.currentPackage,
 		ParentTest: parentTest,
-		StartTime:  timestamp,
+		StartTime:  timestamp.Add(-duration),
 		EndTime:    timestamp,
 		Result:     result,
+		Duration:   duration,
 		Output:     make([]string, 0),
 		Subtests:   make([]*gotest.TestInfo, 0),
 	}
@@ -101,6 +117,7 @@ func (p *Parser) addTest(fullName string, result gotest.TestResult, timestamp ti
 	p.logger.Debug("Parsed rust test",
 		zap.String("test", fullName),
 		zap.String("result", string(result)),
+		zap.Duration("duration", duration),
 		zap.String("package", p.currentPackage),
 	)
 }
@@ -198,6 +215,7 @@ func propagateResults(test *gotest.TestInfo) {
 		return
 	}
 
+	var earliest, latest time.Time
 	hasFail := false
 	hasNonSkip := false
 
@@ -209,6 +227,12 @@ func propagateResults(test *gotest.TestInfo) {
 		if sub.Result != gotest.TestResultSkip {
 			hasNonSkip = true
 		}
+		if earliest.IsZero() || (!sub.StartTime.IsZero() && sub.StartTime.Before(earliest)) {
+			earliest = sub.StartTime
+		}
+		if sub.EndTime.After(latest) {
+			latest = sub.EndTime
+		}
 	}
 
 	switch {
@@ -218,6 +242,14 @@ func propagateResults(test *gotest.TestInfo) {
 		test.Result = gotest.TestResultSkip
 	default:
 		test.Result = gotest.TestResultPass
+	}
+
+	if !earliest.IsZero() {
+		test.StartTime = earliest
+	}
+	if !latest.IsZero() {
+		test.EndTime = latest
+		test.Duration = latest.Sub(earliest)
 	}
 }
 

@@ -1,37 +1,37 @@
 ---
 title: Rust Tests
-description: Set up test analytics for Rust projects that use cargo test.
+description: Set up test analytics for Rust projects and capture per-test durations with cargo test.
 ---
 
-Everr parses standard `cargo test` output to track individual Rust test results, detect flaky tests, and analyze failures.
+Everr parses Rust libtest output to track individual test results, detect flaky tests, and analyze failures.
 
 ## Setup
 
-Run your Rust tests with the default human-readable output:
+Run your Rust tests with `--report-time` so libtest emits per-test durations:
 
 ```bash
-cargo test
+cargo +nightly test -- --report-time -Z unstable-options
 ```
 
 ### GitHub Actions workflow example
 
 ```yaml
 - name: Run tests
-  run: cargo test
+  run: cargo +nightly test -- --report-time -Z unstable-options
 ```
 
-Everr automatically detects and parses standard `cargo test` output from workflow logs.
+Everr automatically detects and parses Rust test output from workflow logs. Plain `cargo test` still produces pass/fail/ignored spans, but `--report-time` is required if you want non-zero `everr.test.duration_seconds`.
 
 ## What gets parsed
 
-The parser recognizes the standard Rust libtest output patterns:
+The parser recognizes the Rust libtest output patterns:
 
 | Pattern | Meaning |
 |---------|---------|
 | `Running unittests src/lib.rs (target/debug/deps/my_crate-...)` | Starts a new Rust test target |
-| `test my_module::tests::works ... ok` | Test passed |
-| `test my_module::tests::fails ... FAILED` | Test failed |
-| `test my_module::tests::ignored_case ... ignored` | Test skipped/ignored |
+| `test my_module::tests::works ... ok <0.055s>` | Test passed with duration |
+| `test my_module::tests::fails ... FAILED <0.250s>` | Test failed with duration |
+| `test my_module::tests::ignored_case ... ignored <0.000s>` | Test skipped/ignored |
 | `Doc-tests my_crate` | Starts doctest output for a crate |
 
 ## Module hierarchy
@@ -39,7 +39,7 @@ The parser recognizes the standard Rust libtest output patterns:
 Rust test names use the `::` separator to represent module nesting. For example:
 
 ```text
-test parser::tests::parses_config ... ok
+test parser::tests::parses_config ... ok <0.055s>
 ```
 
 This is parsed as:
@@ -55,7 +55,7 @@ Everr synthesizes module nodes from the `::` hierarchy, so modules can be browse
 |-----------|-------|
 | `everr.test.name` | Full test name (e.g. `parser::tests::parses_config`) |
 | `everr.test.result` | `pass`, `fail`, or `skip` |
-| `everr.test.duration_seconds` | `0` (cargo test does not emit per-test durations) |
+| `everr.test.duration_seconds` | Duration from `--report-time` output |
 | `everr.test.framework` | `rust` |
 | `everr.test.package` | Cargo test target or doctest crate name |
 | `everr.test.is_suite` | `true` for synthesized module nodes that contain child tests |
