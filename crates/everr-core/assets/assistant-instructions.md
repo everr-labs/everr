@@ -1,3 +1,5 @@
+Only use Everr CLI guidance when the task involves CI, GitHub Actions workflows, pipelines, CI failures, workflow logs, or CI test performance.
+
 Use Everr CLI from the current project directory to see what is wrong with CI.
 When CI fails, use Everr to identify the failing workflow/job/step and inspect logs.
 
