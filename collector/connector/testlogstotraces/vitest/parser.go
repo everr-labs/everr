@@ -23,6 +23,10 @@ var (
 	failPattern = regexp.MustCompile(`^[×✕✖xX]\s+(.+?)\s+(\d+)ms$`)
 	// Skip: ↓ filepath > describe > test
 	skipPattern = regexp.MustCompile(`^↓\s+(.+)$`)
+	// ANSI escape code pattern for stripping color codes from CI output.
+	ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	// pnpm recursive output prefixes each line with "<workspace> test:".
+	workspaceTestPrefixPattern = regexp.MustCompile(`^[^:]+\s+test:\s+`)
 )
 
 // Parser processes Vitest verbose output and extracts test information.
@@ -41,7 +45,7 @@ func NewParser(ctx *gotest.TestParseContext, logger *zap.Logger) *Parser {
 
 // ProcessLine parses a single log line for Vitest verbose output.
 func (p *Parser) ProcessLine(line string, timestamp time.Time) {
-	trimmed := gotest.NormalizeLine(line)
+	trimmed := normalizeLine(line)
 
 	if trimmed == "" {
 		return
@@ -69,6 +73,13 @@ func (p *Parser) ProcessLine(line string, timestamp time.Time) {
 		p.addTest(fullName, gotest.TestResultSkip, 0, timestamp)
 		return
 	}
+}
+
+func normalizeLine(line string) string {
+	cleaned := ansiPattern.ReplaceAllString(line, "")
+	trimmed := strings.TrimSpace(cleaned)
+	normalized := workspaceTestPrefixPattern.ReplaceAllString(trimmed, "")
+	return strings.TrimSpace(normalized)
 }
 
 // addTest creates a TestInfo for a completed Vitest test line.
