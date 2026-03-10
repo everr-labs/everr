@@ -3,8 +3,8 @@ import {
   buildAutoFixPrompt,
   buildFailedRunsDashboardUrl,
   getFailureNotifications,
-  getRunningPipelineCount,
   getVerifiedCliUserEmail,
+  TIME_WINDOW_MINUTES,
   type TrayStatusResponse,
 } from "@/routes/api/cli/-failure-notifications";
 import { cliAuthMiddleware } from "./-auth";
@@ -23,24 +23,21 @@ export const Route = createFileRoute("/api/cli/tray-status")({
         if (!verifiedEmail) {
           return Response.json({
             verified_match: false,
-            running_count: 0,
             unresolved_failures: [],
             failed_runs_dashboard_url: failedRunsDashboardUrl,
             auto_fix_prompt: "",
           } satisfies TrayStatusResponse);
         }
 
-        const runningCount = await getRunningPipelineCount(verifiedEmail);
         const unresolvedFailures = await getFailureNotifications({
           gitEmail: verifiedEmail,
           origin,
-          timeWindowMinutes: 15,
+          timeWindowMinutes: TIME_WINDOW_MINUTES,
           unresolvedOnly: true,
         });
 
         return Response.json({
           verified_match: true,
-          running_count: runningCount,
           unresolved_failures: unresolvedFailures,
           failed_runs_dashboard_url: failedRunsDashboardUrl,
           auto_fix_prompt: buildAutoFixPrompt(

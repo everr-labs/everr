@@ -33,7 +33,7 @@ use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
-const POLL_INTERVAL_SECONDS: u64 = 45;
+const POLL_INTERVAL_SECONDS: u64 = 30;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
@@ -41,11 +41,10 @@ const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 124.0;
 const NOTIFICATION_WINDOW_MARGIN: f64 = 16.0;
 const TRAY_ICON_ID: &str = "everr-app";
-const TRAY_MENU_RUNNING_STATUS_ID: &str = "tray_running_status";
 const TRAY_MENU_FAILED_STATUS_ID: &str = "tray_failed_status";
 const TRAY_MENU_OPEN_FAILED_RUNS_ID: &str = "tray_open_failed_runs";
 const TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID: &str = "tray_copy_auto_fix_prompt";
-const TRAY_MENU_INSERTION_INDEX: usize = 2;
+const TRAY_MENU_INSERTION_INDEX: usize = 1;
 const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
 
@@ -133,7 +132,6 @@ struct NotifierState {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct TraySnapshot {
-    running_count: usize,
     unresolved_failures: Vec<FailureNotification>,
     failed_runs_dashboard_url: Option<String>,
     auto_fix_prompt: Option<String>,
@@ -148,7 +146,6 @@ impl TraySnapshot {
 impl From<TrayStatusResponse> for TraySnapshot {
     fn from(response: TrayStatusResponse) -> Self {
         Self {
-            running_count: response.running_count,
             unresolved_failures: response.unresolved_failures,
             failed_runs_dashboard_url: option_string(response.failed_runs_dashboard_url),
             auto_fix_prompt: option_string(response.auto_fix_prompt),
@@ -183,7 +180,6 @@ impl TrayState {
 #[derive(Clone)]
 struct TrayMenu {
     menu: Menu<tauri::Wry>,
-    running_status: MenuItem<tauri::Wry>,
     failed_status: MenuItem<tauri::Wry>,
     open_failed_runs: MenuItem<tauri::Wry>,
     copy_auto_fix_prompt: MenuItem<tauri::Wry>,
@@ -191,7 +187,6 @@ struct TrayMenu {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TrayMenuModel {
-    running_status_label: String,
     failed_status_label: String,
     show_failed_actions: bool,
 }
@@ -730,13 +725,6 @@ fn emit_auth_changed(app: &AppHandle) {
 }
 
 fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
-    let running_status = MenuItem::with_id(
-        app,
-        TRAY_MENU_RUNNING_STATUS_ID,
-        "Running pipelines: 0",
-        false,
-        None::<&str>,
-    )?;
     let failed_status = MenuItem::with_id(
         app,
         TRAY_MENU_FAILED_STATUS_ID,
@@ -764,7 +752,6 @@ fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
     let menu = Menu::with_items(
         app,
         &[
-            &running_status,
             &failed_status,
             &separator,
             &settings,
@@ -774,7 +761,6 @@ fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
 
     Ok(TrayMenu {
         menu,
-        running_status,
         failed_status,
         open_failed_runs,
         copy_auto_fix_prompt,
@@ -834,7 +820,6 @@ fn sync_tray_ui(app: &AppHandle, state: &RuntimeState) -> Result<()> {
 }
 
 fn sync_tray_menu(menu: &TrayMenu, model: &TrayMenuModel) -> Result<()> {
-    menu.running_status.set_text(&model.running_status_label)?;
     menu.failed_status.set_text(&model.failed_status_label)?;
 
     let has_open_action = menu.menu.get(TRAY_MENU_OPEN_FAILED_RUNS_ID).is_some();
@@ -863,20 +848,22 @@ fn sync_tray_menu(menu: &TrayMenu, model: &TrayMenuModel) -> Result<()> {
 
 fn build_tray_menu_model(snapshot: &TraySnapshot) -> TrayMenuModel {
     TrayMenuModel {
-        running_status_label: format!("Running pipelines: {}", snapshot.running_count),
         failed_status_label: format!("Unresolved failed pipelines: {}", snapshot.failed_count()),
         show_failed_actions: snapshot.failed_count() > 0,
     }
 }
 
 fn format_tray_title(snapshot: &TraySnapshot) -> String {
-    format!("R{} F{}", snapshot.running_count, snapshot.failed_count())
+    if snapshot.failed_count() == 0 {
+        return String::new();
+    }
+
+    format!("F{}", snapshot.failed_count())
 }
 
 fn format_tray_tooltip(snapshot: &TraySnapshot) -> String {
     format!(
-        "Everr App | Running pipelines: {} | Unresolved failed pipelines: {}",
-        snapshot.running_count,
+        "Everr App | Unresolved failed pipelines: {}",
         snapshot.failed_count()
     )
 }
@@ -1422,7 +1409,6 @@ mod tests {
 
     fn tray_snapshot_with_failures() -> TraySnapshot {
         TraySnapshot {
-            running_count: 3,
             unresolved_failures: vec![failure("one"), failure("two")],
             failed_runs_dashboard_url: Some(
                 "https://example.com/dashboard/runs?conclusion=failure".to_string(),
@@ -1467,14 +1453,15 @@ mod tests {
     }
 
     #[test]
-    fn tray_title_and_tooltip_include_running_and_failed_counts() {
+    fn tray_title_and_tooltip_include_failed_count_only() {
         let snapshot = tray_snapshot_with_failures();
 
-        assert_eq!(format_tray_title(&snapshot), "R3 F2");
+        assert_eq!(format_tray_title(&snapshot), "F2");
         assert_eq!(
             format_tray_tooltip(&snapshot),
-            "Everr App | Running pipelines: 3 | Unresolved failed pipelines: 2"
+            "Everr App | Unresolved failed pipelines: 2"
         );
+        assert_eq!(format_tray_title(&TraySnapshot::default()), "");
     }
 
     #[test]
@@ -1482,7 +1469,6 @@ mod tests {
         let snapshot = tray_snapshot_with_failures();
         let model = build_tray_menu_model(&snapshot);
 
-        assert_eq!(model.running_status_label, "Running pipelines: 3");
         assert_eq!(model.failed_status_label, "Unresolved failed pipelines: 2");
         assert!(model.show_failed_actions);
     }
@@ -1491,7 +1477,6 @@ mod tests {
     fn tray_menu_model_hides_failed_actions_when_failures_are_empty() {
         let model = build_tray_menu_model(&TraySnapshot::default());
 
-        assert_eq!(model.running_status_label, "Running pipelines: 0");
         assert_eq!(model.failed_status_label, "Unresolved failed pipelines: 0");
         assert!(!model.show_failed_actions);
     }
@@ -1509,7 +1494,6 @@ mod tests {
     #[test]
     fn tray_actions_are_noops_when_cached_targets_are_missing() {
         let snapshot = TraySnapshot {
-            running_count: 1,
             unresolved_failures: vec![failure("one")],
             failed_runs_dashboard_url: None,
             auto_fix_prompt: None,

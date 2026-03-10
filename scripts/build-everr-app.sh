@@ -36,4 +36,15 @@ rm -rf "${DEST_DIR}"
 mkdir -p "${DEST_DIR}"
 cp -R "${BUNDLE_DIR}/." "${DEST_DIR}/"
 
+if [ "${platform}" = "macos" ]; then
+  dmg_source="$(find "${DEST_DIR}" -type f -name '*.dmg' | head -n 1)"
+
+  if [ -z "${dmg_source}" ]; then
+    echo "Could not locate the Tauri DMG bundle." >&2
+    exit 1
+  fi
+
+  cp "${dmg_source}" "${DEST_DIR}/Everr App.dmg"
+fi
+
 echo "Copied Everr App release bundles to ${DEST_DIR}"

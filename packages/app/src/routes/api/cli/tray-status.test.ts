@@ -83,17 +83,15 @@ describe("/api/cli/tray-status", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       verified_match: false,
-      running_count: 0,
       unresolved_failures: [],
       failed_runs_dashboard_url:
-        "http://localhost/dashboard/runs?conclusion=failure&from=now-15m&to=now",
+        "http://localhost/dashboard/runs?conclusion=failure&from=now-30m&to=now",
       auto_fix_prompt: "",
     });
     expect(mockedQuery).not.toHaveBeenCalled();
   });
 
-  it("returns the authored running pipeline count", async () => {
-    mockedQuery.mockResolvedValueOnce([{ runningCount: "2" }]);
+  it("returns the verified unresolved failures", async () => {
     mockedQuery.mockResolvedValueOnce([]);
 
     const handler = getHandler();
@@ -109,20 +107,16 @@ describe("/api/cli/tray-status", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       verified_match: true,
-      running_count: 2,
       unresolved_failures: [],
       auto_fix_prompt: "",
     });
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("FROM app.cdevents");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("FROM traces");
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "attributes['author.email']",
+      "lowerUTF8(ResourceAttributes['vcs.ref.head.revision.author.email'])",
     );
-    expect(mockedQuery.mock.calls[0]?.[0]).not.toContain("FROM traces");
-    expect(mockedQuery.mock.calls[0]?.[0]).not.toContain("ResourceAttributes");
   });
 
   it("filters out failures resolved by a later successful run on the same branch", async () => {
-    mockedQuery.mockResolvedValueOnce([{ runningCount: "0" }]);
     mockedQuery.mockResolvedValueOnce([
       {
         traceId: "trace-1",
@@ -133,14 +127,7 @@ describe("/api/cli/tray-status", () => {
         failureTime: "2026-03-08T10:00:00Z",
       },
     ]);
-    mockedQuery.mockResolvedValueOnce([
-      {
-        runId: "run-2",
-        repo: "everr-labs/everr",
-        branch: "main",
-        startedAt: "2026-03-08T10:05:00Z",
-      },
-    ]);
+    mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([]);
 
     const handler = getHandler();
@@ -155,14 +142,12 @@ describe("/api/cli/tray-status", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      running_count: 0,
       unresolved_failures: [],
       auto_fix_prompt: "",
     });
   });
 
   it("filters out failures resolved by a later in-flight run on the same branch", async () => {
-    mockedQuery.mockResolvedValueOnce([{ runningCount: "1" }]);
     mockedQuery.mockResolvedValueOnce([
       {
         traceId: "trace-1",
@@ -195,14 +180,12 @@ describe("/api/cli/tray-status", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      running_count: 1,
       unresolved_failures: [],
       auto_fix_prompt: "",
     });
   });
 
   it("keeps earlier failures unresolved when only later failures exist on the same branch", async () => {
-    mockedQuery.mockResolvedValueOnce([{ runningCount: "0" }]);
     mockedQuery.mockResolvedValueOnce([
       {
         traceId: "trace-1",
@@ -245,7 +228,6 @@ describe("/api/cli/tray-status", () => {
   });
 
   it("returns the failed-runs dashboard URL and a prefilled auto-fix prompt", async () => {
-    mockedQuery.mockResolvedValueOnce([{ runningCount: "0" }]);
     mockedQuery.mockResolvedValueOnce([
       {
         traceId: "trace-123",
@@ -280,7 +262,7 @@ describe("/api/cli/tray-status", () => {
 
     const payload = await response.json();
     expect(payload.failed_runs_dashboard_url).toBe(
-      "http://localhost/dashboard/runs?conclusion=failure&from=now-15m&to=now",
+      "http://localhost/dashboard/runs?conclusion=failure&from=now-30m&to=now",
     );
     expect(payload.unresolved_failures[0]).toMatchObject({
       trace_id: "trace-123",

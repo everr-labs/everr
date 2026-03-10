@@ -137,7 +137,6 @@ pub struct FailureNotification {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct TrayStatusResponse {
     pub verified_match: bool,
-    pub running_count: usize,
     pub unresolved_failures: Vec<FailureNotification>,
     pub failed_runs_dashboard_url: String,
     pub auto_fix_prompt: String,

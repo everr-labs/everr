@@ -2,7 +2,7 @@ import { query } from "@/lib/clickhouse";
 import { getWorkOS } from "@/lib/workos";
 
 const FAILURE_LIMIT = 100;
-const RUNNING_LOOKBACK_DAYS = 7;
+export const TIME_WINDOW_MINUTES = 30;
 const FAILURE_RESULT_CONDITION = `
   (
     lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
@@ -54,7 +54,6 @@ export type FailureNotification = {
 
 export type TrayStatusResponse = {
   verified_match: boolean;
-  running_count: number;
   unresolved_failures: FailureNotification[];
   failed_runs_dashboard_url: string;
   auto_fix_prompt: string;
@@ -138,38 +137,10 @@ export async function getFailureNotifications({
   });
 }
 
-export async function getRunningPipelineCount(
-  gitEmail: string,
-): Promise<number> {
-  const result = await query<{ runningCount: string }>(
-    `
-      WITH active_runs AS (
-        SELECT
-          subject_id as runId,
-          argMax(event_phase, event_time) as phase,
-          lowerUTF8(argMax(attributes['author.email'], event_time)) as authorEmail
-        FROM app.cdevents
-        WHERE event_kind = 'pipelinerun'
-          AND event_time >= now() - INTERVAL ${RUNNING_LOOKBACK_DAYS} DAY
-        GROUP BY subject_id
-      )
-      SELECT count() as runningCount
-      FROM active_runs
-      WHERE phase != 'finished'
-        AND authorEmail = lowerUTF8({gitEmail:String})
-    `,
-    {
-      gitEmail,
-    },
-  );
-
-  return result[0] ? Number(result[0].runningCount) : 0;
-}
-
 export function buildFailedRunsDashboardUrl(origin: string): string {
   const url = new URL("/dashboard/runs", origin);
   url.searchParams.set("conclusion", "failure");
-  url.searchParams.set("from", "now-15m");
+  url.searchParams.set("from", `now-${TIME_WINDOW_MINUTES}m`);
   url.searchParams.set("to", "now");
   return url.toString();
 }
