@@ -7,11 +7,11 @@
 }
 
 @theme {
-  --color-everr: oklch(0.852 0.199 91.936);
-  --color-everr-dark: oklch(0.795 0.184 86.047);
-  --color-everr-deep: oklch(0.681 0.162 75.834);
-  --color-everr-muted: oklch(0.905 0.182 98.111);
-  --color-everr-subtle: oklch(0.554 0.135 66.442);
+  --color-everr: oklch(0.937 0.264 119.7);
+  --color-everr-dark: oklch(0.87 0.24 118);
+  --color-everr-deep: oklch(0.52 0.16 115);
+  --color-everr-muted: oklch(0.96 0.15 120);
+  --color-everr-subtle: oklch(0.45 0.13 112);
 
   --animate-fade-in-up: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-fade-in: fade-in 0.6s ease-out both;
@@ -120,14 +120,12 @@
 .product-tilt {
   transform: rotateX(48deg) rotateY(0deg) rotateZ(0deg);
   transform-origin: 0px 2%;
-  border-radius: 14px;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid var(--color-fd-border);
+  border: 2px solid var(--color-fd-border);
   background: var(--color-fd-card, transparent);
   position: relative;
-  box-shadow:
-    rgba(0, 0, 0, 0.06) 0px 4px 24px,
-    rgba(0, 0, 0, 0.04) 0px 1px 2px;
+  box-shadow: 6px 6px 0 0 var(--color-fd-border);
   mask-image: linear-gradient(
     black 50%,
     rgba(0, 0, 0, 0.5) 75%,
@@ -139,12 +137,12 @@
   background-image:
     linear-gradient(
       to right,
-      oklch(0.681 0.162 75.834 / 0.1) 1px,
+      oklch(0.937 0.264 119.7 / 0.1) 1px,
       transparent 1px
     ),
     linear-gradient(
       to bottom,
-      oklch(0.681 0.162 75.834 / 0.08) 1px,
+      oklch(0.937 0.264 119.7 / 0.08) 1px,
       transparent 1px
     );
   background-size: 34px 34px;
@@ -157,13 +155,16 @@ header a[href="https://app.everr.dev"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
-  background: var(--color-everr-deep);
-  color: white;
+  border-radius: 0;
+  background: var(--color-everr);
+  color: black;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
   padding: 0.5rem 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   transition:
     transform 150ms ease,
     box-shadow 150ms ease;
@@ -171,7 +172,7 @@ header a[href="https://app.everr.dev"] {
 
 header a[href="https://app.everr.dev"]:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 20px -14px oklch(0.681 0.162 75.834 / 0.85);
+  box-shadow: 0 10px 20px -14px oklch(0.937 0.264 119.7 / 0.85);
 }
 
 header a[href="https://app.everr.dev"] svg {

@@ -24,7 +24,10 @@ export const Route = createRootRoute({
         title: "Everr - Every second counts in CI/CD",
       },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "icon", href: "/favicon.ico" },
+      { rel: "stylesheet", href: appCss },
+    ],
   }),
   component: RootComponent,
 });
