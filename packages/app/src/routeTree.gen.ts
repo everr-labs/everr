@@ -25,6 +25,7 @@ import { Route as DashboardReposRouteImport } from './routes/dashboard/repos'
 import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
 import { Route as DashboardAccountRouteImport } from './routes/dashboard/account'
 import { Route as CliDeviceRouteImport } from './routes/cli/device'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
 import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
 import { Route as ApiCliTrayStatusRouteImport } from './routes/api/cli/tray-status'
@@ -128,6 +129,11 @@ const DashboardAccountRoute = DashboardAccountRouteImport.update({
 const CliDeviceRoute = CliDeviceRouteImport.update({
   id: '/cli/device',
   path: '/cli/device',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardWorkflowsIndexRoute = DashboardWorkflowsIndexRouteImport.update({
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
+  '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
   '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signout': typeof SignoutRoute
+  '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
   '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
@@ -337,6 +345,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/signout': typeof SignoutRoute
+  '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
   '/dashboard/account': typeof DashboardAccountRoute
   '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
@@ -380,6 +389,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/signout'
+    | '/api/health'
     | '/cli/device'
     | '/dashboard/account'
     | '/dashboard/cost-analysis'
@@ -420,6 +430,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/signout'
+    | '/api/health'
     | '/cli/device'
     | '/dashboard/account'
     | '/dashboard/cost-analysis'
@@ -459,6 +470,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/signout'
+    | '/api/health'
     | '/cli/device'
     | '/dashboard/account'
     | '/dashboard/cost-analysis'
@@ -501,6 +513,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   SignoutRoute: typeof SignoutRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   CliDeviceRoute: typeof CliDeviceRoute
   OnboardingAppRoute: typeof OnboardingAppRoute
   OnboardingGithubRoute: typeof OnboardingGithubRoute
@@ -634,6 +647,13 @@ declare module '@tanstack/react-router' {
       path: '/cli/device'
       fullPath: '/cli/device'
       preLoaderRoute: typeof CliDeviceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/workflows/': {
@@ -892,6 +912,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
   SignoutRoute: SignoutRoute,
+  ApiHealthRoute: ApiHealthRoute,
   CliDeviceRoute: CliDeviceRoute,
   OnboardingAppRoute: OnboardingAppRoute,
   OnboardingGithubRoute: OnboardingGithubRoute,
