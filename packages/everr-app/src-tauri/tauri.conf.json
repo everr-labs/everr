@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "dev.everr.everr-app",
   "build": {
-    "beforeDevCommand": "sh -c '../../scripts/ensure-tauri-cli-resource.sh debug && pnpm dev'",
+    "beforeDevCommand": "sh -c '../../scripts/ensure-tauri-cli-resource.sh debug && pnpm frontend:dev'",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "sh -c '../../scripts/ensure-tauri-cli-resource.sh release && pnpm build'",
     "frontendDist": "../dist"

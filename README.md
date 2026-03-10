@@ -109,11 +109,13 @@ cd collector
 make run
 ```
 
-### Run the app
+### Run the dev stack
 
 > [!NOTE]
-> The app now owns the GitHub webhook ingress, queue polling, and cdevents writes. Start it after Postgres and ClickHouse are up.
+> The app now owns the GitHub webhook ingress, queue polling, and cdevents writes. Start the full dev stack after Postgres and ClickHouse are up.
 
 ```bash
 pnpm dev
 ```
+
+Use `pnpm dev:web`, `pnpm dev:desktop`, `pnpm dev:docs`, or `pnpm dev:cli` to start only one surface.

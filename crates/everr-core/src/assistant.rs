@@ -9,9 +9,9 @@ const BLOCK_END: &str = "<!-- EVERR_CLI_END -->";
 const ASSISTANT_INSTRUCTIONS: &str = include_str!("../assets/assistant-instructions.md");
 const CURSOR_RULE_HEADER: &str = concat!(
     "---\n",
-    "description: Use Everr CLI to inspect CI health, failures, and logs before guessing.\n",
+    "description: Use Everr CLI only when the task involves CI, GitHub Actions workflows, pipelines, failing jobs, workflow logs, or CI test failures.\n",
     "globs:\n",
-    "alwaysApply: true\n",
+    "alwaysApply: false\n",
     "---\n\n"
 );
 
@@ -65,7 +65,7 @@ pub fn sync_assistants(assistants: &[AssistantKind], command_name: &str) -> Resu
             continue;
         }
 
-        remove_managed_prompt_at(&path)?;
+        remove_managed_prompt_at(assistant, &path)?;
     }
 
     Ok(())
@@ -127,7 +127,7 @@ pub fn refresh_existing_managed_prompts(command_name: &str) -> Result<Vec<Assist
 pub fn remove_managed_prompts() -> Result<()> {
     for assistant in AssistantKind::ALL {
         let path = path_for_assistant(assistant)?;
-        remove_managed_prompt_at(&path)?;
+        remove_managed_prompt_at(assistant, &path)?;
     }
 
     Ok(())
@@ -186,14 +186,14 @@ fn render_assistant_instructions(command_name: &str) -> String {
     ASSISTANT_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
 }
 
-fn remove_managed_prompt_at(path: &Path) -> Result<()> {
+fn remove_managed_prompt_at(assistant: AssistantKind, path: &Path) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
 
     let current =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let next = remove_managed_block(&current);
+    let next = remove_managed_block_for_assistant(assistant, &current);
     if next == current {
         return Ok(());
     }
@@ -228,7 +228,7 @@ fn write_managed_block(path: &Path, assistant: AssistantKind, block: String) -> 
 fn upsert_managed_block(assistant: AssistantKind, current: &str, block: &str) -> String {
     match assistant {
         AssistantKind::Cursor => {
-            let remaining = remove_managed_block(current);
+            let remaining = remove_managed_block_for_assistant(assistant, current);
             if remaining.trim().is_empty() {
                 block.to_string()
             } else {
@@ -256,8 +256,8 @@ fn upsert_managed_block(assistant: AssistantKind, current: &str, block: &str) ->
     }
 }
 
-fn remove_managed_block(current: &str) -> String {
-    match managed_block_range(current) {
+fn remove_managed_block_for_assistant(assistant: AssistantKind, current: &str) -> String {
+    match managed_block_range_for_assistant(assistant, current) {
         Some((start, end)) => {
             let mut out = String::with_capacity(current.len());
             out.push_str(&current[..start]);
@@ -267,6 +267,18 @@ fn remove_managed_block(current: &str) -> String {
             out.trim().to_string()
         }
         None => current.to_string(),
+    }
+}
+
+fn managed_block_range_for_assistant(
+    assistant: AssistantKind,
+    current: &str,
+) -> Option<(usize, usize)> {
+    match assistant {
+        AssistantKind::Cursor => {
+            cursor_managed_block_range(current).or_else(|| managed_block_range(current))
+        }
+        AssistantKind::Codex | AssistantKind::Claude => managed_block_range(current),
     }
 }
 
@@ -287,6 +299,33 @@ fn managed_block_range(current: &str) -> Option<(usize, usize)> {
     Some((start, end))
 }
 
+fn cursor_managed_block_range(current: &str) -> Option<(usize, usize)> {
+    let (managed_start, managed_end) = managed_block_range(current)?;
+    let frontmatter_end = cursor_frontmatter_end(current)?;
+    if managed_start < frontmatter_end {
+        return None;
+    }
+
+    if current[frontmatter_end..managed_start].trim().is_empty() {
+        Some((0, managed_end))
+    } else {
+        None
+    }
+}
+
+fn cursor_frontmatter_end(current: &str) -> Option<usize> {
+    let (frontmatter_start_len, closing_delimiter) = if current.starts_with("---\r\n") {
+        ("---\r\n".len(), "\r\n---\r\n")
+    } else if current.starts_with("---\n") {
+        ("---\n".len(), "\n---\n")
+    } else {
+        return None;
+    };
+
+    let closing_start = current[frontmatter_start_len..].find(closing_delimiter)?;
+    Some(frontmatter_start_len + closing_start + closing_delimiter.len())
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -296,7 +335,7 @@ mod tests {
 
     use super::{
         AssistantKind, assistant_root_for_home, content_for_assistant, path_for_assistant_in,
-        remove_managed_block, render_assistant_instructions, upsert_managed_block,
+        remove_managed_block_for_assistant, render_assistant_instructions, upsert_managed_block,
     };
 
     #[test]
@@ -332,21 +371,40 @@ mod tests {
     }
 
     #[test]
-    fn cursor_upsert_keeps_managed_rule_at_top_with_frontmatter() {
+    fn cursor_upsert_keeps_managed_rule_at_top_with_agent_requested_frontmatter() {
         let block = content_for_assistant(AssistantKind::Cursor, "everr");
         let updated = upsert_managed_block(AssistantKind::Cursor, "# custom note\n", &block);
 
         assert!(updated.starts_with("---\n"));
-        assert!(updated.contains("alwaysApply: true"));
+        assert!(updated.contains("alwaysApply: false"));
         assert!(updated.contains("`everr slowest-tests`"));
         assert!(updated.trim_end().ends_with("# custom note"));
     }
 
     #[test]
+    fn cursor_upsert_replaces_existing_managed_rule_without_duplicating_frontmatter() {
+        let block = content_for_assistant(AssistantKind::Cursor, "everr");
+        let updated = upsert_managed_block(AssistantKind::Cursor, &block, &block);
+
+        assert_eq!(updated, block);
+    }
+
+    #[test]
     fn remove_managed_block_removes_only_managed_content() {
         let current = "before\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\nafter";
-        let updated = remove_managed_block(current);
+        let updated = remove_managed_block_for_assistant(AssistantKind::Codex, current);
         assert_eq!(updated, "before\nafter");
+    }
+
+    #[test]
+    fn remove_managed_block_for_cursor_removes_frontmatter_and_instructions() {
+        let current = format!(
+            "{}# custom note\n",
+            content_for_assistant(AssistantKind::Cursor, "everr")
+        );
+        let updated = remove_managed_block_for_assistant(AssistantKind::Cursor, &current);
+
+        assert_eq!(updated, "# custom note");
     }
 
     #[test]
@@ -396,7 +454,7 @@ mod tests {
                 continue;
             }
 
-            super::remove_managed_prompt_at(&path)?;
+            super::remove_managed_prompt_at(assistant, &path)?;
         }
 
         Ok(())

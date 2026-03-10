@@ -96,9 +96,31 @@ fn assistant_init_writes_cursor_rules_in_mdc_format() {
     let content = fs::read_to_string(cursor_file).expect("cursor file should exist");
 
     assert!(content.starts_with("---\n"));
-    assert!(content.contains("alwaysApply: true"));
+    assert!(content.contains("alwaysApply: false"));
+    assert!(content.contains("description: Use Everr CLI only when the task involves CI"));
     assert!(content.contains(BLOCK_START));
     assert!(content.contains("`everr slowest-tests`"));
+}
+
+#[test]
+fn assistant_init_is_idempotent_for_existing_cursor_rule() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["setup-assistant", "--assistant", "cursor"])
+        .assert()
+        .success();
+
+    env.command()
+        .args(["setup-assistant", "--assistant", "cursor"])
+        .assert()
+        .success();
+
+    let cursor_file = env.home_dir.join(".cursor").join("rules").join("everr.mdc");
+    let content = fs::read_to_string(cursor_file).expect("cursor file should exist");
+
+    assert_eq!(content.matches(BLOCK_START).count(), 1);
+    assert_eq!(content.matches("alwaysApply: false").count(), 1);
 }
 
 #[test]

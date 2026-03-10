@@ -5,6 +5,7 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite dev",
+    "watch": "vite dev",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",

@@ -1,4 +1,5 @@
 packages:
+  - "crates/*"
   - "packages/*"
   - "collector"
 

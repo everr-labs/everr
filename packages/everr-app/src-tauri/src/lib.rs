@@ -749,15 +749,7 @@ fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
     let separator = PredefinedMenuItem::separator(app)?;
     let settings = MenuItem::with_id(app, SETTINGS_MENU_ID, "Settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT_MENU_ID, "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(
-        app,
-        &[
-            &failed_status,
-            &separator,
-            &settings,
-            &quit,
-        ],
-    )?;
+    let menu = Menu::with_items(app, &[&failed_status, &separator, &settings, &quit])?;
 
     Ok(TrayMenu {
         menu,

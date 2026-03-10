@@ -19,7 +19,7 @@ docker-compose up -d
 # 3. Initialize database schema (first time only)
 cd packages/app && pnpm db:push
 
-# 4. Start development server
+# 4. Start the workspace dev stack
 pnpm dev
 ```
 
@@ -36,8 +36,10 @@ For testing GitHub webhook integration locally:
 ### Root Level
 ```bash
 pnpm install          # Install all dependencies
-pnpm lint             # Lint with Biome
-pnpm format           # Format with Biome
+pnpm dev              # Start CLI + desktop + web + docs
+pnpm dev:web          # Start only the web app
+pnpm dev:desktop      # Start only the desktop app
+pnpm dev:docs         # Start only the docs site
 pnpm check            # Full Biome check (lint + format)
 ```
 
