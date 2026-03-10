@@ -7,17 +7,17 @@ Everr parses Rust libtest output to track individual test results, detect flaky 
 
 ## Setup
 
-Run your Rust tests with `--report-time` so libtest emits per-test durations:
+Run your Rust tests on a nightly toolchain with `--report-time` so libtest emits per-test durations:
 
 ```bash
-cargo +nightly test -- --report-time -Z unstable-options
+cargo test -- --report-time -Z unstable-options
 ```
 
 ### GitHub Actions workflow example
 
 ```yaml
 - name: Run tests
-  run: cargo +nightly test -- --report-time -Z unstable-options
+  run: cargo test -- --report-time -Z unstable-options
 ```
 
 Everr automatically detects and parses Rust test output from workflow logs. Plain `cargo test` still produces pass/fail/ignored spans, but `--report-time` is required if you want non-zero `everr.test.duration_seconds`.

@@ -18,14 +18,14 @@ Everr can parse verbose test output from your CI workflow logs and generate Open
 | Framework | Flag | Status |
 |-----------|------|--------|
 | [Go tests](/docs/test-analytics/go-tests) | `go test -v` | Supported |
-| [Rust tests](/docs/test-analytics/rust-tests) | `cargo +nightly test -- --report-time -Z unstable-options` | Supported |
+| [Rust tests](/docs/test-analytics/rust-tests) | `cargo test -- --report-time -Z unstable-options` | Supported |
 | [Vitest](/docs/test-analytics/vitest) | `--reporter=verbose` | Supported |
 
 More test frameworks will be supported in the future.
 
 ## Requirements
 
-The key requirement is that your test command must emit **individual test results** so Everr can parse them into per-test spans. For Go and Vitest this means enabling verbose reporters; for Rust, use `--report-time` if you want per-test durations in addition to pass/fail results.
+The key requirement is that your test command must emit **individual test results** so Everr can parse them into per-test spans. For Go and Vitest this means enabling verbose reporters; for Rust, run tests on a nightly toolchain with `--report-time` if you want per-test durations in addition to pass/fail results.
 
 ## Span attributes
 
