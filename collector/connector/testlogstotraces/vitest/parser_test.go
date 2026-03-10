@@ -96,6 +96,14 @@ func TestParseVerboseOutput(t *testing.T) {
 			expectedPassed: 2,
 		},
 		{
+			name: "pnpm workspace prefix and ANSI codes stripped",
+			lines: []string{
+				"packages/app test:  \x1b[32m✓\x1b[39m src/server/github-events/cdevents.test.ts\x1b[2m > \x1b[22mtransformToCDEventRows\x1b[2m > \x1b[22mformats Date values for ClickHouse DateTime64 input\x1b[32m 2\x1b[2mms\x1b[22m\x1b[39m",
+			},
+			expectedTests:  2,
+			expectedPassed: 2,
+		},
+		{
 			name: "no test output",
 			lines: []string{
 				"some random log line",

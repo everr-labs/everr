@@ -23,9 +23,6 @@ var (
 	failPattern = regexp.MustCompile(`^[×✕✖xX]\s+(.+?)\s+(\d+)ms$`)
 	// Skip: ↓ filepath > describe > test
 	skipPattern = regexp.MustCompile(`^↓\s+(.+)$`)
-
-	// ANSI escape code pattern for stripping color codes from CI output
-	ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 )
 
 // Parser processes Vitest verbose output and extracts test information.
@@ -44,10 +41,7 @@ func NewParser(ctx *gotest.TestParseContext, logger *zap.Logger) *Parser {
 
 // ProcessLine parses a single log line for Vitest verbose output.
 func (p *Parser) ProcessLine(line string, timestamp time.Time) {
-	// Strip ANSI escape codes
-	cleaned := ansiPattern.ReplaceAllString(line, "")
-	// Trim leading/trailing whitespace
-	trimmed := strings.TrimSpace(cleaned)
+	trimmed := gotest.NormalizeLine(line)
 
 	if trimmed == "" {
 		return

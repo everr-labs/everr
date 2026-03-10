@@ -175,6 +175,37 @@ func TestConnectorVitestPatterns(t *testing.T) {
 	assert.Equal(t, "vitest", framework.Str())
 }
 
+func TestConnectorVitestPatternsWithWorkspacePrefixAndANSI(t *testing.T) {
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			"packages/app test:  \x1b[32m✓\x1b[39m src/server/github-events/cdevents.test.ts\x1b[2m > \x1b[22mtransformToCDEventRows\x1b[2m > \x1b[22mformats Date values for ClickHouse DateTime64 input\x1b[32m 2\x1b[2mms\x1b[22m\x1b[39m",
+			"packages/app test:  \x1b[31m×\x1b[39m src/server/github-events/cdevents.test.ts\x1b[2m > \x1b[22mtransformToCDEventRows\x1b[2m > \x1b[22mreports malformed payloads\x1b[31m 3\x1b[2mms\x1b[22m\x1b[39m",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"test-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	require.Equal(t, 3, tracesSink.SpanCount(), "should have produced 3 spans")
+}
+
 func TestConnectorNoTestPatterns(t *testing.T) {
 	tracesSink := &consumertest.TracesSink{}
 	set := connectortest.NewNopSettings(metadata.Type)

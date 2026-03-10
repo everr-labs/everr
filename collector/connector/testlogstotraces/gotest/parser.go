@@ -43,8 +43,9 @@ func NewParser(ctx *TestParseContext, logger *zap.Logger) *Parser {
 
 // ProcessLine parses a single log line for Go test output.
 func (p *Parser) ProcessLine(line string, timestamp time.Time) {
-	// Trim leading whitespace for pattern matching but preserve original for output capture
-	trimmed := strings.TrimLeft(line, " \t")
+	// Normalize CI prefixes and ANSI codes for pattern matching while preserving
+	// the original line for output capture.
+	trimmed := NormalizeLine(line)
 
 	// Check for RUN (test start)
 	if matches := runPattern.FindStringSubmatch(trimmed); matches != nil {
