@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const authClientMocks = vi.hoisted(() => ({
@@ -22,7 +23,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
       to: string;
       className?: string;
       reloadDocument?: boolean;
-      children: any;
+      children: ReactNode;
     }) => (
       <a href={props.to} className={props.className}>
         {props.children}

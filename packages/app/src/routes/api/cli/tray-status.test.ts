@@ -127,7 +127,14 @@ describe("/api/cli/tray-status", () => {
         failureTime: "2026-03-08T10:00:00Z",
       },
     ]);
-    mockedQuery.mockResolvedValueOnce([]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        runId: "run-2",
+        repo: "everr-labs/everr",
+        branch: "main",
+        startedAt: "2026-03-08T10:05:00Z",
+      },
+    ]);
     mockedQuery.mockResolvedValueOnce([]);
 
     const handler = getHandler();
