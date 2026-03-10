@@ -34,6 +34,7 @@ import { Route as ApiCliStatusRouteImport } from './routes/api/cli/status'
 import { Route as ApiCliSlowestTestsRouteImport } from './routes/api/cli/slowest-tests'
 import { Route as ApiCliSlowestJobsRouteImport } from './routes/api/cli/slowest-jobs'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
+import { Route as ApiCliGrepRouteImport } from './routes/api/cli/grep'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as DashboardRunsTraceIdRouteRouteImport } from './routes/dashboard/runs/$traceId/route'
 import { Route as DashboardRunsTraceIdIndexRouteImport } from './routes/dashboard/runs/$traceId/index'
@@ -176,6 +177,11 @@ const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
   path: '/api/cli/runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCliGrepRoute = ApiCliGrepRouteImport.update({
+  id: '/api/cli/grep',
+  path: '/api/cli/grep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
   id: '/api/auth/callback',
   path: '/api/auth/callback',
@@ -279,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
@@ -318,6 +325,7 @@ export interface FileRoutesByTo {
   '/webhook/github': typeof WebhookGithubRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
@@ -361,6 +369,7 @@ export interface FileRoutesById {
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
@@ -405,6 +414,7 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
+    | '/api/cli/grep'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
@@ -444,6 +454,7 @@ export interface FileRouteTypes {
     | '/webhook/github'
     | '/dashboard'
     | '/api/auth/callback'
+    | '/api/cli/grep'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
@@ -486,6 +497,7 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
     | '/api/auth/callback'
+    | '/api/cli/grep'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
@@ -521,6 +533,7 @@ export interface RootRouteChildren {
   OnboardingOrganizationRoute: typeof OnboardingOrganizationRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
+  ApiCliGrepRoute: typeof ApiCliGrepRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSlowestJobsRoute: typeof ApiCliSlowestJobsRoute
   ApiCliSlowestTestsRoute: typeof ApiCliSlowestTestsRoute
@@ -710,6 +723,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cli/runs'
       fullPath: '/api/cli/runs'
       preLoaderRoute: typeof ApiCliRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/grep': {
+      id: '/api/cli/grep'
+      path: '/api/cli/grep'
+      fullPath: '/api/cli/grep'
+      preLoaderRoute: typeof ApiCliGrepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/callback': {
@@ -920,6 +940,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingOrganizationRoute: OnboardingOrganizationRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
+  ApiCliGrepRoute: ApiCliGrepRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSlowestJobsRoute: ApiCliSlowestJobsRoute,
   ApiCliSlowestTestsRoute: ApiCliSlowestTestsRoute,

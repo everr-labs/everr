@@ -32,6 +32,8 @@ pub enum Commands {
     SetupAssistant(AssistantInitArgs),
     /// CI status for current or selected branch
     Status(StatusArgs),
+    /// Search failing step logs on other branches
+    Grep(GrepArgs),
     /// Wait for the current commit to appear in runs
     WaitPipeline(WaitArgs),
     /// Show historical executions for a specific test
@@ -72,6 +74,26 @@ pub struct StatusArgs {
     pub from: Option<String>,
     #[arg(long)]
     pub to: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct GrepArgs {
+    #[arg(long)]
+    pub repo: Option<String>,
+    #[arg(long, requires = "step_number")]
+    pub job_name: Option<String>,
+    #[arg(long, requires = "job_name")]
+    pub step_number: Option<String>,
+    #[arg(long)]
+    pub pattern: String,
+    #[arg(long)]
+    pub branch: Option<String>,
+    #[arg(long)]
+    pub from: Option<String>,
+    #[arg(long)]
+    pub to: Option<String>,
+    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u32).range(1..=100))]
+    pub limit: u32,
 }
 
 #[derive(Args, Debug, Default)]
@@ -187,7 +209,7 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        AssistantKind, Cli, Commands, RunsCommand, SlowestJobsArgs, SlowestTestsArgs,
+        AssistantKind, Cli, Commands, GrepArgs, RunsCommand, SlowestJobsArgs, SlowestTestsArgs,
         TestHistoryArgs, WaitArgs,
     };
 
@@ -227,6 +249,13 @@ mod tests {
     }
 
     #[test]
+    fn validates_required_pattern_for_grep() {
+        let err =
+            Cli::try_parse_from(["everr", "grep"]).expect_err("grep should require --pattern");
+        assert!(err.to_string().contains("--pattern"));
+    }
+
+    #[test]
     fn validates_required_assistants_for_setup_assistant() {
         let err = Cli::try_parse_from(["everr", "setup-assistant"])
             .expect_err("setup-assistant should require --assistant");
@@ -255,6 +284,68 @@ mod tests {
             panic!("expected runs logs command");
         };
         assert!(!args.full);
+    }
+
+    #[test]
+    fn grep_limit_defaults_to_twenty() {
+        let cli = Cli::try_parse_from(["everr", "grep", "--pattern", "panic"])
+            .expect("valid grep command");
+
+        let Commands::Grep(args) = cli.command else {
+            panic!("expected grep command");
+        };
+
+        assert_eq!(args.limit, 20);
+    }
+
+    #[test]
+    fn grep_limit_must_be_in_range() {
+        let err = Cli::try_parse_from(["everr", "grep", "--pattern", "panic", "--limit", "101"])
+            .expect_err("grep should reject out-of-range limit");
+
+        assert!(err.to_string().contains("--limit"));
+    }
+
+    #[test]
+    fn grep_job_and_step_filters_are_optional() {
+        let cli = Cli::try_parse_from(["everr", "grep", "--pattern", "panic"])
+            .expect("valid grep command");
+
+        let Commands::Grep(GrepArgs {
+            job_name,
+            step_number,
+            ..
+        }) = cli.command
+        else {
+            panic!("expected grep command");
+        };
+
+        assert!(job_name.is_none());
+        assert!(step_number.is_none());
+    }
+
+    #[test]
+    fn grep_job_name_requires_step_number() {
+        let err = Cli::try_parse_from([
+            "everr",
+            "grep",
+            "--pattern",
+            "panic",
+            "--job-name",
+            "integration",
+        ])
+        .expect_err("grep should require --step-number when --job-name is set");
+
+        assert!(err.to_string().contains("--step-number"));
+    }
+
+    #[test]
+    fn grep_step_number_requires_job_name() {
+        let err =
+            Cli::try_parse_from(["everr", "grep", "--pattern", "panic", "--step-number", "5"])
+                .expect_err("grep should require --job-name when --step-number is set");
+
+        assert!(err.to_string().contains("--job-name"));
     }
 
     #[test]

@@ -18,6 +18,7 @@ fn root_help_lists_main_commands() {
         .stdout(contains("logout"))
         .stdout(contains("setup-assistant"))
         .stdout(contains("status"))
+        .stdout(contains("grep"))
         .stdout(contains("slowest-tests"))
         .stdout(contains("slowest-jobs"))
         .stdout(contains("wait-pipeline"))
@@ -36,6 +37,19 @@ fn runs_help_lists_pipeline_subcommands() {
         .stdout(contains("list"))
         .stdout(contains("show"))
         .stdout(contains("logs"));
+}
+
+#[test]
+fn grep_help_lists_job_name_and_step_number_filters() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["grep", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("--job-name <JOB_NAME>"))
+        .stdout(contains("--step-number <STEP_NUMBER>"))
+        .stdout(predicates::str::contains("--step <STEP>").not());
 }
 
 #[test]

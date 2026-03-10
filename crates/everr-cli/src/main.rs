@@ -21,6 +21,7 @@ async fn main() -> Result<()> {
         Commands::Logout => auth::logout()?,
         Commands::SetupAssistant(init) => assistant::init_from_args(init)?,
         Commands::Status(args) => core::status(args).await?,
+        Commands::Grep(args) => core::grep(args).await?,
         Commands::TestHistory(args) => core::test_history(args).await?,
         Commands::SlowestTests(args) => core::slowest_tests(args).await?,
         Commands::SlowestJobs(args) => core::slowest_jobs(args).await?,
