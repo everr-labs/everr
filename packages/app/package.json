@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "watch": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --coverage",

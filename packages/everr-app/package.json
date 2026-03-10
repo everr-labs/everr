@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tauri dev",
+    "watch": "tauri dev",
+    "frontend:dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
     "preview": "vite preview",
