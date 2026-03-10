@@ -127,6 +127,7 @@ describe("/api/cli/notifier/failures", () => {
           workflow_name: "CI",
           failure_time: "2026-03-07T13:32:00Z",
           details_url: "http://localhost/dashboard/runs/trace-123",
+          auto_fix_prompt: expect.stringContaining("trace-123"),
         },
       ],
     });
@@ -211,6 +212,10 @@ describe("/api/cli/notifier/failures", () => {
       step_number: "1",
       step_name: "Install dependencies",
     });
+    expect(payload.failures[0].auto_fix_prompt).toContain("trace-123");
+    expect(payload.failures[0].auto_fix_prompt).not.toContain(
+      "http://localhost/dashboard",
+    );
   });
 
   it("falls back to run-level metadata when no failing step exists", async () => {
@@ -242,5 +247,6 @@ describe("/api/cli/notifier/failures", () => {
     expect(payload.failures[0].job_name).toBeUndefined();
     expect(payload.failures[0].step_number).toBeUndefined();
     expect(payload.failures[0].step_name).toBeUndefined();
+    expect(payload.failures[0].auto_fix_prompt).toContain("trace-123");
   });
 });

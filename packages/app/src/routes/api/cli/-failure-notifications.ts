@@ -50,6 +50,7 @@ export type FailureNotification = {
   job_name?: string;
   step_number?: string;
   step_name?: string;
+  auto_fix_prompt?: string;
 };
 
 export type TrayStatusResponse = {
@@ -66,6 +67,7 @@ type FailureNotificationsOptions = {
   repo?: string;
   branch?: string;
   unresolvedOnly?: boolean;
+  preloadNotificationContext?: boolean;
 };
 
 export async function getVerifiedCliUserEmail(
@@ -96,6 +98,7 @@ export async function getFailureNotifications({
   repo,
   branch,
   unresolvedOnly = false,
+  preloadNotificationContext = false,
 }: FailureNotificationsOptions): Promise<FailureNotification[]> {
   const failures = await loadFailureRuns({
     gitEmail,
@@ -118,7 +121,7 @@ export async function getFailureNotifications({
     unresolvedFailures.map((row) => row.traceId),
   );
 
-  return unresolvedFailures.map((row) => {
+  const notifications = unresolvedFailures.map((row) => {
     const failingStep = firstFailingStepByTraceId.get(row.traceId);
     const detailsUrl = buildFailureDetailsUrl(origin, row.traceId, failingStep);
 
@@ -135,6 +138,15 @@ export async function getFailureNotifications({
       step_name: failingStep?.stepName,
     };
   });
+
+  if (!preloadNotificationContext) {
+    return notifications;
+  }
+
+  return notifications.map((notification) => ({
+    ...notification,
+    auto_fix_prompt: buildAutoFixPrompt([notification]),
+  }));
 }
 
 export function buildFailedRunsDashboardUrl(origin: string): string {
@@ -145,10 +157,7 @@ export function buildFailedRunsDashboardUrl(origin: string): string {
   return url.toString();
 }
 
-export function buildAutoFixPrompt(
-  failures: FailureNotification[],
-  failedRunsDashboardUrl: string,
-): string {
+export function buildAutoFixPrompt(failures: FailureNotification[]): string {
   if (failures.length === 0) {
     return "";
   }
@@ -168,14 +177,11 @@ export function buildAutoFixPrompt(
     "Use Everr CLI from the current project directory before guessing.",
     "",
     "Required workflow:",
-    "- Run `everr status` first.",
     "- Inspect each failing run with `everr runs show --trace-id <trace_id>`.",
     "- Pull logs with `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>` when a failing step is available.",
     "- Make the smallest repo-local fix that addresses the root cause.",
     "- Run the narrowest relevant test or check before finishing.",
     "- Work repo-by-repo. If a repo is not available locally, say so explicitly.",
-    "",
-    `Dashboard failures view: ${failedRunsDashboardUrl}`,
     "",
     "Current unresolved failures:",
   ];
@@ -191,7 +197,6 @@ export function buildAutoFixPrompt(
       sections.push(
         `- branch ${failure.branch} | workflow ${failure.workflow_name} | trace ${failure.trace_id} | failed at ${failure.failure_time}${failingStep}`,
       );
-      sections.push(`  ${failure.details_url}`);
     }
   }
 

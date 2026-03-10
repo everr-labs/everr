@@ -1,6 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  Component,
+  Suspense,
+  startTransition,
+  use,
+  useEffect,
+  useEffectEvent,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
@@ -108,6 +117,7 @@ type FailureNotification = {
   job_name?: string;
   step_number?: string;
   step_name?: string;
+  auto_fix_prompt?: string;
 };
 
 function App() {
@@ -920,24 +930,16 @@ function AssistantChecklist({
 }
 
 function NotificationApp() {
-  const [notification, setNotification] = useState<FailureNotification | null>(null);
-  const [busy, setBusy] = useState<"dismiss" | "open" | "copy" | null>(null);
-  const [hovered, setHovered] = useState(false);
-  const [remainingMs, setRemainingMs] = useState(AUTO_DISMISS_MS);
-  const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
-
-  async function refreshNotification() {
-    try {
-      const next = await invoke<FailureNotification | null>("get_active_notification");
-      setNotification(next);
-    } catch {
-      setNotification(null);
-    }
-  }
+  const [notificationPromise, setNotificationPromise] = useState(() =>
+    loadActiveNotification(),
+  );
+  const refreshNotification = useEffectEvent(() => {
+    startTransition(() => {
+      setNotificationPromise(loadActiveNotification());
+    });
+  });
 
   useEffect(() => {
-    void refreshNotification();
-
     const appWindow = safeGetCurrentWindow();
     if (!appWindow) {
       return;
@@ -946,7 +948,7 @@ function NotificationApp() {
     let unlisten: (() => void) | undefined;
     void appWindow
       .listen(NOTIFICATION_CHANGED_EVENT, () => {
-        void refreshNotification();
+        refreshNotification();
       })
       .then((cleanup) => {
         unlisten = cleanup;
@@ -957,8 +959,38 @@ function NotificationApp() {
     };
   }, []);
 
+  return (
+    <NotificationErrorBoundary
+      onRetry={refreshNotification}
+      resetKey={notificationPromise}
+    >
+      <Suspense fallback={<NotificationLoadingState />}>
+        <NotificationView
+          notificationPromise={notificationPromise}
+          onRefresh={refreshNotification}
+        />
+      </Suspense>
+    </NotificationErrorBoundary>
+  );
+}
+
+function NotificationView({
+  notificationPromise,
+  onRefresh,
+}: {
+  notificationPromise: Promise<FailureNotification | null>;
+  onRefresh: () => void;
+}) {
+  const notification = use(notificationPromise);
+  const [busy, setBusy] = useState<"dismiss" | "open" | "copy" | null>(null);
+  const [copiedAutoFixPrompt, setCopiedAutoFixPrompt] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [remainingMs, setRemainingMs] = useState(AUTO_DISMISS_MS);
+  const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
+
   useEffect(() => {
     setHovered(false);
+    setCopiedAutoFixPrompt(false);
     if (!notification) {
       setDeadlineAt(null);
       setRemainingMs(AUTO_DISMISS_MS);
@@ -987,7 +1019,7 @@ function NotificationApp() {
     setBusy("dismiss");
     try {
       await invoke("dismiss_active_notification");
-      await refreshNotification();
+      onRefresh();
     } finally {
       setBusy(null);
     }
@@ -997,16 +1029,18 @@ function NotificationApp() {
     setBusy("open");
     try {
       await invoke("open_notification_target");
-      await refreshNotification();
+      onRefresh();
     } finally {
       setBusy(null);
     }
   }
 
   async function handleCopyAutoFixPrompt() {
+    setCopiedAutoFixPrompt(false);
     setBusy("copy");
     try {
       await invoke("copy_notification_auto_fix_prompt");
+      setCopiedAutoFixPrompt(true);
     } finally {
       setBusy(null);
     }
@@ -1050,6 +1084,12 @@ function NotificationApp() {
   const absoluteTime = formatNotificationAbsoluteTime(notification.failure_time);
   const relativeTime = formatNotificationRelativeTime(notification.failure_time);
   const failureScope = formatFailureScope(notification);
+  const copyAutoFixPromptLabel =
+    busy === "copy"
+      ? "Copying..."
+      : copiedAutoFixPrompt
+        ? "Copied"
+        : "Copy auto-fix prompt";
 
   return (
     <main className="h-screen bg-white">
@@ -1081,7 +1121,7 @@ function NotificationApp() {
         <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
           <div className="grid min-w-0 flex-1 gap-[3px]">
             <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-[#b0b0b0]">
-              Everr
+              Everr - Failed run
             </p>
             <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-[#121212]">
               {notification.workflow_name}
@@ -1114,11 +1154,16 @@ function NotificationApp() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 min-w-0 whitespace-nowrap rounded-[10px] border-[#dcdcdc] bg-white px-3.5 text-[0.72rem] font-semibold text-[#4b4b4b] hover:bg-[#f7f7f7]"
+              className="h-8 min-w-0 whitespace-nowrap rounded-[10px] border-[#dcdcdc] bg-white px-3.5 text-[0.72rem] font-semibold text-[#4b4b4b] hover:bg-[#f7f7f7] hover:text-[#4b4b4b]"
               disabled={busy !== null}
               onClick={() => void handleCopyAutoFixPrompt()}
             >
-              {busy === "copy" ? "Copying..." : "Copy auto-fix prompt"}
+              <span className="grid">
+                <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+                  Copy auto-fix prompt
+                </span>
+                <span className="col-start-1 row-start-1">{copyAutoFixPromptLabel}</span>
+              </span>
             </Button>
           </div>
         </div>
@@ -1130,6 +1175,79 @@ function NotificationApp() {
             style={{ animationDuration: `${AUTO_DISMISS_MS}ms` }}
             data-paused={hovered || undefined}
           />
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function NotificationLoadingState() {
+  return <main className="h-screen bg-white" />;
+}
+
+type NotificationErrorBoundaryProps = {
+  children: ReactNode;
+  onRetry: () => void;
+  resetKey: Promise<FailureNotification | null>;
+};
+
+type NotificationErrorBoundaryState = {
+  hasError: boolean;
+};
+
+class NotificationErrorBoundary extends Component<
+  NotificationErrorBoundaryProps,
+  NotificationErrorBoundaryState
+> {
+  state: NotificationErrorBoundaryState = {
+    hasError: false,
+  };
+
+  static getDerivedStateFromError(): NotificationErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(prevProps: NotificationErrorBoundaryProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <NotificationErrorState onRetry={this.props.onRetry} />;
+    }
+
+    return this.props.children;
+  }
+}
+
+function NotificationErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <main className="h-screen bg-white">
+      <section className="notificationCard grid h-full items-center bg-white px-[18px] py-4">
+        <div className="grid min-w-0 gap-3">
+          <div className="grid min-w-0 gap-1">
+            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-[#b0b0b0]">
+              Everr
+            </p>
+            <h1 className="m-0 text-[0.8rem] font-semibold text-[#121212]">
+              Failed to load notification
+            </h1>
+            <p className="m-0 text-[0.68rem] leading-[1.35] text-[#767676]">
+              The active failed pipeline could not be fetched.
+            </p>
+          </div>
+          <div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-[10px] border-[#dcdcdc] bg-white px-3.5 text-[0.72rem] font-semibold text-[#4b4b4b] hover:bg-[#f7f7f7]"
+              onClick={() => onRetry()}
+            >
+              Retry
+            </Button>
+          </div>
         </div>
       </section>
     </main>
@@ -1209,6 +1327,10 @@ function safeGetCurrentWindow() {
   } catch {
     return null;
   }
+}
+
+function loadActiveNotification(): Promise<FailureNotification | null> {
+  return invoke<FailureNotification | null>("get_active_notification");
 }
 
 export default App;

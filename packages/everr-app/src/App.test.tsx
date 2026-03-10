@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
-const NOTIFICATION_AUTO_DISMISS_MS = 2 * 60_000;
+const NOTIFICATION_AUTO_DISMISS_MS = 40_000;
 
 type AssistantKind = "codex" | "claude" | "cursor";
 
@@ -20,6 +20,7 @@ type FailureNotification = {
   job_name?: string;
   step_number?: string;
   step_name?: string;
+  auto_fix_prompt?: string;
 };
 
 type AssistantStatus = {
@@ -64,6 +65,8 @@ type RenderMainOptions = {
   testNotification?: TestNotificationResponse;
 };
 
+type NotificationResult = FailureNotification | null | Error;
+
 function createNotification(overrides: Partial<FailureNotification> = {}): FailureNotification {
   return {
     dedupe_key: "one",
@@ -76,6 +79,7 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
     job_name: "test",
     step_number: "3",
     step_name: "Run suite",
+    auto_fix_prompt: "Investigate and fix trace-one.",
     ...overrides,
   };
 }
@@ -133,8 +137,10 @@ function createSetupStatus({
   };
 }
 
-function renderNotificationApp(initialNotification = createNotification()) {
-  let activeNotification: FailureNotification | null = initialNotification;
+async function renderNotificationApp(
+  initialNotification: NotificationResult = createNotification(),
+) {
+  let activeNotification: NotificationResult = initialNotification;
   const dismissSpy = vi.fn(() => {
     activeNotification = null;
     return null;
@@ -150,6 +156,9 @@ function renderNotificationApp(initialNotification = createNotification()) {
     (cmd) => {
       switch (cmd) {
         case "get_active_notification":
+          if (activeNotification instanceof Error) {
+            throw activeNotification;
+          }
           return activeNotification;
         case "dismiss_active_notification":
           return dismissSpy();
@@ -164,7 +173,11 @@ function renderNotificationApp(initialNotification = createNotification()) {
     { shouldMockEvents: true },
   );
 
-  render(<App />);
+  await act(async () => {
+    render(<App />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 
   return {
     dismissSpy,
@@ -172,6 +185,9 @@ function renderNotificationApp(initialNotification = createNotification()) {
     copySpy,
     setNotification(nextNotification: FailureNotification | null) {
       activeNotification = nextNotification;
+    },
+    setNotificationError(error: Error) {
+      activeNotification = error;
     },
   };
 }
@@ -446,8 +462,7 @@ describe("notification window", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-07T13:35:00Z"));
 
-    renderNotificationApp();
-    await flushNotificationRender();
+    await renderNotificationApp();
 
     expect(screen.getByText("CI")).toBeInTheDocument();
     expect(screen.getByText("everr-labs/everr")).toBeInTheDocument();
@@ -458,7 +473,7 @@ describe("notification window", () => {
   });
 
   it("dismisses the active notification", async () => {
-    const { dismissSpy } = renderNotificationApp();
+    const { dismissSpy } = await renderNotificationApp();
 
     await screen.findByText("CI");
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
@@ -470,7 +485,7 @@ describe("notification window", () => {
   });
 
   it("opens the run target and advances the queue", async () => {
-    const { openSpy } = renderNotificationApp();
+    const { openSpy } = await renderNotificationApp();
 
     await screen.findByText("CI");
     fireEvent.click(screen.getByRole("button", { name: "Open run" }));
@@ -482,7 +497,7 @@ describe("notification window", () => {
   });
 
   it("copies the auto-fix prompt without dismissing the notification", async () => {
-    const { copySpy } = renderNotificationApp();
+    const { copySpy } = await renderNotificationApp();
 
     await screen.findByText("CI");
     fireEvent.click(screen.getByRole("button", { name: "Copy auto-fix prompt" }));
@@ -490,14 +505,14 @@ describe("notification window", () => {
     await waitFor(() => {
       expect(copySpy).toHaveBeenCalledTimes(1);
     });
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
     expect(screen.getByText("CI")).toBeInTheDocument();
   });
 
-  it("does not auto-dismiss before two minutes", async () => {
+  it("does not auto-dismiss before the deadline", async () => {
     vi.useFakeTimers();
 
-    const { dismissSpy } = renderNotificationApp();
-    await flushNotificationRender();
+    const { dismissSpy } = await renderNotificationApp();
     expect(screen.getByText("CI")).toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS - 1_000);
@@ -507,11 +522,10 @@ describe("notification window", () => {
     expect(screen.getByText("CI")).toBeInTheDocument();
   });
 
-  it("auto-dismisses after two minutes", async () => {
+  it("auto-dismisses after the deadline", async () => {
     vi.useFakeTimers();
 
-    const { dismissSpy } = renderNotificationApp();
-    await flushNotificationRender();
+    const { dismissSpy } = await renderNotificationApp();
     expect(screen.getByText("CI")).toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS);
@@ -523,8 +537,7 @@ describe("notification window", () => {
   it("pauses the dismiss countdown while hovered", async () => {
     vi.useFakeTimers();
 
-    const { dismissSpy } = renderNotificationApp();
-    await flushNotificationRender();
+    const { dismissSpy } = await renderNotificationApp();
     const card = screen.getByText("CI");
 
     fireEvent.mouseEnter(card.closest(".notificationCard") as HTMLElement);
@@ -539,7 +552,7 @@ describe("notification window", () => {
   });
 
   it("refreshes when the backend emits a notification-changed event", async () => {
-    const harness = renderNotificationApp();
+    const harness = await renderNotificationApp();
     await screen.findByText("CI");
 
     harness.setNotification(
@@ -549,8 +562,32 @@ describe("notification window", () => {
         workflow_name: "Nightly",
       }),
     );
-    await emit(NOTIFICATION_CHANGED_EVENT);
+    await act(async () => {
+      await emit(NOTIFICATION_CHANGED_EVENT);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
 
     expect(await screen.findByText("Nightly")).toBeInTheDocument();
+  });
+
+  it("shows a retry state when fetching the active notification fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const harness = await renderNotificationApp(new Error("boom"));
+
+      expect(await screen.findByText("Failed to load notification")).toBeInTheDocument();
+
+      harness.setNotification(createNotification());
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(await screen.findByText("CI")).not.toBeInTheDocument();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });

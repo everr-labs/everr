@@ -282,8 +282,6 @@ describe("/api/cli/tray-status", () => {
     expect(payload.auto_fix_prompt).toContain("everr status");
     expect(payload.auto_fix_prompt).toContain("trace-123");
     expect(payload.auto_fix_prompt).toContain("feature/granola");
-    expect(payload.auto_fix_prompt).toContain(
-      "http://localhost/dashboard/runs/trace-123/jobs/job-1/steps/3",
-    );
+    expect(payload.auto_fix_prompt).toContain("http://localhost/dashboard");
   });
 });

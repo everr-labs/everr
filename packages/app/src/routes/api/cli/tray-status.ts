@@ -40,10 +40,7 @@ export const Route = createFileRoute("/api/cli/tray-status")({
           verified_match: true,
           unresolved_failures: unresolvedFailures,
           failed_runs_dashboard_url: failedRunsDashboardUrl,
-          auto_fix_prompt: buildAutoFixPrompt(
-            unresolvedFailures,
-            failedRunsDashboardUrl,
-          ),
+          auto_fix_prompt: buildAutoFixPrompt(unresolvedFailures),
         } satisfies TrayStatusResponse);
       },
     },

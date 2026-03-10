@@ -377,8 +377,12 @@ fn open_notification_target(app: AppHandle, state: State<'_, RuntimeState>) -> R
 }
 
 #[tauri::command]
-fn copy_notification_auto_fix_prompt(app: AppHandle) -> Result<(), String> {
-    copy_tray_auto_fix_prompt(&app).map_err(|error| error.to_string())
+fn copy_notification_auto_fix_prompt(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> Result<(), String> {
+    let _ = app;
+    copy_notification_auto_fix_prompt_inner(state.inner()).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -876,6 +880,12 @@ fn tray_auto_fix_prompt(snapshot: &TraySnapshot) -> Option<&str> {
     snapshot.auto_fix_prompt.as_deref()
 }
 
+fn active_notification_auto_fix_prompt(queue: &NotificationQueue) -> Option<&str> {
+    queue
+        .active()
+        .and_then(|notification| notification.auto_fix_prompt.as_deref())
+}
+
 fn open_tray_failed_runs(app: &AppHandle) -> Result<()> {
     let Some(state) = app.try_state::<RuntimeState>() else {
         return Ok(());
@@ -916,6 +926,36 @@ fn copy_tray_auto_fix_prompt(app: &AppHandle) -> Result<()> {
     clipboard
         .set_text(prompt)
         .context("failed to copy tray auto-fix prompt")?;
+    Ok(())
+}
+
+fn copy_notification_auto_fix_prompt_inner(state: &RuntimeState) -> Result<()> {
+    let notification_prompt = {
+        let notifier = state
+            .notifier
+            .lock()
+            .map_err(|_| anyhow!("failed to lock notifier state"))?;
+        active_notification_auto_fix_prompt(&notifier.queue).map(str::to_owned)
+    };
+
+    let prompt = if let Some(prompt) = notification_prompt {
+        Some(prompt)
+    } else {
+        let tray = state
+            .tray
+            .lock()
+            .map_err(|_| anyhow!("failed to lock tray state"))?;
+        tray_auto_fix_prompt(&tray.snapshot).map(str::to_owned)
+    };
+
+    let Some(prompt) = prompt else {
+        return Ok(());
+    };
+
+    let mut clipboard = Clipboard::new().context("failed to access clipboard")?;
+    clipboard
+        .set_text(prompt)
+        .context("failed to copy notification auto-fix prompt")?;
     Ok(())
 }
 
@@ -965,15 +1005,20 @@ fn build_test_notification() -> Result<FailureNotification> {
 
     Ok(FailureNotification {
         dedupe_key: format!("dev-settings-test-{nonce}"),
-        trace_id,
+        trace_id: trace_id.clone(),
         repo,
-        branch,
+        branch: branch.clone(),
         workflow_name: "Test notification".to_string(),
         failure_time: timestamp,
         details_url,
         job_name: Some("Developer settings".to_string()),
         step_number: Some("1".to_string()),
         step_name: Some("Preview desktop notification".to_string()),
+        auto_fix_prompt: Some(
+            format!(
+                "Investigate and fix this unresolved CI pipeline failure.\nUse Everr CLI from the current project directory before guessing.\n\nRequired workflow:\n- Run `everr status` first.\n- Inspect the failing run with `everr runs show --trace-id {trace_id}`.\n- Pull logs with `everr runs logs --trace-id {trace_id} --job-name \"Developer settings\" --step-number 1`.\n- Make the smallest repo-local fix that addresses the root cause.\n- Run the narrowest relevant test or check before finishing.\n\nCurrent unresolved failure:\n- branch {branch} | workflow Test notification | trace {trace_id} | step Developer settings #1 (Preview desktop notification)\n\nReturn a concise summary with root cause, code changes, verification, and any follow-up risk."
+            ),
+        ),
     })
 }
 
@@ -1347,11 +1392,11 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        apply_runtime_settings, apply_wizard_migration, build_tray_menu_model, current_base_url,
-        format_tray_title, format_tray_tooltip, migrate_completed_base_url,
-        sync_installed_cli_from_paths, tray_auto_fix_prompt, tray_failed_runs_target,
-        value_has_wizard_metadata, AppSettings, NotificationQueue, TraySnapshot, TrayState,
-        WizardState,
+        active_notification_auto_fix_prompt, apply_runtime_settings, apply_wizard_migration,
+        build_tray_menu_model, current_base_url, format_tray_title, format_tray_tooltip,
+        migrate_completed_base_url, sync_installed_cli_from_paths, tray_auto_fix_prompt,
+        tray_failed_runs_target, value_has_wizard_metadata, AppSettings, NotificationQueue,
+        TraySnapshot, TrayState, WizardState,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1366,6 +1411,7 @@ mod tests {
             job_name: Some("test".to_string()),
             step_number: Some("2".to_string()),
             step_name: Some("Run suite".to_string()),
+            auto_fix_prompt: Some(format!("Investigate and fix trace-{dedupe_key}.")),
         }
     }
 
@@ -1493,6 +1539,17 @@ mod tests {
 
         assert_eq!(tray_failed_runs_target(&snapshot), None);
         assert_eq!(tray_auto_fix_prompt(&snapshot), None);
+    }
+
+    #[test]
+    fn active_notification_prompt_prefers_the_active_queue_item() {
+        let mut queue = NotificationQueue::default();
+        queue.enqueue(failure("one"));
+
+        assert_eq!(
+            active_notification_auto_fix_prompt(&queue),
+            Some("Investigate and fix trace-one.")
+        );
     }
 
     #[test]

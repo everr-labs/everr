@@ -136,6 +136,7 @@ pub struct FailureNotification {
     pub job_name: Option<String>,
     pub step_number: Option<String>,
     pub step_name: Option<String>,
+    pub auto_fix_prompt: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
