@@ -53,6 +53,108 @@ fn status_command_sends_expected_query_and_auth_header() {
 }
 
 #[test]
+fn grep_defaults_repo_from_git_and_excludes_current_branch() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/current-issue",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-grep");
+
+    let mock = server
+        .mock("GET", "/api/cli/grep")
+        .match_header("authorization", "Bearer token-grep")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("pattern".into(), "Expect X to be Y".into()),
+            Matcher::UrlEncoded("jobName".into(), "integration".into()),
+            Matcher::UrlEncoded("stepNumber".into(), "5".into()),
+            Matcher::UrlEncoded("excludeBranch".into(), "feature/current-issue".into()),
+            Matcher::UrlEncoded("limit".into(), "20".into()),
+        ]))
+        .with_status(200)
+        .with_body(r#"{"items":[]}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args([
+            "grep",
+            "--job-name",
+            "integration",
+            "--step-number",
+            "5",
+            "--pattern",
+            "Expect X to be Y",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("\"items\": []"));
+
+    mock.assert();
+}
+
+#[test]
+fn grep_uses_explicit_branch_instead_of_auto_excluding_current_branch() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/current-issue",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-grep");
+
+    let mock = server
+        .mock("GET", "/api/cli/grep")
+        .match_header("authorization", "Bearer token-grep")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("pattern".into(), "panic".into()),
+            Matcher::UrlEncoded("limit".into(), "5".into()),
+            Matcher::UrlEncoded("branch".into(), "release/1.2".into()),
+        ]))
+        .with_status(200)
+        .with_body(r#"{"items":[]}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args([
+            "grep",
+            "--pattern",
+            "panic",
+            "--branch",
+            "release/1.2",
+            "--limit",
+            "5",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("\"items\": []"));
+
+    mock.assert();
+}
+
+#[test]
+fn grep_requires_repo_when_git_context_is_missing() {
+    let env = CliTestEnv::new();
+    let server = mock_api_server();
+    env.write_session(&server.url(), "token-grep");
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&env.home_dir)
+        .args(["grep", "--pattern", "panic"])
+        .assert()
+        .failure()
+        .stderr(contains("failed to resolve repository; provide --repo"));
+}
+
+#[test]
 fn runs_list_sends_filter_query_params() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(

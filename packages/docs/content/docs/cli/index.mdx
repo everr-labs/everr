@@ -20,6 +20,7 @@ The installer places `everr` in `~/.local/bin` and starts setup when an interact
 ## Commands
 
 - `everr status`
+- `everr grep --job-name <job> --step-number <n> --pattern <text>`
 - `everr install`
 - `everr slowest-tests` (repo-wide for non-suite tests by default; use `--branch <name>` to scope it)
 - `everr slowest-jobs` (repo-wide by default; use `--branch <name>` to scope it)
@@ -27,3 +28,5 @@ The installer places `everr` in `~/.local/bin` and starts setup when an interact
 - `everr runs list`
 - `everr runs show --trace-id <trace_id>`
 - `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`
+
+`everr grep` searches failing step logs for a literal, case-insensitive pattern. Use `--job-name` together with `--step-number` to target one specific failing step. By default it searches the current repository over the last 7 days and excludes the currently checked out branch so you can quickly answer whether the same failure happened elsewhere.

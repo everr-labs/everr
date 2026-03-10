@@ -3,6 +3,7 @@ When CI fails, use Everr to identify the failing workflow/job/step and inspect l
 
 Quick commands:
 - `everr status`: checks CI health, with info about recent runs for the current repo/branch (or the branch passed with flags).
+- `everr grep --job-name <job> --step-number <n> --pattern <text>`: searches failing step logs on other branches by default (7 days of history unless `--from/--to` are passed)
 - `everr runs list`
 - `everr runs show --trace-id <trace_id>`
 - `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`
@@ -14,6 +15,9 @@ Quick commands:
 Output schema notes:
 - All commands print JSON.
 - `status`: `{ status, repo, branch, mainBranch, inspectedRuns, latestPipeline, failingPipelines, slowdown, message }`
+- `grep`: `{ repo, pattern, jobName, stepNumber, branch, excludedBranch, timeRange, limit, items }`
+- `grep.items[]`: `{ branch, occurrenceCount, lastSeen, recentOccurrences }`
+- `grep.items[].recentOccurrences[]`: `{ traceId, runId, runAttempt, workflowName, jobName, stepNumber, stepName, stepConclusion, runConclusion, stepDuration, timestamp, matchCount, matchedLines }`
 - `runs list`: `{ runs, totalCount }`
 - `runs show`: `{ run, jobs, steps }`
 - `runs logs`: `{ logs }`

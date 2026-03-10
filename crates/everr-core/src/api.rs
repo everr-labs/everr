@@ -36,6 +36,10 @@ impl ApiClient {
         self.get_json("/status", query).await
     }
 
+    pub async fn get_grep(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/grep", query).await
+    }
+
     pub async fn get_runs_list(&self, query: &[(&str, String)]) -> Result<Value> {
         self.get_json("/runs", query).await
     }

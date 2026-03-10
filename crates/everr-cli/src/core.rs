@@ -10,8 +10,8 @@ use tokio::time::sleep;
 use crate::api::ApiClient;
 use crate::auth;
 use crate::cli::{
-    GetLogsArgs, ListRunsArgs, ShowRunArgs, SlowestJobsArgs, SlowestTestsArgs, StatusArgs,
-    TestHistoryArgs, WaitArgs,
+    GetLogsArgs, GrepArgs, ListRunsArgs, ShowRunArgs, SlowestJobsArgs, SlowestTestsArgs,
+    StatusArgs, TestHistoryArgs, WaitArgs,
 };
 
 pub async fn status(args: StatusArgs) -> Result<()> {
@@ -30,6 +30,34 @@ pub async fn status(args: StatusArgs) -> Result<()> {
     push_opt(&mut query, "to", args.to);
 
     let payload = client.get_status(&query).await?;
+    print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn grep(args: GrepArgs) -> Result<()> {
+    let session = auth::require_session_with_refresh().await?;
+    let client = ApiClient::from_session(&session)?;
+    let cwd = std::env::current_dir()?;
+    let git = resolve_git_context(&cwd);
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+    let branch = args.branch;
+    let exclude_branch = if branch.is_some() { None } else { git.branch };
+
+    let mut query: Vec<(&str, String)> = vec![
+        ("repo", repo),
+        ("pattern", args.pattern),
+        ("limit", args.limit.to_string()),
+    ];
+    push_opt(&mut query, "jobName", args.job_name);
+    push_opt(&mut query, "stepNumber", args.step_number);
+    push_opt(&mut query, "branch", branch);
+    push_opt(&mut query, "excludeBranch", exclude_branch);
+    push_opt(&mut query, "from", args.from);
+    push_opt(&mut query, "to", args.to);
+
+    let payload = client.get_grep(&query).await?;
     print_json(&payload)?;
     Ok(())
 }
