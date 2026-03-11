@@ -32,9 +32,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Rust nightly toolchain
-        uses: dtolnay/rust-toolchain@nightly
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -44,7 +41,7 @@ jobs:
         run: cargo test -p everr-cli --manifest-path Cargo.toml -- --report-time -Z unstable-options
 
       - name: Build release binary
-        run: cargo +stable build --release -p everr-cli --manifest-path Cargo.toml
+        run: cargo build --release -p everr-cli --manifest-path Cargo.toml
 
       - name: Smoke test
         run: ./target/release/everr --help
