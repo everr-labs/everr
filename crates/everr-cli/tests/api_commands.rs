@@ -26,7 +26,6 @@ fn status_command_sends_expected_query_and_auth_header() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/tests".into()),
-            Matcher::UrlEncoded("mainBranch".into(), "main".into()),
             Matcher::UrlEncoded("from".into(), "now-1h".into()),
             Matcher::UrlEncoded("to".into(), "now".into()),
         ]))
@@ -36,15 +35,7 @@ fn status_command_sends_expected_query_and_auth_header() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args([
-            "status",
-            "--main-branch",
-            "main",
-            "--from",
-            "now-1h",
-            "--to",
-            "now",
-        ])
+        .args(["status", "--from", "now-1h", "--to", "now"])
         .assert()
         .success()
         .stdout(contains("\"status\": \"ok\""));

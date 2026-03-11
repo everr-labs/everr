@@ -25,7 +25,6 @@ pub async fn status(args: StatusArgs) -> Result<()> {
     let mut query: Vec<(&str, String)> = Vec::new();
     push_opt(&mut query, "repo", repo);
     push_opt(&mut query, "branch", branch);
-    push_opt(&mut query, "mainBranch", args.main_branch);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
 

@@ -102,6 +102,7 @@ describe("/api/cli/notifier/failures", () => {
       },
     ]);
     mockedQuery.mockResolvedValueOnce([]);
+    mockedQuery.mockResolvedValueOnce([]);
 
     const handler = getHandler();
     const response = await handler({
@@ -172,9 +173,20 @@ describe("/api/cli/notifier/failures", () => {
       {
         trace_id: "trace-123",
         jobId: "job-2",
+      },
+      {
+        trace_id: "trace-123",
+        jobId: "job-1",
+      },
+    ]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        trace_id: "trace-123",
+        jobId: "job-2",
         jobName: "lint",
         stepName: "Run linter",
         stepNumber: "1",
+        conclusion: "failure",
       },
       {
         trace_id: "trace-123",
@@ -182,6 +194,7 @@ describe("/api/cli/notifier/failures", () => {
         jobName: "test",
         stepName: "Boot services",
         stepNumber: "2",
+        conclusion: "success",
       },
       {
         trace_id: "trace-123",
@@ -189,6 +202,7 @@ describe("/api/cli/notifier/failures", () => {
         jobName: "test",
         stepName: "Install dependencies",
         stepNumber: "1",
+        conclusion: "failure",
       },
     ]);
 
@@ -213,12 +227,15 @@ describe("/api/cli/notifier/failures", () => {
       step_name: "Install dependencies",
     });
     expect(payload.failures[0].auto_fix_prompt).toContain("trace-123");
+    expect(payload.failures[0].auto_fix_prompt).toContain(
+      'everr runs logs --trace-id trace-123 --job-name "test" --step-number 1',
+    );
     expect(payload.failures[0].auto_fix_prompt).not.toContain(
       "http://localhost/dashboard",
     );
   });
 
-  it("falls back to run-level metadata when no failing step exists", async () => {
+  it("falls back to the latest step in a failed job when no explicit failing step exists", async () => {
     mockedQuery.mockResolvedValueOnce([
       {
         traceId: "trace-123",
@@ -229,7 +246,30 @@ describe("/api/cli/notifier/failures", () => {
         failureTime: "2026-03-07T13:32:00Z",
       },
     ]);
-    mockedQuery.mockResolvedValueOnce([]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        trace_id: "trace-123",
+        jobId: "job-1",
+      },
+    ]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        trace_id: "trace-123",
+        jobId: "job-1",
+        jobName: "test",
+        stepName: "Install dependencies",
+        stepNumber: "1",
+        conclusion: "success",
+      },
+      {
+        trace_id: "trace-123",
+        jobId: "job-1",
+        jobName: "test",
+        stepName: "Run suite",
+        stepNumber: "3",
+        conclusion: "",
+      },
+    ]);
 
     const handler = getHandler();
     const response = await handler({
@@ -244,9 +284,12 @@ describe("/api/cli/notifier/failures", () => {
     });
 
     const payload = await response.json();
-    expect(payload.failures[0].job_name).toBeUndefined();
-    expect(payload.failures[0].step_number).toBeUndefined();
-    expect(payload.failures[0].step_name).toBeUndefined();
+    expect(payload.failures[0].job_name).toBe("test");
+    expect(payload.failures[0].step_number).toBe("3");
+    expect(payload.failures[0].step_name).toBe("Run suite");
     expect(payload.failures[0].auto_fix_prompt).toContain("trace-123");
+    expect(payload.failures[0].auto_fix_prompt).toContain(
+      'everr runs logs --trace-id trace-123 --job-name "test" --step-number 3',
+    );
   });
 });

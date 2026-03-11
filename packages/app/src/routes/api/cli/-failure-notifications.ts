@@ -177,8 +177,7 @@ export function buildAutoFixPrompt(failures: FailureNotification[]): string {
     "Use Everr CLI from the current project directory before guessing.",
     "",
     "Required workflow:",
-    "- Inspect each failing run with `everr runs show --trace-id <trace_id>`.",
-    "- Pull logs with `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>` when a failing step is available.",
+    "- Start by pulling logs with the exact `everr runs logs` command listed for each failure below.",
     "- Make the smallest repo-local fix that addresses the root cause.",
     "- Run the narrowest relevant test or check before finishing.",
     "- Work repo-by-repo. If a repo is not available locally, say so explicitly.",
@@ -197,6 +196,10 @@ export function buildAutoFixPrompt(failures: FailureNotification[]): string {
       sections.push(
         `- branch ${failure.branch} | workflow ${failure.workflow_name} | trace ${failure.trace_id} | failed at ${failure.failure_time}${failingStep}`,
       );
+      const logsCommand = buildRunsLogsCommand(failure);
+      if (logsCommand) {
+        sections.push(`  logs: \`${logsCommand}\``);
+      }
     }
   }
 
@@ -269,53 +272,123 @@ async function loadFirstFailingSteps(
     return new Map();
   }
 
-  const failingStepsResult = await query<{
-    trace_id: string;
-    jobId: string;
-    jobName: string;
-    stepName: string;
-    stepNumber: string;
-  }>(
-    `
-      SELECT
-        TraceId as trace_id,
-        ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-        ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-        SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
-        anyLast(SpanName) as stepName
-      FROM traces
-      WHERE TraceId IN {traceIds:Array(String)}
-        AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
-        AND lowerUTF8(StatusMessage) NOT IN ('success', 'skip')
-      GROUP BY trace_id, jobId, jobName, stepNumber
-    `,
-    {
-      traceIds,
-    },
-  );
+  const [failedJobsResult, stepsResult] = await Promise.all([
+    query<{
+      trace_id: string;
+      jobId: string;
+    }>(
+      `
+        SELECT
+          TraceId as trace_id,
+          ResourceAttributes['cicd.pipeline.task.run.id'] as jobId
+        FROM traces
+        WHERE TraceId IN {traceIds:Array(String)}
+          AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+        GROUP BY trace_id, jobId
+        HAVING lowerUTF8(
+          anyLast(ResourceAttributes['cicd.pipeline.task.run.result'])
+        ) IN ('failure', 'failed')
+      `,
+      {
+        traceIds,
+      },
+    ),
+    query<{
+      trace_id: string;
+      jobId: string;
+      jobName: string;
+      stepName: string;
+      stepNumber: string;
+      conclusion: string;
+    }>(
+      `
+        SELECT
+          TraceId as trace_id,
+          ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
+          ResourceAttributes['cicd.pipeline.task.name'] as jobName,
+          SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
+          anyLast(SpanName) as stepName,
+          anyLast(StatusMessage) as conclusion
+        FROM traces
+        WHERE TraceId IN {traceIds:Array(String)}
+          AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+          AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
+        GROUP BY trace_id, jobId, jobName, stepNumber
+      `,
+      {
+        traceIds,
+      },
+    ),
+  ]);
+
+  const failedJobIdsByTraceId = new Map<string, Set<string>>();
+  for (const row of failedJobsResult) {
+    const current = failedJobIdsByTraceId.get(row.trace_id);
+    if (current) {
+      current.add(row.jobId);
+      continue;
+    }
+    failedJobIdsByTraceId.set(row.trace_id, new Set([row.jobId]));
+  }
+
+  type StepCandidate = FirstFailingStep & {
+    conclusion: string;
+  };
+
+  const failingByTraceId = new Map<string, StepCandidate>();
+  const failedJobFallbackByTraceId = new Map<string, StepCandidate>();
+  const anyStepFallbackByTraceId = new Map<string, StepCandidate>();
+
+  for (const row of stepsResult) {
+    const candidate: StepCandidate = {
+      jobId: row.jobId,
+      jobName: row.jobName,
+      stepName: row.stepName,
+      stepNumber: row.stepNumber,
+      conclusion: row.conclusion,
+    };
+
+    if (isFailureConclusion(row.conclusion)) {
+      updateBestStepCandidate(
+        failingByTraceId,
+        row.trace_id,
+        candidate,
+        compareFailingStepCandidates,
+      );
+    }
+
+    updateBestStepCandidate(
+      anyStepFallbackByTraceId,
+      row.trace_id,
+      candidate,
+      compareFallbackStepCandidates,
+    );
+
+    if (failedJobIdsByTraceId.get(row.trace_id)?.has(row.jobId)) {
+      updateBestStepCandidate(
+        failedJobFallbackByTraceId,
+        row.trace_id,
+        candidate,
+        compareFallbackStepCandidates,
+      );
+    }
+  }
 
   const firstFailingStepByTraceId = new Map<string, FirstFailingStep>();
-  for (const row of failingStepsResult) {
-    const current = firstFailingStepByTraceId.get(row.trace_id);
-    if (
-      !current ||
-      compareFailingSteps(
-        {
-          jobId: row.jobId,
-          jobName: row.jobName,
-          stepName: row.stepName,
-          stepNumber: row.stepNumber,
-        },
-        current,
-      ) < 0
-    ) {
-      firstFailingStepByTraceId.set(row.trace_id, {
-        jobId: row.jobId,
-        jobName: row.jobName,
-        stepName: row.stepName,
-        stepNumber: row.stepNumber,
-      });
+  for (const traceId of traceIds) {
+    const bestCandidate =
+      failingByTraceId.get(traceId) ??
+      failedJobFallbackByTraceId.get(traceId) ??
+      anyStepFallbackByTraceId.get(traceId);
+    if (!bestCandidate) {
+      continue;
     }
+    firstFailingStepByTraceId.set(traceId, {
+      jobId: bestCandidate.jobId,
+      jobName: bestCandidate.jobName,
+      stepName: bestCandidate.stepName,
+      stepNumber: bestCandidate.stepNumber,
+    });
   }
 
   return firstFailingStepByTraceId;
@@ -466,6 +539,44 @@ function compareFailingSteps(a: FirstFailingStep, b: FirstFailingStep): number {
   return parseStepNumber(a.stepNumber) - parseStepNumber(b.stepNumber);
 }
 
+function compareFailingStepCandidates(
+  a: FirstFailingStep,
+  b: FirstFailingStep,
+): number {
+  return compareFailingSteps(a, b);
+}
+
+function compareFallbackStepCandidates(
+  a: FirstFailingStep & { conclusion: string },
+  b: FirstFailingStep & { conclusion: string },
+): number {
+  const jobComparison = a.jobId.localeCompare(b.jobId);
+  if (jobComparison !== 0) {
+    return jobComparison;
+  }
+
+  const skipComparison =
+    Number(isSkippedConclusion(a.conclusion)) -
+    Number(isSkippedConclusion(b.conclusion));
+  if (skipComparison !== 0) {
+    return skipComparison;
+  }
+
+  return parseStepNumber(b.stepNumber) - parseStepNumber(a.stepNumber);
+}
+
+function updateBestStepCandidate<T>(
+  map: Map<string, T>,
+  traceId: string,
+  candidate: T,
+  compare: (a: T, b: T) => number,
+): void {
+  const current = map.get(traceId);
+  if (!current || compare(candidate, current) < 0) {
+    map.set(traceId, candidate);
+  }
+}
+
 function buildFailureDetailsUrl(
   origin: string,
   traceId: string,
@@ -490,6 +601,25 @@ function buildFailureDetailsUrl(
 function parseStepNumber(value: string): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+}
+
+function isFailureConclusion(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "failure" || normalized === "failed";
+}
+
+function isSkippedConclusion(value: string): boolean {
+  return value.trim().toLowerCase() === "skip";
+}
+
+function buildRunsLogsCommand(failure: FailureNotification): string | null {
+  if (!failure.job_name || !failure.step_number) {
+    return null;
+  }
+
+  return `everr runs logs --trace-id ${failure.trace_id} --job-name ${JSON.stringify(
+    failure.job_name,
+  )} --step-number ${failure.step_number}`;
 }
 
 function createScopeKey(repo: string, branch: string): string {

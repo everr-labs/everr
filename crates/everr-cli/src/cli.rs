@@ -69,8 +69,6 @@ pub struct StatusArgs {
     #[arg(long)]
     pub branch: Option<String>,
     #[arg(long)]
-    pub main_branch: Option<String>,
-    #[arg(long)]
     pub from: Option<String>,
     #[arg(long)]
     pub to: Option<String>,
@@ -243,6 +241,32 @@ mod tests {
             .expect_err("runs show should require --trace-id");
         let err_string = err.to_string();
         assert!(err_string.contains("--trace-id"));
+    }
+
+    #[test]
+    fn status_accepts_repo_branch_and_time_range_filters() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "status",
+            "--repo",
+            "everr-labs/everr",
+            "--branch",
+            "feature/tests",
+            "--from",
+            "now-1h",
+            "--to",
+            "now",
+        ])
+        .expect("valid status command");
+
+        let Commands::Status(args) = cli.command else {
+            panic!("expected status command");
+        };
+
+        assert_eq!(args.repo.as_deref(), Some("everr-labs/everr"));
+        assert_eq!(args.branch.as_deref(), Some("feature/tests"));
+        assert_eq!(args.from.as_deref(), Some("now-1h"));
+        assert_eq!(args.to.as_deref(), Some("now"));
     }
 
     #[test]

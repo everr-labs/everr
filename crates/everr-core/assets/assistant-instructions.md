@@ -14,11 +14,14 @@ Quick commands:
 - `everr slowest-jobs`: shows repo-wide aggregates by default; add `--branch <name>` to scope it
 - `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit
 
-Collection-style commands support `--limit <n>` and `--offset <n>` for pagination.
+Collection-style commands support `--limit <n>` and `--offset <n>` for pagination. `everr runs list` also keeps `--page <n>` for compatibility.
+
+When `everr status` returns failures, inspect `status.failures[i].logsArgs` first. If it is present, call `everr runs logs` directly; otherwise use `everr runs show --trace-id <trace_id>` to discover the failing step.
 
 Output schema notes:
 - All commands print JSON.
-- `status`: `{ status, repo, branch, mainBranch, inspectedRuns, latestPipeline, failingPipelines, slowdown, message }`
+- `status`: `{ status, repo, branch, latestPipeline, failures, message }`
+- `status.failures[]`: `{ traceId, runId, workflowName, conclusion, durationMs, timestamp, failedStep?, logsArgs? }`
 - `grep`: `{ repo, pattern, jobName, stepNumber, branch, excludedBranch, timeRange, limit, items }`
 - `grep.items[]`: `{ branch, occurrenceCount, lastSeen, recentOccurrences }`
 - `grep.items[].recentOccurrences[]`: `{ traceId, runId, runAttempt, workflowName, jobName, stepNumber, stepName, stepConclusion, runConclusion, stepDuration, timestamp, matchCount, matchedLines }`

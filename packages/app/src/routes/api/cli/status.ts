@@ -4,14 +4,14 @@ import { getRunsList } from "@/data/runs-list";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 import { cliAuthMiddleware } from "./-auth";
 
+const STATUS_RUN_LIMIT = 10;
+const ALLOWED_QUERY_PARAMS = new Set(["repo", "branch", "from", "to"]);
+
 const StatusQuerySchema = z.object({
   repo: z.string().min(1),
   branch: z.string().min(1),
-  mainBranch: z.string().min(1).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
-  recentRuns: z.coerce.number().int().min(1).max(100).optional(),
-  slowdownThresholdPct: z.coerce.number().min(1).max(500).optional(),
 });
 
 export const Route = createFileRoute("/api/cli/status")({
@@ -20,75 +20,53 @@ export const Route = createFileRoute("/api/cli/status")({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
+        const hasUnexpectedParams = [...url.searchParams.keys()].some(
+          (key) => !ALLOWED_QUERY_PARAMS.has(key),
+        );
+
+        if (hasUnexpectedParams) {
+          return Response.json(
+            {
+              error:
+                "Invalid query parameters. Required: repo, branch. Optional: from, to.",
+            },
+            { status: 400 },
+          );
+        }
+
         const parsed = StatusQuerySchema.safeParse({
           repo: url.searchParams.get("repo") ?? undefined,
           branch: url.searchParams.get("branch") ?? undefined,
-          mainBranch: url.searchParams.get("mainBranch") ?? undefined,
           from: url.searchParams.get("from") ?? undefined,
           to: url.searchParams.get("to") ?? undefined,
-          recentRuns: url.searchParams.get("recentRuns") ?? undefined,
-          slowdownThresholdPct:
-            url.searchParams.get("slowdownThresholdPct") ?? undefined,
         });
 
         if (!parsed.success) {
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: repo, branch. Optional: mainBranch, from, to, recentRuns, slowdownThresholdPct.",
+                "Invalid query parameters. Required: repo, branch. Optional: from, to.",
             },
             { status: 400 },
           );
         }
 
-        const {
-          repo,
-          branch,
-          mainBranch = "main",
-          from,
-          to,
-          recentRuns = 10,
-          slowdownThresholdPct = 20,
-        } = parsed.data;
+        const { repo, branch, from, to } = parsed.data;
         const timeRange = {
           from: from ?? DEFAULT_TIME_RANGE.from,
           to: to ?? DEFAULT_TIME_RANGE.to,
         };
 
-        const [branchRunsResult, mainRecentResult, mainOlderResult] =
-          await Promise.all([
-            getRunsList({
-              data: {
-                timeRange,
-                page: 1,
-                pageSize: recentRuns,
-                repo,
-                branch,
-              },
-            }),
-            getRunsList({
-              data: {
-                timeRange,
-                page: 1,
-                pageSize: recentRuns,
-                repo,
-                branch: mainBranch,
-                conclusion: "success",
-              },
-            }),
-            getRunsList({
-              data: {
-                timeRange,
-                page: 2,
-                pageSize: recentRuns,
-                repo,
-                branch: mainBranch,
-                conclusion: "success",
-              },
-            }),
-          ]);
-
-        const branchRuns = branchRunsResult.runs;
+        const branchRuns = (
+          await getRunsList({
+            data: {
+              timeRange,
+              limit: STATUS_RUN_LIMIT,
+              repo,
+              branch,
+            },
+          })
+        ).runs;
         if (branchRuns.length === 0) {
           return Response.json({
             status: "no_data",
@@ -99,51 +77,40 @@ export const Route = createFileRoute("/api/cli/status")({
         }
 
         const latestRun = branchRuns[0];
-        const failingPipelines = branchRuns
-          .filter((run) => run.conclusion === "failure")
-          .map((run) => ({
-            traceId: run.traceId,
-            runId: run.runId,
-            workflowName: run.workflowName,
-            conclusion: run.conclusion,
-            durationMs: run.duration,
-            timestamp: run.timestamp,
-          }));
+        const failures = branchRuns
+          .filter((run) => isFailingConclusion(run.conclusion))
+          .map((run) => {
+            const step = run.failingSteps?.[0];
+            const failedStep = step
+              ? {
+                  jobName: step.jobName,
+                  stepNumber: step.stepNumber.toString(),
+                  stepName: step.stepName,
+                }
+              : undefined;
 
-        const mainRecentAvg = average(
-          mainRecentResult.runs.map((r) => r.duration),
-        );
-        const mainOlderAvg = average(
-          mainOlderResult.runs.map((r) => r.duration),
-        );
-
-        const slowdownVsRecentPct =
-          mainRecentAvg && mainRecentAvg > 0
-            ? ((latestRun.duration - mainRecentAvg) / mainRecentAvg) * 100
-            : null;
-        const slowdownVsOlderPct =
-          mainOlderAvg && mainOlderAvg > 0
-            ? ((latestRun.duration - mainOlderAvg) / mainOlderAvg) * 100
-            : null;
-
-        const slowdownDetected =
-          (slowdownVsRecentPct ?? Number.NEGATIVE_INFINITY) >=
-            slowdownThresholdPct ||
-          (slowdownVsOlderPct ?? Number.NEGATIVE_INFINITY) >=
-            slowdownThresholdPct;
-        const status =
-          failingPipelines.length > 0 || slowdownDetected ? "attention" : "ok";
+            return {
+              traceId: run.traceId,
+              runId: run.runId,
+              workflowName: run.workflowName,
+              conclusion: run.conclusion,
+              durationMs: run.duration,
+              timestamp: run.timestamp,
+              failedStep,
+              logsArgs: failedStep
+                ? {
+                    jobName: failedStep.jobName,
+                    stepNumber: failedStep.stepNumber,
+                  }
+                : undefined,
+            };
+          });
+        const status = failures.length > 0 ? "attention" : "ok";
 
         return Response.json({
           status,
           repo,
           branch,
-          mainBranch,
-          inspectedRuns: {
-            branch: branchRuns.length,
-            mainRecent: mainRecentResult.runs.length,
-            mainOlder: mainOlderResult.runs.length,
-          },
           latestPipeline: {
             traceId: latestRun.traceId,
             runId: latestRun.runId,
@@ -152,31 +119,18 @@ export const Route = createFileRoute("/api/cli/status")({
             durationMs: latestRun.duration,
             timestamp: latestRun.timestamp,
           },
-          failingPipelines,
-          slowdown: {
-            detected: slowdownDetected,
-            thresholdPct: slowdownThresholdPct,
-            latestDurationMs: latestRun.duration,
-            mainRecentAvgDurationMs: mainRecentAvg,
-            mainOlderAvgDurationMs: mainOlderAvg,
-            slowdownVsRecentPct,
-            slowdownVsOlderPct,
-          },
+          failures,
           message:
-            failingPipelines.length > 0
-              ? `Found ${failingPipelines.length} failing pipeline(s) in recent branch runs.`
-              : slowdownDetected
-                ? "No recent branch failures, but latest pipeline duration is slower than main baselines."
-                : `Everything looks good. Latest pipeline duration is ${(latestRun.duration / 1000).toFixed(2)} seconds.`,
+            failures.length > 0
+              ? `Found ${failures.length} failing pipeline(s) in recent branch runs.`
+              : `Everything looks good. Latest pipeline duration is ${(latestRun.duration / 1000).toFixed(2)} seconds.`,
         });
       },
     },
   },
 });
 
-function average(values: number[]): number | null {
-  if (values.length === 0) {
-    return null;
-  }
-  return values.reduce((acc, value) => acc + value, 0) / values.length;
+function isFailingConclusion(conclusion: string): boolean {
+  const normalized = conclusion.trim().toLowerCase();
+  return normalized === "failure" || normalized === "failed";
 }
