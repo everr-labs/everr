@@ -311,6 +311,80 @@ func TestSpanGeneration(t *testing.T) {
 	assert.Equal(t, ptrace.StatusCodeError, failSpan.Status().Code())
 }
 
+func TestSpanGenerationJavaScriptFile(t *testing.T) {
+	logger := zap.NewNop()
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	stepSpanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	ctx := gotest.NewParseContext(123, 1, "test-job", 1, traceID, stepSpanID)
+	parser := NewParser(ctx, logger)
+
+	lines := []string{
+		" ✓ src/simple.test.js > works 1ms",
+	}
+
+	baseTime := time.Now()
+	for i, line := range lines {
+		parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+	}
+	parser.Finalize()
+
+	traces := GenerateSpans(ctx, pcommon.NewMap())
+	require.NotNil(t, traces)
+	assert.Equal(t, 1, traces.SpanCount())
+
+	traceResourceAttrs := traces.ResourceSpans().At(0).Resource().Attributes()
+	resourceLanguage, ok := traceResourceAttrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "javascript", resourceLanguage.Str())
+
+	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	language, ok := span.Attributes().Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "javascript", language.Str())
+}
+
+func TestSpanGenerationMixedLanguagesOmitsResourceLanguage(t *testing.T) {
+	logger := zap.NewNop()
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	stepSpanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	ctx := gotest.NewParseContext(123, 1, "test-job", 1, traceID, stepSpanID)
+	parser := NewParser(ctx, logger)
+
+	lines := []string{
+		" ✓ src/formatting.test.ts > ts suite > works in typescript 1ms",
+		" ✓ src/legacy.test.js > js suite > works in javascript 2ms",
+	}
+
+	baseTime := time.Now()
+	for i, line := range lines {
+		parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+	}
+	parser.Finalize()
+
+	traces := GenerateSpans(ctx, pcommon.NewMap())
+	require.NotNil(t, traces)
+	assert.Equal(t, 4, traces.SpanCount())
+
+	traceResourceAttrs := traces.ResourceSpans().At(0).Resource().Attributes()
+	_, ok := traceResourceAttrs.Get(semconv.EverrTestLanguage)
+	assert.False(t, ok)
+
+	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	spanLanguages := make(map[string]string)
+	for i := 0; i < spans.Len(); i++ {
+		span := spans.At(i)
+		language, ok := span.Attributes().Get(semconv.EverrTestLanguage)
+		if ok {
+			spanLanguages[span.Name()] = language.Str()
+		}
+	}
+
+	assert.Equal(t, "typescript", spanLanguages["works in typescript"])
+	assert.Equal(t, "javascript", spanLanguages["works in javascript"])
+}
+
 func TestSpanGenerationFileLevelTest(t *testing.T) {
 	logger := zap.NewNop()
 	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
@@ -386,6 +460,37 @@ func TestSplitTestName(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestDetectTestLanguage(t *testing.T) {
+	tests := []struct {
+		name     string
+		testFile string
+		expected string
+	}{
+		{name: "typescript ts", testFile: "src/example.test.ts", expected: "typescript"},
+		{name: "typescript tsx", testFile: "src/example.test.tsx", expected: "typescript"},
+		{name: "typescript mts", testFile: "src/example.test.mts", expected: "typescript"},
+		{name: "typescript cts", testFile: "src/example.test.cts", expected: "typescript"},
+		{name: "javascript js", testFile: "src/example.test.js", expected: "javascript"},
+		{name: "javascript jsx", testFile: "src/example.test.jsx", expected: "javascript"},
+		{name: "javascript mjs", testFile: "src/example.test.mjs", expected: "javascript"},
+		{name: "javascript cjs", testFile: "src/example.test.cjs", expected: "javascript"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			language, ok := detectTestLanguage(tt.testFile)
+			require.True(t, ok)
+			assert.Equal(t, tt.expected, language)
+		})
+	}
+}
+
+func TestDetectTestLanguageUnknownExtension(t *testing.T) {
+	language, ok := detectTestLanguage("src/example.test")
+	assert.False(t, ok)
+	assert.Empty(t, language)
 }
 
 func TestUniqueSpanIDs(t *testing.T) {

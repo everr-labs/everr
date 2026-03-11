@@ -4,6 +4,7 @@
 package vitest
 
 import (
+	"path/filepath"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -14,8 +15,9 @@ import (
 )
 
 const (
-	testFramework = "vitest"
-	testLanguage  = "typescript"
+	testFramework      = "vitest"
+	javascriptLanguage = "javascript"
+	typescriptLanguage = "typescript"
 )
 
 // GenerateSpans creates OpenTelemetry spans from parsed Vitest test results.
@@ -32,7 +34,9 @@ func GenerateSpans(ctx *gotest.TestParseContext, resourceAttrs pcommon.Map) *ptr
 	traceResourceAttrs := resourceSpans.Resource().Attributes()
 	resourceAttrs.CopyTo(traceResourceAttrs)
 	traceResourceAttrs.PutStr(semconv.EverrTestFramework, testFramework)
-	traceResourceAttrs.PutStr(semconv.EverrTestLanguage, testLanguage)
+	if language, ok := detectTraceLanguage(ctx.RootTests); ok {
+		traceResourceAttrs.PutStr(semconv.EverrTestLanguage, language)
+	}
 
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	scopeSpans.Scope().SetName("vitest")
@@ -83,7 +87,9 @@ func createTestSpan(ctx *gotest.TestParseContext, scopeSpans ptrace.ScopeSpans, 
 	attrs.PutStr(semconv.EverrTestResult, string(test.Result))
 	attrs.PutDouble(semconv.EverrTestDurationSeconds, test.Duration.Seconds())
 	attrs.PutStr(semconv.EverrTestFramework, testFramework)
-	attrs.PutStr(semconv.EverrTestLanguage, testLanguage)
+	if language, ok := detectTestLanguage(test.Package); ok {
+		attrs.PutStr(semconv.EverrTestLanguage, language)
+	}
 	attrs.PutBool(semconv.EverrTestIsSubtest, test.IsSubtest())
 	attrs.PutBool(semconv.EverrTestIsSuite, test.IsSuite())
 
@@ -98,5 +104,48 @@ func createTestSpan(ctx *gotest.TestParseContext, scopeSpans ptrace.ScopeSpans, 
 	// Recursively create spans for subtests
 	for _, subtest := range test.Subtests {
 		createTestSpan(ctx, scopeSpans, subtest, test.SpanID)
+	}
+}
+
+func detectTraceLanguage(tests []*gotest.TestInfo) (string, bool) {
+	var detectedLanguage string
+
+	var visit func([]*gotest.TestInfo) bool
+	visit = func(tests []*gotest.TestInfo) bool {
+		for _, test := range tests {
+			language, ok := detectTestLanguage(test.Package)
+			if !ok {
+				return false
+			}
+
+			if detectedLanguage == "" {
+				detectedLanguage = language
+			} else if detectedLanguage != language {
+				return false
+			}
+
+			if !visit(test.Subtests) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	if !visit(tests) || detectedLanguage == "" {
+		return "", false
+	}
+
+	return detectedLanguage, true
+}
+
+func detectTestLanguage(testFile string) (string, bool) {
+	switch strings.ToLower(filepath.Ext(testFile)) {
+	case ".ts", ".tsx", ".mts", ".cts":
+		return typescriptLanguage, true
+	case ".js", ".jsx", ".mjs", ".cjs":
+		return javascriptLanguage, true
+	default:
+		return "", false
 	}
 }
