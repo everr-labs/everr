@@ -67,20 +67,13 @@ pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
     let repo = args.repo.or(git.repo);
     let branch = args.branch.or(git.branch);
 
-    let limit = args.limit.unwrap_or(20);
-    let offset = args.offset.unwrap_or_else(|| {
-        args.page
-            .map(|page| page.saturating_sub(1).saturating_mul(limit))
-            .unwrap_or(0)
-    });
-
     let mut query: Vec<(&str, String)> = Vec::new();
     push_opt(&mut query, "repo", repo);
     push_opt(&mut query, "branch", branch);
     push_opt(&mut query, "conclusion", args.conclusion);
     push_opt(&mut query, "workflowName", args.workflow_name);
     push_opt(&mut query, "runId", args.run_id);
-    push_pagination(&mut query, limit, offset);
+    push_pagination(&mut query, args.limit, args.offset);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
 

@@ -64,7 +64,6 @@ describe("/api/cli/runs", () => {
           from: "now-7d",
           to: "now",
         },
-        page: undefined,
         limit: 15,
         offset: 30,
         repo: "everr-labs/everr",
@@ -77,15 +76,15 @@ describe("/api/cli/runs", () => {
     expect(mockedGetWaitPipelineStatus).not.toHaveBeenCalled();
   });
 
-  it("rejects page and offset together", async () => {
+  it("rejects the removed page query parameter", async () => {
     const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/runs?page=2&offset=30"),
+      request: new Request("http://localhost/api/cli/runs?page=2"),
     });
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error:
-        "Invalid query parameters for runs listing. Check page, limit, offset, and filter values.",
+        "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
     });
     expect(mockedGetRunsList).not.toHaveBeenCalled();
   });

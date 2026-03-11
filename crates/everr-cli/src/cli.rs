@@ -174,12 +174,10 @@ pub struct ListRunsArgs {
     pub workflow_name: Option<String>,
     #[arg(long)]
     pub run_id: Option<String>,
-    #[arg(long, value_parser = clap::value_parser!(u32).range(1..), conflicts_with = "offset")]
-    pub page: Option<u32>,
-    #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
-    pub limit: Option<u32>,
-    #[arg(long, conflicts_with = "page")]
-    pub offset: Option<u32>,
+    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u32).range(1..=100))]
+    pub limit: u32,
+    #[arg(long, default_value_t = 0)]
+    pub offset: u32,
     #[arg(long)]
     pub from: Option<String>,
     #[arg(long)]
@@ -615,18 +613,22 @@ mod tests {
             panic!("expected runs list command");
         };
 
-        assert_eq!(args.page, None);
-        assert_eq!(args.limit, Some(15));
-        assert_eq!(args.offset, Some(30));
+        assert_eq!(args.limit, 15);
+        assert_eq!(args.offset, 30);
     }
 
     #[test]
-    fn runs_list_rejects_offset_with_page() {
-        let err = Cli::try_parse_from(["everr", "runs", "list", "--page", "2", "--offset", "30"])
-            .expect_err("runs list should reject --page with --offset");
+    fn runs_list_defaults_to_limit_twenty_and_offset_zero() {
+        let cli = Cli::try_parse_from(["everr", "runs", "list"]).expect("runs list command");
 
-        let err_string = err.to_string();
-        assert!(err_string.contains("--page"));
-        assert!(err_string.contains("--offset"));
+        let Commands::Runs { command } = cli.command else {
+            panic!("expected runs command");
+        };
+        let RunsCommand::List(args) = command else {
+            panic!("expected runs list command");
+        };
+
+        assert_eq!(args.limit, 20);
+        assert_eq!(args.offset, 0);
     }
 }

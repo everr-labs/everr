@@ -63,7 +63,8 @@ fn runs_list_help_lists_limit_and_offset() {
         .assert()
         .success()
         .stdout(contains("--limit <LIMIT>"))
-        .stdout(contains("--offset <OFFSET>"));
+        .stdout(contains("--offset <OFFSET>"))
+        .stdout(predicates::str::contains("--page <PAGE>").not());
 }
 
 #[test]

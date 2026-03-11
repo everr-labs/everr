@@ -5,25 +5,19 @@ import { getWaitPipelineStatus } from "@/data/wait-pipeline";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 import { cliAuthMiddleware } from "./-auth";
 
-const RunsListQuerySchema = z
-  .object({
-    from: z.string().optional(),
-    to: z.string().optional(),
-    page: z.coerce.number().int().min(1).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional(),
-    offset: z.coerce.number().int().min(0).optional(),
-    repo: z.string().optional(),
-    branch: z.string().optional(),
-    conclusion: z.string().optional(),
-    workflowName: z.string().optional(),
-    runId: z.string().optional(),
-    commit: z.string().optional(),
-    waitMode: z.enum(["pipeline"]).optional(),
-  })
-  .refine((data) => !(data.page !== undefined && data.offset !== undefined), {
-    message: "Provide either page or offset, not both.",
-    path: ["offset"],
-  });
+const RunsListQuerySchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  repo: z.string().optional(),
+  branch: z.string().optional(),
+  conclusion: z.string().optional(),
+  workflowName: z.string().optional(),
+  runId: z.string().optional(),
+  commit: z.string().optional(),
+  waitMode: z.enum(["pipeline"]).optional(),
+});
 
 export const Route = createFileRoute("/api/cli/runs")({
   server: {
@@ -34,7 +28,6 @@ export const Route = createFileRoute("/api/cli/runs")({
         const parsed = RunsListQuerySchema.safeParse({
           from: url.searchParams.get("from") ?? undefined,
           to: url.searchParams.get("to") ?? undefined,
-          page: url.searchParams.get("page") ?? undefined,
           limit: url.searchParams.get("limit") ?? undefined,
           offset: url.searchParams.get("offset") ?? undefined,
           repo: url.searchParams.get("repo") ?? undefined,
@@ -50,7 +43,7 @@ export const Route = createFileRoute("/api/cli/runs")({
           return Response.json(
             {
               error:
-                "Invalid query parameters for runs listing. Check page, limit, offset, and filter values.",
+                "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
             },
             { status: 400 },
           );
@@ -85,7 +78,6 @@ export const Route = createFileRoute("/api/cli/runs")({
               from: data.from ?? DEFAULT_TIME_RANGE.from,
               to: data.to ?? DEFAULT_TIME_RANGE.to,
             },
-            page: data.page,
             limit: data.limit,
             offset: data.offset,
             repo: data.repo,
