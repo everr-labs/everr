@@ -1,4 +1,4 @@
 {
   "title": "Test Analytics",
-  "pages": ["index", "go-tests", "vitest"]
+  "pages": ["index", "go-tests", "rust-tests", "vitest"]
 }

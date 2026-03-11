@@ -6,6 +6,8 @@ import {
   getFailureRateColor,
   getSuccessRateVariant,
   parseDuration,
+  testNameLastSegment,
+  testNameSeparator,
 } from "./formatting";
 
 describe("formatDuration", () => {
@@ -182,5 +184,21 @@ describe("formatRelativeTime", () => {
 
   it("returns a safe placeholder for invalid timestamps", () => {
     expect(formatRelativeTime("not-a-date")).toBe("—");
+  });
+});
+
+describe("testNameSeparator", () => {
+  it("detects Vitest, Rust, and Go hierarchies", () => {
+    expect(testNameSeparator("pkg > suite > test")).toBe(" > ");
+    expect(testNameSeparator("suite::nested::test")).toBe("::");
+    expect(testNameSeparator("Suite/SubTest")).toBe("/");
+  });
+});
+
+describe("testNameLastSegment", () => {
+  it("returns the last segment across supported test hierarchies", () => {
+    expect(testNameLastSegment("pkg > suite > test")).toBe("test");
+    expect(testNameLastSegment("suite::nested::test")).toBe("test");
+    expect(testNameLastSegment("Suite/SubTest")).toBe("SubTest");
   });
 });

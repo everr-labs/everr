@@ -70,7 +70,7 @@ export function buildFilterConditions(
   }
 
   if (data.path) {
-    // name already contains the full test path for both vitest and Go tests
+    // name already contains the full test path for Vitest, Rust, and Go tests
     conditions.push("SpanAttributes['everr.test.name'] = {exactPath:String}");
     params.exactPath = data.path;
   } else if (data.pkg) {

@@ -38,7 +38,7 @@ jobs:
           workspaces: crates/everr-cli
 
       - name: Test
-        run: cargo test -p everr-cli --manifest-path Cargo.toml
+        run: cargo +nightly test -p everr-cli --manifest-path Cargo.toml -- --report-time -Z unstable-options
 
       - name: Build release binary
         run: cargo build --release -p everr-cli --manifest-path Cargo.toml

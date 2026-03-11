@@ -56,4 +56,31 @@ describe("buildTestPerformanceBreadcrumb", () => {
       { label: "SubTest", search: { pkg: "pkg", path: "Suite/SubTest" } },
     ]);
   });
+
+  it("builds nested rust-style segments", () => {
+    const result = buildTestPerformanceBreadcrumb({
+      pkg: "everr_core",
+      path: "assistant::tests::sync_assistants_updates_only_selected_targets",
+    });
+
+    expect(result).toEqual([
+      {
+        label: "Tests Overview",
+        search: { pkg: undefined, path: undefined },
+      },
+      { label: "everr_core", search: { pkg: "everr_core", path: undefined } },
+      { label: "assistant", search: { pkg: "everr_core", path: "assistant" } },
+      {
+        label: "tests",
+        search: { pkg: "everr_core", path: "assistant::tests" },
+      },
+      {
+        label: "sync_assistants_updates_only_selected_targets",
+        search: {
+          pkg: "everr_core",
+          path: "assistant::tests::sync_assistants_updates_only_selected_targets",
+        },
+      },
+    ]);
+  });
 });
