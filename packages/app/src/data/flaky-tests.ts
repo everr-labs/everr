@@ -367,6 +367,8 @@ const TestHistoryInputSchema = z
     testFullName: z.string().optional(),
     testModule: z.string().optional(),
     testName: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(100),
+    offset: z.coerce.number().int().min(0).default(0),
   })
   .superRefine((value, ctx) => {
     const hasFullName = Boolean(value.testFullName);
@@ -393,7 +395,15 @@ export const getTestHistory = createServerFn({
   .inputValidator(TestHistoryInputSchema)
   .handler(
     async ({
-      data: { timeRange, repo, testFullName, testModule, testName },
+      data: {
+        timeRange,
+        repo,
+        testFullName,
+        testModule,
+        testName,
+        limit = 100,
+        offset = 0,
+      },
     }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);
       const whereConditions = [
@@ -405,6 +415,8 @@ export const getTestHistory = createServerFn({
         repo,
         fromTime: fromISO,
         toTime: toISO,
+        limit,
+        offset,
       };
 
       if (testFullName) {
@@ -458,7 +470,7 @@ export const getTestHistory = createServerFn({
 				GROUP BY trace_id
 			)
 			ORDER BY timestamp DESC
-			LIMIT 100
+			LIMIT {limit:UInt32} OFFSET {offset:UInt32}
 		`;
 
       const result = await query<{

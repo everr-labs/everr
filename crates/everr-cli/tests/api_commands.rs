@@ -74,6 +74,7 @@ fn grep_defaults_repo_from_git_and_excludes_current_branch() {
             Matcher::UrlEncoded("stepNumber".into(), "5".into()),
             Matcher::UrlEncoded("excludeBranch".into(), "feature/current-issue".into()),
             Matcher::UrlEncoded("limit".into(), "20".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(r#"{"items":[]}"#)
@@ -116,6 +117,7 @@ fn grep_uses_explicit_branch_instead_of_auto_excluding_current_branch() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("pattern".into(), "panic".into()),
             Matcher::UrlEncoded("limit".into(), "5".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
             Matcher::UrlEncoded("branch".into(), "release/1.2".into()),
         ]))
         .with_status(200)
@@ -175,7 +177,8 @@ fn runs_list_sends_filter_query_params() {
             Matcher::UrlEncoded("conclusion".into(), "failure".into()),
             Matcher::UrlEncoded("workflowName".into(), "Build & Test App".into()),
             Matcher::UrlEncoded("runId".into(), "42".into()),
-            Matcher::UrlEncoded("page".into(), "2".into()),
+            Matcher::UrlEncoded("limit".into(), "20".into()),
+            Matcher::UrlEncoded("offset".into(), "20".into()),
             Matcher::UrlEncoded("from".into(), "now-2h".into()),
             Matcher::UrlEncoded("to".into(), "now".into()),
         ]))
@@ -196,8 +199,8 @@ fn runs_list_sends_filter_query_params() {
             "Build & Test App",
             "--run-id",
             "42",
-            "--page",
-            "2",
+            "--offset",
+            "20",
             "--from",
             "now-2h",
             "--to",
@@ -228,6 +231,8 @@ fn runs_list_defaults_branch_to_current_git_branch() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/default-branch".into()),
+            Matcher::UrlEncoded("limit".into(), "20".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(r#"{"runs":[],"totalCount":0}"#)
@@ -362,6 +367,8 @@ fn test_history_sends_expected_query_and_auth_header() {
             Matcher::UrlEncoded("testName".into(), "test".into()),
             Matcher::UrlEncoded("from".into(), "now-7d".into()),
             Matcher::UrlEncoded("to".into(), "now".into()),
+            Matcher::UrlEncoded("limit".into(), "100".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(r#"[{"traceId":"trace-1","testResult":"pass"}]"#)
@@ -405,6 +412,8 @@ fn test_history_supports_test_name_without_module() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("testName".into(), "my-test".into()),
+            Matcher::UrlEncoded("limit".into(), "100".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(r#"[]"#)
@@ -438,6 +447,8 @@ fn test_history_supports_module_without_test_name() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("testModule".into(), "suite".into()),
+            Matcher::UrlEncoded("limit".into(), "100".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(r#"[]"#)
@@ -502,6 +513,7 @@ fn slowest_tests_defaults_to_repo_wide_query_and_auth_header() {
             Matcher::UrlEncoded("from".into(), "now-24h".into()),
             Matcher::UrlEncoded("to".into(), "now".into()),
             Matcher::UrlEncoded("limit".into(), "15".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(
@@ -560,6 +572,7 @@ fn slowest_tests_respects_explicit_branch_filter() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "main".into()),
             Matcher::UrlEncoded("limit".into(), "10".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(
@@ -595,6 +608,7 @@ fn slowest_jobs_defaults_to_repo_wide_query_and_auth_header() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("limit".into(), "5".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(
@@ -631,6 +645,7 @@ fn slowest_jobs_respects_explicit_branch_filter() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "release".into()),
             Matcher::UrlEncoded("limit".into(), "10".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
         .with_status(200)
         .with_body(

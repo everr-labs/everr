@@ -43,6 +43,7 @@ describe("getSlowestTests", () => {
         repo: "everr-labs/everr",
         branch: "main",
         limit: 5,
+        offset: 2,
         timeRange: {
           from: "now-24h",
           to: "now",
@@ -61,11 +62,15 @@ describe("getSlowestTests", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "tuple(SpanAttributes['everr.test.package'], replaceAll(SpanAttributes['everr.test.parent_test'], ' > ', '/'))",
     );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
+    );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",
         branch: "main",
         limit: 5,
+        offset: 2,
       }),
     );
     expect(result).toEqual({
@@ -115,6 +120,7 @@ describe("getSlowestJobs", () => {
       data: {
         repo: "everr-labs/everr",
         limit: 3,
+        offset: 4,
         timeRange: {
           from: "now-7d",
           to: "now",
@@ -124,10 +130,14 @@ describe("getSlowestJobs", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("job_executions");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
+    );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",
         limit: 3,
+        offset: 4,
       }),
     );
     expect(result).toEqual({

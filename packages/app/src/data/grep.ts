@@ -27,6 +27,7 @@ const GrepInputSchema = z
     branch: z.string().min(1).optional(),
     excludeBranch: z.string().min(1).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
   })
   .refine(
     (data) => data.jobName === undefined || data.stepNumber !== undefined,
@@ -216,7 +217,7 @@ function buildBranchSummarySql(whereClause: string): string {
     FROM matching_occurrences
     GROUP BY branch
     ORDER BY last_seen DESC, occurrence_count DESC, branch ASC
-    LIMIT {limit:UInt32}
+    LIMIT {limit:UInt32} OFFSET {offset:UInt32}
   `;
 }
 
@@ -442,7 +443,8 @@ export const getGrepMatches = createServerFn({
       buildBranchSummarySql(whereClause),
       {
         ...params,
-        limit: data.limit,
+        limit: data.limit ?? 20,
+        offset: data.offset ?? 0,
       },
     );
 

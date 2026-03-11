@@ -62,7 +62,7 @@ describe("/api/cli/grep", () => {
 
     const response = await getHandler()({
       request: new Request(
-        "http://localhost/api/cli/grep?repo=everr-labs%2Feverr&pattern=panic&jobName=integration&stepNumber=5&excludeBranch=feature%2Fcurrent-issue",
+        "http://localhost/api/cli/grep?repo=everr-labs%2Feverr&pattern=panic&jobName=integration&stepNumber=5&excludeBranch=feature%2Fcurrent-issue&offset=9",
       ),
     });
 
@@ -76,6 +76,7 @@ describe("/api/cli/grep", () => {
         branch: undefined,
         excludeBranch: "feature/current-issue",
         limit: 20,
+        offset: 9,
         timeRange: {
           from: "now-7d",
           to: "now",
@@ -108,7 +109,7 @@ describe("/api/cli/grep", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error:
-        "Invalid query parameters. Required: repo, pattern. Optional: jobName and stepNumber together, branch, excludeBranch, from, to, limit.",
+        "Invalid query parameters. Required: repo, pattern. Optional: jobName and stepNumber together, branch, excludeBranch, from, to, limit, offset.",
     });
     expect(mockedGetGrepMatches).not.toHaveBeenCalled();
   });

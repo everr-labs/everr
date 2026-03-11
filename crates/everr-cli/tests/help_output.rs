@@ -48,8 +48,23 @@ fn grep_help_lists_job_name_and_step_number_filters() {
         .assert()
         .success()
         .stdout(contains("--job-name <JOB_NAME>"))
+        .stdout(contains("--limit <LIMIT>"))
+        .stdout(contains("--offset <OFFSET>"))
         .stdout(contains("--step-number <STEP_NUMBER>"))
         .stdout(predicates::str::contains("--step <STEP>").not());
+}
+
+#[test]
+fn runs_list_help_lists_limit_and_offset() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["runs", "list", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("--limit <LIMIT>"))
+        .stdout(contains("--offset <OFFSET>"))
+        .stdout(predicates::str::contains("--page <PAGE>").not());
 }
 
 #[test]

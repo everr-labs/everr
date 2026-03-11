@@ -15,6 +15,7 @@ const GrepQuerySchema = z
     from: z.string().optional(),
     to: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(100).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
   })
   .refine(
     (data) => data.jobName === undefined || data.stepNumber !== undefined,
@@ -51,13 +52,14 @@ export const Route = createFileRoute("/api/cli/grep")({
           from: url.searchParams.get("from") ?? undefined,
           to: url.searchParams.get("to") ?? undefined,
           limit: url.searchParams.get("limit") ?? undefined,
+          offset: url.searchParams.get("offset") ?? undefined,
         });
 
         if (!parsed.success) {
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: repo, pattern. Optional: jobName and stepNumber together, branch, excludeBranch, from, to, limit.",
+                "Invalid query parameters. Required: repo, pattern. Optional: jobName and stepNumber together, branch, excludeBranch, from, to, limit, offset.",
             },
             { status: 400 },
           );
@@ -81,6 +83,7 @@ export const Route = createFileRoute("/api/cli/grep")({
             branch: parsed.data.branch,
             excludeBranch: parsed.data.excludeBranch,
             limit: parsed.data.limit ?? 20,
+            offset: parsed.data.offset ?? 0,
             timeRange,
           },
         });

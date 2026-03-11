@@ -10,6 +10,7 @@ const SlowestTestsQuerySchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 });
 
 export const Route = createFileRoute("/api/cli/slowest-tests")({
@@ -24,24 +25,26 @@ export const Route = createFileRoute("/api/cli/slowest-tests")({
           from: url.searchParams.get("from") ?? undefined,
           to: url.searchParams.get("to") ?? undefined,
           limit: url.searchParams.get("limit") ?? undefined,
+          offset: url.searchParams.get("offset") ?? undefined,
         });
 
         if (!parsed.success) {
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: repo. Optional: branch, from, to, limit.",
+                "Invalid query parameters. Required: repo. Optional: branch, from, to, limit, offset.",
             },
             { status: 400 },
           );
         }
 
-        const { repo, branch, from, to, limit = 10 } = parsed.data;
+        const { repo, branch, from, to, limit = 10, offset = 0 } = parsed.data;
         const result = await getSlowestTests({
           data: {
             repo,
             branch,
             limit,
+            offset,
             timeRange: {
               from: from ?? DEFAULT_TIME_RANGE.from,
               to: to ?? DEFAULT_TIME_RANGE.to,
