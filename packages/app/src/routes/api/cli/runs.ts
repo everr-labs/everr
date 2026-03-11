@@ -25,6 +25,16 @@ export const Route = createFileRoute("/api/cli/runs")({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
+        if (url.searchParams.has("page")) {
+          return Response.json(
+            {
+              error:
+                "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
+            },
+            { status: 400 },
+          );
+        }
+
         const parsed = RunsListQuerySchema.safeParse({
           from: url.searchParams.get("from") ?? undefined,
           to: url.searchParams.get("to") ?? undefined,
