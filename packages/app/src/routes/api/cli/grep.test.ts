@@ -57,7 +57,6 @@ describe("/api/cli/grep", () => {
         to: "now",
       },
       limit: 20,
-      offset: 9,
       items: [],
     });
 
@@ -96,7 +95,6 @@ describe("/api/cli/grep", () => {
         to: "now",
       },
       limit: 20,
-      offset: 9,
       items: [],
     });
   });
