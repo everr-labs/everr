@@ -344,7 +344,7 @@ func TestSpanGenerationJavaScriptFile(t *testing.T) {
 	assert.Equal(t, "javascript", language.Str())
 }
 
-func TestSpanGenerationMixedLanguagesOmitsResourceLanguage(t *testing.T) {
+func TestSpanGenerationMixedLanguagesDefaultsResourceLanguageToTypeScript(t *testing.T) {
 	logger := zap.NewNop()
 	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	stepSpanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
@@ -368,8 +368,9 @@ func TestSpanGenerationMixedLanguagesOmitsResourceLanguage(t *testing.T) {
 	assert.Equal(t, 4, traces.SpanCount())
 
 	traceResourceAttrs := traces.ResourceSpans().At(0).Resource().Attributes()
-	_, ok := traceResourceAttrs.Get(semconv.EverrTestLanguage)
-	assert.False(t, ok)
+	resourceLanguage, ok := traceResourceAttrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "typescript", resourceLanguage.Str())
 
 	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 	spanLanguages := make(map[string]string)
@@ -480,17 +481,13 @@ func TestDetectTestLanguage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			language, ok := detectTestLanguage(tt.testFile)
-			require.True(t, ok)
-			assert.Equal(t, tt.expected, language)
+			assert.Equal(t, tt.expected, detectTestLanguage(tt.testFile))
 		})
 	}
 }
 
 func TestDetectTestLanguageUnknownExtension(t *testing.T) {
-	language, ok := detectTestLanguage("src/example.test")
-	assert.False(t, ok)
-	assert.Empty(t, language)
+	assert.Equal(t, "typescript", detectTestLanguage("src/example.test"))
 }
 
 func TestUniqueSpanIDs(t *testing.T) {

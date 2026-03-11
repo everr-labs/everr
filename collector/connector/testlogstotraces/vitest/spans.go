@@ -34,9 +34,7 @@ func GenerateSpans(ctx *gotest.TestParseContext, resourceAttrs pcommon.Map) *ptr
 	traceResourceAttrs := resourceSpans.Resource().Attributes()
 	resourceAttrs.CopyTo(traceResourceAttrs)
 	traceResourceAttrs.PutStr(semconv.EverrTestFramework, testFramework)
-	if language, ok := detectTraceLanguage(ctx.RootTests); ok {
-		traceResourceAttrs.PutStr(semconv.EverrTestLanguage, language)
-	}
+	traceResourceAttrs.PutStr(semconv.EverrTestLanguage, detectTraceLanguage(ctx.RootTests))
 
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	scopeSpans.Scope().SetName("vitest")
@@ -87,9 +85,7 @@ func createTestSpan(ctx *gotest.TestParseContext, scopeSpans ptrace.ScopeSpans, 
 	attrs.PutStr(semconv.EverrTestResult, string(test.Result))
 	attrs.PutDouble(semconv.EverrTestDurationSeconds, test.Duration.Seconds())
 	attrs.PutStr(semconv.EverrTestFramework, testFramework)
-	if language, ok := detectTestLanguage(test.Package); ok {
-		attrs.PutStr(semconv.EverrTestLanguage, language)
-	}
+	attrs.PutStr(semconv.EverrTestLanguage, detectTestLanguage(test.Package))
 	attrs.PutBool(semconv.EverrTestIsSubtest, test.IsSubtest())
 	attrs.PutBool(semconv.EverrTestIsSuite, test.IsSuite())
 
@@ -107,45 +103,36 @@ func createTestSpan(ctx *gotest.TestParseContext, scopeSpans ptrace.ScopeSpans, 
 	}
 }
 
-func detectTraceLanguage(tests []*gotest.TestInfo) (string, bool) {
-	var detectedLanguage string
+func detectTraceLanguage(tests []*gotest.TestInfo) string {
+	hasJavaScript := false
+	hasTypeScript := false
 
-	var visit func([]*gotest.TestInfo) bool
-	visit = func(tests []*gotest.TestInfo) bool {
+	var visit func([]*gotest.TestInfo)
+	visit = func(tests []*gotest.TestInfo) {
 		for _, test := range tests {
-			language, ok := detectTestLanguage(test.Package)
-			if !ok {
-				return false
+			if detectTestLanguage(test.Package) == javascriptLanguage {
+				hasJavaScript = true
+			} else {
+				hasTypeScript = true
 			}
 
-			if detectedLanguage == "" {
-				detectedLanguage = language
-			} else if detectedLanguage != language {
-				return false
-			}
-
-			if !visit(test.Subtests) {
-				return false
-			}
+			visit(test.Subtests)
 		}
-
-		return true
 	}
 
-	if !visit(tests) || detectedLanguage == "" {
-		return "", false
+	visit(tests)
+	if hasJavaScript && !hasTypeScript {
+		return javascriptLanguage
 	}
 
-	return detectedLanguage, true
+	return typescriptLanguage
 }
 
-func detectTestLanguage(testFile string) (string, bool) {
+func detectTestLanguage(testFile string) string {
 	switch strings.ToLower(filepath.Ext(testFile)) {
-	case ".ts", ".tsx", ".mts", ".cts":
-		return typescriptLanguage, true
 	case ".js", ".jsx", ".mjs", ".cjs":
-		return javascriptLanguage, true
+		return javascriptLanguage
 	default:
-		return "", false
+		return typescriptLanguage
 	}
 }
