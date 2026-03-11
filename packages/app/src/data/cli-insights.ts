@@ -9,6 +9,7 @@ const SlowestQueryInputSchema = z.object({
   repo: z.string().min(1),
   branch: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(10),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 export type SlowestQueryInput = z.infer<typeof SlowestQueryInputSchema>;
@@ -66,6 +67,8 @@ export const getSlowestTests = createServerFn({
 })
   .inputValidator(SlowestQueryInputSchema)
   .handler(async ({ data }) => {
+    const limit = data.limit ?? 10;
+    const offset = data.offset ?? 0;
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const conditions = [
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
@@ -78,7 +81,8 @@ export const getSlowestTests = createServerFn({
       fromTime: fromISO,
       toTime: toISO,
       repo: data.repo,
-      limit: data.limit,
+      limit,
+      offset,
     };
     const leafScopeConditions = [
       "ResourceAttributes['vcs.repository.name'] = {repo:String}",
@@ -136,7 +140,7 @@ export const getSlowestTests = createServerFn({
         p95_duration DESC,
         executions DESC,
         test_full_name ASC
-      LIMIT {limit:UInt32}
+      LIMIT {limit:UInt32} OFFSET {offset:UInt32}
     `;
 
     const result = await query<{
@@ -156,7 +160,7 @@ export const getSlowestTests = createServerFn({
       repo: data.repo,
       branch: data.branch ?? null,
       timeRange: data.timeRange,
-      limit: data.limit,
+      limit,
       items: result.map((row) => ({
         testPackage: row.test_package,
         testFullName: row.test_full_name,
@@ -177,6 +181,8 @@ export const getSlowestJobs = createServerFn({
 })
   .inputValidator(SlowestQueryInputSchema)
   .handler(async ({ data }) => {
+    const limit = data.limit ?? 10;
+    const offset = data.offset ?? 0;
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const conditions = [
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
@@ -189,7 +195,8 @@ export const getSlowestJobs = createServerFn({
       fromTime: fromISO,
       toTime: toISO,
       repo: data.repo,
-      limit: data.limit,
+      limit,
+      offset,
     };
 
     if (data.branch) {
@@ -234,7 +241,7 @@ export const getSlowestJobs = createServerFn({
         executions DESC,
         workflow_name ASC,
         job_name ASC
-      LIMIT {limit:UInt32}
+      LIMIT {limit:UInt32} OFFSET {offset:UInt32}
     `;
 
     const result = await query<{
@@ -254,7 +261,7 @@ export const getSlowestJobs = createServerFn({
       repo: data.repo,
       branch: data.branch ?? null,
       timeRange: data.timeRange,
-      limit: data.limit,
+      limit,
       items: result.map((row) => ({
         workflowName: row.workflow_name || "Workflow",
         jobName: row.job_name || "Job",

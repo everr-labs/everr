@@ -58,6 +58,7 @@ describe("getGrepMatches", () => {
         stepNumber: "5",
         excludeBranch: "feature/current-issue",
         limit: 20,
+        offset: 7,
         timeRange: {
           from: "now-30d",
           to: "now",
@@ -81,6 +82,9 @@ describe("getGrepMatches", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "t.ResourceAttributes['vcs.ref.head.name'] != {excludeBranch:String}",
     );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
+    );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",
@@ -89,6 +93,7 @@ describe("getGrepMatches", () => {
         stepNumber: "5",
         excludeBranch: "feature/current-issue",
         limit: 20,
+        offset: 7,
       }),
     );
     expect(mockedQuery.mock.calls[1]?.[1]).toEqual(
@@ -166,6 +171,7 @@ describe("getGrepMatches", () => {
         pattern: "panic",
         branch: "release/1.2",
         limit: 5,
+        offset: 0,
         timeRange: {
           from: "now-7d",
           to: "now",
@@ -185,6 +191,7 @@ describe("getGrepMatches", () => {
         pattern: "panic",
         branch: "release/1.2",
         limit: 5,
+        offset: 0,
       }),
     );
   });
@@ -350,6 +357,7 @@ describe("getGrepMatches", () => {
         repo: "everr-labs/everr",
         pattern: "panic",
         limit: 20,
+        offset: 0,
         timeRange: {
           from: "now-30d",
           to: "now",
@@ -381,6 +389,7 @@ describe("getGrepMatches", () => {
         repo: "everr-labs/everr",
         pattern: "panic",
         limit: 20,
+        offset: 0,
         timeRange: {
           from: "now-30d",
           to: "now",
@@ -399,6 +408,7 @@ describe("getGrepMatches", () => {
           repo: "everr-labs/everr",
           pattern: "panic",
           limit: 20,
+          offset: 0,
           timeRange: {
             from: "now-31d",
             to: "now",

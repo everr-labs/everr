@@ -11,6 +11,8 @@ const TestHistoryQuerySchema = z.object({
   testName: z.string().min(1).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 });
 
 export const Route = createFileRoute("/api/cli/test-history")({
@@ -26,20 +28,30 @@ export const Route = createFileRoute("/api/cli/test-history")({
           testName: url.searchParams.get("testName") ?? undefined,
           from: url.searchParams.get("from") ?? undefined,
           to: url.searchParams.get("to") ?? undefined,
+          limit: url.searchParams.get("limit") ?? undefined,
+          offset: url.searchParams.get("offset") ?? undefined,
         });
 
         if (!parsed.success) {
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: repo and at least one of testModule/testName/testFullName. Optional: from, to.",
+                "Invalid query parameters. Required: repo and at least one of testModule/testName/testFullName. Optional: from, to, limit, offset.",
             },
             { status: 400 },
           );
         }
 
-        const { repo, testFullName, testModule, testName, from, to } =
-          parsed.data;
+        const {
+          repo,
+          testFullName,
+          testModule,
+          testName,
+          from,
+          to,
+          limit = 100,
+          offset = 0,
+        } = parsed.data;
         if (!testModule && !testName && !testFullName) {
           return Response.json(
             {
@@ -56,6 +68,8 @@ export const Route = createFileRoute("/api/cli/test-history")({
             testFullName,
             testModule,
             testName,
+            limit,
+            offset,
             timeRange: {
               from: from ?? DEFAULT_TIME_RANGE.from,
               to: to ?? DEFAULT_TIME_RANGE.to,

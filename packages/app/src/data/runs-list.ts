@@ -33,16 +33,36 @@ export interface FailingStepSummary {
   stepName: string;
 }
 
-const RunsListInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  page: z.coerce.number().int().min(1),
-  pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  repo: z.string().optional(),
-  branch: z.string().optional(),
-  conclusion: z.string().optional(),
-  workflowName: z.string().optional(),
-  runId: z.string().optional(),
-});
+const RunsListInputSchema = z
+  .object({
+    timeRange: TimeRangeSchema,
+    page: z.coerce.number().int().min(1).optional(),
+    pageSize: z.coerce.number().int().min(1).max(100).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+    repo: z.string().optional(),
+    branch: z.string().optional(),
+    conclusion: z.string().optional(),
+    workflowName: z.string().optional(),
+    runId: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.page !== undefined && value.offset !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide either page or offset, not both.",
+        path: ["offset"],
+      });
+    }
+
+    if (value.limit !== undefined && value.pageSize !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide either limit or pageSize, not both.",
+        path: ["limit"],
+      });
+    }
+  });
 export type RunsListInput = z.infer<typeof RunsListInputSchema>;
 
 export const getRunsList = createServerFn({
@@ -51,8 +71,8 @@ export const getRunsList = createServerFn({
   .inputValidator(RunsListInputSchema)
   .handler(async ({ data }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const pageSize = data.pageSize ?? 20;
-    const offset = (data.page - 1) * pageSize;
+    const limit = data.limit ?? data.pageSize ?? 20;
+    const offset = data.offset ?? ((data.page ?? 1) - 1) * limit;
 
     const conditions: string[] = [
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
@@ -64,7 +84,7 @@ export const getRunsList = createServerFn({
     const params: Record<string, unknown> = {
       fromTime: fromISO,
       toTime: toISO,
-      pageSize,
+      limit,
       offset,
     };
 
@@ -116,7 +136,7 @@ export const getRunsList = createServerFn({
         FROM (${runSummarySql})
         ${conclusionClause}
 				ORDER BY timestamp DESC
-				LIMIT {pageSize:UInt32} OFFSET {offset:UInt32}
+				LIMIT {limit:UInt32} OFFSET {offset:UInt32}
 			`;
 
     const countSql = `

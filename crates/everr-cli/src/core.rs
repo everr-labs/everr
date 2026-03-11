@@ -45,11 +45,8 @@ pub async fn grep(args: GrepArgs) -> Result<()> {
     let branch = args.branch;
     let exclude_branch = if branch.is_some() { None } else { git.branch };
 
-    let mut query: Vec<(&str, String)> = vec![
-        ("repo", repo),
-        ("pattern", args.pattern),
-        ("limit", args.limit.to_string()),
-    ];
+    let mut query: Vec<(&str, String)> = vec![("repo", repo), ("pattern", args.pattern)];
+    push_pagination(&mut query, args.limit, args.offset);
     push_opt(&mut query, "jobName", args.job_name);
     push_opt(&mut query, "stepNumber", args.step_number);
     push_opt(&mut query, "branch", branch);
@@ -70,15 +67,20 @@ pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
     let repo = args.repo.or(git.repo);
     let branch = args.branch.or(git.branch);
 
+    let limit = args.limit.unwrap_or(20);
+    let offset = args.offset.unwrap_or_else(|| {
+        args.page
+            .map(|page| page.saturating_sub(1).saturating_mul(limit))
+            .unwrap_or(0)
+    });
+
     let mut query: Vec<(&str, String)> = Vec::new();
     push_opt(&mut query, "repo", repo);
     push_opt(&mut query, "branch", branch);
     push_opt(&mut query, "conclusion", args.conclusion);
     push_opt(&mut query, "workflowName", args.workflow_name);
     push_opt(&mut query, "runId", args.run_id);
-    if let Some(page) = args.page {
-        query.push(("page", page.to_string()));
-    }
+    push_pagination(&mut query, limit, offset);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
 
@@ -124,6 +126,7 @@ pub async fn test_history(args: TestHistoryArgs) -> Result<()> {
     push_opt(&mut query, "testName", args.test_name);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
+    push_pagination(&mut query, args.limit, args.offset);
 
     let payload = client.get_test_history(&query).await?;
     print_json(&payload)?;
@@ -139,7 +142,8 @@ pub async fn slowest_tests(args: SlowestTestsArgs) -> Result<()> {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
 
-    let mut query: Vec<(&str, String)> = vec![("repo", repo), ("limit", args.limit.to_string())];
+    let mut query: Vec<(&str, String)> = vec![("repo", repo)];
+    push_pagination(&mut query, args.limit, args.offset);
     push_opt(&mut query, "branch", args.branch);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
@@ -158,7 +162,8 @@ pub async fn slowest_jobs(args: SlowestJobsArgs) -> Result<()> {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
 
-    let mut query: Vec<(&str, String)> = vec![("repo", repo), ("limit", args.limit.to_string())];
+    let mut query: Vec<(&str, String)> = vec![("repo", repo)];
+    push_pagination(&mut query, args.limit, args.offset);
     push_opt(&mut query, "branch", args.branch);
     push_opt(&mut query, "from", args.from);
     push_opt(&mut query, "to", args.to);
@@ -458,11 +463,16 @@ fn push_opt(query: &mut Vec<(&str, String)>, key: &'static str, value: Option<St
     }
 }
 
+fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
+    query.push(("limit", limit.to_string()));
+    query.push(("offset", offset.to_string()));
+}
+
 #[cfg(test)]
 mod tests {
     use everr_core::git::parse_repo_from_remote_url;
 
-    use super::{WaitRunStatus, format_wait_status, push_opt};
+    use super::{WaitRunStatus, format_wait_status, push_opt, push_pagination};
 
     #[test]
     fn parse_repo_from_remote_rejects_invalid_values() {
@@ -481,6 +491,17 @@ mod tests {
         push_opt(&mut query, "branch", None);
 
         assert_eq!(query, vec![("repo", "everr-labs/everr".to_string())]);
+    }
+
+    #[test]
+    fn push_pagination_always_includes_limit_and_offset() {
+        let mut query = Vec::new();
+        push_pagination(&mut query, 25, 50);
+
+        assert_eq!(
+            query,
+            vec![("limit", "25".to_string()), ("offset", "50".to_string())]
+        );
     }
 
     #[test]

@@ -14,6 +14,8 @@ Quick commands:
 - `everr slowest-jobs`: shows repo-wide aggregates by default; add `--branch <name>` to scope it
 - `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit
 
+Collection-style commands support `--limit <n>` and `--offset <n>` for pagination. `everr runs list` also keeps `--page <n>` for compatibility.
+
 Output schema notes:
 - All commands print JSON.
 - `status`: `{ status, repo, branch, mainBranch, inspectedRuns, latestPipeline, failingPipelines, slowdown, message }`
