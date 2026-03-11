@@ -607,12 +607,14 @@ function CodeAssistantViz() {
           Background terminal finished with everr status
         </p>
         <p>
-          CI is currently failing. I&apos;m drilling into that run to identify
-          the exact failing job and step, then pulling step logs.
+          CI is currently failing. `everr status` already returned the failing
+          step and log arguments, so I&apos;m pulling that step&apos;s logs
+          directly.
         </p>
         <p className="truncate text-fd-muted-foreground">
-          Background terminal finished with everr runs show --trace-id
-          c929f40ec0632c976134b35d0b87699a
+          Background terminal finished with everr runs logs --trace-id
+          c929f40ec0632c976134b35d0b87699a --job-name "E2E tests" --step-number
+          12
         </p>
         <p>
           Found failing step{" "}

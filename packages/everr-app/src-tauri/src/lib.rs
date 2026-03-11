@@ -1016,7 +1016,7 @@ fn build_test_notification() -> Result<FailureNotification> {
         step_name: Some("Preview desktop notification".to_string()),
         auto_fix_prompt: Some(
             format!(
-                "Investigate and fix this unresolved CI pipeline failure.\nUse Everr CLI from the current project directory before guessing.\n\nRequired workflow:\n- Run `everr status` first.\n- Inspect the failing run with `everr runs show --trace-id {trace_id}`.\n- Pull logs with `everr runs logs --trace-id {trace_id} --job-name \"Developer settings\" --step-number 1`.\n- Make the smallest repo-local fix that addresses the root cause.\n- Run the narrowest relevant test or check before finishing.\n\nCurrent unresolved failure:\n- branch {branch} | workflow Test notification | trace {trace_id} | step Developer settings #1 (Preview desktop notification)\n\nReturn a concise summary with root cause, code changes, verification, and any follow-up risk."
+                "Investigate and fix this unresolved CI pipeline failure.\nUse Everr CLI from the current project directory before guessing.\n\nRequired workflow:\n- Start by pulling logs with this exact command:\n  `everr runs logs --trace-id {trace_id} --job-name \"Developer settings\" --step-number 1`\n- Make the smallest repo-local fix that addresses the root cause.\n- Run the narrowest relevant test or check before finishing.\n\nCurrent unresolved failure:\n- branch {branch} | workflow Test notification | trace {trace_id} | step Developer settings #1 (Preview desktop notification)\n\nReturn a concise summary with root cause, code changes, verification, and any follow-up risk."
             ),
         ),
     })

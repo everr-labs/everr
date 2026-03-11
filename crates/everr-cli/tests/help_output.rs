@@ -63,8 +63,22 @@ fn runs_list_help_lists_limit_and_offset() {
         .assert()
         .success()
         .stdout(contains("--limit <LIMIT>"))
-        .stdout(contains("--offset <OFFSET>"))
-        .stdout(predicates::str::contains("--page <PAGE>").not());
+        .stdout(contains("--offset <OFFSET>"));
+}
+
+#[test]
+fn status_help_does_not_list_removed_main_branch_flag() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["status", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("--repo <REPO>"))
+        .stdout(contains("--branch <BRANCH>"))
+        .stdout(contains("--from <FROM>"))
+        .stdout(contains("--to <TO>"))
+        .stdout(predicates::str::contains("--main-branch").not());
 }
 
 #[test]

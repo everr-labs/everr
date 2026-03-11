@@ -214,6 +214,7 @@ describe("/api/cli/tray-status", () => {
     mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([]);
+    mockedQuery.mockResolvedValueOnce([]);
 
     const handler = getHandler();
     const response = await handler({
@@ -251,9 +252,16 @@ describe("/api/cli/tray-status", () => {
       {
         trace_id: "trace-123",
         jobId: "job-1",
+      },
+    ]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        trace_id: "trace-123",
+        jobId: "job-1",
         jobName: "test",
         stepName: "Run suite",
         stepNumber: "3",
+        conclusion: "failure",
       },
     ]);
 
@@ -280,10 +288,10 @@ describe("/api/cli/tray-status", () => {
       step_name: "Run suite",
     });
     expect(payload.auto_fix_prompt).toContain(
-      "everr runs show --trace-id <trace_id>",
+      "Start by pulling logs with the exact `everr runs logs` command listed for each failure below.",
     );
     expect(payload.auto_fix_prompt).toContain(
-      "everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>",
+      'everr runs logs --trace-id trace-123 --job-name "test" --step-number 3',
     );
     expect(payload.auto_fix_prompt).toContain("trace-123");
     expect(payload.auto_fix_prompt).toContain("feature/granola");
