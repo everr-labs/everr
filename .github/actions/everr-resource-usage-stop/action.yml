@@ -1,0 +1,54 @@
+name: Everr Resource Usage Stop
+description: Stop background resource-usage sampling and prepare a partial artifact
+
+inputs:
+  check-run-id:
+    description: GitHub check run id for the current job
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        if [[ "${EVERR_RESOURCE_USAGE_ENABLED:-0}" != "1" ]]; then
+          echo "EVERR_RESOURCE_USAGE_PARTIAL_DIR=" >> "$GITHUB_ENV"
+          exit 0
+        fi
+
+        pid_path="${EVERR_RESOURCE_USAGE_PID_PATH:-}"
+        samples_path="${EVERR_RESOURCE_USAGE_SAMPLES_PATH:-}"
+        partial_dir="${RUNNER_TEMP}/everr-resource-usage-partials/${{ inputs.check-run-id }}"
+        completed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+        mkdir -p "$partial_dir"
+        if [[ -n "$samples_path" && ! -f "$samples_path" ]]; then
+          : > "$samples_path"
+        fi
+
+        if [[ -n "$pid_path" && -f "$pid_path" ]]; then
+          pid="$(cat "$pid_path")"
+          if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          fi
+        fi
+
+        node "$GITHUB_ACTION_PATH/../everr-resource-usage/scripts/finalize.mjs" \
+          --samples-path "$samples_path" \
+          --output-dir "$partial_dir" \
+          --check-run-id "${{ inputs.check-run-id }}" \
+          --repo "${GITHUB_REPOSITORY}" \
+          --run-id "${GITHUB_RUN_ID}" \
+          --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+          --github-job "${GITHUB_JOB}" \
+          --sample-interval-seconds "${EVERR_RESOURCE_USAGE_INTERVAL_SECONDS:-5}" \
+          --runner-name "${RUNNER_NAME:-}" \
+          --runner-os "${RUNNER_OS:-}" \
+          --runner-arch "${RUNNER_ARCH:-}" \
+          --started-at "${EVERR_RESOURCE_USAGE_STARTED_AT:-$completed_at}" \
+          --completed-at "$completed_at"
+
+        echo "EVERR_RESOURCE_USAGE_PARTIAL_DIR=$partial_dir" >> "$GITHUB_ENV"
