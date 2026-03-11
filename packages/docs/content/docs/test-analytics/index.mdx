@@ -18,7 +18,7 @@ Everr can parse verbose test output from your CI workflow logs and generate Open
 | Framework | Flag | Status |
 |-----------|------|--------|
 | [Go tests](/docs/test-analytics/go-tests) | `go test -v` | Supported |
-| [Rust tests](/docs/test-analytics/rust-tests) | `cargo test -- --report-time -Z unstable-options` | Supported |
+| [Rust tests](/docs/test-analytics/rust-tests) | `cargo +nightly test -- --report-time -Z unstable-options` | Supported |
 | [Vitest](/docs/test-analytics/vitest) | `--reporter=verbose` | Supported |
 
 More test frameworks will be supported in the future.
