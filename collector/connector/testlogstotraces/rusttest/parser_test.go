@@ -214,6 +214,15 @@ func TestSpanGeneration(t *testing.T) {
 	assert.Equal(t, traceID, passSpan.TraceID())
 	assert.Equal(t, ptrace.StatusCodeUnset, passSpan.Status().Code())
 
+	traceResourceAttrs := traces.ResourceSpans().At(0).Resource().Attributes()
+	resourceFramework, ok := traceResourceAttrs.Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "rust", resourceFramework.Str())
+
+	resourceLanguage, ok := traceResourceAttrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "rust", resourceLanguage.Str())
+
 	attrs := passSpan.Attributes()
 	testName, ok := attrs.Get(semconv.EverrTestName)
 	require.True(t, ok)
@@ -226,6 +235,10 @@ func TestSpanGeneration(t *testing.T) {
 	framework, ok := attrs.Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "rust", framework.Str())
+
+	language, ok := attrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "rust", language.Str())
 
 	pkg, ok := attrs.Get(semconv.EverrTestPackage)
 	require.True(t, ok)

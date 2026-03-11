@@ -50,6 +50,7 @@ describe("getRunSpans", () => {
         testResult: "pass",
         testDuration: "1",
         testFramework: "vitest",
+        testLanguage: "typescript",
         isSubtest: "1",
         isSuite: "true",
       },
@@ -59,6 +60,8 @@ describe("getRunSpans", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("everr.test.is_suite");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ResourceAttributes['everr.test.framework']");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ResourceAttributes['everr.test.language']");
     expect(result).toEqual([
       {
         spanId: "suite-span",
@@ -83,6 +86,7 @@ describe("getRunSpans", () => {
         testResult: "pass",
         testDuration: 1,
         testFramework: "vitest",
+        testLanguage: "typescript",
         isSubtest: true,
         isSuite: true,
       },

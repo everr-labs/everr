@@ -232,6 +232,15 @@ func TestSpanGeneration(t *testing.T) {
 	// Verify span structure
 	resourceSpans := traces.ResourceSpans()
 	require.Equal(t, 1, resourceSpans.Len())
+	traceResourceAttrs := resourceSpans.At(0).Resource().Attributes()
+
+	resourceFramework, ok := traceResourceAttrs.Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "go", resourceFramework.Str())
+
+	resourceLanguage, ok := traceResourceAttrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "go", resourceLanguage.Str())
 
 	scopeSpans := resourceSpans.At(0).ScopeSpans()
 	require.Equal(t, 1, scopeSpans.Len())
@@ -270,6 +279,10 @@ func TestSpanGeneration(t *testing.T) {
 	framework, ok := fooAttrs.Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "go", framework.Str())
+
+	language, ok := fooAttrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "go", language.Str())
 
 	isSuite, ok := fooAttrs.Get(semconv.EverrTestIsSuite)
 	require.True(t, ok)

@@ -106,6 +106,14 @@ func TestConnectorGoTestPatterns(t *testing.T) {
 	assert.Equal(t, spanID, fooSpan.ParentSpanID())
 	assert.Equal(t, ptrace.StatusCodeUnset, fooSpan.Status().Code())
 
+	framework, ok := fooSpan.Attributes().Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "go", framework.Str())
+
+	language, ok := fooSpan.Attributes().Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "go", language.Str())
+
 	require.NotEqual(t, ptrace.Span{}, barSpan, "TestBar span not found")
 	assert.Equal(t, ptrace.StatusCodeError, barSpan.Status().Code())
 }
@@ -173,6 +181,10 @@ func TestConnectorVitestPatterns(t *testing.T) {
 	framework, ok := passSpan.Attributes().Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "vitest", framework.Str())
+
+	language, ok := passSpan.Attributes().Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "typescript", language.Str())
 }
 
 func TestConnectorVitestPatternsWithWorkspacePrefixAndANSI(t *testing.T) {
@@ -262,6 +274,10 @@ func TestConnectorRustTestPatterns(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "rust", framework.Str())
 
+	language, ok := passSpan.Attributes().Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "rust", language.Str())
+
 	duration, ok := passSpan.Attributes().Get(semconv.EverrTestDurationSeconds)
 	require.True(t, ok)
 	assert.InDelta(t, 0.055, duration.Double(), 0.0001)
@@ -339,6 +355,14 @@ func TestConnectorResourceAttributesPropagated(t *testing.T) {
 	ciSystem, ok := attrs.Get(string(conventions.VCSProviderNameKey))
 	require.True(t, ok)
 	assert.Equal(t, "github", ciSystem.Str())
+
+	framework, ok := attrs.Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "go", framework.Str())
+
+	language, ok := attrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "go", language.Str())
 }
 
 func TestConnectorSubtestHierarchy(t *testing.T) {

@@ -253,6 +253,15 @@ func TestSpanGeneration(t *testing.T) {
 	// Verify span structure
 	resourceSpans := traces.ResourceSpans()
 	require.Equal(t, 1, resourceSpans.Len())
+	traceResourceAttrs := resourceSpans.At(0).Resource().Attributes()
+
+	resourceFramework, ok := traceResourceAttrs.Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "vitest", resourceFramework.Str())
+
+	resourceLanguage, ok := traceResourceAttrs.Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "typescript", resourceLanguage.Str())
 
 	scopeSpans := resourceSpans.At(0).ScopeSpans()
 	require.Equal(t, 1, scopeSpans.Len())
@@ -287,6 +296,10 @@ func TestSpanGeneration(t *testing.T) {
 	framework, ok := passSpan.Attributes().Get(semconv.EverrTestFramework)
 	require.True(t, ok)
 	assert.Equal(t, "vitest", framework.Str())
+
+	language, ok := passSpan.Attributes().Get(semconv.EverrTestLanguage)
+	require.True(t, ok)
+	assert.Equal(t, "typescript", language.Str())
 
 	isSuite, ok = passSpan.Attributes().Get(semconv.EverrTestIsSuite)
 	require.True(t, ok)

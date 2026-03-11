@@ -440,5 +440,33 @@ describe("TraceWaterfall", () => {
 
       expect(screen.getByText("Suite, Subtest")).toBeInTheDocument();
     });
+
+    it("shows framework and language in the detail panel for test spans", async () => {
+      const user = userEvent.setup();
+      const spans: Span[] = [
+        makeSpan({
+          spanId: "typed-test",
+          name: "formats milliseconds",
+          testName: "src/test.ts > formatDuration > formats milliseconds",
+          testResult: "pass",
+          testFramework: "vitest",
+          testLanguage: "typescript",
+        }),
+      ];
+
+      render(<TraceWaterfall spans={spans} traceId="t1" />);
+
+      await user.click(
+        screen.getByRole("button", { name: /formats milliseconds/ }),
+      );
+
+      const frameworkRow = screen.getByText("Framework").parentElement;
+      assert(frameworkRow instanceof HTMLElement, "expected framework row");
+      expect(within(frameworkRow).getByText("vitest")).toBeInTheDocument();
+
+      const languageRow = screen.getByText("Language").parentElement;
+      assert(languageRow instanceof HTMLElement, "expected language row");
+      expect(within(languageRow).getByText("typescript")).toBeInTheDocument();
+    });
   });
 });

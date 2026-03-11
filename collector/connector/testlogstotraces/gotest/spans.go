@@ -12,6 +12,11 @@ import (
 	"github.com/everr-labs/everr/collector/semconv"
 )
 
+const (
+	testFramework = "go"
+	testLanguage  = "go"
+)
+
 // GenerateSpans creates OpenTelemetry spans from parsed test results.
 // Returns a ptrace.Traces containing all test spans, or nil if no tests were detected.
 // The resourceAttrs parameter provides resource-level attributes to copy to the test traces.
@@ -24,7 +29,10 @@ func (ctx *TestParseContext) GenerateSpans(resourceAttrs pcommon.Map) *ptrace.Tr
 	resourceSpans := traces.ResourceSpans().AppendEmpty()
 
 	// Copy resource attributes from the parent traces
-	resourceAttrs.CopyTo(resourceSpans.Resource().Attributes())
+	traceResourceAttrs := resourceSpans.Resource().Attributes()
+	resourceAttrs.CopyTo(traceResourceAttrs)
+	traceResourceAttrs.PutStr(semconv.EverrTestFramework, testFramework)
+	traceResourceAttrs.PutStr(semconv.EverrTestLanguage, testLanguage)
 
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	scopeSpans.Scope().SetName("gotest")
@@ -75,7 +83,8 @@ func (ctx *TestParseContext) createTestSpan(scopeSpans ptrace.ScopeSpans, test *
 	attrs.PutStr(semconv.EverrTestName, test.Name)
 	attrs.PutStr(semconv.EverrTestResult, string(test.Result))
 	attrs.PutDouble(semconv.EverrTestDurationSeconds, test.Duration.Seconds())
-	attrs.PutStr(semconv.EverrTestFramework, "go")
+	attrs.PutStr(semconv.EverrTestFramework, testFramework)
+	attrs.PutStr(semconv.EverrTestLanguage, testLanguage)
 	attrs.PutBool(semconv.EverrTestIsSubtest, test.IsSubtest())
 	attrs.PutBool(semconv.EverrTestIsSuite, test.IsSuite())
 

@@ -97,6 +97,12 @@ export function SpanDetailPanel({
                 <span className="font-medium">{span.testFramework}</span>
               </div>
             )}
+            {span.testLanguage && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground w-20">Language</span>
+                <span className="font-medium">{span.testLanguage}</span>
+              </div>
+            )}
             {(span.isSuite || span.isSubtest) && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground w-20">Type</span>

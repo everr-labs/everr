@@ -9,6 +9,7 @@ const (
 	EverrTestResult          = "everr.test.result"
 	EverrTestDurationSeconds = "everr.test.duration_seconds"
 	EverrTestFramework       = "everr.test.framework"
+	EverrTestLanguage        = "everr.test.language"
 	EverrTestIsSubtest       = "everr.test.is_subtest"
 	EverrTestIsSuite         = "everr.test.is_suite"
 	EverrTestPackage         = "everr.test.package"

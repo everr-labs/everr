@@ -13,6 +13,11 @@ import (
 	"github.com/everr-labs/everr/collector/semconv"
 )
 
+const (
+	testFramework = "rust"
+	testLanguage  = "rust"
+)
+
 // GenerateSpans creates OpenTelemetry spans from parsed Rust test results.
 // Returns a ptrace.Traces containing all test spans, or nil if no tests were detected.
 func GenerateSpans(ctx *gotest.TestParseContext, resourceAttrs pcommon.Map) *ptrace.Traces {
@@ -23,7 +28,10 @@ func GenerateSpans(ctx *gotest.TestParseContext, resourceAttrs pcommon.Map) *ptr
 	traces := ptrace.NewTraces()
 	resourceSpans := traces.ResourceSpans().AppendEmpty()
 
-	resourceAttrs.CopyTo(resourceSpans.Resource().Attributes())
+	traceResourceAttrs := resourceSpans.Resource().Attributes()
+	resourceAttrs.CopyTo(traceResourceAttrs)
+	traceResourceAttrs.PutStr(semconv.EverrTestFramework, testFramework)
+	traceResourceAttrs.PutStr(semconv.EverrTestLanguage, testLanguage)
 
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	scopeSpans.Scope().SetName("rusttest")
@@ -64,7 +72,8 @@ func createTestSpan(ctx *gotest.TestParseContext, scopeSpans ptrace.ScopeSpans, 
 	attrs.PutStr(semconv.EverrTestName, test.Name)
 	attrs.PutStr(semconv.EverrTestResult, string(test.Result))
 	attrs.PutDouble(semconv.EverrTestDurationSeconds, test.Duration.Seconds())
-	attrs.PutStr(semconv.EverrTestFramework, "rust")
+	attrs.PutStr(semconv.EverrTestFramework, testFramework)
+	attrs.PutStr(semconv.EverrTestLanguage, testLanguage)
 	attrs.PutBool(semconv.EverrTestIsSubtest, test.IsSubtest())
 	attrs.PutBool(semconv.EverrTestIsSuite, test.IsSuite())
 

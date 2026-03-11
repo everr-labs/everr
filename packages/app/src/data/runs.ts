@@ -216,6 +216,7 @@ export interface Span {
   testResult?: string;
   testDuration?: number;
   testFramework?: string;
+  testLanguage?: string;
   isSubtest?: boolean;
   isSuite?: boolean;
 }
@@ -504,7 +505,16 @@ export const getRunSpans = createServerFn({
 				SpanAttributes['everr.test.name'] as testName,
 				SpanAttributes['everr.test.result'] as testResult,
 				SpanAttributes['everr.test.duration_seconds'] as testDuration,
-				SpanAttributes['everr.test.framework'] as testFramework,
+				coalesce(
+					nullIf(SpanAttributes['everr.test.framework'], ''),
+					nullIf(ResourceAttributes['everr.test.framework'], ''),
+					''
+				) as testFramework,
+				coalesce(
+					nullIf(SpanAttributes['everr.test.language'], ''),
+					nullIf(ResourceAttributes['everr.test.language'], ''),
+					''
+				) as testLanguage,
 				SpanAttributes['everr.test.is_subtest'] as isSubtest,
 				SpanAttributes['everr.test.is_suite'] as isSuite
 			FROM traces
@@ -536,6 +546,7 @@ export const getRunSpans = createServerFn({
       testResult: string;
       testDuration: string;
       testFramework: string;
+      testLanguage: string;
       isSubtest: string;
       isSuite: string;
     }>(sql, { traceId });
@@ -587,6 +598,7 @@ export const getRunSpans = createServerFn({
         testResult: row.testResult || undefined,
         testDuration: row.testDuration ? Number(row.testDuration) : undefined,
         testFramework: row.testFramework || undefined,
+        testLanguage: row.testLanguage || undefined,
         isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
         isSuite: row.isSuite === "true" || row.isSuite === "1",
       };
