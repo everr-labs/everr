@@ -29,9 +29,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Start resource usage sampler
-        uses: ./.github/actions/everr-resource-usage-start
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -59,21 +56,6 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: make install-tools
 
-      - name: Finalize resource usage
-        if: always()
-        uses: ./.github/actions/everr-resource-usage-stop
-        with:
-          check-run-id: ${{ job.check_run_id }}
-
-      - name: Upload resource usage partial
-        if: always() && env.EVERR_RESOURCE_USAGE_PARTIAL_DIR != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-resource-usage-partial-${{ job.check_run_id }}
-          path: ${{ env.EVERR_RESOURCE_USAGE_PARTIAL_DIR }}
-          if-no-files-found: error
-          retention-days: 7
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -81,9 +63,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Start resource usage sampler
-        uses: ./.github/actions/everr-resource-usage-start
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -131,21 +110,6 @@ jobs:
           make crosslink
           git diff -s --exit-code || (echo 'Replace statements not updated. Run make crosslink and commit the changes' && exit 1)
 
-      - name: Finalize resource usage
-        if: always()
-        uses: ./.github/actions/everr-resource-usage-stop
-        with:
-          check-run-id: ${{ job.check_run_id }}
-
-      - name: Upload resource usage partial
-        if: always() && env.EVERR_RESOURCE_USAGE_PARTIAL_DIR != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-resource-usage-partial-${{ job.check_run_id }}
-          path: ${{ env.EVERR_RESOURCE_USAGE_PARTIAL_DIR }}
-          if-no-files-found: error
-          retention-days: 7
-
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -153,9 +117,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Start resource usage sampler
-        uses: ./.github/actions/everr-resource-usage-start
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -183,21 +144,6 @@ jobs:
       - name: Make build
         run: make build
 
-      - name: Finalize resource usage
-        if: always()
-        uses: ./.github/actions/everr-resource-usage-stop
-        with:
-          check-run-id: ${{ job.check_run_id }}
-
-      - name: Upload resource usage partial
-        if: always() && env.EVERR_RESOURCE_USAGE_PARTIAL_DIR != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-resource-usage-partial-${{ job.check_run_id }}
-          path: ${{ env.EVERR_RESOURCE_USAGE_PARTIAL_DIR }}
-          if-no-files-found: error
-          retention-days: 7
-
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -205,9 +151,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Start resource usage sampler
-        uses: ./.github/actions/everr-resource-usage-start
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -234,59 +177,3 @@ jobs:
 
       - name: Make test-all
         run: make test-all
-
-      - name: Finalize resource usage
-        if: always()
-        uses: ./.github/actions/everr-resource-usage-stop
-        with:
-          check-run-id: ${{ job.check_run_id }}
-
-      - name: Upload resource usage partial
-        if: always() && env.EVERR_RESOURCE_USAGE_PARTIAL_DIR != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-resource-usage-partial-${{ job.check_run_id }}
-          path: ${{ env.EVERR_RESOURCE_USAGE_PARTIAL_DIR }}
-          if-no-files-found: error
-          retention-days: 7
-
-  merge-resource-usage:
-    name: Merge Resource Usage Artifact
-    runs-on: ubuntu-latest
-    if: always()
-    defaults:
-      run:
-        working-directory: .
-    needs:
-      - install-tools
-      - lint
-      - build
-      - test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download resource usage partials
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          pattern: everr-resource-usage-partial-*
-          path: ${{ runner.temp }}/everr-resource-usage-partials
-
-      - name: Merge partial artifacts
-        run: |
-          node .github/actions/everr-resource-usage/scripts/merge-partials.mjs \
-            --input-dir "${RUNNER_TEMP}/everr-resource-usage-partials" \
-            --output-dir "${RUNNER_TEMP}/everr-resource-usage-artifact" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --run-id "${GITHUB_RUN_ID}" \
-            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
-            --sample-interval-seconds "5"
-
-      - name: Upload canonical resource usage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-resource-usage-v1
-          path: ${{ runner.temp }}/everr-resource-usage-artifact
-          if-no-files-found: error
-          retention-days: 7

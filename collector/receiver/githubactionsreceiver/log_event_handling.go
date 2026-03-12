@@ -187,16 +187,5 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 		}
 	}
 
-	appendResourceUsageLogs(
-		ctx,
-		e,
-		ghClient.Actions,
-		http.DefaultClient,
-		logger.Named("resourceUsage"),
-		allLogs,
-		traceID,
-		withTraceInfo,
-	)
-
 	return &logs, nil
 }
