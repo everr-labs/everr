@@ -91,10 +91,15 @@ export const getRunsList = createServerFn({
       "SpanAttributes['everr.github.workflow_job_step.number'] = ''",
       "SpanAttributes['everr.test.name'] = ''",
     ];
-    const activeConditions: string[] = [
+    const activeRunConditions: string[] = [
       "event_time >= {fromTime:String} AND event_time <= {toTime:String}",
       "event_kind = 'pipelinerun'",
       "subject_id != ''",
+    ];
+    const activeJobConditions: string[] = [
+      "event_time >= {fromTime:String} AND event_time <= {toTime:String}",
+      "event_kind IN ('taskrun', 'workflowjob')",
+      "attributes['pipeline.run_id'] != ''",
     ];
     const params: Record<string, unknown> = {
       fromTime: fromISO,
@@ -107,14 +112,16 @@ export const getRunsList = createServerFn({
       completedConditions.push(
         "ResourceAttributes['vcs.repository.name'] = {repo:String}",
       );
-      activeConditions.push("repository = {repo:String}");
+      activeRunConditions.push("repository = {repo:String}");
+      activeJobConditions.push("repository = {repo:String}");
       params.repo = data.repo;
     }
     if (data.branch) {
       completedConditions.push(
         "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
       );
-      activeConditions.push("ref = {branch:String}");
+      activeRunConditions.push("ref = {branch:String}");
+      activeJobConditions.push("ref = {branch:String}");
       params.branch = data.branch;
     }
     if (data.status) {
@@ -127,14 +134,17 @@ export const getRunsList = createServerFn({
       completedConditions.push(
         "ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}",
       );
-      activeConditions.push("subject_name = {workflowName:String}");
+      activeRunConditions.push("subject_name = {workflowName:String}");
       params.workflowName = data.workflowName;
     }
     if (data.runId) {
       completedConditions.push(
         "ResourceAttributes['cicd.pipeline.run.id'] = {runId:String}",
       );
-      activeConditions.push("subject_id = {runId:String}");
+      activeRunConditions.push("subject_id = {runId:String}");
+      activeJobConditions.push(
+        "attributes['pipeline.run_id'] = {runId:String}",
+      );
       params.runId = data.runId;
     }
 
@@ -149,7 +159,8 @@ export const getRunsList = createServerFn({
       includeHeadSha: true,
       includeJobCount: true,
     });
-    const activeWhereClause = activeConditions.join("\n\t\t\t\tAND ");
+    const activeRunWhereClause = activeRunConditions.join("\n\t\t\t\tAND ");
+    const activeJobWhereClause = activeJobConditions.join("\n\t\t\t\tAND ");
     const mergedFilters: string[] = [];
 
     if (data.status) {
@@ -185,6 +196,15 @@ export const getRunsList = createServerFn({
 
         UNION ALL
 
+        WITH active_jobs AS (
+          SELECT
+            attributes['pipeline.run_id'] as pipelineRunId,
+            countIf(event_phase != 'finished') as activeJobCount,
+            maxIf(event_time, event_phase != 'finished') as lastActiveJobEventTime
+          FROM app.cdevents
+          WHERE ${activeJobWhereClause}
+          GROUP BY pipelineRunId
+        )
         SELECT
           '' as trace_id,
           subject_id as run_id,
@@ -192,17 +212,25 @@ export const getRunsList = createServerFn({
           argMax(subject_name, event_time) as workflowName,
           argMax(repository, event_time) as repo,
           argMax(ref, event_time) as branch,
-          if(argMax(event_phase, event_time) = 'queued', 'queued', 'in_progress') as status,
+          if(
+            coalesce(activeJobCount, 0) > 0,
+            'in_progress',
+            if(argMax(event_phase, event_time) = 'queued', 'queued', 'in_progress')
+          ) as status,
           '' as conclusion,
           greatest(0, dateDiff('millisecond', min(event_time), now64(3))) as duration,
-          max(event_time) as timestamp,
+          greatest(
+            max(event_time),
+            coalesce(lastActiveJobEventTime, max(event_time))
+          ) as timestamp,
           '' as sender,
           argMax(sha, event_time) as headSha,
           toUInt64(0) as jobCount,
           argMax(subject_url, event_time) as htmlUrl
         FROM app.cdevents
-        WHERE ${activeWhereClause}
-        GROUP BY subject_id
+        LEFT JOIN active_jobs ON active_jobs.pipelineRunId = subject_id
+        WHERE ${activeRunWhereClause}
+        GROUP BY subject_id, activeJobCount, lastActiveJobEventTime
         HAVING argMax(event_phase, event_time) != 'finished'
       ) as merged_runs
     `;

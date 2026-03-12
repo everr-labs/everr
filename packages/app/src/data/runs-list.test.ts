@@ -172,6 +172,34 @@ describe("getRunsList", () => {
     );
   });
 
+  it("promotes queued pipeline runs to in_progress when active jobs exist", async () => {
+    mockedQuery
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: "0" }]);
+
+    await getRunsList({
+      data: {
+        timeRange: {
+          from: "now-7d",
+          to: "now",
+        },
+      },
+    });
+
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "event_kind IN ('taskrun', 'workflowjob')",
+    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "countIf(event_phase != 'finished') as activeJobCount",
+    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "coalesce(activeJobCount, 0) > 0",
+    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "coalesce(lastActiveJobEventTime, max(event_time))",
+    );
+  });
+
   it("only enriches failing steps for completed failed runs with a trace id", async () => {
     mockedQuery
       .mockResolvedValueOnce([
