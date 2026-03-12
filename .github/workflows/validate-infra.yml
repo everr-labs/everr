@@ -9,7 +9,6 @@ defaults:
     working-directory: ./infra
 
 permissions:
-  actions: read
   contents: read
   pull-requests: write
 
@@ -49,6 +48,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v1

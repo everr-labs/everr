@@ -10,7 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  actions: read
   contents: read
 
 on:
@@ -35,6 +34,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -73,6 +74,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -130,6 +133,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -167,6 +172,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
         uses: actions/setup-go@v5

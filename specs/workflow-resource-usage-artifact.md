@@ -7,13 +7,15 @@
 ```yaml
 - name: Collect resource usage
   uses: ./.github/actions/everr-resource-usage
+  with:
+    check-run-id: ${{ job.check_run_id }}
 ```
 
 - The action starts sampling in `main` and finalizes plus uploads in `post`.
-- The action discovers the current job check run id through the GitHub Actions jobs API using the default `github.token`.
+- The workflow passes the current job check run id via `${{ job.check_run_id }}`.
 - Sampling is best-effort and Linux-only.
 - Sampling uses a fixed `5` second interval.
-- The workflow token needs `actions: read` and `contents: read`.
+- The workflow token needs `contents: read`.
 
 ## Artifact contract
 

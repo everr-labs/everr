@@ -1,4 +1,3 @@
-import type { Dirent } from "node:fs";
 import { execFile, spawn } from "node:child_process";
 import * as artifact from "@actions/artifact";
 import * as core from "@actions/core";
@@ -7,7 +6,6 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import * as yaml from "js-yaml";
 
 const artifactClient = new artifact.DefaultArtifactClient();
 
@@ -25,35 +23,12 @@ interface FilesystemInfo {
   type: string;
 }
 
-interface WorkflowJob {
-  check_run_url?: string;
-  name?: string;
-  runner_name?: string;
-  started_at?: string;
-  status?: string;
-}
-
-interface WorkflowDocument {
-  jobs?: Record<string, WorkflowJobDefinition>;
-  name?: string;
-}
-
-type WorkflowJobDefinition = Record<string, unknown> & {
-  name?: string;
-};
-
 type Env = NodeJS.ProcessEnv;
 type GetInput = (name: string) => string;
 type SaveState = (key: string, value: string) => void;
 type ReadState = (key: string) => string;
 type Log = (message: string) => void;
 type Now = () => Date;
-type ReadFile = (filePath: string, encoding: "utf8") => Promise<string>;
-type Readdir = (
-  directoryPath: string,
-  options: { withFileTypes: true },
-) => Promise<Dirent[]>;
-type FetchImpl = typeof fetch;
 type ExecFileImpl = (
   file: string,
   args: readonly string[],
@@ -72,7 +47,6 @@ interface StartResourceUsageOptions {
   env?: Env;
   fsModule?: typeof fs;
   fspModule?: typeof fsp;
-  fetchImpl?: FetchImpl;
   getInput?: GetInput;
   info?: Log;
   now?: Now;
@@ -91,30 +65,6 @@ interface FinalizeAndUploadResourceUsageOptions {
   resolveFilesystemInfo?: ResolveFilesystemInfo;
   uploadArtifactImpl?: UploadArtifactImpl;
   warning?: Log;
-}
-
-interface DiscoverCheckRunIdOptions {
-  env?: Env;
-  fetchImpl?: FetchImpl;
-  getInput?: GetInput;
-  info?: Log;
-  now?: Now;
-  readFile?: ReadFile;
-  readdir?: Readdir;
-  warning?: Log;
-}
-
-interface ResolveWorkflowJobNameOptions {
-  env?: Env;
-  readFile?: ReadFile;
-  readdir?: Readdir;
-}
-
-interface SelectCheckRunIdOptions {
-  hints?: string[];
-  jobs: WorkflowJob[];
-  now?: Now;
-  runnerName?: string;
 }
 
 function artifactNameForCheckRun(checkRunId: string): string {
@@ -142,6 +92,31 @@ function buildRuntimePaths(env: Env = process.env): RuntimePaths {
   };
 }
 
+function normalizeCheckRunId(rawCheckRunId: string): string | null {
+  const checkRunId = rawCheckRunId.trim();
+  if (!/^[1-9]\d*$/.test(checkRunId)) {
+    return null;
+  }
+
+  return checkRunId;
+}
+
+function resolveCheckRunIdInput({
+  getInput = core.getInput,
+  warning = core.warning,
+}: {
+  getInput?: GetInput;
+  warning?: Log;
+} = {}): string | null {
+  const checkRunId = normalizeCheckRunId(getInput("check-run-id"));
+  if (!checkRunId) {
+    warning("resource-usage skipped: missing or invalid check-run-id input");
+    return null;
+  }
+
+  return checkRunId;
+}
+
 async function startResourceUsage({
   env = process.env,
   fsModule = fs,
@@ -152,7 +127,6 @@ async function startResourceUsage({
   warning = core.warning,
   now = () => new Date(),
   spawnImpl = spawn,
-  fetchImpl = fetch,
 }: StartResourceUsageOptions = {}): Promise<{
   checkRunId?: string;
   enabled: boolean;
@@ -166,16 +140,7 @@ async function startResourceUsage({
     return { enabled: false };
   }
 
-  const checkRunId = await discoverCheckRunId({
-    env,
-    getInput,
-    info,
-    warning,
-    readFile: fspModule.readFile.bind(fspModule),
-    readdir: fspModule.readdir.bind(fspModule) as Readdir,
-    fetchImpl,
-    now,
-  });
+  const checkRunId = resolveCheckRunIdInput({ getInput, warning });
   if (!checkRunId) {
     saveState("enabled", "0");
     return { enabled: false };
@@ -388,313 +353,6 @@ function formatError(error: unknown): string {
   return String(error);
 }
 
-async function discoverCheckRunId({
-  env = process.env,
-  getInput = core.getInput,
-  info = core.info,
-  warning = core.warning,
-  readFile = (filePath) => fsp.readFile(filePath, "utf8"),
-  readdir = (directoryPath, options) => fsp.readdir(directoryPath, options),
-  fetchImpl = fetch,
-  now = () => new Date(),
-}: DiscoverCheckRunIdOptions = {}): Promise<string | null> {
-  const token = getInput("github-token");
-  if (!token) {
-    warning("resource-usage discovery skipped: missing github token");
-    return null;
-  }
-
-  try {
-    const hints = await resolveJobNameHints({ env, readFile, readdir });
-    const jobs = await listWorkflowRunJobs({ env, token, fetchImpl });
-    const checkRunId = selectCheckRunId({
-      jobs,
-      hints,
-      runnerName: env.RUNNER_NAME || "",
-      now,
-    });
-
-    if (!checkRunId) {
-      warning(
-        "resource-usage discovery skipped: could not match the current workflow job to a check run",
-      );
-      return null;
-    }
-
-    info(`resolved check run ${checkRunId}`);
-    return String(checkRunId);
-  } catch (error) {
-    warning(`resource-usage discovery failed: ${formatError(error)}`);
-    return null;
-  }
-}
-
-async function resolveJobNameHints({
-  env = process.env,
-  readFile = (filePath) => fsp.readFile(filePath, "utf8"),
-  readdir = (directoryPath, options) => fsp.readdir(directoryPath, options),
-}: ResolveWorkflowJobNameOptions = {}): Promise<string[]> {
-  const hints = new Set<string>();
-  if (env.GITHUB_JOB) {
-    hints.add(env.GITHUB_JOB);
-  }
-
-  const workflowJobName = await resolveWorkflowJobName({ env, readFile, readdir });
-  if (workflowJobName) {
-    hints.add(workflowJobName);
-  }
-
-  return [...hints].filter(Boolean);
-}
-
-async function resolveWorkflowJobName({
-  env = process.env,
-  readFile = (filePath) => fsp.readFile(filePath, "utf8"),
-  readdir = (directoryPath, options) => fsp.readdir(directoryPath, options),
-}: ResolveWorkflowJobNameOptions = {}): Promise<string> {
-  const workflowPath = await resolveWorkflowPath({ env, readFile, readdir });
-  if (!workflowPath) {
-    return "";
-  }
-
-  const raw = await readFile(workflowPath, "utf8");
-  const document = yaml.load(raw) as WorkflowDocument | undefined;
-  const jobs = document?.jobs;
-  const jobKey = env.GITHUB_JOB || "";
-  const jobDefinition = jobKey ? jobs?.[jobKey] : undefined;
-  if (!jobDefinition || typeof jobDefinition !== "object" || Array.isArray(jobDefinition)) {
-    return env.GITHUB_JOB || "";
-  }
-
-  if (typeof jobDefinition.name === "string" && jobDefinition.name.trim() !== "") {
-    return jobDefinition.name.trim();
-  }
-
-  return env.GITHUB_JOB || "";
-}
-
-async function resolveWorkflowPath({
-  env = process.env,
-  readFile = (filePath) => fsp.readFile(filePath, "utf8"),
-  readdir = (directoryPath, options) => fsp.readdir(directoryPath, options),
-}: ResolveWorkflowJobNameOptions = {}): Promise<string | null> {
-  const workspacePath = env.GITHUB_WORKSPACE || process.cwd();
-  const relativeFromRef = workflowPathFromRef(env.GITHUB_WORKFLOW_REF || "");
-  if (relativeFromRef) {
-    const absolutePath = path.join(workspacePath, relativeFromRef);
-    try {
-      await readFile(absolutePath, "utf8");
-      return absolutePath;
-    } catch {
-      // Fall back to a workflow name scan below.
-    }
-  }
-
-  if (!env.GITHUB_WORKFLOW) {
-    return null;
-  }
-
-  const workflowDirectory = path.join(workspacePath, ".github", "workflows");
-  let entries: Dirent[];
-  try {
-    entries = await readdir(workflowDirectory, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isFile()) {
-      continue;
-    }
-    if (!entry.name.endsWith(".yml") && !entry.name.endsWith(".yaml")) {
-      continue;
-    }
-
-    const candidatePath = path.join(workflowDirectory, entry.name);
-    try {
-      const raw = await readFile(candidatePath, "utf8");
-      const document = yaml.load(raw) as WorkflowDocument | undefined;
-      if (document?.name === env.GITHUB_WORKFLOW) {
-        return candidatePath;
-      }
-    } catch {
-      // Ignore unrelated or malformed workflow files when probing.
-    }
-  }
-
-  return null;
-}
-
-function workflowPathFromRef(workflowRef: string): string {
-  if (!workflowRef || !workflowRef.includes("@")) {
-    return "";
-  }
-
-  const beforeRef = workflowRef.slice(0, workflowRef.lastIndexOf("@"));
-  const parts = beforeRef.split("/");
-  if (parts.length < 3) {
-    return "";
-  }
-
-  return parts.slice(2).join("/");
-}
-
-async function listWorkflowRunJobs({
-  env = process.env,
-  token,
-  fetchImpl = fetch,
-}: {
-  env?: Env;
-  fetchImpl?: FetchImpl;
-  token: string;
-}): Promise<WorkflowJob[]> {
-  const repository = env.GITHUB_REPOSITORY || "";
-  const [owner, repo] = repository.split("/");
-  if (!owner || !repo) {
-    throw new Error("missing GITHUB_REPOSITORY");
-  }
-
-  const runID = env.GITHUB_RUN_ID;
-  if (!runID) {
-    throw new Error("missing GITHUB_RUN_ID");
-  }
-
-  const apiBase = env.GITHUB_API_URL || "https://api.github.com";
-  const runAttempt = env.GITHUB_RUN_ATTEMPT;
-  const baseURL = runAttempt
-    ? `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/runs/${encodeURIComponent(runID)}/attempts/${encodeURIComponent(runAttempt)}/jobs`
-    : `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/runs/${encodeURIComponent(runID)}/jobs`;
-
-  const jobs: WorkflowJob[] = [];
-  for (let page = 1; page < 100; page += 1) {
-    const response = await fetchImpl(`${baseURL}?per_page=100&page=${page}`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "User-Agent": "everr-resource-usage-action",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`workflow jobs request failed with status ${response.status}`);
-    }
-
-    const payload = (await response.json()) as {
-      jobs?: WorkflowJob[];
-      total_count?: number;
-    };
-    const pageJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-    jobs.push(...pageJobs);
-
-    if (pageJobs.length < 100 || jobs.length >= (payload.total_count || 0)) {
-      break;
-    }
-  }
-
-  return jobs;
-}
-
-function selectCheckRunId({
-  jobs,
-  hints = [],
-  runnerName = "",
-  now = () => new Date(),
-}: SelectCheckRunIdOptions): number | null {
-  if (!Array.isArray(jobs) || jobs.length === 0) {
-    return null;
-  }
-
-  const activeJobs = jobs.filter((job) => isActiveJob(job.status || ""));
-  let candidates = activeJobs.length > 0 ? activeJobs : jobs;
-
-  if (runnerName) {
-    const runnerMatches = candidates.filter((job) => job.runner_name === runnerName);
-    if (runnerMatches.length > 0) {
-      candidates = runnerMatches;
-    }
-  }
-
-  const normalizedHints = hints
-    .map((hint) => hint.trim())
-    .filter(Boolean);
-  if (normalizedHints.length > 0) {
-    const hintMatches = candidates.filter(
-      (job) => typeof job.name === "string" && normalizedHints.includes(job.name),
-    );
-    if (hintMatches.length === 1) {
-      return parseCheckRunId(jobCheckRunURL(hintMatches[0]));
-    }
-    if (hintMatches.length > 1) {
-      candidates = hintMatches;
-    }
-  }
-
-  if (candidates.length === 1) {
-    return parseCheckRunId(jobCheckRunURL(candidates[0]));
-  }
-
-  const inProgress = candidates.filter((job) => job.status === "in_progress");
-  if (inProgress.length === 1) {
-    return parseCheckRunId(jobCheckRunURL(inProgress[0]));
-  }
-  if (inProgress.length > 1) {
-    candidates = inProgress;
-  }
-
-  const referenceTime = now().valueOf();
-  const startedCandidates = candidates
-    .map((job) => ({
-      job,
-      startedAt: Number.isNaN(Date.parse(job.started_at || ""))
-        ? null
-        : Date.parse(job.started_at || ""),
-    }))
-    .filter(
-      (entry): entry is { job: WorkflowJob; startedAt: number } =>
-        entry.startedAt !== null,
-    )
-    .sort(
-      (left, right) =>
-        Math.abs(left.startedAt - referenceTime) -
-        Math.abs(right.startedAt - referenceTime),
-    );
-
-  if (startedCandidates.length > 0) {
-    return parseCheckRunId(jobCheckRunURL(startedCandidates[0].job));
-  }
-
-  return null;
-}
-
-function isActiveJob(status: string): boolean {
-  return (
-    status === "in_progress" ||
-    status === "queued" ||
-    status === "waiting" ||
-    status === "pending" ||
-    status === "requested"
-  );
-}
-
-function jobCheckRunURL(job: WorkflowJob | undefined): string {
-  if (!job || typeof job.check_run_url !== "string") {
-    return "";
-  }
-  return job.check_run_url;
-}
-
-function parseCheckRunId(checkRunURL: string): number | null {
-  if (!checkRunURL) {
-    return null;
-  }
-
-  const segments = checkRunURL.split("/");
-  const raw = segments[segments.length - 1];
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
 async function resolveWorkspaceFilesystemInfo(
   workspacePath: string,
 ): Promise<FilesystemInfo> {
@@ -778,20 +436,13 @@ if (entrypointPath === fileURLToPath(import.meta.url)) {
 export {
   artifactNameForCheckRun,
   buildRuntimePaths,
-  discoverCheckRunId,
   ensureSamplesFile,
   finalizeAndUploadResourceUsage,
   formatError,
-  isActiveJob,
-  listWorkflowRunJobs,
-  parseCheckRunId,
+  normalizeCheckRunId,
   resolveActionRoot,
-  resolveJobNameHints,
+  resolveCheckRunIdInput,
   resolveWorkspaceFilesystemInfo,
-  resolveWorkflowJobName,
-  resolveWorkflowPath,
-  selectCheckRunId,
   startResourceUsage,
   stopSampler,
-  workflowPathFromRef,
 };

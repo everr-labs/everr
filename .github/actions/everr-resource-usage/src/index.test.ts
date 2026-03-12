@@ -8,14 +8,11 @@ import { fileURLToPath } from "node:url";
 import {
   artifactNameForCheckRun,
   buildRuntimePaths,
-  discoverCheckRunId,
   finalizeAndUploadResourceUsage,
-  parseCheckRunId,
+  normalizeCheckRunId,
   resolveActionRoot,
-  resolveWorkflowJobName,
-  selectCheckRunId,
+  resolveCheckRunIdInput,
   startResourceUsage,
-  workflowPathFromRef,
 } from "./index.ts";
 
 test("artifactNameForCheckRun uses the direct per-job naming contract", () => {
@@ -44,168 +41,25 @@ test("resolveActionRoot derives the action directory from the entrypoint path", 
   );
 });
 
-test("workflowPathFromRef extracts the local workflow path", () => {
-  assert.equal(
-    workflowPathFromRef(
-      "everr-labs/everr/.github/workflows/build-and-test-collector.yml@refs/heads/main",
-    ),
-    ".github/workflows/build-and-test-collector.yml",
-  );
+test("normalizeCheckRunId trims valid ids and rejects malformed values", () => {
+  assert.equal(normalizeCheckRunId(" 123 "), "123");
+  assert.equal(normalizeCheckRunId(""), null);
+  assert.equal(normalizeCheckRunId("0"), null);
+  assert.equal(normalizeCheckRunId("001"), null);
+  assert.equal(normalizeCheckRunId("abc"), null);
 });
 
-test("parseCheckRunId reads the numeric id from a check run URL", () => {
-  assert.equal(
-    parseCheckRunId("https://api.github.com/repos/everr-labs/everr/check-runs/123"),
-    123,
-  );
-  assert.equal(
-    parseCheckRunId("https://api.github.com/repos/everr-labs/everr/check-runs/not-a-number"),
-    null,
-  );
-});
+test("resolveCheckRunIdInput warns when the workflow does not provide a valid id", () => {
+  const warnings: string[] = [];
 
-test(
-  "resolveWorkflowJobName reads the declared workflow job name from the local workflow file",
-  async () => {
-    const tempDir = await fsp.mkdtemp(
-      path.join(os.tmpdir(), "everr-ru-workflow-"),
-    );
-
-    try {
-      const workflowDir = path.join(tempDir, ".github", "workflows");
-      await fsp.mkdir(workflowDir, { recursive: true });
-      await fsp.writeFile(
-        path.join(workflowDir, "build.yml"),
-        [
-          "name: Build & Test Collector",
-          "jobs:",
-          "  lint:",
-          "    name: Lint",
-          "    runs-on: ubuntu-latest",
-          "    steps: []",
-        ].join("\n"),
-        "utf8",
-      );
-
-      const name = await resolveWorkflowJobName({
-        env: {
-          GITHUB_WORKSPACE: tempDir,
-          GITHUB_WORKFLOW_REF:
-            "everr-labs/everr/.github/workflows/build.yml@refs/heads/main",
-          GITHUB_WORKFLOW: "Build & Test Collector",
-          GITHUB_JOB: "lint",
-        },
-        readFile: (filePath: string, encoding: "utf8") =>
-          fsp.readFile(filePath, encoding),
-        readdir: (directoryPath: string, options: { withFileTypes: true }) =>
-          fsp.readdir(directoryPath, options),
-      });
-
-      assert.equal(name, "Lint");
-    } finally {
-      await fsp.rm(tempDir, { recursive: true, force: true });
-    }
-  },
-);
-
-test("selectCheckRunId prefers runner and job-name matches", () => {
-  const checkRunId = selectCheckRunId({
-    jobs: [
-      {
-        name: "Lint",
-        status: "in_progress",
-        runner_name: "GitHub Actions 2",
-        started_at: "2026-03-10T10:00:00.000Z",
-        check_run_url: "https://api.github.com/repos/everr-labs/everr/check-runs/200",
-      },
-      {
-        name: "Lint",
-        status: "in_progress",
-        runner_name: "GitHub Actions 1",
-        started_at: "2026-03-10T10:00:01.000Z",
-        check_run_url: "https://api.github.com/repos/everr-labs/everr/check-runs/100",
-      },
-    ],
-    hints: ["Lint", "lint"],
-    runnerName: "GitHub Actions 1",
-    now: () => new Date("2026-03-10T10:00:02.000Z"),
+  const checkRunId = resolveCheckRunIdInput({
+    getInput: () => "not-a-number",
+    warning: (message: string) => warnings.push(message),
   });
 
-  assert.equal(checkRunId, 100);
+  assert.equal(checkRunId, null);
+  assert.match(warnings[0], /missing or invalid check-run-id input/);
 });
-
-test(
-  "discoverCheckRunId resolves the current job through the workflow jobs API",
-  async () => {
-    const tempDir = await fsp.mkdtemp(
-      path.join(os.tmpdir(), "everr-ru-discover-"),
-    );
-    const infoMessages: string[] = [];
-
-    try {
-      const workflowDir = path.join(tempDir, ".github", "workflows");
-      await fsp.mkdir(workflowDir, { recursive: true });
-      await fsp.writeFile(
-        path.join(workflowDir, "build.yml"),
-        [
-          "name: Build & Test Collector",
-          "jobs:",
-          "  lint:",
-          "    name: Lint",
-          "    runs-on: ubuntu-latest",
-          "    steps: []",
-        ].join("\n"),
-        "utf8",
-      );
-
-      const checkRunId = await discoverCheckRunId({
-        env: {
-          GITHUB_API_URL: "https://api.github.com",
-          GITHUB_WORKSPACE: tempDir,
-          GITHUB_WORKFLOW_REF:
-            "everr-labs/everr/.github/workflows/build.yml@refs/heads/main",
-          GITHUB_WORKFLOW: "Build & Test Collector",
-          GITHUB_JOB: "lint",
-          GITHUB_REPOSITORY: "everr-labs/everr",
-          GITHUB_RUN_ID: "123",
-          GITHUB_RUN_ATTEMPT: "1",
-          RUNNER_NAME: "GitHub Actions 1",
-        },
-        getInput: (name: string) => (name === "github-token" ? "token" : "5"),
-        info: (message: string) => infoMessages.push(message),
-        warning: () => {},
-        readFile: (filePath: string, encoding: "utf8") =>
-          fsp.readFile(filePath, encoding),
-        readdir: (directoryPath: string, options: { withFileTypes: true }) =>
-          fsp.readdir(directoryPath, options),
-        fetchImpl: async () =>
-          ({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              total_count: 1,
-              jobs: [
-                {
-                  name: "Lint",
-                  status: "in_progress",
-                  runner_name: "GitHub Actions 1",
-                  started_at: "2026-03-10T10:00:01.000Z",
-                  check_run_url:
-                    "https://api.github.com/repos/everr-labs/everr/check-runs/101",
-                },
-              ],
-            }),
-          }) as Response,
-        now: () => new Date("2026-03-10T10:00:02.000Z"),
-      });
-
-      assert.equal(checkRunId, "101");
-      assert.match(infoMessages[0], /resolved check run 101/);
-    } finally {
-      await fsp.rm(tempDir, { recursive: true, force: true });
-    }
-  },
-);
 
 test("startResourceUsage no-ops on non-linux runners", async () => {
   const savedState = new Map<string, string>();
@@ -214,9 +68,8 @@ test("startResourceUsage no-ops on non-linux runners", async () => {
   const result = await startResourceUsage({
     env: {
       RUNNER_OS: "Windows",
-      GITHUB_ACTION_PATH: "/action",
     },
-    getInput: (name: string) => (name === "github-token" ? "token" : "5"),
+    getInput: () => "123",
     saveState: (key: string, value: string) => savedState.set(key, value),
     info: (message: string) => infoMessages.push(message),
     warning: () => {},
@@ -225,6 +78,25 @@ test("startResourceUsage no-ops on non-linux runners", async () => {
   assert.equal(result.enabled, false);
   assert.equal(savedState.get("enabled"), "0");
   assert.match(infoMessages[0], /supported only on Linux runners/);
+});
+
+test("startResourceUsage skips sampling when check-run-id is missing", async () => {
+  const savedState = new Map<string, string>();
+  const warnings: string[] = [];
+
+  const result = await startResourceUsage({
+    env: {
+      RUNNER_OS: "Linux",
+    },
+    getInput: () => "",
+    saveState: (key: string, value: string) => savedState.set(key, value),
+    info: () => {},
+    warning: (message: string) => warnings.push(message),
+  });
+
+  assert.equal(result.enabled, false);
+  assert.equal(savedState.get("enabled"), "0");
+  assert.match(warnings[0], /missing or invalid check-run-id input/);
 });
 
 test("startResourceUsage downgrades sampler startup failures to warnings", async () => {
@@ -236,45 +108,23 @@ test("startResourceUsage downgrades sampler startup failures to warnings", async
     const result = await startResourceUsage({
       env: {
         RUNNER_OS: "Linux",
-        GITHUB_ACTION_PATH: "/action",
         RUNNER_TEMP: tempDir,
-        GITHUB_API_URL: "https://api.github.com",
         GITHUB_RUN_ID: "12",
         GITHUB_RUN_ATTEMPT: "1",
         GITHUB_JOB: "lint",
         GITHUB_REPOSITORY: "everr-labs/everr",
         GITHUB_WORKSPACE: tempDir,
-        GITHUB_WORKFLOW: "Build & Test Collector",
-        GITHUB_WORKFLOW_REF:
-          "everr-labs/everr/.github/workflows/build.yml@refs/heads/main",
       },
-      getInput: (name: string) => (name === "github-token" ? "token" : "5"),
+      getInput: () => "111",
       saveState: (key: string, value: string) => savedState.set(key, value),
       warning: (message: string) => warnings.push(message),
-      fetchImpl: async () =>
-        ({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            total_count: 1,
-            jobs: [
-              {
-                name: "lint",
-                status: "in_progress",
-                runner_name: "",
-                started_at: "2026-03-10T10:00:01.000Z",
-                check_run_url:
-                  "https://api.github.com/repos/everr-labs/everr/check-runs/111",
-              },
-            ],
-          }),
-        }) as Response,
       spawnImpl: () => {
         throw new Error("spawn failed");
       },
     });
 
     assert.equal(result.enabled, false);
+    assert.equal(result.checkRunId, "111");
     assert.equal(savedState.get("enabled"), "0");
     assert.match(warnings[0], /did not start: spawn failed/);
   } finally {
@@ -293,57 +143,20 @@ test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH", asyn
     | undefined;
 
   try {
-    const workflowDir = path.join(tempDir, ".github", "workflows");
-    await fsp.mkdir(workflowDir, { recursive: true });
-    await fsp.writeFile(
-      path.join(workflowDir, "build.yml"),
-      [
-        "name: Build & Test Collector",
-        "jobs:",
-        "  lint:",
-        "    name: Lint",
-        "    runs-on: ubuntu-latest",
-        "    steps: []",
-      ].join("\n"),
-      "utf8",
-    );
-
     const result = await startResourceUsage({
       env: {
         RUNNER_OS: "Linux",
         RUNNER_TEMP: tempDir,
-        GITHUB_API_URL: "https://api.github.com",
         GITHUB_RUN_ID: "12",
         GITHUB_RUN_ATTEMPT: "1",
         GITHUB_JOB: "lint",
         GITHUB_REPOSITORY: "everr-labs/everr",
         GITHUB_WORKSPACE: tempDir,
-        GITHUB_WORKFLOW: "Build & Test Collector",
-        GITHUB_WORKFLOW_REF:
-          "everr-labs/everr/.github/workflows/build.yml@refs/heads/main",
       },
-      getInput: (name: string) => (name === "github-token" ? "token" : "5"),
+      getInput: () => "222",
       saveState: (key: string, value: string) => savedState.set(key, value),
       info: () => {},
       warning: () => {},
-      fetchImpl: async () =>
-        ({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            total_count: 1,
-            jobs: [
-              {
-                name: "Lint",
-                status: "in_progress",
-                runner_name: "",
-                started_at: "2026-03-10T10:00:01.000Z",
-                check_run_url:
-                  "https://api.github.com/repos/everr-labs/everr/check-runs/222",
-              },
-            ],
-          }),
-        }) as Response,
       spawnImpl: ((file: string, args: readonly string[]) => {
         spawnInvocation = { file, args };
         return {
@@ -354,11 +167,13 @@ test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH", asyn
     });
 
     assert.equal(result.enabled, true);
+    assert.equal(result.checkRunId, "222");
     assert.equal(spawnInvocation?.file, "bash");
     assert.equal(
       spawnInvocation?.args[0],
       path.join(resolveActionRoot(fileURLToPath(import.meta.url)), "scripts", "sampler.sh"),
     );
+    assert.equal(savedState.get("checkRunId"), "222");
     assert.equal(savedState.get("actionPath"), undefined);
   } finally {
     await fsp.rm(tempDir, { recursive: true, force: true });

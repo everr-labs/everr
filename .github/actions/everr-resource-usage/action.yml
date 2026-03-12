@@ -2,10 +2,9 @@ name: Everr Resource Usage
 description: Collect per-job machine resource usage and upload a best-effort artifact
 
 inputs:
-  github-token:
-    description: Token used to discover the current job check run id
-    required: false
-    default: ${{ github.token }}
+  check-run-id:
+    description: Check run id for the current job, usually `${{ job.check_run_id }}`
+    required: true
 
 runs:
   using: node24
