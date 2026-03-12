@@ -36,28 +36,44 @@ export function RunsTable({ data }: RunsTableProps) {
         <tbody>
           {data.map((run) => (
             <tr
-              key={run.traceId}
+              key={run.traceId ?? `${run.status}:${run.runId}:${run.timestamp}`}
               className="border-b last:border-0 hover:bg-muted/50"
             >
               <td className="py-2 pr-4">
-                <ConclusionIcon
-                  conclusion={run.conclusion}
-                  className="size-4"
-                />
+                <div className="flex items-center gap-2">
+                  <ConclusionIcon
+                    conclusion={getStatusIconName(run)}
+                    className="size-4"
+                  />
+                  <span>{getStatusLabel(run)}</span>
+                </div>
               </td>
               <td className="py-2 pr-4">
-                <Link
-                  to="/dashboard/runs/$traceId"
-                  params={{ traceId: run.traceId }}
-                  className="font-mono text-xs hover:underline"
-                >
-                  {run.runId}
-                  {run.runAttempt > 1 && (
-                    <span className="text-muted-foreground ml-1">
-                      (#{run.runAttempt})
-                    </span>
-                  )}
-                </Link>
+                {run.status === "completed" && run.traceId ? (
+                  <Link
+                    to="/dashboard/runs/$traceId"
+                    params={{ traceId: run.traceId }}
+                    className="font-mono text-xs hover:underline"
+                  >
+                    {run.runId}
+                    {run.runAttempt && run.runAttempt > 1 ? (
+                      <span className="text-muted-foreground ml-1">
+                        (#{run.runAttempt})
+                      </span>
+                    ) : null}
+                  </Link>
+                ) : run.htmlUrl ? (
+                  <a
+                    href={run.htmlUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-xs hover:underline"
+                  >
+                    {run.runId}
+                  </a>
+                ) : (
+                  <span className="font-mono text-xs">{run.runId}</span>
+                )}
               </td>
               <td className="py-2 pr-4 font-medium">{run.workflowName}</td>
               <td className="py-2 pr-4">
@@ -87,4 +103,32 @@ export function RunsTable({ data }: RunsTableProps) {
       </table>
     </div>
   );
+}
+
+function getStatusIconName(run: RunListItem): string {
+  return run.status === "completed" ? run.conclusion : run.status;
+}
+
+function getStatusLabel(run: RunListItem): string {
+  if (run.status === "queued") {
+    return "Queued";
+  }
+
+  if (run.status === "in_progress") {
+    return "In progress";
+  }
+
+  switch (run.conclusion.trim().toLowerCase()) {
+    case "success":
+      return "Success";
+    case "failure":
+    case "failed":
+      return "Failed";
+    case "cancellation":
+      return "Cancelled";
+    case "skip":
+      return "Skipped";
+    default:
+      return run.conclusion || "Completed";
+  }
 }

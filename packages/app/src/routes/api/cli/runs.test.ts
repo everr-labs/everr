@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 vi.mock("@/data/runs-list", () => ({
   getRunsList: vi.fn(),
+  RunLifecycleStatusSchema: z.enum(["queued", "in_progress", "completed"]),
 }));
 
 vi.mock("@/data/wait-pipeline", () => ({
@@ -68,6 +70,7 @@ describe("/api/cli/runs", () => {
         offset: 30,
         repo: "everr-labs/everr",
         branch: undefined,
+        status: undefined,
         conclusion: undefined,
         workflowName: undefined,
         runId: undefined,
@@ -76,9 +79,51 @@ describe("/api/cli/runs", () => {
     expect(mockedGetWaitPipelineStatus).not.toHaveBeenCalled();
   });
 
+  it("forwards status to runs list queries", async () => {
+    mockedGetRunsList.mockResolvedValue({
+      runs: [],
+      totalCount: 0,
+    });
+
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/runs?status=in_progress"),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockedGetRunsList).toHaveBeenCalledWith({
+      data: {
+        timeRange: {
+          from: "now-7d",
+          to: "now",
+        },
+        limit: undefined,
+        offset: undefined,
+        repo: undefined,
+        branch: undefined,
+        status: "in_progress",
+        conclusion: undefined,
+        workflowName: undefined,
+        runId: undefined,
+      },
+    });
+  });
+
   it("rejects the removed page query parameter", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/runs?page=2"),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error:
+        "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
+    });
+    expect(mockedGetRunsList).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid status filters", async () => {
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/runs?status=running"),
     });
 
     expect(response.status).toBe(400);

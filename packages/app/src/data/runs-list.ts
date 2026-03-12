@@ -5,19 +5,28 @@ import { query } from "@/lib/clickhouse";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { runSummarySubquery } from "./run-query-helpers";
 
+export const RunLifecycleStatusSchema = z.enum([
+  "queued",
+  "in_progress",
+  "completed",
+]);
+export type RunLifecycleStatus = z.infer<typeof RunLifecycleStatusSchema>;
+
 export interface RunListItem {
-  traceId: string;
+  traceId?: string;
   runId: string;
-  runAttempt: number;
+  runAttempt?: number;
   workflowName: string;
   repo: string;
   branch: string;
+  status: RunLifecycleStatus;
   conclusion: string;
   duration: number;
   timestamp: string;
   sender: string;
   headSha?: string;
   jobCount: number;
+  htmlUrl?: string;
   failingSteps?: FailingStepSummary[];
 }
 
@@ -42,6 +51,7 @@ const RunsListInputSchema = z
     offset: z.coerce.number().int().min(0).optional(),
     repo: z.string().optional(),
     branch: z.string().optional(),
+    status: RunLifecycleStatusSchema.optional(),
     conclusion: z.string().optional(),
     workflowName: z.string().optional(),
     runId: z.string().optional(),
@@ -74,12 +84,17 @@ export const getRunsList = createServerFn({
     const limit = data.limit ?? data.pageSize ?? 20;
     const offset = data.offset ?? ((data.page ?? 1) - 1) * limit;
 
-    const conditions: string[] = [
+    const completedConditions: string[] = [
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
       "ResourceAttributes['cicd.pipeline.run.id'] != ''",
       "ResourceAttributes['cicd.pipeline.task.run.result'] != ''",
       "SpanAttributes['everr.github.workflow_job_step.number'] = ''",
       "SpanAttributes['everr.test.name'] = ''",
+    ];
+    const activeConditions: string[] = [
+      "event_time >= {fromTime:String} AND event_time <= {toTime:String}",
+      "event_kind = 'pipelinerun'",
+      "subject_id != ''",
     ];
     const params: Record<string, unknown> = {
       fromTime: fromISO,
@@ -89,39 +104,43 @@ export const getRunsList = createServerFn({
     };
 
     if (data.repo) {
-      conditions.push(
+      completedConditions.push(
         "ResourceAttributes['vcs.repository.name'] = {repo:String}",
       );
+      activeConditions.push("repository = {repo:String}");
       params.repo = data.repo;
     }
     if (data.branch) {
-      conditions.push(
+      completedConditions.push(
         "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
       );
+      activeConditions.push("ref = {branch:String}");
       params.branch = data.branch;
+    }
+    if (data.status) {
+      params.status = data.status;
     }
     if (data.conclusion) {
       params.conclusion = data.conclusion;
     }
     if (data.workflowName) {
-      conditions.push(
+      completedConditions.push(
         "ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}",
       );
+      activeConditions.push("subject_name = {workflowName:String}");
       params.workflowName = data.workflowName;
     }
     if (data.runId) {
-      conditions.push(
+      completedConditions.push(
         "ResourceAttributes['cicd.pipeline.run.id'] = {runId:String}",
       );
+      activeConditions.push("subject_id = {runId:String}");
       params.runId = data.runId;
     }
 
-    const whereClause = conditions.join("\n\t\t\t\tAND ");
-    const conclusionClause = data.conclusion
-      ? "WHERE conclusion = {conclusion:String}"
-      : "";
-    const runSummarySql = runSummarySubquery({
-      whereClause,
+    const completedWhereClause = completedConditions.join("\n\t\t\t\tAND ");
+    const completedSummarySql = runSummarySubquery({
+      whereClause: completedWhereClause,
       groupByExpr: "TraceId",
       groupByAlias: "trace_id",
       includeRunAttempt: true,
@@ -130,23 +149,80 @@ export const getRunsList = createServerFn({
       includeHeadSha: true,
       includeJobCount: true,
     });
+    const activeWhereClause = activeConditions.join("\n\t\t\t\tAND ");
+    const mergedFilters: string[] = [];
+
+    if (data.status) {
+      mergedFilters.push("status = {status:String}");
+    }
+    if (data.conclusion) {
+      mergedFilters.push("conclusion = {conclusion:String}");
+    }
+
+    const mergedWhereClause =
+      mergedFilters.length > 0
+        ? `WHERE ${mergedFilters.join("\n\t\t\tAND ")}`
+        : "";
+    const mergedRunsSql = `
+      SELECT *
+      FROM (
+        SELECT
+          trace_id,
+          run_id,
+          run_attempt,
+          workflowName,
+          repo,
+          branch,
+          'completed' as status,
+          conclusion,
+          duration,
+          timestamp,
+          sender,
+          headSha,
+          jobCount,
+          '' as htmlUrl
+        FROM (${completedSummarySql})
+
+        UNION ALL
+
+        SELECT
+          '' as trace_id,
+          subject_id as run_id,
+          toUInt32(0) as run_attempt,
+          argMax(subject_name, event_time) as workflowName,
+          argMax(repository, event_time) as repo,
+          argMax(ref, event_time) as branch,
+          if(argMax(event_phase, event_time) = 'queued', 'queued', 'in_progress') as status,
+          '' as conclusion,
+          greatest(0, dateDiff('millisecond', min(event_time), now64(3))) as duration,
+          max(event_time) as timestamp,
+          '' as sender,
+          argMax(sha, event_time) as headSha,
+          toUInt64(0) as jobCount,
+          argMax(subject_url, event_time) as htmlUrl
+        FROM app.cdevents
+        WHERE ${activeWhereClause}
+        GROUP BY subject_id
+        HAVING argMax(event_phase, event_time) != 'finished'
+      ) as merged_runs
+    `;
 
     const dataSql = `
         SELECT *
-        FROM (${runSummarySql})
-        ${conclusionClause}
-				ORDER BY timestamp DESC
-				LIMIT {limit:UInt32} OFFSET {offset:UInt32}
-			`;
+        FROM (${mergedRunsSql})
+        ${mergedWhereClause}
+        ORDER BY timestamp DESC
+        LIMIT {limit:UInt32} OFFSET {offset:UInt32}
+      `;
 
     const countSql = `
-				SELECT count(*) as total
-				FROM (
-					SELECT trace_id
-          FROM (${runSummarySql})
-          ${conclusionClause}
-				)
-			`;
+        SELECT count(*) as total
+        FROM (
+          SELECT run_id
+          FROM (${mergedRunsSql})
+          ${mergedWhereClause}
+        )
+      `;
 
     const [dataResult, countResult] = await Promise.all([
       query<{
@@ -156,34 +232,47 @@ export const getRunsList = createServerFn({
         workflowName: string;
         repo: string;
         branch: string;
+        status: RunLifecycleStatus;
         conclusion: string;
         duration: string;
         timestamp: string;
         sender: string;
         headSha: string;
         jobCount: string;
+        htmlUrl: string;
       }>(dataSql, params),
       query<{ total: string }>(countSql, params),
     ]);
 
-    const runs: RunListItem[] = dataResult.map((row) => ({
-      traceId: row.trace_id,
-      runId: row.run_id,
-      runAttempt: Number(row.run_attempt),
-      workflowName: row.workflowName || "Workflow",
-      repo: row.repo,
-      branch: row.branch,
-      conclusion: row.conclusion,
-      duration: Number(row.duration),
-      timestamp: row.timestamp,
-      sender: row.sender,
-      headSha: row.headSha,
-      jobCount: Number(row.jobCount),
-    }));
+    const runs: RunListItem[] = dataResult.map((row) => {
+      const runAttempt = Number(row.run_attempt);
+
+      return {
+        ...(row.trace_id ? { traceId: row.trace_id } : {}),
+        runId: row.run_id,
+        ...(runAttempt > 0 ? { runAttempt } : {}),
+        workflowName: row.workflowName || "Workflow",
+        repo: row.repo,
+        branch: row.branch,
+        status: row.status,
+        conclusion: row.conclusion,
+        duration: Number(row.duration),
+        timestamp: row.timestamp,
+        sender: row.sender,
+        ...(row.headSha ? { headSha: row.headSha } : {}),
+        jobCount: Number(row.jobCount),
+        ...(row.htmlUrl ? { htmlUrl: row.htmlUrl } : {}),
+      };
+    });
 
     const failingTraceIds = runs
-      .filter((run) => isFailingConclusion(run.conclusion))
-      .map((run) => run.traceId);
+      .filter(
+        (run) =>
+          run.status === "completed" &&
+          typeof run.traceId === "string" &&
+          isFailingConclusion(run.conclusion),
+      )
+      .map((run) => run.traceId as string);
 
     if (failingTraceIds.length > 0) {
       const failingStepsSql = `
@@ -221,7 +310,7 @@ export const getRunsList = createServerFn({
       }
 
       for (const run of runs) {
-        if (!isFailingConclusion(run.conclusion)) {
+        if (!isFailingConclusion(run.conclusion) || !run.traceId) {
           continue;
         }
         run.failingSteps = failingStepsByTraceId.get(run.traceId) ?? [];
@@ -254,28 +343,70 @@ export const getRunFilterOptions = createServerFn({
 }).handler(async () => {
   const [repos, branches, workflowNames] = await Promise.all([
     query<{ repo: string }>(
-      `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
-			FROM traces
-			WHERE Timestamp >= now() - INTERVAL 90 DAY
-				AND ResourceAttributes['vcs.repository.name'] != ''
-			ORDER BY repo
-			LIMIT 100`,
+      `SELECT repo
+      FROM (
+        SELECT DISTINCT repo
+        FROM (
+          SELECT ResourceAttributes['vcs.repository.name'] as repo
+          FROM traces
+          WHERE Timestamp >= now() - INTERVAL 90 DAY
+            AND ResourceAttributes['vcs.repository.name'] != ''
+
+          UNION ALL
+
+          SELECT repository as repo
+          FROM app.cdevents
+          WHERE event_time >= now() - INTERVAL 90 DAY
+            AND event_kind = 'pipelinerun'
+            AND repository != ''
+        )
+      )
+      ORDER BY repo
+      LIMIT 100`,
     ),
     query<{ branch: string }>(
-      `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
-			FROM traces
-			WHERE Timestamp >= now() - INTERVAL 90 DAY
-				AND ResourceAttributes['vcs.ref.head.name'] != ''
-			ORDER BY branch
-			LIMIT 100`,
+      `SELECT branch
+      FROM (
+        SELECT DISTINCT branch
+        FROM (
+          SELECT ResourceAttributes['vcs.ref.head.name'] as branch
+          FROM traces
+          WHERE Timestamp >= now() - INTERVAL 90 DAY
+            AND ResourceAttributes['vcs.ref.head.name'] != ''
+
+          UNION ALL
+
+          SELECT ref as branch
+          FROM app.cdevents
+          WHERE event_time >= now() - INTERVAL 90 DAY
+            AND event_kind = 'pipelinerun'
+            AND ref != ''
+        )
+      )
+      ORDER BY branch
+      LIMIT 100`,
     ),
     query<{ workflowName: string }>(
-      `SELECT DISTINCT ResourceAttributes['cicd.pipeline.name'] as workflowName
-			FROM traces
-			WHERE Timestamp >= now() - INTERVAL 90 DAY
-				AND ResourceAttributes['cicd.pipeline.name'] != ''
-			ORDER BY workflowName
-			LIMIT 100`,
+      `SELECT workflowName
+      FROM (
+        SELECT DISTINCT workflowName
+        FROM (
+          SELECT ResourceAttributes['cicd.pipeline.name'] as workflowName
+          FROM traces
+          WHERE Timestamp >= now() - INTERVAL 90 DAY
+            AND ResourceAttributes['cicd.pipeline.name'] != ''
+
+          UNION ALL
+
+          SELECT subject_name as workflowName
+          FROM app.cdevents
+          WHERE event_time >= now() - INTERVAL 90 DAY
+            AND event_kind = 'pipelinerun'
+            AND subject_name != ''
+        )
+      )
+      ORDER BY workflowName
+      LIMIT 100`,
     ),
   ]);
 

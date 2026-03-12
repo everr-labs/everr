@@ -1,4 +1,11 @@
-import { Ban, CheckCircle, CircleDashed, XCircle } from "lucide-react";
+import {
+  Ban,
+  CheckCircle,
+  CircleDashed,
+  Clock3,
+  LoaderCircle,
+  XCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ConclusionIconProps {
@@ -12,6 +19,12 @@ export function ConclusionIcon({ conclusion, className }: ConclusionIconProps) {
       return <CheckCircle className={cn("text-green-600", className)} />;
     case "failure":
       return <XCircle className={cn("text-red-600", className)} />;
+    case "queued":
+      return <Clock3 className={cn("text-amber-600", className)} />;
+    case "in_progress":
+      return (
+        <LoaderCircle className={cn("animate-spin text-blue-600", className)} />
+      );
     case "skip":
       return (
         <CircleDashed className={cn("text-muted-foreground", className)} />

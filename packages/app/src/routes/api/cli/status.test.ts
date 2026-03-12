@@ -67,6 +67,7 @@ describe("/api/cli/status", () => {
         limit: 10,
         repo: "everr-labs/everr",
         branch: "feature/empty",
+        status: "completed",
       },
     });
   });
@@ -81,6 +82,7 @@ describe("/api/cli/status", () => {
           workflowName: "CI",
           repo: "everr-labs/everr",
           branch: "main",
+          status: "completed",
           conclusion: "success",
           duration: 12340,
           timestamp: "2026-03-10T14:00:00Z",
@@ -132,6 +134,7 @@ describe("/api/cli/status", () => {
           workflowName: "Build & Test App",
           repo: "everr-labs/everr",
           branch: "feature/fail",
+          status: "completed",
           conclusion: "failure",
           duration: 98000,
           timestamp: "2026-03-10T14:10:00Z",
@@ -203,6 +206,7 @@ describe("/api/cli/status", () => {
           workflowName: "CI",
           repo: "everr-labs/everr",
           branch: "feature/no-step",
+          status: "completed",
           conclusion: "failed",
           duration: 42000,
           timestamp: "2026-03-10T14:20:00Z",
