@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { LogViewer } from "@/components/run-detail";
+import { ResourceUsagePanel } from "@/components/run-detail/resource-usage-panel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { jobResourceUsageOptions } from "@/data/resource-usage";
 import {
   allJobsStepsOptions,
   runDetailsOptions,
@@ -23,7 +25,7 @@ export const Route = createFileRoute(
     const jobName = selectedJob?.name ?? "";
 
     if (jobName) {
-      await queryClient.prefetchQuery(
+      queryClient.prefetchQuery(
         stepLogsOptions({
           traceId: params.traceId,
           jobName,
@@ -31,6 +33,13 @@ export const Route = createFileRoute(
         }),
       );
     }
+
+    queryClient.prefetchQuery(
+      jobResourceUsageOptions({
+        traceId: params.traceId,
+        jobId: params.jobId,
+      }),
+    );
   },
   pendingComponent: StepLogSkeleton,
 });
@@ -45,6 +54,9 @@ function StepDetailPage() {
       jobIds: (jobs ?? []).map((j) => j.jobId),
     }),
   );
+  const { data: resourceUsage } = useQuery(
+    jobResourceUsageOptions({ traceId, jobId }),
+  );
 
   const selectedJob = (jobs ?? []).find((j) => j.jobId === jobId);
   const jobName = selectedJob?.name ?? "";
@@ -56,16 +68,29 @@ function StepDetailPage() {
     return null;
   }
 
-  // Derive stepName from parent's stepsByJobId data
   const steps = stepsByJobId?.[jobId] ?? [];
   const selectedStep = steps.find((s) => s.stepNumber === stepNumber);
   const stepName = selectedStep?.name ?? "";
 
+  const stepWindow =
+    selectedStep?.startTime && selectedStep?.endTime
+      ? { startTime: selectedStep.startTime, endTime: selectedStep.endTime }
+      : null;
+
   return (
     <Card size="sm" className="flex h-full flex-col overflow-hidden">
       {/* TODO: Make a card variant with 0 padding*/}
-      <CardContent className="!px-0 -my-3 min-h-0 flex-1">
-        <LogViewer logs={logs ?? []} stepName={stepName} />
+      <CardContent className="!px-0 -my-3 min-h-0 flex-1 flex flex-col">
+        {resourceUsage && (
+          <ResourceUsagePanel
+            data={resourceUsage}
+            stepWindow={stepWindow}
+            selectedStepName={stepName}
+          />
+        )}
+        <div className="min-h-0 flex-1">
+          <LogViewer logs={logs ?? []} stepName={stepName} />
+        </div>
       </CardContent>
     </Card>
   );

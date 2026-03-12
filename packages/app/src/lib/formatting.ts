@@ -78,6 +78,33 @@ export function testNameLastSegment(name: string): string {
   return name.split(testNameSeparator(name)).pop() ?? name;
 }
 
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const k = 1024;
+  const i = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(k)),
+    units.length - 1,
+  );
+  const value = bytes / k ** i;
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
+}
+
+export function formatPercent(value: number): string {
+  if (value >= 10) return `${Math.round(value)}%`;
+  return `${value.toFixed(1)}%`;
+}
+
+export function formatTimeOfDay(unixMs: number): string {
+  const d = new Date(unixMs);
+  return d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 function parseTimestampAsUTC(timestamp: string): Date {
   // ClickHouse often returns "YYYY-MM-DD HH:mm:ss[.sss]" without timezone.
   // Treat timezone-less timestamps as UTC to avoid client-local drift.

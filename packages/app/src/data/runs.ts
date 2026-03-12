@@ -29,6 +29,8 @@ export interface Step {
   name: string;
   conclusion: string;
   duration: number; // ms
+  startTime: number; // Unix ms
+  endTime: number; // Unix ms
 }
 
 export interface LogEntry {
@@ -363,7 +365,9 @@ export const getJobSteps = createServerFn({
 						lowerUTF8(StatusMessage) = 'skip',
 						0,
 						Duration / 1000000
-					) as duration
+					) as duration,
+					toUnixTimestamp64Milli(Timestamp) as startTime,
+					toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
 			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
@@ -376,6 +380,8 @@ export const getJobSteps = createServerFn({
       stepNumber: string;
       conclusion: string;
       duration: string;
+      startTime: string;
+      endTime: string;
     }>(sql, { traceId, jobId });
 
     return result.map((row) => ({
@@ -383,6 +389,8 @@ export const getJobSteps = createServerFn({
       name: row.name,
       conclusion: row.conclusion,
       duration: Number(row.duration),
+      startTime: Number(row.startTime),
+      endTime: Number(row.endTime),
     })) satisfies Step[];
   });
 
@@ -408,7 +416,9 @@ export const getAllJobsSteps = createServerFn({
           lowerUTF8(StatusMessage) = 'skip',
           0,
           Duration / 1000000
-        ) as duration
+        ) as duration,
+        toUnixTimestamp64Milli(Timestamp) as startTime,
+        toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
       FROM traces
       WHERE TraceId = {traceId:String}
         AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
@@ -421,6 +431,8 @@ export const getAllJobsSteps = createServerFn({
       stepNumber: string;
       conclusion: string;
       duration: string;
+      startTime: string;
+      endTime: string;
     }>(sql, { traceId, jobIds });
 
     for (const row of rows) {
@@ -432,6 +444,8 @@ export const getAllJobsSteps = createServerFn({
         name: row.name,
         conclusion: row.conclusion,
         duration: Number(row.duration),
+        startTime: Number(row.startTime),
+        endTime: Number(row.endTime),
       });
     }
 
