@@ -32,7 +32,7 @@ export function FilterSelect({
 
   return (
     <Select
-      value={value ?? "__all__"}
+      value={value === "__all__" ? undefined : value}
       onValueChange={(v) =>
         onChange(v === "__all__" || v == null ? undefined : v)
       }
@@ -41,7 +41,7 @@ export function FilterSelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__all__">{placeholder}</SelectItem>
+        <SelectItem value={undefined}>{placeholder}</SelectItem>
         {normalizedItems.map((item) => (
           <SelectItem key={item.value} value={item.value}>
             {item.label}
