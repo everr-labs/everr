@@ -39,6 +39,10 @@ service:
       receivers: [githubactions, testlogstotraces]
       processors: [resource, batch]
       exporters: [clickhouse, debug]
+    metrics:
+      receivers: [githubactions]
+      processors: [resource, batch]
+      exporters: [clickhouse, debug]
     logs:
       receivers: [githubactions]
       processors: [resource, batch]
