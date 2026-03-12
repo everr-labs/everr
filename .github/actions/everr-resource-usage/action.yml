@@ -9,6 +9,6 @@ inputs:
 
 runs:
   using: node24
-  main: dist/index.mjs
-  post: dist/index.mjs
+  main: dist/index.js
+  post: dist/index.js
   post-if: always()

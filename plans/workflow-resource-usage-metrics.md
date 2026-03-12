@@ -153,7 +153,7 @@ Post-phase behavior:
 - ensure the samples file exists even if the sampler produced nothing
 - stop the sampler with `SIGTERM`
 - resolve the workspace filesystem metadata via `df -PkT`
-- run `dist/finalize.mjs` to materialize `metadata.json` and sanitized `samples.ndjson`
+- run `dist/finalize/index.js` to materialize `metadata.json` and sanitized `samples.ndjson`
 - upload the two files as a single artifact with `retentionDays: 7`
 
 Failure policy:

@@ -33,6 +33,7 @@ config.yml
 dist
 !.github/actions/everr-resource-usage/dist
 !.github/actions/everr-resource-usage/dist/**
+.github/actions/everr-resource-usage/build/
 
 .output
 

@@ -445,7 +445,12 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
     assert.equal(execInvocation?.file, process.execPath);
     assert.equal(
       execInvocation?.args[0],
-      path.join(resolveActionRoot(fileURLToPath(import.meta.url)), "dist", "finalize.mjs"),
+      path.join(
+        resolveActionRoot(fileURLToPath(import.meta.url)),
+        "dist",
+        "finalize",
+        "index.js",
+      ),
     );
     assert.match(infos[0], /uploaded resource-usage artifact/);
   } finally {

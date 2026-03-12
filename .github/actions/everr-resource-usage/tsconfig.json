@@ -4,8 +4,6 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmitOnError": true,
-    "outDir": "build",
-    "rootDir": ".",
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",

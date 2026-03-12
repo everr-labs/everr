@@ -265,7 +265,7 @@ async function finalizeAndUploadResourceUsage({
     await stopSampler(pidPath, warning, fspModule);
     const filesystem = await resolveFilesystemInfo(workspacePath);
 
-    const finalizeScript = path.join(actionRoot, "dist", "finalize.mjs");
+    const finalizeScript = path.join(actionRoot, "dist", "finalize", "index.js");
     await execFileImpl(process.execPath, [
       finalizeScript,
       "--samples-path",
