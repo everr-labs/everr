@@ -3,7 +3,7 @@ description: Collect per-job machine resource usage and upload a best-effort art
 
 inputs:
   check-run-id:
-    description: Check run id for the current job, usually `${{ job.check_run_id }}`
+    description: Check run id for the current workflow job
     required: true
 
 runs:
