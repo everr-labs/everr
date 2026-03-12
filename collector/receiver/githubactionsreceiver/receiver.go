@@ -28,16 +28,17 @@ var errMissingGitHubAuth = errors.New("github api authentication is not configur
 const maxPayloadSize = 25 * 1024 * 1024 // 25 MB — GitHub webhook max payload size
 
 type githubActionsReceiver struct {
-	logsConsumer   consumer.Logs
-	tracesConsumer consumer.Traces
-	config         *Config
-	server         *http.Server
-	serverMu       sync.Mutex
-	shutdownWG     sync.WaitGroup
-	settings       receiver.Settings
-	logger         *zap.Logger
-	obsrecv        *receiverhelper.ObsReport
-	ghClient       *github.Client
+	logsConsumer    consumer.Logs
+	metricsConsumer consumer.Metrics
+	tracesConsumer  consumer.Traces
+	config          *Config
+	server          *http.Server
+	serverMu        sync.Mutex
+	shutdownWG      sync.WaitGroup
+	settings        receiver.Settings
+	logger          *zap.Logger
+	obsrecv         *receiverhelper.ObsReport
+	ghClient        *github.Client
 }
 
 func newReceiver(
@@ -127,6 +128,30 @@ func newLogsReceiver(
 	}
 
 	r.Unwrap().(*githubActionsReceiver).logsConsumer = consumer
+
+	return r, nil
+}
+
+// newMetricsReceiver creates a metrics receiver based on provided config.
+func newMetricsReceiver(
+	_ context.Context,
+	set receiver.Settings,
+	cfg component.Config,
+	consumer consumer.Metrics,
+) (receiver.Metrics, error) {
+	rCfg := cfg.(*Config)
+	var err error
+
+	r := receivers.GetOrAdd(cfg, func() component.Component {
+		var rcv component.Component
+		rcv, err = newReceiver(set, rCfg)
+		return rcv
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.Unwrap().(*githubActionsReceiver).metricsConsumer = consumer
 
 	return r, nil
 }
@@ -238,6 +263,21 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	var installationClient *github.Client
+	getInstallationClient := func() (*github.Client, error) {
+		if installationClient != nil {
+			return installationClient, nil
+		}
+
+		client, clientErr := gar.githubClientForInstallation(installationID)
+		if clientErr != nil {
+			return nil, clientErr
+		}
+
+		installationClient = client
+		return installationClient, nil
+	}
+
 	// if a trace consumer is set, process the event into traces
 	if !processingFailed && gar.tracesConsumer != nil {
 		td, err := eventToTraces(event, gar.config, gar.logger.Named("eventToTraces"))
@@ -257,12 +297,35 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	// if a metrics consumer is set, process the event into metrics
+	if !processingFailed && gar.metricsConsumer != nil {
+		ghClient, clientErr := getInstallationClient()
+		if clientErr != nil {
+			processingFailed = true
+			gar.logger.Error("Failed to initialize GitHub client for metrics", zap.Error(clientErr))
+		} else {
+			md, metricsErr := eventToMetrics(ctx, event, gar.config, ghClient, gar.logger.Named("eventToMetrics"))
+			if metricsErr != nil {
+				processingFailed = true
+				gar.logger.Error("Failed to process metrics", zap.Error(metricsErr))
+			}
+
+			if md != nil {
+				consumerErr := gar.metricsConsumer.ConsumeMetrics(ctx, *md)
+				if consumerErr != nil {
+					processingFailed = true
+					gar.logger.Error("Failed to consume metrics", zap.Error(consumerErr))
+				}
+			}
+		}
+	}
+
 	// if a log consumer is set, process the event into logs
 	if !processingFailed && gar.logsConsumer != nil {
-		ghClient, err := gar.githubClientForInstallation(installationID)
-		if err != nil {
+		ghClient, clientErr := getInstallationClient()
+		if clientErr != nil {
 			processingFailed = true
-			gar.logger.Error("Failed to initialize GitHub client for logs", zap.Error(err))
+			gar.logger.Error("Failed to initialize GitHub client for logs", zap.Error(clientErr))
 		} else {
 			withTraceInfo := gar.tracesConsumer != nil && !traceErr
 

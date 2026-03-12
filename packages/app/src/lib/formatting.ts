@@ -78,22 +78,74 @@ export function testNameLastSegment(name: string): string {
   return name.split(testNameSeparator(name)).pop() ?? name;
 }
 
-function parseTimestampAsUTC(timestamp: string): Date {
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const k = 1024;
+  const i = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(k)),
+    units.length - 1,
+  );
+  const value = bytes / k ** i;
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
+}
+
+export function formatSpeed(bytesPerSecond: number): string {
+  if (bytesPerSecond === 0) return "0 B/s";
+  const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+  const k = 1024;
+  const i = Math.min(
+    Math.floor(Math.log(bytesPerSecond) / Math.log(k)),
+    units.length - 1,
+  );
+  const value = bytesPerSecond / k ** i;
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
+}
+
+export function formatPercent(value: number): string {
+  if (value >= 10) return `${Math.round(value)}%`;
+  return `${value.toFixed(1)}%`;
+}
+
+export function formatTimeOfDay(unixMs: number): string {
+  const d = new Date(unixMs);
+  return d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+export function parseTimestampAsUTC(timestamp: string): Date | null {
   // ClickHouse often returns "YYYY-MM-DD HH:mm:ss[.sss]" without timezone.
   // Treat timezone-less timestamps as UTC to avoid client-local drift.
   const normalized = timestamp.trim();
+  if (!normalized) {
+    return null;
+  }
   const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized);
-  if (hasTimezone) return new Date(normalized);
-
-  const isoLike = normalized.includes("T")
+  const candidate = hasTimezone
     ? normalized
-    : normalized.replace(" ", "T");
-  return new Date(`${isoLike}Z`);
+    : `${normalized.includes("T") ? normalized : normalized.replace(" ", "T")}Z`;
+  const parsed = new Date(candidate);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function normalizeTimestampToUtc(timestamp: string): string {
+  const parsed = parseTimestampAsUTC(timestamp);
+  return parsed ? parsed.toISOString() : timestamp;
+}
+
+export function formatTimestampTimeOfDay(timestamp: string): string {
+  const parsed = parseTimestampAsUTC(timestamp);
+  return parsed ? parsed.toLocaleTimeString() : "—";
 }
 
 export function formatRelativeTime(timestamp: string): string {
   const date = parseTimestampAsUTC(timestamp);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (!date) return "—";
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();

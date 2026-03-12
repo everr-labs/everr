@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { normalizeTimestampToUtc } from "@/lib/formatting";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { runSummarySubquery } from "./run-query-helpers";
@@ -29,6 +30,8 @@ export interface Step {
   name: string;
   conclusion: string;
   duration: number; // ms
+  startTime: number; // Unix ms
+  endTime: number; // Unix ms
 }
 
 export interface LogEntry {
@@ -38,6 +41,13 @@ export interface LogEntry {
 
 const DEFAULT_FAILING_CONTEXT_WINDOW = 50;
 const DEFAULT_RAW_TAIL_LINES = 5000;
+
+function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
+  return {
+    timestamp: normalizeTimestampToUtc(row.timestamp),
+    body: row.body,
+  };
+}
 
 export function isFailureConclusion(conclusion: string): boolean {
   const normalized = conclusion.trim().toLowerCase();
@@ -76,10 +86,7 @@ async function getRawStepLogs(params: {
     maxLines: params.maxLines,
   });
 
-  const logs = result.map((row) => ({
-    timestamp: row.timestamp,
-    body: row.body,
-  }));
+  const logs = result.map(mapLogRow);
 
   return params.useTail ? logs.reverse() : logs;
 }
@@ -117,10 +124,7 @@ async function getStepLogsFailing(params: {
     body: string;
   }>(sql, params);
 
-  return result.map((row) => ({
-    timestamp: row.timestamp,
-    body: row.body,
-  }));
+  return result.map(mapLogRow);
 }
 
 export function buildFailingStepLogsSql(): string {
@@ -363,7 +367,9 @@ export const getJobSteps = createServerFn({
 						lowerUTF8(StatusMessage) = 'skip',
 						0,
 						Duration / 1000000
-					) as duration
+					) as duration,
+					toUnixTimestamp64Milli(Timestamp) as startTime,
+					toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
 			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
@@ -376,6 +382,8 @@ export const getJobSteps = createServerFn({
       stepNumber: string;
       conclusion: string;
       duration: string;
+      startTime: string;
+      endTime: string;
     }>(sql, { traceId, jobId });
 
     return result.map((row) => ({
@@ -383,6 +391,8 @@ export const getJobSteps = createServerFn({
       name: row.name,
       conclusion: row.conclusion,
       duration: Number(row.duration),
+      startTime: Number(row.startTime),
+      endTime: Number(row.endTime),
     })) satisfies Step[];
   });
 
@@ -408,7 +418,9 @@ export const getAllJobsSteps = createServerFn({
           lowerUTF8(StatusMessage) = 'skip',
           0,
           Duration / 1000000
-        ) as duration
+        ) as duration,
+        toUnixTimestamp64Milli(Timestamp) as startTime,
+        toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
       FROM traces
       WHERE TraceId = {traceId:String}
         AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
@@ -421,6 +433,8 @@ export const getAllJobsSteps = createServerFn({
       stepNumber: string;
       conclusion: string;
       duration: string;
+      startTime: string;
+      endTime: string;
     }>(sql, { traceId, jobIds });
 
     for (const row of rows) {
@@ -432,6 +446,8 @@ export const getAllJobsSteps = createServerFn({
         name: row.name,
         conclusion: row.conclusion,
         duration: Number(row.duration),
+        startTime: Number(row.startTime),
+        endTime: Number(row.endTime),
       });
     }
 

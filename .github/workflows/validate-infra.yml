@@ -46,6 +46,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v1
 

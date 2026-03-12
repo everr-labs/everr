@@ -1,0 +1,24 @@
+{
+  "name": "everr-resource-usage-action",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run clean && npm run build:index && npm run build:finalize",
+    "build:index": "ncc build src/index.ts -o dist",
+    "build:finalize": "ncc build scripts/finalize.ts -o dist/finalize",
+    "clean": "node --input-type=commonjs -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});\"",
+    "test": "npm run typecheck && node --test src/index.test.ts scripts/finalize.test.ts",
+    "typecheck": "tsc -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "@actions/artifact": "2.2.2",
+    "@actions/core": "1.11.1",
+    "js-yaml": "4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "4.0.9",
+    "@types/node": "24.5.2",
+    "@vercel/ncc": "0.38.4",
+    "typescript": "5.9.3"
+  }
+}

@@ -15,7 +15,7 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getRunSpans } from "./runs";
+import { getRunSpans, getStepLogs } from "./runs";
 
 const mockedQuery = vi.mocked(query);
 
@@ -93,6 +93,68 @@ describe("getRunSpans", () => {
         testLanguage: "typescript",
         isSubtest: true,
         isSuite: true,
+      },
+    ]);
+  });
+});
+
+describe("getStepLogs", () => {
+  it("normalizes full log timestamps to timezone-aware UTC ISO strings", async () => {
+    mockedQuery.mockResolvedValue([
+      {
+        timestamp: "2026-03-09 12:00:00.123",
+        body: "Starting build",
+      },
+      {
+        timestamp: "2026-03-09T12:00:01",
+        body: "Compiling",
+      },
+    ]);
+
+    const result = await getStepLogs({
+      data: {
+        traceId: "trace-1",
+        jobName: "build",
+        stepNumber: "2",
+        fullLogs: true,
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([
+      {
+        timestamp: "2026-03-09T12:00:00.123Z",
+        body: "Starting build",
+      },
+      {
+        timestamp: "2026-03-09T12:00:01.000Z",
+        body: "Compiling",
+      },
+    ]);
+  });
+
+  it("normalizes focused failing log timestamps before returning them", async () => {
+    mockedQuery.mockResolvedValueOnce([{ count: "1" }]).mockResolvedValueOnce([
+      {
+        timestamp: "2026-03-09 12:00:02",
+        body: "##[error]Build failed",
+      },
+    ]);
+
+    const result = await getStepLogs({
+      data: {
+        traceId: "trace-1",
+        jobName: "build",
+        stepNumber: "2",
+        fullLogs: false,
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(result).toEqual([
+      {
+        timestamp: "2026-03-09T12:00:02.000Z",
+        body: "##[error]Build failed",
       },
     ]);
   });

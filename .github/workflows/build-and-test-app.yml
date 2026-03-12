@@ -1,5 +1,8 @@
 name: Build & Test App
 
+permissions:
+  contents: read
+
 concurrency:
   # For pushes, this lets concurrent runs happen, so each push gets a result.
   # But for other events (e.g. PRs), we can cancel the previous runs.
@@ -39,6 +42,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
