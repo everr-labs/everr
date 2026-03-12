@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getRunsList } from "@/data/runs-list";
+import { getRunsList, RunLifecycleStatusSchema } from "@/data/runs-list";
 import { getWaitPipelineStatus } from "@/data/wait-pipeline";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 import { cliAuthMiddleware } from "./-auth";
@@ -12,6 +12,7 @@ const RunsListQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
   repo: z.string().optional(),
   branch: z.string().optional(),
+  status: RunLifecycleStatusSchema.optional(),
   conclusion: z.string().optional(),
   workflowName: z.string().optional(),
   runId: z.string().optional(),
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/api/cli/runs")({
           offset: url.searchParams.get("offset") ?? undefined,
           repo: url.searchParams.get("repo") ?? undefined,
           branch: url.searchParams.get("branch") ?? undefined,
+          status: url.searchParams.get("status") ?? undefined,
           conclusion: url.searchParams.get("conclusion") ?? undefined,
           workflowName: url.searchParams.get("workflowName") ?? undefined,
           runId: url.searchParams.get("runId") ?? undefined,
@@ -92,6 +94,7 @@ export const Route = createFileRoute("/api/cli/runs")({
             offset: data.offset,
             repo: data.repo,
             branch: data.branch,
+            status: data.status,
             conclusion: data.conclusion,
             workflowName: data.workflowName,
             runId: data.runId,

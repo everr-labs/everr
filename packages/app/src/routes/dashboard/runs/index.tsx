@@ -4,7 +4,12 @@ import { z } from "zod";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
+import {
+  type RunLifecycleStatus,
+  RunLifecycleStatusSchema,
+  runFilterOptionsOptions,
+  runsListOptions,
+} from "@/data/runs-list";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/dashboard/runs/")({
@@ -13,6 +18,7 @@ export const Route = createFileRoute("/dashboard/runs/")({
     page: z.coerce.number().default(1),
     repo: z.string().optional(),
     branch: z.string().optional(),
+    status: RunLifecycleStatusSchema.optional(),
     conclusion: z.string().optional(),
     workflowName: z.string().optional(),
     runId: z.string().optional(),
@@ -24,6 +30,7 @@ export const Route = createFileRoute("/dashboard/runs/")({
       page: deps.page,
       repo: deps.repo,
       branch: deps.branch,
+      status: deps.status,
       conclusion: deps.conclusion,
       workflowName: deps.workflowName,
       runId: deps.runId,
@@ -37,14 +44,23 @@ export const Route = createFileRoute("/dashboard/runs/")({
 });
 
 function RunsListPage() {
-  const { timeRange, page, repo, branch, conclusion, workflowName, runId } =
-    Route.useLoaderDeps();
+  const {
+    timeRange,
+    page,
+    repo,
+    branch,
+    status,
+    conclusion,
+    workflowName,
+    runId,
+  } = Route.useLoaderDeps();
 
   const runsInput = {
     timeRange,
     page,
     repo,
     branch,
+    status,
     conclusion,
     workflowName,
     runId,
@@ -76,12 +92,24 @@ function RunsListPage() {
         }
         repo={repo}
         branch={branch}
+        status={status}
         conclusion={conclusion}
         workflowName={workflowName}
         runId={runId}
         onRepoChange={(v) => updateFilter({ repo: v })}
         onBranchChange={(v) => updateFilter({ branch: v })}
-        onConclusionChange={(v) => updateFilter({ conclusion: v })}
+        onStatusChange={(value) =>
+          updateFilter({
+            status: value,
+            conclusion: isActiveStatus(value) ? undefined : conclusion,
+          })
+        }
+        onConclusionChange={(value) =>
+          updateFilter({
+            conclusion: value,
+            status: value && isActiveStatus(status) ? "completed" : status,
+          })
+        }
         onWorkflowNameChange={(v) => updateFilter({ workflowName: v })}
         onRunIdChange={(v) => updateFilter({ runId: v || undefined })}
       />
@@ -105,6 +133,12 @@ function RunsListPage() {
       />
     </div>
   );
+}
+
+function isActiveStatus(
+  status?: RunLifecycleStatus,
+): status is "queued" | "in_progress" {
+  return status === "queued" || status === "in_progress";
 }
 
 function RunsListSkeleton() {
