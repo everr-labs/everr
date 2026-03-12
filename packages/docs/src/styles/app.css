@@ -1,115 +1,114 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/inter";
 @import "fumadocs-ui/css/preset.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 :root {
-  --global-header-height: 64px;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.937 0.264 119.7);
+  --primary-foreground: oklch(0.1 0.031 120.757);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.768 0.233 130.85);
+  --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
-@theme {
-  --color-everr: oklch(0.937 0.264 119.7);
-  --color-everr-dark: oklch(0.87 0.24 118);
-  --color-everr-deep: oklch(0.52 0.16 115);
-  --color-everr-muted: oklch(0.96 0.15 120);
-  --color-everr-subtle: oklch(0.45 0.13 112);
-
-  --animate-fade-in-up: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-fade-in: fade-in 0.6s ease-out both;
-  --animate-float: float 6s ease-in-out infinite;
-  --animate-pulse-glow: pulse-glow 4s ease-in-out infinite;
-  --animate-shimmer: shimmer 2.5s ease-in-out 1;
-  --animate-gradient-shift: gradient-shift 15s ease-in-out infinite;
-  --animate-scale-in: scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+@theme inline {
+  --font-sans: "Inter Variable", sans-serif;
+  --font-heading: "Space Grotesk Variable", sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    ::selection {
+      background-color: var(--primary);
+      color: var(--primary-foreground);
+    }
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
+  .bg-primary::selection {
+    background-color: var(--primary-foreground);
+    color: var(--primary);
   }
-  to {
-    opacity: 1;
+  body {
+    @apply bg-background text-foreground;
   }
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-12px);
-  }
-}
-
-@keyframes pulse-glow {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.08);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.4;
-  }
-}
-
-@keyframes gradient-shift {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-@keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes terminal-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
+  html {
+    @apply font-sans;
   }
 }
 
-.font-headline {
-  font-weight: 900;
-  letter-spacing: -0.02em;
+@layer utilities {
+  .everr-decoration {
+    @apply after:content-[''] after:inline-block after:-mb-[.15ch] after:h-[.175ch] after:w-[.8ch] after:bg-current;
+  }
+  .everr-decoration-primary {
+    @apply after:bg-primary;
+  }
+  .everr-decoration-primary-foreground {
+    @apply after:text-primary-foreground;
+  }
 }
 
 .product-perspective {
@@ -131,64 +130,4 @@
     rgba(0, 0, 0, 0.5) 75%,
     transparent 100%
   );
-}
-
-.docs-grid-bg {
-  background-image:
-    linear-gradient(
-      to right,
-      oklch(0.937 0.264 119.7 / 0.1) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      oklch(0.937 0.264 119.7 / 0.08) 1px,
-      transparent 1px
-    );
-  background-size: 34px 34px;
-  mask-image: radial-gradient(circle at top, black 20%, transparent 82%);
-  opacity: 0.35;
-}
-
-/* Style the Fumadocs githubUrl slot as a primary CTA button */
-header a[href="https://app.everr.dev"] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0;
-  background: var(--color-everr);
-  color: black;
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1;
-  padding: 0.5rem 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  transition:
-    transform 150ms ease,
-    box-shadow 150ms ease;
-}
-
-header a[href="https://app.everr.dev"]:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 20px -14px oklch(0.937 0.264 119.7 / 0.85);
-}
-
-header a[href="https://app.everr.dev"] svg {
-  display: none;
-}
-
-header a[href="https://app.everr.dev"]::after {
-  content: "Get started";
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
-    transition-duration: 0.01ms;
-  }
 }

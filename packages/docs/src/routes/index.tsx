@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Footer } from "@/components/footer";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -14,15 +15,15 @@ const APP_URL = "https://app.everr.dev";
 function HeroSection() {
   return (
     <section className="flex flex-col items-center">
-      <h1 className="font-headline text-center text-5xl uppercase leading-[0.9] sm:text-7xl md:text-[100px] lg:text-[128px]">
+      <h1 className="font-heading text-center text-5xl uppercase leading-[0.9] sm:text-7xl md:text-[100px] lg:text-[128px] everr-decoration everr-decoration-primary">
         Every second
         <br />
-        counts<span className="text-everr">_</span>
+        counts
       </h1>
 
       <p className="mt-6 text-center text-xl sm:text-2xl md:mt-10">
         <span
-          className="inline bg-everr px-3 py-1 font-bold text-black leading-relaxed"
+          className="inline bg-primary px-3 py-1 font-semibold font-heading text-primary-foreground leading-relaxed"
           style={{
             boxDecorationBreak: "clone",
             WebkitBoxDecorationBreak: "clone",
@@ -39,21 +40,24 @@ function HeroSection() {
       </p>
 
       <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row md:mt-14">
-        <a
-          href={APP_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-14 items-center bg-everr px-10 font-mono text-sm font-bold uppercase tracking-widest text-black transition-colors hover:bg-everr-dark"
+        <Button
+          variant="cta"
+          size="xl"
+          render={
+            // biome-ignore lint/a11y/useAnchorContent: content is injected
+            <a href={APP_URL} target="_blank" rel="noopener noreferrer" />
+          }
         >
           Get started
-        </a>
-        <Link
-          to="/docs/$"
-          params={{ _splat: "" }}
-          className="inline-flex h-14 items-center border-2 border-fd-foreground px-10 font-mono text-sm font-bold uppercase tracking-widest transition-colors hover:bg-fd-foreground hover:text-fd-background"
+        </Button>
+
+        <Button
+          variant="outline"
+          size="xl"
+          render={<Link to="/docs/$" params={{ _splat: "" }} />}
         >
           Docs
-        </Link>
+        </Button>
       </div>
 
       <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.25em] text-fd-muted-foreground/60">
@@ -88,7 +92,7 @@ function ProductVisualization() {
 
           <div className="p-5 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
-              <span className="bg-everr/15 px-2 py-1 font-mono text-xs font-bold uppercase text-everr-deep dark:text-everr">
+              <span className="bg-primary/15 px-2 py-1 font-mono text-xs font-bold uppercase text-primary">
                 run #29184
               </span>
               <span className="font-mono text-xs text-fd-muted-foreground">
@@ -107,7 +111,7 @@ function ProductVisualization() {
                   </span>
                   <div className="h-6 bg-fd-secondary/60">
                     <div
-                      className={`h-full ${span.ok ? "bg-everr/45" : "bg-red-500/45"}`}
+                      className={`h-full ${span.ok ? "bg-primary/45" : "bg-red-500/45"}`}
                       style={{ width: span.pct }}
                     />
                   </div>
@@ -147,8 +151,8 @@ function HowItWorksSection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <h2 className="font-headline mb-3 text-4xl uppercase sm:text-5xl md:text-6xl">
-          How it works<span className="text-everr">_</span>
+        <h2 className="font-headline mb-3 text-4xl sm:text-5xl md:text-6xl font-heading everr-decoration everr-decoration-primary">
+          How it works
         </h2>
         <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
           No code changes. No new configs. Connect and start tracing.
@@ -160,8 +164,8 @@ function HowItWorksSection() {
             <div className="mb-6">
               <ConnectProvidersViz />
             </div>
-            <h3 className="font-headline mb-1 text-xl uppercase">
-              One-click connect<span className="text-everr">_</span>
+            <h3 className="font-headline mb-1 text-xl  font-heading everr-decoration everr-decoration-primary font-bold">
+              One-click connect
             </h3>
             <p className="leading-relaxed text-fd-muted-foreground">
               Connect your CI/CD systems in seconds. GitHub Actions, GitLab CI,
@@ -174,8 +178,8 @@ function HowItWorksSection() {
             <div className="mb-6">
               <RunsAndTestsViz />
             </div>
-            <h3 className="font-headline mb-1 text-xl uppercase">
-              Runs and tests<span className="text-everr">_</span>
+            <h3 className="font-headline mb-1 text-xl font-heading everr-decoration everr-decoration-primary font-bold">
+              Runs and tests
             </h3>
             <p className="leading-relaxed text-fd-muted-foreground">
               Every workflow run collected with full detail. See test
@@ -189,8 +193,8 @@ function HowItWorksSection() {
             <div className="mb-6">
               <AppAndCliViz />
             </div>
-            <h3 className="font-headline mb-1 text-xl uppercase">
-              App and CLI<span className="text-everr">_</span>
+            <h3 className="font-headline mb-1 text-xl font-heading everr-decoration everr-decoration-primary font-bold">
+              App and CLI
             </h3>
             <p className="leading-relaxed text-fd-muted-foreground">
               A dashboard to explore, and a CLI that plugs into your preferred
@@ -203,8 +207,8 @@ function HowItWorksSection() {
             <div className="mb-6">
               <CodeAssistantViz />
             </div>
-            <h3 className="font-headline mb-1 text-xl uppercase">
-              Fix from your assistant<span className="text-everr">_</span>
+            <h3 className="font-headline mb-1 text-xl font-heading everr-decoration everr-decoration-primary font-bold">
+              Fix from your assistant
             </h3>
             <p className="leading-relaxed text-fd-muted-foreground">
               Wait for CI results without leaving your editor. When failures
@@ -254,7 +258,7 @@ function ConnectProvidersViz() {
               key={provider.name}
               className={`flex flex-col gap-2 border-2 p-4 ${
                 provider.status === "connected"
-                  ? "border-everr/30 bg-everr/5"
+                  ? "border-primary/30 bg-primary/5"
                   : "border-fd-border bg-fd-secondary/30"
               }`}
             >
@@ -262,8 +266,8 @@ function ConnectProvidersViz() {
                 {provider.name}
               </span>
               {provider.status === "connected" ? (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-everr-deep dark:text-everr">
-                  <span className="text-everr">&#10003;</span> Connected
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                  <span>&#10003;</span> Connected
                 </span>
               ) : (
                 <span className="text-[11px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
@@ -537,11 +541,11 @@ function AppAndCliViz() {
         <div className="p-5 font-mono text-[13px] leading-[1.8]">
           <span className="block whitespace-nowrap">
             <span className="text-fd-muted-foreground">my-project</span>{" "}
-            <span className="text-everr">%</span> <span>everr status</span>
+            <span className="text-primary">%</span> <span>everr status</span>
           </span>
           <span className="block whitespace-nowrap">&nbsp;</span>
           <span className="block whitespace-nowrap">
-            <span className="text-everr">&#10003;</span>{" "}
+            <span className="text-green-500">&#10003;</span>{" "}
             <span className="text-fd-muted-foreground">GitHub Actions</span>{" "}
             <span className="text-fd-muted-foreground/50">3 workflows</span>
           </span>
@@ -561,7 +565,7 @@ function AppAndCliViz() {
           <span className="block whitespace-nowrap">&nbsp;</span>
           <span className="block whitespace-nowrap">
             <span className="text-fd-muted-foreground">my-project</span>{" "}
-            <span className="text-everr">%</span>{" "}
+            <span className="text-primary">%</span>{" "}
             <span
               className="ml-0.5 inline-block h-[16px] w-[8px] bg-fd-muted-foreground align-text-bottom"
               style={{
@@ -688,8 +692,8 @@ function WhySection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <h2 className="font-headline mb-3 text-4xl uppercase sm:text-5xl md:text-6xl">
-          Why Everr<span className="text-everr">_</span>
+        <h2 className="font-headline mb-3 text-4xl font-heading sm:text-5xl md:text-6xl everr-decoration everr-decoration-primary">
+          Why Everr
         </h2>
         <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
           AI-assisted development compresses release cycles, but broken
@@ -727,17 +731,17 @@ function BottomCTA() {
   return (
     <section>
       <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <h2 className="font-headline text-4xl uppercase leading-[0.9] sm:text-5xl md:text-7xl">
+        <h2 className="font-headline text-4xl uppercase leading-[0.9] sm:text-5xl md:text-7xl font-heading">
           Stop guessing
           <br />
           <span
-            className="inline bg-everr px-4 py-1 text-black leading-relaxed"
+            className="inline bg-primary px-4 py-1 text-primary-foreground leading-relaxed everr-decoration everr-decoration-primary-foreground"
             style={{
               boxDecorationBreak: "clone",
               WebkitBoxDecorationBreak: "clone",
             }}
           >
-            Start tracing_
+            Start tracing
           </span>
         </h2>
         <p className="mt-6 max-w-xl text-lg text-fd-muted-foreground">
@@ -745,21 +749,20 @@ function BottomCTA() {
           Free to get started.
         </p>
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-          <a
-            href={APP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-14 items-center bg-everr px-10 font-mono text-sm font-bold uppercase tracking-widest text-black transition-colors hover:bg-everr-dark"
+          <Button
+            variant="cta"
+            size="xl"
+            render={
+              // biome-ignore lint/a11y/useAnchorContent: content is injected
+              <a href={APP_URL} target="_blank" rel="noopener noreferrer" />
+            }
           >
             Get started
-          </a>
-          <Link
-            to="/docs/$"
-            params={{ _splat: "" }}
-            className="inline-flex h-14 items-center border-2 border-fd-foreground px-10 font-mono text-sm font-bold uppercase tracking-widest transition-colors hover:bg-fd-foreground hover:text-fd-background"
-          >
+          </Button>
+
+          <Button variant="outline" size="xl" render={<Link to="/docs/$" />}>
             Docs
-          </Link>
+          </Button>
         </div>
       </div>
     </section>

@@ -5,14 +5,16 @@ export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
       title: (
-        <span className="flex items-center gap-1.5 font-semibold">
-          <Citrus className="size-5" />
+        <span className="flex items-center gap-1.5 font-semibold font-heading">
+          <Citrus className="size-5 text-primary" />
           Everr
         </span>
       ),
       url: "/",
     },
-    githubUrl: "https://app.everr.dev",
+    themeSwitch: {
+      enabled: false,
+    },
     links: [
       {
         text: "Documentation",

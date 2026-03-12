@@ -8,8 +8,8 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
           {/* Brand */}
           <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
-            <div className="flex items-center justify-center gap-2 font-semibold sm:justify-start">
-              <Citrus className="size-8" />
+            <div className="flex items-center justify-center gap-2 font-semibold sm:justify-start font-heading">
+              <Citrus className="size-8 text-primary" />
               <span className="text-2xl">Everr</span>
             </div>
             <p className="mt-4 text-sm text-fd-muted-foreground">
@@ -24,7 +24,7 @@ export function Footer() {
 
           {/* Product */}
           <div>
-            <h3 className="mb-4 text-sm font-medium">Product</h3>
+            <h3 className="mb-4 text-sm font-medium font-heading">Product</h3>
             <ul className="space-y-3">
               <li>
                 <Link
@@ -48,7 +48,7 @@ export function Footer() {
 
           {/* Resources */}
           <div>
-            <h3 className="mb-4 text-sm font-medium">Resources</h3>
+            <h3 className="mb-4 text-sm font-medium font-heading">Resources</h3>
             <ul className="space-y-3">
               <li>
                 <Link
