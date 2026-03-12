@@ -9,6 +9,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  actions: read
+  contents: read
+
 on:
   pull_request:
     paths:
@@ -28,6 +32,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -63,6 +70,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -118,6 +128,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -151,6 +164,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
 
       - name: Set up Go
         uses: actions/setup-go@v5

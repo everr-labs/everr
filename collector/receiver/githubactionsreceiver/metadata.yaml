@@ -3,6 +3,6 @@ type: githubactions
 status:
   class: receiver
   stability:
-    alpha: [traces, logs]
+    alpha: [traces, logs, metrics]
   codeowners:
     active: ['Elfo404']

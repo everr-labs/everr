@@ -55,3 +55,20 @@ func TestCreateTracesReceiver(t *testing.T) {
 		t.Run(test.desc, test.run)
 	}
 }
+
+func TestCreateMetricsReceiver(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.ServerConfig.NetAddr.Endpoint = "localhost:8081"
+	cfg.GitHubAPIConfig.Auth.AppID = 1
+	cfg.GitHubAPIConfig.Auth.PrivateKeyPath = "/path/to/key.pem"
+	require.NoError(t, cfg.Validate(), "error validating default config")
+
+	rcvr, err := newMetricsReceiver(
+		context.Background(),
+		receivertest.NewNopSettings(metadata.Type),
+		cfg,
+		consumertest.NewNop(),
+	)
+	require.NoError(t, err, "failed to create metrics receiver")
+	require.NoError(t, rcvr.Shutdown(context.Background()))
+}

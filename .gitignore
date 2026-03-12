@@ -31,6 +31,8 @@ coverage.out
 config.yml
 
 dist
+!.github/actions/everr-resource-usage/dist
+!.github/actions/everr-resource-usage/dist/**
 
 .output
 
