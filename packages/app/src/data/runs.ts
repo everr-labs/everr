@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { normalizeTimestampToUtc } from "@/lib/formatting";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { runSummarySubquery } from "./run-query-helpers";
@@ -41,6 +42,13 @@ export interface LogEntry {
 const DEFAULT_FAILING_CONTEXT_WINDOW = 50;
 const DEFAULT_RAW_TAIL_LINES = 5000;
 
+function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
+  return {
+    timestamp: normalizeTimestampToUtc(row.timestamp),
+    body: row.body,
+  };
+}
+
 export function isFailureConclusion(conclusion: string): boolean {
   const normalized = conclusion.trim().toLowerCase();
   return normalized === "failure" || normalized === "failed";
@@ -78,10 +86,7 @@ async function getRawStepLogs(params: {
     maxLines: params.maxLines,
   });
 
-  const logs = result.map((row) => ({
-    timestamp: row.timestamp,
-    body: row.body,
-  }));
+  const logs = result.map(mapLogRow);
 
   return params.useTail ? logs.reverse() : logs;
 }
@@ -119,10 +124,7 @@ async function getStepLogsFailing(params: {
     body: string;
   }>(sql, params);
 
-  return result.map((row) => ({
-    timestamp: row.timestamp,
-    body: row.body,
-  }));
+  return result.map(mapLogRow);
 }
 
 export function buildFailingStepLogsSql(): string {

@@ -82,11 +82,7 @@ function StepDetailPage() {
       {/* TODO: Make a card variant with 0 padding*/}
       <CardContent className="!px-0 -my-3 min-h-0 flex-1 flex flex-col">
         {resourceUsage && (
-          <ResourceUsagePanel
-            data={resourceUsage}
-            stepWindow={stepWindow}
-            selectedStepName={stepName}
-          />
+          <ResourceUsagePanel data={resourceUsage} stepWindow={stepWindow} />
         )}
         <div className="min-h-0 flex-1">
           <LogViewer logs={logs ?? []} stepName={stepName} />

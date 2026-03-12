@@ -1,3 +1,4 @@
+import { parseTimestampAsUTC } from "./formatting";
 import type { ParsedLogLine } from "./log-parser";
 
 export interface LogVolumeBin {
@@ -49,7 +50,8 @@ export function aggregateLogVolume(lines: ParsedLogLine[]): LogVolumeBin[] {
   // Get time range from logs
   const timestamps = lines
     .filter((l) => !l.isGroupEnd)
-    .map((l) => new Date(l.timestamp).getTime());
+    .map((l) => parseTimestampAsUTC(l.timestamp)?.getTime() ?? Number.NaN)
+    .filter((timestamp) => !Number.isNaN(timestamp));
 
   if (timestamps.length === 0) return [];
 
@@ -93,7 +95,8 @@ export function aggregateLogVolume(lines: ParsedLogLine[]): LogVolumeBin[] {
     const line = lines[lineIndex];
     if (line.isGroupEnd) continue;
 
-    const lineTime = new Date(line.timestamp).getTime();
+    const lineTime = parseTimestampAsUTC(line.timestamp)?.getTime();
+    if (lineTime === undefined) continue;
     const binIndex = Math.floor((lineTime - minTime) / binSize);
     const bin = bins[binIndex];
 

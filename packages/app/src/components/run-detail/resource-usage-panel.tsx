@@ -17,13 +17,17 @@ import type {
   JobResourceUsage,
   ResourceUsagePoint,
 } from "@/data/resource-usage";
-import { formatBytes, formatPercent, formatTimeOfDay } from "@/lib/formatting";
+import {
+  formatBytes,
+  formatPercent,
+  formatSpeed,
+  formatTimeOfDay,
+} from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 
 interface ResourceUsagePanelProps {
   data: JobResourceUsage;
   stepWindow?: { startTime: number; endTime: number } | null;
-  selectedStepName?: string;
 }
 
 const cpuConfig = {
@@ -35,14 +39,46 @@ const memoryConfig = {
   memoryUtilization: { label: "Memory", color: "hsl(262, 83%, 58%)" },
 } satisfies ChartConfig;
 
-const filesystemConfig = {
-  filesystemUtilization: { label: "Disk", color: "hsl(25, 95%, 53%)" },
+const diskConfig = {
+  diskRate: { label: "I/O", color: "hsl(25, 95%, 53%)" },
 } satisfies ChartConfig;
 
 const networkConfig = {
-  networkReceive: { label: "Received", color: "hsl(142, 71%, 45%)" },
-  networkTransmit: { label: "Transmitted", color: "hsl(198, 93%, 60%)" },
+  networkReceiveRate: { label: "Received", color: "hsl(142, 71%, 45%)" },
+  networkTransmitRate: { label: "Transmitted", color: "hsl(198, 93%, 60%)" },
 } satisfies ChartConfig;
+
+function computeRates(points: ResourceUsagePoint[]) {
+  return points.map((point, i) => {
+    if (i === 0) {
+      return {
+        ...point,
+        diskRate: 0,
+        networkReceiveRate: 0,
+        networkTransmitRate: 0,
+      };
+    }
+    const prev = points[i - 1];
+    const dtSeconds = (point.timestamp - prev.timestamp) / 1000;
+    if (dtSeconds <= 0) {
+      return {
+        ...point,
+        diskRate: 0,
+        networkReceiveRate: 0,
+        networkTransmitRate: 0,
+      };
+    }
+    return {
+      ...point,
+      diskRate:
+        Math.max(0, point.filesystemUsed - prev.filesystemUsed) / dtSeconds,
+      networkReceiveRate:
+        Math.max(0, point.networkReceive - prev.networkReceive) / dtSeconds,
+      networkTransmitRate:
+        Math.max(0, point.networkTransmit - prev.networkTransmit) / dtSeconds,
+    };
+  });
+}
 
 function clampToRange(
   value: number,
@@ -57,12 +93,10 @@ function clampToRange(
 // a custom component here would be ignored by the chart.
 function renderStepHighlight({
   stepWindow,
-  stepName,
   chartStart,
   chartEnd,
 }: {
   stepWindow: { startTime: number; endTime: number };
-  stepName?: string;
   chartStart: number;
   chartEnd: number;
 }) {
@@ -81,13 +115,6 @@ function renderStepHighlight({
       stroke="hsl(217, 91%, 60%)"
       strokeOpacity={0.3}
       strokeDasharray="3 3"
-      label={{
-        value: stepName || "Current step",
-        position: "insideTopLeft",
-        fontSize: 10,
-        fill: "hsl(217, 91%, 60%)",
-        offset: 4,
-      }}
     />
   );
 }
@@ -100,7 +127,6 @@ function MiniChart({
   yFormatter,
   tooltipFormatter,
   stepWindow,
-  selectedStepName,
 }: {
   points: ResourceUsagePoint[];
   dataKeys: string[];
@@ -109,7 +135,6 @@ function MiniChart({
   yFormatter: (v: number) => string;
   tooltipFormatter: (v: number, name: string) => string;
   stepWindow?: { startTime: number; endTime: number } | null;
-  selectedStepName?: string;
 }) {
   const gradientId = useId();
   const chartStart = points[0]?.timestamp ?? 0;
@@ -204,7 +229,6 @@ function MiniChart({
         {stepWindow
           ? renderStepHighlight({
               stepWindow,
-              stepName: selectedStepName,
               chartStart,
               chartEnd,
             })
@@ -243,9 +267,9 @@ function SummaryItem({
 export function ResourceUsagePanel({
   data,
   stepWindow,
-  selectedStepName,
 }: ResourceUsagePanelProps) {
   const { points, summary } = data;
+  const ratePoints = computeRates(points);
 
   const hasNetwork = points.some(
     (p) => p.networkReceive > 0 || p.networkTransmit > 0,
@@ -305,7 +329,6 @@ export function ResourceUsagePanel({
             yFormatter={(v) => `${v}%`}
             tooltipFormatter={(v) => formatPercent(v)}
             stepWindow={stepWindow}
-            selectedStepName={selectedStepName}
           />
         </ChartCard>
 
@@ -318,33 +341,29 @@ export function ResourceUsagePanel({
             yFormatter={(v) => `${v}%`}
             tooltipFormatter={(v) => formatPercent(v)}
             stepWindow={stepWindow}
-            selectedStepName={selectedStepName}
           />
         </ChartCard>
 
         <ChartCard title="Disk">
           <MiniChart
-            points={points}
-            dataKeys={["filesystemUtilization"]}
-            config={filesystemConfig}
-            yDomain={[0, 100]}
-            yFormatter={(v) => `${v}%`}
-            tooltipFormatter={(v) => formatPercent(v)}
+            points={ratePoints}
+            dataKeys={["diskRate"]}
+            config={diskConfig}
+            yFormatter={(v) => formatSpeed(v)}
+            tooltipFormatter={(v) => formatSpeed(v)}
             stepWindow={stepWindow}
-            selectedStepName={selectedStepName}
           />
         </ChartCard>
 
         {hasNetwork && (
           <ChartCard title="Network">
             <MiniChart
-              points={points}
-              dataKeys={["networkReceive", "networkTransmit"]}
+              points={ratePoints}
+              dataKeys={["networkReceiveRate", "networkTransmitRate"]}
               config={networkConfig}
-              yFormatter={(v) => formatBytes(v)}
-              tooltipFormatter={(v) => formatBytes(v)}
+              yFormatter={(v) => formatSpeed(v)}
+              tooltipFormatter={(v) => formatSpeed(v)}
               stepWindow={stepWindow}
-              selectedStepName={selectedStepName}
             />
           </ChartCard>
         )}

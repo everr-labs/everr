@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import type { LogEntry } from "@/data/runs";
 import { useLogSummarizer } from "@/hooks/use-log-summarizer";
+import { formatTimestampTimeOfDay } from "@/lib/formatting";
 import { getMarkerClass, parseLogs } from "@/lib/log-parser";
 import { aggregateLogVolume } from "@/lib/log-volume";
 import { cn } from "@/lib/utils";
@@ -94,14 +95,14 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
     }
 
     // Check if all lines in this group have the same rendered timestamp as the group header
-    const headerTimestamp = new Date(
+    const headerTimestamp = formatTimestampTimeOfDay(
       lines[group.startIndex].timestamp,
-    ).toLocaleTimeString();
+    );
     let hasUniformTimestamps = true;
     for (let i = group.startIndex + 1; i < group.endIndex; i++) {
       if (
         !lines[i].isGroupEnd &&
-        new Date(lines[i].timestamp).toLocaleTimeString() !== headerTimestamp
+        formatTimestampTimeOfDay(lines[i].timestamp) !== headerTimestamp
       ) {
         hasUniformTimestamps = false;
         break;
@@ -257,7 +258,7 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
                   dangerouslySetInnerHTML={{ __html: line.htmlContent }}
                 />
                 <span className="text-muted-foreground select-none pl-2">
-                  {new Date(line.timestamp).toLocaleTimeString()}
+                  {formatTimestampTimeOfDay(line.timestamp)}
                 </span>
               </button>
             );
@@ -296,7 +297,7 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
                   <span />
                 ) : (
                   <span className="text-muted-foreground select-none pl-2">
-                    {new Date(line.timestamp).toLocaleTimeString()}
+                    {formatTimestampTimeOfDay(line.timestamp)}
                   </span>
                 )}
               </div>
@@ -327,7 +328,7 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
                 dangerouslySetInnerHTML={{ __html: line.htmlContent }}
               />
               <span className="text-muted-foreground select-none pl-2">
-                {new Date(line.timestamp).toLocaleTimeString()}
+                {formatTimestampTimeOfDay(line.timestamp)}
               </span>
             </div>
           );

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { JobResourceUsage } from "@/data/resource-usage";
 import { ResourceUsagePanel } from "./resource-usage-panel";
@@ -18,11 +18,7 @@ vi.mock("recharts", async () => {
     <g data-key={dataKey} data-kind="area" />
   );
   const CartesianGrid = () => <g data-kind="grid" />;
-  const ReferenceArea = ({ label }: { label?: { value?: string } }) => (
-    <g data-kind="reference-area">
-      <text>{label?.value}</text>
-    </g>
-  );
+  const ReferenceArea = () => <g data-kind="reference-area" />;
 
   const supportedTypes = new Set<unknown>([Area, CartesianGrid, ReferenceArea]);
 
@@ -93,25 +89,11 @@ const usage: JobResourceUsage = {
 };
 
 describe("ResourceUsagePanel", () => {
-  it("labels the highlight with the current step name", () => {
-    render(
-      <ResourceUsagePanel
-        data={usage}
-        stepWindow={{ startTime: 1_200, endTime: 1_400 }}
-        selectedStepName="Lint"
-      />,
-    );
-
-    expect(screen.getAllByText("Lint").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Current step")).not.toBeInTheDocument();
-  });
-
   it("renders overlays after the chart areas so they stay visible", () => {
     const { getAllByTestId } = render(
       <ResourceUsagePanel
         data={usage}
         stepWindow={{ startTime: 1_200, endTime: 1_400 }}
-        selectedStepName="Lint"
       />,
     );
 
