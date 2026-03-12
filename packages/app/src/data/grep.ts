@@ -242,7 +242,7 @@ function buildOccurrenceDetailsSql(whereClause: string): string {
         t.SpanName as step_name,
         t.StatusMessage as step_conclusion,
         rc.run_conclusion as run_conclusion,
-        if(lowerUTF8(t.StatusMessage) = 'skip', 0, t.Duration / 1000000) as step_duration,
+        if(lowerUTF8(t.StatusMessage) = 'skip', toFloat64(0), t.Duration / 1000000) as step_duration,
         l.Timestamp as matched_at,
         l.Body as matched_line
       FROM traces t

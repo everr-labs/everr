@@ -328,7 +328,7 @@ export const getRunJobs = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
 					if(
 						lowerUTF8(anyLast(ResourceAttributes['cicd.pipeline.task.run.result'])) = 'skip',
-						0,
+						toFloat64(0),
 						max(Duration) / 1000000
 					) as duration
 			FROM traces
@@ -365,7 +365,7 @@ export const getJobSteps = createServerFn({
 					StatusMessage as conclusion,
 					if(
 						lowerUTF8(StatusMessage) = 'skip',
-						0,
+						toFloat64(0),
 						Duration / 1000000
 					) as duration,
 					toUnixTimestamp64Milli(Timestamp) as startTime,
@@ -416,7 +416,7 @@ export const getAllJobsSteps = createServerFn({
         StatusMessage as conclusion,
         if(
           lowerUTF8(StatusMessage) = 'skip',
-          0,
+          toFloat64(0),
           Duration / 1000000
         ) as duration,
         toUnixTimestamp64Milli(Timestamp) as startTime,

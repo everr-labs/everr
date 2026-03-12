@@ -80,6 +80,7 @@ describe("getRunsList", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
     );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("toFloat64(0)");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",

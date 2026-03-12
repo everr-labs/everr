@@ -43,7 +43,7 @@ export function runSummarySubquery({
   }
   if (includeDuration) {
     selects.push(
-      `if(lowerUTF8(${CONCLUSION_EXPR}) = 'skip', 0, max(Duration) / 1000000) as duration`,
+      `if(lowerUTF8(${CONCLUSION_EXPR}) = 'skip', toFloat64(0), max(Duration) / 1000000) as duration`,
     );
   }
   if (includeSender) {

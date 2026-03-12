@@ -32,6 +32,7 @@ describe("runSummarySubquery", () => {
     expect(sql).toContain("as duration");
     expect(sql).toContain("lowerUTF8(");
     expect(sql).toContain("= 'skip'");
+    expect(sql).toContain("toFloat64(0)");
     expect(sql).toContain("as sender");
     expect(sql).toContain("as jobCount");
   });

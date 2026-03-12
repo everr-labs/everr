@@ -15,12 +15,38 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getRunSpans, getStepLogs } from "./runs";
+import { getRunJobs, getRunSpans, getStepLogs } from "./runs";
 
 const mockedQuery = vi.mocked(query);
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("getRunJobs", () => {
+  it("uses a Float64 zero for skipped job durations", async () => {
+    mockedQuery.mockResolvedValue([
+      {
+        jobId: "job-1",
+        name: "build",
+        conclusion: "success",
+        duration: "1200",
+      },
+    ]);
+
+    const result = await getRunJobs({ data: "trace-1" });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("toFloat64(0)");
+    expect(result).toEqual([
+      {
+        jobId: "job-1",
+        name: "build",
+        conclusion: "success",
+        duration: 1200,
+      },
+    ]);
+  });
 });
 
 describe("getRunSpans", () => {
