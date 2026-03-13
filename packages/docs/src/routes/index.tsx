@@ -15,32 +15,52 @@ const APP_URL = "https://app.everr.dev";
 
 function HeroSection() {
   return (
-    <section className="flex flex-col items-center">
-      <h1 className="font-heading text-center text-5xl uppercase leading-[0.9] sm:text-7xl md:text-[100px] lg:text-[128px] everr-decoration everr-decoration-primary">
-        Every second
-        <br />
-        counts
+    <section className="flex min-h-[85vh] flex-col items-center justify-center text-center">
+      <p className="mb-6 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60 md:mb-8 animate-fade-up">
+        The future of CI/CD
+      </p>
+
+      <h1 className="font-heading text-4xl uppercase leading-[0.88] sm:text-6xl md:text-[80px] lg:text-[120px]">
+        <span
+          className="block animate-fade-up"
+          style={{ animationDelay: "0.05s" }}
+        >
+          Software
+        </span>
+        <span
+          className="block animate-fade-up"
+          style={{ animationDelay: "0.1s" }}
+        >
+          delivery
+        </span>
+        <span
+          className="block animate-fade-up"
+          style={{ animationDelay: "0.15s" }}
+        >
+          <span className="relative inline-block px-2 sm:px-4">
+            <span className="absolute inset-x-0 bottom-0 top-0 bg-primary" />
+            <span className="relative text-primary-foreground everr-decoration ">
+              intelligence
+            </span>
+          </span>
+        </span>
       </h1>
 
-      <p className="mt-6 text-center text-xl sm:text-2xl md:mt-10">
-        <span
-          className="inline bg-primary px-3 py-1 font-semibold font-heading text-primary-foreground leading-relaxed"
-          style={{
-            boxDecorationBreak: "clone",
-            WebkitBoxDecorationBreak: "clone",
-          }}
-        >
-          Know what your CI is doing.
-        </span>
+      <p
+        className="animate-fade-up mx-auto mt-6 max-w-2xl text-lg text-fd-muted-foreground sm:text-xl md:mt-10"
+        style={{ animationDelay: "0.3s" }}
+      >
+        Everr transforms CI/CD pipelines into{" "}
+        <strong className="text-fd-foreground">observable systems</strong>.
+        Detect failures, explain root causes, and resolve issues — for{" "}
+        <strong className="text-fd-foreground">developers</strong> and{" "}
+        <strong className="text-fd-foreground">AI agents</strong>.
       </p>
 
-      <p className="mx-auto mt-4 max-w-2xl text-center text-fd-muted-foreground">
-        Everr collects telemetry from your CI/CD pipelines and turns workflow
-        runs into OpenTelemetry traces. Debug failures, identify optimization
-        opportunites, and track flaky jobs — all from your terminal.
-      </p>
-
-      <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row md:mt-14">
+      <div
+        className="animate-fade-up mt-10 flex flex-col items-center gap-4 sm:flex-row md:mt-14"
+        style={{ animationDelay: "0.4s" }}
+      >
         <Button
           variant="cta"
           size="xl"
@@ -57,11 +77,14 @@ function HeroSection() {
           size="xl"
           render={<Link to="/docs/$" params={{ _splat: "" }} />}
         >
-          Docs
+          Documentation
         </Button>
       </div>
 
-      <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.25em] text-fd-muted-foreground/60">
+      <p
+        className="animate-fade-up mt-8 font-mono text-[11px] uppercase tracking-[0.25em] text-fd-muted-foreground/40"
+        style={{ animationDelay: "0.5s" }}
+      >
         Open source · Built on OpenTelemetry
       </p>
     </section>
@@ -82,7 +105,7 @@ const TRACE_STEPS = [
 
 function ProductVisualization() {
   return (
-    <div className="mx-auto mt-16 w-full max-w-5xl md:mt-20">
+    <div className="mx-auto w-full max-w-5xl pb-8 md:pb-16">
       <div className="product-perspective">
         <div className="product-tilt">
           <div className="flex h-10 items-center border-b-2 border-fd-border bg-fd-secondary/50 px-4">
@@ -145,596 +168,200 @@ function ProductVisualization() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Value Props                                                        */
+/*  The Problem                                                        */
 /* ------------------------------------------------------------------ */
 
-const VALUE_PROPS = [
+const PROBLEMS = [
   {
-    title: "Built on open standards",
+    num: "01",
+    title: "Black box pipelines",
     description:
-      "Everr is built on OpenTelemetry — the industry standard for observability. No vendor lock-in, no proprietary agents.",
+      "Pipeline data is fragmented across systems, unstructured, and impossible for AI agents to reason about.",
   },
   {
-    title: "AI-native debugging",
+    num: "02",
+    title: "Hours lost debugging",
     description:
-      "Designed for workflows shared by humans and AI agents. From detecting failures to pushing fixes.",
+      "When pipelines fail, developers context-switch between dashboards, logs, and code. Teams lose hours every week.",
   },
   {
-    title: "Designed for speed",
+    num: "03",
+    title: "Raw data, no understanding",
     description:
-      "Reduces noise and restores momentum to help teams ship with high velocity and focus.",
+      "Existing tools expose raw logs and metrics but don't derive actionable signals or provide real understanding.",
   },
 ];
 
-function OpenStandardsIllustration() {
-  const sources = [
-    { y: 44, label: "CI" },
-    { y: 92, label: "TESTS" },
-    { y: 140, label: "LOGS" },
-  ];
-
-  return (
-    <svg
-      viewBox="0 0 200 200"
-      fill="none"
-      className="h-full w-full"
-      aria-hidden="true"
-    >
-      <rect
-        x="18"
-        y="24"
-        width="164"
-        height="152"
-        rx="20"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        className="text-fd-border/40"
-      />
-
-      {sources.map((source) => (
-        <g key={source.label}>
-          <rect
-            x="28"
-            y={source.y}
-            width="48"
-            height="28"
-            rx="10"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="text-fd-muted-foreground/45"
-          />
-          <circle
-            cx="40"
-            cy={source.y + 14}
-            r="3.5"
-            fill="currentColor"
-            className="text-primary/80"
-          />
-          <text
-            x="48"
-            y={source.y + 17}
-            fontSize="7"
-            fontWeight="700"
-            letterSpacing="0.12em"
-            fill="currentColor"
-            className="text-fd-muted-foreground"
-          >
-            {source.label}
-          </text>
-          <path
-            d={`M76 ${source.y + 14} H86`}
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            className="text-fd-muted-foreground/45"
-          />
-        </g>
-      ))}
-
-      <path
-        d="M86 58 C95 58 95 82 106 82"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-fd-muted-foreground/45"
-      />
-      <path
-        d="M86 106 H106"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-fd-muted-foreground/45"
-      />
-      <path
-        d="M86 154 C95 154 95 130 106 130"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-fd-muted-foreground/45"
-      />
-
-      <rect
-        x="86"
-        y="78"
-        width="40"
-        height="52"
-        rx="14"
-        fill="currentColor"
-        className="text-primary/10"
-      />
-      <rect
-        x="86"
-        y="78"
-        width="40"
-        height="52"
-        rx="14"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-primary/70"
-      />
-      <path
-        d="M98 90 H114"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-primary/80"
-      />
-      <path
-        d="M98 104 H114"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-primary/80"
-      />
-      <path
-        d="M98 118 H106"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-primary/80"
-      />
-      <text
-        x="106"
-        y="126"
-        fontSize="7"
-        fontWeight="700"
-        textAnchor="middle"
-        letterSpacing="0.12em"
-        fill="currentColor"
-        className="text-primary"
-      >
-        OTEL
-      </text>
-
-      <path
-        d="M126 104 H138"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-primary/70"
-      />
-
-      <rect
-        x="138"
-        y="60"
-        width="32"
-        height="88"
-        rx="12"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-fd-muted-foreground/45"
-      />
-      <text
-        x="154"
-        y="76"
-        fontSize="6.5"
-        fontWeight="700"
-        textAnchor="middle"
-        letterSpacing="0.1em"
-        fill="currentColor"
-        className="text-fd-muted-foreground"
-      >
-        EVERR
-      </text>
-      {[0, 1, 2].map((i) => (
-        <g key={i}>
-          <rect
-            x="146"
-            y={88 + i * 16}
-            width={16 - i * 2}
-            height="6"
-            rx="3"
-            fill="currentColor"
-            className={
-              i === 1 ? "text-primary/80" : "text-fd-muted-foreground/35"
-            }
-          />
-          <circle
-            cx="144"
-            cy={91 + i * 16}
-            r="2"
-            fill="currentColor"
-            className="text-fd-muted-foreground/45"
-          />
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function AIDebuggingIllustration() {
-  const pipelineRows = [
-    { y: 64, status: "ok" },
-    { y: 88, status: "ok" },
-    { y: 112, status: "failed" },
-  ] as const;
-
-  return (
-    <svg
-      viewBox="0 0 200 200"
-      fill="none"
-      className="h-full w-full"
-      aria-hidden="true"
-    >
-      <rect
-        x="20"
-        y="28"
-        width="120"
-        height="118"
-        rx="18"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-fd-muted-foreground/45"
-      />
-      <rect
-        x="20"
-        y="28"
-        width="120"
-        height="18"
-        rx="18"
-        fill="currentColor"
-        className="text-fd-secondary/70"
-      />
-      <path
-        d="M20 46 H140"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-fd-muted-foreground/35"
-      />
-      <text
-        x="32"
-        y="40"
-        fontSize="7"
-        fontWeight="700"
-        letterSpacing="0.12em"
-        fill="currentColor"
-        className="text-fd-muted-foreground"
-      >
-        PIPELINE
-      </text>
-
-      {pipelineRows.map((row, index) => (
-        <g key={row.y}>
-          <rect
-            x="30"
-            y={row.y - 8}
-            width="100"
-            height="16"
-            rx="8"
-            fill="currentColor"
-            className={
-              row.status === "failed"
-                ? "text-red-500/8"
-                : "text-fd-secondary/45"
-            }
-          />
-          <circle
-            cx="40"
-            cy={row.y}
-            r="4"
-            fill="currentColor"
-            className={
-              row.status === "failed" ? "text-red-500" : "text-primary/80"
-            }
-          />
-          <rect
-            x="50"
-            y={row.y - 3}
-            width={row.status === "failed" ? 34 : 42 - index * 4}
-            height="6"
-            rx="3"
-            fill="currentColor"
-            className="text-fd-foreground/80"
-          />
-          <rect
-            x="90"
-            y={row.y - 3}
-            width={row.status === "failed" ? 24 : 18}
-            height="6"
-            rx="3"
-            fill="currentColor"
-            className={
-              row.status === "failed"
-                ? "text-red-500/80"
-                : "text-fd-muted-foreground/30"
-            }
-          />
-        </g>
-      ))}
-
-      <path
-        d="M130 112 C146 112 150 120 150 132"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-primary/70"
-      />
-
-      <rect
-        x="116"
-        y="118"
-        width="62"
-        height="50"
-        rx="14"
-        fill="currentColor"
-        className="text-primary/8"
-      />
-      <rect
-        x="116"
-        y="118"
-        width="62"
-        height="50"
-        rx="14"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-primary/60"
-      />
-      <circle
-        cx="130"
-        cy="134"
-        r="8"
-        fill="currentColor"
-        className="text-primary/18"
-      />
-      <path
-        d="M130 128 L132 132 L136 133 L132 136 L131 141 L128 137 L124 136 L127 132 Z"
-        fill="currentColor"
-        className="text-primary"
-      />
-      <text
-        x="145"
-        y="133"
-        fontSize="6.5"
-        fontWeight="700"
-        letterSpacing="0.1em"
-        fill="currentColor"
-        className="text-primary"
-      >
-        AI FIX
-      </text>
-      <path
-        d="M144 144 H166"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-red-500/70"
-      />
-      <path
-        d="M144 154 H160"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        className="text-green-500/80"
-      />
-      <path
-        d="M144 149 H170"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeDasharray="2 3"
-        className="text-fd-muted-foreground/35"
-      />
-    </svg>
-  );
-}
-
-function SpeedIllustration() {
-  const beforeBars = [
-    { id: "checkout", width: 34 },
-    { id: "install", width: 44 },
-    { id: "tests", width: 40 },
-    { id: "deploy", width: 44 },
-  ];
-  const afterBars = [
-    { id: "checkout", width: 20 },
-    { id: "install", width: 28 },
-    { id: "tests", width: 24 },
-    { id: "deploy", width: 30 },
-  ];
-
-  return (
-    <svg
-      viewBox="0 0 200 200"
-      fill="none"
-      className="h-full w-full"
-      aria-hidden="true"
-    >
-      <rect
-        x="20"
-        y="42"
-        width="64"
-        height="112"
-        rx="16"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-fd-muted-foreground/35"
-      />
-      <text
-        x="32"
-        y="58"
-        fontSize="7"
-        fontWeight="700"
-        letterSpacing="0.12em"
-        fill="currentColor"
-        className="text-fd-muted-foreground"
-      >
-        BEFORE
-      </text>
-      {beforeBars.map((bar, index) => (
-        <g key={bar.id}>
-          <rect
-            x="30"
-            y={74 + index * 17}
-            width="44"
-            height="10"
-            rx="5"
-            fill="currentColor"
-            className="text-fd-secondary/55"
-          />
-          <rect
-            x="30"
-            y={74 + index * 17}
-            width={bar.width}
-            height="10"
-            rx="5"
-            fill="currentColor"
-            className={
-              index === 2 ? "text-red-500/55" : "text-fd-muted-foreground/35"
-            }
-          />
-        </g>
-      ))}
-
-      <path
-        d="M84 108 C102 108 106 92 122 84"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        className="text-primary/80"
-      />
-      <path
-        d="M114 80 L122 84 L117 92"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-primary/80"
-      />
-
-      <rect
-        x="118"
-        y="28"
-        width="62"
-        height="126"
-        rx="16"
-        fill="currentColor"
-        className="text-primary/8"
-      />
-      <rect
-        x="118"
-        y="28"
-        width="62"
-        height="126"
-        rx="16"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-primary/55"
-      />
-      <text
-        x="130"
-        y="44"
-        fontSize="7"
-        fontWeight="700"
-        letterSpacing="0.12em"
-        fill="currentColor"
-        className="text-primary"
-      >
-        FASTER
-      </text>
-      <rect
-        x="130"
-        y="52"
-        width="38"
-        height="18"
-        rx="9"
-        fill="currentColor"
-        className="text-primary/16"
-      />
-      <text
-        x="149"
-        y="64"
-        fontSize="9"
-        fontWeight="700"
-        textAnchor="middle"
-        fill="currentColor"
-        className="text-primary"
-      >
-        -18%
-      </text>
-      {afterBars.map((bar, index) => (
-        <g key={bar.id}>
-          <rect
-            x="128"
-            y={82 + index * 17}
-            width="42"
-            height="10"
-            rx="5"
-            fill="currentColor"
-            className="text-primary/14"
-          />
-          <rect
-            x="128"
-            y={82 + index * 17}
-            width={bar.width}
-            height="10"
-            rx="5"
-            fill="currentColor"
-            className="text-primary/85"
-          />
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function ValuePropsSection() {
-  const illustrations = [
-    OpenStandardsIllustration,
-    AIDebuggingIllustration,
-    SpeedIllustration,
-  ];
+function ProblemSection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <h2 className="font-heading text-4xl uppercase leading-[0.95] sm:text-5xl md:text-6xl everr-decoration everr-decoration-primary">
-          Look your pipelines with new eyes
+        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+          The problem
+        </p>
+        <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
+          CI/CD is critical infrastructure with zero visibility
         </h2>
         <p className="mt-4 max-w-3xl text-lg text-fd-muted-foreground">
-          Purpose-built for modern teams with AI workflows at its core, Everr
-          sets a new standard for understanding your pipelines.
+          AI coding tools are accelerating code production dramatically.
+          Validation and delivery pipelines are becoming the{" "}
+          <strong className="text-fd-foreground">new bottleneck</strong>.
         </p>
 
         <div className="mt-16 grid grid-cols-1 gap-10 md:mt-20 md:grid-cols-3 md:gap-0">
-          {VALUE_PROPS.map((item, i) => {
-            const Illustration = illustrations[i];
-            const isLast = i === VALUE_PROPS.length - 1;
+          {PROBLEMS.map((item, i) => {
+            const isLast = i === PROBLEMS.length - 1;
             return (
               <div
-                key={item.title}
+                key={item.num}
                 className={`${!isLast ? "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10" : ""} ${i > 0 ? "md:pl-10" : ""}`}
               >
-                <div className="flex aspect-square max-h-[220px] items-center justify-center border-2 border-fd-border bg-fd-secondary/20">
-                  <Illustration />
-                </div>
-                <h3 className="mt-6 text-xl font-bold font-heading everr-decoration everr-decoration-primary">
+                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/40">
+                  {item.num}
+                </span>
+                <h3 className="mt-2 text-xl font-bold font-heading everr-decoration everr-decoration-primary">
                   {item.title}
                 </h3>
-                <p className="mt-1 leading-relaxed text-fd-muted-foreground">
+                <p className="mt-2 leading-relaxed text-fd-muted-foreground">
                   {item.description}
                 </p>
               </div>
             );
           })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  The Missing Layer                                                  */
+/* ------------------------------------------------------------------ */
+
+function MissingLayerSection() {
+  return (
+    <section>
+      <div className="mx-auto max-w-7xl">
+        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+          The approach
+        </p>
+        <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl">
+          The missing{" "}
+          <span className="relative inline-block px-2 sm:px-3">
+            <span className="absolute inset-x-0 top-0 bottom-0 bg-primary" />
+            <span className="relative text-primary-foreground everr-decoration">
+              layer
+            </span>
+          </span>
+        </h2>
+        <p className="mt-4 max-w-3xl text-lg text-fd-muted-foreground">
+          Observability tools monitor production. CI/CD tools execute pipelines.
+          Neither provides delivery intelligence.{" "}
+          <strong className="text-fd-foreground">Everr bridges the gap.</strong>
+        </p>
+
+        {/* Missing Layer Diagram */}
+        <div className="mt-16 grid grid-cols-1 gap-4 md:mt-20 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-stretch md:gap-0">
+          {/* Observability */}
+          <div className="border-2 border-fd-border p-6">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
+              Observability
+            </span>
+            <p className="mt-3 font-heading text-lg font-bold">
+              Monitoring platforms
+            </p>
+            <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
+              <li>Production monitoring</li>
+              <li>Metrics, logs, and traces</li>
+              <li>Dashboards and alerts</li>
+            </ul>
+          </div>
+
+          {/* Connector */}
+          <div className="hidden items-center md:flex">
+            <div className="h-[2px] w-8 bg-fd-border" />
+          </div>
+
+          {/* Everr */}
+          <div className="border-2 border-primary bg-primary/5 p-6">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-primary">
+              The bridge
+            </span>
+            <p className="mt-3 font-heading text-lg font-bold text-primary">
+              Everr_
+            </p>
+            <ul className="mt-3 space-y-1.5 text-sm text-fd-foreground">
+              <li>Structured pipeline telemetry</li>
+              <li>Derived signals and intelligence</li>
+              <li>Consumable by humans and AI</li>
+            </ul>
+          </div>
+
+          {/* Connector */}
+          <div className="hidden items-center md:flex">
+            <div className="h-[2px] w-8 bg-fd-border" />
+          </div>
+
+          {/* CI/CD */}
+          <div className="border-2 border-fd-border p-6">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
+              CI/CD
+            </span>
+            <p className="mt-3 font-heading text-lg font-bold">
+              CI/CD platforms
+            </p>
+            <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
+              <li>Pipeline execution</li>
+              <li>Job orchestration</li>
+              <li>Manual debugging</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Detect · Explain · Resolve */}
+        <div className="mt-20">
+          <h3 className="font-heading text-2xl uppercase sm:text-3xl md:text-4xl everr-decoration everr-decoration-primary">
+            <span className="text-primary">Detect</span>
+            <span className="text-fd-muted-foreground/40"> · </span>
+            <span className="text-primary">Explain</span>
+            <span className="text-fd-muted-foreground/40"> · </span>
+            <span className="text-primary">Resolve</span>
+          </h3>
+
+          <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-0">
+            {[
+              {
+                title: "Automatic detection",
+                description:
+                  "Failure patterns, flakiness, performance regressions, and cost anomalies — surfaced automatically from your pipeline data.",
+              },
+              {
+                title: "Root cause analysis",
+                description:
+                  "Structured signals enriched with historical context. Know exactly what broke, when it started, and why.",
+              },
+              {
+                title: "AI-native resolution",
+                description:
+                  "Engineers fix pipeline issues in minutes instead of hours. AI agents resolve them autonomously before they become problems.",
+              },
+            ].map((item, i) => {
+              const isLast = i === 2;
+              return (
+                <div
+                  key={item.title}
+                  className={`${!isLast ? "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10" : ""} ${i > 0 ? "md:pl-10" : ""}`}
+                >
+                  <h4 className="font-heading text-lg font-bold everr-decoration everr-decoration-primary">
+                    {item.title}
+                  </h4>
+                  <p className="mt-2 leading-relaxed text-fd-muted-foreground">
+                    {item.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>
@@ -750,7 +377,7 @@ const SETUP_STEPS = [
     num: "01",
     title: "One-click connect",
     description:
-      "Connect your CI/CD systems in seconds. GitHub Actions, GitLab CI, Jenkins, and more — one integration to trace them all.",
+      "Connect your CI/CD provider in seconds. GitHub Actions today, with GitLab CI, Jenkins, and more coming soon.",
     viz: "connect",
   },
   {
@@ -764,7 +391,7 @@ const SETUP_STEPS = [
     num: "03",
     title: "Fix from your assistant",
     description:
-      "Wait for CI results without leaving your editor. When failures hit, your assistant pinpoints the root cause and can fix it.",
+      "Wait for CI results without leaving your editor. When failures hit, your AI assistant pinpoints the root cause and can fix it.",
     viz: "assistant",
   },
 ] as const;
@@ -778,16 +405,19 @@ const VIZ_COMPONENTS: Record<
   assistant: CodeAssistantViz,
 };
 
-function ZeroConfigSection() {
+function HowItWorksSection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <h2 className="mb-3 text-4xl sm:text-5xl md:text-6xl font-heading uppercase leading-[0.95] everr-decoration everr-decoration-primary">
+        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+          Get started
+        </p>
+        <h2 className="mb-3 font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
           Zero-config setup
         </h2>
         <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
-          Link your CI and CD tools to Everr and bring their data directly to
-          your hands.
+          Link your CI provider to Everr and bring pipeline intelligence
+          directly to your workflow.
         </p>
 
         <div className="flex flex-col">
@@ -797,13 +427,13 @@ function ZeroConfigSection() {
             return (
               <div
                 key={step.num}
-                className={`grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16 ${!isLast ? "border-b-2 border-fd-border pb-12 mb-12" : ""}`}
+                className={`grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16 ${!isLast ? "mb-12 border-b-2 border-fd-border pb-12" : ""}`}
               >
                 <div className="flex flex-col justify-center">
                   <span className="mb-4 font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/50">
                     Step {step.num}
                   </span>
-                  <h3 className="mb-2 text-2xl font-heading font-bold everr-decoration everr-decoration-primary">
+                  <h3 className="mb-2 text-2xl font-bold font-heading everr-decoration everr-decoration-primary">
                     {step.title}
                   </h3>
                   <p className="leading-relaxed text-fd-muted-foreground">
@@ -1160,66 +790,6 @@ function CodeAssistantViz() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Why Everr                                                          */
-/* ------------------------------------------------------------------ */
-
-const WHY_ITEMS = [
-  {
-    num: "01",
-    question: '"Why did this pipeline break?"',
-    answer:
-      "Every workflow run traced as OTel spans. Navigate the waterfall, see which step failed, and jump to logs in milliseconds.",
-  },
-  {
-    num: "02",
-    question: '"Is this test actually flaky, or is it my code?"',
-    answer:
-      "Track test results across runs. Identify genuinely flaky tests, separate signal from noise.",
-  },
-  {
-    num: "03",
-    question: '"Why is our CI getting slower?"',
-    answer:
-      "Monitor p50/p95 durations. Catch regressions before they become 20-minute build queues.",
-  },
-];
-
-function WhySection() {
-  return (
-    <section>
-      <div className="mx-auto max-w-7xl">
-        <h2 className="mb-3 text-4xl font-heading uppercase leading-[0.95] sm:text-5xl md:text-6xl everr-decoration everr-decoration-primary">
-          Why Everr
-        </h2>
-        <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
-          AI-assisted development compresses release cycles, but broken
-          pipelines still break your flow. Everr gives you the signals to fix
-          them fast.
-        </p>
-
-        <div className="grid gap-10 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:gap-12">
-          {WHY_ITEMS.map((item, i) => (
-            <div key={item.num} className="contents">
-              <div>
-                <h3 className="mb-3 text-lg font-heading italic">
-                  {item.question}
-                </h3>
-                <p className="leading-relaxed text-fd-muted-foreground">
-                  {item.answer}
-                </p>
-              </div>
-              {i < WHY_ITEMS.length - 1 && (
-                <div className="hidden w-px bg-fd-border md:block" />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Bottom CTA                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -1227,22 +797,19 @@ function BottomCTA() {
   return (
     <section>
       <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <h2 className="text-4xl uppercase leading-[0.9] sm:text-5xl md:text-7xl font-heading">
+        <h2 className="font-heading text-4xl uppercase leading-[0.9] sm:text-5xl md:text-7xl">
           Stop guessing
           <br />
-          <span
-            className="inline bg-primary px-4 py-1 text-primary-foreground leading-relaxed everr-decoration everr-decoration-primary-foreground"
-            style={{
-              boxDecorationBreak: "clone",
-              WebkitBoxDecorationBreak: "clone",
-            }}
-          >
-            Start tracing
+          <span className="relative inline-block px-4">
+            <span className="absolute inset-x-0 top-0 bottom-0 bg-primary" />
+            <span className="relative text-primary-foreground everr-decoration">
+              Start observing
+            </span>
           </span>
         </h2>
         <p className="mt-6 max-w-xl text-lg text-fd-muted-foreground">
-          Connect your GitHub Actions and get OpenTelemetry traces in minutes.
-          Free to get started.
+          Connect your GitHub Actions and get structured pipeline intelligence
+          in minutes. Free to get started.
         </p>
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
           <Button
@@ -1256,8 +823,12 @@ function BottomCTA() {
             Get started
           </Button>
 
-          <Button variant="outline" size="xl" render={<Link to="/docs/$" />}>
-            Docs
+          <Button
+            variant="outline"
+            size="xl"
+            render={<Link to="/docs/$" params={{ _splat: "" }} />}
+          >
+            Documentation
           </Button>
         </div>
       </div>
@@ -1273,22 +844,22 @@ function Home() {
   return (
     <>
       <main className="relative z-0 flex flex-1 flex-col overflow-hidden">
-        <div className="mx-auto max-w-7xl px-6 py-16 md:py-[140px]">
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <HeroSection />
+          <ProductVisualization />
+        </div>
+
+        <div className="mx-auto w-full max-w-7xl px-6 py-16 md:py-32">
           <div className="flex flex-col gap-16 md:gap-32">
-            <div>
-              <HeroSection />
-              <ProductVisualization />
-            </div>
-
-            <ValuePropsSection />
+            <ProblemSection />
 
             <div className="h-[2px] w-full bg-fd-border" />
 
-            <ZeroConfigSection />
+            <MissingLayerSection />
 
             <div className="h-[2px] w-full bg-fd-border" />
 
-            <WhySection />
+            <HowItWorksSection />
 
             <div className="h-[2px] w-full bg-fd-border" />
 
