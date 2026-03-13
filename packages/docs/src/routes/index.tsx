@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ChevronRight, ChevronRightIcon, RocketIcon } from "lucide-react";
 import type React from "react";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,15 @@ const APP_URL = "https://app.everr.dev";
 function HeroSection() {
   return (
     <section className="flex min-h-[85vh] flex-col items-center justify-center text-center">
-      <p className="mb-6 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60 md:mb-8 animate-fade-up">
-        The future of CI/CD
-      </p>
+      <a
+        href={APP_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mb-6 flex animate-fade-up items-center gap-1.5 border border-primary/30 bg-primary/5 px-4 py-1.5 font-heading text-xs font-bold uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary/10 md:mb-8"
+      >
+        <ChevronRightIcon className="size-4" />
+        Join the waitlist
+      </a>
 
       <h1 className="font-heading text-4xl uppercase leading-[0.88] sm:text-6xl md:text-[80px] lg:text-[120px]">
         <span
@@ -52,7 +59,7 @@ function HeroSection() {
       >
         Everr transforms CI/CD pipelines into{" "}
         <strong className="text-fd-foreground">observable systems</strong>.
-        Detect failures, explain root causes, and resolve issues — for{" "}
+        Detect failures, explain root causes, and resolve issues - for{" "}
         <strong className="text-fd-foreground">developers</strong> and{" "}
         <strong className="text-fd-foreground">AI agents</strong>.
       </p>
@@ -333,7 +340,7 @@ function MissingLayerSection() {
               {
                 title: "Automatic detection",
                 description:
-                  "Failure patterns, flakiness, performance regressions, and cost anomalies — surfaced automatically from your pipeline data.",
+                  "Failure patterns, flakiness, performance regressions, and cost anomalies - surfaced automatically from your pipeline data.",
               },
               {
                 title: "Root cause analysis",
@@ -372,39 +379,6 @@ function MissingLayerSection() {
 /*  How It Works                                                       */
 /* ------------------------------------------------------------------ */
 
-const SETUP_STEPS = [
-  {
-    num: "01",
-    title: "One-click connect",
-    description:
-      "Connect your CI/CD provider in seconds. GitHub Actions today, with GitLab CI, Jenkins, and more coming soon.",
-    viz: "connect",
-  },
-  {
-    num: "02",
-    title: "Trigger a run",
-    description:
-      "Push your code and watch every workflow run traced in full detail. See test executions, durations, and failure patterns as they happen.",
-    viz: "runs",
-  },
-  {
-    num: "03",
-    title: "Fix from your assistant",
-    description:
-      "Wait for CI results without leaving your editor. When failures hit, your AI assistant pinpoints the root cause and can fix it.",
-    viz: "assistant",
-  },
-] as const;
-
-const VIZ_COMPONENTS: Record<
-  (typeof SETUP_STEPS)[number]["viz"],
-  () => React.ReactNode
-> = {
-  connect: ConnectProvidersViz,
-  runs: RunsAndTestsViz,
-  assistant: CodeAssistantViz,
-};
-
 function HowItWorksSection() {
   return (
     <section>
@@ -412,40 +386,86 @@ function HowItWorksSection() {
         <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
           Get started
         </p>
-        <h2 className="mb-3 font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
-          Zero-config setup
+
+        <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
+          <span className="relative inline-block">
+            <span className="absolute inset-x-0 top-0 bottom-0 bg-primary" />
+            <span className="relative text-primary-foreground">
+              Zero-config
+            </span>
+          </span>{" "}
+          setup
         </h2>
-        <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
-          Link your CI provider to Everr and bring pipeline intelligence
-          directly to your workflow.
+        <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
+          From zero to full pipeline observability in under five minutes.
         </p>
 
-        <div className="flex flex-col">
-          {SETUP_STEPS.map((step, i) => {
-            const Viz = VIZ_COMPONENTS[step.viz];
-            const isLast = i === SETUP_STEPS.length - 1;
-            return (
-              <div
-                key={step.num}
-                className={`grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16 ${!isLast ? "mb-12 border-b-2 border-fd-border pb-12" : ""}`}
-              >
-                <div className="flex flex-col justify-center">
-                  <span className="mb-4 font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/50">
-                    Step {step.num}
-                  </span>
-                  <h3 className="mb-2 text-2xl font-bold font-heading everr-decoration everr-decoration-primary">
-                    {step.title}
-                  </h3>
-                  <p className="leading-relaxed text-fd-muted-foreground">
-                    {step.description}
-                  </p>
-                </div>
-                <div>
-                  <Viz />
-                </div>
+        <div className="mt-16 flex flex-col gap-6 md:mt-20 md:gap-8">
+          {/* Step 01 - Connect */}
+          <div className="border-2 border-fd-border">
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="flex flex-col justify-center border-b-2 border-fd-border p-8 md:border-r-2 md:border-b-0 md:p-12">
+                <span className="font-heading text-[64px] leading-none text-fd-border/50 md:text-[80px]">
+                  01
+                </span>
+                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl everr-decoration everr-decoration-primary">
+                  Connect your CI
+                </h3>
+                <p className="mt-3 text-lg leading-relaxed text-fd-muted-foreground">
+                  One click. No YAML. No config files. Connect GitHub Actions
+                  and start collecting structured telemetry from every workflow
+                  run.
+                </p>
               </div>
-            );
-          })}
+              <div className="p-6 md:p-8">
+                <ConnectProvidersViz />
+              </div>
+            </div>
+          </div>
+
+          {/* Step 02 - See (reversed layout) */}
+          <div className="border-2 border-fd-border">
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="order-2 p-6 md:order-1 md:p-8">
+                <RunsAndTestsViz />
+              </div>
+              <div className="order-1 flex flex-col justify-center border-b-2 border-fd-border p-8 md:order-2 md:border-l-2 md:border-b-0 md:p-12">
+                <span className="font-heading text-[64px] leading-none text-fd-border/50 md:text-[80px]">
+                  02
+                </span>
+                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl everr-decoration everr-decoration-primary">
+                  See everything
+                </h3>
+                <p className="mt-3 text-lg leading-relaxed text-fd-muted-foreground">
+                  Every workflow run traced. Every test result tracked.
+                  Failures, flakiness, durations, and performance regressions.
+                  Provide your
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 03 - Fix */}
+          <div className="border-2 border-fd-border">
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="flex flex-col justify-center border-b-2 border-fd-border p-8 md:border-r-2 md:border-b-0 md:p-12">
+                <span className="font-heading text-[64px] leading-none text-fd-border/50 md:text-[80px]">
+                  03
+                </span>
+                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl everr-decoration everr-decoration-primary">
+                  Fix from your editor
+                </h3>
+                <p className="mt-3 text-lg leading-relaxed text-fd-muted-foreground">
+                  Your AI coding assistant uses Everr to pinpoint failures,
+                  analyze root causes, and push fixes - without you ever leaving
+                  your workflow.
+                </p>
+              </div>
+              <div className="p-6 md:p-8">
+                <CodeAssistantViz />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -623,7 +643,7 @@ function RunsAndTestsViz() {
           <div className="mt-3 border-2 border-fd-border bg-fd-secondary/20">
             <div className="grid grid-cols-[1fr_52px_44px_44px] gap-1 border-b border-fd-border/50 px-3 py-1.5">
               <span className="text-[9px] font-bold uppercase tracking-wider text-fd-muted-foreground">
-                Test results — 3212 passed · 1 failed · 1 flaky
+                Test results - 3212 passed · 1 failed · 1 flaky
               </span>
               <span className="text-right text-[9px] font-bold uppercase tracking-wider text-fd-muted-foreground">
                 Success
@@ -790,6 +810,72 @@ function CodeAssistantViz() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Why Everr                                                          */
+/* ------------------------------------------------------------------ */
+
+const WHY_ITEMS = [
+  {
+    num: "01",
+    question: '"Why did this pipeline break?"',
+    answer:
+      "Every workflow run traced as OpenTelemetry spans. Navigate the waterfall, see which step failed, and jump to logs in milliseconds.",
+  },
+  {
+    num: "02",
+    question: '"Is this test actually flaky, or is it my code?"',
+    answer:
+      "Track test results across runs. Identify genuinely flaky tests, separate signal from noise.",
+  },
+  {
+    num: "03",
+    question: '"Why is our CI getting slower?"',
+    answer:
+      "Monitor p50/p95 durations over time. Catch performance regressions before they become 20-minute build queues.",
+  },
+];
+
+function WhySection() {
+  return (
+    <section>
+      <div className="mx-auto max-w-7xl">
+        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+          Why Everr
+        </p>
+        <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
+          Questions you shouldn't have to ask
+        </h2>
+        <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
+          AI-assisted development compresses release cycles, but broken
+          pipelines still break your flow. Everr gives you the signals to fix
+          them fast.
+        </p>
+
+        <div className="mt-16 grid gap-10 md:mt-20 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:gap-12">
+          {WHY_ITEMS.map((item, i) => (
+            <div key={item.num} className="contents">
+              <div>
+                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/40">
+                  {item.num}
+                </span>
+                <h3 className="mt-2 mb-3 text-lg font-heading italic">
+                  {item.question}
+                </h3>
+                <p className="leading-relaxed text-fd-muted-foreground">
+                  {item.answer}
+                </p>
+              </div>
+              {i < WHY_ITEMS.length - 1 && (
+                <div className="hidden w-px bg-fd-border md:block" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Bottom CTA                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -860,6 +946,10 @@ function Home() {
             <div className="h-[2px] w-full bg-fd-border" />
 
             <HowItWorksSection />
+
+            <div className="h-[2px] w-full bg-fd-border" />
+
+            <WhySection />
 
             <div className="h-[2px] w-full bg-fd-border" />
 
