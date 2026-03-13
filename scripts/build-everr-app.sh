@@ -6,6 +6,7 @@ APP_DIR="${ROOT_DIR}/packages/everr-app"
 PUBLIC_DIR="${ROOT_DIR}/packages/docs/public"
 ROOT_BUNDLE_DIR="${ROOT_DIR}/target/release/bundle"
 APP_BUNDLE_DIR="${APP_DIR}/src-tauri/target/release/bundle"
+ENV_FILE="${ROOT_DIR}/.env"
 VERIFY_MACOS_SCRIPT="${ROOT_DIR}/scripts/verify-everr-app-macos.sh"
 TEMP_SIGNING_DIR=""
 TEMP_KEYCHAIN=""
@@ -47,70 +48,55 @@ decode_base64_to_file() {
   exit 1
 }
 
-find_developer_id_identity() {
-  local identities=""
-
-  if [ "${1:-}" = "" ]; then
-    identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
-  else
-    identities="$(security find-identity -v -p codesigning "$1" 2>/dev/null || true)"
-  fi
-
-  printf '%s\n' "${identities}" \
-    | sed -n 's/.*"\(.*\)".*/\1/p' \
-    | grep 'Developer ID Application:' \
-    | head -n 1
-}
-
 ensure_temp_signing_dir() {
   if [ -z "${TEMP_SIGNING_DIR}" ]; then
     TEMP_SIGNING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/everr-signing.XXXXXX")"
   fi
 }
 
-resolve_api_key_path() {
-  if [ -z "${APPLE_API_KEY:-}" ]; then
-    return 1
+load_root_env() {
+  if [ ! -f "${ENV_FILE}" ]; then
+    echo "Missing ${ENV_FILE}. Add the Apple signing and notarization variables there before building." >&2
+    exit 1
   fi
 
-  local candidate=""
-  local search_dir=""
-  local search_dirs=(
-    "${APP_DIR}/private_keys"
-    "${HOME}/private_keys"
-    "${HOME}/.private_keys"
-    "${HOME}/.appstoreconnect/private_keys"
-  )
-
-  if [ -n "${API_PRIVATE_KEYS_DIR:-}" ]; then
-    candidate="${API_PRIVATE_KEYS_DIR}/AuthKey_${APPLE_API_KEY}.p8"
-    if [ -f "${candidate}" ]; then
-      printf '%s\n' "${candidate}"
-      return 0
-    fi
-  fi
-
-  for search_dir in "${search_dirs[@]}"; do
-    candidate="${search_dir}/AuthKey_${APPLE_API_KEY}.p8"
-    if [ -f "${candidate}" ]; then
-      printf '%s\n' "${candidate}"
-      return 0
-    fi
-  done
-
-  return 1
+  set -a
+  # shellcheck disable=SC1090
+  . "${ENV_FILE}"
+  set +a
 }
 
-have_notarization_credentials() {
-  if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+require_env_var() {
+  local name="$1"
+
+  if [ -z "${!name:-}" ]; then
+    echo "Missing ${name} in ${ENV_FILE}." >&2
+    exit 1
+  fi
+}
+
+require_notarization_credentials() {
+  if [ -n "${APPLE_ID:-}" ] || [ -n "${APPLE_PASSWORD:-}" ] || [ -n "${APPLE_TEAM_ID:-}" ]; then
+    require_env_var "APPLE_ID"
+    require_env_var "APPLE_PASSWORD"
+    require_env_var "APPLE_TEAM_ID"
     return 0
   fi
 
-  if [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ] && [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+  if [ -n "${APPLE_API_KEY:-}" ] || [ -n "${APPLE_API_ISSUER:-}" ] || [ -n "${APPLE_API_KEY_PATH:-}" ] || [ -n "${APPLE_API_PRIVATE_KEY:-}" ]; then
+    require_env_var "APPLE_API_KEY"
+    require_env_var "APPLE_API_ISSUER"
+
+    if [ -z "${APPLE_API_KEY_PATH:-}" ] && [ -z "${APPLE_API_PRIVATE_KEY:-}" ]; then
+      echo "Missing APPLE_API_KEY_PATH or APPLE_API_PRIVATE_KEY in ${ENV_FILE}." >&2
+      exit 1
+    fi
+
     return 0
   fi
 
-  return 1
+  echo "Missing notarization credentials in ${ENV_FILE}. Set APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID or APPLE_API_KEY/APPLE_API_ISSUER with APPLE_API_KEY_PATH or APPLE_API_PRIVATE_KEY." >&2
+  exit 1
 }
 
 cleanup_macos_signing() {
@@ -138,11 +124,10 @@ setup_macos_signing() {
     return 0
   fi
 
+  load_root_env
+
   if [ -n "${APPLE_API_PRIVATE_KEY:-}" ]; then
-    if [ -z "${APPLE_API_KEY:-}" ]; then
-      echo "APPLE_API_KEY is required when APPLE_API_PRIVATE_KEY is set." >&2
-      exit 1
-    fi
+    require_env_var "APPLE_API_KEY"
 
     if [ -z "${APPLE_API_KEY_PATH:-}" ]; then
       ensure_temp_signing_dir
@@ -151,18 +136,10 @@ setup_macos_signing() {
       chmod 600 "${APPLE_API_KEY_PATH}"
       export APPLE_API_KEY_PATH
     fi
-  elif [ -z "${APPLE_API_KEY_PATH:-}" ] && [ -n "${APPLE_API_KEY:-}" ]; then
-    APPLE_API_KEY_PATH="$(resolve_api_key_path || true)"
-    if [ -n "${APPLE_API_KEY_PATH}" ]; then
-      export APPLE_API_KEY_PATH
-    fi
   fi
 
   if [ -n "${APPLE_CERTIFICATE:-}" ]; then
-    if [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ]; then
-      echo "APPLE_CERTIFICATE_PASSWORD is required when APPLE_CERTIFICATE is set." >&2
-      exit 1
-    fi
+    require_env_var "APPLE_CERTIFICATE_PASSWORD"
 
     ensure_temp_signing_dir
     TEMP_KEYCHAIN="${TEMP_SIGNING_DIR}/everr-signing.keychain-db"
@@ -196,35 +173,17 @@ setup_macos_signing() {
 
     security default-keychain -d user -s "${TEMP_KEYCHAIN}" >/dev/null
     KEYCHAIN_WAS_CREATED=1
-
-    if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-      APPLE_SIGNING_IDENTITY="$(find_developer_id_identity "${TEMP_KEYCHAIN}" || true)"
-      if [ -n "${APPLE_SIGNING_IDENTITY}" ]; then
-        export APPLE_SIGNING_IDENTITY
-      fi
-    fi
-  elif [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-    APPLE_SIGNING_IDENTITY="$(find_developer_id_identity || true)"
-    if [ -n "${APPLE_SIGNING_IDENTITY}" ]; then
-      export APPLE_SIGNING_IDENTITY
-    fi
   fi
 
   if [ "${EVERR_ALLOW_UNSIGNED_MACOS_BUILD:-0}" != "1" ]; then
-    if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-      echo "Missing a Developer ID Application signing identity. Set APPLE_SIGNING_IDENTITY or APPLE_CERTIFICATE before building." >&2
-      exit 1
-    fi
+    require_env_var "APPLE_SIGNING_IDENTITY"
 
     if [ "${APPLE_SIGNING_IDENTITY}" = "-" ] || ! printf '%s\n' "${APPLE_SIGNING_IDENTITY}" | grep -q 'Developer ID Application:'; then
       echo "APPLE_SIGNING_IDENTITY must reference a Developer ID Application certificate for a distributable macOS build." >&2
       exit 1
     fi
 
-    if ! have_notarization_credentials; then
-      echo "Missing notarization credentials. Set APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID or APPLE_API_KEY/APPLE_API_ISSUER plus APPLE_API_KEY_PATH (or APPLE_API_PRIVATE_KEY)." >&2
-      exit 1
-    fi
+    require_notarization_credentials
   fi
 }
 

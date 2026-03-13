@@ -129,3 +129,4 @@ pnpm build:desktop:prod
 ```
 
 The required Apple signing and notarization inputs are documented in `packages/everr-app/README.md`.
+The macOS build now reads those values from the repo-root `.env`.
