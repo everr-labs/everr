@@ -44,9 +44,13 @@ const TRAY_ICON_ID: &str = "everr-app";
 const TRAY_MENU_FAILED_STATUS_ID: &str = "tray_failed_status";
 const TRAY_MENU_OPEN_FAILED_RUNS_ID: &str = "tray_open_failed_runs";
 const TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID: &str = "tray_copy_auto_fix_prompt";
+const TRAY_MENU_DEV_ID: &str = "tray_dev";
 const TRAY_MENU_INSERTION_INDEX: usize = 1;
 const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
+const APP_NAME: &str = "Everr App";
+const DEV_APP_NAME: &str = "Everr App DEV";
+const DEV_SESSION_FILE_NAME: &str = "session-dev.json";
 
 #[derive(Clone)]
 struct RuntimeState {
@@ -432,12 +436,14 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            app.handle().plugin(tauri_plugin_autostart::init(
-                MacosLauncher::LaunchAgent,
-                None::<Vec<&str>>,
-            ))?;
+            let mut autostart = tauri_plugin_autostart::Builder::new().app_name(current_app_name());
+            #[cfg(target_os = "macos")]
+            {
+                autostart = autostart.macos_launcher(MacosLauncher::LaunchAgent);
+            }
+            app.handle().plugin(autostart.build())?;
 
-            let session_store = SessionStore::for_namespace(build::session_namespace());
+            let session_store = current_session_store();
             let _ = session_store.clear_mismatched_session(build::default_api_base_url())?;
             let settings = load_app_settings(&session_store)?;
             if let Err(error) = sync_installed_cli(app.handle()) {
@@ -499,7 +505,9 @@ fn build_tray(app: &AppHandle) -> Result<TrayMenu> {
         builder = builder.icon(icon);
         #[cfg(target_os = "macos")]
         {
-            builder = builder.icon_as_template(true);
+            if !tauri::is_dev() {
+                builder = builder.icon_as_template(true);
+            }
         }
     }
 
@@ -751,9 +759,14 @@ fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
         None::<&str>,
     )?;
     let separator = PredefinedMenuItem::separator(app)?;
+    let dev = MenuItem::with_id(app, TRAY_MENU_DEV_ID, "DEV", false, None::<&str>)?;
     let settings = MenuItem::with_id(app, SETTINGS_MENU_ID, "Settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT_MENU_ID, "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&failed_status, &separator, &settings, &quit])?;
+    let menu = if tauri::is_dev() {
+        Menu::with_items(app, &[&failed_status, &separator, &dev, &settings, &quit])?
+    } else {
+        Menu::with_items(app, &[&failed_status, &separator, &settings, &quit])?
+    };
 
     Ok(TrayMenu {
         menu,
@@ -859,7 +872,8 @@ fn format_tray_title(snapshot: &TraySnapshot) -> String {
 
 fn format_tray_tooltip(snapshot: &TraySnapshot) -> String {
     format!(
-        "Everr App | Unresolved failed pipelines: {}",
+        "{} | Unresolved failed pipelines: {}",
+        current_app_name(),
         snapshot.failed_count()
     )
 }
@@ -1261,6 +1275,25 @@ fn current_auth_config() -> AuthConfig {
     }
 }
 
+fn current_app_name() -> &'static str {
+    if tauri::is_dev() {
+        DEV_APP_NAME
+    } else {
+        APP_NAME
+    }
+}
+
+fn current_session_store() -> SessionStore {
+    if tauri::is_dev() {
+        SessionStore::for_namespace_with_file_name(
+            build::session_namespace(),
+            DEV_SESSION_FILE_NAME,
+        )
+    } else {
+        SessionStore::for_namespace(build::session_namespace())
+    }
+}
+
 fn current_base_url() -> &'static str {
     build::default_api_base_url()
 }
@@ -1393,10 +1426,11 @@ mod tests {
 
     use super::{
         active_notification_auto_fix_prompt, apply_runtime_settings, apply_wizard_migration,
-        build_tray_menu_model, current_base_url, format_tray_title, format_tray_tooltip,
-        migrate_completed_base_url, sync_installed_cli_from_paths, tray_auto_fix_prompt,
-        tray_failed_runs_target, value_has_wizard_metadata, AppSettings, NotificationQueue,
-        TraySnapshot, TrayState, WizardState,
+        build_tray_menu_model, current_app_name, current_base_url, current_session_store,
+        format_tray_title, format_tray_tooltip, migrate_completed_base_url,
+        sync_installed_cli_from_paths, tray_auto_fix_prompt, tray_failed_runs_target,
+        value_has_wizard_metadata, AppSettings, NotificationQueue, TraySnapshot, TrayState,
+        WizardState, APP_NAME, DEV_APP_NAME, DEV_SESSION_FILE_NAME,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1497,9 +1531,36 @@ mod tests {
         assert_eq!(format_tray_title(&snapshot), "F2");
         assert_eq!(
             format_tray_tooltip(&snapshot),
-            "Everr App | Unresolved failed pipelines: 2"
+            format!("{} | Unresolved failed pipelines: 2", current_app_name())
         );
         assert_eq!(format_tray_title(&TraySnapshot::default()), "");
+    }
+
+    #[test]
+    fn current_session_store_uses_dev_session_file_name() {
+        let store = current_session_store();
+
+        assert_eq!(store.namespace(), super::build::session_namespace());
+        assert_eq!(
+            store.session_file_name(),
+            if tauri::is_dev() {
+                DEV_SESSION_FILE_NAME
+            } else {
+                "session.json"
+            }
+        );
+    }
+
+    #[test]
+    fn current_app_name_matches_the_build_mode() {
+        assert_eq!(
+            current_app_name(),
+            if tauri::is_dev() {
+                DEV_APP_NAME
+            } else {
+                APP_NAME
+            }
+        );
     }
 
     #[test]

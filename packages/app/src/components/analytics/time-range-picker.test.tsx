@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { TimeRange } from "@/lib/time-range";
@@ -27,7 +27,7 @@ function renderPicker(
       onChange(...args),
     );
   }
-  const user = userEvent.setup();
+  const user = userEvent.setup({ skipHover: true });
   render(<TimeRangePicker />);
   return { user, onChange };
 }
@@ -35,6 +35,10 @@ function renderPicker(
 async function openPicker(user: ReturnType<typeof userEvent.setup>) {
   const trigger = screen.getByRole("button", { expanded: false });
   await user.click(trigger);
+}
+
+function setInputValue(input: HTMLElement, value: string) {
+  fireEvent.change(input, { target: { value } });
 }
 
 describe("TimeRangePicker", () => {
@@ -58,13 +62,11 @@ describe("TimeRangePicker", () => {
     const { user } = renderPicker();
     await openPicker(user);
 
-    within(screen.getByRole("dialog"));
+    const dialog = within(screen.getByRole("dialog"));
     for (const group of QUICK_RANGE_GROUPS) {
       for (const range of group.ranges) {
         expect(
-          within(screen.getByRole("dialog")).getByRole("button", {
-            name: range.label,
-          }),
+          dialog.getByRole("button", { name: range.label }),
         ).toBeInTheDocument();
       }
     }
@@ -83,10 +85,7 @@ describe("TimeRangePicker", () => {
       const { user } = renderPicker();
       await openPicker(user);
 
-      await user.type(
-        screen.getByRole("searchbox", { name: "search" }),
-        "hour",
-      );
+      setInputValue(screen.getByRole("searchbox", { name: "search" }), "hour");
 
       expect(
         screen.getByRole("button", { name: "Last 1 hour" }),
@@ -106,10 +105,7 @@ describe("TimeRangePicker", () => {
       const { user } = renderPicker();
       await openPicker(user);
 
-      await user.type(
-        screen.getByRole("searchbox", { name: "search" }),
-        "zzzzz",
-      );
+      setInputValue(screen.getByRole("searchbox", { name: "search" }), "zzzzz");
 
       expect(screen.getByText("No matches")).toBeInTheDocument();
     });
@@ -119,10 +115,7 @@ describe("TimeRangePicker", () => {
       await openPicker(user);
 
       // "Today" only matches Calendar group
-      await user.type(
-        screen.getByRole("searchbox", { name: "search" }),
-        "Today",
-      );
+      setInputValue(screen.getByRole("searchbox", { name: "search" }), "Today");
 
       expect(screen.getByText("Calendar")).toBeInTheDocument();
       expect(screen.queryByText("Relative")).not.toBeInTheDocument();
@@ -132,7 +125,7 @@ describe("TimeRangePicker", () => {
       const { user } = renderPicker();
       await openPicker(user);
 
-      await user.type(
+      setInputValue(
         screen.getByRole("searchbox", { name: "search" }),
         "YESTERDAY",
       );
@@ -165,8 +158,7 @@ describe("TimeRangePicker", () => {
       await openPicker(user);
 
       const fromInput = screen.getByLabelText("From");
-      await user.clear(fromInput);
-      await user.type(fromInput, "garbage");
+      setInputValue(fromInput, "garbage");
 
       expect(screen.getByText("Invalid expression")).toBeInTheDocument();
     });
@@ -176,8 +168,7 @@ describe("TimeRangePicker", () => {
       await openPicker(user);
 
       const fromInput = screen.getByLabelText("From");
-      await user.clear(fromInput);
-      await user.type(fromInput, "invalid");
+      setInputValue(fromInput, "invalid");
 
       expect(
         screen.getByRole("button", { name: "Apply time range" }),
@@ -198,12 +189,10 @@ describe("TimeRangePicker", () => {
       await openPicker(user);
 
       const fromInput = screen.getByLabelText("From");
-      await user.clear(fromInput);
-      await user.type(fromInput, "now");
+      setInputValue(fromInput, "now");
 
       const toInput = screen.getByLabelText("To");
-      await user.clear(toInput);
-      await user.type(toInput, "now-7d");
+      setInputValue(toInput, "now-7d");
 
       expect(
         screen.getByText(/"From" must be before "To"/),
@@ -218,8 +207,7 @@ describe("TimeRangePicker", () => {
       await openPicker(user);
 
       const fromInput = screen.getByLabelText("From");
-      await user.clear(fromInput);
-      await user.type(fromInput, "now-3h");
+      setInputValue(fromInput, "now-3h");
 
       await user.click(
         screen.getByRole("button", { name: "Apply time range" }),

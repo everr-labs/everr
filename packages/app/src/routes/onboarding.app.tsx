@@ -18,7 +18,7 @@ const PLATFORMS = [
 ] as const;
 
 function getDownloadUrl(os: string, arch: string) {
-  return `${APP_DOWNLOAD_BASE}/${os}-${arch}/Everr App.dmg`;
+  return `${APP_DOWNLOAD_BASE}/everr-app-${os}-${arch}.dmg`;
 }
 
 export const Route = createFileRoute("/onboarding/app")({

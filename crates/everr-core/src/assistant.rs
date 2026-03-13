@@ -441,9 +441,11 @@ mod tests {
     #[test]
     fn assistant_instructions_describe_status_failure_handoff() {
         let rendered = render_assistant_instructions("everr");
-        assert!(rendered.contains(
-            "`status`: `{ status, repo, branch, latestPipeline, failures, message }`"
-        ));
+        assert!(
+            rendered.contains(
+                "`status`: `{ status, repo, branch, latestPipeline, failures, message }`"
+            )
+        );
         assert!(rendered.contains("status.failures[i].logsArgs"));
         assert!(rendered.contains("`everr runs show --trace-id <trace_id>`"));
     }

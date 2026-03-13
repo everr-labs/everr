@@ -23,6 +23,7 @@ pnpm build:desktop:prod
 ```
 
 That command runs the repo-root `scripts/build-everr-app.sh`, which now loads Apple signing and notarization credentials from the repo-root `.env`.
+During macOS release builds, the `beforeBuildCommand` also Developer ID-signs the bundled `everr` CLI resource before Tauri assembles the app bundle, so notarization sees a properly timestamped binary under `Contents/Resources/everr`.
 
 Add the required values to the repo-root `.env`:
 
@@ -35,7 +36,7 @@ APPLE_TEAM_ID="TEAMID1234"
 
 The build script no longer searches your login keychain for identities or scans local folders for notarization credentials. Everything must be declared explicitly in `.env`.
 
-When you run the build script, it exports those values before invoking Tauri. If you want to run the Tauri command manually, use the same export behavior:
+When you run the build script, it exports those values before invoking Tauri. Direct `pnpm tauri build` runs through a small wrapper that also loads the repo-root `.env` and prints the Apple submission ID once notarization starts. If you want to run the Tauri command manually, use:
 
 ```bash
 set -a

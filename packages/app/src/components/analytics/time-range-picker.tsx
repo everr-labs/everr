@@ -1,4 +1,4 @@
-import { isValid, resolve } from "@everr/datemath";
+import { resolve } from "@everr/datemath";
 import { ChevronDownIcon, Clock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,17 +16,27 @@ import { useTimeRange } from "@/hooks/use-time-range";
 import { formatTimeRangeDisplay, QUICK_RANGE_GROUPS } from "@/lib/time-range";
 import { Input } from "../ui/input";
 
-function formatPreview(expr: string, roundUp: boolean): string | null {
-  if (!isValid(expr)) return null;
+type ResolvedPreview = {
+  date: Date;
+  label: string;
+};
+
+function resolvePreview(
+  expr: string,
+  roundUp: boolean,
+): ResolvedPreview | null {
   try {
     const date = resolve(expr, { roundUp });
-    return date.toLocaleString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return {
+      date,
+      label: date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
   } catch {
     return null;
   }
@@ -49,14 +59,25 @@ export function TimeRangePicker() {
     })).filter((group) => group.ranges.length > 0);
   }, [search]);
 
-  const fromPreview = formatPreview(customFrom, false);
-  const toPreview = formatPreview(customTo, true);
-  const rangeInverted =
-    fromPreview !== null &&
-    toPreview !== null &&
-    resolve(customFrom, { roundUp: false }) >=
-      resolve(customTo, { roundUp: true });
-  const canApply = fromPreview !== null && toPreview !== null && !rangeInverted;
+  const customRangeState = useMemo(() => {
+    const from = resolvePreview(customFrom, false);
+    const to = resolvePreview(customTo, true);
+    const rangeInverted = from !== null && to !== null && from.date >= to.date;
+
+    return {
+      canApply: from !== null && to !== null && !rangeInverted,
+      fromPreview: from?.label ?? null,
+      rangeInverted,
+      toPreview: to?.label ?? null,
+    };
+  }, [customFrom, customTo]);
+
+  const currentRangePreview = useMemo(() => {
+    return {
+      from: resolvePreview(timeRange.from, false)?.label ?? null,
+      to: resolvePreview(timeRange.to, true)?.label ?? null,
+    };
+  }, [timeRange.from, timeRange.to]);
 
   const handlePresetClick = (from: string, to: string) => {
     setTimeRange({ from, to });
@@ -67,7 +88,7 @@ export function TimeRangePicker() {
   };
 
   const handleApply = () => {
-    if (canApply) {
+    if (customRangeState.canApply) {
       setTimeRange({ from: customFrom, to: customTo });
       // onChange({ from: customFrom, to: customTo });
       setOpen(false);
@@ -82,9 +103,6 @@ export function TimeRangePicker() {
     }
     setOpen(nextOpen);
   };
-
-  const resolvedFrom = formatPreview(timeRange.from, false);
-  const resolvedTo = formatPreview(timeRange.to, true);
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -107,9 +125,9 @@ export function TimeRangePicker() {
           {formatTimeRangeDisplay(timeRange)}
           <ChevronDownIcon className="size-3" />
         </TooltipTrigger>
-        {resolvedFrom && resolvedTo && (
+        {currentRangePreview.from && currentRangePreview.to && (
           <TooltipContent>
-            {resolvedFrom} — {resolvedTo}
+            {currentRangePreview.from} — {currentRangePreview.to}
           </TooltipContent>
         )}
       </Tooltip>
@@ -191,8 +209,10 @@ export function TimeRangePicker() {
                 placeholder="now-7d"
               />
               <div className="text-[11px] h-3.5">
-                {fromPreview ? (
-                  <span className="text-muted-foreground">→ {fromPreview}</span>
+                {customRangeState.fromPreview ? (
+                  <span className="text-muted-foreground">
+                    → {customRangeState.fromPreview}
+                  </span>
                 ) : customFrom ? (
                   <span className="text-destructive">Invalid expression</span>
                 ) : null}
@@ -213,22 +233,24 @@ export function TimeRangePicker() {
                 placeholder="now"
               />
               <div className="text-[11px] h-3.5">
-                {toPreview ? (
-                  <span className="text-muted-foreground">→ {toPreview}</span>
+                {customRangeState.toPreview ? (
+                  <span className="text-muted-foreground">
+                    → {customRangeState.toPreview}
+                  </span>
                 ) : customTo ? (
                   <span className="text-destructive">Invalid expression</span>
                 ) : null}
               </div>
             </div>
 
-            {rangeInverted && (
+            {customRangeState.rangeInverted && (
               <p className="text-destructive text-[11px]">
                 "From" must be before "To"
               </p>
             )}
             <Button
               className="w-full mt-1"
-              disabled={!canApply}
+              disabled={!customRangeState.canApply}
               onClick={handleApply}
             >
               Apply time range
