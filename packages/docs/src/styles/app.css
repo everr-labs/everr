@@ -168,3 +168,7 @@
     transition-duration: 0.01ms;
   }
 }
+
+button[data-search-full] {
+  border-radius: 0;
+}

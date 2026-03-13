@@ -45,7 +45,7 @@ function HeroSection() {
         >
           <span className="relative inline-block px-2 sm:px-4">
             <span className="absolute inset-x-0 bottom-0 top-0 bg-primary" />
-            <span className="relative text-primary-foreground everr-decoration ">
+            <span className="relative text-primary-foreground everr-decoration">
               intelligence
             </span>
           </span>
@@ -261,78 +261,50 @@ function MissingLayerSection() {
           </span>
         </h2>
         <p className="mt-4 max-w-3xl text-lg text-fd-muted-foreground">
-          Observability tools monitor production. CI/CD tools execute pipelines.
-          Neither provides delivery intelligence.{" "}
-          <strong className="text-fd-foreground">Everr bridges the gap.</strong>
+          Everr turns your CI/CD pipelines into{" "}
+          <strong className="text-fd-foreground">
+            fully observable systems
+          </strong>
+          . Structured data, actionable signals, and deep context - available to
+          your team and your AI tools.
         </p>
 
-        {/* Missing Layer Diagram — single container, Everr dominant */}
-        <div className="mt-16 border-2 border-fd-border md:mt-20">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr_1fr]">
-            {/* Observability — left */}
-            <div className="border-b-2 border-fd-border p-6 md:border-b-0 md:border-r-2 md:p-8">
-              <span className="font-heading text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
-                Observability
-              </span>
-              <p className="mt-3 font-heading text-lg font-bold">
-                Monitoring platforms
-              </p>
-              <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
-                <li>Production monitoring</li>
-                <li>Metrics, logs, and traces</li>
-                <li>Dashboards and alerts</li>
-              </ul>
-              <p className="mt-4 font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/30">
-                Post-deploy only
-              </p>
-            </div>
-
-            {/* Everr — center, visually dominant */}
-            <div className="border-b-2 border-primary bg-primary/5 p-6 md:border-b-0 md:border-r-2 md:border-r-primary md:p-8">
+        {/* What Everr does - four pillars */}
+        <div className="mt-16 grid grid-cols-1 gap-px border-2 border-primary/60 bg-fd-border sm:grid-cols-2 md:mt-20">
+          {[
+            {
+              label: "Structured telemetry",
+              heading: "Every run, fully traced",
+              body: "Workflow runs become OpenTelemetry traces. Steps, jobs, durations, and outcomes - all in a structured, queryable format.",
+            },
+            {
+              label: "Enriched context",
+              heading: "From telemetry to context",
+              body: "Data is automatically enriched with commit info, branch context, and environment metadata.",
+            },
+            {
+              label: "Derived signals",
+              heading: "Not just another dashboards",
+              body: "Flakiness scores, performance trends, failure patterns, and cost anomalies - derived automatically from your pipeline history.",
+            },
+            {
+              label: "Human + AI native",
+              heading: "Built for both audiences",
+              body: "A web dashboard for your team. A CLI and structured APIs for your AI coding assistants. Same data, every interface.",
+            },
+          ].map((item) => (
+            <div key={item.label} className="bg-fd-background p-6 md:p-8">
               <span className="font-heading text-[10px] font-bold uppercase tracking-wider text-primary">
-                Software delivery intelligence
+                {item.label}
               </span>
-              <p className="mt-3 font-heading text-2xl font-bold text-primary sm:text-3xl everr-decoration">
-                Everr
-              </p>
-              <ul className="mt-4 space-y-2.5 text-sm text-fd-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
-                  Collects CI/CD data in a structured, standardized format
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
-                  Enriches it with context from version control and environment
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
-                  Derives signals about pipeline health and performance
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
-                  Makes those signals consumable by humans and AI agents
-                </li>
-              </ul>
-            </div>
-
-            {/* CI/CD — right */}
-            <div className="p-6 md:p-8">
-              <span className="font-heading text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
-                CI/CD
-              </span>
-              <p className="mt-3 font-heading text-lg font-bold">
-                CI/CD platforms
-              </p>
-              <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
-                <li>Pipeline execution</li>
-                <li>Job orchestration</li>
-                <li>Manual debugging</li>
-              </ul>
-              <p className="mt-4 font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/30">
-                No observability built-in
+              <h3 className="mt-3 font-heading text-xl font-bold everr-decoration everr-decoration-primary">
+                {item.heading}
+              </h3>
+              <p className="mt-2 leading-relaxed text-fd-muted-foreground">
+                {item.body}
               </p>
             </div>
-          </div>
+          ))}
         </div>
 
         {/* Detect · Explain · Resolve */}
