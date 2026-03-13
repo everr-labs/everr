@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import type React from "react";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 
@@ -35,8 +36,8 @@ function HeroSection() {
 
       <p className="mx-auto mt-4 max-w-2xl text-center text-fd-muted-foreground">
         Everr collects telemetry from your CI/CD pipelines and turns workflow
-        runs into OpenTelemetry traces. Debug failures, spot regressions, and
-        track flaky tests — all from one dashboard.
+        runs into OpenTelemetry traces. Debug failures, identify optimization
+        opportunites, and track flaky jobs — all from your terminal.
       </p>
 
       <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row md:mt-14">
@@ -144,77 +145,677 @@ function ProductVisualization() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  How It Works                                                       */
+/*  Value Props                                                        */
 /* ------------------------------------------------------------------ */
 
-function HowItWorksSection() {
+const VALUE_PROPS = [
+  {
+    title: "Built on open standards",
+    description:
+      "Everr is built on OpenTelemetry — the industry standard for observability. No vendor lock-in, no proprietary agents.",
+  },
+  {
+    title: "AI-native debugging",
+    description:
+      "Designed for workflows shared by humans and AI agents. From detecting failures to pushing fixes.",
+  },
+  {
+    title: "Designed for speed",
+    description:
+      "Reduces noise and restores momentum to help teams ship with high velocity and focus.",
+  },
+];
+
+function OpenStandardsIllustration() {
+  const sources = [
+    { y: 44, label: "CI" },
+    { y: 92, label: "TESTS" },
+    { y: 140, label: "LOGS" },
+  ];
+
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      fill="none"
+      className="h-full w-full"
+      aria-hidden="true"
+    >
+      <rect
+        x="18"
+        y="24"
+        width="164"
+        height="152"
+        rx="20"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-fd-border/40"
+      />
+
+      {sources.map((source) => (
+        <g key={source.label}>
+          <rect
+            x="28"
+            y={source.y}
+            width="48"
+            height="28"
+            rx="10"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="text-fd-muted-foreground/45"
+          />
+          <circle
+            cx="40"
+            cy={source.y + 14}
+            r="3.5"
+            fill="currentColor"
+            className="text-primary/80"
+          />
+          <text
+            x="48"
+            y={source.y + 17}
+            fontSize="7"
+            fontWeight="700"
+            letterSpacing="0.12em"
+            fill="currentColor"
+            className="text-fd-muted-foreground"
+          >
+            {source.label}
+          </text>
+          <path
+            d={`M76 ${source.y + 14} H86`}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className="text-fd-muted-foreground/45"
+          />
+        </g>
+      ))}
+
+      <path
+        d="M86 58 C95 58 95 82 106 82"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-fd-muted-foreground/45"
+      />
+      <path
+        d="M86 106 H106"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-fd-muted-foreground/45"
+      />
+      <path
+        d="M86 154 C95 154 95 130 106 130"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-fd-muted-foreground/45"
+      />
+
+      <rect
+        x="86"
+        y="78"
+        width="40"
+        height="52"
+        rx="14"
+        fill="currentColor"
+        className="text-primary/10"
+      />
+      <rect
+        x="86"
+        y="78"
+        width="40"
+        height="52"
+        rx="14"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-primary/70"
+      />
+      <path
+        d="M98 90 H114"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-primary/80"
+      />
+      <path
+        d="M98 104 H114"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-primary/80"
+      />
+      <path
+        d="M98 118 H106"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-primary/80"
+      />
+      <text
+        x="106"
+        y="126"
+        fontSize="7"
+        fontWeight="700"
+        textAnchor="middle"
+        letterSpacing="0.12em"
+        fill="currentColor"
+        className="text-primary"
+      >
+        OTEL
+      </text>
+
+      <path
+        d="M126 104 H138"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-primary/70"
+      />
+
+      <rect
+        x="138"
+        y="60"
+        width="32"
+        height="88"
+        rx="12"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-fd-muted-foreground/45"
+      />
+      <text
+        x="154"
+        y="76"
+        fontSize="6.5"
+        fontWeight="700"
+        textAnchor="middle"
+        letterSpacing="0.1em"
+        fill="currentColor"
+        className="text-fd-muted-foreground"
+      >
+        EVERR
+      </text>
+      {[0, 1, 2].map((i) => (
+        <g key={i}>
+          <rect
+            x="146"
+            y={88 + i * 16}
+            width={16 - i * 2}
+            height="6"
+            rx="3"
+            fill="currentColor"
+            className={
+              i === 1 ? "text-primary/80" : "text-fd-muted-foreground/35"
+            }
+          />
+          <circle
+            cx="144"
+            cy={91 + i * 16}
+            r="2"
+            fill="currentColor"
+            className="text-fd-muted-foreground/45"
+          />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function AIDebuggingIllustration() {
+  const pipelineRows = [
+    { y: 64, status: "ok" },
+    { y: 88, status: "ok" },
+    { y: 112, status: "failed" },
+  ] as const;
+
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      fill="none"
+      className="h-full w-full"
+      aria-hidden="true"
+    >
+      <rect
+        x="20"
+        y="28"
+        width="120"
+        height="118"
+        rx="18"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-fd-muted-foreground/45"
+      />
+      <rect
+        x="20"
+        y="28"
+        width="120"
+        height="18"
+        rx="18"
+        fill="currentColor"
+        className="text-fd-secondary/70"
+      />
+      <path
+        d="M20 46 H140"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-fd-muted-foreground/35"
+      />
+      <text
+        x="32"
+        y="40"
+        fontSize="7"
+        fontWeight="700"
+        letterSpacing="0.12em"
+        fill="currentColor"
+        className="text-fd-muted-foreground"
+      >
+        PIPELINE
+      </text>
+
+      {pipelineRows.map((row, index) => (
+        <g key={row.y}>
+          <rect
+            x="30"
+            y={row.y - 8}
+            width="100"
+            height="16"
+            rx="8"
+            fill="currentColor"
+            className={
+              row.status === "failed"
+                ? "text-red-500/8"
+                : "text-fd-secondary/45"
+            }
+          />
+          <circle
+            cx="40"
+            cy={row.y}
+            r="4"
+            fill="currentColor"
+            className={
+              row.status === "failed" ? "text-red-500" : "text-primary/80"
+            }
+          />
+          <rect
+            x="50"
+            y={row.y - 3}
+            width={row.status === "failed" ? 34 : 42 - index * 4}
+            height="6"
+            rx="3"
+            fill="currentColor"
+            className="text-fd-foreground/80"
+          />
+          <rect
+            x="90"
+            y={row.y - 3}
+            width={row.status === "failed" ? 24 : 18}
+            height="6"
+            rx="3"
+            fill="currentColor"
+            className={
+              row.status === "failed"
+                ? "text-red-500/80"
+                : "text-fd-muted-foreground/30"
+            }
+          />
+        </g>
+      ))}
+
+      <path
+        d="M130 112 C146 112 150 120 150 132"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-primary/70"
+      />
+
+      <rect
+        x="116"
+        y="118"
+        width="62"
+        height="50"
+        rx="14"
+        fill="currentColor"
+        className="text-primary/8"
+      />
+      <rect
+        x="116"
+        y="118"
+        width="62"
+        height="50"
+        rx="14"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-primary/60"
+      />
+      <circle
+        cx="130"
+        cy="134"
+        r="8"
+        fill="currentColor"
+        className="text-primary/18"
+      />
+      <path
+        d="M130 128 L132 132 L136 133 L132 136 L131 141 L128 137 L124 136 L127 132 Z"
+        fill="currentColor"
+        className="text-primary"
+      />
+      <text
+        x="145"
+        y="133"
+        fontSize="6.5"
+        fontWeight="700"
+        letterSpacing="0.1em"
+        fill="currentColor"
+        className="text-primary"
+      >
+        AI FIX
+      </text>
+      <path
+        d="M144 144 H166"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-red-500/70"
+      />
+      <path
+        d="M144 154 H160"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-green-500/80"
+      />
+      <path
+        d="M144 149 H170"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeDasharray="2 3"
+        className="text-fd-muted-foreground/35"
+      />
+    </svg>
+  );
+}
+
+function SpeedIllustration() {
+  const beforeBars = [
+    { id: "checkout", width: 34 },
+    { id: "install", width: 44 },
+    { id: "tests", width: 40 },
+    { id: "deploy", width: 44 },
+  ];
+  const afterBars = [
+    { id: "checkout", width: 20 },
+    { id: "install", width: 28 },
+    { id: "tests", width: 24 },
+    { id: "deploy", width: 30 },
+  ];
+
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      fill="none"
+      className="h-full w-full"
+      aria-hidden="true"
+    >
+      <rect
+        x="20"
+        y="42"
+        width="64"
+        height="112"
+        rx="16"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-fd-muted-foreground/35"
+      />
+      <text
+        x="32"
+        y="58"
+        fontSize="7"
+        fontWeight="700"
+        letterSpacing="0.12em"
+        fill="currentColor"
+        className="text-fd-muted-foreground"
+      >
+        BEFORE
+      </text>
+      {beforeBars.map((bar, index) => (
+        <g key={bar.id}>
+          <rect
+            x="30"
+            y={74 + index * 17}
+            width="44"
+            height="10"
+            rx="5"
+            fill="currentColor"
+            className="text-fd-secondary/55"
+          />
+          <rect
+            x="30"
+            y={74 + index * 17}
+            width={bar.width}
+            height="10"
+            rx="5"
+            fill="currentColor"
+            className={
+              index === 2 ? "text-red-500/55" : "text-fd-muted-foreground/35"
+            }
+          />
+        </g>
+      ))}
+
+      <path
+        d="M84 108 C102 108 106 92 122 84"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        className="text-primary/80"
+      />
+      <path
+        d="M114 80 L122 84 L117 92"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="text-primary/80"
+      />
+
+      <rect
+        x="118"
+        y="28"
+        width="62"
+        height="126"
+        rx="16"
+        fill="currentColor"
+        className="text-primary/8"
+      />
+      <rect
+        x="118"
+        y="28"
+        width="62"
+        height="126"
+        rx="16"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-primary/55"
+      />
+      <text
+        x="130"
+        y="44"
+        fontSize="7"
+        fontWeight="700"
+        letterSpacing="0.12em"
+        fill="currentColor"
+        className="text-primary"
+      >
+        FASTER
+      </text>
+      <rect
+        x="130"
+        y="52"
+        width="38"
+        height="18"
+        rx="9"
+        fill="currentColor"
+        className="text-primary/16"
+      />
+      <text
+        x="149"
+        y="64"
+        fontSize="9"
+        fontWeight="700"
+        textAnchor="middle"
+        fill="currentColor"
+        className="text-primary"
+      >
+        -18%
+      </text>
+      {afterBars.map((bar, index) => (
+        <g key={bar.id}>
+          <rect
+            x="128"
+            y={82 + index * 17}
+            width="42"
+            height="10"
+            rx="5"
+            fill="currentColor"
+            className="text-primary/14"
+          />
+          <rect
+            x="128"
+            y={82 + index * 17}
+            width={bar.width}
+            height="10"
+            rx="5"
+            fill="currentColor"
+            className="text-primary/85"
+          />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function ValuePropsSection() {
+  const illustrations = [
+    OpenStandardsIllustration,
+    AIDebuggingIllustration,
+    SpeedIllustration,
+  ];
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <h2 className="font-headline mb-3 text-4xl sm:text-5xl md:text-6xl font-heading everr-decoration everr-decoration-primary">
-          How it works
+        <h2 className="font-heading text-4xl uppercase leading-[0.95] sm:text-5xl md:text-6xl everr-decoration everr-decoration-primary">
+          Look your pipelines with new eyes
         </h2>
-        <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
-          No code changes. No new configs. Connect and start tracing.
+        <p className="mt-4 max-w-3xl text-lg text-fd-muted-foreground">
+          Purpose-built for modern teams with AI workflows at its core, Everr
+          sets a new standard for understanding your pipelines.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2">
-          {/* Card 1: One-click connect */}
-          <div className="border-b-2 border-fd-border pb-10 md:border-r-2 md:pr-10">
-            <div className="mb-6">
-              <ConnectProvidersViz />
-            </div>
-            <h3 className="font-headline mb-1 text-xl  font-heading everr-decoration everr-decoration-primary font-bold">
-              One-click connect
-            </h3>
-            <p className="leading-relaxed text-fd-muted-foreground">
-              Connect your CI/CD systems in seconds. GitHub Actions, GitLab CI,
-              Jenkins, and more — one integration to trace them all.
-            </p>
-          </div>
+        <div className="mt-16 grid grid-cols-1 gap-10 md:mt-20 md:grid-cols-3 md:gap-0">
+          {VALUE_PROPS.map((item, i) => {
+            const Illustration = illustrations[i];
+            const isLast = i === VALUE_PROPS.length - 1;
+            return (
+              <div
+                key={item.title}
+                className={`${!isLast ? "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10" : ""} ${i > 0 ? "md:pl-10" : ""}`}
+              >
+                <div className="flex aspect-square max-h-[220px] items-center justify-center border-2 border-fd-border bg-fd-secondary/20">
+                  <Illustration />
+                </div>
+                <h3 className="mt-6 text-xl font-bold font-heading everr-decoration everr-decoration-primary">
+                  {item.title}
+                </h3>
+                <p className="mt-1 leading-relaxed text-fd-muted-foreground">
+                  {item.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          {/* Card 2: Runs and tests */}
-          <div className="border-b-2 border-fd-border pb-10 pt-10 md:pl-10 md:pt-0">
-            <div className="mb-6">
-              <RunsAndTestsViz />
-            </div>
-            <h3 className="font-headline mb-1 text-xl font-heading everr-decoration everr-decoration-primary font-bold">
-              Runs and tests
-            </h3>
-            <p className="leading-relaxed text-fd-muted-foreground">
-              Every workflow run collected with full detail. See test
-              executions, durations, and failure patterns across your entire
-              history.
-            </p>
-          </div>
+/* ------------------------------------------------------------------ */
+/*  How It Works                                                       */
+/* ------------------------------------------------------------------ */
 
-          {/* Card 3: App and CLI */}
-          <div className="border-b-2 border-fd-border pb-10 pt-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10">
-            <div className="mb-6">
-              <AppAndCliViz />
-            </div>
-            <h3 className="font-headline mb-1 text-xl font-heading everr-decoration everr-decoration-primary font-bold">
-              App and CLI
-            </h3>
-            <p className="leading-relaxed text-fd-muted-foreground">
-              A dashboard to explore, and a CLI that plugs into your preferred
-              code assistant. Use either — or both.
-            </p>
-          </div>
+const SETUP_STEPS = [
+  {
+    num: "01",
+    title: "One-click connect",
+    description:
+      "Connect your CI/CD systems in seconds. GitHub Actions, GitLab CI, Jenkins, and more — one integration to trace them all.",
+    viz: "connect",
+  },
+  {
+    num: "02",
+    title: "Trigger a run",
+    description:
+      "Push your code and watch every workflow run traced in full detail. See test executions, durations, and failure patterns as they happen.",
+    viz: "runs",
+  },
+  {
+    num: "03",
+    title: "Fix from your assistant",
+    description:
+      "Wait for CI results without leaving your editor. When failures hit, your assistant pinpoints the root cause and can fix it.",
+    viz: "assistant",
+  },
+] as const;
 
-          {/* Card 4: Fix from your assistant */}
-          <div className="pt-10 md:pl-10">
-            <div className="mb-6">
-              <CodeAssistantViz />
-            </div>
-            <h3 className="font-headline mb-1 text-xl font-heading everr-decoration everr-decoration-primary font-bold">
-              Fix from your assistant
-            </h3>
-            <p className="leading-relaxed text-fd-muted-foreground">
-              Wait for CI results without leaving your editor. When failures
-              hit, your assistant pinpoints the root cause and can fix it.
-            </p>
-          </div>
+const VIZ_COMPONENTS: Record<
+  (typeof SETUP_STEPS)[number]["viz"],
+  () => React.ReactNode
+> = {
+  connect: ConnectProvidersViz,
+  runs: RunsAndTestsViz,
+  assistant: CodeAssistantViz,
+};
+
+function ZeroConfigSection() {
+  return (
+    <section>
+      <div className="mx-auto max-w-7xl">
+        <h2 className="mb-3 text-4xl sm:text-5xl md:text-6xl font-heading uppercase leading-[0.95] everr-decoration everr-decoration-primary">
+          Zero-config setup
+        </h2>
+        <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
+          Link your CI and CD tools to Everr and bring their data directly to
+          your hands.
+        </p>
+
+        <div className="flex flex-col">
+          {SETUP_STEPS.map((step, i) => {
+            const Viz = VIZ_COMPONENTS[step.viz];
+            const isLast = i === SETUP_STEPS.length - 1;
+            return (
+              <div
+                key={step.num}
+                className={`grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16 ${!isLast ? "border-b-2 border-fd-border pb-12 mb-12" : ""}`}
+              >
+                <div className="flex flex-col justify-center">
+                  <span className="mb-4 font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/50">
+                    Step {step.num}
+                  </span>
+                  <h3 className="mb-2 text-2xl font-heading font-bold everr-decoration everr-decoration-primary">
+                    {step.title}
+                  </h3>
+                  <p className="leading-relaxed text-fd-muted-foreground">
+                    {step.description}
+                  </p>
+                </div>
+                <div>
+                  <Viz />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>
@@ -232,8 +833,8 @@ const CI_PROVIDERS: {
   { name: "GitHub Actions", status: "connected" },
   { name: "GitLab CI", status: "planned" },
   { name: "Jenkins", status: "planned" },
-  { name: "CircleCI", status: "planned" },
-  { name: "Buildkite", status: "planned" },
+  { name: "Tekton", status: "planned" },
+  { name: "ArgoCD", status: "planned" },
   { name: "Azure Pipelines", status: "planned" },
 ];
 
@@ -475,111 +1076,6 @@ function RunsAndTestsViz() {
   );
 }
 
-function AppAndCliViz() {
-  return (
-    <div className="relative h-96 w-full overflow-hidden bg-fd-background">
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-1/5"
-        style={{
-          background:
-            "linear-gradient(to bottom, transparent 0%, var(--color-fd-background) 100%)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-[12%]"
-        style={{
-          background:
-            "linear-gradient(to right, transparent 0%, var(--color-fd-background) 100%)",
-        }}
-      />
-      <div className="flex w-[580px] shrink-0 flex-col overflow-hidden border-2 border-fd-border bg-fd-card">
-        {/* Dashboard panel */}
-        <div className="border-b-2 border-fd-border bg-fd-secondary/50 px-5 py-2.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground">
-            Everr / Dashboard
-          </span>
-        </div>
-        <div className="border-b-2 border-fd-border px-5 py-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-bold">ci / build-and-test</span>
-            <span className="inline-flex items-center gap-[3px] border border-red-500/15 bg-red-500/5 px-1.5 py-px text-[10px] font-bold uppercase text-red-500">
-              failed
-            </span>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-3">
-            <div>
-              <span className="block text-[9px] font-bold uppercase tracking-wider text-fd-muted-foreground">
-                Duration
-              </span>
-              <span className="font-mono text-[13px] font-bold">11m 42s</span>
-            </div>
-            <div>
-              <span className="block text-[9px] font-bold uppercase tracking-wider text-fd-muted-foreground">
-                Branch
-              </span>
-              <span className="font-mono text-[13px]">main</span>
-            </div>
-            <div>
-              <span className="block text-[9px] font-bold uppercase tracking-wider text-fd-muted-foreground">
-                Tests
-              </span>
-              <span className="font-mono text-[13px]">
-                12 <span className="text-green-500">&#10003;</span> · 1{" "}
-                <span className="text-red-500">&#10007;</span> · 1{" "}
-                <span className="text-yellow-500">~</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* CLI panel */}
-        <div className="border-b-2 border-fd-border bg-fd-secondary/50 px-5 py-2.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground">
-            Terminal
-          </span>
-        </div>
-        <div className="p-5 font-mono text-[13px] leading-[1.8]">
-          <span className="block whitespace-nowrap">
-            <span className="text-fd-muted-foreground">my-project</span>{" "}
-            <span className="text-primary">%</span> <span>everr status</span>
-          </span>
-          <span className="block whitespace-nowrap">&nbsp;</span>
-          <span className="block whitespace-nowrap">
-            <span className="text-green-500">&#10003;</span>{" "}
-            <span className="text-fd-muted-foreground">GitHub Actions</span>{" "}
-            <span className="text-fd-muted-foreground/50">3 workflows</span>
-          </span>
-          <span className="block whitespace-nowrap">
-            <span className="text-red-500">&#10007;</span>{" "}
-            <span className="text-fd-muted-foreground">Last run failed</span>{" "}
-            <span className="text-fd-muted-foreground/50">
-              ci/build-and-test
-            </span>
-          </span>
-          <span className="block whitespace-nowrap">
-            <span className="text-yellow-500">&#9888;</span>{" "}
-            <span className="text-fd-muted-foreground">
-              1 flaky test detected
-            </span>
-          </span>
-          <span className="block whitespace-nowrap">&nbsp;</span>
-          <span className="block whitespace-nowrap">
-            <span className="text-fd-muted-foreground">my-project</span>{" "}
-            <span className="text-primary">%</span>{" "}
-            <span
-              className="ml-0.5 inline-block h-[16px] w-[8px] bg-fd-muted-foreground align-text-bottom"
-              style={{
-                animation:
-                  "1.1s step-end 0s infinite normal none running terminal-blink",
-              }}
-            />
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CodeAssistantViz() {
   return (
     <div className="relative h-96 w-full overflow-hidden bg-fd-background">
@@ -692,7 +1188,7 @@ function WhySection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <h2 className="font-headline mb-3 text-4xl font-heading sm:text-5xl md:text-6xl everr-decoration everr-decoration-primary">
+        <h2 className="mb-3 text-4xl font-heading uppercase leading-[0.95] sm:text-5xl md:text-6xl everr-decoration everr-decoration-primary">
           Why Everr
         </h2>
         <p className="mb-16 max-w-2xl text-lg text-fd-muted-foreground">
@@ -705,7 +1201,7 @@ function WhySection() {
           {WHY_ITEMS.map((item, i) => (
             <div key={item.num} className="contents">
               <div>
-                <h3 className="font-headline mb-3 text-lg italic">
+                <h3 className="mb-3 text-lg font-heading italic">
                   {item.question}
                 </h3>
                 <p className="leading-relaxed text-fd-muted-foreground">
@@ -731,7 +1227,7 @@ function BottomCTA() {
   return (
     <section>
       <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <h2 className="font-headline text-4xl uppercase leading-[0.9] sm:text-5xl md:text-7xl font-heading">
+        <h2 className="text-4xl uppercase leading-[0.9] sm:text-5xl md:text-7xl font-heading">
           Stop guessing
           <br />
           <span
@@ -784,7 +1280,11 @@ function Home() {
               <ProductVisualization />
             </div>
 
-            <HowItWorksSection />
+            <ValuePropsSection />
+
+            <div className="h-[2px] w-full bg-fd-border" />
+
+            <ZeroConfigSection />
 
             <div className="h-[2px] w-full bg-fd-border" />
 
