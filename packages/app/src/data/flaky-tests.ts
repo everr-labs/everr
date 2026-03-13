@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
+import { RUN_ATTEMPT_EXPR } from "./run-query-helpers";
 import { testFullNameExpr } from "./sql-helpers";
 
 // Filter input for flaky tests list
@@ -456,7 +457,7 @@ export const getTestHistory = createServerFn({
 				SELECT
 					TraceId as trace_id,
 					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-					toUInt32OrZero(anyLast(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
+					${RUN_ATTEMPT_EXPR} as run_attempt,
 					anyLast(ResourceAttributes['vcs.ref.head.revision']) as head_sha,
 					anyLast(ResourceAttributes['vcs.ref.head.name']) as head_branch,
 					anyLast(SpanAttributes['everr.test.result']) as test_result,

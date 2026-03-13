@@ -29,6 +29,8 @@ describe("runSummarySubquery", () => {
     });
 
     expect(sql).toContain("as run_attempt");
+    expect(sql).toContain("everr.github.workflow_run.run_attempt");
+    expect(sql).toContain("everr.github.workflow_job.run_attempt");
     expect(sql).toContain("as duration");
     expect(sql).toContain("lowerUTF8(");
     expect(sql).toContain("= 'skip'");
