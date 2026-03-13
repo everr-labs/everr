@@ -6,3 +6,5 @@ Show in-processing state for in-flight stuff. Now we show no-logs which feels li
 Table sorting
 Table alignment
 FilterSelect should be a Combobox with autocomoplete. Runs branch should filter on click.
+
+Check how the jobID and the spanID are generated. Ensure that two jobs with the same name on the same run don't conflict.
