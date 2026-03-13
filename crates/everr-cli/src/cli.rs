@@ -166,8 +166,6 @@ pub struct ListRunsArgs {
     pub repo: Option<String>,
     #[arg(long)]
     pub branch: Option<String>,
-    #[arg(long, value_parser = ["queued", "in_progress", "completed"])]
-    pub status: Option<String>,
     #[arg(long)]
     pub conclusion: Option<String>,
     #[arg(long)]
@@ -641,21 +639,6 @@ mod tests {
 
         assert_eq!(args.limit, 15);
         assert_eq!(args.offset, 30);
-    }
-
-    #[test]
-    fn runs_list_accepts_status_filter() {
-        let cli = Cli::try_parse_from(["everr", "runs", "list", "--status", "in_progress"])
-            .expect("runs list command");
-
-        let Commands::Runs { command } = cli.command else {
-            panic!("expected runs command");
-        };
-        let RunsCommand::List(args) = command else {
-            panic!("expected runs list command");
-        };
-
-        assert_eq!(args.status.as_deref(), Some("in_progress"));
     }
 
     #[test]

@@ -165,7 +165,6 @@ fn runs_list_sends_filter_query_params() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/tests".into()),
-            Matcher::UrlEncoded("status".into(), "completed".into()),
             Matcher::UrlEncoded("conclusion".into(), "failure".into()),
             Matcher::UrlEncoded("workflowName".into(), "Build & Test App".into()),
             Matcher::UrlEncoded("runId".into(), "42".into()),
@@ -185,8 +184,6 @@ fn runs_list_sends_filter_query_params() {
             "list",
             "--branch",
             "feature/tests",
-            "--status",
-            "completed",
             "--conclusion",
             "failure",
             "--workflow-name",
