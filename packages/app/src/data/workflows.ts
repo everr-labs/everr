@@ -805,7 +805,6 @@ export const getWorkflowRecentRuns = createServerFn({
       workflowName: row.workflowName || "Workflow",
       repo: row.repo,
       branch: row.branch,
-      status: "completed",
       conclusion: row.conclusion,
       duration: Number(row.duration),
       timestamp: row.timestamp,

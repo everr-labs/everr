@@ -64,7 +64,6 @@ export const Route = createFileRoute("/api/cli/status")({
               limit: STATUS_RUN_LIMIT,
               repo,
               branch,
-              status: "completed",
             },
           })
         ).runs;

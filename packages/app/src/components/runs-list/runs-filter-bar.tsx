@@ -1,26 +1,15 @@
-import {
-  FilterSelect,
-  type FilterSelectItem,
-} from "@/components/filter-select";
-import type { FilterOptions, RunLifecycleStatus } from "@/data/runs-list";
-
-const STATUS_ITEMS: FilterSelectItem[] = [
-  { value: "queued", label: "Queued" },
-  { value: "in_progress", label: "In progress" },
-  { value: "completed", label: "Completed" },
-];
+import { FilterSelect } from "@/components/filter-select";
+import type { FilterOptions } from "@/data/runs-list";
 
 interface RunsFilterBarProps {
   filterOptions: FilterOptions;
   repo?: string;
   branch?: string;
-  status?: RunLifecycleStatus;
   conclusion?: string;
   workflowName?: string;
   runId?: string;
   onRepoChange: (value: string | undefined) => void;
   onBranchChange: (value: string | undefined) => void;
-  onStatusChange: (value: RunLifecycleStatus | undefined) => void;
   onConclusionChange: (value: string | undefined) => void;
   onWorkflowNameChange: (value: string | undefined) => void;
   onRunIdChange: (value: string) => void;
@@ -30,13 +19,11 @@ export function RunsFilterBar({
   filterOptions,
   repo,
   branch,
-  status,
   conclusion,
   workflowName,
   runId,
   onRepoChange,
   onBranchChange,
-  onStatusChange,
   onConclusionChange,
   onWorkflowNameChange,
   onRunIdChange,
@@ -55,13 +42,6 @@ export function RunsFilterBar({
         onChange={onBranchChange}
         items={filterOptions.branches}
         placeholder="All branches"
-      />
-
-      <FilterSelect
-        value={status}
-        onChange={(value) => onStatusChange(value as RunLifecycleStatus)}
-        items={STATUS_ITEMS}
-        placeholder="All states"
       />
 
       <FilterSelect
