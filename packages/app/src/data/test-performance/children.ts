@@ -102,8 +102,6 @@ export const getTestPerfChildren = createServerFn({
 
     const isRoot = !data.pkg;
 
-    console.log("isRoot", isRoot);
-
     if (isRoot) {
       const rootConditions = [...baseConditions];
       rootConditions.push("SpanAttributes['everr.test.package'] != ''");
