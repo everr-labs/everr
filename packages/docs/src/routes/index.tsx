@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, ChevronRightIcon, RocketIcon } from "lucide-react";
-import type React from "react";
+import { ChevronRightIcon } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 
@@ -16,7 +15,7 @@ const APP_URL = "https://app.everr.dev";
 
 function HeroSection() {
   return (
-    <section className="flex min-h-[85vh] flex-col items-center justify-center text-center">
+    <section className="flex min-h-[65vh] flex-col items-center justify-center text-center">
       <a
         href={APP_URL}
         target="_blank"
@@ -89,7 +88,7 @@ function HeroSection() {
       </div>
 
       <p
-        className="animate-fade-up mt-8 font-mono text-[11px] uppercase tracking-[0.25em] text-fd-muted-foreground/40"
+        className="animate-fade-up mt-8 font-heading text-[11px] uppercase tracking-[0.25em] text-fd-muted-foreground/40"
         style={{ animationDelay: "0.5s" }}
       >
         Open source · Built on OpenTelemetry
@@ -112,21 +111,21 @@ const TRACE_STEPS = [
 
 function ProductVisualization() {
   return (
-    <div className="mx-auto w-full max-w-5xl pb-8 md:pb-16">
+    <div className="mx-auto w-full max-w-5xl pb-8 md:pb-16 hidden sm:block">
       <div className="product-perspective">
         <div className="product-tilt">
           <div className="flex h-10 items-center border-b-2 border-fd-border bg-fd-secondary/50 px-4">
-            <span className="font-mono text-xs font-bold uppercase tracking-wider text-fd-muted-foreground">
+            <span className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground">
               everr / traces
             </span>
           </div>
 
           <div className="p-5 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
-              <span className="bg-primary/15 px-2 py-1 font-mono text-xs font-bold uppercase text-primary">
+              <span className="bg-primary/15 px-2 py-1 font-heading text-xs font-bold uppercase text-primary">
                 run #29184
               </span>
-              <span className="font-mono text-xs text-fd-muted-foreground">
+              <span className="font-heading text-xs text-fd-muted-foreground">
                 ci / build-and-test
               </span>
             </div>
@@ -137,7 +136,7 @@ function ProductVisualization() {
                   key={span.step}
                   className="grid grid-cols-[100px_1fr_56px] items-center gap-3"
                 >
-                  <span className="truncate font-mono text-xs text-fd-muted-foreground">
+                  <span className="truncate font-heading text-xs text-fd-muted-foreground">
                     {span.step}
                   </span>
                   <div className="h-6 bg-fd-secondary/60">
@@ -147,7 +146,7 @@ function ProductVisualization() {
                     />
                   </div>
                   <span
-                    className={`text-right font-mono text-xs ${
+                    className={`text-right font-heading text-xs ${
                       span.ok
                         ? "text-fd-muted-foreground"
                         : "font-bold text-red-500"
@@ -163,7 +162,7 @@ function ProductVisualization() {
               <span className="font-bold uppercase tracking-wider">
                 p95 duration
               </span>
-              <span className="font-mono font-bold text-red-500">
+              <span className="font-heading font-bold text-red-500">
                 +18.7% vs baseline
               </span>
             </div>
@@ -203,7 +202,7 @@ function ProblemSection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+        <p className="mb-3 font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
           The problem
         </p>
         <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
@@ -223,7 +222,7 @@ function ProblemSection() {
                 key={item.num}
                 className={`${!isLast ? "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10" : ""} ${i > 0 ? "md:pl-10" : ""}`}
               >
-                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/40">
+                <span className="font-heading text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/40">
                   {item.num}
                 </span>
                 <h3 className="mt-2 text-xl font-bold font-heading everr-decoration everr-decoration-primary">
@@ -249,7 +248,7 @@ function MissingLayerSection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+        <p className="mb-3 font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
           The approach
         </p>
         <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl">
@@ -267,72 +266,83 @@ function MissingLayerSection() {
           <strong className="text-fd-foreground">Everr bridges the gap.</strong>
         </p>
 
-        {/* Missing Layer Diagram */}
-        <div className="mt-16 grid grid-cols-1 gap-4 md:mt-20 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-stretch md:gap-0">
-          {/* Observability */}
-          <div className="border-2 border-fd-border p-6">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
-              Observability
-            </span>
-            <p className="mt-3 font-heading text-lg font-bold">
-              Monitoring platforms
-            </p>
-            <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
-              <li>Production monitoring</li>
-              <li>Metrics, logs, and traces</li>
-              <li>Dashboards and alerts</li>
-            </ul>
-          </div>
+        {/* Missing Layer Diagram — single container, Everr dominant */}
+        <div className="mt-16 border-2 border-fd-border md:mt-20">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr_1fr]">
+            {/* Observability — left */}
+            <div className="border-b-2 border-fd-border p-6 md:border-b-0 md:border-r-2 md:p-8">
+              <span className="font-heading text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
+                Observability
+              </span>
+              <p className="mt-3 font-heading text-lg font-bold">
+                Monitoring platforms
+              </p>
+              <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
+                <li>Production monitoring</li>
+                <li>Metrics, logs, and traces</li>
+                <li>Dashboards and alerts</li>
+              </ul>
+              <p className="mt-4 font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/30">
+                Post-deploy only
+              </p>
+            </div>
 
-          {/* Connector */}
-          <div className="hidden items-center md:flex">
-            <div className="h-[2px] w-8 bg-fd-border" />
-          </div>
+            {/* Everr — center, visually dominant */}
+            <div className="border-b-2 border-primary bg-primary/5 p-6 md:border-b-0 md:border-r-2 md:border-r-primary md:p-8">
+              <span className="font-heading text-[10px] font-bold uppercase tracking-wider text-primary">
+                Software delivery intelligence
+              </span>
+              <p className="mt-3 font-heading text-2xl font-bold text-primary sm:text-3xl everr-decoration">
+                Everr
+              </p>
+              <ul className="mt-4 space-y-2.5 text-sm text-fd-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
+                  Collects CI/CD data in a structured, standardized format
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
+                  Enriches it with context from version control and environment
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
+                  Derives signals about pipeline health and performance
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 inline-block size-1.5 shrink-0 bg-primary" />
+                  Makes those signals consumable by humans and AI agents
+                </li>
+              </ul>
+            </div>
 
-          {/* Everr */}
-          <div className="border-2 border-primary bg-primary/5 p-6">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-primary">
-              The bridge
-            </span>
-            <p className="mt-3 font-heading text-lg font-bold text-primary">
-              Everr_
-            </p>
-            <ul className="mt-3 space-y-1.5 text-sm text-fd-foreground">
-              <li>Structured pipeline telemetry</li>
-              <li>Derived signals and intelligence</li>
-              <li>Consumable by humans and AI</li>
-            </ul>
-          </div>
-
-          {/* Connector */}
-          <div className="hidden items-center md:flex">
-            <div className="h-[2px] w-8 bg-fd-border" />
-          </div>
-
-          {/* CI/CD */}
-          <div className="border-2 border-fd-border p-6">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
-              CI/CD
-            </span>
-            <p className="mt-3 font-heading text-lg font-bold">
-              CI/CD platforms
-            </p>
-            <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
-              <li>Pipeline execution</li>
-              <li>Job orchestration</li>
-              <li>Manual debugging</li>
-            </ul>
+            {/* CI/CD — right */}
+            <div className="p-6 md:p-8">
+              <span className="font-heading text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground/50">
+                CI/CD
+              </span>
+              <p className="mt-3 font-heading text-lg font-bold">
+                CI/CD platforms
+              </p>
+              <ul className="mt-3 space-y-1.5 text-sm text-fd-muted-foreground">
+                <li>Pipeline execution</li>
+                <li>Job orchestration</li>
+                <li>Manual debugging</li>
+              </ul>
+              <p className="mt-4 font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/30">
+                No observability built-in
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Detect · Explain · Resolve */}
         <div className="mt-20">
           <h3 className="font-heading text-2xl uppercase sm:text-3xl md:text-4xl everr-decoration everr-decoration-primary">
-            <span className="text-primary">Detect</span>
+            <span className="">Detect</span>
             <span className="text-fd-muted-foreground/40"> · </span>
-            <span className="text-primary">Explain</span>
+            <span className="">Explain</span>
             <span className="text-fd-muted-foreground/40"> · </span>
-            <span className="text-primary">Resolve</span>
+            <span className="">Resolve</span>
           </h3>
 
           <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-0">
@@ -383,7 +393,7 @@ function HowItWorksSection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+        <p className="mb-3 font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
           Get started
         </p>
 
@@ -405,10 +415,10 @@ function HowItWorksSection() {
           <div className="border-2 border-fd-border">
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="flex flex-col justify-center border-b-2 border-fd-border p-8 md:border-r-2 md:border-b-0 md:p-12">
-                <span className="font-heading text-[64px] leading-none text-fd-border/50 md:text-[80px]">
+                <span className="font-heading text-[64px] leading-none text-primary/20 md:text-[80px]">
                   01
                 </span>
-                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl everr-decoration everr-decoration-primary">
+                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl">
                   Connect your CI
                 </h3>
                 <p className="mt-3 text-lg leading-relaxed text-fd-muted-foreground">
@@ -430,16 +440,16 @@ function HowItWorksSection() {
                 <RunsAndTestsViz />
               </div>
               <div className="order-1 flex flex-col justify-center border-b-2 border-fd-border p-8 md:order-2 md:border-l-2 md:border-b-0 md:p-12">
-                <span className="font-heading text-[64px] leading-none text-fd-border/50 md:text-[80px]">
+                <span className="font-heading text-[64px] leading-none text-primary/20 md:text-[80px]">
                   02
                 </span>
-                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl everr-decoration everr-decoration-primary">
-                  See everything
+                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl">
+                  Trigger your workflow
                 </h3>
                 <p className="mt-3 text-lg leading-relaxed text-fd-muted-foreground">
-                  Every workflow run traced. Every test result tracked.
-                  Failures, flakiness, durations, and performance regressions.
-                  Provide your
+                  Push code and Everr traces every workflow run automatically.
+                  Test results, durations, and failure patterns collected and
+                  structured without any extra configuration.
                 </p>
               </div>
             </div>
@@ -449,16 +459,15 @@ function HowItWorksSection() {
           <div className="border-2 border-fd-border">
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="flex flex-col justify-center border-b-2 border-fd-border p-8 md:border-r-2 md:border-b-0 md:p-12">
-                <span className="font-heading text-[64px] leading-none text-fd-border/50 md:text-[80px]">
+                <span className="font-heading text-[64px] leading-none text-primary/20 md:text-[80px]">
                   03
                 </span>
-                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl everr-decoration everr-decoration-primary">
-                  Fix from your editor
+                <h3 className="mt-4 text-2xl font-bold font-heading sm:text-3xl">
+                  Fix from where your work happens
                 </h3>
                 <p className="mt-3 text-lg leading-relaxed text-fd-muted-foreground">
-                  Your AI coding assistant uses Everr to pinpoint failures,
-                  analyze root causes, and push fixes - without you ever leaving
-                  your workflow.
+                  Wait for CI without context switching. When failure hit, your
+                  assistant pinpoints the root cause and can fix it.
                 </p>
               </div>
               <div className="p-6 md:p-8">
@@ -499,7 +508,7 @@ function ConnectProvidersViz() {
     >
       <div className="flex h-[480px] flex-col overflow-hidden border-2 border-fd-border bg-fd-card">
         <div className="flex h-12 shrink-0 items-center border-b-2 border-fd-border bg-fd-secondary/50 pl-4">
-          <span className="font-mono text-xs font-bold uppercase tracking-wider text-fd-muted-foreground">
+          <span className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground">
             Integrations
           </span>
         </div>
@@ -513,7 +522,7 @@ function ConnectProvidersViz() {
                   : "border-fd-border bg-fd-secondary/30"
               }`}
             >
-              <span className="font-mono text-[13px] font-bold">
+              <span className="font-heading text-[13px] font-bold">
                 {provider.name}
               </span>
               {provider.status === "connected" ? (
@@ -630,7 +639,7 @@ function RunsAndTestsViz() {
               failed
             </span>
           </div>
-          <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-fd-muted-foreground">
+          <div className="mt-1.5 flex items-center gap-1.5 font-heading text-[11px] text-fd-muted-foreground">
             <span className="border border-fd-border bg-fd-card px-1.5 py-px text-[10px] font-bold">
               b68df0d
             </span>
@@ -670,17 +679,17 @@ function RunsAndTestsViz() {
                           : "bg-yellow-500"
                     }`}
                   />
-                  <span className="truncate font-mono text-[11px]">
+                  <span className="truncate font-heading text-[11px]">
                     {test.name}
                   </span>
                 </div>
-                <span className="text-right font-mono text-[11px] text-fd-muted-foreground">
+                <span className="text-right font-heading text-[11px] text-fd-muted-foreground">
                   {test.success}
                 </span>
-                <span className="text-right font-mono text-[11px] text-fd-muted-foreground">
+                <span className="text-right font-heading text-[11px] text-fd-muted-foreground">
                   {test.p50}
                 </span>
-                <span className="text-right font-mono text-[11px] text-fd-muted-foreground">
+                <span className="text-right font-heading text-[11px] text-fd-muted-foreground">
                   {test.p95}
                 </span>
               </div>
@@ -710,7 +719,7 @@ function RunsAndTestsViz() {
                 {run.status}
               </span>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-fd-muted-foreground">
+            <div className="mt-1.5 flex items-center gap-1.5 font-heading text-[11px] text-fd-muted-foreground">
               <span className="border border-fd-border bg-fd-card px-1.5 py-px text-[10px] font-bold">
                 {run.hash}
               </span>
@@ -743,7 +752,7 @@ function CodeAssistantViz() {
             "linear-gradient(to bottom, transparent 0%, var(--color-fd-background) 100%)",
         }}
       />
-      <div className="relative flex h-[430px] w-[580px] shrink-0 flex-col gap-2 overflow-hidden border-2 border-fd-border bg-fd-card px-5 pb-4 pt-14 font-mono text-[10px] leading-4 text-fd-foreground sm:text-[11px]">
+      <div className="relative flex h-[430px] w-[580px] shrink-0 flex-col gap-2 overflow-hidden border-2 border-fd-border bg-fd-card px-5 pb-4 pt-14 font-heading text-[10px] leading-4 text-fd-foreground sm:text-[11px]">
         <div className="absolute left-4 top-3 z-10 lg:right-4 lg:left-auto">
           <span className="inline-flex items-center border-2 border-fd-border bg-fd-secondary/70 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-fd-foreground">
             Has the CI pipeline failed?
@@ -838,7 +847,7 @@ function WhySection() {
   return (
     <section>
       <div className="mx-auto max-w-7xl">
-        <p className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+        <p className="mb-3 font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
           Why Everr
         </p>
         <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
@@ -854,10 +863,10 @@ function WhySection() {
           {WHY_ITEMS.map((item, i) => (
             <div key={item.num} className="contents">
               <div>
-                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/40">
+                <span className="font-heading text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/40">
                   {item.num}
                 </span>
-                <h3 className="mt-2 mb-3 text-lg font-heading italic">
+                <h3 className="mt-2 mb-3 text-lg font-heading italic font-bold">
                   {item.question}
                 </h3>
                 <p className="leading-relaxed text-fd-muted-foreground">
@@ -935,7 +944,7 @@ function Home() {
           <ProductVisualization />
         </div>
 
-        <div className="mx-auto w-full max-w-7xl px-6 py-16 md:py-32">
+        <div className="mx-auto w-full max-w-7xl px-6 bt-4 pb-16 sm:py-16 md:py-32">
           <div className="flex flex-col gap-16 md:gap-32">
             <ProblemSection />
 
