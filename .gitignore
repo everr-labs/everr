@@ -10,6 +10,9 @@ collector/build
 # misc
 .DS_Store
 *.pem
+*.p8
+*.p12
+private_keys/
 
 # debug
 .pnpm-debug.log*

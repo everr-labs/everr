@@ -119,3 +119,13 @@ pnpm dev
 ```
 
 Use `pnpm dev:web`, `pnpm dev:desktop`, `pnpm dev:docs`, or `pnpm dev:cli` to start only one surface.
+
+### Build a signed Everr App release
+
+For macOS distribution, use:
+
+```bash
+pnpm build:desktop:prod
+```
+
+The required Apple signing and notarization inputs are documented in `packages/everr-app/README.md`.

@@ -11,7 +11,7 @@ const APP_DOWNLOAD_BASE = `${DOCS_ORIGIN}/everr-app`;
 const PLATFORMS = [
   {
     label: "macOS (Apple Silicon)",
-    os: "darwin",
+    os: "macos",
     arch: "arm64",
     icon: Monitor,
   },
