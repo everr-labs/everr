@@ -270,6 +270,25 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 	}
 }
 
+func TestWorkflowJobTraceIncludesCheckRunID(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+
+	payload, err := os.ReadFile("./testdata/completed/5_workflow_job_completed.json")
+	require.NoError(t, err)
+
+	event, err := github.ParseWebHook("workflow_job", payload)
+	require.NoError(t, err)
+
+	traces, err := eventToTraces(event, &Config{}, logger)
+	require.NoError(t, err)
+
+	resourceAttrs := traces.ResourceSpans().At(0).Resource().Attributes()
+	value, found := resourceAttrs.Get(semconv.EverrGitHubWorkflowJobCheckRunID)
+
+	require.True(t, found, "missing workflow job check run id resource attribute")
+	require.Equal(t, int64(17556730984), value.Int())
+}
+
 // attributeValueToString converts an attribute value to a string regardless of its actual type
 func attributeValueToString(attr pcommon.Value) string {
 	switch attr.Type() {

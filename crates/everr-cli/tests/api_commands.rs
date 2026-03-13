@@ -6,7 +6,7 @@ use std::process::Command as ProcessCommand;
 use mockito::Matcher;
 use predicates::prelude::*;
 use predicates::str::contains;
-use support::{CliTestEnv, mock_api_server};
+use support::{CliTestEnv, mock_api_server, parse_stdout_json};
 
 #[test]
 fn status_command_sends_expected_query_and_auth_header() {
@@ -258,6 +258,97 @@ fn runs_show_calls_trace_id_endpoint() {
         .assert()
         .success()
         .stdout(contains("\"traceId\": \"trace-123\""));
+
+    mock.assert();
+}
+
+#[test]
+fn runs_show_prints_flattened_resource_usage_payload() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs/trace-123")
+        .match_header("authorization", "Bearer token-abc")
+        .with_status(200)
+        .with_body(
+            r#"{
+  "run": {"traceId":"trace-123","runId":"run-123"},
+  "jobs": [{
+    "jobId":"job-1",
+    "name":"build",
+    "conclusion":"success",
+    "duration":1000,
+    "runnerName":"GitHub Actions 4",
+    "runnerLabels":"ubuntu-latest,linux",
+    "runnerTier":"Linux 2-core"
+  }],
+  "steps": {
+    "job-1": [{
+      "stepNumber":"1",
+      "name":"Compile",
+      "conclusion":"success",
+      "duration":500,
+      "startTime":1000,
+      "endTime":1500
+    }]
+  },
+  "resourceUsage": {
+    "jobs": {
+      "job-1": {
+        "cpuAvg":42,
+        "cpuPeak":80,
+        "memoryPeak":512,
+        "memoryLimit":1024,
+        "filesystemIoAvg":10,
+        "filesystemIoMax":20,
+        "networkIoAvg":20,
+        "networkIoMax":20
+      }
+    },
+    "steps": {
+      "job-1": {
+        "1": {
+          "cpuAvg":42,
+          "cpuPeak":80,
+          "memoryPeak":512,
+          "memoryLimit":1024,
+          "filesystemIoAvg":10,
+          "filesystemIoMax":20,
+          "networkIoAvg":20,
+          "networkIoMax":20
+        }
+      }
+    }
+  }
+}"#,
+        )
+        .create();
+
+    let assert = env
+        .command_with_api_base_url(&server.url())
+        .args(["runs", "show", "--trace-id", "trace-123"])
+        .assert()
+        .success();
+
+    let payload = parse_stdout_json(&assert.get_output().stdout);
+    assert_eq!(payload["jobs"][0]["runnerTier"], "Linux 2-core");
+    assert_eq!(payload["resourceUsage"]["steps"]["job-1"]["1"]["cpuPeak"], 80);
+    assert_eq!(payload["resourceUsage"]["steps"]["job-1"]["1"]["networkIoMax"], 20);
+    assert!(payload["resourceUsage"]["jobs"]["job-1"]["sampleCount"].is_null());
+    assert!(
+        payload["resourceUsage"]["jobs"]["job-1"]["sampleIntervalSeconds"]
+            .is_null()
+    );
+    assert!(payload["resourceUsage"]["jobs"]["job-1"]["summary"].is_null());
+    assert!(payload["resourceUsage"]["jobs"]["job-1"]["filesystemPeak"].is_null());
+    assert!(payload["resourceUsage"]["jobs"]["job-1"]["networkTotalReceive"].is_null());
+    assert!(
+        payload["resourceUsage"]["steps"]["job-1"]["1"]["sampleCount"].is_null()
+    );
+    assert!(payload["resourceUsage"]["steps"]["job-1"]["1"]["summary"].is_null());
 
     mock.assert();
 }
