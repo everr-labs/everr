@@ -81,6 +81,9 @@ describe("getRunsList", () => {
       "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
     );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("toFloat64(0)");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "toFloat64(greatest(0, dateDiff('millisecond', min(event_time), now64(3)))) as duration",
+    );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",

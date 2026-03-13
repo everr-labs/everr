@@ -218,7 +218,7 @@ export const getRunsList = createServerFn({
             if(argMax(event_phase, event_time) = 'queued', 'queued', 'in_progress')
           ) as status,
           '' as conclusion,
-          greatest(0, dateDiff('millisecond', min(event_time), now64(3))) as duration,
+          toFloat64(greatest(0, dateDiff('millisecond', min(event_time), now64(3)))) as duration,
           greatest(
             max(event_time),
             coalesce(lastActiveJobEventTime, max(event_time))
