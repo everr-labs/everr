@@ -16,15 +16,13 @@ const APP_URL = "https://app.everr.dev";
 function HeroSection() {
   return (
     <section className="flex min-h-[65vh] flex-col items-center justify-center text-center">
-      <a
-        href={APP_URL}
-        target="_blank"
-        rel="noopener noreferrer"
+      <Link
+        to="/waitlist"
         className="mb-6 flex animate-fade-up items-center gap-1.5 border border-primary/30 bg-primary/5 px-4 py-1.5 font-heading text-xs font-bold uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary/10 md:mb-8"
       >
         <ChevronRightIcon className="size-4" />
         Join the waitlist
-      </a>
+      </Link>
 
       <h1 className="font-heading text-4xl uppercase leading-[0.88] sm:text-6xl md:text-[80px] lg:text-[120px]">
         <span

@@ -90,10 +90,15 @@ function WaitlistHero() {
 
   return (
     <section className="flex flex-col items-center">
-      <h1 className="font-heading text-center text-5xl uppercase leading-[0.9] sm:text-7xl md:text-[100px] lg:text-[128px] everr-decoration everr-decoration-primary">
+      <h1 className="font-heading text-center text-5xl uppercase leading-[0.9] sm:text-7xl md:text-[100px] lg:text-[128px]">
         Join the
         <br />
-        waitlist
+        <span className="relative inline-block px-4">
+          <span className="absolute inset-x-0 top-0 bottom-0 bg-primary" />
+          <span className="relative text-primary-foreground everr-decoration">
+            waitlist
+          </span>
+        </span>
       </h1>
 
       <p className="mt-6 text-center text-xl sm:text-2xl md:mt-10">
