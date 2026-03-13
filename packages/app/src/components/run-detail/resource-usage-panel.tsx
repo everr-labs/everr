@@ -296,15 +296,19 @@ export function ResourceUsagePanel({
           }
         />
         <SummaryItem
-          label="Disk I/O Avg"
-          value={formatSpeed(summary.filesystemIoAvg)}
-          sub={`Max ${formatSpeed(summary.filesystemIoMax)}`}
+          label="Disk Peak"
+          value={formatBytes(summary.filesystemPeak)}
+          sub={
+            summary.filesystemLimit > 0
+              ? `of ${formatBytes(summary.filesystemLimit)}`
+              : undefined
+          }
         />
         {hasNetwork && (
           <SummaryItem
-            label="Network I/O Avg"
-            value={formatSpeed(summary.networkIoAvg)}
-            sub={`Max ${formatSpeed(summary.networkIoMax)}`}
+            label="Network"
+            value={`↓${formatBytes(summary.networkTotalReceive)}`}
+            sub={`↑${formatBytes(summary.networkTotalTransmit)}`}
           />
         )}
       </div>

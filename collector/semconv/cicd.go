@@ -37,7 +37,6 @@ const (
 // Everr — GitHub workflow job attributes with no OTel/contrib equivalent
 const (
 	EverrGitHubWorkflowJobCreatedAt   = "everr.github.workflow_job.created_at"
-	EverrGitHubWorkflowJobCheckRunID  = "everr.github.workflow_job.check_run_id"
 	EverrGitHubWorkflowJobCompletedAt = "everr.github.workflow_job.completed_at"
 	EverrGitHubWorkflowJobStartedAt   = "everr.github.workflow_job.started_at"
 	EverrGitHubWorkflowJobRunAttempt  = "everr.github.workflow_job.run_attempt"

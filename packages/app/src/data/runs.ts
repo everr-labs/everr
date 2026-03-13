@@ -3,10 +3,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { normalizeTimestampToUtc } from "@/lib/formatting";
-import { getRunnerPricing } from "@/lib/runner-pricing";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
-import { RUN_ATTEMPT_EXPR, runSummarySubquery } from "./run-query-helpers";
+import { runSummarySubquery } from "./run-query-helpers";
 
 export interface Run {
   traceId: string;
@@ -24,9 +23,6 @@ export interface Job {
   name: string;
   conclusion: string;
   duration: number; // ms
-  runnerName?: string;
-  runnerLabels?: string;
-  runnerTier: string;
 }
 
 export interface Step {
@@ -282,12 +278,12 @@ export const getRunDetails = createServerFn({
   .inputValidator(z.string())
   .handler(async ({ data: traceId }) => {
     const sql = `
-				SELECT
-						anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-						${RUN_ATTEMPT_EXPR} as run_attempt,
-						anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-						anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-						coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
+			SELECT
+					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
+					anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
+					anyLast(ResourceAttributes['vcs.repository.name']) as repo,
+					anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
+					coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 					max(Timestamp) as timestamp
 				FROM traces
@@ -330,8 +326,6 @@ export const getRunJobs = createServerFn({
 					ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
 					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
-					anyLast(ResourceAttributes['cicd.worker.name']) as runnerName,
-					anyLast(ResourceAttributes['cicd.pipeline.worker.labels']) as runnerLabels,
 					if(
 						lowerUTF8(anyLast(ResourceAttributes['cicd.pipeline.task.run.result'])) = 'skip',
 						toFloat64(0),
@@ -348,8 +342,6 @@ export const getRunJobs = createServerFn({
       jobId: string;
       name: string;
       conclusion: string;
-      runnerName: string;
-      runnerLabels: string;
       duration: string;
     }>(sql, { traceId });
 
@@ -358,9 +350,6 @@ export const getRunJobs = createServerFn({
       name: row.name,
       conclusion: row.conclusion,
       duration: Number(row.duration),
-      runnerName: row.runnerName || undefined,
-      runnerLabels: row.runnerLabels || undefined,
-      runnerTier: getRunnerPricing(row.runnerLabels).tier,
     })) satisfies Job[];
   });
 

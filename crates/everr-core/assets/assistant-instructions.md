@@ -26,10 +26,7 @@ Output schema notes:
 - `grep.items[]`: `{ branch, occurrenceCount, lastSeen, recentOccurrences }`
 - `grep.items[].recentOccurrences[]`: `{ traceId, runId, runAttempt, workflowName, jobName, stepNumber, stepName, stepConclusion, runConclusion, stepDuration, timestamp, matchCount, matchedLines }`
 - `runs list`: `{ runs, totalCount }`
-- `runs show`: `{ run, jobs, steps, resourceUsage }`
-- `runs show.jobs[]`: `{ jobId, name, conclusion, duration, runnerName?, runnerLabels?, runnerTier }`
-- `runs show.resourceUsage.jobs`: record keyed by `jobId` with `{ cpuAvg, cpuPeak, memoryPeak, memoryLimit, filesystemIoAvg, filesystemIoMax, networkIoAvg, networkIoMax }`
-- `runs show.resourceUsage.steps`: record keyed by `jobId`, then `stepNumber`, with `{ cpuAvg, cpuPeak, memoryPeak, memoryLimit, filesystemIoAvg, filesystemIoMax, networkIoAvg, networkIoMax }`
+- `runs show`: `{ run, jobs, steps }`
 - `runs logs`: `{ logs }`
 - `test-history`: array of `{ traceId, runId, runAttempt, headSha, headBranch, testResult, testDuration, runnerName, workflowName, jobName, timestamp }`
 - `slowest-tests`: `{ repo, branch, timeRange, limit, items }` where `branch` is `null` for repo-wide results

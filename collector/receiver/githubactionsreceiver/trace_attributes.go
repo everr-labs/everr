@@ -49,9 +49,6 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 
 		attrs.PutStr(string(conventions.CICDPipelineTaskNameKey), e.GetWorkflowJob().GetName())
 		attrs.PutInt(semconv.EverrGitHubWorkflowJobRunAttempt, e.GetWorkflowJob().GetRunAttempt())
-		if checkRunID, ok := workflowJobCheckRunID(e.GetWorkflowJob()); ok {
-			attrs.PutInt(semconv.EverrGitHubWorkflowJobCheckRunID, checkRunID)
-		}
 		attrs.PutInt(string(conventions.CICDPipelineRunIDKey), e.GetWorkflowJob().GetRunID())
 		attrs.PutStr(semconv.CICDPipelineWorkerGroupName, e.GetWorkflowJob().GetRunnerGroupName())
 		attrs.PutStr(string(conventions.CICDWorkerNameKey), e.GetWorkflowJob().GetRunnerName())
