@@ -23,12 +23,21 @@ pub struct Session {
 #[derive(Debug, Clone)]
 pub struct SessionStore {
     namespace: String,
+    session_file_name: String,
 }
 
 impl SessionStore {
     pub fn for_namespace(namespace: impl Into<String>) -> Self {
+        Self::for_namespace_with_file_name(namespace, "session.json")
+    }
+
+    pub fn for_namespace_with_file_name(
+        namespace: impl Into<String>,
+        session_file_name: impl Into<String>,
+    ) -> Self {
         Self {
             namespace: namespace.into(),
+            session_file_name: session_file_name.into(),
         }
     }
 
@@ -36,9 +45,15 @@ impl SessionStore {
         &self.namespace
     }
 
+    pub fn session_file_name(&self) -> &str {
+        &self.session_file_name
+    }
+
     pub fn session_file_path(&self) -> Result<PathBuf> {
         let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
-        Ok(config_dir.join(&self.namespace).join("session.json"))
+        Ok(config_dir
+            .join(&self.namespace)
+            .join(&self.session_file_name))
     }
 
     pub fn load_session(&self) -> Result<Session> {
@@ -286,6 +301,14 @@ mod tests {
     #[test]
     fn session_namespace_is_fixed() {
         assert_eq!(SessionStore::for_namespace("everr").namespace(), "everr");
+    }
+
+    #[test]
+    fn custom_session_file_name_is_preserved() {
+        let store = SessionStore::for_namespace_with_file_name("everr", "session-dev.json");
+
+        assert_eq!(store.namespace(), "everr");
+        assert_eq!(store.session_file_name(), "session-dev.json");
     }
 
     #[test]
