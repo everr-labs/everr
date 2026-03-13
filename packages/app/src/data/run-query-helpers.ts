@@ -11,8 +11,6 @@ interface RunSummarySubqueryOptions {
 
 const CONCLUSION_EXPR =
   "coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != ''))";
-export const RUN_ATTEMPT_EXPR =
-  "coalesce(nullIf(argMaxIf(ResourceAttributes['everr.github.workflow_run.run_attempt'], Timestamp, ResourceAttributes['everr.github.workflow_run.run_attempt'] != ''), ''), nullIf(argMaxIf(ResourceAttributes['everr.github.workflow_job.run_attempt'], Timestamp, ResourceAttributes['everr.github.workflow_job.run_attempt'] != ''), ''), '0')";
 
 /**
  * Builds a run-level deduplication subquery over traces.
@@ -39,7 +37,9 @@ export function runSummarySubquery({
   ];
 
   if (includeRunAttempt) {
-    selects.push(`${RUN_ATTEMPT_EXPR} as run_attempt`);
+    selects.push(
+      "anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt",
+    );
   }
   if (includeDuration) {
     selects.push(

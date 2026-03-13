@@ -15,7 +15,7 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getRunDetails, getRunJobs, getRunSpans, getStepLogs } from "./runs";
+import { getRunJobs, getRunSpans, getStepLogs } from "./runs";
 
 const mockedQuery = vi.mocked(query);
 
@@ -30,8 +30,6 @@ describe("getRunJobs", () => {
         jobId: "job-1",
         name: "build",
         conclusion: "success",
-        runnerName: "",
-        runnerLabels: "",
         duration: "1200",
       },
     ]);
@@ -46,9 +44,6 @@ describe("getRunJobs", () => {
         name: "build",
         conclusion: "success",
         duration: 1200,
-        runnerName: undefined,
-        runnerLabels: undefined,
-        runnerTier: "Unknown",
       },
     ]);
   });
@@ -126,90 +121,6 @@ describe("getRunSpans", () => {
         isSuite: true,
       },
     ]);
-  });
-});
-
-describe("getRunJobs", () => {
-  it("adds runner metadata and tier information to job summaries", async () => {
-    mockedQuery.mockResolvedValue([
-      {
-        jobId: "job-1",
-        name: "build",
-        conclusion: "success",
-        runnerName: "GitHub Actions 4",
-        runnerLabels: "ubuntu-latest,linux",
-        duration: "1200",
-      },
-      {
-        jobId: "job-2",
-        name: "deploy",
-        conclusion: "success",
-        runnerName: "",
-        runnerLabels: "",
-        duration: "800",
-      },
-    ]);
-
-    const result = await getRunJobs({ data: "trace-1" });
-
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("toFloat64(0)");
-    expect(result).toEqual([
-      {
-        jobId: "job-1",
-        name: "build",
-        conclusion: "success",
-        duration: 1200,
-        runnerName: "GitHub Actions 4",
-        runnerLabels: "ubuntu-latest,linux",
-        runnerTier: "Linux 2-core",
-      },
-      {
-        jobId: "job-2",
-        name: "deploy",
-        conclusion: "success",
-        duration: 800,
-        runnerName: undefined,
-        runnerLabels: undefined,
-        runnerTier: "Unknown",
-      },
-    ]);
-  });
-});
-
-describe("getRunDetails", () => {
-  it("prefers workflow run attempt and falls back to job attempt semantics in SQL", async () => {
-    mockedQuery.mockResolvedValue([
-      {
-        run_id: "run-123",
-        run_attempt: "4",
-        repo: "everr-labs/everr",
-        branch: "main",
-        conclusion: "success",
-        workflowName: "Build",
-        timestamp: "2026-03-11 16:15:13.000000000",
-      },
-    ]);
-
-    const result = await getRunDetails({ data: "trace-1" });
-
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "everr.github.workflow_run.run_attempt",
-    );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "everr.github.workflow_job.run_attempt",
-    );
-    expect(result).toEqual({
-      traceId: "trace-1",
-      runId: "run-123",
-      runAttempt: 4,
-      repo: "everr-labs/everr",
-      branch: "main",
-      conclusion: "success",
-      workflowName: "Build",
-      timestamp: "2026-03-11 16:15:13.000000000",
-    });
   });
 });
 
