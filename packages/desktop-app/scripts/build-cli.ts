@@ -1,7 +1,9 @@
-import { chmod, copyFile, mkdir } from "node:fs/promises";
-import path from "node:path";
 import { $ } from "zx";
-import { publishCliArtifact, resolveCliBuild } from "./build-support.ts";
+import {
+  installCliBinary,
+  publishCliArtifact,
+  resolveCliBuild,
+} from "./build-support.ts";
 
 const args = process.argv.slice(2);
 
@@ -33,13 +35,7 @@ if (mode === "release") {
 }
 
 if (installBin) {
-  const installPath = path.join(process.env.HOME ?? "", ".local", "bin", "everr");
-
-  await mkdir(path.dirname(installPath), { recursive: true });
-  await copyFile(installSource, installPath);
-  await chmod(installPath, 0o755);
-
-  console.log(`Installed Everr CLI to ${installPath}`);
+  await installCliBinary(installSource);
 }
 
 console.log("Run 'everr --help' to get started.");

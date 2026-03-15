@@ -14,6 +14,12 @@ Build the packaged desktop app from this package:
 pnpm build:desktop
 ```
 
+Install the signed release CLI into `~/.local/bin` only when you explicitly opt in:
+
+```bash
+pnpm build:desktop -- --install
+```
+
 Build the standalone CLI from the same package:
 
 ```bash
