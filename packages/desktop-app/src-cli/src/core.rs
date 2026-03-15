@@ -19,16 +19,29 @@ pub async fn status(args: StatusArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
-    let repo = args.repo.or(git.repo);
-    let branch = args.branch.or(git.branch);
+    let commit = args
+        .commit
+        .or_else(|| run_git(["rev-parse", "HEAD"], &cwd))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
+            )
+        })?;
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+    let branch = args
+        .branch
+        .or(git.branch)
+        .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
 
-    let mut query: Vec<(&str, String)> = Vec::new();
-    push_opt(&mut query, "repo", repo);
-    push_opt(&mut query, "branch", branch);
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-
-    let payload = client.get_status(&query).await?;
+    let query = vec![
+        ("repo", repo),
+        ("branch", branch),
+        ("commit", commit),
+        ("waitMode", "pipeline".to_string()),
+    ];
+    let payload = client.get_wait_pipeline_status(&query).await?;
     print_json(&payload)?;
     Ok(())
 }

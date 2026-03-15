@@ -30,7 +30,7 @@ pub enum Commands {
     Logout,
     /// Integrate Everr CLI with your code assistant
     SetupAssistant(AssistantInitArgs),
-    /// CI status for current or selected branch
+    /// Show all pipeline runs for a specific commit
     Status(StatusArgs),
     /// Search failing step logs on other branches
     Grep(GrepArgs),
@@ -69,9 +69,7 @@ pub struct StatusArgs {
     #[arg(long)]
     pub branch: Option<String>,
     #[arg(long)]
-    pub from: Option<String>,
-    #[arg(long)]
-    pub to: Option<String>,
+    pub commit: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -244,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn status_accepts_repo_branch_and_time_range_filters() {
+    fn status_accepts_repo_branch_and_commit() {
         let cli = Cli::try_parse_from([
             "everr",
             "status",
@@ -252,10 +250,8 @@ mod tests {
             "everr-labs/everr",
             "--branch",
             "feature/tests",
-            "--from",
-            "now-1h",
-            "--to",
-            "now",
+            "--commit",
+            "abc123def456",
         ])
         .expect("valid status command");
 
@@ -265,8 +261,7 @@ mod tests {
 
         assert_eq!(args.repo.as_deref(), Some("everr-labs/everr"));
         assert_eq!(args.branch.as_deref(), Some("feature/tests"));
-        assert_eq!(args.from.as_deref(), Some("now-1h"));
-        assert_eq!(args.to.as_deref(), Some("now"));
+        assert_eq!(args.commit.as_deref(), Some("abc123def456"));
     }
 
     #[test]

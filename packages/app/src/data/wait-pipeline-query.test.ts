@@ -80,7 +80,6 @@ describe("getWaitPipelineStatus", () => {
       repo: "everr-labs/everr",
       branch: "feature/wait-short-commit",
       commit: "7f14b13",
-      pipelineFound: true,
       activeRuns: [],
       completedRuns: [
         {

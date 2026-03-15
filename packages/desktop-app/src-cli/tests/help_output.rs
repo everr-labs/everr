@@ -67,7 +67,7 @@ fn runs_list_help_lists_limit_and_offset() {
 }
 
 #[test]
-fn status_help_does_not_list_removed_main_branch_flag() {
+fn status_help_lists_commit_based_options() {
     let env = CliTestEnv::new();
 
     env.command()
@@ -76,9 +76,9 @@ fn status_help_does_not_list_removed_main_branch_flag() {
         .success()
         .stdout(contains("--repo <REPO>"))
         .stdout(contains("--branch <BRANCH>"))
-        .stdout(contains("--from <FROM>"))
-        .stdout(contains("--to <TO>"))
-        .stdout(predicates::str::contains("--main-branch").not());
+        .stdout(contains("--commit <COMMIT>"))
+        .stdout(predicates::str::contains("--from").not())
+        .stdout(predicates::str::contains("--to").not());
 }
 
 #[test]

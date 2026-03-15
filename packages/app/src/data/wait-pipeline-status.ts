@@ -26,7 +26,6 @@ export interface WaitPipelineStatusResult {
   repo: string;
   branch: string;
   commit: string;
-  pipelineFound: boolean;
   activeRuns: WaitPipelineRun[];
   completedRuns: WaitPipelineRun[];
 }
@@ -109,7 +108,6 @@ export function buildWaitPipelineStatus(
     repo: data.repo,
     branch: data.branch,
     commit: data.commit,
-    pipelineFound: runs.length > 0,
     activeRuns: runs.filter((run) => run.phase !== "finished"),
     completedRuns: runs.filter((run) => run.phase === "finished"),
   };

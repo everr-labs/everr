@@ -9,36 +9,77 @@ use predicates::str::contains;
 use support::{CliTestEnv, mock_api_server};
 
 #[test]
-fn status_command_sends_expected_query_and_auth_header() {
+fn status_command_sends_commit_query_to_runs_endpoint() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/tests",
         "git@github.com:everr-labs/everr.git",
     );
+    let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
     env.write_session(&server.url(), "token-123");
 
     let mock = server
-        .mock("GET", "/api/cli/status")
+        .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-123")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/tests".into()),
-            Matcher::UrlEncoded("from".into(), "now-1h".into()),
-            Matcher::UrlEncoded("to".into(), "now".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(r#"{"status":"ok"}"#)
+        .with_body(format!(
+            r#"{{"repo":"everr-labs/everr","branch":"feature/tests","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[]}}"#
+        ))
         .create();
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["status", "--from", "now-1h", "--to", "now"])
+        .args(["status"])
         .assert()
         .success()
-        .stdout(contains("\"status\": \"ok\""));
+        .stdout(contains("\"pipelineFound\": true"));
+
+    mock.assert();
+}
+
+#[test]
+fn status_uses_explicit_commit_when_provided() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/status-commit",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let target_commit = "deadbeefcafebabe";
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-123");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs")
+        .match_header("authorization", "Bearer token-123")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/status-commit".into()),
+            Matcher::UrlEncoded("commit".into(), target_commit.into()),
+            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+        ]))
+        .with_status(200)
+        .with_body(format!(
+            r#"{{"repo":"everr-labs/everr","branch":"feature/status-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[]}}"#
+        ))
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["status", "--commit", target_commit])
+        .assert()
+        .success()
+        .stdout(contains("\"pipelineFound\": true"));
 
     mock.assert();
 }
