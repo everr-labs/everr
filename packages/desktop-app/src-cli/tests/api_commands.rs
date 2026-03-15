@@ -9,36 +9,77 @@ use predicates::str::contains;
 use support::{CliTestEnv, mock_api_server};
 
 #[test]
-fn status_command_sends_expected_query_and_auth_header() {
+fn status_command_sends_commit_query_to_runs_endpoint() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
         "feature/tests",
         "git@github.com:everr-labs/everr.git",
     );
+    let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
     env.write_session(&server.url(), "token-123");
 
     let mock = server
-        .mock("GET", "/api/cli/status")
+        .mock("GET", "/api/cli/runs")
         .match_header("authorization", "Bearer token-123")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/tests".into()),
-            Matcher::UrlEncoded("from".into(), "now-1h".into()),
-            Matcher::UrlEncoded("to".into(), "now".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(r#"{"status":"ok"}"#)
+        .with_body(format!(
+            r#"{{"repo":"everr-labs/everr","branch":"feature/tests","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[]}}"#
+        ))
         .create();
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["status", "--from", "now-1h", "--to", "now"])
+        .args(["status"])
         .assert()
         .success()
-        .stdout(contains("\"status\": \"ok\""));
+        .stdout(contains("\"pipelineFound\": true"));
+
+    mock.assert();
+}
+
+#[test]
+fn status_uses_explicit_commit_when_provided() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/status-commit",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let target_commit = "deadbeefcafebabe";
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-123");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs")
+        .match_header("authorization", "Bearer token-123")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/status-commit".into()),
+            Matcher::UrlEncoded("commit".into(), target_commit.into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
+        ]))
+        .with_status(200)
+        .with_body(format!(
+            r#"{{"repo":"everr-labs/everr","branch":"feature/status-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[]}}"#
+        ))
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["status", "--commit", target_commit])
+        .assert()
+        .success()
+        .stdout(contains("\"pipelineFound\": true"));
 
     mock.assert();
 }
@@ -678,7 +719,7 @@ fn api_errors_are_reported_to_the_user() {
 }
 
 #[test]
-fn wait_polls_until_head_sha_run_is_found() {
+fn watch_polls_until_head_sha_run_is_found() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -697,7 +738,7 @@ fn wait_polls_until_head_sha_run_is_found() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -713,7 +754,7 @@ fn wait_polls_until_head_sha_run_is_found() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -729,7 +770,7 @@ fn wait_polls_until_head_sha_run_is_found() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -741,7 +782,7 @@ fn wait_polls_until_head_sha_run_is_found() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "wait-pipeline",
+            "watch",
             "--timeout-seconds",
             "2",
             "--interval-seconds",
@@ -752,7 +793,7 @@ fn wait_polls_until_head_sha_run_is_found() {
         .stdout(contains("\"pipelineFound\": true"))
         .stdout(contains("\"runId\": \"42\""))
         .stdout(contains("\"runId\": \"41\""))
-        .stderr(contains("Waiting for pipeline for commit"))
+        .stderr(contains("Watching pipeline for commit"))
         .stderr(contains("(refresh: 0s)"))
         .stderr(contains(
             "Active runs:\n- CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test, lint)",
@@ -767,7 +808,48 @@ fn wait_polls_until_head_sha_run_is_found() {
 }
 
 #[test]
-fn wait_uses_explicit_commit_when_provided() {
+fn watch_exits_when_completed_runs_exist_even_without_pipeline_found() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/watch-completed-runs",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let head_sha = git_head_sha(&repo_dir);
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let poll = server
+        .mock("GET", "/api/cli/runs")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/watch-completed-runs".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
+        ]))
+        .with_status(200)
+        .with_body(format!(
+            r#"{{"repo":"everr-labs/everr","branch":"feature/watch-completed-runs","commit":"{head_sha}","pipelineFound":false,"activeRuns":[],"completedRuns":[{{"runId":"52","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/52","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+        ))
+        .expect(1)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["watch", "--timeout-seconds", "0", "--interval-seconds", "0"])
+        .assert()
+        .success()
+        .stdout(contains("\"pipelineFound\": false"))
+        .stdout(contains("\"runId\": \"52\""))
+        .stderr(predicate::str::contains("Watching pipeline for commit").not());
+
+    poll.assert();
+}
+
+#[test]
+fn watch_uses_explicit_commit_when_provided() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -789,7 +871,7 @@ fn wait_uses_explicit_commit_when_provided() {
                 "feature/wait-explicit-commit".into(),
             ),
             Matcher::UrlEncoded("commit".into(), target_commit.into()),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -801,7 +883,7 @@ fn wait_uses_explicit_commit_when_provided() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "wait-pipeline",
+            "watch",
             "--commit",
             target_commit,
             "--timeout-seconds",
@@ -820,7 +902,7 @@ fn wait_uses_explicit_commit_when_provided() {
 }
 
 #[test]
-fn wait_accepts_short_commit_sha_prefix() {
+fn watch_accepts_short_commit_sha_prefix() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -839,7 +921,7 @@ fn wait_accepts_short_commit_sha_prefix() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-short-commit".into()),
             Matcher::UrlEncoded("commit".into(), short_commit.into()),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -851,7 +933,7 @@ fn wait_accepts_short_commit_sha_prefix() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "wait-pipeline",
+            "watch",
             "--commit",
             short_commit,
             "--timeout-seconds",
@@ -868,7 +950,7 @@ fn wait_accepts_short_commit_sha_prefix() {
 }
 
 #[test]
-fn wait_fails_when_completed_runs_include_failure() {
+fn watch_fails_when_completed_runs_include_failure() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -887,7 +969,7 @@ fn wait_fails_when_completed_runs_include_failure() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-failed-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -899,7 +981,7 @@ fn wait_fails_when_completed_runs_include_failure() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "wait-pipeline",
+            "watch",
             "--timeout-seconds",
             "2",
             "--interval-seconds",
@@ -914,7 +996,7 @@ fn wait_fails_when_completed_runs_include_failure() {
 }
 
 #[test]
-fn wait_times_out_when_head_sha_is_not_found() {
+fn watch_times_out_when_head_sha_is_not_found() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -933,7 +1015,7 @@ fn wait_times_out_when_head_sha_is_not_found() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-timeout".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -945,7 +1027,7 @@ fn wait_times_out_when_head_sha_is_not_found() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "wait-pipeline",
+            "watch",
             "--timeout-seconds",
             "0",
             "--interval-seconds",
@@ -961,7 +1043,7 @@ fn wait_times_out_when_head_sha_is_not_found() {
 }
 
 #[test]
-fn wait_finishes_status_row_before_api_error() {
+fn watch_finishes_status_row_before_api_error() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -979,7 +1061,7 @@ fn wait_finishes_status_row_before_api_error() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-api-error".into()),
             Matcher::UrlEncoded("commit".into(), git_head_sha(&repo_dir)),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
         .with_body(format!(
@@ -996,7 +1078,7 @@ fn wait_finishes_status_row_before_api_error() {
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-api-error".into()),
             Matcher::UrlEncoded("commit".into(), git_head_sha(&repo_dir)),
-            Matcher::UrlEncoded("waitMode".into(), "pipeline".into()),
+            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(500)
         .with_body("boom")
@@ -1006,7 +1088,7 @@ fn wait_finishes_status_row_before_api_error() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "wait-pipeline",
+            "watch",
             "--timeout-seconds",
             "2",
             "--interval-seconds",

@@ -1,16 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
-import type { WaitPipelineRow } from "./wait-pipeline-status";
+import type { WatchRow } from "./watch-status";
 import {
-  buildWaitPipelineStatus,
-  type WaitPipelineDurationBaseline,
-  WaitPipelineStatusInputSchema,
-} from "./wait-pipeline-status";
+  buildWatchStatus,
+  type WatchDurationBaseline,
+  WatchStatusInputSchema,
+} from "./watch-status";
 
-export const getWaitPipelineStatus = createServerFn({
+const TENANT_FILTER = "tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))";
+
+export const getWatchStatus = createServerFn({
   method: "GET",
 })
-  .inputValidator(WaitPipelineStatusInputSchema)
+  .inputValidator(WatchStatusInputSchema)
   .handler(async ({ data }) => {
     const statusSql = `
       SELECT
@@ -31,48 +33,42 @@ export const getWaitPipelineStatus = createServerFn({
           )
         ) as durationSeconds
       FROM app.cdevents
+      PREWHERE ${TENANT_FILTER}
+        AND event_kind IN ('pipelinerun', 'taskrun', 'workflowjob')
+        AND event_time >= now() - INTERVAL 14 DAY
       WHERE repository = {repo:String}
         AND ref = {branch:String}
         AND startsWith(sha, {commit:String})
-        AND event_time >= now() - INTERVAL 14 DAY
       GROUP BY subject_id
       ORDER BY lastEventTime DESC
     `;
 
     const averagesSql = `
-      WITH finished_runs AS (
-        SELECT
-          argMax(subject_name, event_time) as workflow_name,
-          greatest(0, dateDiff('second', min(event_time), max(event_time))) as duration_seconds,
-          max(event_time) as last_event_time
-        FROM app.cdevents
-        WHERE repository = {repo:String}
-          AND ref = {branch:String}
-          AND event_kind = 'pipelinerun'
-          AND event_time >= now() - INTERVAL 30 DAY
-        GROUP BY subject_id
-        HAVING argMax(event_phase, event_time) = 'finished'
-      )
       SELECT
         workflow_name,
         toUInt64(round(avg(duration_seconds))) as usualDurationSeconds,
         count() as sampleCount
       FROM (
         SELECT
-          workflow_name,
-          duration_seconds,
-          row_number() OVER (
-            PARTITION BY workflow_name
-            ORDER BY last_event_time DESC
-          ) as row_num
-        FROM finished_runs
+          argMax(subject_name, event_time) as workflow_name,
+          greatest(0, dateDiff('second', min(event_time), max(event_time))) as duration_seconds,
+          max(event_time) as last_event_time
+        FROM app.cdevents
+        PREWHERE ${TENANT_FILTER}
+          AND event_kind = 'pipelinerun'
+          AND event_time >= now() - INTERVAL 30 DAY
+        WHERE repository = {repo:String}
+          AND ref = {branch:String}
+        GROUP BY subject_id
+        HAVING argMax(event_phase, event_time) = 'finished'
+        ORDER BY workflow_name, last_event_time DESC
+        LIMIT 3 BY workflow_name
       )
-      WHERE row_num <= 3
       GROUP BY workflow_name
     `;
 
     const [rows, baselines] = await Promise.all([
-      query<WaitPipelineRow>(statusSql, data),
+      query<WatchRow>(statusSql, data),
       query<{
         workflow_name: string;
         usualDurationSeconds: string;
@@ -80,10 +76,7 @@ export const getWaitPipelineStatus = createServerFn({
       }>(averagesSql, data),
     ]);
 
-    const durationBaselinesByWorkflow = new Map<
-      string,
-      WaitPipelineDurationBaseline
-    >(
+    const durationBaselinesByWorkflow = new Map<string, WatchDurationBaseline>(
       baselines.map((row) => [
         row.workflow_name,
         {
@@ -93,5 +86,5 @@ export const getWaitPipelineStatus = createServerFn({
       ]),
     );
 
-    return buildWaitPipelineStatus(data, rows, durationBaselinesByWorkflow);
+    return buildWatchStatus(data, rows, durationBaselinesByWorkflow);
   });

@@ -11,7 +11,7 @@ use crate::api::ApiClient;
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, ShowRunArgs, SlowestJobsArgs, SlowestTestsArgs,
-    StatusArgs, TestHistoryArgs, WaitArgs,
+    StatusArgs, TestHistoryArgs, WatchArgs,
 };
 
 pub async fn status(args: StatusArgs) -> Result<()> {
@@ -19,16 +19,29 @@ pub async fn status(args: StatusArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
-    let repo = args.repo.or(git.repo);
-    let branch = args.branch.or(git.branch);
+    let commit = args
+        .commit
+        .or_else(|| run_git(["rev-parse", "HEAD"], &cwd))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
+            )
+        })?;
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+    let branch = args
+        .branch
+        .or(git.branch)
+        .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
 
-    let mut query: Vec<(&str, String)> = Vec::new();
-    push_opt(&mut query, "repo", repo);
-    push_opt(&mut query, "branch", branch);
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-
-    let payload = client.get_status(&query).await?;
+    let query = vec![
+        ("repo", repo),
+        ("branch", branch),
+        ("commit", commit),
+        ("watchMode", "pipeline".to_string()),
+    ];
+    let payload = client.get_watch_status(&query).await?;
     print_json(&payload)?;
     Ok(())
 }
@@ -165,7 +178,7 @@ pub async fn slowest_jobs(args: SlowestJobsArgs) -> Result<()> {
     Ok(())
 }
 
-pub async fn wait(args: WaitArgs) -> Result<()> {
+pub async fn watch(args: WatchArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
@@ -190,15 +203,15 @@ pub async fn wait(args: WaitArgs) -> Result<()> {
         ("repo", repo.clone()),
         ("branch", branch.clone()),
         ("commit", target_commit.clone()),
-        ("waitMode", "pipeline".to_string()),
+        ("watchMode", "pipeline".to_string()),
     ];
     let start = Instant::now();
-    let mut wait_status_lines = 0usize;
+    let mut watch_status_lines = 0usize;
     loop {
-        let payload = match client.get_wait_pipeline_status(&query).await {
+        let payload = match client.get_watch_status(&query).await {
             Ok(payload) => payload,
             Err(error) => {
-                finish_wait_status_block(wait_status_lines)?;
+                finish_watch_status_block(watch_status_lines)?;
                 return Err(error);
             }
         };
@@ -207,13 +220,16 @@ pub async fn wait(args: WaitArgs) -> Result<()> {
             .get("pipelineFound")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let active_runs = extract_wait_runs(&payload, "activeRuns");
-        let completed_runs = extract_wait_runs(&payload, "completedRuns");
+        let active_runs = extract_watch_runs(&payload, "activeRuns");
+        let completed_runs = extract_watch_runs(&payload, "completedRuns");
+        let watch_complete =
+            (pipeline_found && active_runs.is_empty())
+                || (active_runs.is_empty() && !completed_runs.is_empty());
 
-        if pipeline_found && active_runs.is_empty() {
-            finish_wait_status_block(wait_status_lines)?;
+        if watch_complete {
+            finish_watch_status_block(watch_status_lines)?;
             print_json(&payload)?;
-            let failed_runs = failed_wait_run_names(&completed_runs);
+            let failed_runs = failed_watch_run_names(&completed_runs);
             if !failed_runs.is_empty() {
                 bail!(
                     "pipeline finished with failed run(s): {}",
@@ -225,7 +241,7 @@ pub async fn wait(args: WaitArgs) -> Result<()> {
 
         if let Some(timeout_seconds) = args.timeout_seconds {
             if start.elapsed() >= Duration::from_secs(timeout_seconds) {
-                finish_wait_status_block(wait_status_lines)?;
+                finish_watch_status_block(watch_status_lines)?;
                 if pipeline_found {
                     bail!(
                         "timed out after {}s waiting for {} active run(s) to finish for commit {} on {repo}@{branch}",
@@ -244,21 +260,21 @@ pub async fn wait(args: WaitArgs) -> Result<()> {
         }
 
         let status = if pipeline_found {
-            format_wait_status(
+            format_watch_status(
                 &target_commit,
                 args.interval_seconds,
                 active_runs,
                 completed_runs,
             )
         } else {
-            format_wait_status(
+            format_watch_status(
                 &target_commit,
                 args.interval_seconds,
                 Vec::new(),
                 Vec::new(),
             )
         };
-        render_wait_status_block(&status, &mut wait_status_lines)?;
+        render_watch_status_block(&status, &mut watch_status_lines)?;
 
         sleep(Duration::from_secs(args.interval_seconds)).await;
     }
@@ -269,7 +285,7 @@ fn print_json(value: &Value) -> Result<()> {
     Ok(())
 }
 
-struct WaitRunStatus {
+struct WatchRunStatus {
     workflow_name: String,
     conclusion: String,
     duration_seconds: u64,
@@ -277,17 +293,17 @@ struct WaitRunStatus {
     active_jobs: Vec<String>,
 }
 
-fn format_wait_status(
+fn format_watch_status(
     target_commit: &str,
     interval_seconds: u64,
-    active_runs: Vec<WaitRunStatus>,
-    completed_runs: Vec<WaitRunStatus>,
+    active_runs: Vec<WatchRunStatus>,
+    completed_runs: Vec<WatchRunStatus>,
 ) -> String {
     let mut status = String::new();
     let short_commit = shorten_commit(target_commit);
     let _ = writeln!(
         status,
-        "Waiting for pipeline for commit {short_commit} (refresh: {interval_seconds}s)"
+        "Watching pipeline for commit {short_commit} (refresh: {interval_seconds}s)"
     );
     if active_runs.is_empty() {
         let _ = writeln!(status, "Active runs: none");
@@ -319,22 +335,22 @@ fn format_wait_status(
     status
 }
 
-fn render_wait_status_block(message: &str, last_lines: &mut usize) -> Result<()> {
+fn render_watch_status_block(message: &str, last_lines: &mut usize) -> Result<()> {
     let display = message.trim_end_matches('\n');
-    clear_wait_status_block(*last_lines);
+    clear_watch_status_block(*last_lines);
     io::stderr()
         .flush()
-        .context("failed to flush wait-pipeline status block")?;
+        .context("failed to flush watch status block")?;
 
     eprint!("{display}");
     io::stderr()
         .flush()
-        .context("failed to flush wait-pipeline status block")?;
+        .context("failed to flush watch status block")?;
     *last_lines = display.lines().count();
     Ok(())
 }
 
-fn finish_wait_status_block(last_lines: usize) -> Result<()> {
+fn finish_watch_status_block(last_lines: usize) -> Result<()> {
     if last_lines == 0 {
         return Ok(());
     }
@@ -342,10 +358,10 @@ fn finish_wait_status_block(last_lines: usize) -> Result<()> {
     eprintln!();
     io::stderr()
         .flush()
-        .context("failed to flush wait-pipeline trailing newline")
+        .context("failed to flush watch trailing newline")
 }
 
-fn clear_wait_status_block(line_count: usize) {
+fn clear_watch_status_block(line_count: usize) {
     for index in 0..line_count {
         eprint!("\r\x1b[2K");
         if index + 1 < line_count {
@@ -357,13 +373,13 @@ fn clear_wait_status_block(line_count: usize) {
     }
 }
 
-fn extract_wait_runs(payload: &Value, key: &str) -> Vec<WaitRunStatus> {
+fn extract_watch_runs(payload: &Value, key: &str) -> Vec<WatchRunStatus> {
     payload
         .get(key)
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .map(|item| WaitRunStatus {
+        .map(|item| WatchRunStatus {
             workflow_name: item
                 .get("workflowName")
                 .and_then(Value::as_str)
@@ -399,7 +415,7 @@ fn format_name_list(names: &[String]) -> String {
     }
 }
 
-fn format_completed_run_list(runs: &[WaitRunStatus]) -> String {
+fn format_completed_run_list(runs: &[WatchRunStatus]) -> String {
     if runs.is_empty() {
         return "none".to_string();
     }
@@ -418,7 +434,7 @@ fn format_completed_run_list(runs: &[WaitRunStatus]) -> String {
     formatted
 }
 
-fn failed_wait_run_names<'a>(runs: &'a [WaitRunStatus]) -> Vec<&'a str> {
+fn failed_watch_run_names<'a>(runs: &'a [WatchRunStatus]) -> Vec<&'a str> {
     runs.iter()
         .filter(|run| is_failure_conclusion(&run.conclusion))
         .map(|run| run.workflow_name.as_str())
@@ -464,7 +480,7 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
 mod tests {
     use everr_core::git::parse_repo_from_remote_url;
 
-    use super::{WaitRunStatus, format_wait_status, push_opt, push_pagination};
+    use super::{WatchRunStatus, format_watch_status, push_opt, push_pagination};
 
     #[test]
     fn parse_repo_from_remote_rejects_invalid_values() {
@@ -497,18 +513,18 @@ mod tests {
     }
 
     #[test]
-    fn wait_status_output_has_no_trailing_blank_line() {
-        let status = format_wait_status(
+    fn watch_status_output_has_no_trailing_blank_line() {
+        let status = format_watch_status(
             "df0c52b63dfa0123456789",
             5,
-            vec![WaitRunStatus {
+            vec![WatchRunStatus {
                 workflow_name: "Build & Test Collector".to_string(),
                 conclusion: String::new(),
                 duration_seconds: 139,
                 usual_duration_seconds: None,
                 active_jobs: vec!["Lint".to_string(), "Build".to_string()],
             }],
-            vec![WaitRunStatus {
+            vec![WatchRunStatus {
                 workflow_name: "Build & Test Ingress".to_string(),
                 conclusion: "success".to_string(),
                 duration_seconds: 0,
@@ -524,20 +540,20 @@ mod tests {
     }
 
     #[test]
-    fn wait_status_output_marks_failed_completed_runs() {
-        let status = format_wait_status(
+    fn watch_status_output_marks_failed_completed_runs() {
+        let status = format_watch_status(
             "df0c52b63dfa0123456789",
             5,
             Vec::new(),
             vec![
-                WaitRunStatus {
+                WatchRunStatus {
                     workflow_name: "Build & Test Collector".to_string(),
                     conclusion: "failure".to_string(),
                     duration_seconds: 0,
                     usual_duration_seconds: None,
                     active_jobs: Vec::new(),
                 },
-                WaitRunStatus {
+                WatchRunStatus {
                     workflow_name: "Build & Test App".to_string(),
                     conclusion: "success".to_string(),
                     duration_seconds: 0,
@@ -553,11 +569,11 @@ mod tests {
     }
 
     #[test]
-    fn wait_status_output_includes_usual_duration_when_available() {
-        let status = format_wait_status(
+    fn watch_status_output_includes_usual_duration_when_available() {
+        let status = format_watch_status(
             "df0c52b63dfa0123456789",
             5,
-            vec![WaitRunStatus {
+            vec![WatchRunStatus {
                 workflow_name: "CI".to_string(),
                 conclusion: String::new(),
                 duration_seconds: 125,

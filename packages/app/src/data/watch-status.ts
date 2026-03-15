@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export interface WaitPipelineRun {
+export interface WatchRun {
   runId: string;
   workflowName: string;
   phase: string;
@@ -12,7 +12,7 @@ export interface WaitPipelineRun {
   activeJobs: string[];
 }
 
-export interface WaitPipelineJob {
+export interface WatchJob {
   jobId: string;
   jobName: string;
   phase: string;
@@ -22,22 +22,22 @@ export interface WaitPipelineJob {
   pipelineRunId: string;
 }
 
-export interface WaitPipelineStatusResult {
+export interface WatchStatusResult {
   repo: string;
   branch: string;
   commit: string;
   pipelineFound: boolean;
-  activeRuns: WaitPipelineRun[];
-  completedRuns: WaitPipelineRun[];
+  activeRuns: WatchRun[];
+  completedRuns: WatchRun[];
 }
 
-export const WaitPipelineStatusInputSchema = z.object({
+export const WatchStatusInputSchema = z.object({
   repo: z.string().min(1),
   branch: z.string().min(1),
   commit: z.string().min(1),
 });
 
-export interface WaitPipelineRow {
+export interface WatchRow {
   subjectId: string;
   subjectName: string;
   htmlUrl: string;
@@ -49,17 +49,17 @@ export interface WaitPipelineRow {
   durationSeconds: string;
 }
 
-export interface WaitPipelineDurationBaseline {
+export interface WatchDurationBaseline {
   durationSeconds: number;
   sampleSize: number;
 }
 
-export function buildWaitPipelineStatus(
-  data: z.infer<typeof WaitPipelineStatusInputSchema>,
-  rows: WaitPipelineRow[],
-  durationBaselinesByWorkflow = new Map<string, WaitPipelineDurationBaseline>(),
-): WaitPipelineStatusResult {
-  const jobs: WaitPipelineJob[] = rows
+export function buildWatchStatus(
+  data: z.infer<typeof WatchStatusInputSchema>,
+  rows: WatchRow[],
+  durationBaselinesByWorkflow = new Map<string, WatchDurationBaseline>(),
+): WatchStatusResult {
+  const jobs: WatchJob[] = rows
     .filter(
       (row) => row.eventKind === "taskrun" || row.eventKind === "workflowjob",
     )
@@ -87,7 +87,7 @@ export function buildWaitPipelineStatus(
     }
   }
 
-  const runs: WaitPipelineRun[] = rows
+  const runs: WatchRun[] = rows
     .filter((row) => row.eventKind === "pipelinerun")
     .map((row) => {
       const baseline = durationBaselinesByWorkflow.get(row.subjectName);
@@ -105,12 +105,15 @@ export function buildWaitPipelineStatus(
       };
     });
 
+  const activeRuns = runs.filter((run) => run.phase !== "finished");
+  const completedRuns = runs.filter((run) => run.phase === "finished");
+
   return {
     repo: data.repo,
     branch: data.branch,
     commit: data.commit,
-    pipelineFound: runs.length > 0,
-    activeRuns: runs.filter((run) => run.phase !== "finished"),
-    completedRuns: runs.filter((run) => run.phase === "finished"),
+    pipelineFound: activeRuns.length > 0 || completedRuns.length > 0,
+    activeRuns,
+    completedRuns,
   };
 }

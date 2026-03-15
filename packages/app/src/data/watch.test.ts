@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildWaitPipelineStatus } from "./wait-pipeline-status";
+import { buildWatchStatus } from "./watch-status";
 
-describe("buildWaitPipelineStatus", () => {
+describe("buildWatchStatus", () => {
   it("maps active taskrun jobs onto their pipeline run", () => {
-    const result = buildWaitPipelineStatus(
+    const result = buildWatchStatus(
       {
         repo: "everr-labs/everr",
         branch: "main",
@@ -54,7 +54,7 @@ describe("buildWaitPipelineStatus", () => {
   });
 
   it("attaches a duration baseline when historical runs exist", () => {
-    const result = buildWaitPipelineStatus(
+    const result = buildWatchStatus(
       {
         repo: "everr-labs/everr",
         branch: "main",
@@ -84,6 +84,7 @@ describe("buildWaitPipelineStatus", () => {
       ]),
     );
 
+    expect(result.pipelineFound).toBe(true);
     expect(result.activeRuns[0]).toMatchObject({
       usualDurationSeconds: 119,
       usualDurationSampleSize: 3,
