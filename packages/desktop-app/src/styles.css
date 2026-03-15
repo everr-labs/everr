@@ -154,32 +154,6 @@ code {
   }
 }
 
-/* Drawer backdrop: opacity tracks swipe progress for smooth dismissal */
-[data-slot="drawer-overlay"] {
-  --drawer-backdrop-opacity: 0.2;
-  opacity: calc(
-    var(--drawer-backdrop-opacity) *
-    (1 - var(--drawer-swipe-progress, 0))
-  );
-}
-
-.dark [data-slot="drawer-overlay"] {
-  --drawer-backdrop-opacity: 0.7;
-}
-
-[data-slot="drawer-overlay"][data-starting-style],
-[data-slot="drawer-overlay"][data-ending-style] {
-  opacity: 0;
-}
-
-[data-slot="drawer-overlay"][data-swiping] {
-  transition-duration: 0ms;
-}
-
-[data-slot="drawer-overlay"][data-ending-style] {
-  transition-duration: calc(var(--drawer-swipe-strength, 0) * 400ms);
-}
-
 @keyframes notification-progress-shrink {
   from {
     transform: scaleX(1);
@@ -197,16 +171,4 @@ code {
 
 .notification-progress[data-paused] {
   animation-play-state: paused;
-}
-
-.recharts-wrapper *:focus {
-  outline: none;
-}
-
-::view-transition-old(command-bar),
-::view-transition-new(command-bar) {
-  animation-duration: 200ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: clip;
-  object-fit: none;
 }
