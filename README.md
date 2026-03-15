@@ -118,15 +118,15 @@ make run
 pnpm dev
 ```
 
-Use `pnpm dev:web`, `pnpm dev:desktop`, `pnpm dev:docs`, or `pnpm dev:cli` to start only one surface.
+Use `pnpm dev:web` or `pnpm dev:docs` to start one web surface, or run native commands from `packages/desktop-app/`.
 
 ### Build a signed Everr App release
 
 For macOS distribution, use:
 
 ```bash
-pnpm build:desktop:prod
+pnpm --dir packages/desktop-app build:desktop
 ```
 
-The required Apple signing and notarization inputs are documented in `packages/everr-app/README.md`.
-The macOS build now reads those Apple ID notarization values from the repo-root `.env`.
+The Apple signing and notarization inputs are documented in `packages/desktop-app/README.md`.
+`packages/desktop-app/.env` is sourced automatically by the package-native build scripts.
