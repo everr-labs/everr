@@ -1,13 +1,52 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
+import {
+  NotificationCard,
+  activeNotificationQueryKey,
+} from "./features/notifications/notification-window";
+import { createQueryClient } from "./lib/query-client";
 
+const SETTINGS_CHANGED_EVENT = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
 const NOTIFICATION_AUTO_DISMISS_MS = 40_000;
 
 type AssistantKind = "codex" | "claude" | "cursor";
+
+type AuthStatus = {
+  status: "signed_in" | "signed_out";
+  session_path: string;
+};
+
+type CliInstallStatus = {
+  status: "installed" | "not_installed";
+  install_path: string;
+};
+
+type AssistantStatus = {
+  assistant: AssistantKind;
+  detected: boolean;
+  configured: boolean;
+  path: string;
+};
+
+type AssistantSetup = {
+  assistant_statuses: AssistantStatus[];
+  assistant_step_seen: boolean;
+};
+
+type LaunchAtLoginStatus = {
+  launch_at_login_enabled: boolean;
+  launch_at_login_step_seen: boolean;
+};
+
+type WizardStatus = {
+  wizard_completed: boolean;
+};
 
 type FailureNotification = {
   dedupe_key: string;
@@ -23,35 +62,25 @@ type FailureNotification = {
   auto_fix_prompt?: string;
 };
 
-type AssistantStatus = {
-  assistant: AssistantKind;
-  detected: boolean;
-  configured: boolean;
-  path: string;
-};
-
-type SetupStatus = {
-  auth_status: {
-    status: "signed_in" | "signed_out";
-    session_path: string;
-  };
-  cli_status: {
-    status: "installed" | "not_installed";
-    install_path: string;
-  };
-  wizard_state: {
-    wizard_completed: boolean;
-    assistant_step_seen: boolean;
-    launch_at_login_step_seen: boolean;
-    selected_assistants: AssistantKind[];
-  };
-  assistant_statuses: AssistantStatus[];
-  launch_at_login_enabled: boolean;
-};
-
 type TestNotificationResponse = {
   status: "shown" | "queued";
 };
+
+type MainCommand =
+  | "get_wizard_status"
+  | "get_auth_status"
+  | "start_sign_in"
+  | "sign_out"
+  | "get_assistant_setup"
+  | "configure_assistants"
+  | "mark_assistant_step_seen"
+  | "get_cli_install_status"
+  | "install_cli"
+  | "get_launch_at_login_status"
+  | "set_launch_at_login"
+  | "mark_launch_at_login_step_seen"
+  | "complete_setup_wizard"
+  | "trigger_test_notification";
 
 type RenderMainOptions = {
   signedIn?: boolean;
@@ -59,13 +88,32 @@ type RenderMainOptions = {
   wizardCompleted?: boolean;
   assistantStepSeen?: boolean;
   launchStepSeen?: boolean;
-  selectedAssistants?: AssistantKind[];
+  configuredAssistants?: AssistantKind[];
   launchAtLoginEnabled?: boolean;
   assistantStatuses?: AssistantStatus[];
   testNotification?: TestNotificationResponse;
+  commandOverrides?: Partial<Record<MainCommand, (args: unknown) => unknown>>;
 };
 
 type NotificationResult = FailureNotification | null | Error;
+
+function renderWithProviders(node: ReactNode, queryClient = createQueryClient()) {
+  render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
+
+  return queryClient;
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+
+  return { promise, resolve, reject };
+}
 
 function createNotification(overrides: Partial<FailureNotification> = {}): FailureNotification {
   return {
@@ -84,56 +132,173 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
   };
 }
 
-function defaultAssistantStatuses(): AssistantStatus[] {
+function defaultAssistantStatuses(configuredAssistants: AssistantKind[] = []): AssistantStatus[] {
   return [
     {
       assistant: "codex",
       detected: true,
-      configured: false,
+      configured: configuredAssistants.includes("codex"),
       path: "/tmp/.codex/AGENTS.md",
     },
     {
       assistant: "claude",
       detected: false,
-      configured: false,
+      configured: configuredAssistants.includes("claude"),
       path: "/tmp/.claude/CLAUDE.md",
     },
     {
       assistant: "cursor",
       detected: true,
-      configured: false,
+      configured: configuredAssistants.includes("cursor"),
       path: "/tmp/.cursor/rules/everr.mdc",
     },
   ];
 }
 
-function createSetupStatus({
-  signedIn = true,
-  cliInstalled = true,
-  wizardCompleted = true,
+function createAssistantSetup({
+  configuredAssistants = [],
   assistantStepSeen = true,
-  launchStepSeen = true,
-  selectedAssistants = [],
-  launchAtLoginEnabled = false,
-  assistantStatuses = defaultAssistantStatuses(),
-}: RenderMainOptions = {}): SetupStatus {
+  assistantStatuses = defaultAssistantStatuses(configuredAssistants),
+}: {
+  configuredAssistants?: AssistantKind[];
+  assistantStepSeen?: boolean;
+  assistantStatuses?: AssistantStatus[];
+} = {}): AssistantSetup {
   return {
-    auth_status: {
-      status: signedIn ? "signed_in" : "signed_out",
-      session_path: "/tmp/everr/session.json",
-    },
-    cli_status: {
-      status: cliInstalled ? "installed" : "not_installed",
-      install_path: "/tmp/everr/bin/everr",
-    },
-    wizard_state: {
-      wizard_completed: wizardCompleted,
-      assistant_step_seen: assistantStepSeen,
-      launch_at_login_step_seen: launchStepSeen,
-      selected_assistants: selectedAssistants,
-    },
     assistant_statuses: assistantStatuses,
-    launch_at_login_enabled: launchAtLoginEnabled,
+    assistant_step_seen: assistantStepSeen,
+  };
+}
+
+function renderMainApp(options: RenderMainOptions = {}) {
+  let authStatus: AuthStatus = {
+    status: options.signedIn === false ? "signed_out" : "signed_in",
+    session_path: "/tmp/everr/session.json",
+  };
+  let cliStatus: CliInstallStatus = {
+    status: options.cliInstalled === false ? "not_installed" : "installed",
+    install_path: "/tmp/everr/bin/everr",
+  };
+  let assistantSetup = createAssistantSetup({
+    configuredAssistants: options.configuredAssistants ?? [],
+    assistantStepSeen: options.assistantStepSeen ?? true,
+    assistantStatuses:
+      options.assistantStatuses ?? defaultAssistantStatuses(options.configuredAssistants ?? []),
+  });
+  let launchAtLoginStatus: LaunchAtLoginStatus = {
+    launch_at_login_enabled: options.launchAtLoginEnabled ?? false,
+    launch_at_login_step_seen: options.launchStepSeen ?? true,
+  };
+  let wizardStatus: WizardStatus = {
+    wizard_completed: options.wizardCompleted ?? true,
+  };
+  const triggerTestNotificationSpy = vi.fn(
+    () => options.testNotification ?? { status: "shown" },
+  );
+
+  mockWindows("main");
+  mockIPC(
+    (cmd, args) => {
+      const payload = (args ?? {}) as {
+        assistants?: AssistantKind[];
+        enabled?: boolean;
+      };
+
+      const override = options.commandOverrides?.[cmd as MainCommand];
+      if (override) {
+        return override(payload);
+      }
+
+      switch (cmd) {
+        case "get_wizard_status":
+          return wizardStatus;
+        case "get_auth_status":
+          return authStatus;
+        case "start_sign_in":
+          authStatus = {
+            ...authStatus,
+            status: "signed_in",
+          };
+          return authStatus;
+        case "sign_out":
+          authStatus = {
+            ...authStatus,
+            status: "signed_out",
+          };
+          return authStatus;
+        case "get_assistant_setup":
+          return assistantSetup;
+        case "configure_assistants": {
+          const selected = payload.assistants ?? [];
+          assistantSetup = {
+            ...assistantSetup,
+            assistant_step_seen: true,
+            assistant_statuses: assistantSetup.assistant_statuses.map((status) => ({
+              ...status,
+              configured: selected.includes(status.assistant),
+            })),
+          };
+          return assistantSetup;
+        }
+        case "mark_assistant_step_seen":
+          assistantSetup = {
+            ...assistantSetup,
+            assistant_step_seen: true,
+          };
+          return assistantSetup;
+        case "get_cli_install_status":
+          return cliStatus;
+        case "install_cli":
+          cliStatus = {
+            ...cliStatus,
+            status: "installed",
+          };
+          return cliStatus;
+        case "get_launch_at_login_status":
+          return launchAtLoginStatus;
+        case "set_launch_at_login":
+          launchAtLoginStatus = {
+            ...launchAtLoginStatus,
+            launch_at_login_enabled: Boolean(payload.enabled),
+            launch_at_login_step_seen: true,
+          };
+          return launchAtLoginStatus;
+        case "mark_launch_at_login_step_seen":
+          launchAtLoginStatus = {
+            ...launchAtLoginStatus,
+            launch_at_login_step_seen: true,
+          };
+          return launchAtLoginStatus;
+        case "complete_setup_wizard":
+          wizardStatus = { wizard_completed: true };
+          assistantSetup = { ...assistantSetup, assistant_step_seen: true };
+          launchAtLoginStatus = {
+            ...launchAtLoginStatus,
+            launch_at_login_step_seen: true,
+          };
+          return wizardStatus;
+        case "trigger_test_notification":
+          return triggerTestNotificationSpy();
+        default:
+          throw new Error(`Unexpected IPC command: ${cmd}`);
+      }
+    },
+    { shouldMockEvents: true },
+  );
+
+  renderWithProviders(<App />);
+
+  return {
+    triggerTestNotificationSpy,
+    setAssistantSetup(next: AssistantSetup) {
+      assistantSetup = next;
+    },
+    setLaunchAtLoginStatus(next: LaunchAtLoginStatus) {
+      launchAtLoginStatus = next;
+    },
+    setWizardStatus(next: WizardStatus) {
+      wizardStatus = next;
+    },
   };
 }
 
@@ -173,10 +338,20 @@ async function renderNotificationApp(
     { shouldMockEvents: true },
   );
 
+  const queryClient = createQueryClient();
+  if (!(activeNotification instanceof Error)) {
+    queryClient.setQueryData(activeNotificationQueryKey, activeNotification);
+  }
+
   await act(async () => {
-    render(<App />);
+    renderWithProviders(<App />, queryClient);
     await Promise.resolve();
     await Promise.resolve();
+    if (vi.isFakeTimers()) {
+      await vi.advanceTimersByTimeAsync(50);
+      await Promise.resolve();
+      await Promise.resolve();
+    }
   });
 
   return {
@@ -192,106 +367,22 @@ async function renderNotificationApp(
   };
 }
 
-function renderMainApp(options: RenderMainOptions = {}) {
-  let setupStatus = createSetupStatus(options);
-  const triggerTestNotificationSpy = vi.fn(
-    () => options.testNotification ?? { status: "shown" },
-  );
+async function renderNotificationCard(
+  notification: FailureNotification = createNotification(),
+) {
+  const dismissSpy = vi.fn(() => null);
+  const openSpy = vi.fn(() => null);
+  const copySpy = vi.fn(() => null);
 
-  mockWindows("main");
   mockIPC(
-    (cmd, args) => {
-      const payload = (args ?? {}) as {
-        assistants?: AssistantKind[];
-        enabled?: boolean;
-        step?: "assistants" | "launch_at_login";
-      };
-
+    (cmd) => {
       switch (cmd) {
-        case "get_setup_status":
-          return setupStatus;
-        case "start_sign_in":
-          setupStatus = {
-            ...setupStatus,
-            auth_status: {
-              ...setupStatus.auth_status,
-              status: "signed_in",
-            },
-          };
-          return setupStatus.auth_status;
-        case "sign_out":
-          setupStatus = {
-            ...setupStatus,
-            auth_status: {
-              ...setupStatus.auth_status,
-              status: "signed_out",
-            },
-          };
-          return setupStatus.auth_status;
-        case "install_cli":
-          setupStatus = {
-            ...setupStatus,
-            cli_status: {
-              ...setupStatus.cli_status,
-              status: "installed",
-            },
-          };
-          return setupStatus.cli_status;
-        case "configure_assistants": {
-          const selected = payload.assistants ?? [];
-          setupStatus = {
-            ...setupStatus,
-            wizard_state: {
-              ...setupStatus.wizard_state,
-              assistant_step_seen: true,
-              selected_assistants: selected,
-            },
-            assistant_statuses: setupStatus.assistant_statuses.map((status) => ({
-              ...status,
-              configured: selected.includes(status.assistant),
-            })),
-          };
-          return setupStatus;
-        }
-        case "mark_optional_setup_step_seen":
-          setupStatus = {
-            ...setupStatus,
-            wizard_state: {
-              ...setupStatus.wizard_state,
-              assistant_step_seen:
-                payload.step === "assistants"
-                  ? true
-                  : setupStatus.wizard_state.assistant_step_seen,
-              launch_at_login_step_seen:
-                payload.step === "launch_at_login"
-                  ? true
-                  : setupStatus.wizard_state.launch_at_login_step_seen,
-            },
-          };
-          return setupStatus;
-        case "set_launch_at_login":
-          setupStatus = {
-            ...setupStatus,
-            launch_at_login_enabled: Boolean(payload.enabled),
-            wizard_state: {
-              ...setupStatus.wizard_state,
-              launch_at_login_step_seen: true,
-            },
-          };
-          return setupStatus;
-        case "complete_setup_wizard":
-          setupStatus = {
-            ...setupStatus,
-            wizard_state: {
-              ...setupStatus.wizard_state,
-              wizard_completed: true,
-              assistant_step_seen: true,
-              launch_at_login_step_seen: true,
-            },
-          };
-          return setupStatus;
-        case "trigger_test_notification":
-          return triggerTestNotificationSpy();
+        case "dismiss_active_notification":
+          return dismissSpy();
+        case "open_notification_target":
+          return openSpy();
+        case "copy_notification_auto_fix_prompt":
+          return copySpy();
         default:
           throw new Error(`Unexpected IPC command: ${cmd}`);
       }
@@ -299,11 +390,21 @@ function renderMainApp(options: RenderMainOptions = {}) {
     { shouldMockEvents: true },
   );
 
-  render(<App />);
+  await act(async () => {
+    renderWithProviders(<NotificationCard notification={notification} />);
+    await Promise.resolve();
+    await Promise.resolve();
+    if (vi.isFakeTimers()) {
+      await vi.advanceTimersByTimeAsync(50);
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+  });
 
   return {
-    triggerTestNotificationSpy,
-    getSetupStatus: () => setupStatus,
+    dismissSpy,
+    openSpy,
+    copySpy,
   };
 }
 
@@ -319,9 +420,54 @@ describe("desktop window", () => {
     renderMainApp();
 
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
     expect(screen.queryByText("Authenticate your Everr account")).not.toBeInTheDocument();
     expect(screen.getByText("Background tasks")).toBeInTheDocument();
+  });
+
+  it("loads settings sections independently", async () => {
+    const assistantSetupDeferred = createDeferred<AssistantSetup>();
+
+    renderMainApp({
+      commandOverrides: {
+        get_assistant_setup: () => assistantSetupDeferred.promise,
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Logout" })).toBeInTheDocument();
+    expect(screen.getByText("Loading assistant integrations...")).toBeInTheDocument();
+    expect(screen.getByText("Background tasks")).toBeInTheDocument();
+
+    assistantSetupDeferred.resolve(createAssistantSetup());
+    await screen.findByRole("button", { name: "Save integrations" });
+  });
+
+  it("keeps unrelated sections enabled while a mutation is pending", async () => {
+    const installCliDeferred = createDeferred<CliInstallStatus>();
+
+    renderMainApp({
+      cliInstalled: false,
+      commandOverrides: {
+        install_cli: () => installCliDeferred.promise,
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Install CLI" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Install CLI" })).toBeDisabled();
+    });
+    expect(screen.getByRole("button", { name: "Enable" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save integrations" })).toBeEnabled();
+
+    await act(async () => {
+      installCliDeferred.resolve({
+        status: "installed",
+        install_path: "/tmp/everr/bin/everr",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
   });
 
   it("renders the first-run wizard for incomplete setup", async () => {
@@ -386,28 +532,46 @@ describe("desktop window", () => {
     expect(await screen.findByText("Install the Everr CLI")).toBeInTheDocument();
   });
 
-  it("keeps all assistants deselected after saving an empty selection", async () => {
-    renderMainApp({
-      selectedAssistants: ["codex", "cursor"],
+  it("preserves assistant draft across invalidation and resets after save", async () => {
+    const harness = renderMainApp({
+      configuredAssistants: ["codex"],
       assistantStepSeen: true,
-      assistantStatuses: defaultAssistantStatuses().map((status) => ({
-        ...status,
-        configured: status.assistant === "codex" || status.assistant === "cursor",
-      })),
+      assistantStatuses: defaultAssistantStatuses(["codex"]),
     });
 
-    const codex = await screen.findByRole("checkbox", { name: /codex/i });
-    const cursor = screen.getByRole("checkbox", { name: /cursor/i });
+    const claudeCheckbox = await screen.findByRole("checkbox", { name: /claude/i });
 
-    fireEvent.click(codex);
-    fireEvent.click(cursor);
+    fireEvent.click(claudeCheckbox);
+    expect(claudeCheckbox).toBeChecked();
+
+    await act(async () => {
+      await emit(SETTINGS_CHANGED_EVENT);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("checkbox", { name: /claude/i })).toBeChecked();
+
     fireEvent.click(screen.getByRole("button", { name: "Save integrations" }));
-
     await waitFor(() => {
-      expect(screen.getByRole("checkbox", { name: /codex/i })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: /cursor/i })).not.toBeChecked();
-      expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: /claude/i })).toBeChecked();
     });
+
+    harness.setAssistantSetup(
+      createAssistantSetup({
+        configuredAssistants: ["codex"],
+        assistantStepSeen: true,
+        assistantStatuses: defaultAssistantStatuses(["codex"]),
+      }),
+    );
+    await act(async () => {
+      await emit(SETTINGS_CHANGED_EVENT);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("checkbox", { name: /codex/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
   });
 
   it("advances from CLI installation to launch-at-login setup", async () => {
@@ -462,7 +626,7 @@ describe("notification window", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-07T13:35:00Z"));
 
-    await renderNotificationApp();
+    await renderNotificationCard();
 
     expect(screen.getByText("CI")).toBeInTheDocument();
     expect(screen.getByText("everr-labs/everr")).toBeInTheDocument();
@@ -512,7 +676,7 @@ describe("notification window", () => {
   it("does not auto-dismiss before the deadline", async () => {
     vi.useFakeTimers();
 
-    const { dismissSpy } = await renderNotificationApp();
+    const { dismissSpy } = await renderNotificationCard();
     expect(screen.getByText("CI")).toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS - 1_000);
@@ -525,7 +689,7 @@ describe("notification window", () => {
   it("auto-dismisses after the deadline", async () => {
     vi.useFakeTimers();
 
-    const { dismissSpy } = await renderNotificationApp();
+    const { dismissSpy } = await renderNotificationCard();
     expect(screen.getByText("CI")).toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS);
@@ -537,7 +701,7 @@ describe("notification window", () => {
   it("pauses the dismiss countdown while hovered", async () => {
     vi.useFakeTimers();
 
-    const { dismissSpy } = await renderNotificationApp();
+    const { dismissSpy } = await renderNotificationCard();
     const card = screen.getByText("CI");
 
     fireEvent.mouseEnter(card.closest(".notificationCard") as HTMLElement);
@@ -572,22 +736,17 @@ describe("notification window", () => {
   });
 
   it("shows a retry state when fetching the active notification fails", async () => {
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const harness = await renderNotificationApp(new Error("boom"));
+    const harness = await renderNotificationApp(new Error("boom"));
 
-      expect(await screen.findByText("Failed to load notification")).toBeInTheDocument();
+    expect(await screen.findByText("Failed to load notification")).toBeInTheDocument();
 
-      harness.setNotification(createNotification());
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+    harness.setNotification(createNotification());
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
 
-      expect(await screen.findByText("CI")).not.toBeInTheDocument();
-    } finally {
-      consoleErrorSpy.mockRestore();
-    }
+    expect(await screen.findByText("CI")).toBeInTheDocument();
   });
 });

@@ -35,6 +35,7 @@ use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
 const POLL_INTERVAL_SECONDS: u64 = 30;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
+const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
@@ -86,8 +87,6 @@ struct WizardState {
     assistant_step_seen: bool,
     #[serde(default)]
     launch_at_login_step_seen: bool,
-    #[serde(default)]
-    selected_assistants: Vec<AssistantKind>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -106,25 +105,28 @@ struct CliInstallStatusResponse {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-struct SetupStatusResponse {
-    auth_status: AuthStatusResponse,
-    cli_status: CliInstallStatusResponse,
-    wizard_state: WizardState,
+struct AssistantSetupResponse {
     assistant_statuses: Vec<AssistantStatus>,
+    assistant_step_seen: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct LaunchAtLoginStatusResponse {
     launch_at_login_enabled: bool,
+    launch_at_login_step_seen: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct WizardStatusResponse {
+    wizard_completed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 struct TestNotificationResponse {
     status: &'static str,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum OptionalSetupStep {
-    Assistants,
-    LaunchAtLogin,
 }
 
 #[derive(Debug, Default)]
@@ -226,21 +228,37 @@ impl NotificationQueue {
 }
 
 #[tauri::command]
-fn get_auth_status(state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String> {
-    auth_status_response(state.inner()).map_err(|error| error.to_string())
+async fn get_auth_status(state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String> {
+    let state = state.inner().clone();
+    run_blocking_command(move || auth_status_response(&state)).await
 }
 
 #[tauri::command]
-fn get_cli_install_status(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
-    cli_install_status_response(&app).map_err(|error| error.to_string())
+async fn get_cli_install_status(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
+    run_blocking_command(move || cli_install_status_response(&app)).await
 }
 
 #[tauri::command]
-fn get_setup_status(
+async fn get_assistant_setup(
+    state: State<'_, RuntimeState>,
+) -> Result<AssistantSetupResponse, String> {
+    let state = state.inner().clone();
+    run_blocking_command(move || assistant_setup_response(&state)).await
+}
+
+#[tauri::command]
+async fn get_launch_at_login_status(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<SetupStatusResponse, String> {
-    build_setup_status(&app, state.inner()).map_err(|error| error.to_string())
+) -> Result<LaunchAtLoginStatusResponse, String> {
+    let state = state.inner().clone();
+    run_blocking_command(move || launch_at_login_status_response(&app, &state)).await
+}
+
+#[tauri::command]
+async fn get_wizard_status(state: State<'_, RuntimeState>) -> Result<WizardStatusResponse, String> {
+    let state = state.inner().clone();
+    run_blocking_command(move || wizard_status_response(&state)).await
 }
 
 #[tauri::command]
@@ -259,111 +277,149 @@ async fn start_sign_in(
     app: AppHandle,
     state: State<'_, RuntimeState>,
 ) -> Result<AuthStatusResponse, String> {
-    sign_in_inner(app, state.inner().clone())
+    let state = state.inner().clone();
+
+    sign_in_inner(app, state.clone())
         .await
         .map_err(|error| error.to_string())?;
-    get_auth_status(state)
+
+    run_blocking_command(move || auth_status_response(&state)).await
 }
 
 #[tauri::command]
-fn sign_out(app: AppHandle, state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String> {
-    state
-        .session_store
-        .clear_session()
-        .map_err(|error| error.to_string())?;
+async fn sign_out(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> Result<AuthStatusResponse, String> {
+    let runtime = state.inner().clone();
+    let response = run_blocking_command(move || {
+        runtime.session_store.clear_session()?;
+        auth_status_response(&runtime)
+    })
+    .await?;
+
     clear_tray_snapshot(&app, state.inner()).map_err(|error| error.to_string())?;
     emit_auth_changed(&app);
-    get_auth_status(state)
+
+    Ok(response)
 }
 
 #[tauri::command]
-fn install_cli(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
-    install_cli_bundle(&app).map_err(|error| error.to_string())?;
-    get_cli_install_status(app)
+async fn install_cli(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
+    run_blocking_command(move || {
+        install_cli_bundle(&app)?;
+        cli_install_status_response(&app)
+    })
+    .await
 }
 
 #[tauri::command]
-fn configure_assistants(
+async fn configure_assistants(
     app: AppHandle,
     state: State<'_, RuntimeState>,
     assistants: Vec<AssistantKind>,
-) -> Result<SetupStatusResponse, String> {
-    assistant::sync_assistants(&assistants, build::command_name())
-        .map_err(|error| error.to_string())?;
-    update_settings(state.inner(), |settings| {
-        settings.wizard_state.selected_assistants = assistants;
-        settings.wizard_state.assistant_step_seen = true;
+) -> Result<AssistantSetupResponse, String> {
+    let runtime = state.inner().clone();
+    let response = run_blocking_command(move || {
+        assistant::sync_assistants(&assistants, build::command_name())?;
+        update_settings(&runtime, mark_assistant_step_seen_in_settings)?;
+
+        assistant_setup_response(&runtime)
     })
-    .map_err(|error| error.to_string())?;
+    .await?;
+
     emit_settings_changed(&app);
-    build_setup_status(&app, state.inner()).map_err(|error| error.to_string())
+
+    Ok(response)
 }
 
 #[tauri::command]
-fn mark_optional_setup_step_seen(
+async fn mark_assistant_step_seen(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-    step: OptionalSetupStep,
-) -> Result<SetupStatusResponse, String> {
-    update_settings(state.inner(), |settings| match step {
-        OptionalSetupStep::Assistants => settings.wizard_state.assistant_step_seen = true,
-        OptionalSetupStep::LaunchAtLogin => settings.wizard_state.launch_at_login_step_seen = true,
+) -> Result<AssistantSetupResponse, String> {
+    let runtime = state.inner().clone();
+    let response = run_blocking_command(move || {
+        update_settings(&runtime, mark_assistant_step_seen_in_settings)?;
+        assistant_setup_response(&runtime)
     })
-    .map_err(|error| error.to_string())?;
+    .await?;
+
     emit_settings_changed(&app);
-    build_setup_status(&app, state.inner()).map_err(|error| error.to_string())
+
+    Ok(response)
 }
 
 #[tauri::command]
-fn set_launch_at_login(
+async fn set_launch_at_login(
     app: AppHandle,
     state: State<'_, RuntimeState>,
     enabled: bool,
-) -> Result<SetupStatusResponse, String> {
-    let autostart = app.autolaunch();
-    if enabled {
-        autostart.enable().map_err(|error| error.to_string())?;
-    } else {
-        autostart.disable().map_err(|error| error.to_string())?;
-    }
+) -> Result<LaunchAtLoginStatusResponse, String> {
+    let response_app = app.clone();
+    let runtime = state.inner().clone();
+    let response = run_blocking_command(move || {
+        let autostart = response_app.autolaunch();
+        if enabled {
+            autostart.enable()?;
+        } else {
+            autostart.disable()?;
+        }
 
-    update_settings(state.inner(), |settings| {
-        settings.wizard_state.launch_at_login_step_seen = true;
+        update_settings(&runtime, mark_launch_at_login_step_seen_in_settings)?;
+        launch_at_login_status_response(&response_app, &runtime)
     })
-    .map_err(|error| error.to_string())?;
+    .await?;
+
     emit_settings_changed(&app);
-    build_setup_status(&app, state.inner()).map_err(|error| error.to_string())
+
+    Ok(response)
 }
 
 #[tauri::command]
-fn complete_setup_wizard(
+async fn mark_launch_at_login_step_seen(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<SetupStatusResponse, String> {
-    if !state
-        .session_store
-        .has_active_session_for_api_base_url(build::default_api_base_url())
-        .map_err(|error| error.to_string())?
-    {
-        return Err("Sign in before finishing setup.".to_string());
-    }
-
-    if !cli_install_path()
-        .map_err(|error| error.to_string())?
-        .exists()
-    {
-        return Err("Install the CLI before finishing setup.".to_string());
-    }
-
-    update_settings(state.inner(), |settings| {
-        settings.completed_base_url = Some(build::default_api_base_url().to_string());
-        settings.wizard_state.wizard_completed = true;
-        settings.wizard_state.assistant_step_seen = true;
-        settings.wizard_state.launch_at_login_step_seen = true;
+) -> Result<LaunchAtLoginStatusResponse, String> {
+    let response_app = app.clone();
+    let runtime = state.inner().clone();
+    let response = run_blocking_command(move || {
+        update_settings(&runtime, mark_launch_at_login_step_seen_in_settings)?;
+        launch_at_login_status_response(&response_app, &runtime)
     })
-    .map_err(|error| error.to_string())?;
+    .await?;
+
     emit_settings_changed(&app);
-    build_setup_status(&app, state.inner()).map_err(|error| error.to_string())
+
+    Ok(response)
+}
+
+#[tauri::command]
+async fn complete_setup_wizard(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> Result<WizardStatusResponse, String> {
+    let runtime = state.inner().clone();
+    let response = run_blocking_command(move || {
+        if !runtime
+            .session_store
+            .has_active_session_for_api_base_url(build::default_api_base_url())?
+        {
+            return Err(anyhow!("Sign in before finishing setup."));
+        }
+
+        if !cli_install_path()?.exists() {
+            return Err(anyhow!("Install the CLI before finishing setup."));
+        }
+
+        update_settings(&runtime, mark_setup_complete_in_settings)?;
+        wizard_status_response(&runtime)
+    })
+    .await?;
+
+    emit_settings_changed(&app);
+
+    Ok(response)
 }
 
 #[tauri::command]
@@ -473,15 +529,18 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_auth_status,
-            get_setup_status,
+            get_assistant_setup,
+            get_launch_at_login_status,
+            get_wizard_status,
             get_active_notification,
             start_sign_in,
             sign_out,
             install_cli,
             get_cli_install_status,
             configure_assistants,
-            mark_optional_setup_step_seen,
+            mark_assistant_step_seen,
             set_launch_at_login,
+            mark_launch_at_login_step_seen,
             complete_setup_wizard,
             dismiss_active_notification,
             open_notification_target,
@@ -541,6 +600,17 @@ async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
     }
     emit_auth_changed(&app);
     Ok(())
+}
+
+async fn run_blocking_command<T, F>(operation: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(operation)
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())
 }
 
 fn install_cli_bundle(app: &AppHandle) -> Result<()> {
@@ -687,18 +757,72 @@ fn cli_install_status_response(app: &AppHandle) -> Result<CliInstallStatusRespon
     })
 }
 
-fn build_setup_status(app: &AppHandle, state: &RuntimeState) -> Result<SetupStatusResponse> {
-    let assistant_statuses = assistant::assistant_statuses()?;
-    let launch_at_login_enabled = app.autolaunch().is_enabled()?;
-    let settings = current_settings(state)?;
+fn assistant_setup_response(state: &RuntimeState) -> Result<AssistantSetupResponse> {
+    let wizard_state = current_settings(state)?.wizard_state;
 
-    Ok(SetupStatusResponse {
-        auth_status: auth_status_response(state)?,
-        cli_status: cli_install_status_response(app)?,
-        wizard_state: settings.wizard_state,
+    Ok(build_assistant_setup_response(
+        assistant::assistant_statuses()?,
+        wizard_state,
+    ))
+}
+
+fn build_assistant_setup_response(
+    assistant_statuses: Vec<AssistantStatus>,
+    wizard_state: WizardState,
+) -> AssistantSetupResponse {
+    AssistantSetupResponse {
         assistant_statuses,
+        assistant_step_seen: wizard_state.assistant_step_seen,
+    }
+}
+
+fn launch_at_login_status_response(
+    app: &AppHandle,
+    state: &RuntimeState,
+) -> Result<LaunchAtLoginStatusResponse> {
+    let wizard_state = current_settings(state)?.wizard_state;
+
+    Ok(build_launch_at_login_status_response(
+        app.autolaunch().is_enabled()?,
+        wizard_state,
+    ))
+}
+
+fn build_launch_at_login_status_response(
+    launch_at_login_enabled: bool,
+    wizard_state: WizardState,
+) -> LaunchAtLoginStatusResponse {
+    LaunchAtLoginStatusResponse {
         launch_at_login_enabled,
-    })
+        launch_at_login_step_seen: wizard_state.launch_at_login_step_seen,
+    }
+}
+
+fn wizard_status_response(state: &RuntimeState) -> Result<WizardStatusResponse> {
+    let wizard_state = current_settings(state)?.wizard_state;
+
+    Ok(build_wizard_status_response(wizard_state))
+}
+
+fn build_wizard_status_response(wizard_state: WizardState) -> WizardStatusResponse {
+    WizardStatusResponse {
+        wizard_completed: wizard_state.wizard_completed,
+    }
+}
+
+fn mark_assistant_step_seen_in_settings(settings: &mut AppSettings) {
+    settings.wizard_state.assistant_step_seen = true;
+}
+
+fn mark_launch_at_login_step_seen_in_settings(settings: &mut AppSettings) {
+    settings.wizard_state.launch_at_login_step_seen = true;
+}
+
+fn mark_setup_complete_in_settings(settings: &mut AppSettings) {
+    settings.completed_base_url = Some(build::default_api_base_url().to_string());
+    settings.wizard_state.wizard_completed = true;
+    settings.wizard_state.assistant_step_seen = true;
+    settings.wizard_state.launch_at_login_step_seen = true;
 }
 
 fn current_settings(state: &RuntimeState) -> Result<AppSettings> {
@@ -725,7 +849,7 @@ where
 
 fn emit_settings_changed(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.emit("everr://settings-changed", ());
+        let _ = window.emit(SETTINGS_CHANGED_EVENT, ());
     }
 }
 
@@ -1365,7 +1489,6 @@ fn value_has_wizard_metadata(value: &Value) -> bool {
             object.contains_key("wizard_completed")
                 || object.contains_key("assistant_step_seen")
                 || object.contains_key("launch_at_login_step_seen")
-                || object.contains_key("selected_assistants")
         })
         .unwrap_or(false)
 }
@@ -1413,16 +1536,19 @@ fn apply_runtime_settings(settings: &mut AppSettings) {
 #[cfg(test)]
 mod tests {
     use everr_core::api::FailureNotification;
+    use everr_core::assistant::{AssistantKind, AssistantStatus};
     use serde_json::json;
     use tempfile::tempdir;
 
     use super::{
         active_notification_auto_fix_prompt, apply_runtime_settings, apply_wizard_migration,
-        build_tray_menu_model, current_app_name, current_base_url, current_session_store,
-        format_tray_title, format_tray_tooltip, migrate_completed_base_url,
-        sync_installed_cli_from_paths, tray_auto_fix_prompt, tray_failed_runs_target,
-        value_has_wizard_metadata, AppSettings, NotificationQueue, TraySnapshot, TrayState,
-        WizardState, APP_NAME, DEV_APP_NAME,
+        build_assistant_setup_response, build_launch_at_login_status_response,
+        build_tray_menu_model, build_wizard_status_response, current_app_name, current_base_url,
+        current_session_store, format_tray_title, format_tray_tooltip,
+        mark_assistant_step_seen_in_settings, mark_launch_at_login_step_seen_in_settings,
+        mark_setup_complete_in_settings, migrate_completed_base_url, sync_installed_cli_from_paths,
+        tray_auto_fix_prompt, tray_failed_runs_target, value_has_wizard_metadata, AppSettings,
+        NotificationQueue, TraySnapshot, TrayState, WizardState, APP_NAME, DEV_APP_NAME,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1552,6 +1678,99 @@ mod tests {
     }
 
     #[test]
+    fn assistant_setup_response_returns_detected_and_configured_statuses() {
+        let response = build_assistant_setup_response(
+            vec![
+                AssistantStatus {
+                    assistant: AssistantKind::Codex,
+                    detected: true,
+                    configured: false,
+                    path: "/tmp/.codex/AGENTS.md".to_string(),
+                },
+                AssistantStatus {
+                    assistant: AssistantKind::Claude,
+                    detected: true,
+                    configured: true,
+                    path: "/tmp/.claude/CLAUDE.md".to_string(),
+                },
+            ],
+            WizardState {
+                wizard_completed: false,
+                assistant_step_seen: true,
+                launch_at_login_step_seen: false,
+            },
+        );
+
+        assert!(response.assistant_step_seen);
+        assert_eq!(response.assistant_statuses.len(), 2);
+        assert_eq!(
+            response.assistant_statuses[0].assistant,
+            AssistantKind::Codex
+        );
+        assert!(!response.assistant_statuses[0].configured);
+        assert_eq!(
+            response.assistant_statuses[1].assistant,
+            AssistantKind::Claude
+        );
+        assert!(response.assistant_statuses[1].configured);
+    }
+
+    #[test]
+    fn launch_at_login_response_uses_launch_flag_and_step_state() {
+        let response = build_launch_at_login_status_response(
+            true,
+            WizardState {
+                wizard_completed: false,
+                assistant_step_seen: false,
+                launch_at_login_step_seen: true,
+            },
+        );
+
+        assert!(response.launch_at_login_enabled);
+        assert!(response.launch_at_login_step_seen);
+    }
+
+    #[test]
+    fn wizard_status_response_uses_completion_flag() {
+        let response = build_wizard_status_response(WizardState {
+            wizard_completed: true,
+            assistant_step_seen: false,
+            launch_at_login_step_seen: false,
+        });
+
+        assert!(response.wizard_completed);
+    }
+
+    #[test]
+    fn step_marking_helpers_only_update_their_expected_fields() {
+        let mut settings = AppSettings::default();
+
+        mark_assistant_step_seen_in_settings(&mut settings);
+        assert!(settings.wizard_state.assistant_step_seen);
+        assert!(!settings.wizard_state.launch_at_login_step_seen);
+        assert!(!settings.wizard_state.wizard_completed);
+
+        mark_launch_at_login_step_seen_in_settings(&mut settings);
+        assert!(settings.wizard_state.launch_at_login_step_seen);
+        assert!(!settings.wizard_state.wizard_completed);
+    }
+
+    #[test]
+    fn complete_setup_helper_marks_all_required_wizard_flags() {
+        let mut settings = AppSettings::default();
+
+        mark_setup_complete_in_settings(&mut settings);
+
+        assert!(settings.wizard_state.wizard_completed);
+        assert!(settings.wizard_state.assistant_step_seen);
+        assert!(settings.wizard_state.launch_at_login_step_seen);
+        assert_eq!(
+            settings.completed_base_url.as_deref(),
+            Some(current_base_url())
+        );
+    }
+
+    #[test]
     fn tray_menu_model_shows_failed_actions_when_failures_exist() {
         let snapshot = tray_snapshot_with_failures();
         let model = build_tray_menu_model(&snapshot);
@@ -1629,6 +1848,9 @@ mod tests {
             "wizard_completed": true,
         })));
         assert!(!value_has_wizard_metadata(&json!({
+            "selected_assistants": ["codex"],
+        })));
+        assert!(!value_has_wizard_metadata(&json!({
             "base_url": "http://localhost:5173",
         })));
     }
@@ -1641,7 +1863,6 @@ mod tests {
                 wizard_completed: true,
                 assistant_step_seen: true,
                 launch_at_login_step_seen: true,
-                selected_assistants: Vec::new(),
             },
         };
 
@@ -1660,7 +1881,6 @@ mod tests {
                 wizard_completed: true,
                 assistant_step_seen: true,
                 launch_at_login_step_seen: true,
-                selected_assistants: Vec::new(),
             },
         };
 
@@ -1669,7 +1889,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_base_url_field_is_ignored_during_deserialization() {
+    fn legacy_base_url_and_selected_assistants_fields_are_ignored_during_deserialization() {
         let settings = serde_json::from_value::<AppSettings>(json!({
             "base_url": "https://app.everr.dev",
             "wizard_completed": true,
@@ -1682,8 +1902,13 @@ mod tests {
         assert_eq!(settings.completed_base_url, None);
         assert!(settings.wizard_state.wizard_completed);
         assert_eq!(
-            settings.wizard_state.selected_assistants,
-            vec![super::AssistantKind::Codex]
+            serde_json::to_value(settings).expect("serialize settings"),
+            json!({
+                "completed_base_url": null,
+                "wizard_completed": true,
+                "assistant_step_seen": true,
+                "launch_at_login_step_seen": true,
+            })
         );
     }
 
