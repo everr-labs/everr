@@ -15,7 +15,7 @@ const APP_URL = "https://app.everr.dev";
 
 function HeroSection() {
   return (
-    <section className="flex min-h-[65vh] flex-col items-center justify-center text-center">
+    <section className="flex min-h-[85vh] flex-col items-center justify-center text-center">
       <Link
         to="/waitlist"
         className="mb-6 flex animate-fade-up items-center gap-1.5 border border-primary/30 bg-primary/5 px-4 py-1.5 font-heading text-xs font-bold uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary/10 md:mb-8"
@@ -282,7 +282,7 @@ function MissingLayerSection() {
             },
             {
               label: "Derived signals",
-              heading: "Not just another dashboards",
+              heading: "Not just another dashboard",
               body: "Flakiness scores, performance trends, failure patterns, and cost anomalies - derived automatically from your pipeline history.",
             },
             {
