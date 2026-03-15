@@ -157,7 +157,7 @@ export async function findReleaseArtifacts(bundleDir: string): Promise<ReleaseAr
 
   if (!dmg || !updaterArchive) {
     throw new Error(
-      "Could not locate the desktop release DMG and updater archive in the Tauri bundle directory.",
+      "Could not locate the desktop release DMG and updater archive in the Tauri bundle directory. On macOS, build with both the app and dmg bundle targets so Tauri can generate updater artifacts.",
     );
   }
 

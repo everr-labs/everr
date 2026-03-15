@@ -35,13 +35,13 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "unconfigured",
-      "endpoints": []
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFDQUU1NEE0OTM2MTlCQzEKUldUQm0yR1RwRlN1ckIzTXc4dm9QRWVFUUhtd3hTdmJJazBYSXVoQzlxcVNnRzJWQ3BneGhQZDkK",
+      "endpoints": ["https://everr.dev/everr-app/latest.json"]
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg"],
+    "targets": ["app", "dmg"],
     "createUpdaterArtifacts": true,
     "resources": {
       "../../../target/desktop-resources/everr": "everr"

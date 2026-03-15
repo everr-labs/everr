@@ -14,6 +14,9 @@ Build the packaged desktop app from this package:
 pnpm build:desktop
 ```
 
+That release command always builds both the macOS `app` and `dmg` bundle targets so Tauri can emit the signed updater archive alongside the DMG.
+It also runs the Tauri bundle step with `CI=true` so DMG generation skips Finder AppleScript setup and works reliably from the terminal.
+
 Install the signed release CLI into `~/.local/bin` only when you explicitly opt in:
 
 ```bash

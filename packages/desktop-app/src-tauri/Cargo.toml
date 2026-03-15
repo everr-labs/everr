@@ -25,7 +25,6 @@ tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 time = { version = "0.3", features = ["formatting"] }
 tokio = { version = "1.44.2", features = ["time"] }
-url = "2.5.7"
 webbrowser = "1.0.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]

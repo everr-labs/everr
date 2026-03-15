@@ -28,7 +28,6 @@ use tauri::{
 use tauri_plugin_updater::UpdaterExt;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
-use url::Url;
 
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
@@ -53,7 +52,6 @@ const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
-const DEFAULT_UPDATER_ENDPOINT: &str = "https://everr.dev/everr-app/latest.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StartupUpdateAction {
@@ -593,16 +591,7 @@ async fn install_startup_update_if_available(app: &AppHandle) -> Result<bool> {
         return Ok(false);
     }
 
-    let Some(pubkey) = updater_public_key() else {
-        eprintln!("[everr-app] updater public key is not configured; skipping startup update");
-        return Ok(false);
-    };
-
-    let updater = app
-        .updater_builder()
-        .pubkey(pubkey)
-        .endpoints(vec![updater_endpoint()?])?
-        .build()?;
+    let updater = app.updater()?;
 
     let Some(update) = updater.check().await? else {
         return Ok(false);
@@ -1487,24 +1476,6 @@ fn startup_update_action(is_dev: bool, update_installed: bool) -> StartupUpdateA
     } else {
         StartupUpdateAction::Continue
     }
-}
-
-fn updater_endpoint() -> Result<Url> {
-    option_env!("EVERR_UPDATER_ENDPOINT")
-        .unwrap_or(DEFAULT_UPDATER_ENDPOINT)
-        .parse()
-        .context("invalid updater endpoint")
-}
-
-fn updater_public_key() -> Option<&'static str> {
-    option_env!("EVERR_UPDATER_PUBLIC_KEY").and_then(|value| {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed)
-        }
-    })
 }
 
 fn option_string(value: String) -> Option<String> {
