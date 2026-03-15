@@ -27,10 +27,12 @@ The installer places `everr` in `~/.local/bin` and starts setup when an interact
 - `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit; exits non-zero if any completed run finishes with `failure`)
 - `everr runs list`
 - `everr runs show --trace-id <trace_id>`
-- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>`
+- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>` (prints native-style logs; add `--limit <n>` and `--offset <n>` for raw paging, or `--full` for the entire raw log)
 
 `everr status` returns a failure-first JSON payload. When `status.failures[i].logsArgs` is present you can call `everr runs logs` directly; otherwise use `everr runs show` to discover the failing step.
 
 `everr grep` searches failing step logs for a literal, case-insensitive pattern. Use `--job-name` together with `--step-number` to target one specific failing step. By default it searches the current repository over the last 7 days and excludes the currently checked out branch so you can quickly answer whether the same failure happened elsewhere.
+
+`everr runs logs` prints a focused failure excerpt by default. For contiguous raw log paging, pass `--limit <n>` and `--offset <n>`; if you provide `--offset` without `--limit`, Everr defaults to a 1000-line page.
 
 Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination. `everr runs list` also continues to support `--page <n>`.

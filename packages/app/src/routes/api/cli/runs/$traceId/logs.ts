@@ -3,14 +3,26 @@ import { z } from "zod";
 import { getStepLogs } from "@/data/runs";
 import { cliAuthMiddleware } from "../../-auth";
 
-const StepLogsQuerySchema = z.object({
-  jobName: z.string().min(1),
-  stepNumber: z.string().min(1),
-  fullLogs: z
-    .string()
-    .transform((value) => value === "true" || value === "1")
-    .optional(),
-});
+const StepLogsQuerySchema = z
+  .object({
+    jobName: z.string().min(1),
+    stepNumber: z.string().min(1),
+    fullLogs: z
+      .string()
+      .transform((value) => value === "true" || value === "1")
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(5000).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+  })
+  .refine(
+    (value) =>
+      value.fullLogs !== true ||
+      (value.limit === undefined && value.offset === undefined),
+    {
+      message: "Provide either fullLogs or limit/offset paging, not both.",
+      path: ["fullLogs"],
+    },
+  );
 
 export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
   server: {
@@ -30,13 +42,15 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
           jobName: url.searchParams.get("jobName") ?? undefined,
           stepNumber: url.searchParams.get("stepNumber") ?? undefined,
           fullLogs: url.searchParams.get("fullLogs") ?? undefined,
+          limit: url.searchParams.get("limit") ?? undefined,
+          offset: url.searchParams.get("offset") ?? undefined,
         });
 
         if (!parsed.success) {
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: jobName, stepNumber. Optional: fullLogs=true|false.",
+                "Invalid query parameters. Required: jobName, stepNumber. Optional: fullLogs=true|false, limit, offset.",
             },
             { status: 400 },
           );
@@ -48,6 +62,8 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
             jobName: parsed.data.jobName,
             stepNumber: parsed.data.stepNumber,
             fullLogs: parsed.data.fullLogs,
+            limit: parsed.data.limit,
+            offset: parsed.data.offset,
           },
         });
 

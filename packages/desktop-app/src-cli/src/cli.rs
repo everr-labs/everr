@@ -6,6 +6,9 @@ const VERSION_OUTPUT: &str = concat!(env!("CARGO_PKG_VERSION"), " (debug build)"
 #[cfg(not(debug_assertions))]
 const VERSION_OUTPUT: &str = concat!(env!("CARGO_PKG_VERSION"), " (release build)");
 
+pub const DEFAULT_LOG_PAGE_SIZE: u32 = 1000;
+pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
+
 #[derive(Parser, Debug)]
 #[command(
     name = "everr",
@@ -194,8 +197,45 @@ pub struct GetLogsArgs {
     pub job_name: String,
     #[arg(long)]
     pub step_number: String,
-    #[arg(long, default_value_t = false)]
+    #[arg(
+        long,
+        default_value_t = false,
+        conflicts_with_all = ["limit", "offset"],
+        help = "Print the entire raw log instead of a focused excerpt or paged slice"
+    )]
     pub full: bool,
+    #[arg(
+        long,
+        conflicts_with = "full",
+        value_parser = clap::value_parser!(u32).range(1..=MAX_LOG_PAGE_SIZE as i64),
+        help = "Fetch a raw log page of N lines (oldest-first)"
+    )]
+    pub limit: Option<u32>,
+    #[arg(
+        long,
+        conflicts_with = "full",
+        help = "Skip this many raw log lines before printing the page; if --limit is omitted, Everr defaults to a 1000-line page"
+    )]
+    pub offset: Option<u32>,
+}
+
+impl GetLogsArgs {
+    pub fn paging(&self) -> Option<LogPagingArgs> {
+        if self.limit.is_none() && self.offset.is_none() {
+            return None;
+        }
+
+        Some(LogPagingArgs {
+            limit: self.limit.unwrap_or(DEFAULT_LOG_PAGE_SIZE),
+            offset: self.offset.unwrap_or(0),
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LogPagingArgs {
+    pub limit: u32,
+    pub offset: u32,
 }
 
 #[derive(Args, Debug)]
@@ -217,8 +257,8 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        AssistantKind, Cli, Commands, GrepArgs, RunsCommand, SlowestJobsArgs, SlowestTestsArgs,
-        TestHistoryArgs, WatchArgs,
+        AssistantKind, Cli, Commands, DEFAULT_LOG_PAGE_SIZE, GrepArgs, RunsCommand,
+        SlowestJobsArgs, SlowestTestsArgs, TestHistoryArgs, WatchArgs,
     };
 
     #[test]
@@ -315,6 +355,7 @@ mod tests {
             panic!("expected runs logs command");
         };
         assert!(!args.full);
+        assert_eq!(args.paging(), None);
     }
 
     #[test]
@@ -403,6 +444,109 @@ mod tests {
             panic!("expected runs logs command");
         };
         assert!(args.full);
+    }
+
+    #[test]
+    fn runs_logs_limit_enables_paging_mode() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-1",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--limit",
+            "250",
+        ])
+        .expect("valid paged runs logs command");
+
+        let Commands::Runs { command } = cli.command else {
+            panic!("expected runs command");
+        };
+        let RunsCommand::Logs(args) = command else {
+            panic!("expected runs logs command");
+        };
+
+        assert_eq!(
+            args.paging().map(|value| (value.limit, value.offset)),
+            Some((250, 0))
+        );
+    }
+
+    #[test]
+    fn runs_logs_offset_defaults_page_size_to_one_thousand() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-1",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--offset",
+            "2000",
+        ])
+        .expect("valid paged runs logs command");
+
+        let Commands::Runs { command } = cli.command else {
+            panic!("expected runs command");
+        };
+        let RunsCommand::Logs(args) = command else {
+            panic!("expected runs logs command");
+        };
+
+        assert_eq!(
+            args.paging().map(|value| (value.limit, value.offset)),
+            Some((DEFAULT_LOG_PAGE_SIZE, 2000))
+        );
+    }
+
+    #[test]
+    fn runs_logs_full_conflicts_with_paging_flags() {
+        let err = Cli::try_parse_from([
+            "everr",
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-1",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--full",
+            "--limit",
+            "25",
+        ])
+        .expect_err("runs logs should reject --full with paging flags");
+
+        let err_string = err.to_string();
+        assert!(err_string.contains("--full"));
+        assert!(err_string.contains("--limit"));
+    }
+
+    #[test]
+    fn runs_logs_limit_rejects_values_over_maximum() {
+        let err = Cli::try_parse_from([
+            "everr",
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-1",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--limit",
+            "5001",
+        ])
+        .expect_err("runs logs should reject oversize page limits");
+
+        assert!(err.to_string().contains("--limit"));
     }
 
     #[test]

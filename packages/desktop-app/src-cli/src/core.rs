@@ -7,11 +7,11 @@ use everr_core::git::{resolve_git_context, run_git};
 use serde_json::Value;
 use tokio::time::sleep;
 
-use crate::api::ApiClient;
+use crate::api::{ApiClient, StepLogEntry};
 use crate::auth;
 use crate::cli::{
-    GetLogsArgs, GrepArgs, ListRunsArgs, ShowRunArgs, SlowestJobsArgs, SlowestTestsArgs,
-    StatusArgs, TestHistoryArgs, WatchArgs,
+    GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
+    SlowestTestsArgs, StatusArgs, TestHistoryArgs, WatchArgs,
 };
 
 pub async fn status(args: StatusArgs) -> Result<()> {
@@ -105,13 +105,25 @@ pub async fn runs_show(args: ShowRunArgs) -> Result<()> {
 pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
+    let paging = args.paging();
     let query = vec![
         ("jobName", args.job_name),
         ("stepNumber", args.step_number),
         ("fullLogs", args.full.to_string()),
     ];
-    let payload = client.get_step_logs(&args.trace_id, &query).await?;
-    print_json(&payload)?;
+
+    let logs = if let Some(paging) = paging {
+        let paged_logs = get_paged_step_logs(&client, &args.trace_id, query, paging).await?;
+        print_step_logs(&paged_logs.logs)?;
+        if paged_logs.has_more {
+            print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
+        }
+        return Ok(());
+    } else {
+        client.get_step_logs(&args.trace_id, &query).await?
+    };
+
+    print_step_logs(&logs)?;
     Ok(())
 }
 
@@ -222,9 +234,8 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
             .unwrap_or(false);
         let active_runs = extract_watch_runs(&payload, "activeRuns");
         let completed_runs = extract_watch_runs(&payload, "completedRuns");
-        let watch_complete =
-            (pipeline_found && active_runs.is_empty())
-                || (active_runs.is_empty() && !completed_runs.is_empty());
+        let watch_complete = (pipeline_found && active_runs.is_empty())
+            || (active_runs.is_empty() && !completed_runs.is_empty());
 
         if watch_complete {
             finish_watch_status_block(watch_status_lines)?;
@@ -283,6 +294,70 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
 fn print_json(value: &Value) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
+}
+
+fn print_step_logs(logs: &[StepLogEntry]) -> Result<()> {
+    let stdout = io::stdout();
+    let mut handle = stdout.lock();
+    write_step_logs(&mut handle, logs)?;
+    handle.flush().context("failed to flush step log output")
+}
+
+fn write_step_logs(mut writer: impl Write, logs: &[StepLogEntry]) -> Result<()> {
+    for log in logs {
+        writer
+            .write_all(log.body.as_bytes())
+            .context("failed to write step log body")?;
+        if !log.body.ends_with('\n') {
+            writer
+                .write_all(b"\n")
+                .context("failed to terminate step log line")?;
+        }
+    }
+
+    Ok(())
+}
+
+fn print_more_logs_notice(page_size: u32, next_offset: u32) -> Result<()> {
+    let mut stderr = io::stderr().lock();
+    writeln!(
+        stderr,
+        "More logs available. Rerun with --limit {page_size} --offset {next_offset} to continue."
+    )
+    .context("failed to write step log pagination hint")?;
+    stderr
+        .flush()
+        .context("failed to flush step log pagination hint")
+}
+
+async fn get_paged_step_logs(
+    client: &ApiClient,
+    trace_id: &str,
+    mut query: Vec<(&str, String)>,
+    paging: LogPagingArgs,
+) -> Result<PagedStepLogs> {
+    query.push(("limit", paging.limit.saturating_add(1).to_string()));
+    query.push(("offset", paging.offset.to_string()));
+
+    let mut logs = client.get_step_logs(trace_id, &query).await?;
+    let has_more = logs.len() > paging.limit as usize;
+    if has_more {
+        logs.truncate(paging.limit as usize);
+    }
+
+    Ok(PagedStepLogs {
+        logs,
+        has_more,
+        page_size: paging.limit,
+        next_offset: paging.offset.saturating_add(paging.limit),
+    })
+}
+
+struct PagedStepLogs {
+    logs: Vec<StepLogEntry>,
+    has_more: bool,
+    page_size: u32,
+    next_offset: u32,
 }
 
 struct WatchRunStatus {
@@ -480,7 +555,38 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
 mod tests {
     use everr_core::git::parse_repo_from_remote_url;
 
-    use super::{WatchRunStatus, format_watch_status, push_opt, push_pagination};
+    use crate::api::StepLogEntry;
+
+    use super::{LogPagingArgs, WatchRunStatus, format_watch_status, push_opt, push_pagination};
+
+    #[test]
+    fn print_step_logs_terminates_lines_without_trailing_newlines() {
+        let logs = vec![
+            StepLogEntry {
+                timestamp: "2026-03-10T10:00:00.000Z".to_string(),
+                body: "first".to_string(),
+            },
+            StepLogEntry {
+                timestamp: "2026-03-10T10:00:01.000Z".to_string(),
+                body: "second\n".to_string(),
+            },
+        ];
+
+        let mut output = Vec::new();
+        super::write_step_logs(&mut output, &logs).expect("write step logs");
+
+        assert_eq!(String::from_utf8(output).expect("utf8"), "first\nsecond\n");
+    }
+
+    #[test]
+    fn paged_logs_notice_uses_next_requested_offset() {
+        let paging = LogPagingArgs {
+            limit: 1000,
+            offset: 2000,
+        };
+
+        assert_eq!(paging.offset.saturating_add(paging.limit), 3000);
+    }
 
     #[test]
     fn parse_repo_from_remote_rejects_invalid_values() {

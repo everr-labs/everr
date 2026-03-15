@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -61,9 +62,13 @@ impl ApiClient {
         self.get_json(&path, &[]).await
     }
 
-    pub async fn get_step_logs(&self, trace_id: &str, query: &[(&str, String)]) -> Result<Value> {
+    pub async fn get_step_logs(
+        &self,
+        trace_id: &str,
+        query: &[(&str, String)],
+    ) -> Result<Vec<StepLogEntry>> {
         let path = format!("/runs/{trace_id}/logs");
-        self.get_json(&path, query).await
+        self.get(&path, query).await
     }
 
     pub async fn get_owned_failures(
@@ -90,6 +95,10 @@ impl ApiClient {
     }
 
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
+        self.get(path, query).await
+    }
+
+    async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
         let response = self
             .http
             .get(format!("{}{}", self.base_endpoint, path))
@@ -108,10 +117,16 @@ impl ApiClient {
         }
 
         response
-            .json::<Value>()
+            .json::<T>()
             .await
             .context("failed to decode CLI API response as JSON")
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct StepLogEntry {
+    pub timestamp: String,
+    pub body: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
