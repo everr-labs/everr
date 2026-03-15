@@ -45,7 +45,7 @@ describe("getRunJobs", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("toFloat64(0)");
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "WHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id')) AND TraceId = {traceId:String}",
+      "WHERE TraceId = {traceId:String}",
     );
     expect(result).toEqual([
       {
@@ -157,7 +157,7 @@ describe("getStepLogs", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "WHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id')) AND TraceId = {traceId:String}",
+      "WHERE TraceId = {traceId:String}",
     );
     expect(result).toEqual([
       {
@@ -224,7 +224,7 @@ describe("getStepLogs", () => {
       "OFFSET {offsetLines:UInt32}",
     );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "WHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id')) AND TraceId = {traceId:String}",
+      "WHERE TraceId = {traceId:String}",
     );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
       traceId: "trace-1",
