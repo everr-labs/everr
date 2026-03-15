@@ -87,8 +87,6 @@ export function useMarkAssistantStepSeenMutation() {
 export function AssistantsSection() {
   const assistantSetupQuery = useAssistantSetupQuery();
 
-  console.log("assistantSetupQuery", assistantSetupQuery);
-
   if (assistantSetupQuery.isPending) {
     return (
       <SettingsSection
@@ -158,7 +156,7 @@ function LoadedAssistantsSection({ assistantSetup }: { assistantSetup: Assistant
           disabled={saveMutation.isPending}
           onClick={() => void handleSave()}
         >
-          {saveMutation.isPending ? "Saving..." : "Submit"}
+          {saveMutation.isPending ? "Saving..." : "Save integrations"}
         </Button>
       </div>
     </SettingsSection>

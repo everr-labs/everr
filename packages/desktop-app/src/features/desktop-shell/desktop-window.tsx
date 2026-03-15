@@ -1,5 +1,6 @@
 import { Separator } from "../../components/ui/separator";
 import { Toaster } from "../../components/ui/sonner";
+import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import { toErrorMessageText } from "../../lib/tauri";
 import { AccountHeaderAction } from "../auth/auth";
 import { AssistantsSection } from "../assistants/assistants";
@@ -16,7 +17,7 @@ export function DesktopWindow() {
   const wizardStatusQuery = useWizardStatusQuery();
 
   if (wizardStatusQuery.isPending) {
-    return <DesktopLoadingState text="Loading Everr App..." />;
+    return <DesktopLoadingState text={`Loading ${APP_DISPLAY_NAME}...`} />;
   }
 
   if (wizardStatusQuery.isError) {
@@ -25,7 +26,7 @@ export function DesktopWindow() {
 
   const wizardStatus = wizardStatusQuery.data;
   if (!wizardStatus) {
-    return <DesktopLoadingState text="Loading Everr App..." />;
+    return <DesktopLoadingState text={`Loading ${APP_DISPLAY_NAME}...`} />;
   }
 
   const showingWizard = !wizardStatus.wizard_completed;

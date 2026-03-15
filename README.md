@@ -120,7 +120,7 @@ pnpm dev
 
 Use `pnpm dev:web` or `pnpm dev:docs` to start one web surface, or run native commands from `packages/desktop-app/`.
 
-### Build a signed Everr App release
+### Build a signed Everr release
 
 For macOS distribution, use:
 

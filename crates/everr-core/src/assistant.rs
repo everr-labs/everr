@@ -94,10 +94,18 @@ pub fn assistant_path(assistant: AssistantKind) -> Result<PathBuf> {
 }
 
 pub fn refresh_existing_managed_prompts(command_name: &str) -> Result<Vec<AssistantKind>> {
+    let home = resolve_home_dir()?;
+    refresh_existing_managed_prompts_in(&home, command_name)
+}
+
+fn refresh_existing_managed_prompts_in(
+    home: &Path,
+    command_name: &str,
+) -> Result<Vec<AssistantKind>> {
     let mut refreshed = Vec::new();
 
     for assistant in AssistantKind::ALL {
-        let path = path_for_assistant(assistant)?;
+        let path = path_for_assistant_in(home, assistant);
         if !path.exists() {
             continue;
         }
@@ -335,7 +343,8 @@ mod tests {
 
     use super::{
         AssistantKind, assistant_root_for_home, content_for_assistant, path_for_assistant_in,
-        remove_managed_block_for_assistant, render_assistant_instructions, upsert_managed_block,
+        refresh_existing_managed_prompts_in, remove_managed_block_for_assistant,
+        render_assistant_instructions, upsert_managed_block,
     };
 
     #[test]
@@ -441,13 +450,39 @@ mod tests {
     #[test]
     fn assistant_instructions_describe_status_failure_handoff() {
         let rendered = render_assistant_instructions("everr");
-        assert!(
-            rendered.contains(
-                "`status`: `{ status, repo, branch, latestPipeline, failures, message }`"
-            )
-        );
-        assert!(rendered.contains("status.failures[i].logsArgs"));
+        assert!(rendered.contains("`everr status`"));
+        assert!(rendered.contains("When CI fails"));
         assert!(rendered.contains("`everr runs show --trace-id <trace_id>`"));
+    }
+
+    #[test]
+    fn refresh_existing_managed_prompts_updates_only_managed_files() {
+        let home = tempdir().expect("tempdir");
+        let codex_path = path_for_assistant_in(home.path(), AssistantKind::Codex);
+        let claude_path = path_for_assistant_in(home.path(), AssistantKind::Claude);
+
+        fs::create_dir_all(codex_path.parent().expect("codex parent")).expect("codex dir");
+        fs::create_dir_all(claude_path.parent().expect("claude parent")).expect("claude dir");
+        fs::write(
+            &codex_path,
+            "<!-- EVERR_CLI_START -->\nold\n<!-- EVERR_CLI_END -->\n",
+        )
+        .expect("seed managed codex file");
+        fs::write(&claude_path, "# unmanaged note\n").expect("seed unmanaged claude file");
+
+        let refreshed =
+            refresh_existing_managed_prompts_in(home.path(), "everr").expect("refresh prompts");
+
+        assert_eq!(refreshed, vec![AssistantKind::Codex]);
+        assert!(
+            fs::read_to_string(&codex_path)
+                .expect("read codex")
+                .contains("`everr status`")
+        );
+        assert_eq!(
+            fs::read_to_string(&claude_path).expect("read claude"),
+            "# unmanaged note\n"
+        );
     }
 
     fn sync_assistants_for_home(

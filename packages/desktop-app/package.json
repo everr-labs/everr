@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tauri dev",
-    "watch": "tauri dev",
+    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "watch": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "desktop:prepare:debug": "node ./scripts/prepare-tauri-cli-sidecar.ts debug",
     "desktop:prepare:release": "node ./scripts/prepare-tauri-cli-sidecar.ts release",
     "build:desktop": "node ./scripts/build-desktop.ts",

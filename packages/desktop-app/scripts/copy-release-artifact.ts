@@ -1,7 +1,16 @@
-import { chmod, copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { arch as getArch, platform as getPlatform } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { docsPublicDir, loadBuildEnvFile } from "./build-support.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageDir = path.resolve(scriptDir, "..");
@@ -10,19 +19,77 @@ const bundleDirs = [
   path.join(repoDir, "target", "release", "bundle"),
   path.join(packageDir, "src-tauri", "target", "release", "bundle"),
 ];
+const DEFAULT_DOWNLOAD_BASE_URL = "https://everr.dev";
 
-const artifactMatchers: Record<string, string[]> = {
-  macos: [".dmg"],
-  linux: [".AppImage", ".deb", ".rpm"],
+export type DesktopReleaseTarget = {
+  platform: "macos";
+  arch: "arm64";
+  updaterTarget: "darwin-aarch64";
+  dmgName: string;
+  updaterArchiveName: string;
+  updaterSignatureName: string;
 };
 
-function normalizePlatform(value: NodeJS.Platform) {
+type ReleaseArtifacts = {
+  dmg: string;
+  updaterArchive: string;
+  updaterSignature: string;
+};
+
+export function normalizePlatform(value: NodeJS.Platform) {
   switch (value) {
     case "darwin":
       return "macos";
     default:
       return value;
   }
+}
+
+export function getDesktopReleaseTarget(
+  platform: string,
+  arch: string,
+): DesktopReleaseTarget {
+  if (platform !== "macos" || arch !== "arm64") {
+    throw new Error(`Unsupported desktop release target: ${platform}-${arch}`);
+  }
+
+  return {
+    platform: "macos",
+    arch: "arm64",
+    updaterTarget: "darwin-aarch64",
+    dmgName: "everr-macos-arm64.dmg",
+    updaterArchiveName: "everr-macos-arm64.app.tar.gz",
+    updaterSignatureName: "everr-macos-arm64.app.tar.gz.sig",
+  };
+}
+
+export function buildUpdaterManifest({
+  version,
+  pubDate,
+  downloadUrl,
+  signature,
+  updaterTarget,
+}: {
+  version: string;
+  pubDate: string;
+  downloadUrl: string;
+  signature: string;
+  updaterTarget: string;
+}) {
+  return `${JSON.stringify(
+    {
+      version,
+      pub_date: pubDate,
+      platforms: {
+        [updaterTarget]: {
+          url: downloadUrl,
+          signature,
+        },
+      },
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 async function pathExists(value: string) {
@@ -62,26 +129,8 @@ async function findBundleDir() {
   throw new Error("Could not locate the Tauri release bundle directory.");
 }
 
-async function removeStaleArtifacts(dir: string, platform: string, arch: string) {
-  if (!(await pathExists(dir))) {
-    return;
-  }
-
-  const staleEntries = [`${platform}-${arch}`, `darwin-${arch}`];
-  const prefix = `everr-app-${platform}-${arch}.`;
-  const entries = await readdir(dir);
-
-  await Promise.all(
-    entries
-      .filter((entry) => entry.startsWith(prefix) || staleEntries.includes(entry))
-      .map((entry) => rm(path.join(dir, entry), { force: true, recursive: true })),
-  );
-}
-
-async function findReleaseArtifact(dir: string, extensions: string[]) {
-  const candidates = (await findFiles(dir)).filter((file) =>
-    extensions.includes(path.extname(file)),
-  );
+async function findNewestFileWithSuffix(dir: string, suffix: string) {
+  const candidates = (await findFiles(dir)).filter((file) => file.endsWith(suffix));
 
   if (candidates.length === 0) {
     return null;
@@ -102,37 +151,114 @@ async function findReleaseArtifact(dir: string, extensions: string[]) {
   return candidatesWithStats[0];
 }
 
+export async function findReleaseArtifacts(bundleDir: string): Promise<ReleaseArtifacts> {
+  const dmg = await findNewestFileWithSuffix(bundleDir, ".dmg");
+  const updaterArchive = await findNewestFileWithSuffix(bundleDir, ".app.tar.gz");
+
+  if (!dmg || !updaterArchive) {
+    throw new Error(
+      "Could not locate the desktop release DMG and updater archive in the Tauri bundle directory.",
+    );
+  }
+
+  const updaterSignature = `${updaterArchive.file}.sig`;
+  if (!(await pathExists(updaterSignature))) {
+    throw new Error(
+      `Missing updater signature for ${path.basename(updaterArchive.file)}. Set TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD before building the release.`,
+    );
+  }
+
+  return {
+    dmg: dmg.file,
+    updaterArchive: updaterArchive.file,
+    updaterSignature,
+  };
+}
+
+async function removeStaleArtifacts(dir: string, target: DesktopReleaseTarget) {
+  if (!(await pathExists(dir))) {
+    return;
+  }
+
+  const legacyPrefix = `everr-app-${target.platform}-${target.arch}`;
+  const staleEntries = new Set([
+    "latest.json",
+    target.dmgName,
+    target.updaterArchiveName,
+    target.updaterSignatureName,
+  ]);
+  const entries = await readdir(dir);
+
+  await Promise.all(
+    entries
+      .filter(
+        (entry) =>
+          staleEntries.has(entry) ||
+          entry.startsWith(`${legacyPrefix}.`) ||
+          entry === `${target.platform}-${target.arch}` ||
+          entry === `darwin-${target.arch}`,
+      )
+      .map((entry) => rm(path.join(dir, entry), { force: true, recursive: true })),
+  );
+}
+
+async function readDesktopVersion() {
+  const configPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
+  const config = JSON.parse(await readFile(configPath, "utf8")) as {
+    version?: string;
+  };
+
+  if (!config.version) {
+    throw new Error(`Could not resolve desktop app version from ${configPath}.`);
+  }
+
+  return config.version;
+}
+
+function resolveDownloadBaseUrl() {
+  loadBuildEnvFile();
+  return (process.env.EVERR_DOWNLOAD_BASE_URL?.trim() || DEFAULT_DOWNLOAD_BASE_URL).replace(
+    /\/+$/,
+    "",
+  );
+}
+
 export async function copyReleaseArtifact() {
+  loadBuildEnvFile();
+
   const platform = normalizePlatform(getPlatform());
   const arch = getArch();
-  const extensions = artifactMatchers[platform];
-
-  if (!extensions) {
-    throw new Error(`Unsupported desktop platform: ${platform}`);
-  }
-
+  const target = getDesktopReleaseTarget(platform, arch);
   const bundleDir = await findBundleDir();
-  const artifact = await findReleaseArtifact(bundleDir, extensions);
-
-  if (!artifact) {
-    throw new Error(`Could not locate a release artifact for ${platform}-${arch}.`);
-  }
-
-  const destDir = path.join(repoDir, "packages", "docs", "public", "everr-app");
-  const artifactPath = path.join(
-    destDir,
-    `everr-app-${platform}-${arch}${path.extname(artifact.file)}`,
-  );
+  const artifacts = await findReleaseArtifacts(bundleDir);
+  const destDir = path.join(docsPublicDir, "everr-app");
+  const version = await readDesktopVersion();
+  const downloadBaseUrl = resolveDownloadBaseUrl();
+  const updaterSignature = (await readFile(artifacts.updaterSignature, "utf8")).trim();
+  const updaterArchiveUrl = `${downloadBaseUrl}/everr-app/${target.updaterArchiveName}`;
+  const manifest = buildUpdaterManifest({
+    version,
+    pubDate: new Date().toISOString(),
+    downloadUrl: updaterArchiveUrl,
+    signature: updaterSignature,
+    updaterTarget: target.updaterTarget,
+  });
 
   await mkdir(destDir, { recursive: true });
-  await removeStaleArtifacts(destDir, platform, arch);
-  await copyFile(artifact.file, artifactPath);
+  await removeStaleArtifacts(destDir, target);
+  await copyFile(artifacts.dmg, path.join(destDir, target.dmgName));
+  await copyFile(artifacts.updaterArchive, path.join(destDir, target.updaterArchiveName));
+  await copyFile(
+    artifacts.updaterSignature,
+    path.join(destDir, target.updaterSignatureName),
+  );
+  await writeFile(path.join(destDir, "latest.json"), manifest);
 
-  if (artifact.stat.mode & 0o111) {
-    await chmod(artifactPath, 0o755);
-  }
-
-  console.log(`Copied Everr App release artifact to ${artifactPath}`);
+  console.log(`Copied Everr release artifact to ${path.join(destDir, target.dmgName)}`);
+  console.log(
+    `Copied updater archive to ${path.join(destDir, target.updaterArchiveName)}`,
+  );
+  console.log(`Wrote updater manifest to ${path.join(destDir, "latest.json")}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
