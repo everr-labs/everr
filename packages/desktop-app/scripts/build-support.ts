@@ -92,7 +92,7 @@ export async function resolveTargetTriple() {
   return targetTriple;
 }
 
-async function signBinaryIfNeeded(binaryPath: string) {
+export async function signBinaryIfNeeded(binaryPath: string) {
   if (process.platform !== "darwin") {
     return;
   }
