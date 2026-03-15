@@ -68,6 +68,20 @@ fn runs_list_help_lists_limit_and_offset() {
 }
 
 #[test]
+fn runs_logs_help_lists_paging_flags_and_default_page_size() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["runs", "logs", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("--full"))
+        .stdout(contains("--limit <LIMIT>"))
+        .stdout(contains("--offset <OFFSET>"))
+        .stdout(contains("defaults to a 1000-line page"));
+}
+
+#[test]
 fn status_help_lists_commit_based_options() {
     let env = CliTestEnv::new();
 

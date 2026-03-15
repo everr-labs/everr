@@ -306,7 +306,10 @@ mod tests {
         let store = SessionStore::for_namespace("everr");
 
         assert_eq!(store.namespace(), "everr");
-        assert_eq!(store.session_file_name(), build::default_session_file_name());
+        assert_eq!(
+            store.session_file_name(),
+            build::default_session_file_name()
+        );
     }
 
     #[test]

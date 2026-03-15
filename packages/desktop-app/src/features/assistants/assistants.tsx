@@ -123,7 +123,7 @@ export function AssistantsSection() {
 
 function LoadedAssistantsSection({ assistantSetup }: { assistantSetup: AssistantSetup }) {
   const saveMutation = useSaveAssistantsMutation();
-  const { selection, isDirty, setDraftFromServer, resetDraft, toggleAssistant } =
+  const { selection, setDraftFromServer, resetDraft, toggleAssistant } =
     useAssistantSelectionDraft(
       configuredAssistantsFromStatuses(assistantSetup.assistant_statuses),
     );
@@ -148,14 +148,14 @@ function LoadedAssistantsSection({ assistantSetup }: { assistantSetup: Assistant
         <Button
           variant="outline"
           size="sm"
-          disabled={!isDirty || saveMutation.isPending}
+          disabled={saveMutation.isPending}
           onClick={resetDraft}
         >
           Cancel
         </Button>
         <Button
           size="sm"
-          disabled={!isDirty || saveMutation.isPending}
+          disabled={saveMutation.isPending}
           onClick={() => void handleSave()}
         >
           {saveMutation.isPending ? "Saving..." : "Submit"}

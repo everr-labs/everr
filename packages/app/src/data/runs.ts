@@ -41,6 +41,84 @@ export interface LogEntry {
 
 const DEFAULT_FAILING_CONTEXT_WINDOW = 50;
 const DEFAULT_RAW_TAIL_LINES = 5000;
+const DEFAULT_LOG_PAGE_SIZE = 1000;
+const MAX_LOG_PAGE_SIZE = 5000;
+const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
+  pass: "success",
+  fail: "failure",
+  skip: "skip",
+};
+const FAILING_LINE_REGEX_PATTERNS = [
+  String.raw`^##\[(error|fatal)\]`,
+  String.raw`\bHTTP\s*5\d\d\b|\bstatus\s*[:=]?\s*5\d\d\b`,
+  String.raw`\b(?:Assertion|Reference|Syntax|Type|Runtime|Import|ModuleNotFound|Timeout)Error\b`,
+  String.raw`\b(?:exit code|exited with code|process completed with exit code)\s*[:=]?\s*[1-9]\d*\b`,
+  String.raw`\bSIG(?:SEGV|ABRT|KILL|TERM)\b`,
+] as const;
+const FAILING_LINE_SUBSTRINGS = [
+  "error",
+  "exception",
+  "unhandled exception",
+  "traceback",
+  "stack trace",
+  "stacktrace",
+  "timeout",
+  "timed out",
+  "deadline exceeded",
+  "context deadline exceeded",
+  "operation timed out",
+  "request timed out",
+  "etimedout",
+  "panic",
+  "segfault",
+  "segmentation fault",
+  "fatal",
+  "fatal error",
+  "assertion failed",
+  "outofmemory",
+  "out of memory",
+  "oomkilled",
+  "killed process",
+  "econnrefused",
+  "connection refused",
+  "econnreset",
+  "connection reset by peer",
+  "broken pipe",
+  "enotfound",
+  "eai_again",
+  "eaddrinuse",
+  "network is unreachable",
+  "name or service not known",
+  "no such host",
+  "no such file or directory",
+  "cannot find module",
+  "module not found",
+  "permission denied",
+  "access denied",
+  "command not found",
+  "non-zero exit",
+  "returned non-zero exit code",
+  "build failed",
+  "test failed",
+  "tests failed",
+  "command failed",
+] as const;
+
+function toSqlStringLiteral(value: string): string {
+  return `'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
+}
+
+export function buildFailingLinePredicateSql(column = "Body"): string {
+  const regexConditions = FAILING_LINE_REGEX_PATTERNS.map(
+    (pattern) => `match(${column}, ${toSqlStringLiteral(`(?i)${pattern}`)})`,
+  );
+  const substringConditions = FAILING_LINE_SUBSTRINGS.map(
+    (term) =>
+      `positionCaseInsensitive(${column}, ${toSqlStringLiteral(term)}) > 0`,
+  );
+
+  return [...regexConditions, ...substringConditions].join("\n\t\t\t\t\t\tOR ");
+}
 
 function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
   return {
@@ -59,11 +137,14 @@ async function getRawStepLogs(params: {
   jobName: string;
   stepNumber: string;
   maxLines?: number;
+  offsetLines?: number;
   useTail?: boolean;
 }): Promise<LogEntry[]> {
   const order = params.useTail ? "DESC" : "ASC";
   const limitClause =
     typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
+  const offsetClause =
+    typeof params.offsetLines === "number" ? "OFFSET {offsetLines:UInt32}" : "";
   const sql = `
 		SELECT
 			Timestamp as timestamp,
@@ -74,6 +155,7 @@ async function getRawStepLogs(params: {
 			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 		ORDER BY Timestamp ${order}
 		${limitClause}
+		${offsetClause}
 	`;
 
   const result = await query<{
@@ -84,6 +166,7 @@ async function getRawStepLogs(params: {
     jobName: params.jobName,
     stepNumber: params.stepNumber,
     maxLines: params.maxLines,
+    offsetLines: params.offsetLines,
   });
 
   const logs = result.map(mapLogRow);
@@ -97,7 +180,7 @@ async function isFailedPipelineStep(params: {
   stepNumber: string;
 }): Promise<boolean> {
   const sql = `
-		SELECT count() as count
+		SELECT 1 as hit
 		FROM traces
 		WHERE TraceId = {traceId:String}
 			AND ResourceAttributes['cicd.pipeline.task.name'] = {jobName:String}
@@ -107,10 +190,11 @@ async function isFailedPipelineStep(params: {
 				OR lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
 				OR lowerUTF8(ResourceAttributes['cicd.pipeline.result']) IN ('failure', 'failed')
 			)
+		LIMIT 1
 	`;
 
-  const result = await query<{ count: string }>(sql, params);
-  return (result[0] ? Number(result[0].count) : 0) > 0;
+  const result = await query<{ hit: string }>(sql, params);
+  return result.length > 0;
 }
 
 async function getStepLogsFailing(params: {
@@ -136,61 +220,38 @@ export function buildFailingStepLogsSql(): string {
 					Body as body,
 					row_number() OVER (ORDER BY Timestamp ASC) AS line_no,
 					(
-						match(Body, '(?i)^##\\\\[error\\\\]')
-						OR positionCaseInsensitive(Body, 'exception') > 0
-						OR positionCaseInsensitive(Body, 'error') > 0
-						OR positionCaseInsensitive(Body, 'traceback') > 0
-						OR positionCaseInsensitive(Body, 'timeout') > 0
-						OR positionCaseInsensitive(Body, 'timed out') > 0
-						OR positionCaseInsensitive(Body, 'deadline exceeded') > 0
-						OR positionCaseInsensitive(Body, 'etimedout') > 0
-						OR match(Body, '(?i)\\\\bHTTP\\\\s*5\\\\d\\\\d\\\\b|\\\\bstatus\\\\s*[:=]?\\\\s*5\\\\d\\\\d\\\\b')
-						OR positionCaseInsensitive(Body, 'panic') > 0
-						OR positionCaseInsensitive(Body, 'segfault') > 0
-						OR positionCaseInsensitive(Body, 'fatal') > 0
-						OR positionCaseInsensitive(Body, 'outofmemory') > 0
-						OR positionCaseInsensitive(Body, 'out of memory') > 0
-						OR positionCaseInsensitive(Body, ' exit code ') > 0
-						OR positionCaseInsensitive(Body, 'exited with code') > 0
-						OR positionCaseInsensitive(Body, 'non-zero exit') > 0
+						${buildFailingLinePredicateSql("Body")}
 					) AS is_anchor
 				FROM logs
 				WHERE TraceId = {traceId:String}
 					AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
 					AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 			),
-			anchors AS (
-				SELECT groupArray(line_no) AS anchor_line_nos
-				FROM step_logs
-				WHERE is_anchor
-			),
-			failing AS (
+			focused_logs AS (
 				SELECT
-					s.timestamp,
-					s.body,
-					s.line_no,
-					s.is_anchor
-				FROM step_logs s
-				CROSS JOIN anchors a
-				WHERE
-					s.is_anchor
-					OR arrayExists(
-						x -> abs(toInt64(s.line_no) - toInt64(x)) <= toInt64(${DEFAULT_FAILING_CONTEXT_WINDOW}),
-						a.anchor_line_nos
-					)
+					timestamp,
+					body,
+					line_no,
+					max(toUInt8(is_anchor)) OVER (
+						ORDER BY line_no
+						ROWS BETWEEN ${DEFAULT_FAILING_CONTEXT_WINDOW} PRECEDING
+							AND ${DEFAULT_FAILING_CONTEXT_WINDOW} FOLLOWING
+					) AS near_anchor
+				FROM step_logs
 			)
 		SELECT
 			timestamp,
 			body
 		FROM (
-			SELECT
-				timestamp,
-				body,
-				line_no
-			FROM failing
-			ORDER BY line_no DESC
-			LIMIT ${DEFAULT_RAW_TAIL_LINES}
-		)
+				SELECT
+					timestamp,
+					body,
+					line_no
+				FROM focused_logs
+				WHERE near_anchor = 1
+				ORDER BY line_no DESC
+				LIMIT ${DEFAULT_RAW_TAIL_LINES}
+			)
 		ORDER BY line_no ASC
 	`;
 }
@@ -287,7 +348,7 @@ export const getRunDetails = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 					max(Timestamp) as timestamp
 				FROM traces
-			WHERE TraceId = {traceId:String}
+				WHERE TraceId = {traceId:String}
 		`;
 
     const result = await query<{
@@ -463,9 +524,22 @@ export const getStepLogs = createServerFn({
       jobName: z.string(),
       stepNumber: z.string(),
       fullLogs: z.boolean().optional(),
+      limit: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
+      offset: z.number().int().min(0).optional(),
     }),
   )
   .handler(async ({ data }) => {
+    const isPaged = data.limit !== undefined || data.offset !== undefined;
+    if (isPaged) {
+      return getRawStepLogs({
+        traceId: data.traceId,
+        jobName: data.jobName,
+        stepNumber: data.stepNumber,
+        maxLines: data.limit ?? DEFAULT_LOG_PAGE_SIZE,
+        offsetLines: data.offset ?? 0,
+      });
+    }
+
     if (data.fullLogs) {
       return getRawStepLogs(data);
     }
@@ -487,7 +561,7 @@ export const getStepLogs = createServerFn({
       traceId: data.traceId,
       jobName: data.jobName,
       stepNumber: data.stepNumber,
-      maxLines: data.fullLogs ? undefined : DEFAULT_RAW_TAIL_LINES,
+      maxLines: DEFAULT_RAW_TAIL_LINES,
       useTail: true,
     });
   });
@@ -566,12 +640,6 @@ export const getRunSpans = createServerFn({
       isSubtest: string;
       isSuite: string;
     }>(sql, { traceId });
-
-    const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
-      pass: "success",
-      fail: "failure",
-      skip: "skip",
-    };
 
     return result.map((row) => {
       // Calculate queue time from created_at and started_at (ISO timestamps)

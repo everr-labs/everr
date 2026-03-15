@@ -1,1 +1,1 @@
-pub use everr_core::api::ApiClient;
+pub use everr_core::api::{ApiClient, StepLogEntry};

@@ -304,7 +304,7 @@ fn runs_show_calls_trace_id_endpoint() {
 }
 
 #[test]
-fn runs_logs_sets_full_logs_false_by_default() {
+fn runs_logs_prints_plain_text_by_default() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
@@ -319,7 +319,9 @@ fn runs_logs_sets_full_logs_false_by_default() {
             Matcher::UrlEncoded("fullLogs".into(), "false".into()),
         ]))
         .with_status(200)
-        .with_body(r#"{"logs":"short"}"#)
+        .with_body(
+            r#"[{"timestamp":"2026-03-10T10:00:00.000Z","body":"Starting build"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"Compiling"}]"#,
+        )
         .create();
 
     env.command_with_api_base_url(&server.url())
@@ -335,13 +337,14 @@ fn runs_logs_sets_full_logs_false_by_default() {
         ])
         .assert()
         .success()
-        .stdout(contains("\"logs\": \"short\""));
+        .stdout(predicate::str::diff("Starting build\nCompiling\n"))
+        .stderr(predicate::str::is_empty());
 
     mock.assert();
 }
 
 #[test]
-fn runs_logs_sets_full_logs_true_when_flag_is_present() {
+fn runs_logs_prints_full_logs_as_plain_text() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
@@ -356,7 +359,9 @@ fn runs_logs_sets_full_logs_true_when_flag_is_present() {
             Matcher::UrlEncoded("fullLogs".into(), "true".into()),
         ]))
         .with_status(200)
-        .with_body(r#"{"logs":"full"}"#)
+        .with_body(
+            r#"[{"timestamp":"2026-03-10T10:00:00.000Z","body":"first line"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"second line\n"}]"#,
+        )
         .create();
 
     env.command_with_api_base_url(&server.url())
@@ -373,7 +378,96 @@ fn runs_logs_sets_full_logs_true_when_flag_is_present() {
         ])
         .assert()
         .success()
-        .stdout(contains("\"logs\": \"full\""));
+        .stdout(predicate::str::diff("first line\nsecond line\n"))
+        .stderr(predicate::str::is_empty());
+
+    mock.assert();
+}
+
+#[test]
+fn runs_logs_offset_without_limit_defaults_to_one_thousand_lines() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs/trace-123/logs")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("jobName".into(), "build".into()),
+            Matcher::UrlEncoded("stepNumber".into(), "2".into()),
+            Matcher::UrlEncoded("fullLogs".into(), "false".into()),
+            Matcher::UrlEncoded("limit".into(), "1001".into()),
+            Matcher::UrlEncoded("offset".into(), "1000".into()),
+        ]))
+        .with_status(200)
+        .with_body(r#"[{"timestamp":"2026-03-10T10:16:40.000Z","body":"paged line"}]"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-123",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--offset",
+            "1000",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::diff("paged line\n"))
+        .stderr(predicate::str::is_empty());
+
+    mock.assert();
+}
+
+#[test]
+fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs/trace-123/logs")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("jobName".into(), "build".into()),
+            Matcher::UrlEncoded("stepNumber".into(), "2".into()),
+            Matcher::UrlEncoded("fullLogs".into(), "false".into()),
+            Matcher::UrlEncoded("limit".into(), "3".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
+        ]))
+        .with_status(200)
+        .with_body(
+            r#"[{"timestamp":"2026-03-10T10:00:00.000Z","body":"line 1"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"line 2"},{"timestamp":"2026-03-10T10:00:02.000Z","body":"line 3"}]"#,
+        )
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "runs",
+            "logs",
+            "--trace-id",
+            "trace-123",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--limit",
+            "2",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::diff("line 1\nline 2\n"))
+        .stderr(contains(
+            "More logs available. Rerun with --limit 2 --offset 2 to continue.",
+        ));
 
     mock.assert();
 }
@@ -781,13 +875,7 @@ fn watch_polls_until_head_sha_run_is_found() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args([
-            "watch",
-            "--timeout-seconds",
-            "2",
-            "--interval-seconds",
-            "0",
-        ])
+        .args(["watch", "--timeout-seconds", "2", "--interval-seconds", "0"])
         .assert()
         .success()
         .stdout(contains("\"pipelineFound\": true"))
@@ -980,13 +1068,7 @@ fn watch_fails_when_completed_runs_include_failure() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args([
-            "watch",
-            "--timeout-seconds",
-            "2",
-            "--interval-seconds",
-            "0",
-        ])
+        .args(["watch", "--timeout-seconds", "2", "--interval-seconds", "0"])
         .assert()
         .failure()
         .stdout(contains("\"conclusion\": \"failure\""))
@@ -1026,13 +1108,7 @@ fn watch_times_out_when_head_sha_is_not_found() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args([
-            "watch",
-            "--timeout-seconds",
-            "0",
-            "--interval-seconds",
-            "0",
-        ])
+        .args(["watch", "--timeout-seconds", "0", "--interval-seconds", "0"])
         .assert()
         .failure()
         .stderr(contains("timed out after 0s"))
@@ -1087,13 +1163,7 @@ fn watch_finishes_status_row_before_api_error() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args([
-            "watch",
-            "--timeout-seconds",
-            "2",
-            "--interval-seconds",
-            "0",
-        ])
+        .args(["watch", "--timeout-seconds", "2", "--interval-seconds", "0"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("Elapsed: ").not())

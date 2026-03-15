@@ -146,7 +146,10 @@ mod tests {
         let store = session_store();
 
         assert_eq!(store.namespace(), build::session_namespace());
-        assert_eq!(store.session_file_name(), build::default_session_file_name());
+        assert_eq!(
+            store.session_file_name(),
+            build::default_session_file_name()
+        );
     }
 
     #[test]
