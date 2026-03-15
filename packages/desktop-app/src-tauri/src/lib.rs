@@ -50,7 +50,6 @@ const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr App";
 const DEV_APP_NAME: &str = "Everr App DEV";
-const DEV_SESSION_FILE_NAME: &str = "session-dev.json";
 
 #[derive(Clone)]
 struct RuntimeState {
@@ -1284,14 +1283,7 @@ fn current_app_name() -> &'static str {
 }
 
 fn current_session_store() -> SessionStore {
-    if tauri::is_dev() {
-        SessionStore::for_namespace_with_file_name(
-            build::session_namespace(),
-            DEV_SESSION_FILE_NAME,
-        )
-    } else {
-        SessionStore::for_namespace(build::session_namespace())
-    }
+    SessionStore::for_namespace(build::session_namespace())
 }
 
 fn current_base_url() -> &'static str {
@@ -1430,7 +1422,7 @@ mod tests {
         format_tray_title, format_tray_tooltip, migrate_completed_base_url,
         sync_installed_cli_from_paths, tray_auto_fix_prompt, tray_failed_runs_target,
         value_has_wizard_metadata, AppSettings, NotificationQueue, TraySnapshot, TrayState,
-        WizardState, APP_NAME, DEV_APP_NAME, DEV_SESSION_FILE_NAME,
+        WizardState, APP_NAME, DEV_APP_NAME,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1537,17 +1529,13 @@ mod tests {
     }
 
     #[test]
-    fn current_session_store_uses_dev_session_file_name() {
+    fn current_session_store_uses_current_build_session_file_name() {
         let store = current_session_store();
 
         assert_eq!(store.namespace(), super::build::session_namespace());
         assert_eq!(
             store.session_file_name(),
-            if tauri::is_dev() {
-                DEV_SESSION_FILE_NAME
-            } else {
-                "session.json"
-            }
+            super::build::default_session_file_name()
         );
     }
 

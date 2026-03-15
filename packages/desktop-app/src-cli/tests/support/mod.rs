@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
 use assert_cmd::Command;
+use everr_core::build;
 use mockito::{Server, ServerGuard};
 use serde_json::Value;
 use tempfile::TempDir;
@@ -46,7 +47,9 @@ impl CliTestEnv {
     }
 
     pub fn session_path(&self) -> PathBuf {
-        self.config_dir.join("everr").join("session.json")
+        self.config_dir
+            .join(build::session_namespace())
+            .join(build::default_session_file_name())
     }
 
     pub fn write_session(&self, api_base_url: &str, token: &str) {

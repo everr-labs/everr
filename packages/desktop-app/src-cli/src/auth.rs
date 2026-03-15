@@ -143,7 +143,10 @@ mod tests {
 
     #[test]
     fn session_namespace_is_fixed() {
-        assert_eq!(session_store().namespace(), build::session_namespace());
+        let store = session_store();
+
+        assert_eq!(store.namespace(), build::session_namespace());
+        assert_eq!(store.session_file_name(), build::default_session_file_name());
     }
 
     #[test]
