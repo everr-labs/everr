@@ -1,0 +1,87 @@
+name: Build & Test Desktop App
+
+permissions:
+  contents: read
+
+concurrency:
+  # For pushes, this lets concurrent runs happen, so each push gets a result.
+  # But for other events (e.g. PRs), we can cancel the previous runs.
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/build-and-test-desktop-app.yml
+      - .nvmrc
+      - Cargo.toml
+      - Cargo.lock
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - crates/everr-core/**
+      - packages/desktop-app/**
+
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-test-desktop-app.yml
+      - .nvmrc
+      - Cargo.toml
+      - Cargo.lock
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - crates/everr-core/**
+      - packages/desktop-app/**
+
+jobs:
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test desktop frontend
+        run: pnpm --filter @everr/desktop-app test
+
+  native-tests:
+    name: Native Tests
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+
+      - name: Test desktop native app
+        run: cargo test --manifest-path packages/desktop-app/src-tauri/Cargo.toml
