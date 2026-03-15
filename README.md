@@ -128,5 +128,11 @@ For macOS distribution, use:
 pnpm --dir packages/desktop-app build:desktop
 ```
 
+If you also want that release flow to install the signed CLI into `~/.local/bin`, opt in explicitly:
+
+```bash
+pnpm --dir packages/desktop-app build:desktop -- --install
+```
+
 The Apple signing and notarization inputs are documented in `packages/desktop-app/README.md`.
 `packages/desktop-app/.env` is sourced automatically by the package-native build scripts.

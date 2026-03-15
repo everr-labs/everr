@@ -36,7 +36,11 @@ function getEnv(name: string) {
 
 function getFlagEnv(name: string): "0" | "1" | undefined {
   const value = getEnv(name);
-  if (value === undefined || value === "0" || value === "1") {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === "0" || value === "1") {
     return value;
   }
 
@@ -143,4 +147,16 @@ export async function publishCliArtifact(sourceBin: string) {
   console.log(`Wrote ${outputSha}`);
 
   return { outputBin, outputSha };
+}
+
+export async function installCliBinary(sourceBin: string) {
+  const installPath = path.join(process.env.HOME ?? "", ".local", "bin", "everr");
+
+  await mkdir(path.dirname(installPath), { recursive: true });
+  await copyFile(sourceBin, installPath);
+  await chmod(installPath, 0o755);
+
+  console.log(`Installed Everr CLI to ${installPath}`);
+
+  return installPath;
 }
