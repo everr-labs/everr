@@ -55,6 +55,12 @@ describe("getWatchStatus", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "PREWHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))",
+    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "AND event_kind IN ('pipelinerun', 'taskrun', 'workflowjob')",
+    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "AND startsWith(sha, {commit:String})",
     );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
@@ -66,10 +72,17 @@ describe("getWatchStatus", () => {
       commit: "7f14b13",
     });
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
+      "PREWHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))",
+    );
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "AND event_kind = 'pipelinerun'",
     );
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "toUInt64(round(avg(duration_seconds))) as usualDurationSeconds",
+    );
+    expect(mockedQuery.mock.calls[1]?.[0]).not.toContain("row_number() OVER");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
+      "LIMIT 3 BY workflow_name",
     );
     expect(mockedQuery.mock.calls[1]?.[1]).toEqual({
       repo: "everr-labs/everr",
