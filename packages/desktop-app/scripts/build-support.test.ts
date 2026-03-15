@@ -3,12 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  bumpDesktopAppPatchVersion,
-  bumpPatchVersion,
+  bumpDesktopAppVersion,
+  bumpVersion,
+  defaultDesktopVersionPaths,
   type DesktopVersionPaths,
 } from "./build-support";
 
 const tempDirs: string[] = [];
+const originalDesktopVersionPaths: DesktopVersionPaths = { ...defaultDesktopVersionPaths };
 
 async function makeTempDir() {
   const dir = await mkdtemp(path.join(os.tmpdir(), "everr-build-support-"));
@@ -70,6 +72,7 @@ async function writeDesktopVersionFiles(
 }
 
 afterEach(async () => {
+  Object.assign(defaultDesktopVersionPaths, originalDesktopVersionPaths);
   await Promise.all(
     tempDirs.splice(0).map(async (dir) => {
       const { rm } = await import("node:fs/promises");
@@ -80,14 +83,15 @@ afterEach(async () => {
 
 describe("build-support version helpers", () => {
   it("bumps a patch version", () => {
-    expect(bumpPatchVersion("1.2.3")).toBe("1.2.4");
+    expect(bumpVersion("1.2.3", "patch")).toBe("1.2.4");
   });
 
   it("updates the desktop app version across release files", async () => {
     const rootDir = await makeTempDir();
     const paths = await writeDesktopVersionFiles(rootDir, "0.1.0");
+    Object.assign(defaultDesktopVersionPaths, paths);
 
-    await expect(bumpDesktopAppPatchVersion(paths)).resolves.toEqual({
+    await expect(bumpDesktopAppVersion("patch")).resolves.toEqual({
       previousVersion: "0.1.0",
       nextVersion: "0.1.1",
     });
@@ -106,8 +110,9 @@ describe("build-support version helpers", () => {
       tauriConfigVersion: "1.0.0",
       tauriCargoVersion: "0.1.1",
     });
+    Object.assign(defaultDesktopVersionPaths, paths);
 
-    await expect(bumpDesktopAppPatchVersion(paths)).resolves.toEqual({
+    await expect(bumpDesktopAppVersion("patch")).resolves.toEqual({
       previousVersion: "2.4.9",
       nextVersion: "2.4.10",
     });
