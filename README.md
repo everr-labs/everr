@@ -136,3 +136,4 @@ pnpm --dir packages/desktop-app build:desktop -- --install
 
 The Apple signing and notarization inputs are documented in `packages/desktop-app/README.md`.
 `packages/desktop-app/.env` is sourced automatically by the package-native build scripts.
+That release flow stages the DMG and updater artifacts into `packages/docs/public/everr-app/`.
