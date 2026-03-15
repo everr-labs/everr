@@ -1,16 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
-import type { WaitPipelineRow } from "./wait-pipeline-status";
+import type { WatchRow } from "./watch-status";
 import {
-  buildWaitPipelineStatus,
-  type WaitPipelineDurationBaseline,
-  WaitPipelineStatusInputSchema,
-} from "./wait-pipeline-status";
+  buildWatchStatus,
+  type WatchDurationBaseline,
+  WatchStatusInputSchema,
+} from "./watch-status";
 
-export const getWaitPipelineStatus = createServerFn({
+export const getWatchStatus = createServerFn({
   method: "GET",
 })
-  .inputValidator(WaitPipelineStatusInputSchema)
+  .inputValidator(WatchStatusInputSchema)
   .handler(async ({ data }) => {
     const statusSql = `
       SELECT
@@ -72,7 +72,7 @@ export const getWaitPipelineStatus = createServerFn({
     `;
 
     const [rows, baselines] = await Promise.all([
-      query<WaitPipelineRow>(statusSql, data),
+      query<WatchRow>(statusSql, data),
       query<{
         workflow_name: string;
         usualDurationSeconds: string;
@@ -80,10 +80,7 @@ export const getWaitPipelineStatus = createServerFn({
       }>(averagesSql, data),
     ]);
 
-    const durationBaselinesByWorkflow = new Map<
-      string,
-      WaitPipelineDurationBaseline
-    >(
+    const durationBaselinesByWorkflow = new Map<string, WatchDurationBaseline>(
       baselines.map((row) => [
         row.workflow_name,
         {
@@ -93,5 +90,5 @@ export const getWaitPipelineStatus = createServerFn({
       ]),
     );
 
-    return buildWaitPipelineStatus(data, rows, durationBaselinesByWorkflow);
+    return buildWatchStatus(data, rows, durationBaselinesByWorkflow);
   });

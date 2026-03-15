@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getRunsList } from "@/data/runs-list";
-import { getWaitPipelineStatus } from "@/data/wait-pipeline";
+import { getWatchStatus } from "@/data/watch";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 import { cliAuthMiddleware } from "./-auth";
 
@@ -16,7 +16,7 @@ const RunsListQuerySchema = z.object({
   workflowName: z.string().optional(),
   runId: z.string().optional(),
   commit: z.string().optional(),
-  waitMode: z.enum(["pipeline"]).optional(),
+  watchMode: z.enum(["pipeline"]).optional(),
 });
 
 export const Route = createFileRoute("/api/cli/runs")({
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/cli/runs")({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        if (url.searchParams.has("page")) {
+        if (url.searchParams.has("page") || url.searchParams.has("waitMode")) {
           return Response.json(
             {
               error:
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/api/cli/runs")({
           workflowName: url.searchParams.get("workflowName") ?? undefined,
           runId: url.searchParams.get("runId") ?? undefined,
           commit: url.searchParams.get("commit") ?? undefined,
-          waitMode: url.searchParams.get("waitMode") ?? undefined,
+          watchMode: url.searchParams.get("watchMode") ?? undefined,
         });
 
         if (!parsed.success) {
@@ -60,18 +60,18 @@ export const Route = createFileRoute("/api/cli/runs")({
         }
 
         const data = parsed.data;
-        if (data.waitMode === "pipeline") {
+        if (data.watchMode === "pipeline") {
           if (!data.repo || !data.branch || !data.commit) {
             return Response.json(
               {
                 error:
-                  "Invalid query parameters for wait-pipeline. Required: repo, branch, commit.",
+                  "Invalid query parameters for watch. Required: repo, branch, commit.",
               },
               { status: 400 },
             );
           }
 
-          const result = await getWaitPipelineStatus({
+          const result = await getWatchStatus({
             data: {
               repo: data.repo,
               branch: data.branch,

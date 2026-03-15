@@ -40,7 +40,7 @@ impl ApiClient {
         self.get_json("/runs", query).await
     }
 
-    pub async fn get_wait_pipeline_status(&self, query: &[(&str, String)]) -> Result<Value> {
+    pub async fn get_watch_status(&self, query: &[(&str, String)]) -> Result<Value> {
         self.get_json("/runs", query).await
     }
 

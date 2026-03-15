@@ -13,7 +13,7 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getWaitPipelineStatus } from "./wait-pipeline";
+import { getWatchStatus } from "./watch";
 
 const mockedQuery = vi.mocked(query);
 
@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("getWaitPipelineStatus", () => {
+describe("getWatchStatus", () => {
   it("matches short commit SHA prefixes in the pipeline query", async () => {
     mockedQuery
       .mockResolvedValueOnce([
@@ -45,10 +45,10 @@ describe("getWaitPipelineStatus", () => {
         },
       ]);
 
-    const result = await getWaitPipelineStatus({
+    const result = await getWatchStatus({
       data: {
         repo: "everr-labs/everr",
-        branch: "feature/wait-short-commit",
+        branch: "feature/watch-short-commit",
         commit: "7f14b13",
       },
     });
@@ -62,7 +62,7 @@ describe("getWaitPipelineStatus", () => {
     );
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
       repo: "everr-labs/everr",
-      branch: "feature/wait-short-commit",
+      branch: "feature/watch-short-commit",
       commit: "7f14b13",
     });
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
@@ -73,13 +73,14 @@ describe("getWaitPipelineStatus", () => {
     );
     expect(mockedQuery.mock.calls[1]?.[1]).toEqual({
       repo: "everr-labs/everr",
-      branch: "feature/wait-short-commit",
+      branch: "feature/watch-short-commit",
       commit: "7f14b13",
     });
     expect(result).toEqual({
       repo: "everr-labs/everr",
-      branch: "feature/wait-short-commit",
+      branch: "feature/watch-short-commit",
       commit: "7f14b13",
+      pipelineFound: true,
       activeRuns: [],
       completedRuns: [
         {

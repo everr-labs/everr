@@ -34,8 +34,8 @@ pub enum Commands {
     Status(StatusArgs),
     /// Search failing step logs on other branches
     Grep(GrepArgs),
-    /// Wait for the current commit to appear in runs
-    WaitPipeline(WaitArgs),
+    /// Watch the current commit until pipeline runs complete
+    Watch(WatchArgs),
     /// Show historical executions for a specific test
     TestHistory(TestHistoryArgs),
     /// Show the slowest tests in the selected time range, repo-wide by default
@@ -95,7 +95,7 @@ pub struct GrepArgs {
 }
 
 #[derive(Args, Debug, Default)]
-pub struct WaitArgs {
+pub struct WatchArgs {
     #[arg(long)]
     pub repo: Option<String>,
     #[arg(long)]
@@ -218,7 +218,7 @@ mod tests {
 
     use super::{
         AssistantKind, Cli, Commands, GrepArgs, RunsCommand, SlowestJobsArgs, SlowestTestsArgs,
-        TestHistoryArgs, WaitArgs,
+        TestHistoryArgs, WatchArgs,
     };
 
     #[test]
@@ -428,10 +428,10 @@ mod tests {
     }
 
     #[test]
-    fn wait_pipeline_defaults_to_no_timeout_and_five_second_interval() {
-        let cli = Cli::try_parse_from(["everr", "wait-pipeline"]).expect("wait-pipeline command");
+    fn watch_defaults_to_no_timeout_and_five_second_interval() {
+        let cli = Cli::try_parse_from(["everr", "watch"]).expect("watch command");
 
-        let Commands::WaitPipeline(WaitArgs {
+        let Commands::Watch(WatchArgs {
             repo,
             branch,
             commit,
@@ -439,7 +439,7 @@ mod tests {
             interval_seconds,
         }) = cli.command
         else {
-            panic!("expected wait-pipeline command");
+            panic!("expected watch command");
         };
 
         assert_eq!(repo, None);
@@ -450,10 +450,10 @@ mod tests {
     }
 
     #[test]
-    fn wait_pipeline_parses_custom_timeout_and_interval() {
+    fn watch_parses_custom_timeout_and_interval() {
         let cli = Cli::try_parse_from([
             "everr",
-            "wait-pipeline",
+            "watch",
             "--commit",
             "abc123",
             "--timeout-seconds",
@@ -461,15 +461,23 @@ mod tests {
             "--interval-seconds",
             "2",
         ])
-        .expect("wait-pipeline command");
+        .expect("watch command");
 
-        let Commands::WaitPipeline(args) = cli.command else {
-            panic!("expected wait-pipeline command");
+        let Commands::Watch(args) = cli.command else {
+            panic!("expected watch command");
         };
 
         assert_eq!(args.commit.as_deref(), Some("abc123"));
         assert_eq!(args.timeout_seconds, Some(1200));
         assert_eq!(args.interval_seconds, 2);
+    }
+
+    #[test]
+    fn wait_pipeline_is_no_longer_accepted() {
+        let err =
+            Cli::try_parse_from(["everr", "wait-pipeline"]).expect_err("legacy command rejected");
+
+        assert!(err.to_string().contains("wait-pipeline"));
     }
 
     #[test]

@@ -5,7 +5,7 @@ When CI fails, use Everr to identify the failing workflow/job/step and inspect l
 
 Quick commands:
 - `everr status`: returns the status of the runs on the current commit ;add `--commit <sha>` to target a specific commit
-- `everr wait-pipeline`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit
+- `everr watch`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit
 - `everr grep --job-name <job> --step-number <n> --pattern <text>`: searches failing step logs on other branches by default (7 days of history unless `--from/--to` are passed)
 - `everr runs list`
 - `everr runs show --trace-id <trace_id>`
@@ -34,5 +34,5 @@ Output schema notes:
 - `slowest-tests.items[]`: `{ testPackage, testFullName, avgDurationSeconds, p95DurationSeconds, maxDurationSeconds, executions, passCount, failCount, skipCount, lastSeen }`
 - `slowest-jobs`: `{ repo, branch, timeRange, limit, items }` where `branch` is `null` for repo-wide results
 - `slowest-jobs.items[]`: `{ workflowName, jobName, avgDurationSeconds, p95DurationSeconds, maxDurationSeconds, executions, successCount, failureCount, skipCount, lastSeen }`
-- `wait-pipeline`: `{ repo, branch, commit, pipelineFound, activeRuns, completedRuns }`
-- `wait-pipeline.activeRuns[]` and `wait-pipeline.completedRuns[]`: `{ runId, workflowName, phase, conclusion, lastEventTime, durationSeconds, usualDurationSeconds, usualDurationSampleSize, activeJobs }`
+- `watch`: `{ repo, branch, commit, pipelineFound, activeRuns, completedRuns }`
+- `watch.activeRuns[]` and `watch.completedRuns[]`: `{ runId, workflowName, phase, conclusion, lastEventTime, durationSeconds, usualDurationSeconds, usualDurationSampleSize, activeJobs }`

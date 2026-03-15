@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
         Commands::TestHistory(args) => core::test_history(args).await?,
         Commands::SlowestTests(args) => core::slowest_tests(args).await?,
         Commands::SlowestJobs(args) => core::slowest_jobs(args).await?,
-        Commands::WaitPipeline(args) => core::wait(args).await?,
+        Commands::Watch(args) => core::watch(args).await?,
         Commands::Runs { command } => match command {
             RunsCommand::List(args) => core::runs_list(args).await?,
             RunsCommand::Show(args) => core::runs_show(args).await?,

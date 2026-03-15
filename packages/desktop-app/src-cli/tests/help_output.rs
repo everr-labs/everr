@@ -21,7 +21,8 @@ fn root_help_lists_main_commands() {
         .stdout(contains("grep"))
         .stdout(contains("slowest-tests"))
         .stdout(contains("slowest-jobs"))
-        .stdout(contains("wait-pipeline"))
+        .stdout(contains("watch"))
+        .stdout(predicates::str::contains("wait-pipeline").not())
         .stdout(contains("runs"));
 }
 
