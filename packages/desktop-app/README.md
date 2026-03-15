@@ -20,6 +20,14 @@ That release command always builds both the macOS `app` and `dmg` bundle targets
 It also runs the Tauri bundle step with `CI=true` so DMG generation skips Finder AppleScript setup and works reliably from the terminal.
 It stages the release DMG, updater archive, updater signature, and `latest.json` into `packages/docs/public/everr-app/`.
 
+To bump the desktop app version by one patch before building the release, use:
+
+```bash
+pnpm build:desktop -- --release
+```
+
+That updates the version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` before the build starts.
+
 Install the signed release CLI into `~/.local/bin` only when you explicitly opt in:
 
 ```bash

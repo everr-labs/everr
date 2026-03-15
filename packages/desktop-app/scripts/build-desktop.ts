@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "zx";
 import {
+  bumpDesktopAppVersion,
   docsPublicDir,
   installCliBinary,
   loadBuildEnvFile,
@@ -11,10 +12,16 @@ import { copyReleaseArtifact } from "./copy-release-artifact.ts";
 export async function buildDesktop(args = process.argv.slice(2)) {
   const tauriArgs: string[] = [];
   let installCli = false;
+  let bumpReleaseVersion = false;
 
   for (const arg of args) {
     if (arg === "--install") {
       installCli = true;
+      continue;
+    }
+
+    if (arg === "--release") {
+      bumpReleaseVersion = true;
       continue;
     }
 
@@ -28,6 +35,11 @@ export async function buildDesktop(args = process.argv.slice(2)) {
   }
 
   loadBuildEnvFile();
+
+  if (bumpReleaseVersion) {
+    const { previousVersion, nextVersion } = await bumpDesktopAppVersion("patch");
+    console.log(`Bumped desktop app version from ${previousVersion} to ${nextVersion}.`);
+  }
 
   // DMG packaging is more reliable in CI mode because Tauri skips Finder AppleScript setup.
   await $({
