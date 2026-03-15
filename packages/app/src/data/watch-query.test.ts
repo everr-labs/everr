@@ -55,7 +55,7 @@ describe("getWatchStatus", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "PREWHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))",
+      "WHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))",
     );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "AND event_kind IN ('pipelinerun', 'taskrun', 'workflowjob')",
@@ -72,7 +72,7 @@ describe("getWatchStatus", () => {
       commit: "7f14b13",
     });
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "PREWHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))",
+      "WHERE tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))",
     );
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "AND event_kind = 'pipelinerun'",

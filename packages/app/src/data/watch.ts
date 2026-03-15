@@ -7,8 +7,6 @@ import {
   WatchStatusInputSchema,
 } from "./watch-status";
 
-const TENANT_FILTER = "tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))";
-
 export const getWatchStatus = createServerFn({
   method: "GET",
 })
@@ -33,10 +31,9 @@ export const getWatchStatus = createServerFn({
           )
         ) as durationSeconds
       FROM app.cdevents
-      PREWHERE ${TENANT_FILTER}
-        AND event_kind IN ('pipelinerun', 'taskrun', 'workflowjob')
+      WHERE event_kind IN ('pipelinerun', 'taskrun', 'workflowjob')
         AND event_time >= now() - INTERVAL 14 DAY
-      WHERE repository = {repo:String}
+        AND repository = {repo:String}
         AND ref = {branch:String}
         AND startsWith(sha, {commit:String})
       GROUP BY subject_id
@@ -54,10 +51,9 @@ export const getWatchStatus = createServerFn({
           greatest(0, dateDiff('second', min(event_time), max(event_time))) as duration_seconds,
           max(event_time) as last_event_time
         FROM app.cdevents
-        PREWHERE ${TENANT_FILTER}
-          AND event_kind = 'pipelinerun'
+        WHERE event_kind = 'pipelinerun'
           AND event_time >= now() - INTERVAL 30 DAY
-        WHERE repository = {repo:String}
+          AND repository = {repo:String}
           AND ref = {branch:String}
         GROUP BY subject_id
         HAVING argMax(event_phase, event_time) = 'finished'

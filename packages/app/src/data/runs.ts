@@ -43,7 +43,6 @@ const DEFAULT_FAILING_CONTEXT_WINDOW = 50;
 const DEFAULT_RAW_TAIL_LINES = 5000;
 const DEFAULT_LOG_PAGE_SIZE = 1000;
 const MAX_LOG_PAGE_SIZE = 5000;
-const TENANT_FILTER = "tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))";
 const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
   pass: "success",
   fail: "failure",
@@ -151,8 +150,8 @@ async function getRawStepLogs(params: {
 			Timestamp as timestamp,
 			Body as body
 		FROM logs
-		PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
-		WHERE ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+		WHERE TraceId = {traceId:String}
+			AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
 			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 		ORDER BY Timestamp ${order}
 		${limitClause}
@@ -183,8 +182,8 @@ async function isFailedPipelineStep(params: {
   const sql = `
 		SELECT 1 as hit
 		FROM traces
-		PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
-		WHERE ResourceAttributes['cicd.pipeline.task.name'] = {jobName:String}
+		WHERE TraceId = {traceId:String}
+			AND ResourceAttributes['cicd.pipeline.task.name'] = {jobName:String}
 			AND SpanAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 			AND (
 				lowerUTF8(StatusMessage) IN ('failure', 'failed')
@@ -224,8 +223,8 @@ export function buildFailingStepLogsSql(): string {
 						${buildFailingLinePredicateSql("Body")}
 					) AS is_anchor
 				FROM logs
-				PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
-				WHERE ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+				WHERE TraceId = {traceId:String}
+					AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
 					AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
 			),
 			focused_logs AS (
@@ -349,7 +348,7 @@ export const getRunDetails = createServerFn({
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 					max(Timestamp) as timestamp
 				FROM traces
-				PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
+				WHERE TraceId = {traceId:String}
 		`;
 
     const result = await query<{
@@ -394,8 +393,8 @@ export const getRunJobs = createServerFn({
 						max(Duration) / 1000000
 					) as duration
 			FROM traces
-			PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
-			WHERE ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+			WHERE TraceId = {traceId:String}
+				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 			GROUP BY jobId
 			ORDER BY name
 		`;
@@ -433,8 +432,8 @@ export const getJobSteps = createServerFn({
 					toUnixTimestamp64Milli(Timestamp) as startTime,
 					toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
 			FROM traces
-			PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
-			WHERE ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
+			WHERE TraceId = {traceId:String}
+				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
 				AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
 			ORDER BY toUInt32OrZero(stepNumber)
 		`;
@@ -484,8 +483,8 @@ export const getAllJobsSteps = createServerFn({
         toUnixTimestamp64Milli(Timestamp) as startTime,
         toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
       FROM traces
-      PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
-      WHERE ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
+      WHERE TraceId = {traceId:String}
+        AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
         AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
       ORDER BY jobId, toUInt32OrZero(stepNumber)
     `;
@@ -609,7 +608,7 @@ export const getRunSpans = createServerFn({
 				SpanAttributes['everr.test.is_subtest'] as isSubtest,
 				SpanAttributes['everr.test.is_suite'] as isSuite
 			FROM traces
-			PREWHERE ${TENANT_FILTER} AND TraceId = {traceId:String}
+			WHERE TraceId = {traceId:String}
 			ORDER BY startTime ASC
 		`;
 
