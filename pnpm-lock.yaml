@@ -283,6 +283,9 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.2.3)(@vitest/ui@4.0.18)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@1.8.0))(lightningcss@1.31.1)(msw@2.12.7(@types/node@25.2.3)(typescript@5.8.3))(terser@5.33.0)(tsx@4.19.2)(yaml@2.7.0)
+      zx:
+        specifier: ^8.8.4
+        version: 8.8.5
 
   packages/docs:
     dependencies:
@@ -7049,6 +7052,11 @@ packages:
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
+
+  zx@8.8.5:
+    resolution: {integrity: sha512-SNgDF5L0gfN7FwVOdEFguY3orU5AkfFZm9B5YSHog/UDHv+lvmd82ZAsOenOkQixigwH2+yyH198AwNdKhj+RA==}
+    engines: {node: '>= 12.17.0'}
+    hasBin: true
 
 snapshots:
 
@@ -13872,3 +13880,5 @@ snapshots:
   zod@4.3.6: {}
 
   zwitch@2.0.4: {}
+
+  zx@8.8.5: {}
