@@ -83,5 +83,11 @@ jobs:
         with:
           workspaces: .
 
+      - name: Prepare bundled Everr CLI
+        run: |
+          cargo build --manifest-path packages/desktop-app/src-cli/Cargo.toml
+          install -d target/desktop-resources
+          install -m 755 target/debug/everr target/desktop-resources/everr
+
       - name: Test desktop native app
         run: cargo test --manifest-path packages/desktop-app/src-tauri/Cargo.toml
