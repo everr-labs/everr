@@ -11,7 +11,8 @@ on:
   pull_request:
     paths:
       - .github/workflows/build-everr-cli.yml
-      - crates/everr-cli/**
+      - packages/desktop-app/src-cli/**
+      - packages/desktop-app/scripts/build-cli.sh
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
       - packages/docs/content/docs/cli/**
@@ -19,7 +20,8 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-everr-cli.yml
-      - crates/everr-cli/**
+      - packages/desktop-app/src-cli/**
+      - packages/desktop-app/scripts/build-cli.sh
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
       - packages/docs/content/docs/cli/**
@@ -43,13 +45,13 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: crates/everr-cli
+          workspaces: packages/desktop-app/src-cli
 
       - name: Test
-        run: cargo +nightly test -p everr-cli --manifest-path Cargo.toml -- --report-time -Z unstable-options
+        run: cargo +nightly test --manifest-path packages/desktop-app/src-cli/Cargo.toml -- --report-time -Z unstable-options
 
       - name: Build release binary
-        run: cargo build --release -p everr-cli --manifest-path Cargo.toml
+        run: cargo build --release --manifest-path packages/desktop-app/src-cli/Cargo.toml
 
       - name: Smoke test
         run: ./target/release/everr --help

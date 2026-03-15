@@ -7,6 +7,8 @@ use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 
+use crate::build;
+
 const NO_ACTIVE_SESSION: &str = "no active session";
 
 #[derive(Debug, Clone)]
@@ -28,7 +30,7 @@ pub struct SessionStore {
 
 impl SessionStore {
     pub fn for_namespace(namespace: impl Into<String>) -> Self {
-        Self::for_namespace_with_file_name(namespace, "session.json")
+        Self::for_namespace_with_file_name(namespace, build::default_session_file_name())
     }
 
     pub fn for_namespace_with_file_name(
@@ -295,12 +297,16 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{Session, SessionStore};
+    use crate::build;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn session_namespace_is_fixed() {
-        assert_eq!(SessionStore::for_namespace("everr").namespace(), "everr");
+    fn default_session_store_matches_current_build_defaults() {
+        let store = SessionStore::for_namespace("everr");
+
+        assert_eq!(store.namespace(), "everr");
+        assert_eq!(store.session_file_name(), build::default_session_file_name());
     }
 
     #[test]
