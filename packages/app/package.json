@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --coverage",
+    "test:ci": "vitest run",
     "test:watch": "vitest run --watch --coverage",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
