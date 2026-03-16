@@ -5,36 +5,18 @@ import {
   repositoryIdFromQueuedEvent,
 } from "./payloads";
 
-function normalizeRepositoryId(repositoryId: number): number {
-  if (!Number.isInteger(repositoryId) || repositoryId <= 0) {
-    throw new TypeError("repositoryId must be a positive integer");
-  }
-
-  return repositoryId;
-}
-
-function normalizeRunAttempt(runAttempt?: number | null): number {
-  if (Number.isInteger(runAttempt) && (runAttempt ?? 0) > 0) {
-    return runAttempt as number;
-  }
-
-  return 1;
-}
-
 export function generateWorkflowTraceId(
   repositoryId: number,
   runId: number,
   runAttempt?: number | null,
 ): string {
-  const normalizedRepositoryId = normalizeRepositoryId(repositoryId);
-  if (!Number.isInteger(runId)) {
-    throw new TypeError("runId must be an integer");
-  }
+  const normalizedAttempt =
+    Number.isInteger(runAttempt) && (runAttempt ?? 0) > 0
+      ? (runAttempt as number)
+      : 1;
 
   return createHash("sha256")
-    .update(
-      `${normalizedRepositoryId}@${runId}#${normalizeRunAttempt(runAttempt)}`,
-    )
+    .update(`${repositoryId}@${runId}#${normalizedAttempt}`)
     .digest("hex")
     .slice(0, 32);
 }

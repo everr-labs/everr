@@ -10,7 +10,7 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 export const createAccessToken = createAuthenticatedServerFn({
   method: "POST",
-}).handler(async ({ context: { auth } }) => {
+}).handler(async ({ context: { session } }) => {
   const requestId = crypto.randomUUID();
 
   const name = `access-token-${crypto.randomUUID().slice(0, 8)}`;
@@ -23,8 +23,8 @@ export const createAccessToken = createAuthenticatedServerFn({
     const [token] = await db
       .insert(accessTokens)
       .values({
-        organizationId: auth.organizationId,
-        userId: auth.user.id,
+        organizationId: session.organizationId,
+        userId: session.userId,
         name,
         tokenHash,
         tokenPrefix,
@@ -52,8 +52,8 @@ export const createAccessToken = createAuthenticatedServerFn({
   } catch (error) {
     console.error("[access-tokens] create_failed", {
       requestId,
-      userId: auth.user.id,
-      organizationId: auth.organizationId,
+      userId: session.userId,
+      organizationId: session.organizationId,
       name,
       error,
     });

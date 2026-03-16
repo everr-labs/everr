@@ -1,7 +1,7 @@
 import { env } from "@/env";
 import { GH_EVENTS_CONFIG } from "./config";
 import { recordToHeaders, stripHopByHopHeaders } from "./headers";
-import type { WebhookEventRecord } from "./types";
+import type { WebhookHeaders } from "./types";
 import { TerminalEventError } from "./types";
 
 export const tenantHeaderName = "x-everr-tenant-id";
@@ -24,7 +24,7 @@ function classifyFailedResponse(
 }
 
 export async function replayWebhookToCollector(
-  event: WebhookEventRecord,
+  event: { headers: WebhookHeaders; body: Buffer },
   tenantId: number,
 ): Promise<void> {
   const headers = recordToHeaders(event.headers);

@@ -33,6 +33,7 @@ import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './rout
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
+import { Route as ApiCliRunsWatchRouteImport } from './routes/api/cli/runs/watch'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliNotifierFailuresRouteImport } from './routes/api/cli/notifier/failures'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
@@ -174,6 +175,11 @@ const ApiGithubInstallCallbackRoute =
     path: '/api/github/install/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCliRunsWatchRoute = ApiCliRunsWatchRouteImport.update({
+  id: '/watch',
+  path: '/watch',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
@@ -263,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
+  '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/api/cli/tray-status': typeof ApiCliTrayStatusRoute
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
+  '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
@@ -336,6 +344,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
+  '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
@@ -374,6 +383,7 @@ export interface FileRouteTypes {
     | '/runs/$traceId'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
+    | '/api/cli/runs/watch'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/runs/'
@@ -408,6 +418,7 @@ export interface FileRouteTypes {
     | '/api/cli/tray-status'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
+    | '/api/cli/runs/watch'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/runs'
@@ -446,6 +457,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/runs/$traceId'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
+    | '/api/cli/runs/watch'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/_authenticated/_dashboard/runs/'
@@ -652,6 +664,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubInstallCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cli/runs/watch': {
+      id: '/api/cli/runs/watch'
+      path: '/watch'
+      fullPath: '/api/cli/runs/watch'
+      preLoaderRoute: typeof ApiCliRunsWatchRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
     '/api/cli/runs/$traceId': {
       id: '/api/cli/runs/$traceId'
       path: '/$traceId'
@@ -841,10 +860,12 @@ const ApiCliRunsTraceIdRouteWithChildren =
 
 interface ApiCliRunsRouteChildren {
   ApiCliRunsTraceIdRoute: typeof ApiCliRunsTraceIdRouteWithChildren
+  ApiCliRunsWatchRoute: typeof ApiCliRunsWatchRoute
 }
 
 const ApiCliRunsRouteChildren: ApiCliRunsRouteChildren = {
   ApiCliRunsTraceIdRoute: ApiCliRunsTraceIdRouteWithChildren,
+  ApiCliRunsWatchRoute: ApiCliRunsWatchRoute,
 }
 
 const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(

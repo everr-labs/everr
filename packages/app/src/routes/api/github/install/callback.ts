@@ -65,7 +65,7 @@ export const Route = createFileRoute("/api/github/install/callback")({
           );
         }
 
-        if (parsedState.userId !== auth.user.id) {
+        if (parsedState.userId !== auth.userId) {
           return redirectToDashboard(
             callbackURL.origin,
             "error",
