@@ -144,10 +144,11 @@ describe("/api/cli/tray-status", () => {
     ]);
     mockedQuery.mockResolvedValueOnce([
       {
+        traceId: "trace-2",
         runId: "run-2",
         repo: "everr-labs/everr",
         branch: "main",
-        startedAt: "2026-03-08T10:05:00Z",
+        candidateTime: "2026-03-08T10:05:00Z",
       },
     ]);
 
@@ -183,10 +184,90 @@ describe("/api/cli/tray-status", () => {
     mockedQuery.mockResolvedValueOnce([]);
     mockDbWhere.mockResolvedValueOnce([
       {
+        traceId: "trace-3",
         runId: "run-3",
         repo: "everr-labs/everr",
         branch: "main",
-        startedAt: new Date("2026-03-08T10:06:00Z"),
+        candidateTime: new Date("2026-03-08T10:06:00Z"),
+      },
+    ]);
+
+    const handler = getHandler();
+    const response = await handler({
+      request: new Request("http://localhost/api/cli/tray-status"),
+      context: {
+        auth: {
+          userId: "user_1",
+          tenantId: 7,
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      unresolved_failures: [],
+      auto_fix_prompt: "",
+    });
+  });
+
+  it("filters out failures resolved by a later rerun attempt on the same run id", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        traceId: "trace-1",
+        runId: "run-1",
+        repo: "everr-labs/everr",
+        branch: "main",
+        workflowName: "CI",
+        failureTime: "2026-03-08T10:00:00Z",
+      },
+    ]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        traceId: "trace-2",
+        runId: "run-1",
+        repo: "everr-labs/everr",
+        branch: "main",
+        candidateTime: "2026-03-08T10:05:00Z",
+      },
+    ]);
+
+    const handler = getHandler();
+    const response = await handler({
+      request: new Request("http://localhost/api/cli/tray-status"),
+      context: {
+        auth: {
+          userId: "user_1",
+          tenantId: 7,
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      unresolved_failures: [],
+      auto_fix_prompt: "",
+    });
+  });
+
+  it("filters out failures resolved by a later queued rerun on the same branch", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        traceId: "trace-1",
+        runId: "run-1",
+        repo: "everr-labs/everr",
+        branch: "main",
+        workflowName: "CI",
+        failureTime: "2026-03-08T10:00:00Z",
+      },
+    ]);
+    mockedQuery.mockResolvedValueOnce([]);
+    mockDbWhere.mockResolvedValueOnce([
+      {
+        traceId: "trace-4",
+        runId: "run-1",
+        repo: "everr-labs/everr",
+        branch: "main",
+        candidateTime: new Date("2026-03-08T10:07:00Z"),
       },
     ]);
 
