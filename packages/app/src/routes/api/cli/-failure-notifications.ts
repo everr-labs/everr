@@ -1,6 +1,3 @@
-import { and, eq, gte, ne, or, sql } from "drizzle-orm";
-import { db } from "@/db/client";
-import { workflowRuns } from "@/db/schema";
 import { query } from "@/lib/clickhouse";
 import { getWorkOS } from "@/lib/workos";
 
@@ -36,11 +33,10 @@ type FailureRunRow = {
 };
 
 type CandidateRunRow = {
-  traceId: string;
   runId: string;
   repo: string;
   branch: string;
-  candidateTime: string | Date;
+  startedAt: string;
 };
 
 export type FailureNotification = {
@@ -65,7 +61,6 @@ export type TrayStatusResponse = {
 };
 
 type FailureNotificationsOptions = {
-  tenantId: number;
   gitEmail: string;
   origin: string;
   timeWindowMinutes: number;
@@ -97,7 +92,6 @@ export async function getVerifiedCliUserEmail(
 }
 
 export async function getFailureNotifications({
-  tenantId,
   gitEmail,
   origin,
   timeWindowMinutes,
@@ -117,7 +111,7 @@ export async function getFailureNotifications({
   }
 
   const unresolvedFailures = unresolvedOnly
-    ? await filterUnresolvedFailures(failures, tenantId, timeWindowMinutes)
+    ? await filterUnresolvedFailures(failures, timeWindowMinutes)
     : failures;
   if (unresolvedFailures.length === 0) {
     return [];
@@ -402,18 +396,13 @@ async function loadFirstFailingSteps(
 
 async function filterUnresolvedFailures(
   failures: FailureRunRow[],
-  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<FailureRunRow[]> {
   const successfulRuns = await loadSuccessfulRunsForScopes(
     failures,
     timeWindowMinutes,
   );
-  const activeRuns = await loadActiveRunsForScopes(
-    failures,
-    tenantId,
-    timeWindowMinutes,
-  );
+  const activeRuns = await loadActiveRunsForScopes(failures, timeWindowMinutes);
   const candidatesByScope = groupCandidateRunsByScope([
     ...successfulRuns,
     ...activeRuns,
@@ -430,8 +419,8 @@ async function filterUnresolvedFailures(
     const failureTime = toTimestampMs(failure.failureTime);
     return !candidates.some(
       (candidate) =>
-        candidate.traceId !== failure.traceId &&
-        toTimestampMs(candidate.candidateTime) > failureTime,
+        candidate.runId !== failure.runId &&
+        toTimestampMs(candidate.startedAt) > failureTime,
     );
   });
 }
@@ -452,11 +441,10 @@ async function loadSuccessfulRunsForScopes(
   return query<CandidateRunRow>(
     `
       SELECT
-        TraceId as traceId,
         anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,
         anyLast(ResourceAttributes['vcs.repository.name']) as repo,
         anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-        min(Timestamp) as candidateTime
+        min(Timestamp) as startedAt
       FROM traces
       WHERE Timestamp >= now() - INTERVAL ${timeWindowMinutes} MINUTE
         AND ResourceAttributes['cicd.pipeline.run.id'] != ''
@@ -470,54 +458,33 @@ async function loadSuccessfulRunsForScopes(
 
 async function loadActiveRunsForScopes(
   failures: FailureRunRow[],
-  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
-  const scopes = [
-    ...new Map(
-      failures.map((f) => [
-        createScopeKey(f.repo, f.branch),
-        { repo: f.repo, branch: f.branch },
-      ]),
-    ).values(),
-  ];
-
-  if (scopes.length === 0) {
-    return [];
-  }
-
-  const scopeConditions = scopes.map((s) =>
-    and(eq(workflowRuns.repository, s.repo), eq(workflowRuns.ref, s.branch)),
+  const scopeFilter = buildScopeFilter(
+    failures.map((failure) => ({
+      repo: failure.repo,
+      branch: failure.branch,
+    })),
+    "repository",
+    "ref",
   );
 
-  const rows = await db
-    .select({
-      traceId: workflowRuns.traceId,
-      runId: sql<string>`${workflowRuns.runId}::text`,
-      repo: workflowRuns.repository,
-      branch: workflowRuns.ref,
-      candidateTime: sql<Date>`coalesce(${workflowRuns.startedAt}, ${workflowRuns.lastEventAt})`,
-    })
-    .from(workflowRuns)
-    .where(
-      and(
-        eq(workflowRuns.tenantId, tenantId),
-        ne(workflowRuns.status, "completed"),
-        gte(
-          workflowRuns.lastEventAt,
-          sql`now() - interval '${sql.raw(String(timeWindowMinutes))} minutes'`,
-        ),
-        or(...scopeConditions),
-      ),
-    );
-
-  return rows.map((row) => ({
-    traceId: row.traceId,
-    runId: row.runId,
-    repo: row.repo,
-    branch: row.branch,
-    candidateTime: row.candidateTime,
-  }));
+  return query<CandidateRunRow>(
+    `
+      SELECT
+        subject_id as runId,
+        repository as repo,
+        ref as branch,
+        min(event_time) as startedAt
+      FROM app.cdevents
+      WHERE event_kind = 'pipelinerun'
+        AND event_time >= now() - INTERVAL ${timeWindowMinutes} MINUTE
+        AND (${scopeFilter.clause})
+      GROUP BY subject_id, repository, ref
+      HAVING argMax(event_phase, event_time) != 'finished'
+    `,
+    scopeFilter.params,
+  );
 }
 
 function groupCandidateRunsByScope(
@@ -659,11 +626,7 @@ function createScopeKey(repo: string, branch: string): string {
   return `${repo}\u0000${branch}`;
 }
 
-function toTimestampMs(value: string | Date): number {
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
+function toTimestampMs(value: string): number {
   const normalized = value.includes("T")
     ? value
     : `${value.replace(" ", "T")}Z`;

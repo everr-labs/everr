@@ -362,7 +362,6 @@ struct PagedStepLogs {
 
 struct WatchRunStatus {
     workflow_name: String,
-    run_attempt: u64,
     conclusion: String,
     duration_seconds: u64,
     usual_duration_seconds: Option<u64>,
@@ -386,10 +385,10 @@ fn format_watch_status(
     } else {
         let _ = writeln!(status, "Active runs:");
         for run in active_runs {
-            let mut details = vec![
-                format!("attempt #{}", run.run_attempt),
-                format!("duration: {}", format_elapsed_duration(run.duration_seconds)),
-            ];
+            let mut details = vec![format!(
+                "duration: {}",
+                format_elapsed_duration(run.duration_seconds)
+            )];
             if let Some(usual_duration_seconds) = run.usual_duration_seconds {
                 details.push(format!(
                     "usually takes: {}",
@@ -461,10 +460,6 @@ fn extract_watch_runs(payload: &Value, key: &str) -> Vec<WatchRunStatus> {
                 .and_then(Value::as_str)
                 .unwrap_or("unknown")
                 .to_string(),
-            run_attempt: item
-                .get("runAttempt")
-                .and_then(Value::as_u64)
-                .unwrap_or(1),
             conclusion: item
                 .get("conclusion")
                 .and_then(Value::as_str)
@@ -506,7 +501,6 @@ fn format_completed_run_list(runs: &[WatchRunStatus]) -> String {
             formatted.push_str(", ");
         }
         formatted.push_str(&run.workflow_name);
-        formatted.push_str(&format!(" [attempt #{}]", run.run_attempt));
         if is_failure_conclusion(&run.conclusion) {
             formatted.push_str(" (failed)");
         }
@@ -631,7 +625,6 @@ mod tests {
             5,
             vec![WatchRunStatus {
                 workflow_name: "Build & Test Collector".to_string(),
-                run_attempt: 2,
                 conclusion: String::new(),
                 duration_seconds: 139,
                 usual_duration_seconds: None,
@@ -639,7 +632,6 @@ mod tests {
             }],
             vec![WatchRunStatus {
                 workflow_name: "Build & Test Ingress".to_string(),
-                run_attempt: 1,
                 conclusion: "success".to_string(),
                 duration_seconds: 0,
                 usual_duration_seconds: None,
@@ -662,7 +654,6 @@ mod tests {
             vec![
                 WatchRunStatus {
                     workflow_name: "Build & Test Collector".to_string(),
-                    run_attempt: 2,
                     conclusion: "failure".to_string(),
                     duration_seconds: 0,
                     usual_duration_seconds: None,
@@ -670,7 +661,6 @@ mod tests {
                 },
                 WatchRunStatus {
                     workflow_name: "Build & Test App".to_string(),
-                    run_attempt: 1,
                     conclusion: "success".to_string(),
                     duration_seconds: 0,
                     usual_duration_seconds: None,
@@ -680,9 +670,7 @@ mod tests {
         );
 
         assert!(
-            status.contains(
-                "Completed runs: Build & Test Collector [attempt #2] (failed), Build & Test App [attempt #1]"
-            )
+            status.contains("Completed runs: Build & Test Collector (failed), Build & Test App")
         );
     }
 
@@ -693,7 +681,6 @@ mod tests {
             5,
             vec![WatchRunStatus {
                 workflow_name: "CI".to_string(),
-                run_attempt: 3,
                 conclusion: String::new(),
                 duration_seconds: 125,
                 usual_duration_seconds: Some(118),
@@ -702,8 +689,6 @@ mod tests {
             Vec::new(),
         );
 
-        assert!(status.contains(
-            "CI (attempt #3; duration: 2m 5s; usually takes: 1m 58s; active jobs: test)"
-        ));
+        assert!(status.contains("CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test)"));
     }
 }

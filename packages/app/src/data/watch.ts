@@ -1,8 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { z } from "zod";
-import { db } from "@/db/client";
-import { workflowJobs, workflowRuns } from "@/db/schema";
+import { query } from "@/lib/clickhouse";
 import type { WatchRow } from "./watch-status";
 import {
   buildWatchStatus,
@@ -10,186 +7,80 @@ import {
   WatchStatusInputSchema,
 } from "./watch-status";
 
-const WatchStatusServerInputSchema = WatchStatusInputSchema.extend({
-  tenantId: z.number().int().positive(),
-});
-
-function buildDurationBaselines(
-  rows: Array<{
-    workflowName: string;
-    startedAt: Date | null;
-    completedAt: Date | null;
-    lastEventAt: Date;
-  }>,
-): Map<string, WatchDurationBaseline> {
-  const recentDurationsByWorkflow = new Map<string, number[]>();
-
-  for (const row of rows) {
-    const durations = recentDurationsByWorkflow.get(row.workflowName) ?? [];
-    if (durations.length >= 3) {
-      continue;
-    }
-
-    const startMs = row.startedAt?.getTime() ?? row.lastEventAt.getTime();
-    const endMs = row.completedAt?.getTime() ?? row.lastEventAt.getTime();
-    durations.push(Math.max(0, Math.round((endMs - startMs) / 1000)));
-    recentDurationsByWorkflow.set(row.workflowName, durations);
-  }
-
-  const baselines = new Map<string, WatchDurationBaseline>();
-  for (const [workflowName, durations] of recentDurationsByWorkflow) {
-    const totalDuration = durations.reduce(
-      (sum, duration) => sum + duration,
-      0,
-    );
-    baselines.set(workflowName, {
-      durationSeconds: Math.max(
-        0,
-        Math.round(totalDuration / durations.length),
-      ),
-      sampleSize: durations.length,
-    });
-  }
-
-  return baselines;
-}
-
 export const getWatchStatus = createServerFn({
   method: "GET",
 })
-  .inputValidator(WatchStatusServerInputSchema)
+  .inputValidator(WatchStatusInputSchema)
   .handler(async ({ data }) => {
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const statusSql = `
+      SELECT
+        subject_id as subjectId,
+        argMax(subject_name, event_time) as subjectName,
+        argMax(subject_url, event_time) as htmlUrl,
+        argMax(event_kind, event_time) as eventKind,
+        argMax(event_phase, event_time) as phase,
+        argMax(outcome, event_time) as conclusion,
+        max(event_time) as lastEventTime,
+        argMax(attributes['pipeline.run_id'], event_time) as pipelineRunId,
+        greatest(
+          0,
+          dateDiff(
+            'second',
+            min(event_time),
+            if(argMax(event_phase, event_time) = 'finished', max(event_time), now())
+          )
+        ) as durationSeconds
+      FROM app.cdevents
+      WHERE event_kind IN ('pipelinerun', 'taskrun', 'workflowjob')
+        AND event_time >= now() - INTERVAL 14 DAY
+        AND repository = {repo:String}
+        AND ref = {branch:String}
+        AND startsWith(sha, {commit:String})
+      GROUP BY subject_id
+      ORDER BY lastEventTime DESC
+    `;
 
-    const [runResults, jobResults] = await Promise.all([
-      db
-        .select({
-          tenantId: workflowRuns.tenantId,
-          runId: workflowRuns.runId,
-          runAttempt: workflowRuns.attempts,
-          workflowName: workflowRuns.workflowName,
-          metadata: workflowRuns.metadata,
-          status: workflowRuns.status,
-          conclusion: workflowRuns.conclusion,
-          lastEventAt: workflowRuns.lastEventAt,
-          startedAt: workflowRuns.startedAt,
-          completedAt: workflowRuns.completedAt,
-        })
-        .from(workflowRuns)
-        .where(
-          and(
-            eq(workflowRuns.tenantId, data.tenantId),
-            eq(workflowRuns.repository, data.repo),
-            eq(workflowRuns.ref, data.branch),
-            sql`left(${workflowRuns.sha}, ${data.commit.length}) = ${data.commit}`,
-            gte(workflowRuns.lastEventAt, fourteenDaysAgo),
-          ),
-        )
-        .orderBy(desc(workflowRuns.lastEventAt)),
+    const averagesSql = `
+      SELECT
+        workflow_name,
+        toUInt64(round(avg(duration_seconds))) as usualDurationSeconds,
+        count() as sampleCount
+      FROM (
+        SELECT
+          argMax(subject_name, event_time) as workflow_name,
+          greatest(0, dateDiff('second', min(event_time), max(event_time))) as duration_seconds,
+          max(event_time) as last_event_time
+        FROM app.cdevents
+        WHERE event_kind = 'pipelinerun'
+          AND event_time >= now() - INTERVAL 30 DAY
+          AND repository = {repo:String}
+          AND ref = {branch:String}
+        GROUP BY subject_id
+        HAVING argMax(event_phase, event_time) = 'finished'
+        ORDER BY workflow_name, last_event_time DESC
+        LIMIT 3 BY workflow_name
+      )
+      GROUP BY workflow_name
+    `;
 
-      db
-        .select({
-          tenantId: workflowJobs.tenantId,
-          jobId: workflowJobs.jobId,
-          runId: workflowJobs.runId,
-          runAttempt: workflowJobs.attempts,
-          jobName: workflowJobs.jobName,
-          metadata: workflowJobs.metadata,
-          status: workflowJobs.status,
-          conclusion: workflowJobs.conclusion,
-          lastEventAt: workflowJobs.lastEventAt,
-          startedAt: workflowJobs.startedAt,
-          completedAt: workflowJobs.completedAt,
-        })
-        .from(workflowJobs)
-        .where(
-          and(
-            eq(workflowJobs.tenantId, data.tenantId),
-            eq(workflowJobs.repository, data.repo),
-            eq(workflowJobs.ref, data.branch),
-            sql`left(${workflowJobs.sha}, ${data.commit.length}) = ${data.commit}`,
-            gte(workflowJobs.lastEventAt, fourteenDaysAgo),
-          ),
-        )
-        .orderBy(desc(workflowJobs.lastEventAt)),
+    const [rows, baselines] = await Promise.all([
+      query<WatchRow>(statusSql, data),
+      query<{
+        workflow_name: string;
+        usualDurationSeconds: string;
+        sampleCount: string;
+      }>(averagesSql, data),
     ]);
 
-    const now = Date.now();
-
-    const rows: WatchRow[] = [
-      ...runResults.map((r): WatchRow => {
-        const startMs = r.startedAt?.getTime() ?? r.lastEventAt.getTime();
-        const endMs =
-          r.status === "completed"
-            ? (r.completedAt?.getTime() ?? r.lastEventAt.getTime())
-            : now;
-        const durationSeconds = Math.max(
-          0,
-          Math.round((endMs - startMs) / 1000),
-        );
-
-        return {
-          subjectId: String(r.runId),
-          runAttempt: r.runAttempt,
-          subjectName: r.workflowName,
-          htmlUrl: r.metadata?.html_url ?? "",
-          status: r.status,
-          conclusion: r.conclusion,
-          lastEventTime: r.lastEventAt.toISOString(),
-          eventKind: "pipelinerun",
-          pipelineRunId: String(r.runId),
-          durationSeconds: String(durationSeconds),
-        };
-      }),
-      ...jobResults.map((j): WatchRow => {
-        const startMs = j.startedAt?.getTime() ?? j.lastEventAt.getTime();
-        const endMs =
-          j.status === "completed"
-            ? (j.completedAt?.getTime() ?? j.lastEventAt.getTime())
-            : now;
-        const durationSeconds = Math.max(
-          0,
-          Math.round((endMs - startMs) / 1000),
-        );
-
-        return {
-          subjectId: String(j.jobId),
-          runAttempt: j.runAttempt,
-          subjectName: j.jobName,
-          htmlUrl: j.metadata?.html_url ?? "",
-          status: j.status,
-          conclusion: j.conclusion,
-          lastEventTime: j.lastEventAt.toISOString(),
-          eventKind: "taskrun",
-          pipelineRunId: String(j.runId),
-          durationSeconds: String(durationSeconds),
-        };
-      }),
-    ];
-
-    // Duration baselines: average the 3 most recent completed runs per workflow.
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-    const baselineRows = await db
-      .select({
-        workflowName: workflowRuns.workflowName,
-        startedAt: workflowRuns.startedAt,
-        completedAt: workflowRuns.completedAt,
-        lastEventAt: workflowRuns.lastEventAt,
-      })
-      .from(workflowRuns)
-      .where(
-        and(
-          eq(workflowRuns.tenantId, data.tenantId),
-          eq(workflowRuns.repository, data.repo),
-          eq(workflowRuns.ref, data.branch),
-          eq(workflowRuns.status, "completed"),
-          gte(workflowRuns.lastEventAt, thirtyDaysAgo),
-        ),
-      )
-      .orderBy(workflowRuns.workflowName, desc(workflowRuns.lastEventAt));
-
-    const durationBaselinesByWorkflow = buildDurationBaselines(baselineRows);
+    const durationBaselinesByWorkflow = new Map<string, WatchDurationBaseline>(
+      baselines.map((row) => [
+        row.workflow_name,
+        {
+          durationSeconds: Math.round(Number(row.usualDurationSeconds)),
+          sampleSize: Number(row.sampleCount),
+        },
+      ]),
+    );
 
     return buildWatchStatus(data, rows, durationBaselinesByWorkflow);
   });

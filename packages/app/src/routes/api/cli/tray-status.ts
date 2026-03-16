@@ -30,7 +30,6 @@ export const Route = createFileRoute("/api/cli/tray-status")({
         }
 
         const unresolvedFailures = await getFailureNotifications({
-          tenantId: context.auth.tenantId,
           gitEmail: verifiedEmail,
           origin,
           timeWindowMinutes: TIME_WINDOW_MINUTES,

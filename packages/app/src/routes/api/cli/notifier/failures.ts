@@ -46,7 +46,6 @@ export const Route = createFileRoute("/api/cli/notifier/failures")({
         }
 
         const failures = await getFailureNotifications({
-          tenantId: context.auth.tenantId,
           gitEmail: verifiedEmail,
           origin: url.origin,
           timeWindowMinutes: 5,

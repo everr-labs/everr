@@ -2,11 +2,9 @@ import { z } from "zod";
 
 export interface WatchRun {
   runId: string;
-  runAttempt: number;
   workflowName: string;
-  htmlUrl: string;
-  status: string;
-  conclusion: string | null;
+  phase: string;
+  conclusion: string;
   lastEventTime: string;
   durationSeconds: number;
   usualDurationSeconds: number | null;
@@ -17,9 +15,8 @@ export interface WatchRun {
 export interface WatchJob {
   jobId: string;
   jobName: string;
-  runAttempt: number;
-  status: string;
-  conclusion: string | null;
+  phase: string;
+  conclusion: string;
   lastEventTime: string;
   durationSeconds: number;
   pipelineRunId: string;
@@ -42,11 +39,10 @@ export const WatchStatusInputSchema = z.object({
 
 export interface WatchRow {
   subjectId: string;
-  runAttempt: number;
   subjectName: string;
   htmlUrl: string;
-  status: string;
-  conclusion: string | null;
+  phase: string;
+  conclusion: string;
   lastEventTime: string;
   eventKind: string;
   pipelineRunId: string;
@@ -56,10 +52,6 @@ export interface WatchRow {
 export interface WatchDurationBaseline {
   durationSeconds: number;
   sampleSize: number;
-}
-
-function watchRunKey(runId: string, runAttempt: number): string {
-  return `${runId}:${runAttempt}`;
 }
 
 export function buildWatchStatus(
@@ -74,8 +66,7 @@ export function buildWatchStatus(
     .map((row) => ({
       jobId: row.subjectId,
       jobName: row.subjectName,
-      runAttempt: row.runAttempt,
-      status: row.status,
+      phase: row.phase,
       conclusion: row.conclusion,
       lastEventTime: row.lastEventTime,
       durationSeconds: Number(row.durationSeconds),
@@ -84,16 +75,15 @@ export function buildWatchStatus(
 
   const activeJobsByRunId = new Map<string, string[]>();
   for (const job of jobs) {
-    if (job.status === "completed") {
+    if (job.phase === "finished") {
       continue;
     }
 
-    const runKey = watchRunKey(job.pipelineRunId, job.runAttempt);
-    const activeJobs = activeJobsByRunId.get(runKey);
+    const activeJobs = activeJobsByRunId.get(job.pipelineRunId);
     if (activeJobs) {
       activeJobs.push(job.jobName);
     } else {
-      activeJobsByRunId.set(runKey, [job.jobName]);
+      activeJobsByRunId.set(job.pipelineRunId, [job.jobName]);
     }
   }
 
@@ -104,23 +94,19 @@ export function buildWatchStatus(
 
       return {
         runId: row.subjectId,
-        runAttempt: row.runAttempt,
         workflowName: row.subjectName,
-        htmlUrl: row.htmlUrl,
-        status: row.status,
+        phase: row.phase,
         conclusion: row.conclusion,
         lastEventTime: row.lastEventTime,
         durationSeconds: Number(row.durationSeconds),
         usualDurationSeconds: baseline?.durationSeconds ?? null,
         usualDurationSampleSize: baseline?.sampleSize ?? 0,
-        activeJobs:
-          activeJobsByRunId.get(watchRunKey(row.subjectId, row.runAttempt)) ??
-          [],
+        activeJobs: activeJobsByRunId.get(row.subjectId) ?? [],
       };
     });
 
-  const activeRuns = runs.filter((run) => run.status !== "completed");
-  const completedRuns = runs.filter((run) => run.status === "completed");
+  const activeRuns = runs.filter((run) => run.phase !== "finished");
+  const completedRuns = runs.filter((run) => run.phase === "finished");
 
   return {
     repo: data.repo,

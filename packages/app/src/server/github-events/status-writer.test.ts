@@ -256,7 +256,7 @@ describe("upsertWorkflowJob", () => {
       jobName: "test",
       repository: "acme/repo",
       status: "queued",
-      lastEventAt: new Date("2026-03-05T10:00:00Z"),
+      lastEventAt: new Date("2026-03-05T10:00:10Z"),
       createdAt: opTimestamp,
       updatedAt: opTimestamp,
     });
@@ -278,7 +278,7 @@ describe("upsertWorkflowJob", () => {
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
       status: "requested",
-      lastEventAt: new Date("2026-03-05T10:00:00Z"),
+      lastEventAt: new Date("2026-03-05T10:00:10Z"),
       createdAt: opTimestamp,
       updatedAt: opTimestamp,
     });
@@ -292,7 +292,7 @@ describe("upsertWorkflowJob", () => {
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
       status: "waiting",
-      lastEventAt: new Date("2026-03-05T10:00:00Z"),
+      lastEventAt: new Date("2026-03-05T10:00:10Z"),
       createdAt: opTimestamp,
       updatedAt: opTimestamp,
     });

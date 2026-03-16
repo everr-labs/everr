@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/cli/runs")({
   server: {
     middleware: [cliAuthMiddleware],
     handlers: {
-      GET: async ({ request, context }) => {
+      GET: async ({ request }) => {
         const url = new URL(request.url);
         if (url.searchParams.has("page") || url.searchParams.has("waitMode")) {
           return Response.json(
@@ -76,7 +76,6 @@ export const Route = createFileRoute("/api/cli/runs")({
               repo: data.repo,
               branch: data.branch,
               commit: data.commit,
-              tenantId: context.auth.tenantId,
             },
           });
 
