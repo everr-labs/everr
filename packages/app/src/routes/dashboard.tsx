@@ -29,7 +29,6 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
 });
 
 export const Route = createFileRoute("/dashboard")({
-  ssr: false,
   validateSearch: DashboardSearchSchema,
   search: {
     middlewares: [
@@ -49,7 +48,7 @@ export const Route = createFileRoute("/dashboard")({
     }
 
     if (!auth.organizationId) {
-      throw redirect({ to: "/onboarding/organization" });
+      throw redirect({ to: "/onboarding" });
     }
 
     return { user: auth.user, organizationId: auth.organizationId };

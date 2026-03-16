@@ -1,8 +1,10 @@
 import { SiApple } from "@icons-pack/react-simple-icons";
 import { useForm } from "@tanstack/react-form";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 import { useAuth } from "@workos/authkit-tanstack-react-start/client";
+import type { Organization } from "@workos-inc/node";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,8 +12,8 @@ import {
   Check,
   ExternalLink,
   Loader2,
+  SparklesIcon,
   Terminal,
-  Wrench,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -28,7 +30,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getCurrentOrganization, updateOrganizationName } from "@/data/auth";
+import {
+  activeOrganizationOptions,
+  markOnboardingComplete,
+  updateOrganizationName,
+} from "@/data/auth";
 import {
   createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
@@ -71,6 +77,7 @@ function getDownloadUrl(os: string, arch: string) {
 // ---------------------------------------------------------------------------
 
 const SLIDE_OFFSET = 60;
+const SPRING = { type: "spring" as const, stiffness: 300, damping: 30 };
 
 const stepVariants = {
   enter: (dir: number) => ({
@@ -120,8 +127,7 @@ const staggerItem = {
 // ---------------------------------------------------------------------------
 
 export const Route = createFileRoute("/onboarding")({
-  async beforeLoad() {
-    // TODO: Move this to a layout route that wraps both the onboarding and the dashboard.
+  async beforeLoad({ context: { queryClient } }) {
     const auth = await getAuth();
 
     if (!auth.user) {
@@ -131,37 +137,36 @@ export const Route = createFileRoute("/onboarding")({
       throw redirect({ href: signInUrl });
     }
 
-    return {
-      auth,
-    };
-  },
-  loader: async ({ context: { auth } }) => {
-    let githubInstalled = false;
-
-    let organizationName = "";
-    if (auth.organizationId) {
-      try {
-        const [status, org] = await Promise.all([
-          getGithubAppInstallStatus(),
-          getCurrentOrganization(),
-        ]);
-        githubInstalled = Array.isArray(status)
-          ? status.some((i) => i.status === "active")
-          : Boolean(
-              (status as { installed?: boolean } | null | undefined)?.installed,
-            );
-        organizationName = org.name;
-      } catch {
-        // proceed with defaults
-      }
+    let organization: Organization | null = null;
+    try {
+      organization = await queryClient.ensureQueryData(
+        activeOrganizationOptions(),
+      );
+    } catch {
+      return { auth, organization: null };
     }
 
-    return {
-      hasOrganization: Boolean(auth.organizationId),
-      githubInstalled,
-      organizationName,
-    };
+    if (organization?.metadata?.onboardingCompleted === "true") {
+      throw redirect({ to: "/dashboard" });
+    }
+
+    return { auth, organization };
   },
+  loader: async ({ context: { auth, organization } }) => {
+    let githubInstalled = false;
+    if (auth.organizationId) {
+      try {
+        const status = await getGithubAppInstallStatus();
+        githubInstalled = Array.isArray(status)
+          ? status.some((i) => i.status === "active")
+          : Boolean((status as { installed?: boolean } | undefined)?.installed);
+      } catch {
+        // proceed with false
+      }
+    }
+    return { githubInstalled, organization };
+  },
+  ssr: false,
   component: OnboardingWizard,
 });
 
@@ -170,10 +175,17 @@ export const Route = createFileRoute("/onboarding")({
 // ---------------------------------------------------------------------------
 
 function OnboardingWizard() {
-  const { hasOrganization, githubInstalled, organizationName } =
+  const { githubInstalled, organization: initialOrganization } =
     Route.useLoaderData();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { data: organization } = useQuery({
+    ...activeOrganizationOptions(),
+    initialData: initialOrganization,
+  });
+
+  const hasOrganization = Boolean(organization);
+  const organizationName = organization?.name ?? "";
 
   const [currentStep, setCurrentStep] = useState<Step>(() =>
     !hasOrganization ? "organization" : !githubInstalled ? "github" : "app",
@@ -245,33 +257,29 @@ function OnboardingWizard() {
             visible: {
               opacity: 1,
               y: 0,
-              transition: { type: "spring", stiffness: 300, damping: 30 },
+              transition: SPRING,
             },
           }}
           className="mb-12"
           aria-label="Onboarding progress"
         >
-          <div className="relative flex  border border-border bg-card">
-            {/* Animated active indicator */}
-            <motion.div
-              className="pointer-events-none absolute inset-y-0 bg-primary/[0.07]"
-              initial={false}
-              animate={{
-                left: `${(currentStepIndex / STEPS.length) * 100}%`,
-                width: `${100 / STEPS.length}%`,
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            />
-            {/* Bottom accent bar */}
-            <motion.div
-              className="pointer-events-none absolute bottom-0 h-0.5 bg-primary"
-              initial={false}
-              animate={{
-                left: `${(currentStepIndex / STEPS.length) * 100}%`,
-                width: `${100 / STEPS.length}%`,
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            />
+          <div className="relative flex border border-border bg-card">
+            {/* Active step indicator + accent bar */}
+            {[
+              "pointer-events-none absolute inset-y-0 bg-primary/[0.07]",
+              "pointer-events-none absolute bottom-0 h-0.5 bg-primary",
+            ].map((cls) => (
+              <motion.div
+                key={cls}
+                className={cls}
+                initial={false}
+                animate={{
+                  left: `${(currentStepIndex / STEPS.length) * 100}%`,
+                  width: `${100 / STEPS.length}%`,
+                }}
+                transition={SPRING}
+              />
+            ))}
 
             {STEPS.map((step, i) => {
               const isActive = i === currentStepIndex;
@@ -324,7 +332,7 @@ function OnboardingWizard() {
             visible: {
               opacity: 1,
               y: 0,
-              transition: { type: "spring", stiffness: 300, damping: 30 },
+              transition: SPRING,
             },
           }}
         >
@@ -332,7 +340,7 @@ function OnboardingWizard() {
             className="relative overflow-hidden"
             initial={false}
             animate={{ height: contentHeight }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            transition={SPRING}
           >
             <div ref={containerRef}>
               <AnimatePresence mode="wait" initial={false} custom={direction}>
@@ -343,16 +351,12 @@ function OnboardingWizard() {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 30,
-                  }}
+                  transition={SPRING}
                 >
                   {currentStep === "organization" && (
                     <OrganizationStep
                       user={user}
-                      savedName={organizationName}
+                      organizationName={organizationName}
                       hasOrganization={hasOrganization}
                       onComplete={goForward}
                     />
@@ -369,7 +373,10 @@ function OnboardingWizard() {
                   {currentStep === "app" && (
                     <AppStep
                       onBack={goBack}
-                      onFinish={() => void navigate({ to: "/dashboard" })}
+                      onFinish={async () => {
+                        await markOnboardingComplete();
+                        await navigate({ to: "/dashboard" });
+                      }}
                     />
                   )}
                 </motion.div>
@@ -384,68 +391,64 @@ function OnboardingWizard() {
 
 function OrganizationStep({
   user,
-  savedName,
+  organizationName,
   hasOrganization,
   onComplete,
 }: {
   user: { email: string };
-  savedName: string;
+  organizationName: string;
   hasOrganization: boolean;
   onComplete: () => void;
 }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [orgCreated, setOrgCreated] = useState(hasOrganization);
-  const lastSavedName = useRef(savedName);
+  const queryClient = useQueryClient();
 
   const form = useForm({
-    defaultValues: { organizationName: savedName },
+    defaultValues: { organizationName },
     onSubmit: () => {},
     validators: {
       onChange: CreateOrganizationInputSchema,
     },
   });
 
-  async function handleSubmit(e: SubmitEvent) {
+  const mutation = useMutation({
+    mutationFn: async (orgName: string) => {
+      if (hasOrganization) {
+        await updateOrganizationName({ data: { organizationName: orgName } });
+      } else {
+        await createOrganizationForCurrentUser({
+          data: { organizationName: orgName },
+        });
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(activeOrganizationOptions());
+      onComplete();
+    },
+    onError: (error) => {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "We couldn't finish setup. Please try again.",
+      );
+    },
+  });
+
+  function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (mutation.isPending) return;
 
     const orgName = form.getFieldValue("organizationName");
     const parsed = OrganizationNameSchema.safeParse(orgName);
     if (!parsed.success) return;
 
-    const nameChanged = orgName !== lastSavedName.current;
-
-    if (orgCreated && !nameChanged) {
+    if (hasOrganization && orgName === organizationName) {
       onComplete();
       return;
     }
 
     setErrorMessage(null);
-    setIsSubmitting(true);
-
-    try {
-      if (orgCreated && nameChanged) {
-        await updateOrganizationName({
-          data: { organizationName: orgName },
-        });
-      } else {
-        await createOrganizationForCurrentUser({
-          data: { organizationName: orgName },
-        });
-        setOrgCreated(true);
-      }
-      lastSavedName.current = orgName;
-      onComplete();
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "We couldn't finish setup. Please try again.";
-      setErrorMessage(message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    mutation.mutate(orgName);
   }
 
   return (
@@ -515,13 +518,13 @@ function OrganizationStep({
           </AnimatePresence>
 
           <div className="flex items-center justify-end pt-1">
-            <Button type="submit" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? (
+            <Button type="submit" size="lg" disabled={mutation.isPending}>
+              {mutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 size-3.5 animate-spin" />
-                  Creating...
+                  {hasOrganization ? "Saving..." : "Creating..."}
                 </>
-              ) : orgCreated ? (
+              ) : hasOrganization ? (
                 <>
                   Continue
                   <ArrowRight className="ml-2 size-3.5" />
@@ -593,7 +596,7 @@ function GitHubStep({
           <>
             <div className="flex flex-col items-center py-4">
               <motion.div
-                className="flex size-12 items-center justify-center border border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400"
+                className="flex size-12 items-center justify-center text-green-600 dark:text-green-400"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{
@@ -602,7 +605,7 @@ function GitHubStep({
                   damping: 15,
                 }}
               >
-                <Check className="size-5" strokeWidth={2.5} />
+                <Check className="size-8" strokeWidth={2.5} />
               </motion.div>
               <h2 className="mt-4 text-lg font-semibold">GitHub connected</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -704,9 +707,9 @@ const APP_FEATURES = [
     description: "to interact with Everr from your terminal",
   },
   {
-    icon: Wrench,
+    icon: SparklesIcon,
     title: "Integrate with your editor",
-    description: "Cursor, Claude Code, Windsurf, and more",
+    description: "Codex, Claude Code, Cursor, and more",
   },
 ] as const;
 
@@ -725,12 +728,12 @@ function AppStep({
       >
         <h2 className="text-lg font-semibold">Get the most out of Everr</h2>
 
-        <div className="mt-6 space-y-0 divide-y divide-border">
+        <div className="mt-6">
           {APP_FEATURES.map((feature, i) => (
             <motion.div
               key={feature.title}
               variants={staggerItem}
-              className="flex items-start gap-4 py-4 first:pt-0 last:pb-0"
+              className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
             >
               <motion.div
                 className="flex size-9 shrink-0 items-center justify-center border border-border bg-muted/50"
@@ -743,20 +746,20 @@ function AppStep({
                   delay: 0.2 + i * 0.08,
                 }}
               >
-                <feature.icon className="size-4 text-muted-foreground" />
+                <feature.icon className="size-4 text-primary" />
               </motion.div>
-              <div className="text-sm">
+              <p className="text-sm">
                 <span className="font-semibold">{feature.title}</span>{" "}
                 <span className="text-muted-foreground">
                   {feature.description}
                 </span>
-              </div>
+              </p>
             </motion.div>
           ))}
         </div>
 
         <div className="mt-8 border-t border-border pt-6">
-          <p className="text-xs font-medium tracking-wide uppercase text-muted-foreground">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground">
             Download for your platform
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
@@ -804,8 +807,8 @@ function StepContainer({
 }: StepContainerProps) {
   return (
     <motion.div variants={staggerContainer} initial="enter" animate="center">
-      <motion.div variants={staggerItem}>
-        <p className="text-center text-xs font-medium tracking-widest text-muted-foreground uppercase">
+      <div>
+        <p className="text-center text-xs font-medium font-heading tracking-widest text-muted-foreground uppercase">
           Step {index}
         </p>
         <h1 className="mt-2 text-center text-3xl font-bold tracking-tight sm:text-4xl font-heading">
@@ -816,7 +819,7 @@ function StepContainer({
             {description}
           </p>
         )}
-      </motion.div>
+      </div>
 
       {children}
     </motion.div>

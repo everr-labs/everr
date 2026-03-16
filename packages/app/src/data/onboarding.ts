@@ -80,6 +80,9 @@ export const createOrganizationForCurrentUser = createServerFn({
     try {
       const organization = await workOS.organizations.createOrganization({
         name: data.organizationName,
+        metadata: {
+          onboardingCompleted: "false",
+        },
       });
       organizationId = organization.id;
     } catch (error) {
