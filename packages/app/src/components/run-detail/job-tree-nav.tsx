@@ -54,7 +54,7 @@ export function JobTreeNav({
                   return (
                     <Link
                       key={step.stepNumber}
-                      to="/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+                      to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
                       params={{
                         traceId,
                         jobId: job.jobId,

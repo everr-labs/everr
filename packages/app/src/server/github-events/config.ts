@@ -1,4 +1,4 @@
-import { githubEventsEnv } from "../../github-events.env";
+import { env } from "@/env";
 
 export type GitHubEventsConfig = {
   source: string;
@@ -68,13 +68,13 @@ export function getGitHubEventsConfig(): GitHubEventsConfig {
   }
 
   cachedConfig = {
-    source: githubEventsEnv.INGRESS_SOURCE,
-    collectorURL: resolveCollectorURL(githubEventsEnv.INGRESS_COLLECTOR_URL),
+    source: env.INGRESS_SOURCE,
+    collectorURL: resolveCollectorURL(env.INGRESS_COLLECTOR_URL),
     ...githubEventsConfigConstants,
-    cdeventsClickHouseURL: githubEventsEnv.CDEVENTS_CLICKHOUSE_URL,
-    cdeventsClickHouseUsername: githubEventsEnv.CDEVENTS_CLICKHOUSE_USERNAME,
-    cdeventsClickHousePassword: githubEventsEnv.CDEVENTS_CLICKHOUSE_PASSWORD,
-    cdeventsClickHouseDatabase: githubEventsEnv.CDEVENTS_CLICKHOUSE_DATABASE,
+    cdeventsClickHouseURL: env.CDEVENTS_CLICKHOUSE_URL,
+    cdeventsClickHouseUsername: env.CDEVENTS_CLICKHOUSE_USERNAME,
+    cdeventsClickHousePassword: env.CDEVENTS_CLICKHOUSE_PASSWORD,
+    cdeventsClickHouseDatabase: env.CDEVENTS_CLICKHOUSE_DATABASE,
   };
 
   return cachedConfig;

@@ -147,7 +147,7 @@ export const Route = createFileRoute("/onboarding")({
     }
 
     if (organization?.metadata?.onboardingCompleted === "true") {
-      throw redirect({ to: "/dashboard" });
+      throw redirect({ to: "/" });
     }
 
     return { auth, organization };
@@ -375,7 +375,7 @@ function OnboardingWizard() {
                       onBack={goBack}
                       onFinish={async () => {
                         await markOnboardingComplete();
-                        await navigate({ to: "/dashboard" });
+                        await navigate({ to: "/" });
                       }}
                     />
                   )}

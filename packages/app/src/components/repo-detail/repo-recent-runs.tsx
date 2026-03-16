@@ -23,7 +23,7 @@ export function RepoRecentRuns({ data }: RepoRecentRunsProps) {
       {data.map((run) => (
         <Link
           key={run.traceId}
-          to="/dashboard/runs/$traceId"
+          to="/runs/$traceId"
           params={{ traceId: run.traceId }}
           className="hover:bg-muted/50 -mx-2 flex items-center justify-between rounded-md px-2 py-2 transition-colors"
         >

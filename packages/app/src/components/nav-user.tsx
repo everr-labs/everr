@@ -89,14 +89,12 @@ export function NavUser() {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem render={<Link to="/dashboard/account" />}>
+              <DropdownMenuItem render={<Link to="/account" />}>
                 <BadgeCheck />
                 Account
               </DropdownMenuItem>
               {isAdmin ? (
-                <DropdownMenuItem
-                  render={<Link to="/dashboard/users-management" />}
-                >
+                <DropdownMenuItem render={<Link to="/users-management" />}>
                   <Users />
                   Users Management
                 </DropdownMenuItem>

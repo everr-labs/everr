@@ -19,45 +19,45 @@ export type NavItem = {
 export const navMain: NavItem[] = [
   {
     title: "CI/CD",
-    url: "/dashboard",
+    url: "/",
     icon: GitBranch,
     isActive: true,
     items: [
       {
         title: "Overview",
-        url: "/dashboard",
+        url: "/",
       },
       {
         title: "Runs",
-        url: "/dashboard/runs",
+        url: "/runs",
       },
       {
         title: "Workflows",
-        url: "/dashboard/workflows",
+        url: "/workflows",
       },
     ],
   },
   {
     title: "Testing",
-    url: "/dashboard/tests-overview",
+    url: "/tests-overview",
     icon: FlaskConical,
     isActive: true,
     items: [
       {
         title: "Tests Overview",
-        url: "/dashboard/tests-overview",
+        url: "/tests-overview",
       },
     ],
   },
   {
     title: "Insights",
-    url: "/dashboard/cost-analysis",
+    url: "/cost-analysis",
     icon: ChartLine,
     isActive: true,
     items: [
       {
         title: "Cost Analysis",
-        url: "/dashboard/cost-analysis",
+        url: "/cost-analysis",
       },
     ],
   },

@@ -1,6 +1,6 @@
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { leafTestFilter, testFullNameExpr } from "./sql-helpers";
 
@@ -62,7 +62,7 @@ export interface SlowestJobsResult {
   items: SlowJobItem[];
 }
 
-export const getSlowestTests = createServerFn({
+export const getSlowestTests = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(SlowestQueryInputSchema)
@@ -176,7 +176,7 @@ export const getSlowestTests = createServerFn({
     } satisfies SlowestTestsResult;
   });
 
-export const getSlowestJobs = createServerFn({
+export const getSlowestJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(SlowestQueryInputSchema)

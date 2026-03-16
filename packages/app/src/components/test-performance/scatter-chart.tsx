@@ -371,7 +371,7 @@ export function TestPerfScatterChart({
                     role="link"
                     render={
                       <Link
-                        to="/dashboard/runs/$traceId"
+                        to="/runs/$traceId"
                         params={{ traceId: selected.traceId }}
                       />
                     }

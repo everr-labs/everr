@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   executionsSubquery,
   prepareFilter,
@@ -23,7 +23,7 @@ export interface TestPerformanceStats {
   failureRate: number;
 }
 
-export const getTestPerfStats = createServerFn({
+export const getTestPerfStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -109,7 +109,7 @@ export interface ScatterPoint {
   commitSha: string;
 }
 
-export const getTestPerfScatter = createServerFn({
+export const getTestPerfScatter = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -199,7 +199,7 @@ export interface TestPerfStatsTrendPoint {
   failureRate: number;
 }
 
-export const getTestPerfTrend = createServerFn({
+export const getTestPerfTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -240,7 +240,7 @@ export const getTestPerfTrend = createServerFn({
     })) satisfies TestPerfTrendPoint[];
   });
 
-export const getTestPerfStatsTrend = createServerFn({
+export const getTestPerfStatsTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -319,7 +319,7 @@ export interface TestFailure {
   repo: string;
 }
 
-export const getTestPerfFailures = createServerFn({
+export const getTestPerfFailures = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)

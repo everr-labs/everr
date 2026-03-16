@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { runSummarySubquery } from "./run-query-helpers";
 
@@ -65,7 +65,7 @@ const RunsListInputSchema = z
   });
 export type RunsListInput = z.infer<typeof RunsListInputSchema>;
 
-export const getRunsList = createServerFn({
+export const getRunsList = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RunsListInputSchema)
@@ -249,7 +249,7 @@ export interface FilterOptions {
   workflowNames: string[];
 }
 
-export const getRunFilterOptions = createServerFn({
+export const getRunFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async () => {
   const [repos, branches, workflowNames] = await Promise.all([
@@ -300,7 +300,7 @@ const SearchRunsInputSchema = z.object({
   query: z.string().min(1),
 });
 
-export const searchRuns = createServerFn({
+export const searchRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(SearchRunsInputSchema)

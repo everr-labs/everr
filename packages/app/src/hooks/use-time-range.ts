@@ -6,7 +6,7 @@ import {
 } from "@/lib/time-range";
 
 export function useTimeRange() {
-  const search = useSearch({ from: "/dashboard" });
+  const search = useSearch({ from: "/_authenticated/_dashboard" });
   const timeRange = validateTimeRange(
     ResolvedTimeRangeSearchSchema.parse(search),
   );

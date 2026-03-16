@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 
@@ -19,7 +19,7 @@ export interface Repository {
   successRate: number;
 }
 
-export const getDashboardStats = createServerFn({
+export const getDashboardStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -74,7 +74,7 @@ export const getDashboardStats = createServerFn({
     } satisfies DashboardStats;
   });
 
-export const getRepositories = createServerFn({
+export const getRepositories = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -125,7 +125,7 @@ export interface DashboardDurationStats {
   p95Duration: number;
 }
 
-export const getDashboardDurationStats = createServerFn({
+export const getDashboardDurationStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -167,7 +167,7 @@ export interface TopFailingJob {
   failureCount: number;
 }
 
-export const getTopFailingJobs = createServerFn({
+export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -209,7 +209,7 @@ export interface TopFailingWorkflow {
   failureCount: number;
 }
 
-export const getTopFailingWorkflows = createServerFn({
+export const getTopFailingWorkflows = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)

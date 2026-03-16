@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { testFullNameExpr } from "./sql-helpers";
 
@@ -81,7 +81,7 @@ function buildFlakyTestConditions(
   return { conditions, params };
 }
 
-export const getFlakyTestFilterOptions = createServerFn({
+export const getFlakyTestFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async () => {
   const [repos, branches] = await Promise.all([
@@ -111,7 +111,7 @@ export const getFlakyTestFilterOptions = createServerFn({
   } satisfies FlakyTestFilterOptions;
 });
 
-export const getFlakyTests = createServerFn({
+export const getFlakyTests = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(FlakyTestsFilterInputSchema)
@@ -213,7 +213,7 @@ export interface FlakyTestSummary {
   flakyPercentage: number;
 }
 
-export const getFlakyTestSummary = createServerFn({
+export const getFlakyTestSummary = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(FlakyTestsFilterInputSchema)
@@ -284,7 +284,7 @@ export interface FlakinessTrendPoint {
   flakyPercentage: number;
 }
 
-export const getFlakinessTrend = createServerFn({
+export const getFlakinessTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(FlakyTestsFilterInputSchema)
@@ -389,7 +389,7 @@ const TestDetailInputSchema = z.object({
 });
 export type TestDetailInput = z.infer<typeof TestDetailInputSchema>;
 
-export const getTestHistory = createServerFn({
+export const getTestHistory = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestHistoryInputSchema)
@@ -513,7 +513,7 @@ export interface RunnerFlakiness {
   avgDuration: number;
 }
 
-export const getRunnerFlakiness = createServerFn({
+export const getRunnerFlakiness = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestDetailInputSchema)
@@ -571,7 +571,7 @@ export const getRunnerFlakiness = createServerFn({
   });
 
 // Daily results for heatmap
-export const getTestDailyResults = createServerFn({
+export const getTestDailyResults = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestDetailInputSchema)
@@ -618,7 +618,7 @@ export const getTestDailyResults = createServerFn({
   });
 
 // Lightweight lookup for waterfall badge
-export const getFlakyTestNames = createServerFn({
+export const getFlakyTestNames = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ repo: z.string() }))

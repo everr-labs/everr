@@ -47,7 +47,7 @@ export function RunsTable({ data }: RunsTableProps) {
               </td>
               <td className="py-2 pr-4">
                 <Link
-                  to="/dashboard/runs/$traceId"
+                  to="/runs/$traceId"
                   params={{ traceId: run.traceId }}
                   className="font-mono text-xs hover:underline"
                 >
@@ -62,7 +62,7 @@ export function RunsTable({ data }: RunsTableProps) {
               <td className="py-2 pr-4 font-medium">{run.workflowName}</td>
               <td className="py-2 pr-4">
                 <Link
-                  to="/dashboard/repos"
+                  to="/repos"
                   search={{ name: run.repo }}
                   className="hover:underline"
                 >

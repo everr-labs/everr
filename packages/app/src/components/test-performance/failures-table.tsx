@@ -45,7 +45,7 @@ const columns: Column<TestFailure>[] = [
     header: "Run",
     cell: (row) => (
       <Link
-        to="/dashboard/runs/$traceId"
+        to="/runs/$traceId"
         params={{ traceId: row.traceId }}
         className="inline-flex items-center hover:underline"
       >

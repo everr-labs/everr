@@ -1,7 +1,7 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 
-function trimEnvValue(value: unknown): unknown {
+function trim(value: unknown): unknown {
   if (typeof value !== "string") {
     return value;
   }
@@ -10,23 +10,15 @@ function trimEnvValue(value: unknown): unknown {
   return trimmed === "" ? undefined : trimmed;
 }
 
-function stringEnv() {
-  return z.preprocess(trimEnvValue, z.string().min(1));
-}
-
-function urlEnv() {
-  return z.preprocess(trimEnvValue, z.url());
-}
-
 export const githubEventsEnv = createEnv({
   isServer: true,
   server: {
-    INGRESS_SOURCE: stringEnv(),
-    INGRESS_COLLECTOR_URL: urlEnv(),
-    CDEVENTS_CLICKHOUSE_URL: urlEnv(),
-    CDEVENTS_CLICKHOUSE_USERNAME: stringEnv(),
-    CDEVENTS_CLICKHOUSE_PASSWORD: stringEnv(),
-    CDEVENTS_CLICKHOUSE_DATABASE: stringEnv(),
+    INGRESS_SOURCE: z.preprocess(trim, z.string().min(1)),
+    INGRESS_COLLECTOR_URL: z.preprocess(trim, z.url()),
+    CDEVENTS_CLICKHOUSE_URL: z.preprocess(trim, z.url()),
+    CDEVENTS_CLICKHOUSE_USERNAME: z.preprocess(trim, z.string().min(1)),
+    CDEVENTS_CLICKHOUSE_PASSWORD: z.preprocess(trim, z.string().min(1)),
+    CDEVENTS_CLICKHOUSE_DATABASE: z.preprocess(trim, z.string().min(1)),
   },
   runtimeEnv: {
     INGRESS_SOURCE: process.env.INGRESS_SOURCE,

@@ -28,7 +28,7 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   reason: z.string().optional(),
 });
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
     middlewares: [

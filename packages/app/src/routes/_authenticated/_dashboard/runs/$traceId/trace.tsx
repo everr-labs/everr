@@ -6,7 +6,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { flakyTestNamesOptions } from "@/data/flaky-tests";
 import { runDetailsOptions, runSpansOptions } from "@/data/runs";
 
-export const Route = createFileRoute("/dashboard/runs/$traceId/trace")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/runs/$traceId/trace",
+)({
   loader: async ({ context: { queryClient }, params }) => {
     const [, runDetails] = await Promise.all([
       queryClient.ensureQueryData(runSpansOptions(params.traceId)),

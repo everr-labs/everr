@@ -1,14 +1,16 @@
-import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie } from "@tanstack/react-start/server";
 import { getAuth } from "@workos/authkit-tanstack-react-start";
 import { z } from "zod";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { workOS } from "@/lib/workos";
 
 const DeleteCurrentUserAccountInputSchema = z.object({
   confirmation: z.literal("DELETE"),
 });
 
-export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
+export const deleteCurrentUserAccount = createAuthenticatedServerFn({
+  method: "POST",
+})
   .inputValidator(DeleteCurrentUserAccountInputSchema)
   .handler(async ({ data }) => {
     const requestId = crypto.randomUUID();
@@ -47,6 +49,7 @@ export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
     }
 
     const cookieNames = new Set([
+      // TODO: DO NOT ACCESS ENV DIRECTLY
       process.env.WORKOS_COOKIE_NAME,
       "wos-session",
       "wos_session",
@@ -56,6 +59,7 @@ export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
       if (!cookieName) continue;
       deleteCookie(cookieName, {
         path: "/",
+        // TODO: DO NOT ACCESS ENV DIRECTLY
         domain: process.env.WORKOS_COOKIE_DOMAIN,
       });
     }

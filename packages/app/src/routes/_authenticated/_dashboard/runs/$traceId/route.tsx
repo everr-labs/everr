@@ -25,7 +25,9 @@ import {
 } from "@/data/runs";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/dashboard/runs/$traceId")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/runs/$traceId",
+)({
   staticData: {
     breadcrumb: (match: { loaderData?: { workflowName?: string } }) =>
       match.loaderData?.workflowName ?? "Run Details",
@@ -67,15 +69,15 @@ function RunDetailLayout() {
   // useParams with strict: false returns ALL matched params including child route params
   const params = useParams({ strict: false });
   const jobDetailMatch = useMatch({
-    from: "/dashboard/runs/$traceId/jobs/$jobId/",
+    from: "/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/",
     shouldThrow: false,
   });
   const stepDetailMatch = useMatch({
-    from: "/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber",
+    from: "/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber",
     shouldThrow: false,
   });
   const traceMatch = useMatch({
-    from: "/dashboard/runs/$traceId/trace",
+    from: "/_authenticated/_dashboard/runs/$traceId/trace",
     shouldThrow: false,
   });
 
@@ -111,7 +113,7 @@ function RunDetailLayout() {
           <TabsTrigger value="Jobs">
             {stepDetailMatch ? (
               <Link
-                to="/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+                to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
                 params={{
                   traceId,
                   jobId: stepDetailMatch.params.jobId,
@@ -122,19 +124,19 @@ function RunDetailLayout() {
               </Link>
             ) : jobDetailMatch ? (
               <Link
-                to="/dashboard/runs/$traceId/jobs/$jobId"
+                to="/runs/$traceId/jobs/$jobId"
                 params={{ traceId, jobId: jobDetailMatch.params.jobId }}
               >
                 Jobs
               </Link>
             ) : (
-              <Link to="/dashboard/runs/$traceId" params={{ traceId }}>
+              <Link to="/runs/$traceId" params={{ traceId }}>
                 Jobs
               </Link>
             )}
           </TabsTrigger>
           <TabsTrigger value="Trace">
-            <Link to="/dashboard/runs/$traceId/trace" params={{ traceId }}>
+            <Link to="/runs/$traceId/trace" params={{ traceId }}>
               Trace
             </Link>
           </TabsTrigger>
@@ -207,7 +209,7 @@ function RunDetailError({ error }: { error: Error }) {
   return (
     <div className="space-y-3">
       <Link
-        to="/dashboard"
+        to="/"
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
           "h-7 px-2",

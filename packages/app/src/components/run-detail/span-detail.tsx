@@ -75,7 +75,7 @@ export function SpanDetail({ span, traceId, onClose }: SpanDetailProps) {
         {isStep && span.jobId && span.stepNumber && (
           <div className="mt-4 pt-4 border-t">
             <Link
-              to="/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+              to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
               params={{
                 traceId,
                 jobId: span.jobId,

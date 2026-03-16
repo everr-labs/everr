@@ -1,8 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { calculateCost } from "@/lib/runner-pricing";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { runSummarySubquery } from "./run-query-helpers";
 import type { RunListItem } from "./runs-list";
@@ -102,7 +102,7 @@ type WorkflowDetailInput = z.infer<typeof WorkflowDetailInputSchema>;
 
 // ── List Page Queries ───────────────────────────────────────────────────
 
-export const getWorkflowsList = createServerFn({
+export const getWorkflowsList = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowsListInputSchema)
@@ -230,7 +230,7 @@ export const getWorkflowsList = createServerFn({
     } satisfies WorkflowsListResult;
   });
 
-export const getWorkflowsSparklines = createServerFn({
+export const getWorkflowsSparklines = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowsSparklineInputSchema)
@@ -340,7 +340,7 @@ export const getWorkflowsSparklines = createServerFn({
 
 // ── Detail Page Queries ─────────────────────────────────────────────────
 
-export const getWorkflowStats = createServerFn({
+export const getWorkflowStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
@@ -423,7 +423,7 @@ export const getWorkflowStats = createServerFn({
     } satisfies WorkflowStats;
   });
 
-export const getWorkflowSuccessRateTrend = createServerFn({
+export const getWorkflowSuccessRateTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
@@ -476,7 +476,7 @@ export const getWorkflowSuccessRateTrend = createServerFn({
     })) satisfies WorkflowTrendPoint[];
   });
 
-export const getWorkflowDurationTrend = createServerFn({
+export const getWorkflowDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
@@ -522,7 +522,7 @@ export const getWorkflowDurationTrend = createServerFn({
     })) satisfies WorkflowDurationTrendPoint[];
   });
 
-export const getWorkflowTopFailingJobs = createServerFn({
+export const getWorkflowTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
@@ -568,7 +568,7 @@ export const getWorkflowTopFailingJobs = createServerFn({
     })) satisfies WorkflowFailingJob[];
   });
 
-export const getWorkflowFailureReasons = createServerFn({
+export const getWorkflowFailureReasons = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
@@ -617,7 +617,7 @@ export interface WorkflowCost {
   overTime: number[];
 }
 
-export const getWorkflowCost = createServerFn({
+export const getWorkflowCost = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
@@ -750,7 +750,7 @@ export const getWorkflowCost = createServerFn({
     } satisfies WorkflowCost;
   });
 
-export const getWorkflowRecentRuns = createServerFn({
+export const getWorkflowRecentRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)

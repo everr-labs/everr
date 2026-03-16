@@ -52,7 +52,7 @@ vi.mock("@workos-inc/widgets", () => ({
 
 import { Route } from "./account";
 
-describe("/dashboard/account route", () => {
+describe("/account route", () => {
   it("renders WorkOS profile and security widgets", () => {
     const Component = Route.options.component as React.ComponentType;
     render(<Component />);

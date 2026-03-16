@@ -1,8 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { normalizeTimestampToUtc } from "@/lib/formatting";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { runSummarySubquery } from "./run-query-helpers";
@@ -286,7 +286,7 @@ export interface Span {
   isSuite?: boolean;
 }
 
-export const getLatestRuns = createServerFn({
+export const getLatestRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -333,7 +333,7 @@ export const getLatestRuns = createServerFn({
     })) satisfies Run[];
   });
 
-export const getRunDetails = createServerFn({
+export const getRunDetails = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
@@ -377,7 +377,7 @@ export const getRunDetails = createServerFn({
     } satisfies Run;
   });
 
-export const getRunJobs = createServerFn({
+export const getRunJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
@@ -414,7 +414,7 @@ export const getRunJobs = createServerFn({
     })) satisfies Job[];
   });
 
-export const getJobSteps = createServerFn({
+export const getJobSteps = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
@@ -457,7 +457,7 @@ export const getJobSteps = createServerFn({
     })) satisfies Step[];
   });
 
-export const getAllJobsSteps = createServerFn({
+export const getAllJobsSteps = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(
@@ -515,7 +515,7 @@ export const getAllJobsSteps = createServerFn({
     return result;
   });
 
-export const getStepLogs = createServerFn({
+export const getStepLogs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(
@@ -566,7 +566,7 @@ export const getStepLogs = createServerFn({
     });
   });
 
-export const getRunSpans = createServerFn({
+export const getRunSpans = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())

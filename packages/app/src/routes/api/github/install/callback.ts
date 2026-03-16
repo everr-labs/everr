@@ -12,7 +12,7 @@ function redirectToDashboard(
   status: string,
   reason?: string,
 ): Response {
-  const url = new URL("/dashboard", origin);
+  const url = new URL("/", origin);
   url.searchParams.set("github_install", status);
   if (reason) {
     url.searchParams.set("reason", reason);

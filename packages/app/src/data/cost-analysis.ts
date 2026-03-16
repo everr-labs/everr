@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
 import { calculateCost, formatCost } from "@/lib/runner-pricing";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 
@@ -38,7 +38,7 @@ export interface CostByRunner {
   ratePerMinute: number;
 }
 
-export const getCostOverview = createServerFn({
+export const getCostOverview = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -188,7 +188,7 @@ export interface CostByRepo {
   topRunner: string;
 }
 
-export const getCostByRepo = createServerFn({
+export const getCostByRepo = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -268,7 +268,7 @@ export interface CostByWorkflow {
   avgCostPerRun: number;
 }
 
-export const getCostByWorkflow = createServerFn({
+export const getCostByWorkflow = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)

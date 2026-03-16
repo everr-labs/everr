@@ -13,7 +13,7 @@ import {
 } from "@/data/runs";
 
 export const Route = createFileRoute(
-  "/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber",
+  "/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber",
 )({
   component: StepDetailPage,
   loader: async ({ context: { queryClient }, params }) => {

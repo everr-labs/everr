@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { testFullNameExpr } from "./sql-helpers";
@@ -19,7 +19,7 @@ export interface TestResultsSummary {
   passRate: number;
 }
 
-export const getTestResultsSummary = createServerFn({
+export const getTestResultsSummary = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(
@@ -100,7 +100,7 @@ export interface TestDurationTrendPoint {
   p95Duration: number;
 }
 
-export const getTestDurationTrend = createServerFn({
+export const getTestDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)

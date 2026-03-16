@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 
@@ -14,7 +14,7 @@ export interface FailurePattern {
   lastOccurrence: string;
 }
 
-export const getFailurePatterns = createServerFn({
+export const getFailurePatterns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -67,7 +67,7 @@ export interface FailureTrendPoint {
   uniquePatterns: number;
 }
 
-export const getFailureTrend = createServerFn({
+export const getFailureTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -107,7 +107,7 @@ export interface FailureByRepo {
   topPattern: string;
 }
 
-export const getFailuresByRepo = createServerFn({
+export const getFailuresByRepo = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)

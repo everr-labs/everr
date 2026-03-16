@@ -3,7 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { runDetailsOptions } from "@/data/runs";
 
-export const Route = createFileRoute("/dashboard/runs/$traceId/jobs/$jobId/")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/",
+)({
   component: JobDetailPage,
 });
 

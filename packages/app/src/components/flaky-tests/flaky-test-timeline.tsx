@@ -94,7 +94,7 @@ export function FlakyTestTimeline({ data }: FlakyTestTimelineProps) {
               </td>
               <td className="py-2 pr-4">
                 <Link
-                  to="/dashboard/runs/$traceId"
+                  to="/runs/$traceId"
                   params={{ traceId: exec.traceId }}
                   className={cn(
                     buttonVariants({ variant: "link", size: "sm" }),

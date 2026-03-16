@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { testFullNameExpr } from "../sql-helpers";
 
@@ -12,7 +12,7 @@ export interface TestPerfFilterOptions {
 }
 
 // Server function: filter options (repos + branches from last 90 days)
-export const getTestPerfFilterOptions = createServerFn({
+export const getTestPerfFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async () => {
   const [repos, branches] = await Promise.all([
@@ -70,7 +70,7 @@ const TestPerfChildrenInputSchema = z.object({
 
 export type TestPerfChildrenInput = z.infer<typeof TestPerfChildrenInputSchema>;
 
-export const getTestPerfChildren = createServerFn({
+export const getTestPerfChildren = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerfChildrenInputSchema)

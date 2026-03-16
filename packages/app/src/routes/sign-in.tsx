@@ -1,11 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/sign-in")({
   loader: async () => {
     const { user } = await getAuth();
     if (user) {
-      throw redirect({ to: "/dashboard" });
+      throw redirect({ to: "/" });
     }
     const signInUrl = await getSignInUrl();
     return { signInUrl };

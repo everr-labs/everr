@@ -27,7 +27,7 @@ import {
 } from "@/data/repo-detail";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
-export const Route = createFileRoute("/dashboard/repos")({
+export const Route = createFileRoute("/_authenticated/_dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },
   head: () => ({
     meta: [{ title: "Everr - Repositories" }],

@@ -22,7 +22,9 @@ import {
 } from "@/data/cost-analysis";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
-export const Route = createFileRoute("/dashboard/cost-analysis")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/cost-analysis",
+)({
   staticData: { breadcrumb: "Cost Analysis" },
   head: () => ({
     meta: [{ title: "Everr - Cost Analysis" }],

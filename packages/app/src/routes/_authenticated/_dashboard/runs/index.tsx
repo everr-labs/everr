@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
-export const Route = createFileRoute("/dashboard/runs/")({
+export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
   component: RunsListPage,
   validateSearch: TimeRangeSearchSchema.extend({
     page: z.coerce.number().default(1),

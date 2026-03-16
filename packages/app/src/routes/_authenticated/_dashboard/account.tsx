@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
 
-export const Route = createFileRoute("/dashboard/account")({
+export const Route = createFileRoute("/_authenticated/_dashboard/account")({
   staticData: { breadcrumb: "Account Settings", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Account Settings" }],

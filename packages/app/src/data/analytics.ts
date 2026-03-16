@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 
 export { TimeRangeSchema };
@@ -18,7 +18,7 @@ export interface DurationTrendPoint {
   runCount: number;
 }
 
-export const getDurationTrends = createServerFn({
+export const getDurationTrends = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -67,7 +67,7 @@ export interface QueueTimePoint {
   maxQueueTime: number;
 }
 
-export const getQueueTimeAnalysis = createServerFn({
+export const getQueueTimeAnalysis = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -128,7 +128,7 @@ export interface SuccessRatePoint {
   failureCount: number;
 }
 
-export const getSuccessRateTrends = createServerFn({
+export const getSuccessRateTrends = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -183,7 +183,7 @@ export interface RunnerUtilization {
   totalDuration: number;
 }
 
-export const getRunnerUtilization = createServerFn({
+export const getRunnerUtilization = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)

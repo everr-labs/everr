@@ -25,7 +25,7 @@ const columns: Column<ActiveBranch>[] = [
     header: "Latest Run",
     cell: (branch) => (
       <Link
-        to="/dashboard/runs/$traceId"
+        to="/runs/$traceId"
         params={{ traceId: branch.latestTraceId }}
         className="font-mono text-xs hover:underline"
       >

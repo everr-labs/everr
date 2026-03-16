@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useAccessToken } from "@workos/authkit-tanstack-react-start/client";
 import { UsersManagement } from "@workos-inc/widgets";
 
-export const Route = createFileRoute("/dashboard/users-management")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/users-management",
+)({
   staticData: { breadcrumb: "Users Management", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Users Management" }],

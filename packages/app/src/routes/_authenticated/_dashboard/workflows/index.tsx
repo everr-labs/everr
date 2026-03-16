@@ -13,7 +13,7 @@ import {
 } from "@/data/workflows";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
-export const Route = createFileRoute("/dashboard/workflows/")({
+export const Route = createFileRoute("/_authenticated/_dashboard/workflows/")({
   staticData: { breadcrumb: "Workflows" },
   head: () => ({
     meta: [{ title: "Everr - Workflows" }],

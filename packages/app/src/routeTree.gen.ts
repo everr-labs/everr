@@ -10,21 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignoutRouteImport } from './routes/signout'
+import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
-import { Route as DashboardUsersManagementRouteImport } from './routes/dashboard/users-management'
-import { Route as DashboardTestsOverviewRouteImport } from './routes/dashboard/tests-overview'
-import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
-import { Route as DashboardReposRouteImport } from './routes/dashboard/repos'
-import { Route as DashboardCostAnalysisRouteImport } from './routes/dashboard/cost-analysis'
-import { Route as DashboardAccountRouteImport } from './routes/dashboard/account'
 import { Route as CliDeviceRouteImport } from './routes/cli/device'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
-import { Route as DashboardWorkflowsIndexRouteImport } from './routes/dashboard/workflows/index'
-import { Route as DashboardRunsIndexRouteImport } from './routes/dashboard/runs/index'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
+import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
 import { Route as ApiCliTrayStatusRouteImport } from './routes/api/cli/tray-status'
 import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
 import { Route as ApiCliSlowestTestsRouteImport } from './routes/api/cli/slowest-tests'
@@ -32,24 +25,37 @@ import { Route as ApiCliSlowestJobsRouteImport } from './routes/api/cli/slowest-
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliGrepRouteImport } from './routes/api/cli/grep'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
-import { Route as DashboardRunsTraceIdRouteRouteImport } from './routes/dashboard/runs/$traceId/route'
-import { Route as DashboardRunsTraceIdIndexRouteImport } from './routes/dashboard/runs/$traceId/index'
-import { Route as DashboardWorkflowsRepoWorkflowNameRouteImport } from './routes/dashboard/workflows/$repo/$workflowName'
-import { Route as DashboardRunsTraceIdTraceRouteImport } from './routes/dashboard/runs/$traceId/trace'
+import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './routes/_authenticated/_dashboard/users-management'
+import { Route as AuthenticatedDashboardTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/tests-overview'
+import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
+import { Route as AuthenticatedDashboardReposRouteImport } from './routes/_authenticated/_dashboard/repos'
+import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
+import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
+import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
+import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliNotifierFailuresRouteImport } from './routes/api/cli/notifier/failures'
+import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
+import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as ApiCliAuthDeviceStartRouteImport } from './routes/api/cli/auth/device/start'
 import { Route as ApiCliAuthDevicePollRouteImport } from './routes/api/cli/auth/device/poll'
 import { Route as ApiCliAuthDeviceApproveRouteImport } from './routes/api/cli/auth/device/approve'
-import { Route as DashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/index'
-import { Route as DashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+import { Route as AuthenticatedDashboardWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_dashboard/workflows/$repo/$workflowName'
+import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
+import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
+import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
 const SignoutRoute = SignoutRouteImport.update({
   id: '/signout',
   path: '/signout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -57,56 +63,14 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DashboardRoute,
 } as any)
 const WebhookGithubRoute = WebhookGithubRouteImport.update({
   id: '/webhook/github',
   path: '/webhook/github',
   getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardUsersManagementRoute =
-  DashboardUsersManagementRouteImport.update({
-    id: '/users-management',
-    path: '/users-management',
-    getParentRoute: () => DashboardRoute,
-  } as any)
-const DashboardTestsOverviewRoute = DashboardTestsOverviewRouteImport.update({
-  id: '/tests-overview',
-  path: '/tests-overview',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardRunsRoute = DashboardRunsRouteImport.update({
-  id: '/runs',
-  path: '/runs',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardReposRoute = DashboardReposRouteImport.update({
-  id: '/repos',
-  path: '/repos',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardCostAnalysisRoute = DashboardCostAnalysisRouteImport.update({
-  id: '/cost-analysis',
-  path: '/cost-analysis',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardAccountRoute = DashboardAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => DashboardRoute,
 } as any)
 const CliDeviceRoute = CliDeviceRouteImport.update({
   id: '/cli/device',
@@ -118,16 +82,16 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardWorkflowsIndexRoute = DashboardWorkflowsIndexRouteImport.update({
-  id: '/workflows/',
-  path: '/workflows/',
-  getParentRoute: () => DashboardRoute,
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/_dashboard',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const DashboardRunsIndexRoute = DashboardRunsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DashboardRunsRoute,
-} as any)
+const AuthenticatedDashboardIndexRoute =
+  AuthenticatedDashboardIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const ApiCliTrayStatusRoute = ApiCliTrayStatusRouteImport.update({
   id: '/api/cli/tray-status',
   path: '/api/cli/tray-status',
@@ -163,29 +127,53 @@ const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
   path: '/api/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRunsTraceIdRouteRoute =
-  DashboardRunsTraceIdRouteRouteImport.update({
-    id: '/$traceId',
-    path: '/$traceId',
-    getParentRoute: () => DashboardRunsRoute,
+const AuthenticatedDashboardUsersManagementRoute =
+  AuthenticatedDashboardUsersManagementRouteImport.update({
+    id: '/users-management',
+    path: '/users-management',
+    getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const DashboardRunsTraceIdIndexRoute =
-  DashboardRunsTraceIdIndexRouteImport.update({
+const AuthenticatedDashboardTestsOverviewRoute =
+  AuthenticatedDashboardTestsOverviewRouteImport.update({
+    id: '/tests-overview',
+    path: '/tests-overview',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardRunsRoute =
+  AuthenticatedDashboardRunsRouteImport.update({
+    id: '/runs',
+    path: '/runs',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardReposRoute =
+  AuthenticatedDashboardReposRouteImport.update({
+    id: '/repos',
+    path: '/repos',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardCostAnalysisRoute =
+  AuthenticatedDashboardCostAnalysisRouteImport.update({
+    id: '/cost-analysis',
+    path: '/cost-analysis',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardAccountRoute =
+  AuthenticatedDashboardAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardWorkflowsIndexRoute =
+  AuthenticatedDashboardWorkflowsIndexRouteImport.update({
+    id: '/workflows/',
+    path: '/workflows/',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardRunsIndexRoute =
+  AuthenticatedDashboardRunsIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => DashboardRunsTraceIdRouteRoute,
-  } as any)
-const DashboardWorkflowsRepoWorkflowNameRoute =
-  DashboardWorkflowsRepoWorkflowNameRouteImport.update({
-    id: '/workflows/$repo/$workflowName',
-    path: '/workflows/$repo/$workflowName',
-    getParentRoute: () => DashboardRoute,
-  } as any)
-const DashboardRunsTraceIdTraceRoute =
-  DashboardRunsTraceIdTraceRouteImport.update({
-    id: '/trace',
-    path: '/trace',
-    getParentRoute: () => DashboardRunsTraceIdRouteRoute,
+    getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
 const ApiGithubInstallStartRoute = ApiGithubInstallStartRouteImport.update({
   id: '/api/github/install/start',
@@ -208,6 +196,18 @@ const ApiCliNotifierFailuresRoute = ApiCliNotifierFailuresRouteImport.update({
   path: '/api/cli/notifier/failures',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedDashboardRunsTraceIdRouteRoute =
+  AuthenticatedDashboardRunsTraceIdRouteRouteImport.update({
+    id: '/$traceId',
+    path: '/$traceId',
+    getParentRoute: () => AuthenticatedDashboardRunsRoute,
+  } as any)
+const AuthenticatedDashboardRunsTraceIdIndexRoute =
+  AuthenticatedDashboardRunsTraceIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
+  } as any)
 const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -228,35 +228,45 @@ const ApiCliAuthDeviceApproveRoute = ApiCliAuthDeviceApproveRouteImport.update({
   path: '/api/cli/auth/device/approve',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRunsTraceIdJobsJobIdIndexRoute =
-  DashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
+const AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute =
+  AuthenticatedDashboardWorkflowsRepoWorkflowNameRouteImport.update({
+    id: '/workflows/$repo/$workflowName',
+    path: '/workflows/$repo/$workflowName',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardRunsTraceIdTraceRoute =
+  AuthenticatedDashboardRunsTraceIdTraceRouteImport.update({
+    id: '/trace',
+    path: '/trace',
+    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
+  } as any)
+const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
+  AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
     id: '/jobs/$jobId/',
     path: '/jobs/$jobId/',
-    getParentRoute: () => DashboardRunsTraceIdRouteRoute,
+    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
   } as any)
-const DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
-  DashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport.update({
+const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
+  AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport.update({
     id: '/jobs/$jobId/steps/$stepNumber',
     path: '/jobs/$jobId/steps/$stepNumber',
-    getParentRoute: () => DashboardRunsTraceIdRouteRoute,
+    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRouteWithChildren
+  '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/sign-in': typeof SignInRoute
   '/signout': typeof SignoutRoute
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
-  '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
-  '/dashboard/repos': typeof DashboardReposRoute
-  '/dashboard/runs': typeof DashboardRunsRouteWithChildren
-  '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
-  '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
+  '/account': typeof AuthenticatedDashboardAccountRoute
+  '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/repos': typeof AuthenticatedDashboardReposRoute
+  '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
+  '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
+  '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
@@ -264,35 +274,36 @@ export interface FileRoutesByFullPath {
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/tray-status': typeof ApiCliTrayStatusRoute
-  '/dashboard/runs/': typeof DashboardRunsIndexRoute
-  '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
+  '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
-  '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
-  '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
+  '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
+  '/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
+  '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
+  '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
   '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
   '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
-  '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
-  '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
+  '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
+  '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
+  '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/sign-in': typeof SignInRoute
   '/signout': typeof SignoutRoute
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
-  '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
-  '/dashboard/repos': typeof DashboardReposRoute
-  '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
-  '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/dashboard': typeof DashboardIndexRoute
+  '/account': typeof AuthenticatedDashboardAccountRoute
+  '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/repos': typeof AuthenticatedDashboardReposRoute
+  '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
+  '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
@@ -300,39 +311,38 @@ export interface FileRoutesByTo {
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/tray-status': typeof ApiCliTrayStatusRoute
-  '/dashboard/runs': typeof DashboardRunsIndexRoute
-  '/dashboard/workflows': typeof DashboardWorkflowsIndexRoute
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
-  '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
-  '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdIndexRoute
+  '/runs': typeof AuthenticatedDashboardRunsIndexRoute
+  '/workflows': typeof AuthenticatedDashboardWorkflowsIndexRoute
+  '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
+  '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
   '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
   '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
-  '/dashboard/runs/$traceId/jobs/$jobId': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
-  '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
+  '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
+  '/runs/$traceId/jobs/$jobId': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
+  '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRouteWithChildren
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/sign-in': typeof SignInRoute
   '/signout': typeof SignoutRoute
+  '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
-  '/dashboard/account': typeof DashboardAccountRoute
-  '/dashboard/cost-analysis': typeof DashboardCostAnalysisRoute
-  '/dashboard/repos': typeof DashboardReposRoute
-  '/dashboard/runs': typeof DashboardRunsRouteWithChildren
-  '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
-  '/dashboard/users-management': typeof DashboardUsersManagementRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
+  '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
+  '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/_authenticated/_dashboard/repos': typeof AuthenticatedDashboardReposRoute
+  '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
+  '/_authenticated/_dashboard/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
+  '/_authenticated/_dashboard/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
@@ -340,40 +350,40 @@ export interface FileRoutesById {
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/tray-status': typeof ApiCliTrayStatusRoute
-  '/dashboard/runs/': typeof DashboardRunsIndexRoute
-  '/dashboard/workflows/': typeof DashboardWorkflowsIndexRoute
+  '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/dashboard/runs/$traceId/trace': typeof DashboardRunsTraceIdTraceRoute
-  '/dashboard/workflows/$repo/$workflowName': typeof DashboardWorkflowsRepoWorkflowNameRoute
-  '/dashboard/runs/$traceId/': typeof DashboardRunsTraceIdIndexRoute
+  '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
+  '/_authenticated/_dashboard/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
+  '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
+  '/_authenticated/_dashboard/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
   '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
   '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
-  '/dashboard/runs/$traceId/jobs/$jobId/': typeof DashboardRunsTraceIdJobsJobIdIndexRoute
-  '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
+  '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
+  '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
+  '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/dashboard'
     | '/onboarding'
+    | '/sign-in'
     | '/signout'
     | '/api/health'
     | '/cli/device'
-    | '/dashboard/account'
-    | '/dashboard/cost-analysis'
-    | '/dashboard/repos'
-    | '/dashboard/runs'
-    | '/dashboard/tests-overview'
-    | '/dashboard/users-management'
     | '/webhook/github'
-    | '/dashboard/'
-    | '/dashboard/runs/$traceId'
+    | '/account'
+    | '/cost-analysis'
+    | '/repos'
+    | '/runs'
+    | '/tests-overview'
+    | '/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
     | '/api/cli/runs'
@@ -381,35 +391,36 @@ export interface FileRouteTypes {
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
     | '/api/cli/tray-status'
-    | '/dashboard/runs/'
-    | '/dashboard/workflows/'
+    | '/runs/$traceId'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
-    | '/dashboard/runs/$traceId/trace'
-    | '/dashboard/workflows/$repo/$workflowName'
-    | '/dashboard/runs/$traceId/'
+    | '/runs/'
+    | '/workflows/'
+    | '/runs/$traceId/trace'
+    | '/workflows/$repo/$workflowName'
     | '/api/cli/auth/device/approve'
     | '/api/cli/auth/device/poll'
     | '/api/cli/auth/device/start'
     | '/api/cli/runs/$traceId/logs'
-    | '/dashboard/runs/$traceId/jobs/$jobId/'
-    | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+    | '/runs/$traceId/'
+    | '/runs/$traceId/jobs/$jobId/'
+    | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/onboarding'
+    | '/sign-in'
     | '/signout'
     | '/api/health'
     | '/cli/device'
-    | '/dashboard/account'
-    | '/dashboard/cost-analysis'
-    | '/dashboard/repos'
-    | '/dashboard/tests-overview'
-    | '/dashboard/users-management'
     | '/webhook/github'
-    | '/dashboard'
+    | '/account'
+    | '/cost-analysis'
+    | '/repos'
+    | '/tests-overview'
+    | '/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
     | '/api/cli/runs'
@@ -417,38 +428,37 @@ export interface FileRouteTypes {
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
     | '/api/cli/tray-status'
-    | '/dashboard/runs'
-    | '/dashboard/workflows'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
-    | '/dashboard/runs/$traceId/trace'
-    | '/dashboard/workflows/$repo/$workflowName'
-    | '/dashboard/runs/$traceId'
+    | '/runs'
+    | '/workflows'
+    | '/runs/$traceId/trace'
+    | '/workflows/$repo/$workflowName'
     | '/api/cli/auth/device/approve'
     | '/api/cli/auth/device/poll'
     | '/api/cli/auth/device/start'
     | '/api/cli/runs/$traceId/logs'
-    | '/dashboard/runs/$traceId/jobs/$jobId'
-    | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+    | '/runs/$traceId'
+    | '/runs/$traceId/jobs/$jobId'
+    | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   id:
     | '__root__'
-    | '/'
-    | '/dashboard'
+    | '/_authenticated'
     | '/onboarding'
+    | '/sign-in'
     | '/signout'
+    | '/_authenticated/_dashboard'
     | '/api/health'
     | '/cli/device'
-    | '/dashboard/account'
-    | '/dashboard/cost-analysis'
-    | '/dashboard/repos'
-    | '/dashboard/runs'
-    | '/dashboard/tests-overview'
-    | '/dashboard/users-management'
     | '/webhook/github'
-    | '/dashboard/'
-    | '/dashboard/runs/$traceId'
+    | '/_authenticated/_dashboard/account'
+    | '/_authenticated/_dashboard/cost-analysis'
+    | '/_authenticated/_dashboard/repos'
+    | '/_authenticated/_dashboard/runs'
+    | '/_authenticated/_dashboard/tests-overview'
+    | '/_authenticated/_dashboard/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
     | '/api/cli/runs'
@@ -456,27 +466,29 @@ export interface FileRouteTypes {
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
     | '/api/cli/tray-status'
-    | '/dashboard/runs/'
-    | '/dashboard/workflows/'
+    | '/_authenticated/_dashboard/'
+    | '/_authenticated/_dashboard/runs/$traceId'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/github/install/callback'
     | '/api/github/install/start'
-    | '/dashboard/runs/$traceId/trace'
-    | '/dashboard/workflows/$repo/$workflowName'
-    | '/dashboard/runs/$traceId/'
+    | '/_authenticated/_dashboard/runs/'
+    | '/_authenticated/_dashboard/workflows/'
+    | '/_authenticated/_dashboard/runs/$traceId/trace'
+    | '/_authenticated/_dashboard/workflows/$repo/$workflowName'
     | '/api/cli/auth/device/approve'
     | '/api/cli/auth/device/poll'
     | '/api/cli/auth/device/start'
     | '/api/cli/runs/$traceId/logs'
-    | '/dashboard/runs/$traceId/jobs/$jobId/'
-    | '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+    | '/_authenticated/_dashboard/runs/$traceId/'
+    | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
+    | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRouteWithChildren
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  SignInRoute: typeof SignInRoute
   SignoutRoute: typeof SignoutRoute
   ApiHealthRoute: typeof ApiHealthRoute
   CliDeviceRoute: typeof CliDeviceRoute
@@ -505,6 +517,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -512,26 +531,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRoute
     }
     '/webhook/github': {
       id: '/webhook/github'
@@ -539,48 +544,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/webhook/github'
       preLoaderRoute: typeof WebhookGithubRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/users-management': {
-      id: '/dashboard/users-management'
-      path: '/users-management'
-      fullPath: '/dashboard/users-management'
-      preLoaderRoute: typeof DashboardUsersManagementRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/tests-overview': {
-      id: '/dashboard/tests-overview'
-      path: '/tests-overview'
-      fullPath: '/dashboard/tests-overview'
-      preLoaderRoute: typeof DashboardTestsOverviewRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/runs': {
-      id: '/dashboard/runs'
-      path: '/runs'
-      fullPath: '/dashboard/runs'
-      preLoaderRoute: typeof DashboardRunsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/repos': {
-      id: '/dashboard/repos'
-      path: '/repos'
-      fullPath: '/dashboard/repos'
-      preLoaderRoute: typeof DashboardReposRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/cost-analysis': {
-      id: '/dashboard/cost-analysis'
-      path: '/cost-analysis'
-      fullPath: '/dashboard/cost-analysis'
-      preLoaderRoute: typeof DashboardCostAnalysisRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/account': {
-      id: '/dashboard/account'
-      path: '/account'
-      fullPath: '/dashboard/account'
-      preLoaderRoute: typeof DashboardAccountRouteImport
-      parentRoute: typeof DashboardRoute
     }
     '/cli/device': {
       id: '/cli/device'
@@ -596,19 +559,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard/workflows/': {
-      id: '/dashboard/workflows/'
-      path: '/workflows'
-      fullPath: '/dashboard/workflows/'
-      preLoaderRoute: typeof DashboardWorkflowsIndexRouteImport
-      parentRoute: typeof DashboardRoute
+    '/_authenticated/_dashboard': {
+      id: '/_authenticated/_dashboard'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/dashboard/runs/': {
-      id: '/dashboard/runs/'
+    '/_authenticated/_dashboard/': {
+      id: '/_authenticated/_dashboard/'
       path: '/'
-      fullPath: '/dashboard/runs/'
-      preLoaderRoute: typeof DashboardRunsIndexRouteImport
-      parentRoute: typeof DashboardRunsRoute
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/api/cli/tray-status': {
       id: '/api/cli/tray-status'
@@ -659,33 +622,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard/runs/$traceId': {
-      id: '/dashboard/runs/$traceId'
-      path: '/$traceId'
-      fullPath: '/dashboard/runs/$traceId'
-      preLoaderRoute: typeof DashboardRunsTraceIdRouteRouteImport
-      parentRoute: typeof DashboardRunsRoute
+    '/_authenticated/_dashboard/users-management': {
+      id: '/_authenticated/_dashboard/users-management'
+      path: '/users-management'
+      fullPath: '/users-management'
+      preLoaderRoute: typeof AuthenticatedDashboardUsersManagementRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/dashboard/runs/$traceId/': {
-      id: '/dashboard/runs/$traceId/'
+    '/_authenticated/_dashboard/tests-overview': {
+      id: '/_authenticated/_dashboard/tests-overview'
+      path: '/tests-overview'
+      fullPath: '/tests-overview'
+      preLoaderRoute: typeof AuthenticatedDashboardTestsOverviewRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/runs': {
+      id: '/_authenticated/_dashboard/runs'
+      path: '/runs'
+      fullPath: '/runs'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/repos': {
+      id: '/_authenticated/_dashboard/repos'
+      path: '/repos'
+      fullPath: '/repos'
+      preLoaderRoute: typeof AuthenticatedDashboardReposRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/cost-analysis': {
+      id: '/_authenticated/_dashboard/cost-analysis'
+      path: '/cost-analysis'
+      fullPath: '/cost-analysis'
+      preLoaderRoute: typeof AuthenticatedDashboardCostAnalysisRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/account': {
+      id: '/_authenticated/_dashboard/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedDashboardAccountRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/workflows/': {
+      id: '/_authenticated/_dashboard/workflows/'
+      path: '/workflows'
+      fullPath: '/workflows/'
+      preLoaderRoute: typeof AuthenticatedDashboardWorkflowsIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/runs/': {
+      id: '/_authenticated/_dashboard/runs/'
       path: '/'
-      fullPath: '/dashboard/runs/$traceId/'
-      preLoaderRoute: typeof DashboardRunsTraceIdIndexRouteImport
-      parentRoute: typeof DashboardRunsTraceIdRouteRoute
-    }
-    '/dashboard/workflows/$repo/$workflowName': {
-      id: '/dashboard/workflows/$repo/$workflowName'
-      path: '/workflows/$repo/$workflowName'
-      fullPath: '/dashboard/workflows/$repo/$workflowName'
-      preLoaderRoute: typeof DashboardWorkflowsRepoWorkflowNameRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/runs/$traceId/trace': {
-      id: '/dashboard/runs/$traceId/trace'
-      path: '/trace'
-      fullPath: '/dashboard/runs/$traceId/trace'
-      preLoaderRoute: typeof DashboardRunsTraceIdTraceRouteImport
-      parentRoute: typeof DashboardRunsTraceIdRouteRoute
+      fullPath: '/runs/'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsRoute
     }
     '/api/github/install/start': {
       id: '/api/github/install/start'
@@ -715,6 +706,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliNotifierFailuresRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/_dashboard/runs/$traceId': {
+      id: '/_authenticated/_dashboard/runs/$traceId'
+      path: '/$traceId'
+      fullPath: '/runs/$traceId'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsRoute
+    }
+    '/_authenticated/_dashboard/runs/$traceId/': {
+      id: '/_authenticated/_dashboard/runs/$traceId/'
+      path: '/'
+      fullPath: '/runs/$traceId/'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    }
     '/api/cli/runs/$traceId/logs': {
       id: '/api/cli/runs/$traceId/logs'
       path: '/logs'
@@ -743,86 +748,124 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliAuthDeviceApproveRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard/runs/$traceId/jobs/$jobId/': {
-      id: '/dashboard/runs/$traceId/jobs/$jobId/'
+    '/_authenticated/_dashboard/workflows/$repo/$workflowName': {
+      id: '/_authenticated/_dashboard/workflows/$repo/$workflowName'
+      path: '/workflows/$repo/$workflowName'
+      fullPath: '/workflows/$repo/$workflowName'
+      preLoaderRoute: typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/runs/$traceId/trace': {
+      id: '/_authenticated/_dashboard/runs/$traceId/trace'
+      path: '/trace'
+      fullPath: '/runs/$traceId/trace'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    }
+    '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
+      id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
       path: '/jobs/$jobId'
-      fullPath: '/dashboard/runs/$traceId/jobs/$jobId/'
-      preLoaderRoute: typeof DashboardRunsTraceIdJobsJobIdIndexRouteImport
-      parentRoute: typeof DashboardRunsTraceIdRouteRoute
+      fullPath: '/runs/$traceId/jobs/$jobId/'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
     }
-    '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': {
-      id: '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+    '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': {
+      id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
       path: '/jobs/$jobId/steps/$stepNumber'
-      fullPath: '/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
-      preLoaderRoute: typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport
-      parentRoute: typeof DashboardRunsTraceIdRouteRoute
+      fullPath: '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
     }
   }
 }
 
-interface DashboardRunsTraceIdRouteRouteChildren {
-  DashboardRunsTraceIdTraceRoute: typeof DashboardRunsTraceIdTraceRoute
-  DashboardRunsTraceIdIndexRoute: typeof DashboardRunsTraceIdIndexRoute
-  DashboardRunsTraceIdJobsJobIdIndexRoute: typeof DashboardRunsTraceIdJobsJobIdIndexRoute
-  DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute: typeof DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
+interface AuthenticatedDashboardRunsTraceIdRouteRouteChildren {
+  AuthenticatedDashboardRunsTraceIdTraceRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRoute
+  AuthenticatedDashboardRunsTraceIdIndexRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRoute
+  AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
+  AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 
-const DashboardRunsTraceIdRouteRouteChildren: DashboardRunsTraceIdRouteRouteChildren =
+const AuthenticatedDashboardRunsTraceIdRouteRouteChildren: AuthenticatedDashboardRunsTraceIdRouteRouteChildren =
   {
-    DashboardRunsTraceIdTraceRoute: DashboardRunsTraceIdTraceRoute,
-    DashboardRunsTraceIdIndexRoute: DashboardRunsTraceIdIndexRoute,
-    DashboardRunsTraceIdJobsJobIdIndexRoute:
-      DashboardRunsTraceIdJobsJobIdIndexRoute,
-    DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute:
-      DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute,
+    AuthenticatedDashboardRunsTraceIdTraceRoute:
+      AuthenticatedDashboardRunsTraceIdTraceRoute,
+    AuthenticatedDashboardRunsTraceIdIndexRoute:
+      AuthenticatedDashboardRunsTraceIdIndexRoute,
+    AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute:
+      AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute,
+    AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute:
+      AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute,
   }
 
-const DashboardRunsTraceIdRouteRouteWithChildren =
-  DashboardRunsTraceIdRouteRoute._addFileChildren(
-    DashboardRunsTraceIdRouteRouteChildren,
+const AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren =
+  AuthenticatedDashboardRunsTraceIdRouteRoute._addFileChildren(
+    AuthenticatedDashboardRunsTraceIdRouteRouteChildren,
   )
 
-interface DashboardRunsRouteChildren {
-  DashboardRunsTraceIdRouteRoute: typeof DashboardRunsTraceIdRouteRouteWithChildren
-  DashboardRunsIndexRoute: typeof DashboardRunsIndexRoute
+interface AuthenticatedDashboardRunsRouteChildren {
+  AuthenticatedDashboardRunsTraceIdRouteRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
+  AuthenticatedDashboardRunsIndexRoute: typeof AuthenticatedDashboardRunsIndexRoute
 }
 
-const DashboardRunsRouteChildren: DashboardRunsRouteChildren = {
-  DashboardRunsTraceIdRouteRoute: DashboardRunsTraceIdRouteRouteWithChildren,
-  DashboardRunsIndexRoute: DashboardRunsIndexRoute,
+const AuthenticatedDashboardRunsRouteChildren: AuthenticatedDashboardRunsRouteChildren =
+  {
+    AuthenticatedDashboardRunsTraceIdRouteRoute:
+      AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren,
+    AuthenticatedDashboardRunsIndexRoute: AuthenticatedDashboardRunsIndexRoute,
+  }
+
+const AuthenticatedDashboardRunsRouteWithChildren =
+  AuthenticatedDashboardRunsRoute._addFileChildren(
+    AuthenticatedDashboardRunsRouteChildren,
+  )
+
+interface AuthenticatedDashboardRouteChildren {
+  AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
+  AuthenticatedDashboardCostAnalysisRoute: typeof AuthenticatedDashboardCostAnalysisRoute
+  AuthenticatedDashboardReposRoute: typeof AuthenticatedDashboardReposRoute
+  AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
+  AuthenticatedDashboardTestsOverviewRoute: typeof AuthenticatedDashboardTestsOverviewRoute
+  AuthenticatedDashboardUsersManagementRoute: typeof AuthenticatedDashboardUsersManagementRoute
+  AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
+  AuthenticatedDashboardWorkflowsIndexRoute: typeof AuthenticatedDashboardWorkflowsIndexRoute
+  AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
 }
 
-const DashboardRunsRouteWithChildren = DashboardRunsRoute._addFileChildren(
-  DashboardRunsRouteChildren,
-)
+const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
+  {
+    AuthenticatedDashboardAccountRoute: AuthenticatedDashboardAccountRoute,
+    AuthenticatedDashboardCostAnalysisRoute:
+      AuthenticatedDashboardCostAnalysisRoute,
+    AuthenticatedDashboardReposRoute: AuthenticatedDashboardReposRoute,
+    AuthenticatedDashboardRunsRoute:
+      AuthenticatedDashboardRunsRouteWithChildren,
+    AuthenticatedDashboardTestsOverviewRoute:
+      AuthenticatedDashboardTestsOverviewRoute,
+    AuthenticatedDashboardUsersManagementRoute:
+      AuthenticatedDashboardUsersManagementRoute,
+    AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
+    AuthenticatedDashboardWorkflowsIndexRoute:
+      AuthenticatedDashboardWorkflowsIndexRoute,
+    AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute:
+      AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute,
+  }
 
-interface DashboardRouteChildren {
-  DashboardAccountRoute: typeof DashboardAccountRoute
-  DashboardCostAnalysisRoute: typeof DashboardCostAnalysisRoute
-  DashboardReposRoute: typeof DashboardReposRoute
-  DashboardRunsRoute: typeof DashboardRunsRouteWithChildren
-  DashboardTestsOverviewRoute: typeof DashboardTestsOverviewRoute
-  DashboardUsersManagementRoute: typeof DashboardUsersManagementRoute
-  DashboardIndexRoute: typeof DashboardIndexRoute
-  DashboardWorkflowsIndexRoute: typeof DashboardWorkflowsIndexRoute
-  DashboardWorkflowsRepoWorkflowNameRoute: typeof DashboardWorkflowsRepoWorkflowNameRoute
+const AuthenticatedDashboardRouteWithChildren =
+  AuthenticatedDashboardRoute._addFileChildren(
+    AuthenticatedDashboardRouteChildren,
+  )
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRouteWithChildren
 }
 
-const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardAccountRoute: DashboardAccountRoute,
-  DashboardCostAnalysisRoute: DashboardCostAnalysisRoute,
-  DashboardReposRoute: DashboardReposRoute,
-  DashboardRunsRoute: DashboardRunsRouteWithChildren,
-  DashboardTestsOverviewRoute: DashboardTestsOverviewRoute,
-  DashboardUsersManagementRoute: DashboardUsersManagementRoute,
-  DashboardIndexRoute: DashboardIndexRoute,
-  DashboardWorkflowsIndexRoute: DashboardWorkflowsIndexRoute,
-  DashboardWorkflowsRepoWorkflowNameRoute:
-    DashboardWorkflowsRepoWorkflowNameRoute,
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRouteWithChildren,
 }
 
-const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
-  DashboardRouteChildren,
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
 )
 
 interface ApiCliRunsTraceIdRouteChildren {
@@ -849,9 +892,9 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRouteWithChildren,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  SignInRoute: SignInRoute,
   SignoutRoute: SignoutRoute,
   ApiHealthRoute: ApiHealthRoute,
   CliDeviceRoute: CliDeviceRoute,

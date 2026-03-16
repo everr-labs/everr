@@ -104,7 +104,7 @@ export function WorkflowsTable({ data, sparklines }: WorkflowsTableProps) {
               >
                 <td className="py-2 pr-4">
                   <Link
-                    to="/dashboard/workflows/$repo/$workflowName"
+                    to="/workflows/$repo/$workflowName"
                     params={{ repo: wf.repo, workflowName: wf.workflowName }}
                     className="font-medium hover:underline"
                   >

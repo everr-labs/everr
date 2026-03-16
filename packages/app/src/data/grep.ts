@@ -1,6 +1,6 @@
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   isValidDatemath,
   resolveTimeRange,
@@ -426,7 +426,7 @@ function collectOccurrencesByBranch(
   return occurrencesByBranch;
 }
 
-export const getGrepMatches = createServerFn({
+export const getGrepMatches = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(GrepInputSchema)

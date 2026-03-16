@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 
 const RepoDetailInputSchema = z.object({
@@ -16,7 +16,7 @@ export interface RepoStats {
   avgDuration: number;
 }
 
-export const getRepoStats = createServerFn({
+export const getRepoStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
@@ -72,7 +72,7 @@ export interface RepoSuccessRatePoint {
   failureCount: number;
 }
 
-export const getRepoSuccessRateTrend = createServerFn({
+export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
@@ -125,7 +125,7 @@ export interface RepoDurationPoint {
   p95Duration: number;
 }
 
-export const getRepoDurationTrend = createServerFn({
+export const getRepoDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
@@ -170,7 +170,7 @@ export interface RepoRecentRun {
   sender: string;
 }
 
-export const getRepoRecentRuns = createServerFn({
+export const getRepoRecentRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
@@ -226,7 +226,7 @@ export interface TopFailingJob {
   failureRate: number;
 }
 
-export const getTopFailingJobs = createServerFn({
+export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
@@ -282,7 +282,7 @@ export interface ActiveBranch {
   successRate: number;
 }
 
-export const getActiveBranches = createServerFn({
+export const getActiveBranches = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)

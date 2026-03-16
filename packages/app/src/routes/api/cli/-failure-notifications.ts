@@ -1,5 +1,5 @@
 import { query } from "@/lib/clickhouse";
-import { getWorkOS } from "@/lib/workos";
+import { workOS } from "@/lib/workos";
 
 const FAILURE_LIMIT = 100;
 export const TIME_WINDOW_MINUTES = 30;
@@ -74,8 +74,7 @@ export async function getVerifiedCliUserEmail(
   userId: string,
   expectedGitEmail?: string,
 ): Promise<string | null> {
-  const workos = getWorkOS();
-  const user = await workos.userManagement.getUser(userId);
+  const user = await workOS.userManagement.getUser(userId);
   if (!user.emailVerified) {
     return null;
   }
@@ -150,7 +149,7 @@ export async function getFailureNotifications({
 }
 
 export function buildFailedRunsDashboardUrl(origin: string): string {
-  const url = new URL("/dashboard/runs", origin);
+  const url = new URL("/runs", origin);
   url.searchParams.set("conclusion", "failure");
   url.searchParams.set("from", `now-${TIME_WINDOW_MINUTES}m`);
   url.searchParams.set("to", "now");

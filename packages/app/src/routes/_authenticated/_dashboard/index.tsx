@@ -34,7 +34,7 @@ import {
 } from "@/lib/formatting";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
-export const Route = createFileRoute("/dashboard/")({
+export const Route = createFileRoute("/_authenticated/_dashboard/")({
   staticData: { breadcrumb: "Overview" },
   head: () => ({
     meta: [{ title: "Everr - Overview" }],
@@ -173,7 +173,7 @@ function DashboardPage() {
           queries={[repositoriesOptions]}
           action={
             <Link
-              to="/dashboard/repos"
+              to="/repos"
               className="text-muted-foreground hover:text-foreground text-xs"
             >
               View all
@@ -194,7 +194,7 @@ function DashboardPage() {
                   >
                     <div className="flex flex-col min-w-0 flex-1 mr-2">
                       <Link
-                        to="/dashboard/repos"
+                        to="/repos"
                         search={{
                           name: repo.name,
                         }}
@@ -259,7 +259,7 @@ function DashboardPage() {
                 {workflows.map((wf) => (
                   <Link
                     key={`${wf.repo}:${wf.workflowName}`}
-                    to="/dashboard/workflows/$repo/$workflowName"
+                    to="/workflows/$repo/$workflowName"
                     params={{
                       repo: wf.repo,
                       workflowName: wf.workflowName,
@@ -294,7 +294,7 @@ function DashboardPage() {
         queries={[latestRunsOptions]}
         action={
           <Link
-            to="/dashboard/runs"
+            to="/runs"
             search={{
               page: 1,
               repo: undefined,
@@ -317,7 +317,7 @@ function DashboardPage() {
               {runs.slice(0, 5).map((run) => (
                 <Link
                   key={run.traceId}
-                  to="/dashboard/runs/$traceId"
+                  to="/runs/$traceId"
                   params={{ traceId: run.traceId }}
                   className="hover:bg-muted/50 -mx-1.5 flex items-center justify-between rounded-md px-1.5 py-1.5 transition-colors"
                 >

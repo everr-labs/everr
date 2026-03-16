@@ -41,7 +41,9 @@ import {
   withTimeRange,
 } from "@/lib/time-range";
 
-export const Route = createFileRoute("/dashboard/tests-overview")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/tests-overview",
+)({
   staticData: {
     breadcrumb: (match: { search?: { path?: string; pkg?: string } }) =>
       buildTestPerformanceBreadcrumb({
