@@ -17,7 +17,7 @@ export function useAutoRefresh() {
   const setRefreshInterval = (value: RefreshInterval) => {
     void navigate({
       // @ts-expect-error -- route-agnostic navigation
-      search: (prev: Record<string, unknown>) => ({
+      search: (prev) => ({
         ...prev,
         refresh: value || undefined,
       }),

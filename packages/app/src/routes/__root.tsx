@@ -4,10 +4,11 @@ import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import {
   createRootRouteWithContext,
   HeadContent,
+  Outlet,
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { getAuth } from "@workos/authkit-tanstack-react-start";
+import { getAuthAction } from "@workos/authkit-tanstack-react-start";
 import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
 import { WorkOsWidgets } from "@workos-inc/widgets";
 import { ThemeProvider } from "better-themes";
@@ -15,10 +16,6 @@ import type { RouterContext } from "../router";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  async loader() {
-    const auth = await getAuth();
-    return { auth };
-  },
   head: () => ({
     meta: [
       {
@@ -57,7 +54,39 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  component: RootComponent,
+  loader: async () => {
+    const auth = await getAuthAction();
+    return {
+      auth,
+    };
+  },
 });
+
+function RootComponent() {
+  return (
+    <>
+      <Outlet />
+      <TanStackDevtools
+        config={{ position: "bottom-right" }}
+        plugins={[
+          {
+            name: "Tanstack Router",
+            render: <TanStackRouterDevtoolsPanel />,
+          },
+          {
+            name: "React Query",
+            render: <ReactQueryDevtoolsPanel />,
+          },
+          {
+            name: "React Form",
+            render: <FormDevtoolsPanel />,
+          },
+        ]}
+      />
+    </>
+  );
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const { auth } = Route.useLoaderData();
@@ -71,25 +100,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <AuthKitProvider initialAuth={auth}>
           <ThemeProvider attribute="class" disableTransitionOnChange>
             <WorkOsWidgets>{children}</WorkOsWidgets>
-            <TanStackDevtools
-              config={{
-                position: "bottom-right",
-              }}
-              plugins={[
-                {
-                  name: "Tanstack Router",
-                  render: <TanStackRouterDevtoolsPanel />,
-                },
-                {
-                  name: "React Query",
-                  render: <ReactQueryDevtoolsPanel />,
-                },
-                {
-                  name: "React Form",
-                  render: <FormDevtoolsPanel />,
-                },
-              ]}
-            />
             <Scripts />
           </ThemeProvider>
         </AuthKitProvider>

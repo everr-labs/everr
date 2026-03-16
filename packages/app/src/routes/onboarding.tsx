@@ -166,7 +166,6 @@ export const Route = createFileRoute("/onboarding")({
     }
     return { githubInstalled, organization };
   },
-  ssr: false,
   component: OnboardingWizard,
 });
 

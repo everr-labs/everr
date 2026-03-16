@@ -19,6 +19,9 @@ const config = defineConfig(() => ({
 
     tailwindcss(),
     tanstackStart({
+      spa: {
+        enabled: true,
+      },
       router: {
         routeFileIgnorePattern: "\\.test\\.",
       },

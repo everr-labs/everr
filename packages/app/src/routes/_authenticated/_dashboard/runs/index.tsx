@@ -10,7 +10,7 @@ import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
   component: RunsListPage,
   validateSearch: TimeRangeSearchSchema.extend({
-    page: z.coerce.number().default(1),
+    page: z.coerce.number().int().default(1),
     repo: z.string().optional(),
     branch: z.string().optional(),
     conclusion: z.string().optional(),
