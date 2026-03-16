@@ -1,3 +1,4 @@
+import { SiApple } from "@icons-pack/react-simple-icons";
 import { useForm } from "@tanstack/react-form";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
@@ -7,10 +8,8 @@ import {
   ArrowRight,
   Bell,
   Check,
-  Download,
   ExternalLink,
   Loader2,
-  Monitor,
   Terminal,
   Wrench,
 } from "lucide-react";
@@ -18,7 +17,6 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   type ReactNode,
   type SubmitEvent,
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -44,10 +42,10 @@ import { cn } from "@/lib/utils";
 const STEPS = ["organization", "github", "app"] as const;
 type Step = (typeof STEPS)[number];
 
-const STEP_META: Record<Step, { label: string }> = {
-  organization: { label: "Organization" },
-  github: { label: "GitHub" },
-  app: { label: "Desktop App" },
+const STEP_LABELS: Record<Step, string> = {
+  organization: "Organization",
+  github: "GitHub",
+  app: "Desktop App",
 };
 
 const DOCS_ORIGIN = import.meta.env.DEV
@@ -60,7 +58,7 @@ const PLATFORMS = [
     label: "macOS (Apple Silicon)",
     os: "macos",
     arch: "arm64",
-    icon: Monitor,
+    icon: SiApple,
   },
 ] as const;
 
@@ -168,20 +166,7 @@ export const Route = createFileRoute("/onboarding")({
 });
 
 // ---------------------------------------------------------------------------
-// Step derivation
-// ---------------------------------------------------------------------------
-
-function deriveInitialStep(
-  hasOrganization: boolean,
-  githubInstalled: boolean,
-): Step {
-  if (!hasOrganization) return "organization";
-  if (!githubInstalled) return "github";
-  return "app";
-}
-
-// ---------------------------------------------------------------------------
-// Wizard root
+// Wizard
 // ---------------------------------------------------------------------------
 
 function OnboardingWizard() {
@@ -191,7 +176,7 @@ function OnboardingWizard() {
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState<Step>(() =>
-    deriveInitialStep(hasOrganization, githubInstalled),
+    !hasOrganization ? "organization" : !githubInstalled ? "github" : "app",
   );
   const [[stepKey, direction], setStepState] = useState<[number, number]>([
     0, 0,
@@ -325,7 +310,7 @@ function OnboardingWizard() {
                       {i + 1}
                     </span>
                   )}
-                  <span className="tracking-wide">{STEP_META[step].label}</span>
+                  <span className="tracking-wide">{STEP_LABELS[step]}</span>
                 </button>
               );
             })}
@@ -396,10 +381,6 @@ function OnboardingWizard() {
     </main>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Step 1: Organization
-// ---------------------------------------------------------------------------
 
 function OrganizationStep({
   user,
@@ -559,10 +540,6 @@ function OrganizationStep({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Step 2: GitHub
-// ---------------------------------------------------------------------------
-
 function GitHubStep({
   installed,
   onInstalled,
@@ -577,19 +554,11 @@ function GitHubStep({
   onSkip: () => void;
 }) {
   const [tabOpened, setTabOpened] = useState(false);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
     if (!tabOpened || installed) return;
 
-    pollingRef.current = setInterval(async () => {
+    const id = setInterval(async () => {
       try {
         const status = await getGithubAppInstallStatus();
         const isInstalled = Array.isArray(status)
@@ -599,15 +568,15 @@ function GitHubStep({
             );
         if (isInstalled) {
           onInstalled();
-          stopPolling();
+          clearInterval(id);
         }
       } catch {
         // keep polling
       }
     }, 3000);
 
-    return stopPolling;
-  }, [tabOpened, installed, stopPolling, onInstalled]);
+    return () => clearInterval(id);
+  }, [tabOpened, installed, onInstalled]);
 
   function handleOpenInstall() {
     window.open("/api/github/install/start", "_blank", "noopener");
@@ -723,9 +692,23 @@ function GitHubStep({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Step 3: App Download
-// ---------------------------------------------------------------------------
+const APP_FEATURES = [
+  {
+    icon: Bell,
+    title: "Get notifications",
+    description: "when your CI/CD pipelines fail or need attention",
+  },
+  {
+    icon: Terminal,
+    title: "Install the CLI",
+    description: "to interact with Everr from your terminal",
+  },
+  {
+    icon: Wrench,
+    title: "Integrate with your editor",
+    description: "Cursor, Claude Code, Windsurf, and more",
+  },
+] as const;
 
 function AppStep({
   onBack,
@@ -734,24 +717,6 @@ function AppStep({
   onBack: () => void;
   onFinish: () => void;
 }) {
-  const features = [
-    {
-      icon: Bell,
-      title: "Get notifications",
-      description: "when your CI/CD pipelines fail or need attention",
-    },
-    {
-      icon: Terminal,
-      title: "Install the CLI",
-      description: "to interact with Everr from your terminal",
-    },
-    {
-      icon: Wrench,
-      title: "Integrate with your editor",
-      description: "Cursor, Claude Code, Windsurf, and more",
-    },
-  ];
-
   return (
     <StepContainer title="Get the desktop app" index={3}>
       <motion.section
@@ -761,7 +726,7 @@ function AppStep({
         <h2 className="text-lg font-semibold">Get the most out of Everr</h2>
 
         <div className="mt-6 space-y-0 divide-y divide-border">
-          {features.map((feature, i) => (
+          {APP_FEATURES.map((feature, i) => (
             <motion.div
               key={feature.title}
               variants={staggerItem}
@@ -803,7 +768,7 @@ function AppStep({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <Download className="size-3.5" />
+                <platform.icon className="size-3.5" />
                 {platform.label}
               </motion.a>
             ))}

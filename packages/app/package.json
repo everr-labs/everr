@@ -22,6 +22,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/noto-sans": "^5.2.10",
     "@fontsource-variable/space-grotesk": "^5.2.10",
+    "@icons-pack/react-simple-icons": "^13.11.2",
     "@octokit/webhooks-methods": "^6.0.0",
     "@radix-ui/themes": "^3.3.0",
     "@t3-oss/env-core": "^0.13.10",

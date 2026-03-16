@@ -47,6 +47,9 @@ importers:
       '@fontsource-variable/space-grotesk':
         specifier: ^5.2.10
         version: 5.2.10
+      '@icons-pack/react-simple-icons':
+        specifier: ^13.11.2
+        version: 13.11.2(react@19.2.4)
       '@octokit/webhooks-methods':
         specifier: ^6.0.0
         version: 6.0.0
