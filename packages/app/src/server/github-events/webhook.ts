@@ -4,7 +4,7 @@ import { setGithubInstallationStatus } from "@/data/tenants";
 import { env } from "@/env";
 import { GH_EVENTS_CONFIG } from "./config";
 import { headersToRecord } from "./headers";
-import { getBoss } from "./runtime";
+import { getBoss, startGitHubEventsRuntime } from "./runtime";
 import type { WebhookJobData } from "./types";
 
 const installationEventSchema = z.object({
@@ -96,7 +96,11 @@ export async function handleGitHubWebhookRequest(
     body: body.toString("base64"),
   };
 
-  const boss = getBoss();
+  let boss = getBoss();
+  if (!boss) {
+    boss = await startGitHubEventsRuntime();
+  }
+
   const results = await Promise.all(
     (["gh-collector", "gh-status"] as const).map((queue) =>
       boss.send(queue, jobData, {

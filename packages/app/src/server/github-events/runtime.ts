@@ -14,8 +14,7 @@ import { TerminalEventError } from "./types";
 
 let boss: PgBoss | undefined;
 
-export function getBoss(): PgBoss {
-  if (!boss) throw new Error("pg-boss not started");
+export function getBoss(): PgBoss | undefined {
   return boss;
 }
 
@@ -50,8 +49,10 @@ async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
 
 const WORK_OPTS = { localConcurrency: GH_EVENTS_CONFIG.workerCount };
 
-export async function startGitHubEventsRuntime(): Promise<void> {
-  await boss?.stop();
+export async function startGitHubEventsRuntime(): Promise<PgBoss> {
+  if (boss) return boss;
+
+  console.log("[startup] Starting GitHub events runtime...");
   boss = createBoss();
 
   boss.on("error", console.error);
@@ -100,6 +101,8 @@ export async function startGitHubEventsRuntime(): Promise<void> {
       }),
     );
   });
+
+  return boss;
 }
 
 export async function stopGitHubEventsRuntime(): Promise<void> {
@@ -110,6 +113,6 @@ export async function stopGitHubEventsRuntime(): Promise<void> {
 
 if (import.meta.hot) {
   import.meta.hot.dispose(async () => {
-    await boss?.stop();
+    await stopGitHubEventsRuntime();
   });
 }
