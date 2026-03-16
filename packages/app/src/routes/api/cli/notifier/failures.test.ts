@@ -4,6 +4,12 @@ vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
 }));
 
+vi.mock("@/db/client", () => ({
+  pool: {
+    query: vi.fn(),
+  },
+}));
+
 vi.mock("@/lib/workos", () => ({
   workOS: {
     userManagement: {
@@ -21,11 +27,13 @@ vi.mock("../-auth", () => ({
   },
 }));
 
+import { pool } from "@/db/client";
 import { query } from "@/lib/clickhouse";
 import { workOS } from "@/lib/workos";
 import { Route } from "./failures";
 
 const mockedQuery = vi.mocked(query);
+const mockedPoolQuery = vi.mocked(pool.query);
 const mockedGetUser = vi.mocked(workOS.userManagement.getUser);
 
 type GetHandler = (args: {
@@ -33,6 +41,7 @@ type GetHandler = (args: {
   context: {
     auth: {
       userId: string;
+      tenantId: number;
     };
   };
 }) => Promise<Response>;
@@ -77,16 +86,15 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      verified_match: false,
-      failures: [],
-    });
+    expect(await response.json()).toEqual([]);
     expect(mockedQuery).not.toHaveBeenCalled();
+    expect(mockedPoolQuery).not.toHaveBeenCalled();
   });
 
   it("returns a direct run detail URL", async () => {
@@ -111,26 +119,24 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      verified_match: true,
-      failures: [
-        {
-          dedupe_key: "trace-123:2026-03-07T13:32:00Z",
-          trace_id: "trace-123",
-          repo: "everr-labs/everr",
-          branch: "main",
-          workflow_name: "CI",
-          failure_time: "2026-03-07T13:32:00Z",
-          details_url: "http://localhost/runs/trace-123",
-          auto_fix_prompt: expect.stringContaining("trace-123"),
-        },
-      ],
-    });
+    expect(await response.json()).toEqual([
+      {
+        dedupeKey: "trace-123:2026-03-07T13:32:00Z",
+        traceId: "trace-123",
+        repo: "everr-labs/everr",
+        branch: "main",
+        workflowName: "CI",
+        failedAt: "2026-03-07T13:32:00Z",
+        detailsUrl: "http://localhost/runs/trace-123",
+        autoFixPrompt: expect.stringContaining("trace-123"),
+      },
+    ]);
   });
 
   it("passes repo and branch filters into the query", async () => {
@@ -144,6 +150,7 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
@@ -213,24 +220,23 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     const payload = await response.json();
-    expect(payload.failures[0]).toMatchObject({
-      details_url: "http://localhost/runs/trace-123/jobs/job-1/steps/1",
-      job_name: "test",
-      step_number: "1",
-      step_name: "Install dependencies",
+    expect(payload[0]).toMatchObject({
+      detailsUrl: "http://localhost/runs/trace-123/jobs/job-1/steps/1",
+      jobName: "test",
+      stepNumber: "1",
+      stepName: "Install dependencies",
     });
-    expect(payload.failures[0].auto_fix_prompt).toContain("trace-123");
-    expect(payload.failures[0].auto_fix_prompt).toContain(
+    expect(payload[0].autoFixPrompt).toContain("trace-123");
+    expect(payload[0].autoFixPrompt).toContain(
       'everr runs logs --trace-id trace-123 --job-name "test" --step-number 1',
     );
-    expect(payload.failures[0].auto_fix_prompt).not.toContain(
-      "http://localhost",
-    );
+    expect(payload[0].autoFixPrompt).not.toContain("http://localhost");
   });
 
   it("falls back to the latest step in a failed job when no explicit failing step exists", async () => {
@@ -277,16 +283,17 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     const payload = await response.json();
-    expect(payload.failures[0].job_name).toBe("test");
-    expect(payload.failures[0].step_number).toBe("3");
-    expect(payload.failures[0].step_name).toBe("Run suite");
-    expect(payload.failures[0].auto_fix_prompt).toContain("trace-123");
-    expect(payload.failures[0].auto_fix_prompt).toContain(
+    expect(payload[0].jobName).toBe("test");
+    expect(payload[0].stepNumber).toBe("3");
+    expect(payload[0].stepName).toBe("Run suite");
+    expect(payload[0].autoFixPrompt).toContain("trace-123");
+    expect(payload[0].autoFixPrompt).toContain(
       'everr runs logs --trace-id trace-123 --job-name "test" --step-number 3',
     );
   });

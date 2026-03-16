@@ -11,15 +11,15 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(DeleteCurrentUserAccountInputSchema)
-  .handler(async ({ data, context: { auth } }) => {
+  .handler(async ({ data, context: { session } }) => {
     const requestId = crypto.randomUUID();
 
     try {
-      await workOS.userManagement.deleteUser(auth.user.id);
+      await workOS.userManagement.deleteUser(session.userId);
     } catch (error) {
       console.error("[account-settings] account_delete_failed", {
         requestId,
-        userId: auth.user.id,
+        userId: session.userId,
         error,
       });
       throw new Error(
@@ -27,16 +27,16 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
       );
     }
 
-    if (auth.sessionId) {
+    if (session.sessionId) {
       try {
         await workOS.userManagement.revokeSession({
-          sessionId: auth.sessionId,
+          sessionId: session.sessionId,
         });
       } catch (error) {
         console.error("[account-settings] session_revoke_failed", {
           requestId,
-          userId: auth.user.id,
-          sessionId: auth.sessionId,
+          userId: session.userId,
+          sessionId: session.sessionId,
           error,
         });
       }

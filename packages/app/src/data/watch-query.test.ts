@@ -1,102 +1,212 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/clickhouse", () => ({
-  query: vi.fn(),
+vi.mock("@/db/client", () => ({
+  pool: {
+    query: vi.fn(),
+  },
 }));
 
-import { query } from "@/lib/clickhouse";
+import { pool } from "@/db/client";
 import { getWatchStatus } from "./watch";
 
-const mockedQuery = vi.mocked(query);
+const mockedQuery = vi.mocked(pool.query);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-03-06T10:02:00Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("getWatchStatus", () => {
-  it("matches short commit SHA prefixes in the pipeline query", async () => {
-    mockedQuery
-      .mockResolvedValueOnce([
-        {
-          subjectId: "88",
-          subjectName: "CI",
-          htmlUrl: "https://github.com/everr-labs/everr/actions/runs/88",
-          phase: "finished",
-          conclusion: "success",
-          lastEventTime: "2026-03-06T10:01:00Z",
-          eventKind: "pipelinerun",
-          pipelineRunId: "",
-          durationSeconds: "61",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          workflow_name: "CI",
-          usualDurationSeconds: "57.6",
-          sampleCount: "3",
-        },
-      ]);
+  it("returns pending when no matching runs exist", async () => {
+    mockedQuery.mockResolvedValueOnce({ rows: [] } as Awaited<
+      ReturnType<typeof mockedQuery>
+    >);
 
     const result = await getWatchStatus({
-      data: {
-        repo: "everr-labs/everr",
-        branch: "feature/watch-short-commit",
-        commit: "7f14b13",
-      },
+      tenantId: 42,
+      repo: "everr-labs/everr",
+      branch: "feature/watch-short-commit",
+      commit: "7f14b13",
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "LEFT(LOWER(sha), LENGTH($4)) = LOWER($4)",
+    );
+    expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
+      42,
+      "everr-labs/everr",
+      "feature/watch-short-commit",
+      "7f14b13",
+    ]);
+    expect(result).toEqual({
+      state: "pending",
+      active: [],
+      completed: [],
+    });
+  });
+
+  it("matches short commit SHA prefixes and returns running runs with active jobs", async () => {
+    mockedQuery
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            runId: "42",
+            traceId: "trace-42",
+            workflowName: "CI",
+            status: "in_progress",
+            conclusion: null,
+            createdAt: "2026-03-06T10:00:00Z",
+            completedAt: null,
+            lastEventAt: "2026-03-06T10:01:00Z",
+            attempts: 2,
+          },
+          {
+            runId: "41",
+            traceId: "trace-41",
+            workflowName: "Lint",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-03-06T09:58:01Z",
+            completedAt: "2026-03-06T09:59:00Z",
+            lastEventAt: "2026-03-06T09:59:00Z",
+            attempts: 1,
+          },
+        ],
+      } as Awaited<ReturnType<typeof mockedQuery>>)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            runId: "100",
+            traceId: "trace-100",
+            workflowName: "CI",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-03-05T10:00:00Z",
+            completedAt: "2026-03-05T10:01:58Z",
+            lastEventAt: "2026-03-05T10:01:58Z",
+            attempts: 1,
+          },
+          {
+            runId: "101",
+            traceId: "trace-101",
+            workflowName: "CI",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-03-04T10:00:00Z",
+            completedAt: "2026-03-04T10:01:58Z",
+            lastEventAt: "2026-03-04T10:01:58Z",
+            attempts: 1,
+          },
+          {
+            runId: "102",
+            traceId: "trace-102",
+            workflowName: "CI",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-03-03T10:00:00Z",
+            completedAt: "2026-03-03T10:01:58Z",
+            lastEventAt: "2026-03-03T10:01:58Z",
+            attempts: 1,
+          },
+        ],
+      } as Awaited<ReturnType<typeof mockedQuery>>)
+      .mockResolvedValueOnce({
+        rows: [
+          { traceId: "trace-42", jobName: "lint", status: "queued" },
+          { traceId: "trace-42", jobName: "test", status: "in_progress" },
+          { traceId: "trace-42", jobName: "build", status: "completed" },
+        ],
+      } as Awaited<ReturnType<typeof mockedQuery>>);
+
+    const result = await getWatchStatus({
+      tenantId: 42,
+      repo: "everr-labs/everr",
+      branch: "feature/watch-short-commit",
+      commit: "7f14b13",
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(3);
+    expect(result).toEqual({
+      state: "running",
+      active: [
+        {
+          runId: "42",
+          workflowName: "CI",
+          conclusion: null,
+          durationSeconds: 120,
+          expectedDurationSeconds: 118,
+          activeJobs: ["lint", "test"],
+        },
+      ],
+      completed: [
+        {
+          runId: "41",
+          workflowName: "Lint",
+          conclusion: "success",
+          durationSeconds: 59,
+          expectedDurationSeconds: null,
+          activeJobs: [],
+        },
+      ],
+    });
+  });
+
+  it("keeps only the latest attempt per run and returns completed state", async () => {
+    mockedQuery
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            runId: "88",
+            traceId: "trace-88-attempt-2",
+            workflowName: "CI",
+            status: "completed",
+            conclusion: "success",
+            createdAt: "2026-03-06T10:00:00Z",
+            completedAt: "2026-03-06T10:01:01Z",
+            lastEventAt: "2026-03-06T10:01:01Z",
+            attempts: 2,
+          },
+          {
+            runId: "88",
+            traceId: "trace-88-attempt-1",
+            workflowName: "CI",
+            status: "completed",
+            conclusion: "failure",
+            createdAt: "2026-03-06T09:00:00Z",
+            completedAt: "2026-03-06T09:01:00Z",
+            lastEventAt: "2026-03-06T09:01:00Z",
+            attempts: 1,
+          },
+        ],
+      } as Awaited<ReturnType<typeof mockedQuery>>)
+      .mockResolvedValueOnce({
+        rows: [],
+      } as Awaited<ReturnType<typeof mockedQuery>>);
+
+    const result = await getWatchStatus({
+      tenantId: 42,
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "WHERE event_kind IN ('pipelinerun', 'taskrun', 'workflowjob')",
-    );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "AND repository = {repo:String}",
-    );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "AND startsWith(sha, {commit:String})",
-    );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "argMax(attributes['pipeline.run_id'], event_time) as pipelineRunId",
-    );
-    expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
-      repo: "everr-labs/everr",
-      branch: "feature/watch-short-commit",
-      commit: "7f14b13",
-    });
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "WHERE event_kind = 'pipelinerun'",
-    );
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "AND repository = {repo:String}",
-    );
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "toUInt64(round(avg(duration_seconds))) as usualDurationSeconds",
-    );
-    expect(mockedQuery.mock.calls[1]?.[0]).not.toContain("row_number() OVER");
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "LIMIT 3 BY workflow_name",
-    );
-    expect(mockedQuery.mock.calls[1]?.[1]).toEqual({
-      repo: "everr-labs/everr",
-      branch: "feature/watch-short-commit",
-      commit: "7f14b13",
-    });
     expect(result).toEqual({
-      repo: "everr-labs/everr",
-      branch: "feature/watch-short-commit",
-      commit: "7f14b13",
-      pipelineFound: true,
-      activeRuns: [],
-      completedRuns: [
+      state: "completed",
+      active: [],
+      completed: [
         {
           runId: "88",
           workflowName: "CI",
-          phase: "finished",
           conclusion: "success",
-          lastEventTime: "2026-03-06T10:01:00Z",
           durationSeconds: 61,
-          usualDurationSeconds: 58,
-          usualDurationSampleSize: 3,
+          expectedDurationSeconds: null,
           activeJobs: [],
         },
       ],

@@ -14,7 +14,6 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
       COLLECTOR_RW_PASSWORD: collector-dev
       APP_RO_PASSWORD: app-dev
-      APP_CDEVENTS_RW_PASSWORD: app-cdevents-dev
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse
 

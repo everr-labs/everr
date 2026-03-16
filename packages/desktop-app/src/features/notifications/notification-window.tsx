@@ -13,17 +13,17 @@ import { SettingsSection } from "../desktop-shell/ui";
 const AUTO_DISMISS_MS = 40_000;
 
 export type FailureNotification = {
-  dedupe_key: string;
-  trace_id: string;
+  dedupeKey: string;
+  traceId: string;
   repo: string;
   branch: string;
-  workflow_name: string;
-  failure_time: string;
-  details_url: string;
-  job_name?: string;
-  step_number?: string;
-  step_name?: string;
-  auto_fix_prompt?: string;
+  workflowName: string;
+  failedAt: string;
+  detailsUrl: string;
+  jobName?: string;
+  stepNumber?: string;
+  stepName?: string;
+  autoFixPrompt?: string;
 };
 
 type TestNotificationResponse = {
@@ -178,7 +178,7 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
     setCopiedAutoFixPrompt(false);
     setRemainingMs(AUTO_DISMISS_MS);
     setDeadlineAt(Date.now() + AUTO_DISMISS_MS);
-  }, [notification.dedupe_key]);
+  }, [notification.dedupeKey]);
 
   useEffect(() => {
     if (hovered || deadlineAt === null) {
@@ -207,8 +207,8 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
     setDeadlineAt(Date.now() + remainingMs);
   }
 
-  const absoluteTime = formatNotificationAbsoluteTime(notification.failure_time);
-  const relativeTime = formatNotificationRelativeTime(notification.failure_time);
+  const absoluteTime = formatNotificationAbsoluteTime(notification.failedAt);
+  const relativeTime = formatNotificationRelativeTime(notification.failedAt);
   const failureScope = formatFailureScope(notification);
   const copyAutoFixPromptLabel = copyMutation.isPending
     ? "Copying..."
@@ -249,7 +249,7 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
               Everr - Failed run
             </p>
             <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-[#121212]">
-              {notification.workflow_name}
+              {notification.workflowName}
             </h1>
             <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-[#767676]">
               <span className="truncate">{notification.repo}</span>
@@ -301,7 +301,7 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
 
         <div className="h-[3px] w-full shrink-0 bg-[#f0f0f0]">
           <div
-            key={notification.dedupe_key}
+            key={notification.dedupeKey}
             className="notification-progress h-full"
             style={{ animationDuration: `${AUTO_DISMISS_MS}ms` }}
             data-paused={hovered || undefined}
@@ -349,20 +349,20 @@ function NotificationErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 function formatFailureScope(notification: FailureNotification): string | null {
-  if (notification.job_name && notification.step_number && notification.step_name) {
-    return `${notification.job_name} • Step ${notification.step_number}: ${notification.step_name}`;
+  if (notification.jobName && notification.stepNumber && notification.stepName) {
+    return `${notification.jobName} • Step ${notification.stepNumber}: ${notification.stepName}`;
   }
 
-  if (notification.job_name && notification.step_name) {
-    return `${notification.job_name} • ${notification.step_name}`;
+  if (notification.jobName && notification.stepName) {
+    return `${notification.jobName} • ${notification.stepName}`;
   }
 
-  if (notification.job_name && notification.step_number) {
-    return `${notification.job_name} • Step ${notification.step_number}`;
+  if (notification.jobName && notification.stepNumber) {
+    return `${notification.jobName} • Step ${notification.stepNumber}`;
   }
 
-  if (notification.job_name) {
-    return `Job: ${notification.job_name}`;
+  if (notification.jobName) {
+    return `Job: ${notification.jobName}`;
   }
 
   return null;

@@ -145,8 +145,8 @@ export const createOrganizationForCurrentUser = createServerFn({
 
 export const getGithubAppInstallStatus = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async ({ context: { auth } }) => {
-  const tenantId = await ensureTenantForOrganizationId(auth.organizationId);
+}).handler(async ({ context: { session } }) => {
+  const tenantId = await ensureTenantForOrganizationId(session.organizationId);
   const installations = await getGithubInstallationsForTenant(tenantId);
 
   return installations.map((installation) => ({

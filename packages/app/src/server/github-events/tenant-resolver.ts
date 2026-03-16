@@ -1,48 +1,21 @@
 import { getActiveTenantForGithubInstallation } from "@/data/tenants";
-import { getGitHubEventsConfig } from "./config";
+import { GH_EVENTS_CONFIG } from "./config";
 import { TerminalEventError } from "./types";
 
-type CacheEntry = {
-  tenantId: number;
-  expiresAt: number;
-};
+const tenantCache = new Map<number, { tenantId: number; expiresAt: number }>();
 
-export class TenantResolver {
-  private readonly cache = new Map<number, CacheEntry>();
+export async function resolveTenantId(installationId: number): Promise<number> {
+  const now = Date.now();
+  const cached = tenantCache.get(installationId);
+  if (cached && cached.expiresAt > now) return cached.tenantId;
 
-  constructor(private readonly ttlMs: number) {}
+  const tenantId = await getActiveTenantForGithubInstallation(installationId);
+  if (!tenantId) throw new TerminalEventError("tenant not found");
 
-  async resolveTenantId(installationId: number): Promise<number> {
-    const now = Date.now();
-    const cached = this.cache.get(installationId);
-    if (cached && cached.expiresAt > now) {
-      return cached.tenantId;
-    }
+  tenantCache.set(installationId, {
+    tenantId,
+    expiresAt: now + GH_EVENTS_CONFIG.tenantCacheTTLms,
+  });
 
-    const tenantId = await getActiveTenantForGithubInstallation(installationId);
-    if (!tenantId) {
-      throw new TerminalEventError("tenant not found");
-    }
-
-    if (this.ttlMs > 0) {
-      this.cache.set(installationId, {
-        tenantId,
-        expiresAt: now + this.ttlMs,
-      });
-    }
-
-    return tenantId;
-  }
-}
-
-let tenantResolver: TenantResolver | undefined;
-
-export function getTenantResolver(): TenantResolver {
-  if (!tenantResolver) {
-    tenantResolver = new TenantResolver(
-      getGitHubEventsConfig().tenantCacheTTLms,
-    );
-  }
-
-  return tenantResolver;
+  return tenantId;
 }

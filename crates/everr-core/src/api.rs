@@ -41,8 +41,8 @@ impl ApiClient {
         self.get_json("/runs", query).await
     }
 
-    pub async fn get_watch_status(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/runs", query).await
+    pub async fn get_watch_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
+        self.get("/runs/watch", query).await
     }
 
     pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
@@ -76,7 +76,7 @@ impl ApiClient {
         git_email: &str,
         repo: Option<&str>,
         branch: Option<&str>,
-    ) -> Result<OwnedFailuresResponse> {
+    ) -> Result<Vec<FailureNotification>> {
         let mut query = vec![("gitEmail", git_email.to_string())];
         if let Some(value) = repo {
             query.push(("repo", value.to_string()));
@@ -85,13 +85,11 @@ impl ApiClient {
             query.push(("branch", value.to_string()));
         }
 
-        let value = self.get_json("/notifier/failures", &query).await?;
-        serde_json::from_value(value).context("failed to decode owned failures response")
+        self.get("/notifier/failures", &query).await
     }
 
     pub async fn get_tray_status(&self) -> Result<TrayStatusResponse> {
-        let value = self.get_json("/tray-status", &[]).await?;
-        serde_json::from_value(value).context("failed to decode tray status response")
+        self.get("/tray-status", &[]).await
     }
 
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
@@ -130,19 +128,41 @@ pub struct StepLogEntry {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct OwnedFailuresResponse {
-    pub verified_match: bool,
-    pub failures: Vec<FailureNotification>,
+#[serde(rename_all = "lowercase")]
+pub enum WatchState {
+    Pending,
+    Running,
+    Completed,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchRun {
+    pub run_id: String,
+    pub workflow_name: String,
+    pub conclusion: Option<String>,
+    pub duration_seconds: u64,
+    pub expected_duration_seconds: Option<u64>,
+    pub active_jobs: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchResponse {
+    pub state: WatchState,
+    pub active: Vec<WatchRun>,
+    pub completed: Vec<WatchRun>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct FailureNotification {
     pub dedupe_key: String,
     pub trace_id: String,
     pub repo: String,
     pub branch: String,
     pub workflow_name: String,
-    pub failure_time: String,
+    pub failed_at: String,
     pub details_url: String,
     pub job_name: Option<String>,
     pub step_number: Option<String>,
@@ -151,9 +171,9 @@ pub struct FailureNotification {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct TrayStatusResponse {
-    pub verified_match: bool,
-    pub unresolved_failures: Vec<FailureNotification>,
-    pub failed_runs_dashboard_url: String,
-    pub auto_fix_prompt: String,
+    pub failures: Vec<FailureNotification>,
+    pub dashboard_url: Option<String>,
+    pub auto_fix_prompt: Option<String>,
 }

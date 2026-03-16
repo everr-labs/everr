@@ -1,29 +1,57 @@
-import { createHash } from "node:crypto";
 import { verify } from "@octokit/webhooks-methods";
+import { z } from "zod";
+import { setGithubInstallationStatus } from "@/data/tenants";
 import { env } from "@/env";
-import { getGitHubEventsConfig } from "./config";
+import { GH_EVENTS_CONFIG } from "./config";
 import { headersToRecord } from "./headers";
-import { handleInstallationEvent } from "./install-events";
-import { enqueueMetadataFromWebhookEvent } from "./payloads";
-import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
-import { topicCollector, topicStatus, type WebhookTopic } from "./types";
+import { getBoss } from "./runtime";
+import type { WebhookJobData } from "./types";
 
-function topicsForEventType(eventType: string): WebhookTopic[] {
-  if (eventType === "workflow_run" || eventType === "workflow_job") {
-    return [topicCollector, topicStatus];
+const installationEventSchema = z.object({
+  action: z.string().optional(),
+  installation: z
+    .object({
+      id: z.number().int().positive().optional(),
+    })
+    .optional(),
+});
+
+async function handleInstallationEvent(args: {
+  eventType: string;
+  bodyText: string;
+}): Promise<Response> {
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(args.bodyText);
+  } catch {
+    return new Response("invalid json payload", { status: 400 });
   }
 
-  return [];
-}
+  const parsed = installationEventSchema.safeParse(parsedBody);
+  if (!parsed.success) {
+    return new Response("invalid payload shape", { status: 400 });
+  }
 
-type WebhookHandlerDependencies = {
-  store?: WebhookEventStore;
-  installHandler?: typeof handleInstallationEvent;
-};
+  const installationId = parsed.data.installation?.id;
+  if (!installationId) {
+    return new Response("missing installation.id", { status: 400 });
+  }
+
+  if (args.eventType === "installation") {
+    if (parsed.data.action === "deleted") {
+      await setGithubInstallationStatus(installationId, "uninstalled");
+    } else if (parsed.data.action === "suspend") {
+      await setGithubInstallationStatus(installationId, "suspended");
+    } else if (parsed.data.action === "unsuspend") {
+      await setGithubInstallationStatus(installationId, "active");
+    }
+  }
+
+  return new Response(null, { status: 202 });
+}
 
 export async function handleGitHubWebhookRequest(
   request: Request,
-  dependencies: WebhookHandlerDependencies = {},
 ): Promise<Response> {
   if (request.method !== "POST") {
     return new Response("method not allowed", { status: 405 });
@@ -55,45 +83,31 @@ export async function handleGitHubWebhookRequest(
     eventType === "installation" ||
     eventType === "installation_repositories"
   ) {
-    const installHandler =
-      dependencies.installHandler ?? handleInstallationEvent;
-    return installHandler({
-      eventType,
-      bodyText,
-    });
+    return handleInstallationEvent({ eventType, bodyText });
   }
 
-  const topics = topicsForEventType(eventType);
-  if (topics.length === 0) {
+  if (eventType !== "workflow_run" && eventType !== "workflow_job") {
     return new Response(null, { status: 202 });
   }
 
   const body = Buffer.from(bodyText, "utf8");
-  const enqueueMetadata = enqueueMetadataFromWebhookEvent(eventType, body);
-  if (!enqueueMetadata.enqueue) {
-    return new Response(null, { status: 202 });
-  }
-
-  const bodySha256 = createHash("sha256").update(body).digest("hex");
-
-  const store = dependencies.store ?? getWebhookEventStore();
-  const enqueueStatus = await store.enqueueEvent({
-    source: getGitHubEventsConfig().source,
-    eventId,
-    bodySha256,
-    repositoryId: enqueueMetadata.repositoryId,
-    topics,
+  const jobData: WebhookJobData = {
     headers: headersToRecord(request.headers),
-    body,
-  });
+    body: body.toString("base64"),
+  };
 
-  if (enqueueStatus === "inserted") {
-    return new Response(null, { status: 202 });
-  }
+  const boss = getBoss();
+  const results = await Promise.all(
+    (["gh-collector", "gh-status"] as const).map((queue) =>
+      boss.send(queue, jobData, {
+        id: eventId,
+        retryLimit: GH_EVENTS_CONFIG.maxAttempts,
+        retryBackoff: true,
+      }),
+    ),
+  );
 
-  if (enqueueStatus === "duplicate") {
-    return new Response(null, { status: 200 });
-  }
-
-  return new Response("event conflict", { status: 409 });
+  // null = deduped (already queued), non-null = inserted
+  const anyInserted = results.some((result) => result !== null);
+  return new Response(null, { status: anyInserted ? 202 : 200 });
 }

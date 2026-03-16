@@ -145,23 +145,23 @@ struct NotifierState {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct TraySnapshot {
-    unresolved_failures: Vec<FailureNotification>,
-    failed_runs_dashboard_url: Option<String>,
+    failures: Vec<FailureNotification>,
+    dashboard_url: Option<String>,
     auto_fix_prompt: Option<String>,
 }
 
 impl TraySnapshot {
     fn failed_count(&self) -> usize {
-        self.unresolved_failures.len()
+        self.failures.len()
     }
 }
 
 impl From<TrayStatusResponse> for TraySnapshot {
     fn from(response: TrayStatusResponse) -> Self {
         Self {
-            unresolved_failures: response.unresolved_failures,
-            failed_runs_dashboard_url: option_string(response.failed_runs_dashboard_url),
-            auto_fix_prompt: option_string(response.auto_fix_prompt),
+            failures: response.failures,
+            dashboard_url: response.dashboard_url,
+            auto_fix_prompt: response.auto_fix_prompt,
         }
     }
 }
@@ -1056,7 +1056,7 @@ fn tray_failed_runs_target(snapshot: &TraySnapshot) -> Option<&str> {
         return None;
     }
 
-    snapshot.failed_runs_dashboard_url.as_deref()
+    snapshot.dashboard_url.as_deref()
 }
 
 fn tray_auto_fix_prompt(snapshot: &TraySnapshot) -> Option<&str> {
@@ -1196,7 +1196,7 @@ fn build_test_notification() -> Result<FailureNotification> {
         repo,
         branch: branch.clone(),
         workflow_name: "Test notification".to_string(),
-        failure_time: timestamp,
+        failed_at: timestamp,
         details_url,
         job_name: Some("Developer settings".to_string()),
         step_number: Some("1".to_string()),
@@ -1234,19 +1234,16 @@ async fn poll_and_notify(app: &AppHandle, state: &RuntimeState) -> Result<()> {
     };
 
     let client = ApiClient::from_session(&session)?;
-    let response = client
+    let failures = client
         .get_owned_failures(git_email, git.repo.as_deref(), git.branch.as_deref())
         .await?;
-    if !response.verified_match {
-        return Ok(());
-    }
 
     let fresh = {
         let mut notifier = state
             .notifier
             .lock()
             .map_err(|_| anyhow!("failed to lock notifier state"))?;
-        notifier.tracker.retain_new(response.failures)
+        notifier.tracker.retain_new(failures)
     };
 
     for failure in fresh {
@@ -1478,14 +1475,6 @@ fn startup_update_action(is_dev: bool, update_installed: bool) -> StartupUpdateA
     }
 }
 
-fn option_string(value: String) -> Option<String> {
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
 fn settings_file_path(session_store: &SessionStore) -> Result<PathBuf> {
     let session_path = session_store.session_file_path()?;
     let parent = session_path
@@ -1623,7 +1612,7 @@ mod tests {
             repo: "everr-labs/everr".to_string(),
             branch: "main".to_string(),
             workflow_name: "CI".to_string(),
-            failure_time: "2026-03-07T10:00:00Z".to_string(),
+            failed_at: "2026-03-07T10:00:00Z".to_string(),
             details_url: format!("https://example.com/{dedupe_key}"),
             job_name: Some("test".to_string()),
             step_number: Some("2".to_string()),
@@ -1664,8 +1653,8 @@ mod tests {
 
     fn tray_snapshot_with_failures() -> TraySnapshot {
         TraySnapshot {
-            unresolved_failures: vec![failure("one"), failure("two")],
-            failed_runs_dashboard_url: Some(
+            failures: vec![failure("one"), failure("two")],
+            dashboard_url: Some(
                 "https://example.com/runs?conclusion=failure".to_string(),
             ),
             auto_fix_prompt: Some("Investigate and fix the pipelines.".to_string()),
@@ -1883,8 +1872,8 @@ mod tests {
     #[test]
     fn tray_actions_are_noops_when_cached_targets_are_missing() {
         let snapshot = TraySnapshot {
-            unresolved_failures: vec![failure("one")],
-            failed_runs_dashboard_url: None,
+            failures: vec![failure("one")],
+            dashboard_url: None,
             auto_fix_prompt: None,
         };
 

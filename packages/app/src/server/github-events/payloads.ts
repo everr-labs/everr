@@ -147,35 +147,6 @@ export function repositoryIdFromQueuedEvent(
   return repositoryId && repositoryId > 0 ? repositoryId : null;
 }
 
-function hasWorkflowPayload(event: ParsedQueuedWorkflowEvent): boolean {
-  if (event.eventType === "workflow_run") {
-    return Boolean(event.payload.workflow_run);
-  }
-
-  return Boolean(event.payload.workflow_job);
-}
-
-export function enqueueMetadataFromWebhookEvent(
-  eventType: string,
-  body: Buffer,
-): {
-  enqueue: boolean;
-  repositoryId: number | null;
-} {
-  try {
-    const event = parseQueuedWorkflowEvent(eventType, body);
-    return {
-      enqueue: hasWorkflowPayload(event),
-      repositoryId: repositoryIdFromQueuedEvent(event),
-    };
-  } catch {
-    return {
-      enqueue: true,
-      repositoryId: null,
-    };
-  }
-}
-
 export function repositoryHTMLURL(repository?: {
   full_name?: string;
   html_url?: string;
@@ -206,29 +177,4 @@ export function parseTimestamp(
   }
 
   return new Date();
-}
-
-export function mapConclusionToOutcome(
-  conclusion: string | null | undefined,
-): string {
-  switch (conclusion ?? "") {
-    case "success":
-      return "success";
-    case "failure":
-      return "failure";
-    case "cancelled":
-      return "cancelled";
-    case "timed_out":
-    case "startup_failure":
-      return "error";
-    case "skipped":
-    case "neutral":
-      return "skipped";
-    case "action_required":
-      return "action_required";
-    case "stale":
-      return "stale";
-    default:
-      return "";
-  }
 }

@@ -39,13 +39,11 @@ export const Route = createFileRoute("/api/cli/notifier/failures")({
           parsed.data.gitEmail,
         );
         if (!verifiedEmail) {
-          return Response.json({
-            verified_match: false,
-            failures: [],
-          });
+          return Response.json([]);
         }
 
         const failures = await getFailureNotifications({
+          tenantId: context.auth.tenantId,
           gitEmail: verifiedEmail,
           origin: url.origin,
           timeWindowMinutes: 5,
@@ -54,10 +52,7 @@ export const Route = createFileRoute("/api/cli/notifier/failures")({
           preloadNotificationContext: true,
         });
 
-        return Response.json({
-          verified_match: true,
-          failures,
-        });
+        return Response.json(failures);
       },
     },
   },

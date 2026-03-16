@@ -4,10 +4,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use everr_core::git::{resolve_git_context, run_git};
-use serde_json::Value;
+use serde::Serialize;
 use tokio::time::sleep;
 
-use crate::api::{ApiClient, StepLogEntry};
+use crate::api::{ApiClient, StepLogEntry, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
@@ -39,7 +39,6 @@ pub async fn status(args: StatusArgs) -> Result<()> {
         ("repo", repo),
         ("branch", branch),
         ("commit", commit),
-        ("watchMode", "pipeline".to_string()),
     ];
     let payload = client.get_watch_status(&query).await?;
     print_json(&payload)?;
@@ -215,7 +214,6 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         ("repo", repo.clone()),
         ("branch", branch.clone()),
         ("commit", target_commit.clone()),
-        ("watchMode", "pipeline".to_string()),
     ];
     let start = Instant::now();
     let mut watch_status_lines = 0usize;
@@ -228,14 +226,9 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
             }
         };
 
-        let pipeline_found = payload
-            .get("pipelineFound")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let active_runs = extract_watch_runs(&payload, "activeRuns");
-        let completed_runs = extract_watch_runs(&payload, "completedRuns");
-        let watch_complete = (pipeline_found && active_runs.is_empty())
-            || (active_runs.is_empty() && !completed_runs.is_empty());
+        let active_runs = payload.active.clone();
+        let completed_runs = payload.completed.clone();
+        let watch_complete = matches!(payload.state, WatchState::Completed);
 
         if watch_complete {
             finish_watch_status_block(watch_status_lines)?;
@@ -253,7 +246,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         if let Some(timeout_seconds) = args.timeout_seconds {
             if start.elapsed() >= Duration::from_secs(timeout_seconds) {
                 finish_watch_status_block(watch_status_lines)?;
-                if pipeline_found {
+                if matches!(payload.state, WatchState::Running) {
                     bail!(
                         "timed out after {}s waiting for {} active run(s) to finish for commit {} on {repo}@{branch}",
                         timeout_seconds,
@@ -263,14 +256,14 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                 }
 
                 bail!(
-                    "timed out after {}s waiting for commit {} to appear in pipeline events for {repo}@{branch}",
+                    "timed out after {}s waiting for commit {} to appear in workflow runs for {repo}@{branch}",
                     timeout_seconds,
                     target_commit
                 );
             }
         }
 
-        let status = if pipeline_found {
+        let status = if matches!(payload.state, WatchState::Running) {
             format_watch_status(
                 &target_commit,
                 args.interval_seconds,
@@ -291,7 +284,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     }
 }
 
-fn print_json(value: &Value) -> Result<()> {
+fn print_json<T: Serialize>(value: &T) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
 }
@@ -360,19 +353,11 @@ struct PagedStepLogs {
     next_offset: u32,
 }
 
-struct WatchRunStatus {
-    workflow_name: String,
-    conclusion: String,
-    duration_seconds: u64,
-    usual_duration_seconds: Option<u64>,
-    active_jobs: Vec<String>,
-}
-
 fn format_watch_status(
     target_commit: &str,
     interval_seconds: u64,
-    active_runs: Vec<WatchRunStatus>,
-    completed_runs: Vec<WatchRunStatus>,
+    active_runs: Vec<WatchRun>,
+    completed_runs: Vec<WatchRun>,
 ) -> String {
     let mut status = String::new();
     let short_commit = shorten_commit(target_commit);
@@ -389,10 +374,10 @@ fn format_watch_status(
                 "duration: {}",
                 format_elapsed_duration(run.duration_seconds)
             )];
-            if let Some(usual_duration_seconds) = run.usual_duration_seconds {
+            if let Some(expected_duration_seconds) = run.expected_duration_seconds {
                 details.push(format!(
-                    "usually takes: {}",
-                    format_elapsed_duration(usual_duration_seconds)
+                    "expected duration: {}",
+                    format_elapsed_duration(expected_duration_seconds)
                 ));
             }
             details.push(format!(
@@ -448,40 +433,6 @@ fn clear_watch_status_block(line_count: usize) {
     }
 }
 
-fn extract_watch_runs(payload: &Value, key: &str) -> Vec<WatchRunStatus> {
-    payload
-        .get(key)
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .map(|item| WatchRunStatus {
-            workflow_name: item
-                .get("workflowName")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_string(),
-            conclusion: item
-                .get("conclusion")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string(),
-            duration_seconds: item
-                .get("durationSeconds")
-                .and_then(Value::as_u64)
-                .unwrap_or(0),
-            usual_duration_seconds: item.get("usualDurationSeconds").and_then(Value::as_u64),
-            active_jobs: item
-                .get("activeJobs")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .map(ToOwned::to_owned)
-                .collect(),
-        })
-        .collect()
-}
-
 fn format_name_list(names: &[String]) -> String {
     if names.is_empty() {
         "none".to_string()
@@ -490,7 +441,7 @@ fn format_name_list(names: &[String]) -> String {
     }
 }
 
-fn format_completed_run_list(runs: &[WatchRunStatus]) -> String {
+fn format_completed_run_list(runs: &[WatchRun]) -> String {
     if runs.is_empty() {
         return "none".to_string();
     }
@@ -501,7 +452,7 @@ fn format_completed_run_list(runs: &[WatchRunStatus]) -> String {
             formatted.push_str(", ");
         }
         formatted.push_str(&run.workflow_name);
-        if is_failure_conclusion(&run.conclusion) {
+        if is_failure_conclusion(run.conclusion.as_deref().unwrap_or_default()) {
             formatted.push_str(" (failed)");
         }
     }
@@ -509,9 +460,9 @@ fn format_completed_run_list(runs: &[WatchRunStatus]) -> String {
     formatted
 }
 
-fn failed_watch_run_names<'a>(runs: &'a [WatchRunStatus]) -> Vec<&'a str> {
+fn failed_watch_run_names<'a>(runs: &'a [WatchRun]) -> Vec<&'a str> {
     runs.iter()
-        .filter(|run| is_failure_conclusion(&run.conclusion))
+        .filter(|run| is_failure_conclusion(run.conclusion.as_deref().unwrap_or_default()))
         .map(|run| run.workflow_name.as_str())
         .collect()
 }
@@ -557,7 +508,8 @@ mod tests {
 
     use crate::api::StepLogEntry;
 
-    use super::{LogPagingArgs, WatchRunStatus, format_watch_status, push_opt, push_pagination};
+    use super::{LogPagingArgs, format_watch_status, push_opt, push_pagination};
+    use crate::api::WatchRun;
 
     #[test]
     fn print_step_logs_terminates_lines_without_trailing_newlines() {
@@ -623,18 +575,20 @@ mod tests {
         let status = format_watch_status(
             "df0c52b63dfa0123456789",
             5,
-            vec![WatchRunStatus {
+            vec![WatchRun {
+                run_id: "42".to_string(),
                 workflow_name: "Build & Test Collector".to_string(),
-                conclusion: String::new(),
+                conclusion: None,
                 duration_seconds: 139,
-                usual_duration_seconds: None,
+                expected_duration_seconds: None,
                 active_jobs: vec!["Lint".to_string(), "Build".to_string()],
             }],
-            vec![WatchRunStatus {
+            vec![WatchRun {
+                run_id: "41".to_string(),
                 workflow_name: "Build & Test Ingress".to_string(),
-                conclusion: "success".to_string(),
+                conclusion: Some("success".to_string()),
                 duration_seconds: 0,
-                usual_duration_seconds: None,
+                expected_duration_seconds: None,
                 active_jobs: Vec::new(),
             }],
         );
@@ -652,18 +606,20 @@ mod tests {
             5,
             Vec::new(),
             vec![
-                WatchRunStatus {
+                WatchRun {
+                    run_id: "42".to_string(),
                     workflow_name: "Build & Test Collector".to_string(),
-                    conclusion: "failure".to_string(),
+                    conclusion: Some("failure".to_string()),
                     duration_seconds: 0,
-                    usual_duration_seconds: None,
+                    expected_duration_seconds: None,
                     active_jobs: Vec::new(),
                 },
-                WatchRunStatus {
+                WatchRun {
+                    run_id: "41".to_string(),
                     workflow_name: "Build & Test App".to_string(),
-                    conclusion: "success".to_string(),
+                    conclusion: Some("success".to_string()),
                     duration_seconds: 0,
-                    usual_duration_seconds: None,
+                    expected_duration_seconds: None,
                     active_jobs: Vec::new(),
                 },
             ],
@@ -679,16 +635,19 @@ mod tests {
         let status = format_watch_status(
             "df0c52b63dfa0123456789",
             5,
-            vec![WatchRunStatus {
+            vec![WatchRun {
+                run_id: "99".to_string(),
                 workflow_name: "CI".to_string(),
-                conclusion: String::new(),
+                conclusion: None,
                 duration_seconds: 125,
-                usual_duration_seconds: Some(118),
+                expected_duration_seconds: Some(118),
                 active_jobs: vec!["test".to_string()],
             }],
             Vec::new(),
         );
 
-        assert!(status.contains("CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test)"));
+        assert!(status.contains(
+            "CI (duration: 2m 5s; expected duration: 1m 58s; active jobs: test)"
+        ));
     }
 }

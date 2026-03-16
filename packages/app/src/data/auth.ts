@@ -34,9 +34,9 @@ export const updateOrganizationName = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(CreateOrganizationInputSchema)
-  .handler(async ({ data, context: { auth } }) => {
+  .handler(async ({ data, context: { session } }) => {
     const organization = await workOS.organizations.updateOrganization({
-      organization: auth.organizationId,
+      organization: session.organizationId,
       name: data.organizationName,
     });
 
@@ -48,9 +48,9 @@ export const updateOrganizationName = createAuthenticatedServerFn({
 
 export const markOnboardingComplete = createAuthenticatedServerFn({
   method: "POST",
-}).handler(async ({ context: { auth } }) => {
+}).handler(async ({ context: { session } }) => {
   return workOS.organizations.updateOrganization({
-    organization: auth.organizationId,
+    organization: session.organizationId,
     metadata: { onboardingCompleted: "true" },
   });
 });

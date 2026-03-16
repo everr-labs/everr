@@ -22,18 +22,15 @@ fn status_command_sends_commit_query_to_runs_endpoint() {
     env.write_session(&server.url(), "token-123");
 
     let mock = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-123")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/tests".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/tests","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[]}}"#
-        ))
+        .with_body(r#"{"state":"completed","active":[],"completed":[]}"#)
         .create();
 
     env.command_with_api_base_url(&server.url())
@@ -41,7 +38,7 @@ fn status_command_sends_commit_query_to_runs_endpoint() {
         .args(["status"])
         .assert()
         .success()
-        .stdout(contains("\"pipelineFound\": true"));
+        .stdout(contains("\"state\": \"completed\""));
 
     mock.assert();
 }
@@ -60,18 +57,15 @@ fn status_uses_explicit_commit_when_provided() {
     env.write_session(&server.url(), "token-123");
 
     let mock = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-123")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/status-commit".into()),
             Matcher::UrlEncoded("commit".into(), target_commit.into()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/status-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[]}}"#
-        ))
+        .with_body(r#"{"state":"completed","active":[],"completed":[]}"#)
         .create();
 
     env.command_with_api_base_url(&server.url())
@@ -79,7 +73,7 @@ fn status_uses_explicit_commit_when_provided() {
         .args(["status", "--commit", target_commit])
         .assert()
         .success()
-        .stdout(contains("\"pipelineFound\": true"));
+        .stdout(contains("\"state\": \"completed\""));
 
     mock.assert();
 }
@@ -826,50 +820,45 @@ fn watch_polls_until_head_sha_run_is_found() {
     env.write_session(&server.url(), "token-abc");
 
     let first_poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":false,"activeRuns":[],"completedRuns":[]}}"#
-        ))
+        .with_body(r#"{"state":"pending","active":[],"completed":[]}"#)
         .expect(1)
         .create();
 
     let second_poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":125,"usualDurationSeconds":118,"usualDurationSampleSize":3,"activeJobs":["test","lint"]}}],"completedRuns":[{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z","durationSeconds":59,"usualDurationSeconds":57,"usualDurationSampleSize":3,"activeJobs":[]}}]}}"#
-        ))
+        .with_body(
+            r#"{"state":"running","active":[{"runId":"42","workflowName":"CI","conclusion":null,"durationSeconds":125,"expectedDurationSeconds":118,"activeJobs":["test","lint"]}],"completed":[{"runId":"41","workflowName":"Lint","conclusion":"success","durationSeconds":59,"expectedDurationSeconds":57,"activeJobs":[]}]}"#,
+        )
         .expect(1)
         .create();
 
     let third_poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-for-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"42","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}},{{"runId":"41","workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z"}}]}}"#
-        ))
+        .with_body(
+            r#"{"state":"completed","active":[],"completed":[{"runId":"42","workflowName":"CI","conclusion":"success","durationSeconds":61,"expectedDurationSeconds":null,"activeJobs":[]},{"runId":"41","workflowName":"Lint","conclusion":"success","durationSeconds":59,"expectedDurationSeconds":null,"activeJobs":[]}]}"#,
+        )
         .expect(1)
         .create();
 
@@ -878,13 +867,13 @@ fn watch_polls_until_head_sha_run_is_found() {
         .args(["watch", "--timeout-seconds", "2", "--interval-seconds", "0"])
         .assert()
         .success()
-        .stdout(contains("\"pipelineFound\": true"))
+        .stdout(contains("\"state\": \"completed\""))
         .stdout(contains("\"runId\": \"42\""))
         .stdout(contains("\"runId\": \"41\""))
         .stderr(contains("Watching pipeline for commit"))
         .stderr(contains("(refresh: 0s)"))
         .stderr(contains(
-            "Active runs:\n- CI (duration: 2m 5s; usually takes: 1m 58s; active jobs: test, lint)",
+            "Active runs:\n- CI (duration: 2m 5s; expected duration: 1m 58s; active jobs: test, lint)",
         ))
         .stderr(contains("Completed runs: Lint"))
         .stderr(predicate::str::contains("Elapsed: ").not())
@@ -909,18 +898,17 @@ fn watch_exits_when_completed_runs_exist_even_without_pipeline_found() {
     env.write_session(&server.url(), "token-abc");
 
     let poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/watch-completed-runs".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/watch-completed-runs","commit":"{head_sha}","pipelineFound":false,"activeRuns":[],"completedRuns":[{{"runId":"52","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/52","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
-        ))
+        .with_body(
+            r#"{"state":"completed","active":[],"completed":[{"runId":"52","workflowName":"CI","conclusion":"success","durationSeconds":61,"expectedDurationSeconds":null,"activeJobs":[]}]}"#,
+        )
         .expect(1)
         .create();
 
@@ -929,7 +917,7 @@ fn watch_exits_when_completed_runs_exist_even_without_pipeline_found() {
         .args(["watch", "--timeout-seconds", "0", "--interval-seconds", "0"])
         .assert()
         .success()
-        .stdout(contains("\"pipelineFound\": false"))
+        .stdout(contains("\"state\": \"completed\""))
         .stdout(contains("\"runId\": \"52\""))
         .stderr(predicate::str::contains("Watching pipeline for commit").not());
 
@@ -950,7 +938,7 @@ fn watch_uses_explicit_commit_when_provided() {
     env.write_session(&server.url(), "token-abc");
 
     let poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
@@ -959,12 +947,11 @@ fn watch_uses_explicit_commit_when_provided() {
                 "feature/wait-explicit-commit".into(),
             ),
             Matcher::UrlEncoded("commit".into(), target_commit.into()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-explicit-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"77","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/77","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
-        ))
+        .with_body(
+            r#"{"state":"completed","active":[],"completed":[{"runId":"77","workflowName":"CI","conclusion":"success","durationSeconds":61,"expectedDurationSeconds":null,"activeJobs":[]}]}"#,
+        )
         .expect(1)
         .create();
 
@@ -981,9 +968,7 @@ fn watch_uses_explicit_commit_when_provided() {
         ])
         .assert()
         .success()
-        .stdout(contains(
-            "\"commit\": \"deadbeefcafebabefeedface1234567890abcdef\"",
-        ))
+        .stdout(contains("\"state\": \"completed\""))
         .stdout(contains("\"runId\": \"77\""));
 
     poll.assert();
@@ -1003,18 +988,17 @@ fn watch_accepts_short_commit_sha_prefix() {
     env.write_session(&server.url(), "token-abc");
 
     let poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-short-commit".into()),
             Matcher::UrlEncoded("commit".into(), short_commit.into()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-short-commit","commit":"{short_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","phase":"finished","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
-        ))
+        .with_body(
+            r#"{"state":"completed","active":[],"completed":[{"runId":"88","workflowName":"CI","conclusion":"success","durationSeconds":61,"expectedDurationSeconds":null,"activeJobs":[]}]}"#,
+        )
         .expect(1)
         .create();
 
@@ -1031,7 +1015,7 @@ fn watch_accepts_short_commit_sha_prefix() {
         ])
         .assert()
         .success()
-        .stdout(contains("\"commit\": \"7f14b13\""))
+        .stdout(contains("\"state\": \"completed\""))
         .stdout(contains("\"runId\": \"88\""));
 
     poll.assert();
@@ -1051,18 +1035,17 @@ fn watch_fails_when_completed_runs_include_failure() {
     env.write_session(&server.url(), "token-abc");
 
     let poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-failed-run".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-failed-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","phase":"finished","conclusion":"failure","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
-        ))
+        .with_body(
+            r#"{"state":"completed","active":[],"completed":[{"runId":"88","workflowName":"CI","conclusion":"failure","durationSeconds":61,"expectedDurationSeconds":null,"activeJobs":[]}]}"#,
+        )
         .expect(1)
         .create();
 
@@ -1091,18 +1074,17 @@ fn watch_times_out_when_head_sha_is_not_found() {
     env.write_session(&server.url(), "token-abc");
 
     let poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-timeout".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-timeout","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"99","workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/99","phase":"started","conclusion":"","lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":3,"activeJobs":["test"]}}],"completedRuns":[]}}"#
-        ))
+        .with_body(
+            r#"{"state":"running","active":[{"runId":"99","workflowName":"CI","conclusion":null,"durationSeconds":3,"expectedDurationSeconds":null,"activeJobs":["test"]}],"completed":[]}"#,
+        )
         .expect(1)
         .create();
 
@@ -1131,30 +1113,25 @@ fn watch_finishes_status_row_before_api_error() {
     env.write_session(&server.url(), "token-abc");
 
     let first_poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-api-error".into()),
             Matcher::UrlEncoded("commit".into(), git_head_sha(&repo_dir)),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(200)
-        .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-api-error","commit":"{}","pipelineFound":false,"activeRuns":[],"completedRuns":[]}}"#,
-            git_head_sha(&repo_dir)
-        ))
+        .with_body(r#"{"state":"pending","active":[],"completed":[]}"#)
         .expect(1)
         .create();
 
     let second_poll = server
-        .mock("GET", "/api/cli/runs")
+        .mock("GET", "/api/cli/runs/watch")
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
             Matcher::UrlEncoded("branch".into(), "feature/wait-api-error".into()),
             Matcher::UrlEncoded("commit".into(), git_head_sha(&repo_dir)),
-            Matcher::UrlEncoded("watchMode".into(), "pipeline".into()),
         ]))
         .with_status(500)
         .with_body("boom")
