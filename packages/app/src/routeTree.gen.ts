@@ -9,8 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignoutRouteImport } from './routes/signout'
-import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
@@ -48,16 +46,6 @@ import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './ro
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
-const SignoutRoute = SignoutRouteImport.update({
-  id: '/signout',
-  path: '/signout',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -256,8 +244,6 @@ const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
-  '/sign-in': typeof SignInRoute
-  '/signout': typeof SignoutRoute
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -294,8 +280,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
-  '/sign-in': typeof SignInRoute
-  '/signout': typeof SignoutRoute
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -331,8 +315,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/onboarding': typeof OnboardingRoute
-  '/sign-in': typeof SignInRoute
-  '/signout': typeof SignoutRoute
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
@@ -373,8 +355,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
-    | '/sign-in'
-    | '/signout'
     | '/api/health'
     | '/cli/device'
     | '/webhook/github'
@@ -411,8 +391,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/onboarding'
-    | '/sign-in'
-    | '/signout'
     | '/api/health'
     | '/cli/device'
     | '/webhook/github'
@@ -447,8 +425,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/onboarding'
-    | '/sign-in'
-    | '/signout'
     | '/_authenticated/_dashboard'
     | '/api/health'
     | '/cli/device'
@@ -488,8 +464,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
-  SignInRoute: typeof SignInRoute
-  SignoutRoute: typeof SignoutRoute
   ApiHealthRoute: typeof ApiHealthRoute
   CliDeviceRoute: typeof CliDeviceRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
@@ -510,20 +484,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signout': {
-      id: '/signout'
-      path: '/signout'
-      fullPath: '/signout'
-      preLoaderRoute: typeof SignoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -894,8 +854,6 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
-  SignInRoute: SignInRoute,
-  SignoutRoute: SignoutRoute,
   ApiHealthRoute: ApiHealthRoute,
   CliDeviceRoute: CliDeviceRoute,
   WebhookGithubRoute: WebhookGithubRoute,

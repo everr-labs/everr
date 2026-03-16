@@ -26,8 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 
 export function NavUser() {
-  // Using this instead of useRouteContext to make the user name reactive to changes
-  const { user, roles } = useAuth();
+  const { user, roles, signOut } = useAuth();
   const isAdmin = roles?.includes("admin") === true;
 
   const { isMobile } = useSidebar();
@@ -123,7 +122,7 @@ export function NavUser() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to="/signout" />}>
+            <DropdownMenuItem onClick={() => void signOut({ returnTo: "/" })}>
               <LogOut />
               Log out
             </DropdownMenuItem>
