@@ -6,7 +6,7 @@ import { afterEach, vi } from "vitest";
 // Helpers
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: Shared test harness needs a loose function signature.
 type AnyFn = (...args: any[]) => any;
 
 /** Build a fluent chain where handler(fn) wraps fn with `wrapHandler`. */
@@ -55,6 +55,7 @@ vi.mock("@/lib/serverFn", () => ({
             userId: auth.user.id,
             organizationId: auth.organizationId,
             sessionId: auth.sessionId,
+            tenantId: 42,
           },
         },
       });

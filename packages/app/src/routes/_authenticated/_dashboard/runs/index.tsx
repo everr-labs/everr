@@ -10,13 +10,15 @@ import {
 } from "@/data/runs-list/options";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
+const PAGE_SIZE = 20;
+
 export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
   component: RunsListPage,
   validateSearch: TimeRangeSearchSchema.extend({
     page: z.coerce.number().int().default(1),
     repo: z.string().optional(),
     branch: z.string().optional(),
-    conclusion: z.string().optional(),
+    conclusion: z.enum(["success", "failure", "cancellation"]).optional(),
     workflowName: z.string().optional(),
     runId: z.string().optional(),
   }),
@@ -24,7 +26,8 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
   loader: async ({ context: { queryClient }, deps }) => {
     const runsInput = {
       timeRange: deps.timeRange,
-      page: deps.page,
+      limit: PAGE_SIZE,
+      offset: (deps.page - 1) * PAGE_SIZE,
       repo: deps.repo,
       branch: deps.branch,
       conclusion: deps.conclusion,
@@ -45,7 +48,8 @@ function RunsListPage() {
 
   const runsInput = {
     timeRange,
-    page,
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
     repo,
     branch,
     conclusion,
@@ -101,7 +105,7 @@ function RunsListPage() {
       <Pagination
         page={page}
         totalCount={runsResult.totalCount}
-        pageSize={20}
+        pageSize={PAGE_SIZE}
         onPageChange={(p) =>
           navigate({ search: (prev) => ({ ...prev, page: p }) })
         }

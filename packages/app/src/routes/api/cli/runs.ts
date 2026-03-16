@@ -12,7 +12,7 @@ const RunsListQuerySchema = z
     offset: z.coerce.number().int().min(0).optional(),
     repo: z.string().optional(),
     branch: z.string().optional(),
-    conclusion: z.string().optional(),
+    conclusion: z.enum(["success", "failure", "cancellation"]).optional(),
     workflowName: z.string().optional(),
     runId: z.string().optional(),
   })
