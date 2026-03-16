@@ -49,17 +49,17 @@ type WizardStatus = {
 };
 
 type FailureNotification = {
-  dedupe_key: string;
-  trace_id: string;
+  dedupeKey: string;
+  traceId: string;
   repo: string;
   branch: string;
-  workflow_name: string;
-  failure_time: string;
-  details_url: string;
-  job_name?: string;
-  step_number?: string;
-  step_name?: string;
-  auto_fix_prompt?: string;
+  workflowName: string;
+  failedAt: string;
+  detailsUrl: string;
+  jobName?: string;
+  stepNumber?: string;
+  stepName?: string;
+  autoFixPrompt?: string;
 };
 
 type TestNotificationResponse = {
@@ -117,17 +117,17 @@ function createDeferred<T>() {
 
 function createNotification(overrides: Partial<FailureNotification> = {}): FailureNotification {
   return {
-    dedupe_key: "one",
-    trace_id: "trace-one",
+    dedupeKey: "one",
+    traceId: "trace-one",
     repo: "everr-labs/everr",
     branch: "feature/granola",
-    workflow_name: "CI",
-    failure_time: "2026-03-07T13:32:00Z",
-    details_url: "https://example.com/runs/trace-one/jobs/job-one/steps/3",
-    job_name: "test",
-    step_number: "3",
-    step_name: "Run suite",
-    auto_fix_prompt: "Investigate and fix trace-one.",
+    workflowName: "CI",
+    failedAt: "2026-03-07T13:32:00Z",
+    detailsUrl: "https://example.com/runs/trace-one/jobs/job-one/steps/3",
+    jobName: "test",
+    stepNumber: "3",
+    stepName: "Run suite",
+    autoFixPrompt: "Investigate and fix trace-one.",
     ...overrides,
   };
 }
@@ -720,9 +720,9 @@ describe("notification window", () => {
 
     harness.setNotification(
       createNotification({
-        dedupe_key: "two",
-        trace_id: "trace-two",
-        workflow_name: "Nightly",
+        dedupeKey: "two",
+        traceId: "trace-two",
+        workflowName: "Nightly",
       }),
     );
     await act(async () => {

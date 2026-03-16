@@ -4,6 +4,12 @@ vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
 }));
 
+vi.mock("@/db/client", () => ({
+  pool: {
+    query: vi.fn(),
+  },
+}));
+
 vi.mock("@/lib/workos", () => ({
   workOS: {
     userManagement: {
@@ -21,11 +27,13 @@ vi.mock("./-auth", () => ({
   },
 }));
 
+import { pool } from "@/db/client";
 import { query } from "@/lib/clickhouse";
 import { workOS } from "@/lib/workos";
 import { Route } from "./tray-status";
 
 const mockedQuery = vi.mocked(query);
+const mockedPoolQuery = vi.mocked(pool.query);
 const mockedGetUser = vi.mocked(workOS.userManagement.getUser);
 
 type GetHandler = (args: {
@@ -33,6 +41,7 @@ type GetHandler = (args: {
   context: {
     auth: {
       userId: string;
+      tenantId: number;
     };
   };
 }) => Promise<Response>;
@@ -75,19 +84,19 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      verified_match: false,
-      unresolved_failures: [],
-      failed_runs_dashboard_url:
-        "http://localhost/runs?conclusion=failure&from=now-30m&to=now",
-      auto_fix_prompt: "",
+      failures: [],
+      dashboardUrl: null,
+      autoFixPrompt: null,
     });
     expect(mockedQuery).not.toHaveBeenCalled();
+    expect(mockedPoolQuery).not.toHaveBeenCalled();
   });
 
   it("returns the verified unresolved failures", async () => {
@@ -99,15 +108,17 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      verified_match: true,
-      unresolved_failures: [],
-      auto_fix_prompt: "",
+      failures: [],
+      dashboardUrl:
+        "http://localhost/runs?conclusion=failure&from=now-30m&to=now",
+      autoFixPrompt: null,
     });
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("FROM traces");
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
@@ -134,7 +145,9 @@ describe("/api/cli/tray-status", () => {
         startedAt: "2026-03-08T10:05:00Z",
       },
     ]);
-    mockedQuery.mockResolvedValueOnce([]);
+    mockedPoolQuery.mockResolvedValueOnce({
+      rows: [],
+    } as Awaited<ReturnType<typeof mockedPoolQuery>>);
 
     const handler = getHandler();
     const response = await handler({
@@ -142,14 +155,15 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      unresolved_failures: [],
-      auto_fix_prompt: "",
+      failures: [],
+      autoFixPrompt: null,
     });
   });
 
@@ -165,14 +179,16 @@ describe("/api/cli/tray-status", () => {
       },
     ]);
     mockedQuery.mockResolvedValueOnce([]);
-    mockedQuery.mockResolvedValueOnce([
-      {
-        runId: "run-3",
-        repo: "everr-labs/everr",
-        branch: "main",
-        startedAt: "2026-03-08T10:06:00Z",
-      },
-    ]);
+    mockedPoolQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          runId: "run-3",
+          repo: "everr-labs/everr",
+          branch: "main",
+          startedAt: "2026-03-08T10:06:00Z",
+        },
+      ],
+    } as Awaited<ReturnType<typeof mockedPoolQuery>>);
 
     const handler = getHandler();
     const response = await handler({
@@ -180,14 +196,15 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      unresolved_failures: [],
-      auto_fix_prompt: "",
+      failures: [],
+      autoFixPrompt: null,
     });
   });
 
@@ -213,7 +230,9 @@ describe("/api/cli/tray-status", () => {
     mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([]);
-    mockedQuery.mockResolvedValueOnce([]);
+    mockedPoolQuery.mockResolvedValueOnce({
+      rows: [],
+    } as Awaited<ReturnType<typeof mockedPoolQuery>>);
 
     const handler = getHandler();
     const response = await handler({
@@ -221,16 +240,15 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     const payload = await response.json();
-    expect(payload.unresolved_failures).toHaveLength(2);
+    expect(payload.failures).toHaveLength(2);
     expect(
-      payload.unresolved_failures.map(
-        (failure: { trace_id: string }) => failure.trace_id,
-      ),
+      payload.failures.map((failure: { traceId: string }) => failure.traceId),
     ).toEqual(["trace-1", "trace-2"]);
   });
 
@@ -246,7 +264,9 @@ describe("/api/cli/tray-status", () => {
       },
     ]);
     mockedQuery.mockResolvedValueOnce([]);
-    mockedQuery.mockResolvedValueOnce([]);
+    mockedPoolQuery.mockResolvedValueOnce({
+      rows: [],
+    } as Awaited<ReturnType<typeof mockedPoolQuery>>);
     mockedQuery.mockResolvedValueOnce([
       {
         trace_id: "trace-123",
@@ -270,29 +290,30 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 42,
         },
       },
     });
 
     const payload = await response.json();
-    expect(payload.failed_runs_dashboard_url).toBe(
+    expect(payload.dashboardUrl).toBe(
       "http://localhost/runs?conclusion=failure&from=now-30m&to=now",
     );
-    expect(payload.unresolved_failures[0]).toMatchObject({
-      trace_id: "trace-123",
-      details_url: "http://localhost/runs/trace-123/jobs/job-1/steps/3",
-      job_name: "test",
-      step_number: "3",
-      step_name: "Run suite",
+    expect(payload.failures[0]).toMatchObject({
+      traceId: "trace-123",
+      detailsUrl: "http://localhost/runs/trace-123/jobs/job-1/steps/3",
+      jobName: "test",
+      stepNumber: "3",
+      stepName: "Run suite",
     });
-    expect(payload.auto_fix_prompt).toContain(
+    expect(payload.autoFixPrompt).toContain(
       "Start by pulling logs with the exact `everr runs logs` command listed for each failure below.",
     );
-    expect(payload.auto_fix_prompt).toContain(
+    expect(payload.autoFixPrompt).toContain(
       'everr runs logs --trace-id trace-123 --job-name "test" --step-number 3',
     );
-    expect(payload.auto_fix_prompt).toContain("trace-123");
-    expect(payload.auto_fix_prompt).toContain("feature/granola");
-    expect(payload.auto_fix_prompt).not.toContain("http://localhost");
+    expect(payload.autoFixPrompt).toContain("trace-123");
+    expect(payload.autoFixPrompt).toContain("feature/granola");
+    expect(payload.autoFixPrompt).not.toContain("http://localhost");
   });
 });

@@ -1,4 +1,5 @@
 import { isFailureConclusion } from "@/data/runs/schemas";
+import { pool } from "@/db/client";
 import { query } from "@/lib/clickhouse";
 import { workOS } from "@/lib/workos";
 
@@ -41,27 +42,27 @@ type CandidateRunRow = {
 };
 
 export type FailureNotification = {
-  dedupe_key: string;
-  trace_id: string;
+  dedupeKey: string;
+  traceId: string;
   repo: string;
   branch: string;
-  workflow_name: string;
-  failure_time: string;
-  details_url: string;
-  job_name?: string;
-  step_number?: string;
-  step_name?: string;
-  auto_fix_prompt?: string;
+  workflowName: string;
+  failedAt: string;
+  detailsUrl: string;
+  jobName?: string;
+  stepNumber?: string;
+  stepName?: string;
+  autoFixPrompt?: string;
 };
 
 export type TrayStatusResponse = {
-  verified_match: boolean;
-  unresolved_failures: FailureNotification[];
-  failed_runs_dashboard_url: string;
-  auto_fix_prompt: string;
+  failures: FailureNotification[];
+  dashboardUrl: string | null;
+  autoFixPrompt: string | null;
 };
 
 type FailureNotificationsOptions = {
+  tenantId: number;
   gitEmail: string;
   origin: string;
   timeWindowMinutes: number;
@@ -92,6 +93,7 @@ export async function getVerifiedCliUserEmail(
 }
 
 export async function getFailureNotifications({
+  tenantId,
   gitEmail,
   origin,
   timeWindowMinutes,
@@ -111,7 +113,7 @@ export async function getFailureNotifications({
   }
 
   const unresolvedFailures = unresolvedOnly
-    ? await filterUnresolvedFailures(failures, timeWindowMinutes)
+    ? await filterUnresolvedFailures(failures, tenantId, timeWindowMinutes)
     : failures;
   if (unresolvedFailures.length === 0) {
     return [];
@@ -126,16 +128,16 @@ export async function getFailureNotifications({
     const detailsUrl = buildFailureDetailsUrl(origin, row.traceId, failingStep);
 
     return {
-      dedupe_key: `${row.traceId}:${row.failureTime}`,
-      trace_id: row.traceId,
+      dedupeKey: `${row.traceId}:${row.failureTime}`,
+      traceId: row.traceId,
       repo: row.repo,
       branch: row.branch,
-      workflow_name: row.workflowName || "Workflow",
-      failure_time: row.failureTime,
-      details_url: detailsUrl,
-      job_name: failingStep?.jobName,
-      step_number: failingStep?.stepNumber,
-      step_name: failingStep?.stepName,
+      workflowName: row.workflowName || "Workflow",
+      failedAt: row.failureTime,
+      detailsUrl,
+      jobName: failingStep?.jobName,
+      stepNumber: failingStep?.stepNumber,
+      stepName: failingStep?.stepName,
     };
   });
 
@@ -145,7 +147,7 @@ export async function getFailureNotifications({
 
   return notifications.map((notification) => ({
     ...notification,
-    auto_fix_prompt: buildAutoFixPrompt([notification]),
+    autoFixPrompt: buildAutoFixPrompt([notification]),
   }));
 }
 
@@ -190,11 +192,11 @@ export function buildAutoFixPrompt(failures: FailureNotification[]): string {
     sections.push(`Repo: ${repo}`);
     for (const failure of repoFailures) {
       const failingStep =
-        failure.job_name && failure.step_number
-          ? ` | step ${failure.job_name} #${failure.step_number}${failure.step_name ? ` (${failure.step_name})` : ""}`
+        failure.jobName && failure.stepNumber
+          ? ` | step ${failure.jobName} #${failure.stepNumber}${failure.stepName ? ` (${failure.stepName})` : ""}`
           : "";
       sections.push(
-        `- branch ${failure.branch} | workflow ${failure.workflow_name} | trace ${failure.trace_id} | failed at ${failure.failure_time}${failingStep}`,
+        `- branch ${failure.branch} | workflow ${failure.workflowName} | trace ${failure.traceId} | failed at ${failure.failedAt}${failingStep}`,
       );
       const logsCommand = buildRunsLogsCommand(failure);
       if (logsCommand) {
@@ -396,13 +398,18 @@ async function loadFirstFailingSteps(
 
 async function filterUnresolvedFailures(
   failures: FailureRunRow[],
+  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<FailureRunRow[]> {
   const successfulRuns = await loadSuccessfulRunsForScopes(
     failures,
     timeWindowMinutes,
   );
-  const activeRuns = await loadActiveRunsForScopes(failures, timeWindowMinutes);
+  const activeRuns = await loadActiveRunsForScopes(
+    failures,
+    tenantId,
+    timeWindowMinutes,
+  );
   const candidatesByScope = groupCandidateRunsByScope([
     ...successfulRuns,
     ...activeRuns,
@@ -458,32 +465,30 @@ async function loadSuccessfulRunsForScopes(
 
 async function loadActiveRunsForScopes(
   failures: FailureRunRow[],
+  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
-  const scopeFilter = buildScopeFilter(
-    failures.map((failure) => ({
-      repo: failure.repo,
-      branch: failure.branch,
-    })),
-    "repository",
-    "ref",
+  const scopeKeys = new Set(
+    failures.map((failure) => createScopeKey(failure.repo, failure.branch)),
   );
 
-  return query<CandidateRunRow>(
+  const result = await pool.query<CandidateRunRow>(
     `
       SELECT
-        subject_id as runId,
+        run_id AS "runId",
         repository as repo,
         ref as branch,
-        min(event_time) as startedAt
-      FROM app.cdevents
-      WHERE event_kind = 'pipelinerun'
-        AND event_time >= now() - INTERVAL ${timeWindowMinutes} MINUTE
-        AND (${scopeFilter.clause})
-      GROUP BY subject_id, repository, ref
-      HAVING argMax(event_phase, event_time) != 'finished'
+        created_at AS "startedAt"
+      FROM workflow_runs
+      WHERE tenant_id = $1
+        AND status != 'completed'
+        AND last_event_at >= NOW() - make_interval(mins => $2)
     `,
-    scopeFilter.params,
+    [tenantId, timeWindowMinutes],
+  );
+
+  return result.rows.filter((run) =>
+    scopeKeys.has(createScopeKey(run.repo, run.branch)),
   );
 }
 
@@ -598,13 +603,13 @@ function isSkippedConclusion(value: string): boolean {
 }
 
 function buildRunsLogsCommand(failure: FailureNotification): string | null {
-  if (!failure.job_name || !failure.step_number) {
+  if (!failure.jobName || !failure.stepNumber) {
     return null;
   }
 
-  return `everr runs logs --trace-id ${failure.trace_id} --job-name ${JSON.stringify(
-    failure.job_name,
-  )} --step-number ${failure.step_number}`;
+  return `everr runs logs --trace-id ${failure.traceId} --job-name ${JSON.stringify(
+    failure.jobName,
+  )} --step-number ${failure.stepNumber}`;
 }
 
 function createScopeKey(repo: string, branch: string): string {

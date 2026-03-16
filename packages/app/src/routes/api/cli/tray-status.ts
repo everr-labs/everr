@@ -22,14 +22,14 @@ export const Route = createFileRoute("/api/cli/tray-status")({
 
         if (!verifiedEmail) {
           return Response.json({
-            verified_match: false,
-            unresolved_failures: [],
-            failed_runs_dashboard_url: failedRunsDashboardUrl,
-            auto_fix_prompt: "",
+            failures: [],
+            dashboardUrl: null,
+            autoFixPrompt: null,
           } satisfies TrayStatusResponse);
         }
 
-        const unresolvedFailures = await getFailureNotifications({
+        const failures = await getFailureNotifications({
+          tenantId: context.auth.tenantId,
           gitEmail: verifiedEmail,
           origin,
           timeWindowMinutes: TIME_WINDOW_MINUTES,
@@ -37,10 +37,10 @@ export const Route = createFileRoute("/api/cli/tray-status")({
         });
 
         return Response.json({
-          verified_match: true,
-          unresolved_failures: unresolvedFailures,
-          failed_runs_dashboard_url: failedRunsDashboardUrl,
-          auto_fix_prompt: buildAutoFixPrompt(unresolvedFailures),
+          failures,
+          dashboardUrl: failedRunsDashboardUrl,
+          autoFixPrompt:
+            failures.length === 0 ? null : buildAutoFixPrompt(failures),
         } satisfies TrayStatusResponse);
       },
     },

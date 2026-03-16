@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/data/runs-list", () => ({
+vi.mock("@/data/runs-list/server", () => ({
   getRunsList: vi.fn(),
-}));
-
-vi.mock("@/data/watch", () => ({
-  getWatchStatus: vi.fn(),
 }));
 
 vi.mock("./-auth", () => ({
@@ -15,11 +11,9 @@ vi.mock("./-auth", () => ({
 }));
 
 import { getRunsList } from "@/data/runs-list/server";
-import { getWatchStatus } from "@/data/watch";
 import { Route } from "./runs";
 
 const mockedGetRunsList = vi.mocked(getRunsList);
-const mockedGetWatchStatus = vi.mocked(getWatchStatus);
 
 type GetHandler = (args: { request: Request }) => Promise<Response>;
 
@@ -73,12 +67,11 @@ describe("/api/cli/runs", () => {
         runId: undefined,
       },
     });
-    expect(mockedGetWatchStatus).not.toHaveBeenCalled();
   });
 
-  it("rejects the removed page query parameter", async () => {
+  it("rejects removed legacy query parameters", async () => {
     const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/runs?page=2"),
+      request: new Request("http://localhost/api/cli/runs?commit=abc123"),
     });
 
     expect(response.status).toBe(400);
@@ -87,60 +80,5 @@ describe("/api/cli/runs", () => {
         "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
     });
     expect(mockedGetRunsList).not.toHaveBeenCalled();
-  });
-
-  it("routes watch queries to the watch status loader", async () => {
-    mockedGetWatchStatus.mockResolvedValue({
-      repo: "everr-labs/everr",
-      branch: "main",
-      commit: "abc123",
-      pipelineFound: true,
-      activeRuns: [],
-      completedRuns: [],
-    });
-
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs?repo=everr-labs%2Feverr&branch=main&commit=abc123&watchMode=pipeline",
-      ),
-    });
-
-    expect(response.status).toBe(200);
-    expect(mockedGetWatchStatus).toHaveBeenCalledWith({
-      data: {
-        repo: "everr-labs/everr",
-        branch: "main",
-        commit: "abc123",
-      },
-    });
-    expect(mockedGetRunsList).not.toHaveBeenCalled();
-  });
-
-  it("rejects the legacy waitMode query parameter", async () => {
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/runs?waitMode=pipeline"),
-    });
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error:
-        "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
-    });
-    expect(mockedGetWatchStatus).not.toHaveBeenCalled();
-  });
-
-  it("requires repo, branch, and commit for watch queries", async () => {
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs?repo=everr-labs%2Feverr&watchMode=pipeline",
-      ),
-    });
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error:
-        "Invalid query parameters for watch. Required: repo, branch, commit.",
-    });
-    expect(mockedGetWatchStatus).not.toHaveBeenCalled();
   });
 });
