@@ -228,26 +228,22 @@ export const durationTrendsOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["analytics", "durationTrends", input],
     queryFn: () => getDurationTrends({ data: input }),
-    staleTime: 60_000,
   });
 
 export const queueTimeAnalysisOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["analytics", "queueTime", input],
     queryFn: () => getQueueTimeAnalysis({ data: input }),
-    staleTime: 60_000,
   });
 
 export const successRateTrendsOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["analytics", "successRate", input],
     queryFn: () => getSuccessRateTrends({ data: input }),
-    staleTime: 60_000,
   });
 
 export const runnerUtilizationOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["analytics", "runnerUtilization", input],
     queryFn: () => getRunnerUtilization({ data: input }),
-    staleTime: 60_000,
   });

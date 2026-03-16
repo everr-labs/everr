@@ -700,14 +700,12 @@ export const runDetailsOptions = (traceId: string) =>
   queryOptions({
     queryKey: ["runs", "details", traceId],
     queryFn: () => getRunDetails({ data: traceId }),
-    staleTime: 60_000,
   });
 
 export const runJobsOptions = (traceId: string) =>
   queryOptions({
     queryKey: ["runs", "jobs", traceId],
     queryFn: () => getRunJobs({ data: traceId }),
-    staleTime: 60_000,
   });
 
 export const allJobsStepsOptions = (input: {
@@ -717,7 +715,6 @@ export const allJobsStepsOptions = (input: {
   queryOptions({
     queryKey: ["runs", "allJobsSteps", input.traceId, input.jobIds],
     queryFn: () => getAllJobsSteps({ data: input }),
-    staleTime: 60_000,
   });
 
 export const stepLogsOptions = (input: {
@@ -734,12 +731,10 @@ export const stepLogsOptions = (input: {
       input.stepNumber,
     ],
     queryFn: () => getStepLogs({ data: { ...input, fullLogs: true } }),
-    staleTime: 60_000,
   });
 
 export const runSpansOptions = (traceId: string) =>
   queryOptions({
     queryKey: ["runs", "spans", traceId],
     queryFn: () => getRunSpans({ data: traceId }),
-    staleTime: 60_000,
   });

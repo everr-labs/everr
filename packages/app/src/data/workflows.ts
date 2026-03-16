@@ -3,7 +3,11 @@ import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
+import {
+  resolveTimeRange,
+  TimeRangeSchema,
+  toClickHouseDateTime,
+} from "@/lib/time-range";
 import { runSummarySubquery } from "./run-query-helpers";
 import type { RunListItem } from "./runs-list";
 
@@ -116,10 +120,7 @@ export const getWorkflowsList = createAuthenticatedServerFn({
     // Calculate prior period: same width shifted back
     const periodMs = toDate.getTime() - fromDate.getTime();
     const prevFromDate = new Date(fromDate.getTime() - periodMs);
-    const prevFromISO = prevFromDate
-      .toISOString()
-      .replace("T", " ")
-      .replace("Z", "");
+    const prevFromISO = toClickHouseDateTime(prevFromDate);
 
     const conditions: string[] = [
       "ResourceAttributes['cicd.pipeline.run.id'] != ''",
@@ -351,10 +352,7 @@ export const getWorkflowStats = createAuthenticatedServerFn({
 
     const periodMs = toDate.getTime() - fromDate.getTime();
     const prevFromDate = new Date(fromDate.getTime() - periodMs);
-    const prevFromISO = prevFromDate
-      .toISOString()
-      .replace("T", " ")
-      .replace("Z", "");
+    const prevFromISO = toClickHouseDateTime(prevFromDate);
 
     const sql = `
 			SELECT
@@ -627,10 +625,7 @@ export const getWorkflowCost = createAuthenticatedServerFn({
     );
     const periodMs = toDate.getTime() - fromDate.getTime();
     const prevFromDate = new Date(fromDate.getTime() - periodMs);
-    const prevFromISO = prevFromDate
-      .toISOString()
-      .replace("T", " ")
-      .replace("Z", "");
+    const prevFromISO = toClickHouseDateTime(prevFromDate);
 
     const [summaryRows, dailyRows] = await Promise.all([
       query<{
@@ -838,35 +833,30 @@ export const workflowSuccessRateTrendOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "successRateTrend", input],
     queryFn: () => getWorkflowSuccessRateTrend({ data: input }),
-    staleTime: 60_000,
   });
 
 export const workflowDurationTrendOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "durationTrend", input],
     queryFn: () => getWorkflowDurationTrend({ data: input }),
-    staleTime: 60_000,
   });
 
 export const workflowTopFailingJobsOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "topFailingJobs", input],
     queryFn: () => getWorkflowTopFailingJobs({ data: input }),
-    staleTime: 60_000,
   });
 
 export const workflowFailureReasonsOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "failureReasons", input],
     queryFn: () => getWorkflowFailureReasons({ data: input }),
-    staleTime: 60_000,
   });
 
 export const workflowCostOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "cost", input],
     queryFn: () => getWorkflowCost({ data: input }),
-    staleTime: 60_000,
   });
 
 export const workflowRecentRunsOptions = (input: WorkflowDetailInput) =>

@@ -367,33 +367,28 @@ export const testPerfStatsOptions = (input: TestPerformanceFilterInput) =>
   queryOptions({
     queryKey: ["testPerf", "stats", input],
     queryFn: () => getTestPerfStats({ data: input }),
-    staleTime: 60_000,
   });
 
 export const testPerfScatterOptions = (input: TestPerformanceFilterInput) =>
   queryOptions({
     queryKey: ["testPerf", "scatter", input],
     queryFn: () => getTestPerfScatter({ data: input }),
-    staleTime: 60_000,
   });
 
 export const testPerfTrendOptions = (input: TestPerformanceFilterInput) =>
   queryOptions({
     queryKey: ["testPerf", "trend", input],
     queryFn: () => getTestPerfTrend({ data: input }),
-    staleTime: 60_000,
   });
 
 export const testPerfStatsTrendOptions = (input: TestPerformanceFilterInput) =>
   queryOptions({
     queryKey: ["testPerf", "statsTrend", input],
     queryFn: () => getTestPerfStatsTrend({ data: input }),
-    staleTime: 60_000,
   });
 
 export const testPerfFailuresOptions = (input: TestPerformanceFilterInput) =>
   queryOptions({
     queryKey: ["testPerf", "failures", input],
     queryFn: () => getTestPerfFailures({ data: input }),
-    staleTime: 60_000,
   });

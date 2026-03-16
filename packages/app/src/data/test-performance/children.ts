@@ -46,7 +46,6 @@ export const testPerfFilterOptionsOptions = () =>
   queryOptions({
     queryKey: ["testPerf", "filterOptions"],
     queryFn: () => getTestPerfFilterOptions(),
-    staleTime: 5 * 60_000,
   });
 
 // --- Children (hierarchy browser) ---
@@ -278,5 +277,4 @@ export const testPerfChildrenOptions = (input: TestPerfChildrenInput) =>
   queryOptions({
     queryKey: ["testPerf", "children", input],
     queryFn: () => getTestPerfChildren({ data: input }),
-    staleTime: 60_000,
   });

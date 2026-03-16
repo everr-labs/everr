@@ -157,9 +157,8 @@ export const Route = createFileRoute("/onboarding")({
     if (auth.organizationId) {
       try {
         const status = await getGithubAppInstallStatus();
-        githubInstalled = Array.isArray(status)
-          ? status.some((i) => i.status === "active")
-          : Boolean((status as { installed?: boolean } | undefined)?.installed);
+        // TODO: double check this
+        githubInstalled = status.some((i) => i.status === "active");
       } catch {
         // proceed with false
       }

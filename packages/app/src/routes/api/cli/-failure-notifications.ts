@@ -1,3 +1,4 @@
+import { isFailureConclusion } from "@/data/runs";
 import { query } from "@/lib/clickhouse";
 import { workOS } from "@/lib/workos";
 
@@ -352,7 +353,7 @@ async function loadFirstFailingSteps(
         failingByTraceId,
         row.trace_id,
         candidate,
-        compareFailingStepCandidates,
+        compareFailingSteps,
       );
     }
 
@@ -538,13 +539,6 @@ function compareFailingSteps(a: FirstFailingStep, b: FirstFailingStep): number {
   return parseStepNumber(a.stepNumber) - parseStepNumber(b.stepNumber);
 }
 
-function compareFailingStepCandidates(
-  a: FirstFailingStep,
-  b: FirstFailingStep,
-): number {
-  return compareFailingSteps(a, b);
-}
-
 function compareFallbackStepCandidates(
   a: FirstFailingStep & { conclusion: string },
   b: FirstFailingStep & { conclusion: string },
@@ -600,11 +594,6 @@ function buildFailureDetailsUrl(
 function parseStepNumber(value: string): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
-}
-
-function isFailureConclusion(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return normalized === "failure" || normalized === "failed";
 }
 
 function isSkippedConclusion(value: string): boolean {

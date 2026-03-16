@@ -290,5 +290,4 @@ export const jobResourceUsageOptions = (input: {
   queryOptions({
     queryKey: ["runs", "jobResourceUsage", input.traceId, input.jobId],
     queryFn: () => getJobResourceUsage({ data: input }),
-    staleTime: 60_000,
   });

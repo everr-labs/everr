@@ -657,54 +657,46 @@ export const flakyTestsOptions = (input: FlakyTestsFilterInput) =>
   queryOptions({
     queryKey: ["flakyTests", "list", input],
     queryFn: () => getFlakyTests({ data: input }),
-    staleTime: 60_000,
   });
 
 export const flakyTestSummaryOptions = (input: FlakyTestsFilterInput) =>
   queryOptions({
     queryKey: ["flakyTests", "summary", input],
     queryFn: () => getFlakyTestSummary({ data: input }),
-    staleTime: 60_000,
   });
 
 export const flakinessTrendOptions = (input: FlakyTestsFilterInput) =>
   queryOptions({
     queryKey: ["flakyTests", "trend", input],
     queryFn: () => getFlakinessTrend({ data: input }),
-    staleTime: 60_000,
   });
 
 export const flakyTestFilterOptionsOptions = () =>
   queryOptions({
     queryKey: ["flakyTests", "filterOptions"],
     queryFn: () => getFlakyTestFilterOptions(),
-    staleTime: 5 * 60_000,
   });
 
 export const testHistoryOptions = (input: TestDetailInput) =>
   queryOptions({
     queryKey: ["flakyTests", "history", input],
     queryFn: () => getTestHistory({ data: input }),
-    staleTime: 60_000,
   });
 
 export const runnerFlakinessOptions = (input: TestDetailInput) =>
   queryOptions({
     queryKey: ["flakyTests", "runnerFlakiness", input],
     queryFn: () => getRunnerFlakiness({ data: input }),
-    staleTime: 60_000,
   });
 
 export const testDailyResultsOptions = (input: TestDetailInput) =>
   queryOptions({
     queryKey: ["flakyTests", "dailyResults", input],
     queryFn: () => getTestDailyResults({ data: input }),
-    staleTime: 60_000,
   });
 
 export const flakyTestNamesOptions = (repo: string) =>
   queryOptions({
     queryKey: ["flakyTests", "names", repo],
     queryFn: () => getFlakyTestNames({ data: { repo } }),
-    staleTime: 60_000,
   });

@@ -359,12 +359,10 @@ export const runFilterOptionsOptions = () =>
   queryOptions({
     queryKey: ["runs", "filterOptions"],
     queryFn: () => getRunFilterOptions(),
-    staleTime: 5 * 60_000,
   });
 
 export const searchRunsOptions = (searchQuery: string) =>
   queryOptions({
     queryKey: ["runs", "search", searchQuery],
     queryFn: () => searchRuns({ data: { query: searchQuery } }),
-    staleTime: 30_000,
   });

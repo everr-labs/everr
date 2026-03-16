@@ -152,12 +152,10 @@ export const testResultsSummaryOptions = (
   queryOptions({
     queryKey: ["testResults", "summary", input],
     queryFn: () => getTestResultsSummary({ data: input }),
-    staleTime: 60_000,
   });
 
 export const testDurationTrendOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["testResults", "durationTrend", input],
     queryFn: () => getTestDurationTrend({ data: input }),
-    staleTime: 60_000,
   });

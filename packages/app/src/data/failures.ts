@@ -148,19 +148,16 @@ export const failurePatternsOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["failures", "patterns", input],
     queryFn: () => getFailurePatterns({ data: input }),
-    staleTime: 60_000,
   });
 
 export const failureTrendOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["failures", "trend", input],
     queryFn: () => getFailureTrend({ data: input }),
-    staleTime: 60_000,
   });
 
 export const failuresByRepoOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["failures", "byRepo", input],
     queryFn: () => getFailuresByRepo({ data: input }),
-    staleTime: 60_000,
   });

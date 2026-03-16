@@ -355,19 +355,16 @@ export const costOverviewOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["cost", "overview", input],
     queryFn: () => getCostOverview({ data: input }),
-    staleTime: 60_000,
   });
 
 export const costByRepoOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["cost", "byRepo", input],
     queryFn: () => getCostByRepo({ data: input }),
-    staleTime: 60_000,
   });
 
 export const costByWorkflowOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["cost", "byWorkflow", input],
     queryFn: () => getCostByWorkflow({ data: input }),
-    staleTime: 60_000,
   });
