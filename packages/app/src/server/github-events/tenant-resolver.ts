@@ -1,5 +1,5 @@
 import { getActiveTenantForGithubInstallation } from "@/data/tenants";
-import { getGitHubEventsConfig } from "./config";
+import { GH_EVENTS_CONFIG } from "./config";
 import { TerminalEventError } from "./types";
 
 type CacheEntry = {
@@ -9,8 +9,6 @@ type CacheEntry = {
 
 export class TenantResolver {
   private readonly cache = new Map<number, CacheEntry>();
-
-  constructor(private readonly ttlMs: number) {}
 
   async resolveTenantId(installationId: number): Promise<number> {
     const now = Date.now();
@@ -24,12 +22,10 @@ export class TenantResolver {
       throw new TerminalEventError("tenant not found");
     }
 
-    if (this.ttlMs > 0) {
-      this.cache.set(installationId, {
-        tenantId,
-        expiresAt: now + this.ttlMs,
-      });
-    }
+    this.cache.set(installationId, {
+      tenantId,
+      expiresAt: now + GH_EVENTS_CONFIG.tenantCacheTTLms,
+    });
 
     return tenantId;
   }
@@ -39,9 +35,7 @@ let tenantResolver: TenantResolver | undefined;
 
 export function getTenantResolver(): TenantResolver {
   if (!tenantResolver) {
-    tenantResolver = new TenantResolver(
-      getGitHubEventsConfig().tenantCacheTTLms,
-    );
+    tenantResolver = new TenantResolver();
   }
 
   return tenantResolver;

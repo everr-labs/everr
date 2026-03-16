@@ -1,4 +1,5 @@
-import { getGitHubEventsConfig } from "./config";
+import { env } from "@/env";
+import { GH_EVENTS_CONFIG } from "./config";
 import { recordToHeaders, stripHopByHopHeaders } from "./headers";
 import type { WebhookEventRecord } from "./types";
 import { TerminalEventError } from "./types";
@@ -25,17 +26,16 @@ function classifyFailedResponse(
 export async function replayWebhookToCollector(
   event: WebhookEventRecord,
   tenantId: number,
-  config = getGitHubEventsConfig(),
 ): Promise<void> {
   const headers = recordToHeaders(event.headers);
   stripHopByHopHeaders(headers);
   headers.set(tenantHeaderName, String(tenantId));
 
-  const response = await fetch(config.collectorURL, {
+  const response = await fetch(env.INGRESS_COLLECTOR_URL, {
     method: "POST",
     headers,
     body: new Uint8Array(event.body),
-    signal: AbortSignal.timeout(config.replayTimeoutMs),
+    signal: AbortSignal.timeout(GH_EVENTS_CONFIG.replayTimeoutMs),
   });
 
   if (response.ok) {

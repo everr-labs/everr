@@ -1,29 +1,25 @@
-import { describe, expect, it, vi } from "vitest";
+// @vitest-environment node
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { githubEventsConfigConstants } from "./config";
 
-vi.hoisted(() => {
-  process.env.INGRESS_SOURCE = "github";
-  process.env.INGRESS_COLLECTOR_URL = "http://localhost:8080/webhook/github";
-});
-
-import { getGitHubEventsConfig } from "./config";
+const queueStoreMocks = vi.hoisted(() => ({
+  pool: {
+    query: vi.fn(),
+    connect: vi.fn(),
+  },
+}));
 
 vi.mock("@/db/client", () => ({
-  pool: {},
+  pool: queueStoreMocks.pool,
 }));
 
 import { PostgresWebhookEventStore } from "./queue-store";
 
 function createStore(query = vi.fn().mockResolvedValue({ rowCount: 1 })) {
-  const db = {
-    query,
-  };
+  queueStoreMocks.pool.query = query;
+  queueStoreMocks.pool.connect = vi.fn();
 
-  const store = new PostgresWebhookEventStore(db as never, {
-    ...getGitHubEventsConfig(),
-    lockDurationMs: 45_000,
-  });
-
-  return { store, query };
+  return { store: new PostgresWebhookEventStore(), query };
 }
 
 function createTransactionalStore(query = vi.fn()) {
@@ -31,17 +27,22 @@ function createTransactionalStore(query = vi.fn()) {
     query,
     release: vi.fn(),
   };
-  const db = {
-    connect: vi.fn().mockResolvedValue(client),
+
+  queueStoreMocks.pool.query = vi.fn();
+  queueStoreMocks.pool.connect = vi.fn().mockResolvedValue(client);
+
+  return {
+    store: new PostgresWebhookEventStore(),
+    client,
+    connect: queueStoreMocks.pool.connect,
+    query,
   };
-
-  const store = new PostgresWebhookEventStore(db as never, {
-    ...getGitHubEventsConfig(),
-    lockDurationMs: 45_000,
-  });
-
-  return { store, client, connect: db.connect, query };
 }
+
+afterEach(() => {
+  queueStoreMocks.pool.query.mockReset();
+  queueStoreMocks.pool.connect.mockReset();
+});
 
 describe("PostgresWebhookEventStore", () => {
   it("enqueues one row per topic without storing trace ids", async () => {
@@ -185,6 +186,10 @@ describe("PostgresWebhookEventStore", () => {
     expect(query.mock.calls[0]?.[0]).toContain("SET locked_until = now()");
     expect(query.mock.calls[0]?.[0]).toContain("AND attempts = $2");
     expect(query.mock.calls[0]?.[0]).toContain("AND status = 'processing'");
-    expect(query.mock.calls[0]?.[1]).toEqual([19, 4, 45_000]);
+    expect(query.mock.calls[0]?.[1]).toEqual([
+      19,
+      4,
+      githubEventsConfigConstants.lockDurationMs,
+    ]);
   });
 });

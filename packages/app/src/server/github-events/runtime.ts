@@ -1,6 +1,6 @@
-import { type GitHubEventsConfig, getGitHubEventsConfig } from "./config";
+import { GH_EVENTS_CONFIG } from "./config";
 import { processWebhookEvent } from "./processor";
-import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
+import { getWebhookEventStore } from "./queue-store";
 import { sleep } from "./sleep";
 
 type ManagedRuntime = {
@@ -13,32 +13,9 @@ type AppStartState = {
   started: boolean;
 };
 
-type RuntimeManagerOptions = {
-  createRuntime?: () => ManagedRuntime;
-  isProduction?: () => boolean;
-};
-
-export type GitHubEventsRuntimeDependencies = {
-  config?: GitHubEventsConfig;
-  store?: WebhookEventStore;
-  processEvent?: typeof processWebhookEvent;
-  sleep?: typeof sleep;
-};
-
 export class GitHubEventsRuntime implements ManagedRuntime {
   private readonly abortController = new AbortController();
   private runPromise: Promise<void> | undefined;
-  private readonly config: GitHubEventsConfig;
-  private readonly store: WebhookEventStore;
-  private readonly processEvent: typeof processWebhookEvent;
-  private readonly sleepFn: typeof sleep;
-
-  constructor(dependencies: GitHubEventsRuntimeDependencies = {}) {
-    this.config = dependencies.config ?? getGitHubEventsConfig();
-    this.store = dependencies.store ?? getWebhookEventStore();
-    this.processEvent = dependencies.processEvent ?? processWebhookEvent;
-    this.sleepFn = dependencies.sleep ?? sleep;
-  }
 
   start() {
     if (this.runPromise) {
@@ -48,7 +25,7 @@ export class GitHubEventsRuntime implements ManagedRuntime {
     console.error("starting github events runtime");
 
     const loops: Promise<void>[] = [];
-    for (let index = 0; index < this.config.workerCount; index += 1) {
+    for (let index = 0; index < GH_EVENTS_CONFIG.workerCount; index += 1) {
       loops.push(this.runWorkerLoop(index + 1));
     }
     loops.push(this.runCleanupLoop());
@@ -67,13 +44,13 @@ export class GitHubEventsRuntime implements ManagedRuntime {
       let shouldSleep = true;
 
       try {
-        const events = await this.store.claimEvents();
+        const events = await getWebhookEventStore().claimEvents();
         if (events.length > 0) {
           shouldSleep = false;
 
           const results = await Promise.allSettled(
             events.map((event) =>
-              this.processEvent(event, {}, this.abortController.signal),
+              processWebhookEvent(event, this.abortController.signal),
             ),
           );
 
@@ -95,8 +72,8 @@ export class GitHubEventsRuntime implements ManagedRuntime {
       }
 
       try {
-        await this.sleepFn(
-          this.config.pollIntervalMs,
+        await sleep(
+          GH_EVENTS_CONFIG.pollIntervalMs,
           this.abortController.signal,
         );
       } catch {
@@ -108,8 +85,8 @@ export class GitHubEventsRuntime implements ManagedRuntime {
   private async runCleanupLoop(): Promise<void> {
     while (!this.abortController.signal.aborted) {
       try {
-        await this.sleepFn(
-          this.config.cleanupIntervalMs,
+        await sleep(
+          GH_EVENTS_CONFIG.cleanupIntervalMs,
           this.abortController.signal,
         );
       } catch {
@@ -117,7 +94,7 @@ export class GitHubEventsRuntime implements ManagedRuntime {
       }
 
       try {
-        await this.store.cleanup();
+        await getWebhookEventStore().cleanup();
       } catch (error) {
         console.error("[github-events] cleanup failed", error);
       }
@@ -128,15 +105,6 @@ export class GitHubEventsRuntime implements ManagedRuntime {
 export class GitHubEventsRuntimeManager {
   private runtimePromise: Promise<ManagedRuntime> | undefined;
   private appStartState: AppStartState | undefined;
-  private readonly createRuntime: () => ManagedRuntime;
-  private readonly isProduction: () => boolean;
-
-  constructor(options: RuntimeManagerOptions = {}) {
-    this.createRuntime =
-      options.createRuntime ?? (() => new GitHubEventsRuntime());
-    this.isProduction =
-      options.isProduction ?? (() => process.env.NODE_ENV === "production");
-  }
 
   ensureStarted(): Promise<ManagedRuntime> {
     if (!this.runtimePromise) {
@@ -155,7 +123,7 @@ export class GitHubEventsRuntimeManager {
       return this.trackAppStart(this.ensureStarted());
     }
 
-    if (this.isProduction() || !state.started) {
+    if (process.env.NODE_ENV === "production" || !state.started) {
       return state.promise;
     }
 
@@ -188,7 +156,7 @@ export class GitHubEventsRuntimeManager {
   }
 
   private async startRuntime(): Promise<ManagedRuntime> {
-    const runtime = this.createRuntime();
+    const runtime = new GitHubEventsRuntime();
     await runtime.start();
     return runtime;
   }

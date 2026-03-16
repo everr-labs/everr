@@ -207,28 +207,3 @@ export function parseTimestamp(
 
   return new Date();
 }
-
-export function mapConclusionToOutcome(
-  conclusion: string | null | undefined,
-): string {
-  switch (conclusion ?? "") {
-    case "success":
-      return "success";
-    case "failure":
-      return "failure";
-    case "cancelled":
-      return "cancelled";
-    case "timed_out":
-    case "startup_failure":
-      return "error";
-    case "skipped":
-    case "neutral":
-      return "skipped";
-    case "action_required":
-      return "action_required";
-    case "stale":
-      return "stale";
-    default:
-      return "";
-  }
-}

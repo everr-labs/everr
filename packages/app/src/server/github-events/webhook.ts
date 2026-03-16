@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
 import { verify } from "@octokit/webhooks-methods";
 import { env } from "@/env";
-import { getGitHubEventsConfig } from "./config";
 import { headersToRecord } from "./headers";
 import { handleInstallationEvent } from "./install-events";
 import { enqueueMetadataFromWebhookEvent } from "./payloads";
-import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
+import { getWebhookEventStore } from "./queue-store";
 import { topicCollector, topicStatus, type WebhookTopic } from "./types";
 
 function topicsForEventType(eventType: string): WebhookTopic[] {
@@ -16,14 +15,8 @@ function topicsForEventType(eventType: string): WebhookTopic[] {
   return [];
 }
 
-type WebhookHandlerDependencies = {
-  store?: WebhookEventStore;
-  installHandler?: typeof handleInstallationEvent;
-};
-
 export async function handleGitHubWebhookRequest(
   request: Request,
-  dependencies: WebhookHandlerDependencies = {},
 ): Promise<Response> {
   if (request.method !== "POST") {
     return new Response("method not allowed", { status: 405 });
@@ -55,9 +48,7 @@ export async function handleGitHubWebhookRequest(
     eventType === "installation" ||
     eventType === "installation_repositories"
   ) {
-    const installHandler =
-      dependencies.installHandler ?? handleInstallationEvent;
-    return installHandler({
+    return handleInstallationEvent({
       eventType,
       bodyText,
     });
@@ -76,9 +67,8 @@ export async function handleGitHubWebhookRequest(
 
   const bodySha256 = createHash("sha256").update(body).digest("hex");
 
-  const store = dependencies.store ?? getWebhookEventStore();
-  const enqueueStatus = await store.enqueueEvent({
-    source: getGitHubEventsConfig().source,
+  const enqueueStatus = await getWebhookEventStore().enqueueEvent({
+    source: env.INGRESS_SOURCE,
     eventId,
     bodySha256,
     repositoryId: enqueueMetadata.repositoryId,

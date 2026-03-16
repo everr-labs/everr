@@ -1,4 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+// @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const processorMocks = vi.hoisted(() => ({
+  store: null as {
+    enqueueEvent?: unknown;
+    claimEvents?: unknown;
+    renewEventLock?: unknown;
+    finalizeEvent?: unknown;
+    cleanup?: unknown;
+  } | null,
+  tenantResolver: {
+    resolveTenantId: vi.fn(),
+  },
+  replayCollector: vi.fn(),
+  handleStatusEvent: vi.fn(),
+  sleep: vi.fn(),
+  db: {},
+}));
 
 vi.hoisted(() => {
   process.env.INGRESS_SOURCE = "github";
@@ -7,18 +25,34 @@ vi.hoisted(() => {
 
 vi.mock("./queue-store", () => ({
   getWebhookEventStore: () => {
-    throw new Error("getWebhookEventStore should not be used in tests");
+    if (!processorMocks.store) {
+      throw new Error(
+        "getWebhookEventStore should not be used without a test store",
+      );
+    }
+
+    return processorMocks.store;
   },
 }));
 
 vi.mock("./tenant-resolver", () => ({
-  getTenantResolver: () => {
-    throw new Error("getTenantResolver should not be used in tests");
-  },
+  getTenantResolver: () => processorMocks.tenantResolver,
+}));
+
+vi.mock("./collector", () => ({
+  replayWebhookToCollector: processorMocks.replayCollector,
+}));
+
+vi.mock("./status-writer", () => ({
+  handleStatusEvent: processorMocks.handleStatusEvent,
+}));
+
+vi.mock("./sleep", () => ({
+  sleep: processorMocks.sleep,
 }));
 
 vi.mock("@/db/client", () => ({
-  db: {},
+  db: processorMocks.db,
 }));
 
 import { processWebhookEvent } from "./processor";
@@ -77,21 +111,6 @@ class StubStore implements WebhookEventStore {
   async cleanup() {}
 }
 
-class StubTenantResolver {
-  constructor(
-    private readonly tenantId: number,
-    private readonly error?: Error,
-  ) {}
-
-  async resolveTenantId() {
-    if (this.error) {
-      throw this.error;
-    }
-
-    return this.tenantId;
-  }
-}
-
 function buildEvent(
   topic: typeof topicCollector | typeof topicStatus,
 ): WebhookEventRecord {
@@ -120,33 +139,33 @@ function buildEvent(
   };
 }
 
+beforeEach(() => {
+  processorMocks.store = null;
+  processorMocks.tenantResolver.resolveTenantId
+    .mockReset()
+    .mockResolvedValue(42);
+  processorMocks.replayCollector.mockReset().mockResolvedValue(undefined);
+  processorMocks.handleStatusEvent.mockReset().mockResolvedValue(undefined);
+  processorMocks.sleep.mockReset().mockResolvedValue(undefined);
+});
+
 describe("processWebhookEvent", () => {
   it("marks collector deliveries done after resolving the tenant", async () => {
     const store = new StubStore();
-    let collectorCalls = 0;
+    processorMocks.store = store;
 
-    await processWebhookEvent(buildEvent(topicCollector), {
-      store,
-      tenantResolver: new StubTenantResolver(42) as never,
-      replayCollector: async () => {
-        collectorCalls += 1;
-      },
-    });
+    await processWebhookEvent(buildEvent(topicCollector));
 
     expect(store.finalizeCalls.at(-1)).toMatchObject({ result: "done" });
-    expect(collectorCalls).toBe(1);
+    expect(processorMocks.replayCollector).toHaveBeenCalledTimes(1);
   });
 
   it("marks collector failures retryable", async () => {
     const store = new StubStore();
+    processorMocks.store = store;
+    processorMocks.replayCollector.mockRejectedValue(new Error("unavailable"));
 
-    await processWebhookEvent(buildEvent(topicCollector), {
-      store,
-      tenantResolver: new StubTenantResolver(42) as never,
-      replayCollector: async () => {
-        throw new Error("unavailable");
-      },
-    });
+    await processWebhookEvent(buildEvent(topicCollector));
 
     expect(store.finalizeCalls.at(-1)).toMatchObject({
       result: "failed",
@@ -156,28 +175,21 @@ describe("processWebhookEvent", () => {
 
   it("marks status deliveries done on success", async () => {
     const store = new StubStore();
-    const handleStatus = vi.fn().mockResolvedValue(undefined);
+    processorMocks.store = store;
 
-    await processWebhookEvent(buildEvent(topicStatus), {
-      store,
-      tenantResolver: new StubTenantResolver(42) as never,
-      handleStatus,
-    });
+    await processWebhookEvent(buildEvent(topicStatus));
 
     expect(store.finalizeCalls.at(-1)).toMatchObject({ result: "done" });
-    expect(handleStatus).toHaveBeenCalledTimes(1);
-    expect(handleStatus.mock.calls[0]?.[1]).toBe(42);
+    expect(processorMocks.handleStatusEvent).toHaveBeenCalledTimes(1);
+    expect(processorMocks.handleStatusEvent.mock.calls[0]?.[1]).toBe(42);
   });
 
   it("marks status failures retryable", async () => {
     const store = new StubStore();
-    const handleStatus = vi.fn().mockRejectedValue(new Error("db error"));
+    processorMocks.store = store;
+    processorMocks.handleStatusEvent.mockRejectedValue(new Error("db error"));
 
-    await processWebhookEvent(buildEvent(topicStatus), {
-      store,
-      tenantResolver: new StubTenantResolver(42) as never,
-      handleStatus,
-    });
+    await processWebhookEvent(buildEvent(topicStatus));
 
     expect(store.finalizeCalls.at(-1)).toMatchObject({
       result: "failed",
@@ -188,43 +200,27 @@ describe("processWebhookEvent", () => {
   it("retries finalization after a transient store failure without replaying the side effect", async () => {
     const store = new StubStore();
     store.finalizeResults = [new Error("db unavailable"), true];
-    let collectorCalls = 0;
-    const sleep = vi.fn().mockResolvedValue(undefined);
+    processorMocks.store = store;
 
-    await processWebhookEvent(buildEvent(topicCollector), {
-      store,
-      tenantResolver: new StubTenantResolver(42) as never,
-      replayCollector: async () => {
-        collectorCalls += 1;
-      },
-      sleep,
-    });
+    await processWebhookEvent(buildEvent(topicCollector));
 
-    expect(collectorCalls).toBe(1);
+    expect(processorMocks.replayCollector).toHaveBeenCalledTimes(1);
     expect(store.finalizeCalls).toHaveLength(2);
     expect(store.renewCalls).toEqual([{ eventId: 1, attempts: 1 }]);
-    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(processorMocks.sleep).toHaveBeenCalledTimes(1);
   });
 
   it("stops finalization retries when the claim has already been lost", async () => {
     const store = new StubStore();
     store.finalizeResults = [new Error("db unavailable"), false];
     store.renewResults = [false];
-    let collectorCalls = 0;
-    const sleep = vi.fn().mockResolvedValue(undefined);
+    processorMocks.store = store;
 
-    await processWebhookEvent(buildEvent(topicCollector), {
-      store,
-      tenantResolver: new StubTenantResolver(42) as never,
-      replayCollector: async () => {
-        collectorCalls += 1;
-      },
-      sleep,
-    });
+    await processWebhookEvent(buildEvent(topicCollector));
 
-    expect(collectorCalls).toBe(1);
+    expect(processorMocks.replayCollector).toHaveBeenCalledTimes(1);
     expect(store.finalizeCalls).toHaveLength(1);
     expect(store.renewCalls).toEqual([{ eventId: 1, attempts: 1 }]);
-    expect(sleep).not.toHaveBeenCalled();
+    expect(processorMocks.sleep).not.toHaveBeenCalled();
   });
 });

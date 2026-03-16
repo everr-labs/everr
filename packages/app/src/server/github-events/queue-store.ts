@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { pool } from "@/db/client";
-import { getGitHubEventsConfig } from "./config";
+import { GH_EVENTS_CONFIG } from "./config";
 import type {
   EnqueueStatus,
   FinalizeResult,
@@ -46,10 +46,7 @@ function truncate(value: string | undefined, limit: number): string | null {
 }
 
 export class PostgresWebhookEventStore implements WebhookEventStore {
-  constructor(
-    private readonly db: Pool,
-    private readonly config = getGitHubEventsConfig(),
-  ) {}
+  private readonly db: Pool = pool;
 
   async enqueueEvent(args: {
     source: string;
@@ -178,7 +175,7 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
           events.body,
           events.attempts
       `,
-      [this.config.workerBatchSize, this.config.lockDurationMs],
+      [GH_EVENTS_CONFIG.workerBatchSize, GH_EVENTS_CONFIG.lockDurationMs],
     );
 
     return result.rows.map((row) => ({
@@ -203,7 +200,7 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
           AND attempts = $2
           AND status = 'processing'
       `,
-      [args.eventId, args.attempts, this.config.lockDurationMs],
+      [args.eventId, args.attempts, GH_EVENTS_CONFIG.lockDurationMs],
     );
 
     return (result.rowCount ?? 0) > 0;
@@ -284,8 +281,16 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
   }
 
   async cleanup() {
-    await this.cleanupStatus("done", "done_at", this.config.retentionDoneDays);
-    await this.cleanupStatus("dead", "dead_at", this.config.retentionDeadDays);
+    await this.cleanupStatus(
+      "done",
+      "done_at",
+      GH_EVENTS_CONFIG.retentionDoneDays,
+    );
+    await this.cleanupStatus(
+      "dead",
+      "dead_at",
+      GH_EVENTS_CONFIG.retentionDeadDays,
+    );
   }
 
   private async cleanupStatus(
@@ -314,7 +319,7 @@ let webhookEventStore: PostgresWebhookEventStore | undefined;
 
 export function getWebhookEventStore(): PostgresWebhookEventStore {
   if (!webhookEventStore) {
-    webhookEventStore = new PostgresWebhookEventStore(pool);
+    webhookEventStore = new PostgresWebhookEventStore();
   }
 
   return webhookEventStore;
