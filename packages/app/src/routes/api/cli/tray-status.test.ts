@@ -208,6 +208,47 @@ describe("/api/cli/tray-status", () => {
     });
   });
 
+  it("filters out failures when Postgres returns the active run timestamp as a Date", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        traceId: "trace-1",
+        runId: "run-1",
+        repo: "everr-labs/everr",
+        branch: "main",
+        workflowName: "CI",
+        failureTime: "2026-03-08T10:00:00Z",
+      },
+    ]);
+    mockedQuery.mockResolvedValueOnce([]);
+    mockedPoolQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          runId: "run-3",
+          repo: "everr-labs/everr",
+          branch: "main",
+          startedAt: new Date("2026-03-08T10:06:00Z"),
+        },
+      ],
+    } as Awaited<ReturnType<typeof mockedPoolQuery>>);
+
+    const handler = getHandler();
+    const response = await handler({
+      request: new Request("http://localhost/api/cli/tray-status"),
+      context: {
+        auth: {
+          userId: "user_1",
+          tenantId: 42,
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      failures: [],
+      autoFixPrompt: null,
+    });
+  });
+
   it("keeps earlier failures unresolved when only later failures exist on the same branch", async () => {
     mockedQuery.mockResolvedValueOnce([
       {

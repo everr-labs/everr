@@ -49,7 +49,14 @@ vi.mock("@/lib/serverFn", () => ({
       if (!auth?.organizationId) throw new Error("Missing organization");
       return fn({
         data: opts?.data,
-        context: { auth: { ...auth, organizationId: auth.organizationId } },
+        context: {
+          auth: { ...auth, organizationId: auth.organizationId },
+          session: {
+            userId: auth.user.id,
+            organizationId: auth.organizationId,
+            sessionId: auth.sessionId,
+          },
+        },
       });
     }),
   ),

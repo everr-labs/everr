@@ -95,7 +95,7 @@ describe("handleGitHubWebhookRequest", () => {
     expect(queues).toContain("gh-status");
   });
 
-  it("uses eventId-scoped deduplication ids", async () => {
+  it("uses the eventId as the deduplication id for each queue", async () => {
     const secret = webhookSecret;
     vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
     const payload = JSON.stringify({
@@ -120,8 +120,7 @@ describe("handleGitHubWebhookRequest", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (c: any[]) => (c[2] as { id: string }).id,
     );
-    expect(ids).toContain("delivery-abc:gh-collector");
-    expect(ids).toContain("delivery-abc:gh-status");
+    expect(ids).toEqual(["delivery-abc", "delivery-abc"]);
   });
 
   it("returns 200 when all sends return null (all deduplicated)", async () => {

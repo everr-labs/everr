@@ -49,7 +49,7 @@ export const Route = createFileRoute("/api/cli/auth/device/approve")({
         );
         const approved = await approveDeviceAuthorization({
           userCode: parsed.data.user_code,
-          approvedByUserId: auth.userId,
+          approvedByUserId: auth.user.id,
           approvedForOrganizationId: auth.organizationId,
           approvedForTenantId: tenantId,
         });

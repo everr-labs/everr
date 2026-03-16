@@ -1,6 +1,7 @@
 import { isFailureConclusion } from "@/data/runs/schemas";
 import { pool } from "@/db/client";
 import { query } from "@/lib/clickhouse";
+import { parseTimestampAsUTC } from "@/lib/formatting";
 import { workOS } from "@/lib/workos";
 
 const FAILURE_LIMIT = 100;
@@ -38,7 +39,7 @@ type CandidateRunRow = {
   runId: string;
   repo: string;
   branch: string;
-  startedAt: string;
+  startedAt: string | Date | number | null;
 };
 
 export type FailureNotification = {
@@ -616,10 +617,21 @@ function createScopeKey(repo: string, branch: string): string {
   return `${repo}\u0000${branch}`;
 }
 
-function toTimestampMs(value: string): number {
-  const normalized = value.includes("T")
-    ? value
-    : `${value.replace(" ", "T")}Z`;
-  const parsed = Date.parse(normalized);
-  return Number.isNaN(parsed) ? 0 : parsed;
+function toTimestampMs(
+  value: string | Date | number | null | undefined,
+): number {
+  if (value instanceof Date) {
+    const parsed = value.getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  return parseTimestampAsUTC(value)?.getTime() ?? 0;
 }
