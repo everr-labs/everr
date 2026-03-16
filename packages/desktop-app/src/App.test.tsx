@@ -527,7 +527,7 @@ describe("desktop window", () => {
 
     await screen.findByText("Select assistants to integrate");
     fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Save choices" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText("Install the Everr CLI")).toBeInTheDocument();
   });
@@ -598,7 +598,6 @@ describe("desktop window", () => {
     });
 
     await screen.findByText("Enable background startup");
-    fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
     fireEvent.click(await screen.findByRole("button", { name: "Finish" }));
 
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();

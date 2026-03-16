@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader } from "../../components/ui/card";
+import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import { cn } from "../../lib/utils";
 
 export function DesktopFrame({
@@ -23,7 +24,7 @@ export function DesktopFrame({
           <div className="flex items-start justify-between gap-4 max-[720px]:flex-col">
             <div className="grid gap-1.5">
               <p className="m-0 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[var(--settings-text-soft)]">
-                Everr App
+                {APP_DISPLAY_NAME}
               </p>
               <h1 className="m-0 text-[clamp(2rem,5vw,2.8rem)] font-medium leading-none tracking-[-0.04em]">
                 {title}

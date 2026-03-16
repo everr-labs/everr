@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { chmod, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { inc as incrementVersion } from "semver";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { $ } from "zx";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -11,6 +13,9 @@ export const repoDir = path.resolve(packageDir, "..", "..");
 export const cliDir = path.join(packageDir, "src-cli");
 export const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
 export const envFile = path.join(packageDir, ".env");
+export const desktopPackageJsonPath = path.join(packageDir, "package.json");
+export const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
+export const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
 
 let didLoadEnvFile = false;
 
@@ -32,19 +37,6 @@ function getEnv(name: string) {
   loadBuildEnvFile();
   const value = process.env[name]?.trim();
   return value ? value : undefined;
-}
-
-function getFlagEnv(name: string): "0" | "1" | undefined {
-  const value = getEnv(name);
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === "0" || value === "1") {
-    return value;
-  }
-
-  throw new Error(`${name} must be "0" or "1" when set.`);
 }
 
 export function resolveCliBuild(mode: string) {
@@ -94,13 +86,6 @@ export async function resolveTargetTriple() {
 
 export async function signBinaryIfNeeded(binaryPath: string) {
   if (process.platform !== "darwin") {
-    return;
-  }
-
-  if (getFlagEnv("EVERR_ALLOW_UNSIGNED_MACOS_BUILD") === "1") {
-    console.error(
-      `Skipping signing for ${binaryPath} because EVERR_ALLOW_UNSIGNED_MACOS_BUILD=1.`,
-    );
     return;
   }
 
@@ -159,4 +144,98 @@ export async function installCliBinary(sourceBin: string) {
   console.log(`Installed Everr CLI to ${installPath}`);
 
   return installPath;
+}
+
+export type DesktopVersionPaths = {
+  packageJsonPath: string;
+  tauriConfigPath: string;
+  tauriCargoTomlPath: string;
+};
+
+export const defaultDesktopVersionPaths: DesktopVersionPaths = {
+  packageJsonPath: desktopPackageJsonPath,
+  tauriConfigPath: desktopTauriConfigPath,
+  tauriCargoTomlPath: desktopTauriCargoTomlPath,
+};
+
+type VersionedJsonFile = {
+  version?: string;
+};
+
+export function bumpVersion(version: string, increment: "patch" | "minor" | "major") {
+  const nextVersion = incrementVersion(version.trim(), increment);
+  if (!nextVersion) {
+    throw new Error(
+      `Unsupported desktop app version "${version}". Expected a semantic version in the form X.Y.Z.`,
+    );
+  }
+
+  return nextVersion;
+}
+
+type CargoManifest = {
+  package?: {
+    version?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+function replaceCargoPackageVersion(cargoToml: string, version: string) {
+  const cargoManifest = parseToml(cargoToml) as CargoManifest;
+  if (!cargoManifest.package) {
+    throw new Error("Could not update desktop app version in Cargo.toml.");
+  }
+
+  cargoManifest.package.version = version;
+  return stringifyToml(cargoManifest);
+}
+
+async function readDesktopVersionJson(
+  pathname: string,
+): Promise<VersionedJsonFile & { version: string }> {
+  const file = JSON.parse(await readFile(pathname, "utf8")) as VersionedJsonFile;
+  if (!file.version) {
+    throw new Error(`Could not resolve desktop app version from ${pathname}.`);
+  }
+
+  return {
+    ...file,
+    version: file.version,
+  };
+}
+
+async function readJsonFile<T>(pathname: string): Promise<T> {
+  return JSON.parse(await readFile(pathname, "utf8")) as T;
+}
+
+export async function bumpDesktopAppVersion(
+  increment: "patch" | "minor" | "major",
+) {
+  const paths: DesktopVersionPaths = defaultDesktopVersionPaths;
+  const [packageJson, tauriConfig, tauriCargoToml] = await Promise.all([
+    readDesktopVersionJson(paths.packageJsonPath),
+    readJsonFile<VersionedJsonFile>(paths.tauriConfigPath),
+    readFile(paths.tauriCargoTomlPath, "utf8"),
+  ]);
+
+  const currentVersion = packageJson.version;
+  const nextVersion = bumpVersion(currentVersion, increment);
+
+  packageJson.version = nextVersion;
+  tauriConfig.version = nextVersion;
+
+  await Promise.all([
+    writeFile(paths.packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`),
+    writeFile(paths.tauriConfigPath, `${JSON.stringify(tauriConfig, null, 2)}\n`),
+    writeFile(
+      paths.tauriCargoTomlPath,
+      replaceCargoPackageVersion(tauriCargoToml, nextVersion),
+    ),
+  ]);
+
+  return {
+    previousVersion: currentVersion,
+    nextVersion,
+  };
 }

@@ -1,32 +1,48 @@
 [package]
 name = "everr-app"
-version = "0.1.0"
+version = "0.1.1"
 description = "Everr app"
-authors = ["Everr"]
+authors = [ "Everr" ]
 edition = "2021"
 
 [lib]
 name = "everr_app_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = [ "staticlib", "cdylib", "rlib" ]
 
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
+[build-dependencies.tauri-build]
+version = "2"
+features = []
 
 [dependencies]
 arboard = "3.6.1"
 anyhow = "1.0.98"
 dirs = "6.0.0"
-everr-core = { path = "../../../crates/everr-core" }
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10.9"
-tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-autostart = "2"
-time = { version = "0.3", features = ["formatting"] }
-tokio = { version = "1.44.2", features = ["time"] }
+tauri-plugin-updater = "2"
 webbrowser = "1.0.6"
 
-[target.'cfg(target_os = "macos")'.dependencies]
+[dependencies.everr-core]
+path = "../../../crates/everr-core"
+
+[dependencies.serde]
+version = "1"
+features = [ "derive" ]
+
+[dependencies.tauri]
+version = "2"
+features = [ "tray-icon" ]
+
+[dependencies.time]
+version = "0.3"
+features = [ "formatting" ]
+
+[dependencies.tokio]
+version = "1.44.2"
+features = [ "time" ]
+
+[target."cfg(target_os = \"macos\")".dependencies]
 objc2-app-kit = "0.3.2"
 
 [dev-dependencies]

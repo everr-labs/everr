@@ -25,6 +25,7 @@ use tauri::{
     AppHandle, LogicalPosition, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     WindowEvent,
 };
+use tauri_plugin_updater::UpdaterExt;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
@@ -49,8 +50,15 @@ const TRAY_MENU_DEV_ID: &str = "tray_dev";
 const TRAY_MENU_INSERTION_INDEX: usize = 1;
 const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
-const APP_NAME: &str = "Everr App";
-const DEV_APP_NAME: &str = "Everr App DEV";
+const APP_NAME: &str = "Everr";
+const DEV_APP_NAME: &str = "Everr_Dev";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StartupUpdateAction {
+    Skip,
+    Continue,
+    Restart,
+}
 
 #[derive(Clone)]
 struct RuntimeState {
@@ -470,6 +478,7 @@ fn trigger_test_notification(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -501,9 +510,7 @@ pub fn run() {
             let session_store = current_session_store();
             let _ = session_store.clear_mismatched_session(build::default_api_base_url())?;
             let settings = load_app_settings(&session_store)?;
-            if let Err(error) = sync_installed_cli(app.handle()) {
-                eprintln!("[everr-app] failed to sync installed CLI: {error}");
-            }
+            run_local_startup_maintenance(app.handle());
             let runtime = RuntimeState {
                 session_store,
                 settings: Arc::new(Mutex::new(settings)),
@@ -525,6 +532,7 @@ pub fn run() {
                 open_settings_window(app.handle())?;
             }
             start_notifier_loop(app.handle().clone(), runtime);
+            start_startup_update_check(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -549,6 +557,48 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn run_local_startup_maintenance(app: &AppHandle) {
+    if let Err(error) = sync_installed_cli(app) {
+        eprintln!("[everr-app] failed to sync installed CLI: {error}");
+    }
+
+    if let Err(error) = assistant::refresh_existing_managed_prompts(build::command_name()) {
+        eprintln!("[everr-app] failed to refresh assistant instructions: {error}");
+    }
+}
+
+fn start_startup_update_check(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let update_installed = match install_startup_update_if_available(&app).await {
+            Ok(update_installed) => update_installed,
+            Err(error) => {
+                eprintln!("[everr-app] updater startup check failed: {error}");
+                false
+            }
+        };
+
+        if startup_update_action(tauri::is_dev(), update_installed) == StartupUpdateAction::Restart
+        {
+            app.request_restart();
+        }
+    });
+}
+
+async fn install_startup_update_if_available(app: &AppHandle) -> Result<bool> {
+    if !should_check_for_updates() {
+        return Ok(false);
+    }
+
+    let updater = app.updater()?;
+
+    let Some(update) = updater.check().await? else {
+        return Ok(false);
+    };
+
+    update.download_and_install(|_, _| {}, || {}).await?;
+    Ok(true)
 }
 
 fn build_tray(app: &AppHandle) -> Result<TrayMenu> {
@@ -1414,6 +1464,20 @@ fn current_base_url() -> &'static str {
     build::default_api_base_url()
 }
 
+fn should_check_for_updates() -> bool {
+    !tauri::is_dev()
+}
+
+fn startup_update_action(is_dev: bool, update_installed: bool) -> StartupUpdateAction {
+    if is_dev {
+        StartupUpdateAction::Skip
+    } else if update_installed {
+        StartupUpdateAction::Restart
+    } else {
+        StartupUpdateAction::Continue
+    }
+}
+
 fn option_string(value: String) -> Option<String> {
     if value.is_empty() {
         None
@@ -1546,9 +1610,10 @@ mod tests {
         build_tray_menu_model, build_wizard_status_response, current_app_name, current_base_url,
         current_session_store, format_tray_title, format_tray_tooltip,
         mark_assistant_step_seen_in_settings, mark_launch_at_login_step_seen_in_settings,
-        mark_setup_complete_in_settings, migrate_completed_base_url, sync_installed_cli_from_paths,
-        tray_auto_fix_prompt, tray_failed_runs_target, value_has_wizard_metadata, AppSettings,
-        NotificationQueue, TraySnapshot, TrayState, WizardState, APP_NAME, DEV_APP_NAME,
+        mark_setup_complete_in_settings, migrate_completed_base_url, should_check_for_updates,
+        startup_update_action, sync_installed_cli_from_paths, tray_auto_fix_prompt,
+        tray_failed_runs_target, value_has_wizard_metadata, AppSettings, NotificationQueue,
+        StartupUpdateAction, TraySnapshot, TrayState, WizardState, APP_NAME, DEV_APP_NAME,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1674,6 +1739,24 @@ mod tests {
             } else {
                 APP_NAME
             }
+        );
+    }
+
+    #[test]
+    fn startup_update_checks_are_disabled_in_dev_only() {
+        assert_eq!(should_check_for_updates(), !tauri::is_dev());
+    }
+
+    #[test]
+    fn startup_update_action_restarts_only_after_successful_install() {
+        assert_eq!(startup_update_action(true, true), StartupUpdateAction::Skip);
+        assert_eq!(
+            startup_update_action(false, false),
+            StartupUpdateAction::Continue
+        );
+        assert_eq!(
+            startup_update_action(false, true),
+            StartupUpdateAction::Restart
         );
     }
 

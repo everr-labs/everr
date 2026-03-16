@@ -1,30 +1,60 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { $ } from "zx";
 import {
+  bumpDesktopAppVersion,
   docsPublicDir,
   installCliBinary,
   loadBuildEnvFile,
 } from "./build-support.ts";
 import { copyReleaseArtifact } from "./copy-release-artifact.ts";
 
-const args = process.argv.slice(2);
-const tauriArgs: string[] = [];
-let installCli = false;
+export async function buildDesktop(args = process.argv.slice(2)) {
+  const tauriArgs: string[] = [];
+  let installCli = false;
+  let bumpReleaseVersion = false;
 
-for (const arg of args) {
-  if (arg === "--install") {
-    installCli = true;
-    continue;
+  for (const arg of args) {
+    if (arg === "--install") {
+      installCli = true;
+      continue;
+    }
+
+    if (arg === "--release") {
+      bumpReleaseVersion = true;
+      continue;
+    }
+
+    if (arg === "--bundles" || arg.startsWith("--bundles=")) {
+      throw new Error(
+        "build:desktop always builds the app and dmg bundles. Use `pnpm tauri build` directly if you need custom bundle targets.",
+      );
+    }
+
+    tauriArgs.push(arg);
   }
 
-  tauriArgs.push(arg);
+  loadBuildEnvFile();
+
+  if (bumpReleaseVersion) {
+    const { previousVersion, nextVersion } = await bumpDesktopAppVersion("patch");
+    console.log(`Bumped desktop app version from ${previousVersion} to ${nextVersion}.`);
+  }
+
+  // DMG packaging is more reliable in CI mode because Tauri skips Finder AppleScript setup.
+  await $({
+    env: {
+      ...process.env,
+      CI: process.env.CI || "true",
+    },
+  })`pnpm tauri build --bundles app,dmg ${tauriArgs}`;
+  await copyReleaseArtifact();
+
+  if (installCli) {
+    await installCliBinary(path.join(docsPublicDir, "everr"));
+  }
 }
 
-loadBuildEnvFile();
-
-await $`pnpm tauri build ${tauriArgs}`;
-await copyReleaseArtifact();
-
-if (installCli) {
-  await installCliBinary(path.join(docsPublicDir, "everr"));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await buildDesktop();
 }
