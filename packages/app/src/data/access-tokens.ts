@@ -1,4 +1,3 @@
-import { getAuth } from "@workos/authkit-tanstack-react-start";
 import { db } from "@/db/client";
 import { accessTokens } from "@/db/schema";
 import {
@@ -11,13 +10,8 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 export const createAccessToken = createAuthenticatedServerFn({
   method: "POST",
-}).handler(async () => {
+}).handler(async ({ context: { auth } }) => {
   const requestId = crypto.randomUUID();
-  const auth = await getAuth();
-
-  if (!auth.user || !auth.organizationId) {
-    throw new Error("You need an active organization to create a token.");
-  }
 
   const name = `access-token-${crypto.randomUUID().slice(0, 8)}`;
   const value = generateAccessToken();

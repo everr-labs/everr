@@ -1,5 +1,4 @@
 import { deleteCookie } from "@tanstack/react-start/server";
-import { getAuth } from "@workos/authkit-tanstack-react-start";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { workOS } from "@/lib/workos";
@@ -12,13 +11,8 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(DeleteCurrentUserAccountInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { auth } }) => {
     const requestId = crypto.randomUUID();
-    const auth = await getAuth();
-
-    if (!auth.user) {
-      throw new Error("You need to sign in before updating your account.");
-    }
 
     try {
       await workOS.userManagement.deleteUser(auth.user.id);
