@@ -137,7 +137,7 @@ describe("getGrepMatches", () => {
             {
               traceId: "trace-2",
               runId: "run-2",
-              attempts: 3,
+              runAttempt: 3,
               workflowName: "CI",
               jobName: "integration",
               stepNumber: "5",

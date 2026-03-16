@@ -801,7 +801,7 @@ export const getWorkflowRecentRuns = createServerFn({
     return result.map((row) => ({
       traceId: row.trace_id,
       runId: row.run_id,
-      attempts: Number(row.run_attempt),
+      runAttempt: Number(row.run_attempt),
       workflowName: row.workflowName || "Workflow",
       repo: row.repo,
       branch: row.branch,

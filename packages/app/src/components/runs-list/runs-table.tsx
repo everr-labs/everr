@@ -52,9 +52,9 @@ export function RunsTable({ data }: RunsTableProps) {
                   className="font-mono text-xs hover:underline"
                 >
                   {run.runId}
-                  {run.attempts > 1 && (
+                  {run.runAttempt > 1 && (
                     <span className="text-muted-foreground ml-1">
-                      (#{run.attempts})
+                      (#{run.runAttempt})
                     </span>
                   )}
                 </Link>

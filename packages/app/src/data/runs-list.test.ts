@@ -76,7 +76,7 @@ describe("getRunsList", () => {
         {
           traceId: "trace-1",
           runId: "run-1",
-          attempts: 1,
+          runAttempt: 1,
           workflowName: "CI",
           repo: "everr-labs/everr",
           branch: "main",

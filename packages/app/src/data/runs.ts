@@ -10,7 +10,7 @@ import { runSummarySubquery } from "./run-query-helpers";
 export interface Run {
   traceId: string;
   runId: string;
-  attempts: number;
+  runAttempt: number;
   repo: string;
   branch: string;
   conclusion: string;
@@ -274,7 +274,7 @@ export interface Span {
   runnerName?: string;
   labels?: string;
   sender?: string;
-  attempts?: number;
+  runAttempt?: number;
   htmlUrl?: string;
   // Test-specific attributes
   testName?: string;
@@ -324,7 +324,7 @@ export const getLatestRuns = createServerFn({
     return result.map((row) => ({
       traceId: row.trace_id,
       runId: row.run_id,
-      attempts: Number(row.run_attempt),
+      runAttempt: Number(row.run_attempt),
       repo: row.repo,
       branch: row.branch,
       conclusion: row.conclusion,
@@ -368,7 +368,7 @@ export const getRunDetails = createServerFn({
     return {
       traceId,
       runId: result[0].run_id,
-      attempts: Number(result[0].run_attempt),
+      runAttempt: Number(result[0].run_attempt),
       repo: result[0].repo,
       branch: result[0].branch,
       conclusion: result[0].conclusion,
@@ -590,7 +590,7 @@ export const getRunSpans = createServerFn({
 				ResourceAttributes['cicd.worker.name'] as runnerName,
 				ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
 				ResourceAttributes['cicd.pipeline.task.run.sender.login'] as sender,
-				ResourceAttributes['everr.github.workflow_job.run_attempt'] as attempts,
+				ResourceAttributes['everr.github.workflow_job.run_attempt'] as runAttempt,
 				ResourceAttributes['cicd.pipeline.task.run.url.full'] as htmlUrl,
 				SpanAttributes['everr.test.name'] as testName,
 				SpanAttributes['everr.test.result'] as testResult,
@@ -630,7 +630,7 @@ export const getRunSpans = createServerFn({
       runnerName: string;
       labels: string;
       sender: string;
-      attempts: string;
+      runAttempt: string;
       htmlUrl: string;
       testName: string;
       testResult: string;
@@ -674,7 +674,8 @@ export const getRunSpans = createServerFn({
         runnerName: isJobSpan && row.runnerName ? row.runnerName : undefined,
         labels: isJobSpan && row.labels ? row.labels : undefined,
         sender: isJobSpan && row.sender ? row.sender : undefined,
-        attempts: isJobSpan && row.attempts ? Number(row.attempts) : undefined,
+        runAttempt:
+          isJobSpan && row.runAttempt ? Number(row.runAttempt) : undefined,
         htmlUrl: isJobSpan && row.htmlUrl ? row.htmlUrl : undefined,
         // Test-specific attributes
         testName: row.testName || undefined,

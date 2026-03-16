@@ -66,7 +66,7 @@ export const getWatchStatus = createServerFn({
         .select({
           tenantId: workflowRuns.tenantId,
           runId: workflowRuns.runId,
-          attempts: workflowRuns.attempts,
+          runAttempt: workflowRuns.attempts,
           workflowName: workflowRuns.workflowName,
           metadata: workflowRuns.metadata,
           status: workflowRuns.status,
@@ -92,7 +92,7 @@ export const getWatchStatus = createServerFn({
           tenantId: workflowJobs.tenantId,
           jobId: workflowJobs.jobId,
           runId: workflowJobs.runId,
-          attempts: workflowJobs.attempts,
+          runAttempt: workflowJobs.attempts,
           jobName: workflowJobs.jobName,
           metadata: workflowJobs.metadata,
           status: workflowJobs.status,
@@ -130,7 +130,7 @@ export const getWatchStatus = createServerFn({
 
         return {
           subjectId: String(r.runId),
-          attempts: r.attempts,
+          runAttempt: r.runAttempt,
           subjectName: r.workflowName,
           htmlUrl: r.metadata?.html_url ?? "",
           status: r.status,
@@ -154,7 +154,7 @@ export const getWatchStatus = createServerFn({
 
         return {
           subjectId: String(j.jobId),
-          attempts: j.attempts,
+          runAttempt: j.runAttempt,
           subjectName: j.jobName,
           htmlUrl: j.metadata?.html_url ?? "",
           status: j.status,

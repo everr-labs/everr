@@ -13,9 +13,9 @@ function normalizeRepositoryId(repositoryId: number): number {
   return repositoryId;
 }
 
-function normalizeAttempts(attempts?: number | null): number {
-  if (Number.isInteger(attempts) && (attempts ?? 0) > 0) {
-    return attempts as number;
+function normalizeRunAttempt(runAttempt?: number | null): number {
+  if (Number.isInteger(runAttempt) && (runAttempt ?? 0) > 0) {
+    return runAttempt as number;
   }
 
   return 1;
@@ -24,7 +24,7 @@ function normalizeAttempts(attempts?: number | null): number {
 export function generateWorkflowTraceId(
   repositoryId: number,
   runId: number,
-  attempts?: number | null,
+  runAttempt?: number | null,
 ): string {
   const normalizedRepositoryId = normalizeRepositoryId(repositoryId);
   if (!Number.isInteger(runId)) {
@@ -32,7 +32,9 @@ export function generateWorkflowTraceId(
   }
 
   return createHash("sha256")
-    .update(`${normalizedRepositoryId}@${runId}#${normalizeAttempts(attempts)}`)
+    .update(
+      `${normalizedRepositoryId}@${runId}#${normalizeRunAttempt(runAttempt)}`,
+    )
     .digest("hex")
     .slice(0, 32);
 }

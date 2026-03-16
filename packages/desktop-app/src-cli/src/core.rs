@@ -462,7 +462,7 @@ fn extract_watch_runs(payload: &Value, key: &str) -> Vec<WatchRunStatus> {
                 .unwrap_or("unknown")
                 .to_string(),
             run_attempt: item
-                .get("attempts")
+                .get("runAttempt")
                 .and_then(Value::as_u64)
                 .unwrap_or(1),
             conclusion: item

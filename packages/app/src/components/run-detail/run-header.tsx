@@ -7,7 +7,7 @@ import { ConclusionIcon } from "./conclusion-icon";
 
 interface RunHeaderProps {
   runId: string;
-  attempts?: number;
+  runAttempt?: number;
   workflowName: string;
   conclusion: string;
   repo: string;
@@ -17,7 +17,7 @@ interface RunHeaderProps {
 
 export function RunHeader({
   runId,
-  attempts,
+  runAttempt,
   workflowName,
   conclusion,
   repo,
@@ -39,9 +39,9 @@ export function RunHeader({
         <ConclusionIcon conclusion={conclusion} className="size-5" />
         <h1 className="text-lg font-semibold tracking-tight">
           {workflowName} #{runId}
-          {attempts !== undefined && attempts > 1 && (
+          {runAttempt !== undefined && runAttempt > 1 && (
             <span className="text-muted-foreground ml-1 text-sm font-normal">
-              (attempt #{attempts})
+              (attempt #{runAttempt})
             </span>
           )}
         </h1>

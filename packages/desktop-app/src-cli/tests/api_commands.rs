@@ -852,7 +852,7 @@ fn watch_polls_until_head_sha_run_is_found() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"42","attempts":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","status":"in_progress","conclusion":null,"lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":125,"usualDurationSeconds":118,"usualDurationSampleSize":3,"activeJobs":["test","lint"]}}],"completedRuns":[{{"runId":"41","attempts":1,"workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z","durationSeconds":59,"usualDurationSeconds":57,"usualDurationSampleSize":3,"activeJobs":[]}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"42","runAttempt":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","status":"in_progress","conclusion":null,"lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":125,"usualDurationSeconds":118,"usualDurationSampleSize":3,"activeJobs":["test","lint"]}}],"completedRuns":[{{"runId":"41","runAttempt":1,"workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z","durationSeconds":59,"usualDurationSeconds":57,"usualDurationSampleSize":3,"activeJobs":[]}}]}}"#
         ))
         .expect(1)
         .create();
@@ -868,7 +868,7 @@ fn watch_polls_until_head_sha_run_is_found() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"42","attempts":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}},{{"runId":"41","attempts":1,"workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-for-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"42","runAttempt":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/42","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}},{{"runId":"41","runAttempt":1,"workflowName":"Lint","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/41","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T09:59:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -919,7 +919,7 @@ fn watch_exits_when_completed_runs_exist_even_without_pipeline_found() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/watch-completed-runs","commit":"{head_sha}","pipelineFound":false,"activeRuns":[],"completedRuns":[{{"runId":"52","attempts":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/52","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/watch-completed-runs","commit":"{head_sha}","pipelineFound":false,"activeRuns":[],"completedRuns":[{{"runId":"52","runAttempt":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/52","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -963,7 +963,7 @@ fn watch_uses_explicit_commit_when_provided() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-explicit-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"77","attempts":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/77","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-explicit-commit","commit":"{target_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"77","runAttempt":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/77","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -1013,7 +1013,7 @@ fn watch_accepts_short_commit_sha_prefix() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-short-commit","commit":"{short_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","attempts":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-short-commit","commit":"{short_commit}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","runAttempt":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","status":"completed","conclusion":"success","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -1061,7 +1061,7 @@ fn watch_fails_when_completed_runs_include_failure() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-failed-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","attempts":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","status":"completed","conclusion":"failure","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-failed-run","commit":"{head_sha}","pipelineFound":true,"activeRuns":[],"completedRuns":[{{"runId":"88","runAttempt":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/88","status":"completed","conclusion":"failure","lastEventTime":"2026-03-06T10:01:00Z"}}]}}"#
         ))
         .expect(1)
         .create();
@@ -1101,7 +1101,7 @@ fn watch_times_out_when_head_sha_is_not_found() {
         ]))
         .with_status(200)
         .with_body(format!(
-            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-timeout","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"99","attempts":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/99","status":"in_progress","conclusion":null,"lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":3,"activeJobs":["test"]}}],"completedRuns":[]}}"#
+            r#"{{"repo":"everr-labs/everr","branch":"feature/wait-timeout","commit":"{head_sha}","pipelineFound":true,"activeRuns":[{{"runId":"99","runAttempt":1,"workflowName":"CI","htmlUrl":"https://github.com/everr-labs/everr/actions/runs/99","status":"in_progress","conclusion":null,"lastEventTime":"2026-03-06T10:00:00Z","durationSeconds":3,"activeJobs":["test"]}}],"completedRuns":[]}}"#
         ))
         .expect(1)
         .create();

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export interface WatchRun {
   runId: string;
-  attempts: number;
+  runAttempt: number;
   workflowName: string;
   htmlUrl: string;
   status: string;
@@ -17,7 +17,7 @@ export interface WatchRun {
 export interface WatchJob {
   jobId: string;
   jobName: string;
-  attempts: number;
+  runAttempt: number;
   status: string;
   conclusion: string | null;
   lastEventTime: string;
@@ -42,7 +42,7 @@ export const WatchStatusInputSchema = z.object({
 
 export interface WatchRow {
   subjectId: string;
-  attempts: number;
+  runAttempt: number;
   subjectName: string;
   htmlUrl: string;
   status: string;
@@ -58,8 +58,8 @@ export interface WatchDurationBaseline {
   sampleSize: number;
 }
 
-function watchRunKey(runId: string, attempts: number): string {
-  return `${runId}:${attempts}`;
+function watchRunKey(runId: string, runAttempt: number): string {
+  return `${runId}:${runAttempt}`;
 }
 
 export function buildWatchStatus(
@@ -74,7 +74,7 @@ export function buildWatchStatus(
     .map((row) => ({
       jobId: row.subjectId,
       jobName: row.subjectName,
-      attempts: row.attempts,
+      runAttempt: row.runAttempt,
       status: row.status,
       conclusion: row.conclusion,
       lastEventTime: row.lastEventTime,
@@ -88,7 +88,7 @@ export function buildWatchStatus(
       continue;
     }
 
-    const runKey = watchRunKey(job.pipelineRunId, job.attempts);
+    const runKey = watchRunKey(job.pipelineRunId, job.runAttempt);
     const activeJobs = activeJobsByRunId.get(runKey);
     if (activeJobs) {
       activeJobs.push(job.jobName);
@@ -104,7 +104,7 @@ export function buildWatchStatus(
 
       return {
         runId: row.subjectId,
-        attempts: row.attempts,
+        runAttempt: row.runAttempt,
         workflowName: row.subjectName,
         htmlUrl: row.htmlUrl,
         status: row.status,
@@ -114,7 +114,8 @@ export function buildWatchStatus(
         usualDurationSeconds: baseline?.durationSeconds ?? null,
         usualDurationSampleSize: baseline?.sampleSize ?? 0,
         activeJobs:
-          activeJobsByRunId.get(watchRunKey(row.subjectId, row.attempts)) ?? [],
+          activeJobsByRunId.get(watchRunKey(row.subjectId, row.runAttempt)) ??
+          [],
       };
     });
 

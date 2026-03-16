@@ -53,7 +53,7 @@ export type GrepInput = z.infer<typeof GrepInputSchema>;
 export interface GrepOccurrence {
   traceId: string;
   runId: string;
-  attempts: number;
+  runAttempt: number;
   workflowName: string;
   jobName: string;
   stepNumber: string;
@@ -374,7 +374,7 @@ function buildOccurrence(row: GrepDetailRow): GrepOccurrence {
   return {
     traceId: row.trace_id,
     runId: row.run_id,
-    attempts: Number(row.run_attempt),
+    runAttempt: Number(row.run_attempt),
     workflowName: row.workflow_name || "Workflow",
     jobName: row.job_name || "Job",
     stepNumber: row.step_number,

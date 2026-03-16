@@ -95,7 +95,7 @@ function RunDetailLayout() {
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <RunHeader
         runId={runDetails.runId}
-        attempts={runDetails.attempts}
+        runAttempt={runDetails.runAttempt}
         workflowName={runDetails.workflowName}
         conclusion={runDetails.conclusion}
         repo={runDetails.repo}

@@ -75,7 +75,7 @@ describe("getWatchStatus", () => {
         {
           tenantId: 7,
           runId: 88,
-          attempts: 1,
+          runAttempt: 1,
           workflowName: "CI",
           metadata: {
             html_url: "https://github.com/everr-labs/everr/actions/runs/88",
@@ -89,7 +89,7 @@ describe("getWatchStatus", () => {
         {
           tenantId: 7,
           runId: 88,
-          attempts: 2,
+          runAttempt: 2,
           workflowName: "CI",
           metadata: {
             html_url: "https://github.com/everr-labs/everr/actions/runs/88",
@@ -106,7 +106,7 @@ describe("getWatchStatus", () => {
           tenantId: 7,
           jobId: 101,
           runId: 88,
-          attempts: 1,
+          runAttempt: 1,
           jobName: "old-test",
           metadata: {
             html_url:
@@ -122,7 +122,7 @@ describe("getWatchStatus", () => {
           tenantId: 7,
           jobId: 102,
           runId: 88,
-          attempts: 2,
+          runAttempt: 2,
           jobName: "new-test",
           metadata: {
             html_url:
@@ -171,7 +171,7 @@ describe("getWatchStatus", () => {
     expect(result.completedRuns).toHaveLength(1);
     expect(result.activeRuns[0]).toMatchObject({
       runId: "88",
-      attempts: 2,
+      runAttempt: 2,
       workflowName: "CI",
       htmlUrl: "https://github.com/everr-labs/everr/actions/runs/88",
       status: "in_progress",
@@ -182,7 +182,7 @@ describe("getWatchStatus", () => {
     });
     expect(result.completedRuns[0]).toMatchObject({
       runId: "88",
-      attempts: 1,
+      runAttempt: 1,
       workflowName: "CI",
       htmlUrl: "https://github.com/everr-labs/everr/actions/runs/88",
       status: "completed",
@@ -199,7 +199,7 @@ describe("getWatchStatus", () => {
         {
           tenantId: 7,
           runId: 88,
-          attempts: 2,
+          runAttempt: 2,
           workflowName: "CI",
           metadata: {
             html_url: "https://github.com/everr-labs/everr/actions/runs/88",

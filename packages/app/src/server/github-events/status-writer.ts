@@ -127,7 +127,7 @@ export async function upsertWorkflowRun(
   const status = workflowRunStatus(action);
   const repository = event.payload.repository?.full_name ?? "";
   const repositoryId = requireRepositoryId(event);
-  const attempts = workflowRun.run_attempt ?? 1;
+  const runAttempt = workflowRun.run_attempt ?? 1;
   const lastEventAt = workflowRunLastEventAt(workflowRun);
   const opTimestamp = new Date();
   const conclusion =
@@ -154,8 +154,8 @@ export async function upsertWorkflowRun(
   const values = {
     tenantId,
     runId: workflowRun.id,
-    attempts,
-    traceId: generateWorkflowTraceId(repositoryId, workflowRun.id, attempts),
+    attempts: runAttempt,
+    traceId: generateWorkflowTraceId(repositoryId, workflowRun.id, runAttempt),
     workflowName: workflowRun.name ?? "",
     repository,
     sha: workflowRun.head_sha ?? "",
@@ -214,7 +214,7 @@ export async function upsertWorkflowJob(
   const status = workflowJobStatus(action);
   const repository = event.payload.repository?.full_name ?? "";
   const repositoryId = requireRepositoryId(event);
-  const attempts = workflowJob.run_attempt ?? 1;
+  const runAttempt = workflowJob.run_attempt ?? 1;
   const lastEventAt = workflowJobLastEventAt(action, workflowJob);
   const opTimestamp = new Date();
   const conclusion =
@@ -237,11 +237,11 @@ export async function upsertWorkflowJob(
     tenantId,
     jobId: workflowJob.id,
     runId: workflowJob.run_id,
-    attempts,
+    attempts: runAttempt,
     traceId: generateWorkflowTraceId(
       repositoryId,
       workflowJob.run_id,
-      attempts,
+      runAttempt,
     ),
     jobName: workflowJob.name ?? "",
     repository,

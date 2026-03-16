@@ -102,9 +102,9 @@ export function FlakyTestTimeline({ data }: FlakyTestTimelineProps) {
                   )}
                 >
                   {exec.runId}
-                  {exec.attempts > 1 && (
+                  {exec.runAttempt > 1 && (
                     <span className="text-muted-foreground ml-1">
-                      (#{exec.attempts})
+                      (#{exec.runAttempt})
                     </span>
                   )}
                 </Link>
