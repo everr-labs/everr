@@ -22,7 +22,7 @@ If GitHub App auth is configured and the receiver is in a metrics pipeline, comp
 
 If a secret is configured (recommended), it [validates the payload](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries) ensuring data integrity before processing.
 
-The receiver supports linking spans to previous runs for `workflow_run` events, enhancing traceability across workflow attempts. This feature utilises deterministic Trace IDs generated based on the run ID and run attempt. When a `workflow_run` event contains a `PreviousAttemptURL`, and the run attempt is greater than `1`, the receiver automatically links the current run's root span to the previous run's Trace ID, providing a direct connection between sequential workflow attempts.
+The receiver supports linking spans to previous runs for `workflow_run` events, enhancing traceability across workflow attempts. This feature utilises deterministic Trace IDs generated from the repository ID, run ID, and run attempt. When a `workflow_run` event contains a `PreviousAttemptURL`, and the run attempt is greater than `1`, the receiver automatically links the current run's root span to the previous run's Trace ID, providing a direct connection between sequential workflow attempts.
 
 ## Configuration
 
@@ -203,7 +203,7 @@ receivers:
 
 The GitHub Actions Receiver generates deterministic IDs to ensure traceability and consistency across emitted spans. Here’s how the IDs are generated:
 
-- **Trace ID**: Generated based on the run ID and run attempt, with a 't' appended to ensure uniqueness across workflow runs and to distinguish it as a trace ID.
+- **Trace ID**: Generated from the string `repository_id@run_id#attempt` so runs from different repositories cannot collide even if GitHub reuses numeric run IDs.
 - **Parent Span ID**: Derived from the workflow job ID and run attempt, with an 's' appended to distinguish it as a span ID and allow association of all steps under a job.
 - **Span ID**: Specifically generated for each step within a job, using the job ID, run attempt, step name, and an optional step number, to ensure each step within a job can be uniquely identified.
 
@@ -217,9 +217,10 @@ Below are example functions in a couple of langues for generating each ID, repli
 
 ```bash
 generate_trace_id() {
-  local run_id=$1
-  local run_attempt=$2
-  echo -n "${run_id}${run_attempt}t" | openssl dgst -sha256 | sed 's/^.* //' | cut -c-32
+  local repository_id=$1
+  local run_id=$2
+  local run_attempt=$3
+  echo -n "${repository_id}@${run_id}#${run_attempt}" | openssl dgst -sha256 | sed 's/^.* //' | cut -c-32
 }
 
 generate_job_span_id() {
@@ -239,7 +240,7 @@ generate_step_span_id() {
 }
 
 # https://docs.github.com/en/actions/learn-github-actions/variables
-trace_id=$(generate_trace_id ${GITHUB_RUN_ID} ${GITHUB_RUN_ATTEMPT})
+trace_id=$(generate_trace_id ${GITHUB_REPOSITORY_ID} ${GITHUB_RUN_ID} ${GITHUB_RUN_ATTEMPT})
 job_span_id=$(generate_job_span_id ${GITHUB_RUN_ID} ${GITHUB_RUN_ATTEMPT} ${GITHUB_JOB})
 step_span_id=$(generate_step_span_id ${GITHUB_RUN_ID} ${GITHUB_RUN_ATTEMPT} ${GITHUB_JOB} "your-step-name")
 

@@ -4,10 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.hoisted(() => {
   process.env.INGRESS_SOURCE = "github";
   process.env.INGRESS_COLLECTOR_URL = "http://localhost:8080/webhook/github";
-  process.env.CDEVENTS_CLICKHOUSE_URL = "http://localhost:8123";
-  process.env.CDEVENTS_CLICKHOUSE_USERNAME = "app_cdevents_rw";
-  process.env.CDEVENTS_CLICKHOUSE_PASSWORD = "app-cdevents-dev";
-  process.env.CDEVENTS_CLICKHOUSE_DATABASE = "app";
 });
 
 import { getGitHubEventsConfig } from "./config";
@@ -93,9 +89,6 @@ describe("GitHubEventsRuntime", () => {
         .mockResolvedValue([]),
       cleanup: vi.fn().mockResolvedValue(undefined),
     };
-    const writer = {
-      close: vi.fn().mockResolvedValue(undefined),
-    };
     const sleep = vi.fn((delay: number, signal?: AbortSignal) => {
       if (!signal) {
         return Promise.resolve();
@@ -124,7 +117,6 @@ describe("GitHubEventsRuntime", () => {
     const runtime = new GitHubEventsRuntime({
       config: createTestConfig(),
       store: store as never,
-      writer,
       processEvent: async (event) => {
         processed.push(event.id);
       },
@@ -139,8 +131,6 @@ describe("GitHubEventsRuntime", () => {
     });
 
     await runtime.close();
-
-    expect(writer.close).toHaveBeenCalledTimes(1);
   });
 
   it("drains claimed work without an extra poll sleep and processes a batch concurrently", async () => {
@@ -180,9 +170,6 @@ describe("GitHubEventsRuntime", () => {
       claimEvents,
       cleanup: vi.fn().mockResolvedValue(undefined),
     };
-    const writer = {
-      close: vi.fn().mockResolvedValue(undefined),
-    };
     const sleep = vi.fn((delay: number, signal?: AbortSignal) => {
       if (delay !== 5) {
         return new Promise<void>((_resolve, reject) => {
@@ -209,7 +196,6 @@ describe("GitHubEventsRuntime", () => {
         cleanupIntervalMs: 10_000,
       }),
       store: store as never,
-      writer,
       processEvent: async (event) => {
         if (event.id === 1) {
           firstStarted.resolve();

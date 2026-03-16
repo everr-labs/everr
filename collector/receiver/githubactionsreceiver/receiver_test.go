@@ -180,7 +180,7 @@ func TestProcessSteps(t *testing.T) {
 			rs := traces.ResourceSpans().AppendEmpty()
 			ss := rs.ScopeSpans().AppendEmpty()
 
-			traceID, _ := generateTraceID(123, 1)
+			traceID, _ := generateTraceID(456, 123, 1)
 			parentSpanID, err := createParentSpan(ss, tc.givenSteps, &github.WorkflowJob{}, traceID, logger)
 			require.NoError(t, err)
 

@@ -37,7 +37,17 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 		return nil, nil
 	}
 
-	traceID, _ := generateTraceID(e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt())
+	repositoryID, err := requireRepositoryID(e.GetRepo().GetID())
+	if err != nil {
+		logger.Error("Failed to determine repository ID", zap.Error(err))
+		return nil, err
+	}
+
+	traceID, err := generateTraceID(repositoryID, e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt())
+	if err != nil {
+		logger.Error("Failed to generate trace ID", zap.Error(err))
+		return nil, err
+	}
 
 	logs := plog.NewLogs()
 	allLogs := logs.ResourceLogs().AppendEmpty()

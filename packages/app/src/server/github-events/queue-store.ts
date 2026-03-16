@@ -14,6 +14,7 @@ export interface WebhookEventStore {
     source: string;
     eventId: string;
     bodySha256: string;
+    repositoryId?: number | null;
     topics: readonly WebhookTopic[];
     headers: WebhookHeaders;
     body: Buffer;
@@ -54,6 +55,7 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
     source: string;
     eventId: string;
     bodySha256: string;
+    repositoryId?: number | null;
     topics: readonly WebhookTopic[];
     headers: WebhookHeaders;
     body: Buffer;
@@ -73,8 +75,16 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
       for (const topic of args.topics) {
         const insertResult = await client.query(
           `
-            INSERT INTO webhook_events (source, event_id, topic, body_sha256, headers, body)
-            VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+            INSERT INTO webhook_events (
+              source,
+              event_id,
+              topic,
+              body_sha256,
+              repository_id,
+              headers,
+              body
+            )
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
             ON CONFLICT (source, event_id, topic) DO NOTHING
           `,
           [
@@ -82,6 +92,7 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
             args.eventId,
             topic,
             args.bodySha256,
+            args.repositoryId ?? null,
             headersJson,
             args.body,
           ],
@@ -135,6 +146,7 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
       source: string;
       event_id: string;
       topic: WebhookTopic;
+      repository_id: string | null;
       headers: WebhookHeaders;
       body: Buffer;
       attempts: number;
@@ -161,6 +173,7 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
           events.source,
           events.event_id,
           events.topic,
+          events.repository_id,
           events.headers,
           events.body,
           events.attempts
@@ -173,6 +186,8 @@ export class PostgresWebhookEventStore implements WebhookEventStore {
       source: row.source,
       eventId: row.event_id,
       topic: row.topic,
+      repositoryId:
+        row.repository_id === null ? null : Number(row.repository_id),
       headers: row.headers,
       body: row.body,
       attempts: row.attempts,

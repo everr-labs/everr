@@ -3,12 +3,13 @@ import { verify } from "@octokit/webhooks-methods";
 import { getGitHubEventsConfig } from "./config";
 import { headersToRecord } from "./headers";
 import { handleInstallationEvent } from "./install-events";
+import { enqueueMetadataFromWebhookEvent } from "./payloads";
 import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
-import { topicCDEvents, topicCollector, type WebhookTopic } from "./types";
+import { topicCollector, topicStatus, type WebhookTopic } from "./types";
 
 function topicsForEventType(eventType: string): WebhookTopic[] {
   if (eventType === "workflow_run" || eventType === "workflow_job") {
-    return [topicCollector, topicCDEvents];
+    return [topicCollector, topicStatus];
   }
 
   return [];
@@ -70,12 +71,19 @@ export async function handleGitHubWebhookRequest(
   }
 
   const body = Buffer.from(bodyText, "utf8");
+  const enqueueMetadata = enqueueMetadataFromWebhookEvent(eventType, body);
+  if (!enqueueMetadata.enqueue) {
+    return new Response(null, { status: 202 });
+  }
+
   const bodySha256 = createHash("sha256").update(body).digest("hex");
+
   const store = dependencies.store ?? getWebhookEventStore();
   const enqueueStatus = await store.enqueueEvent({
     source: getGitHubEventsConfig().source,
     eventId,
     bodySha256,
+    repositoryId: enqueueMetadata.repositoryId,
     topics,
     headers: headersToRecord(request.headers),
     body,

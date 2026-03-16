@@ -1,8 +1,8 @@
 export const githubEventSource = "github";
 export const topicCollector = "collector";
-export const topicCDEvents = "cdevents";
+export const topicStatus = "status";
 
-export type WebhookTopic = typeof topicCollector | typeof topicCDEvents;
+export type WebhookTopic = typeof topicCollector | typeof topicStatus;
 export type WebhookHeaders = Record<string, string[]>;
 
 export type WebhookEventRecord = {
@@ -10,6 +10,7 @@ export type WebhookEventRecord = {
   source: string;
   eventId: string;
   topic: WebhookTopic;
+  repositoryId?: number | null;
   headers: WebhookHeaders;
   body: Buffer;
   attempts: number;

@@ -4,10 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.hoisted(() => {
   process.env.INGRESS_SOURCE = "github";
   process.env.INGRESS_COLLECTOR_URL = "http://localhost:8080/webhook/github";
-  process.env.CDEVENTS_CLICKHOUSE_URL = "http://localhost:8123";
-  process.env.CDEVENTS_CLICKHOUSE_USERNAME = "app_cdevents_rw";
-  process.env.CDEVENTS_CLICKHOUSE_PASSWORD = "app-cdevents-dev";
-  process.env.CDEVENTS_CLICKHOUSE_DATABASE = "app";
 });
 
 vi.mock("@/data/tenants", () => ({
@@ -33,6 +29,7 @@ class StubStore implements WebhookEventStore {
     source: string;
     eventId: string;
     bodySha256: string;
+    repositoryId?: number | null;
     topics: readonly WebhookTopic[];
   }> = [];
 
@@ -44,7 +41,10 @@ class StubStore implements WebhookEventStore {
     source: string;
     eventId: string;
     bodySha256: string;
+    repositoryId?: number | null;
     topics: readonly WebhookTopic[];
+    headers: Record<string, string[]>;
+    body: Buffer;
   }) {
     this.enqueueCalls.push(args);
     return this.status;
@@ -88,7 +88,74 @@ describe("handleGitHubWebhookRequest", () => {
     expect(response.status).toBe(401);
   });
 
-  it("enqueues workflow events for collector and cdevents", async () => {
+  it("enqueues workflow events for collector and status", async () => {
+    const secret = "super-secret-value-1234567890";
+    vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
+    const payload = JSON.stringify({
+      action: "requested",
+      installation: { id: 123 },
+      repository: { id: 654321 },
+      workflow_run: {
+        id: 456,
+        run_attempt: 2,
+        name: "Tests",
+      },
+    });
+    const store = new StubStore("inserted");
+
+    const response = await handleGitHubWebhookRequest(
+      new Request("http://localhost/webhook/github", {
+        method: "POST",
+        headers: {
+          "x-github-event": "workflow_run",
+          "x-github-delivery": "delivery-1",
+          "x-hub-signature-256": sign(payload, secret),
+        },
+        body: payload,
+      }),
+      { store },
+    );
+
+    expect(response.status).toBe(202);
+    expect(store.enqueueCalls[0]?.topics).toEqual(["collector", "status"]);
+    expect(store.enqueueCalls[0]?.repositoryId).toBe(654321);
+  });
+
+  it("extracts repository ids from workflow_job payloads", async () => {
+    const secret = "super-secret-value-1234567890";
+    vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
+    const payload = JSON.stringify({
+      action: "queued",
+      installation: { id: 123 },
+      repository: { id: 654321 },
+      workflow_job: {
+        id: 789,
+        run_id: 456,
+        run_attempt: 2,
+        name: "test",
+      },
+    });
+    const store = new StubStore("inserted");
+
+    const response = await handleGitHubWebhookRequest(
+      new Request("http://localhost/webhook/github", {
+        method: "POST",
+        headers: {
+          "x-github-event": "workflow_job",
+          "x-github-delivery": "delivery-1",
+          "x-hub-signature-256": sign(payload, secret),
+        },
+        body: payload,
+      }),
+      { store },
+    );
+
+    expect(response.status).toBe(202);
+    expect(store.enqueueCalls).toHaveLength(1);
+    expect(store.enqueueCalls[0]?.repositoryId).toBe(654321);
+  });
+
+  it("accepts minimal workflow payloads without enqueueing them", async () => {
     const secret = "super-secret-value-1234567890";
     vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
     const payload = JSON.stringify({ action: "requested" });
@@ -108,13 +175,21 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(store.enqueueCalls[0]?.topics).toEqual(["collector", "cdevents"]);
+    expect(store.enqueueCalls).toHaveLength(0);
   });
 
   it("returns 200 for duplicate workflow events", async () => {
     const secret = "super-secret-value-1234567890";
     vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
-    const payload = JSON.stringify({ action: "requested" });
+    const payload = JSON.stringify({
+      action: "requested",
+      installation: { id: 123 },
+      workflow_run: {
+        id: 456,
+        run_attempt: 1,
+        name: "Tests",
+      },
+    });
 
     const response = await handleGitHubWebhookRequest(
       new Request("http://localhost/webhook/github", {
@@ -135,7 +210,15 @@ describe("handleGitHubWebhookRequest", () => {
   it("returns 409 for conflicting workflow events", async () => {
     const secret = "super-secret-value-1234567890";
     vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
-    const payload = JSON.stringify({ action: "requested" });
+    const payload = JSON.stringify({
+      action: "requested",
+      installation: { id: 123 },
+      workflow_run: {
+        id: 456,
+        run_attempt: 1,
+        name: "Tests",
+      },
+    });
 
     const response = await handleGitHubWebhookRequest(
       new Request("http://localhost/webhook/github", {
