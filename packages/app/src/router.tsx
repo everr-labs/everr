@@ -1,4 +1,4 @@
-import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { queryClient } from "./query-client";
@@ -20,9 +20,6 @@ export const getRouter = () => {
       <div className="flex items-center justify-center h-screen font-heading text-lg">
         <Loader2 className="size-5 animate-spin text-primary" />
       </div>
-    ),
-    Wrap: ({ children }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     ),
   });
 };
