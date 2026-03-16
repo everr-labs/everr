@@ -4,8 +4,8 @@ vi.mock("@/data/runs-list/server", () => ({
   getRunsList: vi.fn(),
 }));
 
-vi.mock("./-auth", () => ({
-  cliAuthMiddleware: {
+vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
+  accessTokenAuthMiddleware: {
     options: {},
   },
 }));

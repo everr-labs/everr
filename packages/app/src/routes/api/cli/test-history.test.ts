@@ -4,8 +4,8 @@ vi.mock("@/data/flaky-tests/server", () => ({
   getTestHistory: vi.fn(),
 }));
 
-vi.mock("./-auth", () => ({
-  cliAuthMiddleware: {
+vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
+  accessTokenAuthMiddleware: {
     options: {},
   },
 }));

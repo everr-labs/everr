@@ -4,8 +4,8 @@ vi.mock("@/data/watch", () => ({
   getWatchStatus: vi.fn(),
 }));
 
-vi.mock("../-auth", () => ({
-  cliAuthMiddleware: {
+vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
+  accessTokenAuthMiddleware: {
     options: {},
   },
 }));
@@ -18,7 +18,7 @@ const mockedGetWatchStatus = vi.mocked(getWatchStatus);
 type GetHandler = (args: {
   request: Request;
   context: {
-    auth: {
+    session: {
       tenantId: number;
     };
   };
@@ -58,7 +58,7 @@ describe("/api/cli/runs/watch", () => {
         "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&branch=main&commit=abc123",
       ),
       context: {
-        auth: {
+        session: {
           tenantId: 42,
         },
       },
@@ -93,7 +93,7 @@ describe("/api/cli/runs/watch", () => {
         "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&branch=main&commit=abc123",
       ),
       context: {
-        auth: {
+        session: {
           tenantId: 42,
         },
       },
@@ -133,7 +133,7 @@ describe("/api/cli/runs/watch", () => {
         "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&branch=main&commit=abc123",
       ),
       context: {
-        auth: {
+        session: {
           tenantId: 42,
         },
       },
@@ -159,7 +159,7 @@ describe("/api/cli/runs/watch", () => {
         "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr",
       ),
       context: {
-        auth: {
+        session: {
           tenantId: 42,
         },
       },

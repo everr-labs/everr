@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getTestHistory } from "@/data/flaky-tests/server";
+import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
-import { cliAuthMiddleware } from "./-auth";
 
 const TestHistoryQuerySchema = z.object({
   repo: z.string().min(1),
@@ -17,7 +17,7 @@ const TestHistoryQuerySchema = z.object({
 
 export const Route = createFileRoute("/api/cli/test-history")({
   server: {
-    middleware: [cliAuthMiddleware],
+    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
