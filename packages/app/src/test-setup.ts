@@ -36,6 +36,23 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// ClickHouse — default test double so jsdom tests never import the real server
+// client and trigger env access. Individual tests can override this mock.
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/clickhouse", () => {
+  const query = vi.fn();
+
+  return {
+    query,
+    createClickhouseQuery: vi.fn(
+      (tenantId: number) => (sql: string, params?: Record<string, unknown>) =>
+        query(sql, params, tenantId),
+    ),
+  };
+});
+
+// ---------------------------------------------------------------------------
 // @/lib/serverFn — authenticated server functions get auth context injected
 // from getAuth(), with the same guards as the real authMiddleware.
 // ---------------------------------------------------------------------------
