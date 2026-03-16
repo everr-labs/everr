@@ -1,27 +1,28 @@
 # GitHub Webhook Request Lifecycle
 
-This document describes the current webhook flow after the ingress and cdevents migration into `packages/app`.
+This document describes the current webhook flow in `packages/app`.
 
 ## Overview
 
 - GitHub delivers webhooks directly to the app at `/webhook/github`.
 - The app validates the GitHub signature once.
 - `installation` and `installation_repositories` are handled inline inside the app.
-- `workflow_run` and `workflow_job` are enqueued into Postgres once per topic:
-  - `collector`
-  - `cdevents`
-- A background runtime started by the app polls `webhook_events` and processes each topic independently.
-- CDEvents are written directly to `app.cdevents`.
+- `workflow_run` and `workflow_job` are fanned out into two durable Postgres jobs:
+  - `gh-collector`
+  - `gh-status`
+- A background `pg-boss` runtime started by the app processes those jobs independently.
+- `gh-status` writes normalized workflow state into Postgres `workflow_runs` and `workflow_jobs`.
 
 ```mermaid
 flowchart LR
     GH["GitHub"] --> APP["packages/app /webhook/github"]
-    APP --> DB["Postgres webhook_events"]
     APP --> INLINE["Inline installation handling"]
-    DB --> WORKER["App worker runtime"]
-    WORKER --> COLLECTOR["collector replay"]
-    WORKER --> CDEVENTS["cdevents transform + writer"]
-    CDEVENTS --> CH["ClickHouse app.cdevents"]
+    APP --> BOSS["Postgres pg-boss queues"]
+    BOSS --> WORKER["App worker runtime"]
+    WORKER --> COLLECTOR["gh-collector replay"]
+    WORKER --> STATUS["gh-status writer"]
+    STATUS --> PG["Postgres workflow_runs + workflow_jobs"]
+    COLLECTOR --> CH["Collector -> ClickHouse traces"]
 ```
 
 ## Request Handling
@@ -56,68 +57,52 @@ These events are fanned out into durable queue rows:
 - `workflow_run`
 - `workflow_job`
 
-For each accepted delivery, the app inserts one row per topic into `webhook_events`.
+For each accepted delivery, the app enqueues one job per queue in `pg-boss`.
 
 Deduplication rules:
 
 - first insert: `202`
-- duplicate same body hash: `200`
-- duplicate delivery id with different body hash: `409`
+- duplicate delivery id for the same queue: `200`
 
 ## Queue Processing
 
 The runtime is started only after app migrations complete.
 
 - runtime bootstrap happens from `packages/app/src/server.ts`
-- `packages/app/src/start.ts` owns the SSR-safe singleton guard
-- multi-process coordination relies on Postgres row locking with `FOR UPDATE SKIP LOCKED`
+- `packages/app/src/server/github-events/runtime.ts` owns the singleton startup guard
+- job retries are managed by `pg-boss`
 
-Each queue row has its own lifecycle:
-
-- `queued`
-- `processing`
-- `failed`
-- `done`
-- `dead`
-
-Retries are isolated by topic. A collector failure does not re-run cdevents, and a cdevents failure does not replay collector again.
+Retries are isolated by queue. A collector failure does not re-run status persistence, and a status failure does not replay collector ingestion again.
 
 ## Topic Behavior
 
-### `collector`
+### `gh-collector`
 
 - resolve tenant id in-process from the GitHub installation mapping
 - replay the original webhook to `INGRESS_COLLECTOR_URL`
-- finalize only the `collector` row
+- finish only the collector job
 
-### `cdevents`
+### `gh-status`
 
 - resolve tenant id in-process
-- transform supported GitHub workflow payloads into cdevents rows
-- buffer and batch writes
-- insert directly into `app.cdevents`
-- finalize only the `cdevents` row
-
-There is no exposed `/api/internal/github/cdevents` route in the final design. The worker invokes shared server logic in-process.
+- normalize supported GitHub workflow payloads into workflow run and job rows
+- upsert into `workflow_runs` and `workflow_jobs`
+- finish only the status job
 
 ## Data Ownership
 
 ### Postgres
 
-`webhook_events` is now owned by the app migration set under `packages/app/drizzle/`.
+- the app owns `workflow_runs` and `workflow_jobs`
+- the app runtime and CLI watch/tray/notifier flows read workflow state from Postgres
 
 ### ClickHouse
 
-`app.cdevents` is the only persisted cdevents table.
-
-There is no:
-
-- `otel.cdevents_raw`
-- `app.cdevents_mv`
-- `otel -> app` materialized-view bridge
+- the collector continues to own trace ingestion into ClickHouse
+- failure detection and step-level log lookup still come from traces
 
 ## Operational Notes
 
 - local Docker Compose keeps only `clickhouse`, `postgres`, and `collector`
 - the app process must be running for webhook polling to happen
-- GitHub should point to the app tunnel URL on port `5173`, not the removed ingress service
+- GitHub should point to the app tunnel URL on port `5173`

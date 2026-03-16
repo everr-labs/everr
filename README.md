@@ -112,7 +112,7 @@ make run
 ### Run the dev stack
 
 > [!NOTE]
-> The app now owns the GitHub webhook ingress, queue polling, and cdevents writes. Start the full dev stack after Postgres and ClickHouse are up.
+> The app now owns the GitHub webhook ingress, queue polling, and workflow status writes into Postgres. Start the full dev stack after Postgres and ClickHouse are up.
 
 ```bash
 pnpm dev

@@ -34,7 +34,7 @@ mod tests {
             repo: "everr-labs/everr".to_string(),
             branch: "main".to_string(),
             workflow_name: "build".to_string(),
-            failure_time: "2026-03-07T10:00:00Z".to_string(),
+            failed_at: "2026-03-07T10:00:00Z".to_string(),
             details_url: "https://example.com".to_string(),
             job_name: Some("build".to_string()),
             step_number: Some("3".to_string()),
