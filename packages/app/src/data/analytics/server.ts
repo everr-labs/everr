@@ -1,23 +1,15 @@
-import { queryOptions } from "@tanstack/react-query";
-import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
-
-export { TimeRangeSchema };
-
-export const TimeRangeInputSchema = z.object({ timeRange: TimeRangeSchema });
-export type TimeRangeInput = z.infer<typeof TimeRangeInputSchema>;
+import { resolveTimeRange } from "@/lib/time-range";
+import {
+  type DurationTrendPoint,
+  type QueueTimePoint,
+  type RunnerUtilization,
+  type SuccessRatePoint,
+  TimeRangeInputSchema,
+} from "./schemas";
 
 // Duration Trends
-export interface DurationTrendPoint {
-  date: string;
-  avgDuration: number;
-  p50Duration: number;
-  p95Duration: number;
-  runCount: number;
-}
-
 export const getDurationTrends = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -59,14 +51,6 @@ export const getDurationTrends = createAuthenticatedServerFn({
   });
 
 // Queue Time Analysis
-export interface QueueTimePoint {
-  date: string;
-  avgQueueTime: number;
-  p50QueueTime: number;
-  p95QueueTime: number;
-  maxQueueTime: number;
-}
-
 export const getQueueTimeAnalysis = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -120,14 +104,6 @@ export const getQueueTimeAnalysis = createAuthenticatedServerFn({
   });
 
 // Success Rate Trends
-export interface SuccessRatePoint {
-  date: string;
-  successRate: number;
-  totalRuns: number;
-  successCount: number;
-  failureCount: number;
-}
-
 export const getSuccessRateTrends = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -175,14 +151,6 @@ export const getSuccessRateTrends = createAuthenticatedServerFn({
   });
 
 // Runner Utilization
-export interface RunnerUtilization {
-  labels: string;
-  totalJobs: number;
-  avgDuration: number;
-  successRate: number;
-  totalDuration: number;
-}
-
 export const getRunnerUtilization = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -221,29 +189,4 @@ export const getRunnerUtilization = createAuthenticatedServerFn({
       successRate: Number(row.successRate) || 0,
       totalDuration: Number(row.totalDuration),
     })) satisfies RunnerUtilization[];
-  });
-
-// Query options factories
-export const durationTrendsOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["analytics", "durationTrends", input],
-    queryFn: () => getDurationTrends({ data: input }),
-  });
-
-export const queueTimeAnalysisOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["analytics", "queueTime", input],
-    queryFn: () => getQueueTimeAnalysis({ data: input }),
-  });
-
-export const successRateTrendsOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["analytics", "successRate", input],
-    queryFn: () => getSuccessRateTrends({ data: input }),
-  });
-
-export const runnerUtilizationOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["analytics", "runnerUtilization", input],
-    queryFn: () => getRunnerUtilization({ data: input }),
   });

@@ -25,13 +25,15 @@ import {
 } from "@/components/ui/tooltip";
 import {
   testPerfChildrenOptions,
-  testPerfFailuresOptions,
   testPerfFilterOptionsOptions,
+} from "@/data/test-performance/children";
+import {
+  testPerfFailuresOptions,
   testPerfScatterOptions,
   testPerfStatsOptions,
   testPerfStatsTrendOptions,
   testPerfTrendOptions,
-} from "@/data/test-performance";
+} from "@/data/test-performance/metrics";
 import { testResultsSummaryOptions } from "@/data/test-results";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 import { buildTestPerformanceBreadcrumb } from "@/lib/test-performance-breadcrumb";

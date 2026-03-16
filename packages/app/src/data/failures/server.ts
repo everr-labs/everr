@@ -1,18 +1,12 @@
-import { queryOptions } from "@tanstack/react-query";
+import { TimeRangeInputSchema } from "@/data/analytics/schemas";
 import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
-import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
-
-export interface FailurePattern {
-  pattern: string;
-  count: number;
-  affectedRepos: string[];
-  sampleTraceIds: string[];
-  sampleRunIds: string[];
-  sampleJobNames: string[];
-  lastOccurrence: string;
-}
+import type {
+  FailureByRepo,
+  FailurePattern,
+  FailureTrendPoint,
+} from "./schemas";
 
 export const getFailurePatterns = createAuthenticatedServerFn({
   method: "GET",
@@ -61,12 +55,6 @@ export const getFailurePatterns = createAuthenticatedServerFn({
     })) satisfies FailurePattern[];
   });
 
-export interface FailureTrendPoint {
-  date: string;
-  totalFailures: number;
-  uniquePatterns: number;
-}
-
 export const getFailureTrend = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -100,12 +88,6 @@ export const getFailureTrend = createAuthenticatedServerFn({
       uniquePatterns: Number(row.uniquePatterns),
     })) satisfies FailureTrendPoint[];
   });
-
-export interface FailureByRepo {
-  repo: string;
-  failureCount: number;
-  topPattern: string;
-}
 
 export const getFailuresByRepo = createAuthenticatedServerFn({
   method: "GET",
@@ -141,23 +123,4 @@ export const getFailuresByRepo = createAuthenticatedServerFn({
       failureCount: Number(row.failureCount),
       topPattern: row.topPatterns[0] || "",
     })) satisfies FailureByRepo[];
-  });
-
-// Query options factories
-export const failurePatternsOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["failures", "patterns", input],
-    queryFn: () => getFailurePatterns({ data: input }),
-  });
-
-export const failureTrendOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["failures", "trend", input],
-    queryFn: () => getFailureTrend({ data: input }),
-  });
-
-export const failuresByRepoOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["failures", "byRepo", input],
-    queryFn: () => getFailuresByRepo({ data: input }),
   });

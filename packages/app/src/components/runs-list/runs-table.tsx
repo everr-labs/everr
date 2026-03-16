@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
-import type { RunListItem } from "@/data/runs-list";
+import type { RunListItem } from "@/data/runs-list/schemas";
 import { formatDuration, formatRelativeTime } from "@/lib/formatting";
 
 interface RunsTableProps {

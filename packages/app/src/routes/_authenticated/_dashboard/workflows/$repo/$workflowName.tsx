@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/chart-helpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
-import { formatCost } from "@/data/cost-analysis";
 import {
   workflowCostOptions,
   workflowDurationTrendOptions,
@@ -35,13 +34,14 @@ import {
   workflowStatsOptions,
   workflowSuccessRateTrendOptions,
   workflowTopFailingJobsOptions,
-} from "@/data/workflows";
+} from "@/data/workflows/options";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
   formatDuration,
   formatRelativeTime,
   getSuccessRateVariant,
 } from "@/lib/formatting";
+import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute(

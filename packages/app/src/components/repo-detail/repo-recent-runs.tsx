@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
-import type { RepoRecentRun } from "@/data/repo-detail";
+import type { RepoRecentRun } from "@/data/repo-detail/schemas";
 import { formatRelativeTime } from "@/lib/formatting";
 
 interface RepoRecentRunsProps {

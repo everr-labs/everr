@@ -1,20 +1,15 @@
-import { queryOptions } from "@tanstack/react-query";
-import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
-
-const RepoDetailInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  repo: z.string(),
-});
-export type RepoDetailInput = z.infer<typeof RepoDetailInputSchema>;
-
-export interface RepoStats {
-  totalRuns: number;
-  successRate: number;
-  avgDuration: number;
-}
+import { resolveTimeRange } from "@/lib/time-range";
+import {
+  type ActiveBranch,
+  RepoDetailInputSchema,
+  type RepoDurationPoint,
+  type RepoRecentRun,
+  type RepoStats,
+  type RepoSuccessRatePoint,
+  type TopFailingJob,
+} from "./schemas";
 
 export const getRepoStats = createAuthenticatedServerFn({
   method: "GET",
@@ -64,14 +59,6 @@ export const getRepoStats = createAuthenticatedServerFn({
     } satisfies RepoStats;
   });
 
-export interface RepoSuccessRatePoint {
-  date: string;
-  successRate: number;
-  totalRuns: number;
-  successCount: number;
-  failureCount: number;
-}
-
 export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -119,12 +106,6 @@ export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
     })) satisfies RepoSuccessRatePoint[];
   });
 
-export interface RepoDurationPoint {
-  date: string;
-  p50Duration: number;
-  p95Duration: number;
-}
-
 export const getRepoDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -159,16 +140,6 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
       p95Duration: Number(row.p95Duration),
     })) satisfies RepoDurationPoint[];
   });
-
-export interface RepoRecentRun {
-  traceId: string;
-  runId: string;
-  workflowName: string;
-  branch: string;
-  conclusion: string;
-  timestamp: string;
-  sender: string;
-}
 
 export const getRepoRecentRuns = createAuthenticatedServerFn({
   method: "GET",
@@ -218,14 +189,6 @@ export const getRepoRecentRuns = createAuthenticatedServerFn({
     })) satisfies RepoRecentRun[];
   });
 
-export interface TopFailingJob {
-  jobName: string;
-  workflowName: string;
-  totalRuns: number;
-  failureCount: number;
-  failureRate: number;
-}
-
 export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -271,16 +234,6 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
       failureRate: Number(row.failureRate) || 0,
     })) satisfies TopFailingJob[];
   });
-
-export interface ActiveBranch {
-  branch: string;
-  latestConclusion: string;
-  latestTraceId: string;
-  latestRunId: string;
-  latestTimestamp: string;
-  totalRuns: number;
-  successRate: number;
-}
 
 export const getActiveBranches = createAuthenticatedServerFn({
   method: "GET",
@@ -337,41 +290,4 @@ export const getActiveBranches = createAuthenticatedServerFn({
       totalRuns: Number(row.totalRuns),
       successRate: Number(row.successRate) || 0,
     })) satisfies ActiveBranch[];
-  });
-
-// Query options factories
-export const repoStatsOptions = (input: RepoDetailInput) =>
-  queryOptions({
-    queryKey: ["repo", "stats", input],
-    queryFn: () => getRepoStats({ data: input }),
-  });
-
-export const repoSuccessRateTrendOptions = (input: RepoDetailInput) =>
-  queryOptions({
-    queryKey: ["repo", "successRateTrend", input],
-    queryFn: () => getRepoSuccessRateTrend({ data: input }),
-  });
-
-export const repoDurationTrendOptions = (input: RepoDetailInput) =>
-  queryOptions({
-    queryKey: ["repo", "durationTrend", input],
-    queryFn: () => getRepoDurationTrend({ data: input }),
-  });
-
-export const repoRecentRunsOptions = (input: RepoDetailInput) =>
-  queryOptions({
-    queryKey: ["repo", "recentRuns", input],
-    queryFn: () => getRepoRecentRuns({ data: input }),
-  });
-
-export const topFailingJobsOptions = (input: RepoDetailInput) =>
-  queryOptions({
-    queryKey: ["repo", "topFailingJobs", input],
-    queryFn: () => getTopFailingJobs({ data: input }),
-  });
-
-export const activeBranchesOptions = (input: RepoDetailInput) =>
-  queryOptions({
-    queryKey: ["repo", "activeBranches", input],
-    queryFn: () => getActiveBranches({ data: input }),
   });

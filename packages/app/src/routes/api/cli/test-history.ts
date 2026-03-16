@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getTestHistory } from "@/data/flaky-tests";
+import { getTestHistory } from "@/data/flaky-tests/server";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 import { cliAuthMiddleware } from "./-auth";
 

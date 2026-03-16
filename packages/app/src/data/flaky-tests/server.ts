@@ -1,50 +1,23 @@
-import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
-import { testFullNameExpr } from "./sql-helpers";
-
-// Filter input for flaky tests list
-const FlakyTestsFilterInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  repo: z.string().optional(),
-  branch: z.string().optional(),
-  search: z.string().optional(),
-});
-export type FlakyTestsFilterInput = z.infer<typeof FlakyTestsFilterInputSchema>;
-
-// Filter options (repos + branches that have test data)
-export interface FlakyTestFilterOptions {
-  repos: string[];
-  branches: string[];
-}
-
-// Flaky test list item
-export interface FlakyTest {
-  repo: string;
-  testPackage: string;
-  testFullName: string;
-  totalExecutions: number;
-  failCount: number;
-  passCount: number;
-  skipCount: number;
-  distinctRuns: number;
-  distinctShas: number;
-  failureRate: number;
-  lastSeen: string;
-  avgDuration: number;
-  firstSeen: string;
-  recentFailureRate: number;
-}
-
-// Daily result for heatmap
-export interface TestDailyResult {
-  date: string;
-  passCount: number;
-  failCount: number;
-  skipCount: number;
-}
+import { resolveTimeRange } from "@/lib/time-range";
+import { testFullNameExpr } from "../sql-helpers";
+import type {
+  FlakinessTrendPoint,
+  FlakyTest,
+  FlakyTestFilterOptions,
+  FlakyTestSummary,
+  FlakyTestsFilterInput,
+  RunnerFlakiness,
+  TestDailyResult,
+  TestExecution,
+} from "./schemas";
+import {
+  FlakyTestsFilterInputSchema,
+  TestDetailInputSchema,
+  TestHistoryInputSchema,
+} from "./schemas";
 
 function buildFlakyTestConditions(
   fromISO: string,
@@ -206,13 +179,6 @@ export const getFlakyTests = createAuthenticatedServerFn({
     })) satisfies FlakyTest[];
   });
 
-// Summary stats
-export interface FlakyTestSummary {
-  flakyTestCount: number;
-  totalTestCount: number;
-  flakyPercentage: number;
-}
-
 export const getFlakyTestSummary = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -276,14 +242,6 @@ export const getFlakyTestSummary = createAuthenticatedServerFn({
     } satisfies FlakyTestSummary;
   });
 
-// Flakiness trend (per-day)
-export interface FlakinessTrendPoint {
-  date: string;
-  flakyCount: number;
-  totalCount: number;
-  flakyPercentage: number;
-}
-
 export const getFlakinessTrend = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -344,50 +302,6 @@ export const getFlakinessTrend = createAuthenticatedServerFn({
       flakyPercentage: Number(row.flaky_percentage) || 0,
     })) satisfies FlakinessTrendPoint[];
   });
-
-// Test detail history
-export interface TestExecution {
-  traceId: string;
-  runId: string;
-  runAttempt: number;
-  headSha: string;
-  headBranch: string;
-  testResult: string;
-  testDuration: number;
-  runnerName: string;
-  workflowName: string;
-  jobName: string;
-  timestamp: string;
-}
-
-const TestHistoryInputSchema = z
-  .object({
-    timeRange: TimeRangeSchema,
-    repo: z.string(),
-    testFullName: z.string().optional(),
-    testModule: z.string().optional(),
-    testName: z.string().optional(),
-    limit: z.coerce.number().int().min(1).max(100).default(100),
-    offset: z.coerce.number().int().min(0).default(0),
-  })
-  .superRefine((value, ctx) => {
-    const hasFullName = Boolean(value.testFullName);
-    const hasTestModule = Boolean(value.testModule);
-    const hasTestName = Boolean(value.testName);
-    if (!hasFullName && !hasTestModule && !hasTestName) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Provide testFullName, testModule, or testName.",
-      });
-    }
-  });
-
-const TestDetailInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  repo: z.string(),
-  testFullName: z.string(),
-});
-export type TestDetailInput = z.infer<typeof TestDetailInputSchema>;
 
 export const getTestHistory = createAuthenticatedServerFn({
   method: "GET",
@@ -502,16 +416,6 @@ export const getTestHistory = createAuthenticatedServerFn({
       })) satisfies TestExecution[];
     },
   );
-
-// Runner breakdown for a specific test
-export interface RunnerFlakiness {
-  runnerName: string;
-  totalExecutions: number;
-  failCount: number;
-  passCount: number;
-  failureRate: number;
-  avgDuration: number;
-}
 
 export const getRunnerFlakiness = createAuthenticatedServerFn({
   method: "GET",
@@ -650,53 +554,4 @@ export const getFlakyTestNames = createAuthenticatedServerFn({
 
     const result = await query<{ test_full_name: string }>(sql, { repo });
     return result.map((row) => row.test_full_name);
-  });
-
-// Query options factories
-export const flakyTestsOptions = (input: FlakyTestsFilterInput) =>
-  queryOptions({
-    queryKey: ["flakyTests", "list", input],
-    queryFn: () => getFlakyTests({ data: input }),
-  });
-
-export const flakyTestSummaryOptions = (input: FlakyTestsFilterInput) =>
-  queryOptions({
-    queryKey: ["flakyTests", "summary", input],
-    queryFn: () => getFlakyTestSummary({ data: input }),
-  });
-
-export const flakinessTrendOptions = (input: FlakyTestsFilterInput) =>
-  queryOptions({
-    queryKey: ["flakyTests", "trend", input],
-    queryFn: () => getFlakinessTrend({ data: input }),
-  });
-
-export const flakyTestFilterOptionsOptions = () =>
-  queryOptions({
-    queryKey: ["flakyTests", "filterOptions"],
-    queryFn: () => getFlakyTestFilterOptions(),
-  });
-
-export const testHistoryOptions = (input: TestDetailInput) =>
-  queryOptions({
-    queryKey: ["flakyTests", "history", input],
-    queryFn: () => getTestHistory({ data: input }),
-  });
-
-export const runnerFlakinessOptions = (input: TestDetailInput) =>
-  queryOptions({
-    queryKey: ["flakyTests", "runnerFlakiness", input],
-    queryFn: () => getRunnerFlakiness({ data: input }),
-  });
-
-export const testDailyResultsOptions = (input: TestDetailInput) =>
-  queryOptions({
-    queryKey: ["flakyTests", "dailyResults", input],
-    queryFn: () => getTestDailyResults({ data: input }),
-  });
-
-export const flakyTestNamesOptions = (repo: string) =>
-  queryOptions({
-    queryKey: ["flakyTests", "names", repo],
-    queryFn: () => getFlakyTestNames({ data: { repo } }),
   });

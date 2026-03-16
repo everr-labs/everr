@@ -1,6 +1,6 @@
 import { type Column, DataTable } from "@/components/ui/data-table";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
-import type { CostByWorkflow } from "@/data/cost-analysis";
+import type { CostByWorkflow } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 
 interface CostByWorkflowTableProps {

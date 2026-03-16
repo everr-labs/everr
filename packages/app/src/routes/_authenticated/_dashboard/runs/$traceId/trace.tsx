@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { TraceWaterfall } from "@/components/run-detail";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { flakyTestNamesOptions } from "@/data/flaky-tests";
-import { runDetailsOptions, runSpansOptions } from "@/data/runs";
+import { flakyTestNamesOptions } from "@/data/flaky-tests/options";
+import { runDetailsOptions, runSpansOptions } from "@/data/runs/options";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/runs/$traceId/trace",

@@ -10,7 +10,7 @@ import {
   runDetailsOptions,
   runJobsOptions,
   stepLogsOptions,
-} from "@/data/runs";
+} from "@/data/runs/options";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber",

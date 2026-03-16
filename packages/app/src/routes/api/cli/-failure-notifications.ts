@@ -1,4 +1,4 @@
-import { isFailureConclusion } from "@/data/runs";
+import { isFailureConclusion } from "@/data/runs/schemas";
 import { query } from "@/lib/clickhouse";
 import { workOS } from "@/lib/workos";
 

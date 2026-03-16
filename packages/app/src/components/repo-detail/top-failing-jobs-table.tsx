@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { type Column, DataTable } from "@/components/ui/data-table";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
-import type { TopFailingJob } from "@/data/repo-detail";
+import type { TopFailingJob } from "@/data/repo-detail/schemas";
 
 interface TopFailingJobsTableProps {
   data: TopFailingJob[];

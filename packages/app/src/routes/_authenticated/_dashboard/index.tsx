@@ -17,21 +17,22 @@ import { Sparkline } from "@/components/ui/sparkline";
 import {
   durationTrendsOptions,
   successRateTrendsOptions,
-} from "@/data/analytics";
-import { costOverviewOptions, formatCost } from "@/data/cost-analysis";
+} from "@/data/analytics/options";
+import { costOverviewOptions } from "@/data/cost-analysis/options";
 import {
   dashboardDurationStatsOptions,
   dashboardStatsOptions,
   repositoriesOptions,
   topFailingJobsOptions,
   topFailingWorkflowsOptions,
-} from "@/data/dashboard-stats";
-import { latestRunsOptions } from "@/data/runs";
+} from "@/data/dashboard-stats/options";
+import { latestRunsOptions } from "@/data/runs/options";
 import {
   formatDuration,
   formatRelativeTime,
   getSuccessRateVariant,
 } from "@/lib/formatting";
+import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/")({

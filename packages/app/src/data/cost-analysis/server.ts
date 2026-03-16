@@ -1,42 +1,15 @@
-import { queryOptions } from "@tanstack/react-query";
+import { TimeRangeInputSchema } from "@/data/analytics/schemas";
 import { query } from "@/lib/clickhouse";
-import { calculateCost, formatCost } from "@/lib/runner-pricing";
+import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
-import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
-
-export { formatCost };
-
-export interface CostSummary {
-  totalCost: number;
-  totalMinutes: number;
-  totalBillingMinutes: number;
-  totalJobs: number;
-  costByOs: { os: string; cost: number; jobs: number }[];
-  selfHostedMinutes: number;
-  selfHostedJobs: number;
-}
-
-export interface CostOverTimePoint {
-  date: string;
-  totalCost: number;
-  linuxCost: number;
-  windowsCost: number;
-  macosCost: number;
-  selfHostedMinutes: number;
-}
-
-export interface CostByRunner {
-  labels: string;
-  tier: string;
-  os: string;
-  isSelfHosted: boolean;
-  totalJobs: number;
-  totalMinutes: number;
-  billingMinutes: number;
-  estimatedCost: number;
-  ratePerMinute: number;
-}
+import type {
+  CostByRepo,
+  CostByRunner,
+  CostByWorkflow,
+  CostOverTimePoint,
+  CostSummary,
+} from "./schemas";
 
 export const getCostOverview = createAuthenticatedServerFn({
   method: "GET",
@@ -179,15 +152,6 @@ export const getCostOverview = createAuthenticatedServerFn({
     return { summary, overTime, byRunner };
   });
 
-export interface CostByRepo {
-  repo: string;
-  totalJobs: number;
-  totalMinutes: number;
-  billingMinutes: number;
-  estimatedCost: number;
-  topRunner: string;
-}
-
 export const getCostByRepo = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -257,16 +221,6 @@ export const getCostByRepo = createAuthenticatedServerFn({
       .map(({ topRunnerCost: _, ...rest }) => rest)
       .sort((a, b) => b.estimatedCost - a.estimatedCost) satisfies CostByRepo[];
   });
-
-export interface CostByWorkflow {
-  repo: string;
-  workflow: string;
-  totalJobs: number;
-  totalMinutes: number;
-  billingMinutes: number;
-  estimatedCost: number;
-  avgCostPerRun: number;
-}
 
 export const getCostByWorkflow = createAuthenticatedServerFn({
   method: "GET",
@@ -348,23 +302,4 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
       .sort(
         (a, b) => b.estimatedCost - a.estimatedCost,
       ) satisfies CostByWorkflow[];
-  });
-
-// Query options factories
-export const costOverviewOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["cost", "overview", input],
-    queryFn: () => getCostOverview({ data: input }),
-  });
-
-export const costByRepoOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["cost", "byRepo", input],
-    queryFn: () => getCostByRepo({ data: input }),
-  });
-
-export const costByWorkflowOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["cost", "byWorkflow", input],
-    queryFn: () => getCostByWorkflow({ data: input }),
   });

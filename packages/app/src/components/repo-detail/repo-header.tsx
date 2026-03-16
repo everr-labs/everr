@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { RepoStats } from "@/data/repo-detail";
+import type { RepoStats } from "@/data/repo-detail/schemas";
 import { formatDuration, getSuccessRateVariant } from "@/lib/formatting";
 
 interface RepoHeaderProps {

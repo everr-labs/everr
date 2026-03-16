@@ -1,15 +1,18 @@
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
+import {
+  type TimeRangeInput,
+  TimeRangeInputSchema,
+} from "@/data/analytics/schemas";
 import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
-import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { testFullNameExpr } from "./sql-helpers";
 import {
   buildFilterConditions,
   type TestPerformanceFilterInput,
   TestPerformanceFilterSchema,
-} from "./test-performance";
+} from "./test-performance/filters";
 
 export interface TestResultsSummary {
   totalTests: number;

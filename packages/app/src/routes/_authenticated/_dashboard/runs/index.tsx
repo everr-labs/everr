@@ -4,7 +4,10 @@ import { z } from "zod";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { runFilterOptionsOptions, runsListOptions } from "@/data/runs-list";
+import {
+  runFilterOptionsOptions,
+  runsListOptions,
+} from "@/data/runs-list/options";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({

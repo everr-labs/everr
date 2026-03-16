@@ -6,11 +6,11 @@ import { Pagination } from "@/components/runs-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkflowsTable } from "@/components/workflows/workflows-table";
-import { runFilterOptionsOptions } from "@/data/runs-list";
+import { runFilterOptionsOptions } from "@/data/runs-list/options";
 import {
   workflowsListOptions,
   workflowsSparklineOptions,
-} from "@/data/workflows";
+} from "@/data/workflows/options";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/workflows/")({

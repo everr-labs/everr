@@ -1,7 +1,7 @@
 import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
-import type { LogEntry } from "@/data/runs";
+import type { LogEntry } from "@/data/runs/schemas";
 import { useLogSummarizer } from "@/hooks/use-log-summarizer";
 import { formatTimestampTimeOfDay } from "@/lib/formatting";
 import { getMarkerClass, parseLogs } from "@/lib/log-parser";

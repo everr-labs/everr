@@ -22,7 +22,7 @@ import {
   allJobsStepsOptions,
   runDetailsOptions,
   runJobsOptions,
-} from "@/data/runs";
+} from "@/data/runs/options";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute(

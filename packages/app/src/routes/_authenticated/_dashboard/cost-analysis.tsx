@@ -18,8 +18,8 @@ import {
   costByRepoOptions,
   costByWorkflowOptions,
   costOverviewOptions,
-  formatCost,
-} from "@/data/cost-analysis";
+} from "@/data/cost-analysis/options";
+import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute(

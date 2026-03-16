@@ -1,5 +1,5 @@
 import Anser from "anser";
-import type { LogEntry } from "@/data/runs";
+import type { LogEntry } from "@/data/runs/schemas";
 
 export interface ParsedLogLine {
   timestamp: string;

@@ -24,7 +24,7 @@ import {
   repoStatsOptions,
   repoSuccessRateTrendOptions,
   topFailingJobsOptions,
-} from "@/data/repo-detail";
+} from "@/data/repo-detail/options";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/repos")({

@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, expect, it, vi } from "vitest";
-import type { Span } from "@/data/runs";
+import type { Span } from "@/data/runs/schemas";
 import { TraceWaterfall } from "./trace-waterfall";
 
 // Mock resizable panels — react-resizable-panels needs browser layout APIs

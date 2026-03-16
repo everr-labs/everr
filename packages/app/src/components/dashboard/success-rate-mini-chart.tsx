@@ -11,7 +11,7 @@ import {
   createChartTooltipFormatter,
   formatChartDate,
 } from "@/components/ui/chart-helpers";
-import type { SuccessRatePoint } from "@/data/analytics";
+import type { SuccessRatePoint } from "@/data/analytics/schemas";
 
 interface SuccessRateMiniChartProps {
   data: SuccessRatePoint[];

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { LogEntry } from "@/data/runs";
+import type { LogEntry } from "@/data/runs/schemas";
 import { LogViewer } from "./log-viewer";
 
 // Mock the summarizer hook — Chrome Summarizer API not available in jsdom

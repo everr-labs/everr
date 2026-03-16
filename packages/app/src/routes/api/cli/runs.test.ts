@@ -14,7 +14,7 @@ vi.mock("./-auth", () => ({
   },
 }));
 
-import { getRunsList } from "@/data/runs-list";
+import { getRunsList } from "@/data/runs-list/server";
 import { getWatchStatus } from "@/data/watch";
 import { Route } from "./runs";
 

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
-import { runDetailsOptions } from "@/data/runs";
+import { runDetailsOptions } from "@/data/runs/options";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/runs/$traceId/",

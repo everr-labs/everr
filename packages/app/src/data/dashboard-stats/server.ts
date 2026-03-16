@@ -1,23 +1,14 @@
-import { queryOptions } from "@tanstack/react-query";
+import { TimeRangeInputSchema } from "@/data/analytics/schemas";
 import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
-import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
-
-export interface DashboardStats {
-  totalJobRuns: number;
-  successfulRuns: number;
-  failedRuns: number;
-  cancelledRuns: number;
-  successRate: number;
-}
-
-export interface Repository {
-  name: string;
-  totalRuns: number;
-  lastRunAt: string;
-  successRate: number;
-}
+import type {
+  DashboardDurationStats,
+  DashboardStats,
+  Repository,
+  TopFailingJob,
+  TopFailingWorkflow,
+} from "./schemas";
 
 export const getDashboardStats = createAuthenticatedServerFn({
   method: "GET",
@@ -120,11 +111,6 @@ export const getRepositories = createAuthenticatedServerFn({
     })) satisfies Repository[];
   });
 
-export interface DashboardDurationStats {
-  avgDuration: number;
-  p95Duration: number;
-}
-
 export const getDashboardDurationStats = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -161,12 +147,6 @@ export const getDashboardDurationStats = createAuthenticatedServerFn({
     } satisfies DashboardDurationStats;
   });
 
-export interface TopFailingJob {
-  jobName: string;
-  repo: string;
-  failureCount: number;
-}
-
 export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -202,12 +182,6 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
       failureCount: Number(row.failureCount),
     })) satisfies TopFailingJob[];
   });
-
-export interface TopFailingWorkflow {
-  workflowName: string;
-  repo: string;
-  failureCount: number;
-}
 
 export const getTopFailingWorkflows = createAuthenticatedServerFn({
   method: "GET",
@@ -250,35 +224,4 @@ export const getTopFailingWorkflows = createAuthenticatedServerFn({
       repo: row.repo,
       failureCount: Number(row.failureCount),
     })) satisfies TopFailingWorkflow[];
-  });
-
-// Query options factories
-export const dashboardStatsOptions = ({ timeRange }: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["dashboard", "stats", timeRange],
-    queryFn: () => getDashboardStats({ data: { timeRange } }),
-  });
-
-export const dashboardDurationStatsOptions = ({ timeRange }: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["dashboard", "durationStats", timeRange],
-    queryFn: () => getDashboardDurationStats({ data: { timeRange } }),
-  });
-
-export const repositoriesOptions = ({ timeRange }: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["dashboard", "repositories", timeRange],
-    queryFn: () => getRepositories({ data: { timeRange } }),
-  });
-
-export const topFailingJobsOptions = ({ timeRange }: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["dashboard", "topFailingJobs", timeRange],
-    queryFn: () => getTopFailingJobs({ data: { timeRange } }),
-  });
-
-export const topFailingWorkflowsOptions = ({ timeRange }: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["dashboard", "topFailingWorkflows", timeRange],
-    queryFn: () => getTopFailingWorkflows({ data: { timeRange } }),
   });

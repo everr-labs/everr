@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { Span } from "@/data/runs";
+import type { Span } from "@/data/runs/schemas";
 import { formatDuration } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";

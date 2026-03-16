@@ -1,108 +1,22 @@
-import { queryOptions } from "@tanstack/react-query";
-import { z } from "zod";
 import { query } from "@/lib/clickhouse";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { resolveTimeRange, toClickHouseDateTime } from "@/lib/time-range";
+import { runSummarySubquery } from "../run-query-helpers";
+import type { RunListItem } from "../runs-list/schemas";
 import {
-  resolveTimeRange,
-  TimeRangeSchema,
-  toClickHouseDateTime,
-} from "@/lib/time-range";
-import { runSummarySubquery } from "./run-query-helpers";
-import type { RunListItem } from "./runs-list";
-
-// ── Types ───────────────────────────────────────────────────────────────
-
-export interface WorkflowListItem {
-  workflowName: string;
-  repo: string;
-  totalRuns: number;
-  successRate: number;
-  avgDuration: number;
-  lastRunAt: string;
-  prevTotalRuns: number;
-  prevSuccessRate: number;
-  prevAvgDuration: number;
-}
-
-export interface WorkflowsListResult {
-  workflows: WorkflowListItem[];
-  totalCount: number;
-}
-
-export interface WorkflowSparklineBucket {
-  date: string;
-  totalRuns: number;
-  successRate: number;
-  avgDuration: number;
-}
-
-export interface WorkflowSparklineData {
-  workflowName: string;
-  repo: string;
-  buckets: WorkflowSparklineBucket[];
-}
-
-export interface WorkflowStats {
-  totalRuns: number;
-  successRate: number;
-  avgDuration: number;
-  p95Duration: number;
-  prevTotalRuns: number;
-  prevSuccessRate: number;
-  prevAvgDuration: number;
-}
-
-export interface WorkflowTrendPoint {
-  date: string;
-  totalRuns: number;
-  successRate: number;
-  successCount: number;
-  failureCount: number;
-}
-
-export interface WorkflowDurationTrendPoint {
-  date: string;
-  avgDuration: number;
-  p95Duration: number;
-}
-
-export interface WorkflowFailingJob {
-  jobName: string;
-  failureCount: number;
-  totalRuns: number;
-  successRate: number;
-}
-
-export interface WorkflowFailureReason {
-  pattern: string;
-  count: number;
-  lastOccurrence: string;
-}
-
-// ── Input Schemas ───────────────────────────────────────────────────────
-
-const WorkflowsListInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  page: z.coerce.number().int().min(1),
-  pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  repo: z.string().optional(),
-  search: z.string().optional(),
-});
-export type WorkflowsListInput = z.infer<typeof WorkflowsListInputSchema>;
-
-const WorkflowsSparklineInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  workflows: z.array(z.object({ workflowName: z.string(), repo: z.string() })),
-});
-type WorkflowsSparklineInput = z.infer<typeof WorkflowsSparklineInputSchema>;
-
-const WorkflowDetailInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  workflowName: z.string(),
-  repo: z.string(),
-});
-type WorkflowDetailInput = z.infer<typeof WorkflowDetailInputSchema>;
+  type WorkflowCost,
+  WorkflowDetailInputSchema,
+  type WorkflowDurationTrendPoint,
+  type WorkflowFailingJob,
+  type WorkflowFailureReason,
+  type WorkflowSparklineData,
+  type WorkflowStats,
+  WorkflowsListInputSchema,
+  type WorkflowsListResult,
+  WorkflowsSparklineInputSchema,
+  type WorkflowTrendPoint,
+} from "./schemas";
 
 // ── List Page Queries ───────────────────────────────────────────────────
 
@@ -608,13 +522,6 @@ export const getWorkflowFailureReasons = createAuthenticatedServerFn({
     })) satisfies WorkflowFailureReason[];
   });
 
-export interface WorkflowCost {
-  totalCost: number;
-  totalMinutes: number;
-  prevTotalCost: number;
-  overTime: number[];
-}
-
 export const getWorkflowCost = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -806,61 +713,4 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
       sender: row.sender,
       jobCount: Number(row.jobCount),
     })) satisfies RunListItem[];
-  });
-
-// ── Query Options Factories ─────────────────────────────────────────────
-
-export const workflowsListOptions = (input: WorkflowsListInput) =>
-  queryOptions({
-    queryKey: ["workflows", "list", input],
-    queryFn: () => getWorkflowsList({ data: input }),
-  });
-
-export const workflowsSparklineOptions = (input: WorkflowsSparklineInput) =>
-  queryOptions({
-    queryKey: ["workflows", "sparklines", input],
-    queryFn: () => getWorkflowsSparklines({ data: input }),
-    enabled: input.workflows.length > 0,
-  });
-
-export const workflowStatsOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "stats", input],
-    queryFn: () => getWorkflowStats({ data: input }),
-  });
-
-export const workflowSuccessRateTrendOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "successRateTrend", input],
-    queryFn: () => getWorkflowSuccessRateTrend({ data: input }),
-  });
-
-export const workflowDurationTrendOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "durationTrend", input],
-    queryFn: () => getWorkflowDurationTrend({ data: input }),
-  });
-
-export const workflowTopFailingJobsOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "topFailingJobs", input],
-    queryFn: () => getWorkflowTopFailingJobs({ data: input }),
-  });
-
-export const workflowFailureReasonsOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "failureReasons", input],
-    queryFn: () => getWorkflowFailureReasons({ data: input }),
-  });
-
-export const workflowCostOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "cost", input],
-    queryFn: () => getWorkflowCost({ data: input }),
-  });
-
-export const workflowRecentRunsOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "recentRuns", input],
-    queryFn: () => getWorkflowRecentRuns({ data: input }),
   });
