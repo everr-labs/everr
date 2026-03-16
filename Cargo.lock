@@ -963,6 +963,7 @@ dependencies = [
  "tempfile",
  "time",
  "tokio",
+ "url",
  "webbrowser",
 ]
 

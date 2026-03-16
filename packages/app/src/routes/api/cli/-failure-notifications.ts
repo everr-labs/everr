@@ -2,10 +2,8 @@ import { isFailureConclusion } from "@/data/runs/schemas";
 import { pool } from "@/db/client";
 import { query } from "@/lib/clickhouse";
 import { parseTimestampAsUTC } from "@/lib/formatting";
-import { workOS } from "@/lib/workos";
 
 const FAILURE_LIMIT = 100;
-export const TIME_WINDOW_MINUTES = 30;
 const FAILURE_RESULT_CONDITION = `
   (
     lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
@@ -56,12 +54,6 @@ export type FailureNotification = {
   autoFixPrompt?: string;
 };
 
-export type TrayStatusResponse = {
-  failures: FailureNotification[];
-  dashboardUrl: string | null;
-  autoFixPrompt: string | null;
-};
-
 type FailureNotificationsOptions = {
   tenantId: number;
   gitEmail: string;
@@ -72,26 +64,6 @@ type FailureNotificationsOptions = {
   unresolvedOnly?: boolean;
   preloadNotificationContext?: boolean;
 };
-
-export async function getVerifiedCliUserEmail(
-  userId: string,
-  expectedGitEmail?: string,
-): Promise<string | null> {
-  const user = await workOS.userManagement.getUser(userId);
-  if (!user.emailVerified) {
-    return null;
-  }
-
-  const verifiedEmail = user.email.trim().toLowerCase();
-  if (expectedGitEmail) {
-    const requestedEmail = expectedGitEmail.trim().toLowerCase();
-    if (verifiedEmail !== requestedEmail) {
-      return null;
-    }
-  }
-
-  return verifiedEmail;
-}
 
 export async function getFailureNotifications({
   tenantId,
@@ -150,14 +122,6 @@ export async function getFailureNotifications({
     ...notification,
     autoFixPrompt: buildAutoFixPrompt([notification]),
   }));
-}
-
-export function buildFailedRunsDashboardUrl(origin: string): string {
-  const url = new URL("/runs", origin);
-  url.searchParams.set("conclusion", "failure");
-  url.searchParams.set("from", `now-${TIME_WINDOW_MINUTES}m`);
-  url.searchParams.set("to", "now");
-  return url.toString();
 }
 
 export function buildAutoFixPrompt(failures: FailureNotification[]): string {
