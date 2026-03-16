@@ -47,7 +47,7 @@ vi.mock("@/data/onboarding", () => ({
 
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 import { createOrganizationForCurrentUser } from "@/data/onboarding";
-import { Route } from "../onboarding.organization";
+import { Route } from "../_onboarding/onboarding.organization";
 
 const mockedGetAuth = vi.mocked(getAuth);
 const mockedGetSignInUrl = vi.mocked(getSignInUrl);

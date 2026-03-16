@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie } from "@tanstack/react-start/server";
 import { getAuth } from "@workos/authkit-tanstack-react-start";
 import { z } from "zod";
-import { getWorkOS } from "@/lib/workos";
+import { workOS } from "@/lib/workos";
 
 const DeleteCurrentUserAccountInputSchema = z.object({
   confirmation: z.literal("DELETE"),
@@ -18,10 +18,8 @@ export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
       throw new Error("You need to sign in before updating your account.");
     }
 
-    const workos = getWorkOS();
-
     try {
-      await workos.userManagement.deleteUser(auth.user.id);
+      await workOS.userManagement.deleteUser(auth.user.id);
     } catch (error) {
       console.error("[account-settings] account_delete_failed", {
         requestId,
@@ -35,7 +33,7 @@ export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
 
     if (auth.sessionId) {
       try {
-        await workos.userManagement.revokeSession({
+        await workOS.userManagement.revokeSession({
           sessionId: auth.sessionId,
         });
       } catch (error) {

@@ -6,7 +6,14 @@ vi.mock("@workos/authkit-tanstack-react-start", () => ({
 }));
 
 vi.mock("@/lib/workos", () => ({
-  getWorkOS: vi.fn(),
+  workOS: {
+    organizations: {
+      createOrganization: vi.fn(),
+    },
+    userManagement: {
+      createOrganizationMembership: vi.fn(),
+    },
+  },
 }));
 
 vi.mock("@/data/tenants", () => ({
@@ -19,31 +26,23 @@ import {
 } from "@workos/authkit-tanstack-react-start";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import { ensureTenantForOrganizationId } from "@/data/tenants";
-import { getWorkOS } from "@/lib/workos";
+import { workOS } from "@/lib/workos";
 import { createOrganizationForCurrentUser } from "./onboarding";
 
 const mockedGetAuth = vi.mocked(getAuth);
 const mockedSwitchToOrganization = vi.mocked(switchToOrganization);
-const mockedGetWorkOS = vi.mocked(getWorkOS);
 const mockedEnsureTenantForOrganizationId = vi.mocked(
   ensureTenantForOrganizationId,
 );
 
-const createOrganization = vi.fn();
-const createOrganizationMembership = vi.fn();
+const createOrganization = vi.mocked(workOS.organizations.createOrganization);
+const createOrganizationMembership = vi.mocked(
+  workOS.userManagement.createOrganizationMembership,
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockedEnsureTenantForOrganizationId.mockResolvedValue(1);
-
-  mockedGetWorkOS.mockReturnValue({
-    organizations: {
-      createOrganization,
-    },
-    userManagement: {
-      createOrganizationMembership,
-    },
-  } as never);
 });
 
 describe("createOrganizationForCurrentUser", () => {
@@ -54,7 +53,7 @@ describe("createOrganizationForCurrentUser", () => {
       createOrganizationForCurrentUser({ data: { organizationName: "Acme" } }),
     ).rejects.toThrow("You need to sign in before creating an organization.");
 
-    expect(mockedGetWorkOS).not.toHaveBeenCalled();
+    expect(createOrganization).not.toHaveBeenCalled();
   });
 
   it("does not create org when user already has an organization", async () => {
@@ -67,7 +66,7 @@ describe("createOrganizationForCurrentUser", () => {
       data: { organizationName: "Ignored Name" },
     });
 
-    expect(mockedGetWorkOS).not.toHaveBeenCalled();
+    expect(createOrganization).not.toHaveBeenCalled();
     expect(createOrganization).not.toHaveBeenCalled();
     expect(createOrganizationMembership).not.toHaveBeenCalled();
     expect(mockedEnsureTenantForOrganizationId).toHaveBeenCalledWith(

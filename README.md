@@ -10,7 +10,7 @@
 
 1. Install and setup [`devtunnels`](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/get-started?tabs=macos#install).
 2. Login via `devtunnel user login`
-3. Create a tunnel via `devtunnel create -a -d 'Everr app' everr`
+3. Create a tunnel via `devtunnel create -a -d 'Everr app'`
 4. Configure the tunnel `devtunnel port create -p 5173`
 5. Start the tunnel `devtunnel host`
 

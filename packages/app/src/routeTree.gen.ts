@@ -10,14 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignoutRouteImport } from './routes/signout'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
-import { Route as OnboardingOrganizationRouteImport } from './routes/onboarding.organization'
-import { Route as OnboardingGithubSuccessRouteImport } from './routes/onboarding.github-success'
-import { Route as OnboardingGithubRouteImport } from './routes/onboarding.github'
-import { Route as OnboardingAppRouteImport } from './routes/onboarding.app'
 import { Route as DashboardUsersManagementRouteImport } from './routes/dashboard/users-management'
 import { Route as DashboardTestsOverviewRouteImport } from './routes/dashboard/tests-overview'
 import { Route as DashboardRunsRouteImport } from './routes/dashboard/runs'
@@ -55,6 +52,11 @@ const SignoutRoute = SignoutRouteImport.update({
   path: '/signout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -73,26 +75,6 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
 const WebhookGithubRoute = WebhookGithubRouteImport.update({
   id: '/webhook/github',
   path: '/webhook/github',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingOrganizationRoute = OnboardingOrganizationRouteImport.update({
-  id: '/onboarding/organization',
-  path: '/onboarding/organization',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingGithubSuccessRoute = OnboardingGithubSuccessRouteImport.update({
-  id: '/onboarding/github-success',
-  path: '/onboarding/github-success',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingGithubRoute = OnboardingGithubRouteImport.update({
-  id: '/onboarding/github',
-  path: '/onboarding/github',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingAppRoute = OnboardingAppRouteImport.update({
-  id: '/onboarding/app',
-  path: '/onboarding/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardUsersManagementRoute =
@@ -262,6 +244,7 @@ const DashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/onboarding': typeof OnboardingRoute
   '/signout': typeof SignoutRoute
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
@@ -271,10 +254,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
-  '/onboarding/app': typeof OnboardingAppRoute
-  '/onboarding/github': typeof OnboardingGithubRoute
-  '/onboarding/github-success': typeof OnboardingGithubSuccessRoute
-  '/onboarding/organization': typeof OnboardingOrganizationRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
@@ -303,6 +282,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/onboarding': typeof OnboardingRoute
   '/signout': typeof SignoutRoute
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
@@ -311,10 +291,6 @@ export interface FileRoutesByTo {
   '/dashboard/repos': typeof DashboardReposRoute
   '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
-  '/onboarding/app': typeof OnboardingAppRoute
-  '/onboarding/github': typeof OnboardingGithubRoute
-  '/onboarding/github-success': typeof OnboardingGithubSuccessRoute
-  '/onboarding/organization': typeof OnboardingOrganizationRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -344,6 +320,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/onboarding': typeof OnboardingRoute
   '/signout': typeof SignoutRoute
   '/api/health': typeof ApiHealthRoute
   '/cli/device': typeof CliDeviceRoute
@@ -353,10 +330,6 @@ export interface FileRoutesById {
   '/dashboard/runs': typeof DashboardRunsRouteWithChildren
   '/dashboard/tests-overview': typeof DashboardTestsOverviewRoute
   '/dashboard/users-management': typeof DashboardUsersManagementRoute
-  '/onboarding/app': typeof OnboardingAppRoute
-  '/onboarding/github': typeof OnboardingGithubRoute
-  '/onboarding/github-success': typeof OnboardingGithubSuccessRoute
-  '/onboarding/organization': typeof OnboardingOrganizationRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/runs/$traceId': typeof DashboardRunsTraceIdRouteRouteWithChildren
@@ -388,6 +361,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/onboarding'
     | '/signout'
     | '/api/health'
     | '/cli/device'
@@ -397,10 +371,6 @@ export interface FileRouteTypes {
     | '/dashboard/runs'
     | '/dashboard/tests-overview'
     | '/dashboard/users-management'
-    | '/onboarding/app'
-    | '/onboarding/github'
-    | '/onboarding/github-success'
-    | '/onboarding/organization'
     | '/webhook/github'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
@@ -429,6 +399,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/onboarding'
     | '/signout'
     | '/api/health'
     | '/cli/device'
@@ -437,10 +408,6 @@ export interface FileRouteTypes {
     | '/dashboard/repos'
     | '/dashboard/tests-overview'
     | '/dashboard/users-management'
-    | '/onboarding/app'
-    | '/onboarding/github'
-    | '/onboarding/github-success'
-    | '/onboarding/organization'
     | '/webhook/github'
     | '/dashboard'
     | '/api/auth/callback'
@@ -469,6 +436,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/onboarding'
     | '/signout'
     | '/api/health'
     | '/cli/device'
@@ -478,10 +446,6 @@ export interface FileRouteTypes {
     | '/dashboard/runs'
     | '/dashboard/tests-overview'
     | '/dashboard/users-management'
-    | '/onboarding/app'
-    | '/onboarding/github'
-    | '/onboarding/github-success'
-    | '/onboarding/organization'
     | '/webhook/github'
     | '/dashboard/'
     | '/dashboard/runs/$traceId'
@@ -512,13 +476,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  OnboardingRoute: typeof OnboardingRoute
   SignoutRoute: typeof SignoutRoute
   ApiHealthRoute: typeof ApiHealthRoute
   CliDeviceRoute: typeof CliDeviceRoute
-  OnboardingAppRoute: typeof OnboardingAppRoute
-  OnboardingGithubRoute: typeof OnboardingGithubRoute
-  OnboardingGithubSuccessRoute: typeof OnboardingGithubSuccessRoute
-  OnboardingOrganizationRoute: typeof OnboardingOrganizationRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliGrepRoute: typeof ApiCliGrepRoute
@@ -542,6 +503,13 @@ declare module '@tanstack/react-router' {
       path: '/signout'
       fullPath: '/signout'
       preLoaderRoute: typeof SignoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -570,34 +538,6 @@ declare module '@tanstack/react-router' {
       path: '/webhook/github'
       fullPath: '/webhook/github'
       preLoaderRoute: typeof WebhookGithubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding/organization': {
-      id: '/onboarding/organization'
-      path: '/onboarding/organization'
-      fullPath: '/onboarding/organization'
-      preLoaderRoute: typeof OnboardingOrganizationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding/github-success': {
-      id: '/onboarding/github-success'
-      path: '/onboarding/github-success'
-      fullPath: '/onboarding/github-success'
-      preLoaderRoute: typeof OnboardingGithubSuccessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding/github': {
-      id: '/onboarding/github'
-      path: '/onboarding/github'
-      fullPath: '/onboarding/github'
-      preLoaderRoute: typeof OnboardingGithubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding/app': {
-      id: '/onboarding/app'
-      path: '/onboarding/app'
-      fullPath: '/onboarding/app'
-      preLoaderRoute: typeof OnboardingAppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/users-management': {
@@ -911,13 +851,10 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  OnboardingRoute: OnboardingRoute,
   SignoutRoute: SignoutRoute,
   ApiHealthRoute: ApiHealthRoute,
   CliDeviceRoute: CliDeviceRoute,
-  OnboardingAppRoute: OnboardingAppRoute,
-  OnboardingGithubRoute: OnboardingGithubRoute,
-  OnboardingGithubSuccessRoute: OnboardingGithubSuccessRoute,
-  OnboardingOrganizationRoute: OnboardingOrganizationRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliGrepRoute: ApiCliGrepRoute,

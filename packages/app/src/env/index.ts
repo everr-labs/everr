@@ -1,12 +1,13 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 
-import { clickhouseEnv } from "./clickhouse.env";
-import { dbEnv } from "./db.env";
-import { githubEnv } from "./github.env";
+import { clickhouseEnv } from "../clickhouse.env";
+import { dbEnv } from "./db";
+import { githubEnv } from "./github";
+import { workOsEnv } from "./workos";
 
 export const env = createEnv({
-  extends: [dbEnv, clickhouseEnv, githubEnv],
+  extends: [dbEnv, clickhouseEnv, githubEnv, workOsEnv],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
   },
