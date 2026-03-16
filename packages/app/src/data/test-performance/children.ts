@@ -1,6 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { testFullNameExpr } from "../sql-helpers";
@@ -14,9 +13,9 @@ export interface TestPerfFilterOptions {
 // Server function: filter options (repos + branches from last 90 days)
 export const getTestPerfFilterOptions = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async () => {
+}).handler(async ({ context: { clickhouse } }) => {
   const [repos, branches] = await Promise.all([
-    query<{ repo: string }>(
+    clickhouse.query<{ repo: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
       FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
@@ -25,7 +24,7 @@ export const getTestPerfFilterOptions = createAuthenticatedServerFn({
       ORDER BY repo
       LIMIT 100`,
     ),
-    query<{ branch: string }>(
+    clickhouse.query<{ branch: string }>(
       `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
       FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
@@ -73,7 +72,7 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerfChildrenInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
     const baseConditions = [
@@ -187,7 +186,7 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
         ORDER BY pkg_name
       `;
 
-      const result = await query<{
+      const result = await clickhouse.query<{
         name: string;
         is_suite: number;
         executions: string;
@@ -254,7 +253,7 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
       ORDER BY c.name
     `;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       name: string;
       is_suite: number;
       executions: string;

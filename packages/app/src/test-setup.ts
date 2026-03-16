@@ -6,7 +6,7 @@ import { afterEach, vi } from "vitest";
 // Helpers
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: Shared test harness needs a loose function signature.
 type AnyFn = (...args: any[]) => any;
 
 /** Build a fluent chain where handler(fn) wraps fn with `wrapHandler`. */
@@ -36,6 +36,23 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// ClickHouse — default test double so jsdom tests never import the real server
+// client and trigger env access. Individual tests can override this mock.
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/clickhouse", () => {
+  const query = vi.fn();
+
+  return {
+    query,
+    createClickhouseQuery: vi.fn(
+      (tenantId: number) => (sql: string, params?: Record<string, unknown>) =>
+        query(sql, params, tenantId),
+    ),
+  };
+});
+
+// ---------------------------------------------------------------------------
 // @/lib/serverFn — authenticated server functions get auth context injected
 // from getAuth(), with the same guards as the real authMiddleware.
 // ---------------------------------------------------------------------------
@@ -44,17 +61,22 @@ vi.mock("@/lib/serverFn", () => ({
   createAuthenticatedServerFn: vi.fn(() =>
     makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
       const { getAuth } = await import("@workos/authkit-tanstack-react-start");
+      const { query } = await import("@/lib/clickhouse");
       const auth = await getAuth();
       if (!auth?.user) throw new Error("Unauthenticated");
       if (!auth?.organizationId) throw new Error("Missing organization");
       return fn({
         data: opts?.data,
         context: {
-          auth: { ...auth, organizationId: auth.organizationId },
           session: {
             userId: auth.user.id,
             organizationId: auth.organizationId,
             sessionId: auth.sessionId,
+            tenantId: 42,
+          },
+          clickhouse: {
+            query: <T>(sql: string, params?: Record<string, unknown>) =>
+              query<T>(sql, params, 42),
           },
         },
       });

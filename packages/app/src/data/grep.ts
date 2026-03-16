@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   isValidDatemath,
@@ -430,7 +429,7 @@ export const getGrepMatches = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(GrepInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const timeRangeError = getGrepTimeRangeValidationError(data.timeRange);
     if (timeRangeError) {
       throw new Error(timeRangeError);
@@ -439,7 +438,7 @@ export const getGrepMatches = createAuthenticatedServerFn({
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const { params, whereClause } = buildGrepSqlParts(data, fromISO, toISO);
 
-    const branchRows = await query<GrepBranchRow>(
+    const branchRows = await clickhouse.query<GrepBranchRow>(
       buildBranchSummarySql(whereClause),
       {
         ...params,
@@ -453,7 +452,7 @@ export const getGrepMatches = createAuthenticatedServerFn({
     }
 
     const branches = branchRows.map((row) => row.branch);
-    const detailRows = await query<GrepDetailRow>(
+    const detailRows = await clickhouse.query<GrepDetailRow>(
       buildOccurrenceDetailsSql(whereClause),
       {
         ...params,

@@ -1,5 +1,4 @@
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import type {
@@ -12,7 +11,7 @@ export const getFailurePatterns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -34,7 +33,7 @@ export const getFailurePatterns = createAuthenticatedServerFn({
 			LIMIT 30
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       pattern: string;
       count: string;
       affectedRepos: string[];
@@ -59,7 +58,7 @@ export const getFailureTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -76,7 +75,7 @@ export const getFailureTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       totalFailures: string;
       uniquePatterns: string;
@@ -93,7 +92,7 @@ export const getFailuresByRepo = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -112,7 +111,7 @@ export const getFailuresByRepo = createAuthenticatedServerFn({
 			LIMIT 20
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       repo: string;
       failureCount: string;
       topPatterns: string[];

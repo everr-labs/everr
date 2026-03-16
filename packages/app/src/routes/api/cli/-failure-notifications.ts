@@ -1,11 +1,9 @@
 import { isFailureConclusion } from "@/data/runs/schemas";
 import { pool } from "@/db/client";
-import { query } from "@/lib/clickhouse";
+import type { AuthContext } from "@/lib/auth-context";
 import { parseTimestampAsUTC } from "@/lib/formatting";
-import { workOS } from "@/lib/workos";
 
 const FAILURE_LIMIT = 100;
-export const TIME_WINDOW_MINUTES = 30;
 const FAILURE_RESULT_CONDITION = `
   (
     lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
@@ -56,14 +54,8 @@ export type FailureNotification = {
   autoFixPrompt?: string;
 };
 
-export type TrayStatusResponse = {
-  failures: FailureNotification[];
-  dashboardUrl: string | null;
-  autoFixPrompt: string | null;
-};
-
 type FailureNotificationsOptions = {
-  tenantId: number;
+  context: AuthContext;
   gitEmail: string;
   origin: string;
   timeWindowMinutes: number;
@@ -73,28 +65,8 @@ type FailureNotificationsOptions = {
   preloadNotificationContext?: boolean;
 };
 
-export async function getVerifiedCliUserEmail(
-  userId: string,
-  expectedGitEmail?: string,
-): Promise<string | null> {
-  const user = await workOS.userManagement.getUser(userId);
-  if (!user.emailVerified) {
-    return null;
-  }
-
-  const verifiedEmail = user.email.trim().toLowerCase();
-  if (expectedGitEmail) {
-    const requestedEmail = expectedGitEmail.trim().toLowerCase();
-    if (verifiedEmail !== requestedEmail) {
-      return null;
-    }
-  }
-
-  return verifiedEmail;
-}
-
 export async function getFailureNotifications({
-  tenantId,
+  context,
   gitEmail,
   origin,
   timeWindowMinutes,
@@ -103,7 +75,7 @@ export async function getFailureNotifications({
   unresolvedOnly = false,
   preloadNotificationContext = false,
 }: FailureNotificationsOptions): Promise<FailureNotification[]> {
-  const failures = await loadFailureRuns({
+  const failures = await loadFailureRuns(context, {
     gitEmail,
     timeWindowMinutes,
     repo,
@@ -114,13 +86,14 @@ export async function getFailureNotifications({
   }
 
   const unresolvedFailures = unresolvedOnly
-    ? await filterUnresolvedFailures(failures, tenantId, timeWindowMinutes)
+    ? await filterUnresolvedFailures(context, failures, timeWindowMinutes)
     : failures;
   if (unresolvedFailures.length === 0) {
     return [];
   }
 
   const firstFailingStepByTraceId = await loadFirstFailingSteps(
+    context,
     unresolvedFailures.map((row) => row.traceId),
   );
 
@@ -150,14 +123,6 @@ export async function getFailureNotifications({
     ...notification,
     autoFixPrompt: buildAutoFixPrompt([notification]),
   }));
-}
-
-export function buildFailedRunsDashboardUrl(origin: string): string {
-  const url = new URL("/runs", origin);
-  url.searchParams.set("conclusion", "failure");
-  url.searchParams.set("from", `now-${TIME_WINDOW_MINUTES}m`);
-  url.searchParams.set("to", "now");
-  return url.toString();
 }
 
 export function buildAutoFixPrompt(failures: FailureNotification[]): string {
@@ -214,17 +179,21 @@ export function buildAutoFixPrompt(failures: FailureNotification[]): string {
   return sections.join("\n");
 }
 
-async function loadFailureRuns({
-  gitEmail,
-  timeWindowMinutes,
-  repo,
-  branch,
-}: {
-  gitEmail: string;
-  timeWindowMinutes: number;
-  repo?: string;
-  branch?: string;
-}): Promise<FailureRunRow[]> {
+async function loadFailureRuns(
+  context: AuthContext,
+  {
+    gitEmail,
+    timeWindowMinutes,
+    repo,
+    branch,
+  }: {
+    gitEmail: string;
+    timeWindowMinutes: number;
+    repo?: string;
+    branch?: string;
+  },
+): Promise<FailureRunRow[]> {
+  const clickhouse = context.clickhouse;
   const conditions = [
     `Timestamp >= now() - INTERVAL ${timeWindowMinutes} MINUTE`,
     "ResourceAttributes['cicd.pipeline.run.id'] != ''",
@@ -249,7 +218,7 @@ async function loadFailureRuns({
     params.branch = branch;
   }
 
-  return query<FailureRunRow>(
+  return clickhouse.query<FailureRunRow>(
     `
       SELECT
         TraceId as traceId,
@@ -269,14 +238,16 @@ async function loadFailureRuns({
 }
 
 async function loadFirstFailingSteps(
+  context: AuthContext,
   traceIds: string[],
 ): Promise<Map<string, FirstFailingStep>> {
+  const clickhouse = context.clickhouse;
   if (traceIds.length === 0) {
     return new Map();
   }
 
   const [failedJobsResult, stepsResult] = await Promise.all([
-    query<{
+    clickhouse.query<{
       trace_id: string;
       jobId: string;
     }>(
@@ -296,7 +267,7 @@ async function loadFirstFailingSteps(
         traceIds,
       },
     ),
-    query<{
+    clickhouse.query<{
       trace_id: string;
       jobId: string;
       jobName: string;
@@ -398,17 +369,18 @@ async function loadFirstFailingSteps(
 }
 
 async function filterUnresolvedFailures(
+  context: AuthContext,
   failures: FailureRunRow[],
-  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<FailureRunRow[]> {
   const successfulRuns = await loadSuccessfulRunsForScopes(
+    context,
     failures,
     timeWindowMinutes,
   );
   const activeRuns = await loadActiveRunsForScopes(
+    context,
     failures,
-    tenantId,
     timeWindowMinutes,
   );
   const candidatesByScope = groupCandidateRunsByScope([
@@ -434,9 +406,11 @@ async function filterUnresolvedFailures(
 }
 
 async function loadSuccessfulRunsForScopes(
+  context: AuthContext,
   failures: FailureRunRow[],
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
+  const clickhouse = context.clickhouse;
   const scopeFilter = buildScopeFilter(
     failures.map((failure) => ({
       repo: failure.repo,
@@ -446,7 +420,7 @@ async function loadSuccessfulRunsForScopes(
     "ResourceAttributes['vcs.ref.head.name']",
   );
 
-  return query<CandidateRunRow>(
+  return clickhouse.query<CandidateRunRow>(
     `
       SELECT
         anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,
@@ -465,8 +439,8 @@ async function loadSuccessfulRunsForScopes(
 }
 
 async function loadActiveRunsForScopes(
+  context: AuthContext,
   failures: FailureRunRow[],
-  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
   const scopeKeys = new Set(
@@ -485,7 +459,7 @@ async function loadActiveRunsForScopes(
         AND status != 'completed'
         AND last_event_at >= NOW() - make_interval(mins => $2)
     `,
-    [tenantId, timeWindowMinutes],
+    [context.session.tenantId, timeWindowMinutes],
   );
 
   return result.rows.filter((run) =>

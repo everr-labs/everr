@@ -13,8 +13,7 @@ export interface RunListItem {
   timestamp: string;
   sender: string;
   headSha?: string;
-  jobCount: number;
-  failingSteps?: FailingStepSummary[];
+  jobCount?: number;
 }
 
 export interface RunsListResult {
@@ -22,43 +21,16 @@ export interface RunsListResult {
   totalCount: number;
 }
 
-export interface FailingStepSummary {
-  jobName: string;
-  jobId: string;
-  stepNumber: number;
-  stepName: string;
-}
-
-export const RunsListInputSchema = z
-  .object({
-    timeRange: TimeRangeSchema,
-    page: z.coerce.number().int().min(1).optional(),
-    pageSize: z.coerce.number().int().min(1).max(100).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional(),
-    offset: z.coerce.number().int().min(0).optional(),
-    repo: z.string().optional(),
-    branch: z.string().optional(),
-    conclusion: z.string().optional(),
-    workflowName: z.string().optional(),
-    runId: z.string().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.page !== undefined && value.offset !== undefined) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Provide either page or offset, not both.",
-        path: ["offset"],
-      });
-    }
-
-    if (value.limit !== undefined && value.pageSize !== undefined) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Provide either limit or pageSize, not both.",
-        path: ["limit"],
-      });
-    }
-  });
+export const RunsListInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  repo: z.string().optional(),
+  branch: z.string().optional(),
+  conclusion: z.enum(["success", "failure", "cancellation"]).optional(),
+  workflowName: z.string().optional(),
+  runId: z.string().optional(),
+});
 export type RunsListInput = z.infer<typeof RunsListInputSchema>;
 
 export interface FilterOptions {

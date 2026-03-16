@@ -1,4 +1,3 @@
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import {
@@ -14,7 +13,7 @@ export const getDurationTrends = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -33,7 +32,7 @@ export const getDurationTrends = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       avgDuration: string;
       p50Duration: string;
@@ -55,7 +54,7 @@ export const getQueueTimeAnalysis = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -86,7 +85,7 @@ export const getQueueTimeAnalysis = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       avgQueueTime: string;
       p50QueueTime: string;
@@ -108,7 +107,7 @@ export const getSuccessRateTrends = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -133,7 +132,7 @@ export const getSuccessRateTrends = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       successRate: string;
       totalRuns: string;
@@ -155,7 +154,7 @@ export const getRunnerUtilization = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -174,7 +173,7 @@ export const getRunnerUtilization = createAuthenticatedServerFn({
 			LIMIT 20
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       labels: string;
       totalJobs: string;
       avgDuration: string;

@@ -1,229 +1,163 @@
-import { query } from "@/lib/clickhouse";
+import { pool } from "@/db/client";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { runSummarySubquery } from "../run-query-helpers";
-import {
-  type FailingStepSummary,
-  type FilterOptions,
-  type RunListItem,
-  type RunSearchResult,
-  RunsListInputSchema,
-  type RunsListResult,
-  SearchRunsInputSchema,
-} from "./schemas";
+import type { FilterOptions, RunListItem, RunsListResult } from "./schemas";
+import { RunsListInputSchema, SearchRunsInputSchema } from "./schemas";
+
+const RECENT_COMPLETED_WINDOW_SQL = "INTERVAL '90 days'";
+
+type WorkflowRunRow = {
+  traceId: string;
+  runId: string | number;
+  runAttempt: number;
+  workflowName: string;
+  repo: string;
+  branch: string;
+  conclusion: string | null;
+  startedAt: string | Date | null;
+  completedAt: string | Date | null;
+  lastEventAt: string | Date;
+  sender: string | null;
+};
+
+type FilterRow = {
+  value: string;
+};
 
 export const getRunsList = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RunsListInputSchema)
-  .handler(async ({ data }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const limit = data.limit ?? data.pageSize ?? 20;
-    const offset = data.offset ?? ((data.page ?? 1) - 1) * limit;
-
-    const conditions: string[] = [
-      "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
-      "ResourceAttributes['cicd.pipeline.run.id'] != ''",
-      "ResourceAttributes['cicd.pipeline.task.run.result'] != ''",
-      "SpanAttributes['everr.github.workflow_job_step.number'] = ''",
-      "SpanAttributes['everr.test.name'] = ''",
+  .handler(async ({ data, context: { session } }) => {
+    const { fromDate, toDate } = resolveTimeRange(data.timeRange);
+    const timestampExpr = "COALESCE(run_completed_at, last_event_at)";
+    const clauses = [
+      "tenant_id = $1",
+      "status = 'completed'",
+      `${timestampExpr} >= $2`,
+      `${timestampExpr} <= $3`,
     ];
-    const params: Record<string, unknown> = {
-      fromTime: fromISO,
-      toTime: toISO,
-      limit,
-      offset,
-    };
+    const params: unknown[] = [session.tenantId, fromDate, toDate];
 
     if (data.repo) {
-      conditions.push(
-        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
-      );
-      params.repo = data.repo;
+      params.push(data.repo);
+      clauses.push(`repository = $${params.length}`);
     }
+
     if (data.branch) {
-      conditions.push(
-        "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
-      );
-      params.branch = data.branch;
+      params.push(data.branch);
+      clauses.push(`ref = $${params.length}`);
     }
-    if (data.conclusion) {
-      params.conclusion = data.conclusion;
-    }
+
     if (data.workflowName) {
-      conditions.push(
-        "ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}",
-      );
-      params.workflowName = data.workflowName;
+      params.push(data.workflowName);
+      clauses.push(`workflow_name = $${params.length}`);
     }
+
+    if (data.conclusion) {
+      params.push(denormalizeConclusion(data.conclusion));
+      clauses.push(`conclusion = $${params.length}`);
+    }
+
     if (data.runId) {
-      conditions.push(
-        "ResourceAttributes['cicd.pipeline.run.id'] = {runId:String}",
-      );
-      params.runId = data.runId;
+      params.push(data.runId);
+      clauses.push(`run_id::text = $${params.length}`);
     }
 
-    const whereClause = conditions.join("\n\t\t\t\tAND ");
-    const conclusionClause = data.conclusion
-      ? "WHERE conclusion = {conclusion:String}"
-      : "";
-    const runSummarySql = runSummarySubquery({
-      whereClause,
-      groupByExpr: "TraceId",
-      groupByAlias: "trace_id",
-      includeRunAttempt: true,
-      includeDuration: true,
-      includeSender: true,
-      includeHeadSha: true,
-      includeJobCount: true,
-    });
+    const whereClause = clauses.join("\n          AND ");
 
-    const dataSql = `
-        SELECT *
-        FROM (${runSummarySql})
-        ${conclusionClause}
-				ORDER BY timestamp DESC
-				LIMIT {limit:UInt32} OFFSET {offset:UInt32}
-			`;
-
-    const countSql = `
-				SELECT count(*) as total
-				FROM (
-					SELECT trace_id
-          FROM (${runSummarySql})
-          ${conclusionClause}
-				)
-			`;
-
-    const [dataResult, countResult] = await Promise.all([
-      query<{
-        trace_id: string;
-        run_id: string;
-        run_attempt: string;
-        workflowName: string;
-        repo: string;
-        branch: string;
-        conclusion: string;
-        duration: string;
-        timestamp: string;
-        sender: string;
-        headSha: string;
-        jobCount: string;
-      }>(dataSql, params),
-      query<{ total: string }>(countSql, params),
+    const [rowsResult, countResult] = await Promise.all([
+      pool.query<WorkflowRunRow>(
+        `
+          SELECT
+            trace_id AS "traceId",
+            run_id AS "runId",
+            attempts AS "runAttempt",
+            workflow_name AS "workflowName",
+            repository AS repo,
+            ref AS branch,
+            conclusion,
+            run_started_at AS "startedAt",
+            run_completed_at AS "completedAt",
+            last_event_at AS "lastEventAt",
+            COALESCE(metadata->>'triggering_actor', metadata->>'actor') AS sender
+          FROM workflow_runs
+          WHERE ${whereClause}
+          ORDER BY ${timestampExpr} DESC
+          LIMIT $${params.length + 1}
+          OFFSET $${params.length + 2}
+        `,
+        [...params, data.limit ?? 20, data.offset ?? 0],
+      ),
+      pool.query<{ count: string }>(
+        `
+          SELECT count(*) AS count
+          FROM workflow_runs
+          WHERE ${whereClause}
+        `,
+        params,
+      ),
     ]);
 
-    const runs: RunListItem[] = dataResult.map((row) => ({
-      traceId: row.trace_id,
-      runId: row.run_id,
-      runAttempt: Number(row.run_attempt),
-      workflowName: row.workflowName || "Workflow",
-      repo: row.repo,
-      branch: row.branch,
-      conclusion: row.conclusion,
-      duration: Number(row.duration),
-      timestamp: row.timestamp,
-      sender: row.sender,
-      headSha: row.headSha,
-      jobCount: Number(row.jobCount),
-    }));
-
-    const failingTraceIds = runs
-      .filter((run) => isFailingConclusion(run.conclusion))
-      .map((run) => run.traceId);
-
-    if (failingTraceIds.length > 0) {
-      const failingStepsSql = `
-        SELECT
-            TraceId as trace_id,
-            ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-            ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-            SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
-            anyLast(SpanName) as stepName
-          FROM traces
-          WHERE TraceId IN {traceIds:Array(String)}
-            AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
-            AND lowerUTF8(StatusMessage) NOT IN ('success', 'skip')
-          GROUP BY trace_id, jobName, jobId, stepNumber
-      `;
-
-      const failingStepsResult = await query<{
-        trace_id: string;
-        jobName: string;
-        jobId: string;
-        stepNumber: string;
-        stepName: string;
-      }>(failingStepsSql, { traceIds: failingTraceIds });
-
-      const failingStepsByTraceId = new Map<string, FailingStepSummary[]>();
-      for (const row of failingStepsResult) {
-        const current = failingStepsByTraceId.get(row.trace_id) ?? [];
-        current.push({
-          jobName: row.jobName,
-          jobId: row.jobId,
-          stepNumber: Number(row.stepNumber),
-          stepName: row.stepName,
-        });
-        failingStepsByTraceId.set(row.trace_id, current);
-      }
-
-      for (const run of runs) {
-        if (!isFailingConclusion(run.conclusion)) {
-          continue;
-        }
-        run.failingSteps = failingStepsByTraceId.get(run.traceId) ?? [];
-        run.failingSteps.sort(
-          (a, b) =>
-            a.jobId.localeCompare(b.jobId) || a.stepNumber - b.stepNumber,
-        );
-      }
-    }
-
     return {
-      runs,
-      totalCount: countResult.length > 0 ? Number(countResult[0].total) : 0,
+      runs: rowsResult.rows.map(mapWorkflowRunRow),
+      totalCount: Number(countResult.rows[0]?.count ?? 0),
     } satisfies RunsListResult;
   });
 
-function isFailingConclusion(conclusion: string): boolean {
-  const normalized = conclusion.trim().toLowerCase();
-  return normalized === "failure" || normalized === "failed";
-}
-
 export const getRunFilterOptions = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async () => {
+}).handler(async ({ context: { session } }) => {
   const [repos, branches, workflowNames] = await Promise.all([
-    query<{ repo: string }>(
-      `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
-			FROM traces
-			WHERE Timestamp >= now() - INTERVAL 90 DAY
-				AND ResourceAttributes['vcs.repository.name'] != ''
-			ORDER BY repo
-			LIMIT 100`,
+    pool.query<FilterRow>(
+      `
+        SELECT DISTINCT repository AS value
+        FROM workflow_runs
+        WHERE tenant_id = $1
+          AND status = 'completed'
+          AND repository != ''
+          AND COALESCE(run_completed_at, last_event_at) >=
+            NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+        ORDER BY value
+        LIMIT 100
+      `,
+      [session.tenantId],
     ),
-    query<{ branch: string }>(
-      `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
-			FROM traces
-			WHERE Timestamp >= now() - INTERVAL 90 DAY
-				AND ResourceAttributes['vcs.ref.head.name'] != ''
-			ORDER BY branch
-			LIMIT 100`,
+    pool.query<FilterRow>(
+      `
+        SELECT DISTINCT ref AS value
+        FROM workflow_runs
+        WHERE tenant_id = $1
+          AND status = 'completed'
+          AND ref != ''
+          AND COALESCE(run_completed_at, last_event_at) >=
+            NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+        ORDER BY value
+        LIMIT 100
+      `,
+      [session.tenantId],
     ),
-    query<{ workflowName: string }>(
-      `SELECT DISTINCT ResourceAttributes['cicd.pipeline.name'] as workflowName
-			FROM traces
-			WHERE Timestamp >= now() - INTERVAL 90 DAY
-				AND ResourceAttributes['cicd.pipeline.name'] != ''
-			ORDER BY workflowName
-			LIMIT 100`,
+    pool.query<FilterRow>(
+      `
+        SELECT DISTINCT workflow_name AS value
+        FROM workflow_runs
+        WHERE tenant_id = $1
+          AND status = 'completed'
+          AND workflow_name != ''
+          AND COALESCE(run_completed_at, last_event_at) >=
+            NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+        ORDER BY value
+        LIMIT 100
+      `,
+      [session.tenantId],
     ),
   ]);
 
   return {
-    repos: repos.map((r) => r.repo),
-    branches: branches.map((r) => r.branch),
-    workflowNames: workflowNames.map((r) => r.workflowName),
+    repos: repos.rows.map((row) => row.value),
+    branches: branches.rows.map((row) => row.value),
+    workflowNames: workflowNames.rows.map((row) => row.value),
   } satisfies FilterOptions;
 });
 
@@ -231,8 +165,8 @@ export const searchRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(SearchRunsInputSchema)
-  .handler(async ({ data }) => {
-    const results = await query<{
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const results = await clickhouse.query<{
       trace_id: string;
       run_id: string;
       workflowName: string;
@@ -262,15 +196,63 @@ export const searchRuns = createAuthenticatedServerFn({
       { pattern: `%${data.query}%` },
     );
 
-    return results.map(
-      (row): RunSearchResult => ({
-        traceId: row.trace_id,
-        runId: row.run_id,
-        workflowName: row.workflowName || "Workflow",
-        repo: row.repo,
-        branch: row.branch,
-        conclusion: row.conclusion,
-        timestamp: row.timestamp,
-      }),
-    );
+    return results.map((row) => ({
+      traceId: row.trace_id,
+      runId: row.run_id,
+      workflowName: row.workflowName || "Workflow",
+      repo: row.repo,
+      branch: row.branch,
+      conclusion: row.conclusion,
+      timestamp: row.timestamp,
+    }));
   });
+
+function mapWorkflowRunRow(row: WorkflowRunRow): RunListItem {
+  const endedAt = toDateValue(row.completedAt ?? row.lastEventAt);
+  const startedAt = row.startedAt ? toDateValue(row.startedAt) : endedAt;
+  const conclusion = normalizeConclusion(row.conclusion);
+
+  return {
+    traceId: row.traceId,
+    runId: String(row.runId),
+    runAttempt: row.runAttempt,
+    workflowName: row.workflowName || "Workflow",
+    repo: row.repo,
+    branch: row.branch || "—",
+    conclusion,
+    duration:
+      conclusion === "skip" || conclusion === "skipped"
+        ? 0
+        : Math.max(0, endedAt.getTime() - startedAt.getTime()),
+    timestamp: endedAt.toISOString(),
+    sender: row.sender ?? "",
+  };
+}
+
+function normalizeConclusion(conclusion: string | null): string {
+  if (!conclusion) {
+    return "unknown";
+  }
+
+  if (conclusion === "cancelled") {
+    return "cancellation";
+  }
+
+  return conclusion;
+}
+
+function denormalizeConclusion(conclusion: string): string {
+  if (conclusion === "cancellation") {
+    return "cancelled";
+  }
+
+  return conclusion;
+}
+
+function toDateValue(value: string | Date): Date {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  return new Date(value);
+}

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
-import { query } from "@/lib/clickhouse";
+import type { AuthContext } from "@/lib/auth-context";
 import { normalizeTimestampToUtc } from "@/lib/formatting";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
@@ -30,14 +30,18 @@ function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
   };
 }
 
-async function getRawStepLogs(params: {
-  traceId: string;
-  jobName: string;
-  stepNumber: string;
-  maxLines?: number;
-  offsetLines?: number;
-  useTail?: boolean;
-}): Promise<LogEntry[]> {
+async function getRawStepLogs(
+  context: AuthContext,
+  params: {
+    traceId: string;
+    jobName: string;
+    stepNumber: string;
+    maxLines?: number;
+    offsetLines?: number;
+    useTail?: boolean;
+  },
+): Promise<LogEntry[]> {
+  const clickhouse = context.clickhouse;
   const order = params.useTail ? "DESC" : "ASC";
   const limitClause =
     typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
@@ -56,7 +60,7 @@ async function getRawStepLogs(params: {
 		${offsetClause}
 	`;
 
-  const result = await query<{
+  const result = await clickhouse.query<{
     timestamp: string;
     body: string;
   }>(sql, {
@@ -72,11 +76,15 @@ async function getRawStepLogs(params: {
   return params.useTail ? logs.reverse() : logs;
 }
 
-async function isFailedPipelineStep(params: {
-  traceId: string;
-  jobName: string;
-  stepNumber: string;
-}): Promise<boolean> {
+async function isFailedPipelineStep(
+  context: AuthContext,
+  params: {
+    traceId: string;
+    jobName: string;
+    stepNumber: string;
+  },
+): Promise<boolean> {
+  const clickhouse = context.clickhouse;
   const sql = `
 		SELECT 1 as hit
 		FROM traces
@@ -91,17 +99,21 @@ async function isFailedPipelineStep(params: {
 		LIMIT 1
 	`;
 
-  const result = await query<{ hit: string }>(sql, params);
+  const result = await clickhouse.query<{ hit: string }>(sql, params);
   return result.length > 0;
 }
 
-async function getStepLogsFailing(params: {
-  traceId: string;
-  jobName: string;
-  stepNumber: string;
-}): Promise<LogEntry[]> {
+async function getStepLogsFailing(
+  context: AuthContext,
+  params: {
+    traceId: string;
+    jobName: string;
+    stepNumber: string;
+  },
+): Promise<LogEntry[]> {
+  const clickhouse = context.clickhouse;
   const sql = buildFailingStepLogsSql();
-  const result = await query<{
+  const result = await clickhouse.query<{
     timestamp: string;
     body: string;
   }>(sql, params);
@@ -113,7 +125,7 @@ export const getLatestRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
     const runSummarySql = runSummarySubquery({
       whereClause: `ResourceAttributes['cicd.pipeline.run.id'] != ''
@@ -133,7 +145,7 @@ export const getLatestRuns = createAuthenticatedServerFn({
 		LIMIT 10
 	`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       trace_id: string;
       run_id: string;
       run_attempt: string;
@@ -160,7 +172,7 @@ export const getRunDetails = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(async ({ data: traceId }) => {
+  .handler(async ({ data: traceId, context: { clickhouse } }) => {
     const sql = `
 			SELECT
 					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
@@ -174,7 +186,7 @@ export const getRunDetails = createAuthenticatedServerFn({
 				WHERE TraceId = {traceId:String}
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       run_id: string;
       run_attempt: string;
       repo: string;
@@ -204,7 +216,7 @@ export const getRunJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(async ({ data: traceId }) => {
+  .handler(async ({ data: traceId, context: { clickhouse } }) => {
     const sql = `
 			SELECT
 					ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
@@ -222,7 +234,7 @@ export const getRunJobs = createAuthenticatedServerFn({
 			ORDER BY name
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       jobId: string;
       name: string;
       conclusion: string;
@@ -241,7 +253,7 @@ export const getJobSteps = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
-  .handler(async ({ data: { traceId, jobId } }) => {
+  .handler(async ({ data: { traceId, jobId }, context: { clickhouse } }) => {
     const sql = `
 			SELECT
 					SpanName as name,
@@ -261,7 +273,7 @@ export const getJobSteps = createAuthenticatedServerFn({
 			ORDER BY toUInt32OrZero(stepNumber)
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       name: string;
       stepNumber: string;
       conclusion: string;
@@ -286,7 +298,7 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
   .inputValidator(
     z.object({ traceId: z.string(), jobIds: z.array(z.string()) }),
   )
-  .handler(async ({ data: { traceId, jobIds } }) => {
+  .handler(async ({ data: { traceId, jobIds }, context: { clickhouse } }) => {
     if (jobIds.length === 0) {
       return {};
     }
@@ -311,7 +323,7 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
         AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
       ORDER BY jobId, toUInt32OrZero(stepNumber)
     `;
-    const rows = await query<{
+    const rows = await clickhouse.query<{
       jobId: string;
       name: string;
       stepNumber: string;
@@ -351,10 +363,10 @@ export const getStepLogs = createAuthenticatedServerFn({
       offset: z.number().int().min(0).optional(),
     }),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const isPaged = data.limit !== undefined || data.offset !== undefined;
     if (isPaged) {
-      return getRawStepLogs({
+      return getRawStepLogs(context, {
         traceId: data.traceId,
         jobName: data.jobName,
         stepNumber: data.stepNumber,
@@ -364,12 +376,12 @@ export const getStepLogs = createAuthenticatedServerFn({
     }
 
     if (data.fullLogs) {
-      return getRawStepLogs(data);
+      return getRawStepLogs(context, data);
     }
 
-    const isFailedStep = await isFailedPipelineStep(data);
+    const isFailedStep = await isFailedPipelineStep(context, data);
     if (isFailedStep) {
-      const failingLogs = await getStepLogsFailing({
+      const failingLogs = await getStepLogsFailing(context, {
         traceId: data.traceId,
         jobName: data.jobName,
         stepNumber: data.stepNumber,
@@ -380,7 +392,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       }
     }
 
-    return getRawStepLogs({
+    return getRawStepLogs(context, {
       traceId: data.traceId,
       jobName: data.jobName,
       stepNumber: data.stepNumber,
@@ -393,7 +405,7 @@ export const getRunSpans = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(async ({ data: traceId }) => {
+  .handler(async ({ data: traceId, context: { clickhouse } }) => {
     const sql = `
 			SELECT
 				SpanId as spanId,
@@ -435,7 +447,7 @@ export const getRunSpans = createAuthenticatedServerFn({
 			ORDER BY startTime ASC
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       spanId: string;
       parentSpanId: string;
       name: string;

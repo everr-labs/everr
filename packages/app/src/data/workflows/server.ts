@@ -1,4 +1,3 @@
-import { query } from "@/lib/clickhouse";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, toClickHouseDateTime } from "@/lib/time-range";
@@ -24,7 +23,7 @@ export const getWorkflowsList = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowsListInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(
       data.timeRange,
     );
@@ -115,7 +114,7 @@ export const getWorkflowsList = createAuthenticatedServerFn({
 		`;
 
     const [dataResult, countResult] = await Promise.all([
-      query<{
+      clickhouse.query<{
         workflowName: string;
         repo: string;
         totalRuns: string;
@@ -126,7 +125,7 @@ export const getWorkflowsList = createAuthenticatedServerFn({
         prevSuccessRate: string;
         prevAvgDuration: string;
       }>(dataSql, params),
-      query<{ total: string }>(countSql, params),
+      clickhouse.query<{ total: string }>(countSql, params),
     ]);
 
     return {
@@ -149,7 +148,7 @@ export const getWorkflowsSparklines = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowsSparklineInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(
       data.timeRange,
     );
@@ -199,7 +198,7 @@ export const getWorkflowsSparklines = createAuthenticatedServerFn({
 			ORDER BY workflowName, repo, date ASC
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       workflowName: string;
       repo: string;
       date: string;
@@ -259,7 +258,7 @@ export const getWorkflowStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(
       data.timeRange,
     );
@@ -295,7 +294,7 @@ export const getWorkflowStats = createAuthenticatedServerFn({
 			)
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       totalRuns: string;
       successRate: string;
       avgDuration: string;
@@ -339,7 +338,7 @@ export const getWorkflowSuccessRateTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
     const sql = `
@@ -366,7 +365,7 @@ export const getWorkflowSuccessRateTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       totalRuns: string;
       successRate: string;
@@ -392,7 +391,7 @@ export const getWorkflowDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
     const sql = `
@@ -416,7 +415,7 @@ export const getWorkflowDurationTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       avgDuration: string;
       p95Duration: string;
@@ -438,7 +437,7 @@ export const getWorkflowTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
     const sql = `
@@ -460,7 +459,7 @@ export const getWorkflowTopFailingJobs = createAuthenticatedServerFn({
 			LIMIT 10
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       jobName: string;
       failureCount: string;
       totalRuns: string;
@@ -484,7 +483,7 @@ export const getWorkflowFailureReasons = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
     const sql = `
@@ -504,7 +503,7 @@ export const getWorkflowFailureReasons = createAuthenticatedServerFn({
 			LIMIT 10
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       pattern: string;
       count: string;
       lastOccurrence: string;
@@ -526,7 +525,7 @@ export const getWorkflowCost = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(
       data.timeRange,
     );
@@ -535,7 +534,7 @@ export const getWorkflowCost = createAuthenticatedServerFn({
     const prevFromISO = toClickHouseDateTime(prevFromDate);
 
     const [summaryRows, dailyRows] = await Promise.all([
-      query<{
+      clickhouse.query<{
         labels: string;
         currentDurationMs: string;
         currentRoundedMinutes: string;
@@ -568,7 +567,7 @@ export const getWorkflowCost = createAuthenticatedServerFn({
           repo: data.repo,
         },
       ),
-      query<{
+      clickhouse.query<{
         date: string;
         labels: string;
         durationMs: string;
@@ -656,7 +655,7 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const runSummarySql = runSummarySubquery({
       whereClause: `Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
@@ -681,7 +680,7 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
 			LIMIT 10
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       trace_id: string;
       run_id: string;
       run_attempt: string;

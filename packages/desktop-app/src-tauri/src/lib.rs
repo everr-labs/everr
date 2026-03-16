@@ -7,11 +7,9 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
-use everr_core::api::{ApiClient, FailureNotification, TrayStatusResponse};
+use everr_core::api::{ApiClient, FailureNotification};
 use everr_core::assistant::{self, AssistantKind, AssistantStatus};
-use everr_core::auth::{
-    is_no_active_session_error, login_with_prompt, AuthConfig, Session, SessionStore,
-};
+use everr_core::auth::{is_no_active_session_error, login_with_prompt, AuthConfig, SessionStore};
 use everr_core::build;
 use everr_core::git::resolve_git_context;
 use everr_core::notifier::FailureTracker;
@@ -28,6 +26,7 @@ use tauri::{
 use tauri_plugin_updater::UpdaterExt;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+use url::Url;
 
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
@@ -52,6 +51,7 @@ const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
+const TRAY_FAILURES_WINDOW_MINUTES: u64 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StartupUpdateAction {
@@ -153,16 +153,6 @@ struct TraySnapshot {
 impl TraySnapshot {
     fn failed_count(&self) -> usize {
         self.failures.len()
-    }
-}
-
-impl From<TrayStatusResponse> for TraySnapshot {
-    fn from(response: TrayStatusResponse) -> Self {
-        Self {
-            failures: response.failures,
-            dashboard_url: response.dashboard_url,
-            auto_fix_prompt: response.auto_fix_prompt,
-        }
     }
 }
 
@@ -645,9 +635,27 @@ async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
         let _ = webbrowser::open(&verification_url);
     })
     .await?;
-    if let Err(error) = refresh_tray_status(&app, &state).await {
-        eprintln!("[everr-app] failed to refresh tray status after sign-in: {error}");
+
+    match load_owned_failures_for_current_repo(&state).await {
+        Ok(Some((failures, repo, branch))) => {
+            if let Err(error) = update_tray_snapshot(
+                &app,
+                &state,
+                build_tray_snapshot(&failures, repo.as_deref(), branch.as_deref()),
+            ) {
+                eprintln!("[everr-app] failed to refresh tray after sign-in: {error}");
+            }
+        }
+        Ok(None) => {
+            if let Err(error) = clear_tray_snapshot(&app, &state) {
+                eprintln!("[everr-app] failed to clear tray after sign-in: {error}");
+            }
+        }
+        Err(error) => {
+            eprintln!("[everr-app] failed to refresh tray after sign-in: {error}");
+        }
     }
+
     emit_auth_changed(&app);
     Ok(())
 }
@@ -913,14 +921,14 @@ fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
     let failed_status = MenuItem::with_id(
         app,
         TRAY_MENU_FAILED_STATUS_ID,
-        "Unresolved failed pipelines: 0",
+        "Recent failed pipelines (5m): 0",
         false,
         None::<&str>,
     )?;
     let open_failed_runs = MenuItem::with_id(
         app,
         TRAY_MENU_OPEN_FAILED_RUNS_ID,
-        "Open failed runs",
+        "Open recent failed runs",
         true,
         None::<&str>,
     )?;
@@ -1030,7 +1038,7 @@ fn sync_tray_menu(menu: &TrayMenu, model: &TrayMenuModel) -> Result<()> {
 
 fn build_tray_menu_model(snapshot: &TraySnapshot) -> TrayMenuModel {
     TrayMenuModel {
-        failed_status_label: format!("Unresolved failed pipelines: {}", snapshot.failed_count()),
+        failed_status_label: format!("Recent failed pipelines (5m): {}", snapshot.failed_count()),
         show_failed_actions: snapshot.failed_count() > 0,
     }
 }
@@ -1045,7 +1053,7 @@ fn format_tray_title(snapshot: &TraySnapshot) -> String {
 
 fn format_tray_tooltip(snapshot: &TraySnapshot) -> String {
     format!(
-        "{} | Unresolved failed pipelines: {}",
+        "{} | Recent failed pipelines (5m): {}",
         current_app_name(),
         snapshot.failed_count()
     )
@@ -1146,21 +1154,147 @@ fn copy_notification_auto_fix_prompt_inner(state: &RuntimeState) -> Result<()> {
     Ok(())
 }
 
-async fn refresh_tray_status(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+async fn load_owned_failures_for_current_repo(
+    state: &RuntimeState,
+) -> Result<Option<(Vec<FailureNotification>, Option<String>, Option<String>)>> {
     let session = state
         .session_store
-        .load_session_for_api_base_url(build::default_api_base_url())?;
-    refresh_tray_status_with_session(app, state, &session).await
+        .load_session_for_api_base_url(build::default_api_base_url());
+    let session = match session {
+        Ok(session) => session,
+        Err(error) if is_no_active_session_error(&error) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
+    let git = resolve_git_context(&current_dir);
+    let Some(git_email) = git.email.as_deref() else {
+        return Ok(None);
+    };
+
+    let client = ApiClient::from_session(&session)?;
+    let failures = client
+        .get_owned_failures(git_email, git.repo.as_deref(), git.branch.as_deref())
+        .await?;
+
+    Ok(Some((failures, git.repo, git.branch)))
 }
 
-async fn refresh_tray_status_with_session(
-    app: &AppHandle,
-    state: &RuntimeState,
-    session: &Session,
-) -> Result<()> {
-    let client = ApiClient::from_session(session)?;
-    let response = client.get_tray_status().await?;
-    update_tray_snapshot(app, state, TraySnapshot::from(response))
+fn build_tray_snapshot(
+    failures: &[FailureNotification],
+    repo: Option<&str>,
+    branch: Option<&str>,
+) -> TraySnapshot {
+    TraySnapshot {
+        failures: failures.to_vec(),
+        dashboard_url: build_tray_failed_runs_url(repo, branch),
+        auto_fix_prompt: build_tray_auto_fix_prompt(failures),
+    }
+}
+
+fn build_tray_failed_runs_url(repo: Option<&str>, branch: Option<&str>) -> Option<String> {
+    let mut url = Url::parse(current_base_url()).ok()?;
+    url.set_path("/runs");
+    url.set_query(None);
+
+    let from = format!("now-{}m", TRAY_FAILURES_WINDOW_MINUTES);
+    {
+        let mut query = url.query_pairs_mut();
+        query.append_pair("conclusion", "failure");
+        query.append_pair("from", &from);
+        query.append_pair("to", "now");
+        if let Some(repo) = repo {
+            query.append_pair("repo", repo);
+        }
+        if let Some(branch) = branch {
+            query.append_pair("branch", branch);
+        }
+    }
+
+    Some(url.into())
+}
+
+fn build_tray_auto_fix_prompt(failures: &[FailureNotification]) -> Option<String> {
+    if failures.is_empty() {
+        return None;
+    }
+
+    let mut failures_by_repo: Vec<(&str, Vec<&FailureNotification>)> = Vec::new();
+    for failure in failures {
+        if let Some((_, repo_failures)) = failures_by_repo
+            .iter_mut()
+            .find(|(repo, _)| *repo == failure.repo.as_str())
+        {
+            repo_failures.push(failure);
+        } else {
+            failures_by_repo.push((failure.repo.as_str(), vec![failure]));
+        }
+    }
+
+    let mut sections = vec![
+        "Investigate and fix these recent CI pipeline failures.".to_string(),
+        "Use Everr CLI from the current project directory before guessing.".to_string(),
+        String::new(),
+        "Required workflow:".to_string(),
+        "- Start by pulling logs with the exact `everr runs logs` command listed for each failure below.".to_string(),
+        "- Show where the error is, and verify if it is related to the current branch or if it is a general issue with the repo.".to_string(),
+        "- If it is a general issue with the repo, say so explicitly, verify if it is flaky using Everr.".to_string(),
+        "- If it is a local issue and something trivially fixable like a linting error or a out-to-date test, make the smallest repo-local fix that addresses the root cause.".to_string(),
+        "- If it something more complicated, show me the error message and suggest some possible next steps.".to_string(),
+        "- Work repo-by-repo. If a repo is not available locally, say so explicitly.".to_string(),
+        String::new(),
+        "Current recent failures:".to_string(),
+    ];
+
+    for (repo, repo_failures) in failures_by_repo {
+        sections.push(String::new());
+        sections.push(format!("Repo: {repo}"));
+
+        for failure in repo_failures {
+            let failing_step = match (failure.job_name.as_deref(), failure.step_number.as_deref()) {
+                (Some(job_name), Some(step_number)) => {
+                    let step_suffix = failure
+                        .step_name
+                        .as_deref()
+                        .map(|step_name| format!(" ({step_name})"))
+                        .unwrap_or_default();
+                    format!(" | step {job_name} #{step_number}{step_suffix}")
+                }
+                _ => String::new(),
+            };
+
+            sections.push(format!(
+                "- branch {} | workflow {} | trace {} | failed at {}{}",
+                failure.branch,
+                failure.workflow_name,
+                failure.trace_id,
+                failure.failed_at,
+                failing_step
+            ));
+
+            if let Some(logs_command) = build_runs_logs_command(failure) {
+                sections.push(format!("  logs: `{logs_command}`"));
+            }
+        }
+    }
+
+    sections.push(String::new());
+    sections.push(
+        "Return a concise summary with root cause, code changes, verification, and any follow-up risk.".to_string(),
+    );
+
+    Some(sections.join("\n"))
+}
+
+fn build_runs_logs_command(failure: &FailureNotification) -> Option<String> {
+    let job_name = failure.job_name.as_deref()?;
+    let step_number = failure.step_number.as_deref()?;
+    let escaped_job_name = serde_json::to_string(job_name).ok()?;
+
+    Some(format!(
+        "everr runs logs --trace-id {} --job-name {} --step-number {}",
+        failure.trace_id, escaped_job_name, step_number
+    ))
 }
 
 fn wizard_incomplete(state: &RuntimeState) -> Result<bool> {
@@ -1210,33 +1344,16 @@ fn build_test_notification() -> Result<FailureNotification> {
 }
 
 async fn poll_and_notify(app: &AppHandle, state: &RuntimeState) -> Result<()> {
-    let session = match state
-        .session_store
-        .load_session_for_api_base_url(build::default_api_base_url())
-    {
-        Ok(session) => session,
-        Err(error) if is_no_active_session_error(&error) => {
-            clear_tray_snapshot(app, state)?;
-            return Ok(());
-        }
-        Err(error) => return Err(error),
+    let Some((failures, repo, branch)) = load_owned_failures_for_current_repo(state).await? else {
+        clear_tray_snapshot(app, state)?;
+        return Ok(());
     };
 
-    if let Err(error) = refresh_tray_status_with_session(app, state, &session).await {
-        eprintln!("[everr-app] tray status poll failed: {error}");
-    }
-
-    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
-    let git = resolve_git_context(&current_dir);
-    let git_email = match git.email.as_deref() {
-        Some(value) => value,
-        None => return Ok(()),
-    };
-
-    let client = ApiClient::from_session(&session)?;
-    let failures = client
-        .get_owned_failures(git_email, git.repo.as_deref(), git.branch.as_deref())
-        .await?;
+    update_tray_snapshot(
+        app,
+        state,
+        build_tray_snapshot(&failures, repo.as_deref(), branch.as_deref()),
+    )?;
 
     let fresh = {
         let mut notifier = state
@@ -1596,13 +1713,15 @@ mod tests {
     use super::{
         active_notification_auto_fix_prompt, apply_runtime_settings, apply_wizard_migration,
         build_assistant_setup_response, build_launch_at_login_status_response,
-        build_tray_menu_model, build_wizard_status_response, current_app_name, current_base_url,
+        build_tray_auto_fix_prompt, build_tray_failed_runs_url, build_tray_menu_model,
+        build_tray_snapshot, build_wizard_status_response, current_app_name, current_base_url,
         current_session_store, format_tray_title, format_tray_tooltip,
         mark_assistant_step_seen_in_settings, mark_launch_at_login_step_seen_in_settings,
         mark_setup_complete_in_settings, migrate_completed_base_url, should_check_for_updates,
         startup_update_action, sync_installed_cli_from_paths, tray_auto_fix_prompt,
         tray_failed_runs_target, value_has_wizard_metadata, AppSettings, NotificationQueue,
         StartupUpdateAction, TraySnapshot, TrayState, WizardState, APP_NAME, DEV_APP_NAME,
+        TRAY_FAILURES_WINDOW_MINUTES,
     };
 
     fn failure(dedupe_key: &str) -> FailureNotification {
@@ -1652,13 +1771,8 @@ mod tests {
     }
 
     fn tray_snapshot_with_failures() -> TraySnapshot {
-        TraySnapshot {
-            failures: vec![failure("one"), failure("two")],
-            dashboard_url: Some(
-                "https://example.com/runs?conclusion=failure".to_string(),
-            ),
-            auto_fix_prompt: Some("Investigate and fix the pipelines.".to_string()),
-        }
+        let failures = vec![failure("one"), failure("two")];
+        build_tray_snapshot(&failures, Some("everr-labs/everr"), Some("main"))
     }
 
     #[test]
@@ -1703,9 +1817,37 @@ mod tests {
         assert_eq!(format_tray_title(&snapshot), "F2");
         assert_eq!(
             format_tray_tooltip(&snapshot),
-            format!("{} | Unresolved failed pipelines: 2", current_app_name())
+            format!("{} | Recent failed pipelines (5m): 2", current_app_name())
         );
         assert_eq!(format_tray_title(&TraySnapshot::default()), "");
+    }
+
+    #[test]
+    fn tray_snapshot_builds_recent_failures_dashboard_url_for_current_scope() {
+        let snapshot = tray_snapshot_with_failures();
+        let expected = format!(
+            "{}/runs?conclusion=failure&from=now-5m&to=now&repo=everr-labs%2Feverr&branch=main",
+            current_base_url().trim_end_matches('/')
+        );
+
+        assert_eq!(snapshot.dashboard_url.as_deref(), Some(expected.as_str()));
+        assert_eq!(
+            build_tray_failed_runs_url(Some("everr-labs/everr"), Some("main")).as_deref(),
+            snapshot.dashboard_url.as_deref()
+        );
+        assert_eq!(TRAY_FAILURES_WINDOW_MINUTES, 5);
+    }
+
+    #[test]
+    fn tray_prompt_builder_aggregates_recent_failures_with_logs_commands() {
+        let failures = vec![failure("one"), failure("two")];
+        let prompt = build_tray_auto_fix_prompt(&failures).expect("tray prompt");
+
+        assert!(prompt.contains("Investigate and fix these recent CI pipeline failures."));
+        assert!(prompt.contains("Current recent failures:"));
+        assert!(prompt.contains("Repo: everr-labs/everr"));
+        assert!(prompt
+            .contains("everr runs logs --trace-id trace-one --job-name \"test\" --step-number 2"));
     }
 
     #[test]
@@ -1847,7 +1989,7 @@ mod tests {
         let snapshot = tray_snapshot_with_failures();
         let model = build_tray_menu_model(&snapshot);
 
-        assert_eq!(model.failed_status_label, "Unresolved failed pipelines: 2");
+        assert_eq!(model.failed_status_label, "Recent failed pipelines (5m): 2");
         assert!(model.show_failed_actions);
     }
 
@@ -1855,7 +1997,7 @@ mod tests {
     fn tray_menu_model_hides_failed_actions_when_failures_are_empty() {
         let model = build_tray_menu_model(&TraySnapshot::default());
 
-        assert_eq!(model.failed_status_label, "Unresolved failed pipelines: 0");
+        assert_eq!(model.failed_status_label, "Recent failed pipelines (5m): 0");
         assert!(!model.show_failed_actions);
     }
 

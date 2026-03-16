@@ -1,5 +1,4 @@
 import { queryOptions } from "@tanstack/react-query";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   executionsSubquery,
@@ -27,7 +26,7 @@ export const getTestPerfStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { whereClause, scopeWhere, params } = prepareFilter(data);
     const inner = executionsSubquery(whereClause);
 
@@ -54,7 +53,7 @@ export const getTestPerfStats = createAuthenticatedServerFn({
       )
     `;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       total_executions: string;
       fail_executions: string;
       unique_failing_tests: string;
@@ -113,7 +112,7 @@ export const getTestPerfScatter = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { whereClause, scopeWhere, params, aggregateByRun } =
       prepareFilter(data);
     const inner = executionsSubquery(whereClause, {
@@ -154,7 +153,7 @@ export const getTestPerfScatter = createAuthenticatedServerFn({
       `;
     }
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       test_full_name: string;
       test_duration: string;
       test_result: string;
@@ -203,7 +202,7 @@ export const getTestPerfTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { whereClause, scopeWhere, params } = prepareFilter(data);
     const inner = executionsSubquery(whereClause, {
       includeResult: false,
@@ -225,7 +224,7 @@ export const getTestPerfTrend = createAuthenticatedServerFn({
       ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
     `;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       avg_duration: string;
       p50_duration: string;
@@ -244,7 +243,7 @@ export const getTestPerfStatsTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { whereClause, scopeWhere, params, fromISO, toISO } =
       prepareFilter(data);
     const inner = executionsSubquery(whereClause, {
@@ -276,7 +275,7 @@ export const getTestPerfStatsTrend = createAuthenticatedServerFn({
       ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
     `;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       total_executions: string;
       fail_executions: string;
@@ -323,7 +322,7 @@ export const getTestPerfFailures = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { whereClause, scopeConditions, params } = prepareFilter(data);
     const inner = executionsSubquery(whereClause, {
       includeMetadata: true,
@@ -340,7 +339,7 @@ export const getTestPerfFailures = createAuthenticatedServerFn({
       LIMIT 50
     `;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       test_full_name: string;
       test_duration: string;
       timestamp: string;

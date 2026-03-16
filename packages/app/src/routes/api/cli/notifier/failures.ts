@@ -1,10 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
-import {
-  getFailureNotifications,
-  getVerifiedCliUserEmail,
-} from "@/routes/api/cli/-failure-notifications";
+import { getFailureNotifications } from "@/routes/api/cli/-failure-notifications";
 
 const FailuresQuerySchema = z.object({
   gitEmail: z.string().email(),
@@ -34,17 +31,13 @@ export const Route = createFileRoute("/api/cli/notifier/failures")({
           );
         }
 
-        const verifiedEmail = await getVerifiedCliUserEmail(
-          context.session.userId,
-          parsed.data.gitEmail,
-        );
-        if (!verifiedEmail) {
+        if (!parsed.data.gitEmail) {
           return Response.json([]);
         }
 
         const failures = await getFailureNotifications({
-          tenantId: context.session.tenantId,
-          gitEmail: verifiedEmail,
+          context,
+          gitEmail: parsed.data.gitEmail,
           origin: url.origin,
           timeWindowMinutes: 5,
           repo: parsed.data.repo,

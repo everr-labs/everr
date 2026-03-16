@@ -10,17 +10,6 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("@/lib/workos", () => ({
-  workOS: {
-    userManagement: {
-      getUser: vi.fn(),
-    },
-    organizations: {
-      getOrganization: vi.fn(),
-    },
-  },
-}));
-
 vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
   accessTokenAuthMiddleware: {
     options: {},
@@ -29,12 +18,10 @@ vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
 
 import { pool } from "@/db/client";
 import { query } from "@/lib/clickhouse";
-import { workOS } from "@/lib/workos";
 import { Route } from "./failures";
 
 const mockedQuery = vi.mocked(query);
 const mockedPoolQuery = vi.mocked(pool.query);
-const mockedGetUser = vi.mocked(workOS.userManagement.getUser);
 
 type GetHandler = (args: {
   request: Request;
@@ -42,6 +29,9 @@ type GetHandler = (args: {
     session: {
       userId: string;
       tenantId: number;
+    };
+    clickhouse: {
+      query: typeof mockedQuery;
     };
   };
 }) => Promise<Response>;
@@ -65,34 +55,29 @@ function getHandler(): GetHandler {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedGetUser.mockResolvedValue({
-    emailVerified: true,
-    email: "dev@example.com",
-  } as Awaited<ReturnType<typeof mockedGetUser>>);
 });
 
 describe("/api/cli/notifier/failures", () => {
-  it("returns no failures when the verified email does not match", async () => {
-    mockedGetUser.mockResolvedValue({
-      emailVerified: false,
-      email: "dev@example.com",
-    } as Awaited<ReturnType<typeof mockedGetUser>>);
-
+  it("returns a validation error when gitEmail is missing", async () => {
     const handler = getHandler();
     const response = await handler({
-      request: new Request(
-        "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com",
-      ),
+      request: new Request("http://localhost/api/cli/notifier/failures"),
       context: {
         session: {
           userId: "user_1",
           tenantId: 42,
         },
+        clickhouse: {
+          query: mockedQuery,
+        },
       },
     });
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual([]);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error:
+        "Invalid query parameters. Required: gitEmail. Optional: repo, branch.",
+    });
     expect(mockedQuery).not.toHaveBeenCalled();
     expect(mockedPoolQuery).not.toHaveBeenCalled();
   });
@@ -120,6 +105,9 @@ describe("/api/cli/notifier/failures", () => {
         session: {
           userId: "user_1",
           tenantId: 42,
+        },
+        clickhouse: {
+          query: mockedQuery,
         },
       },
     });
@@ -151,6 +139,9 @@ describe("/api/cli/notifier/failures", () => {
         session: {
           userId: "user_1",
           tenantId: 42,
+        },
+        clickhouse: {
+          query: mockedQuery,
         },
       },
     });
@@ -222,6 +213,9 @@ describe("/api/cli/notifier/failures", () => {
           userId: "user_1",
           tenantId: 42,
         },
+        clickhouse: {
+          query: mockedQuery,
+        },
       },
     });
 
@@ -284,6 +278,9 @@ describe("/api/cli/notifier/failures", () => {
         session: {
           userId: "user_1",
           tenantId: 42,
+        },
+        clickhouse: {
+          query: mockedQuery,
         },
       },
     });

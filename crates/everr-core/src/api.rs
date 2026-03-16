@@ -88,10 +88,6 @@ impl ApiClient {
         self.get("/notifier/failures", &query).await
     }
 
-    pub async fn get_tray_status(&self) -> Result<TrayStatusResponse> {
-        self.get("/tray-status", &[]).await
-    }
-
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
         self.get(path, query).await
     }
@@ -167,13 +163,5 @@ pub struct FailureNotification {
     pub job_name: Option<String>,
     pub step_number: Option<String>,
     pub step_name: Option<String>,
-    pub auto_fix_prompt: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct TrayStatusResponse {
-    pub failures: Vec<FailureNotification>,
-    pub dashboard_url: Option<String>,
     pub auto_fix_prompt: Option<String>,
 }

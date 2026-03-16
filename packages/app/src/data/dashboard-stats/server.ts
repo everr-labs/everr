@@ -1,5 +1,4 @@
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import type {
@@ -14,7 +13,7 @@ export const getDashboardStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -35,7 +34,7 @@ export const getDashboardStats = createAuthenticatedServerFn({
 		)
 	`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       totalJobRuns: string;
       successfulRuns: string;
       failedRuns: string;
@@ -69,7 +68,7 @@ export const getRepositories = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -96,7 +95,7 @@ export const getRepositories = createAuthenticatedServerFn({
 		LIMIT 10
 	`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       name: string;
       totalRuns: string;
       lastRunAt: string;
@@ -115,7 +114,7 @@ export const getDashboardDurationStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -129,7 +128,7 @@ export const getDashboardDurationStats = createAuthenticatedServerFn({
 			AND SpanAttributes['everr.test.name'] = ''
 	`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       avgDuration: string;
       p95Duration: string;
     }>(sql, { fromTime: fromISO, toTime: toISO });
@@ -151,7 +150,7 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -170,7 +169,7 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
 		LIMIT 5
 	`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       jobName: string;
       repo: string;
       failureCount: string;
@@ -187,7 +186,7 @@ export const getTopFailingWorkflows = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -213,7 +212,7 @@ export const getTopFailingWorkflows = createAuthenticatedServerFn({
 		LIMIT 5
 	`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       workflowName: string;
       repo: string;
       failureCount: string;

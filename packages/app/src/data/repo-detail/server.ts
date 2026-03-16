@@ -1,4 +1,3 @@
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import {
@@ -15,7 +14,7 @@ export const getRepoStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(async ({ data: { timeRange, repo } }) => {
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -38,7 +37,7 @@ export const getRepoStats = createAuthenticatedServerFn({
 			)
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       totalRuns: string;
       successRate: string;
       avgDuration: string;
@@ -63,7 +62,7 @@ export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(async ({ data: { timeRange, repo } }) => {
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -89,7 +88,7 @@ export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       successRate: string;
       totalRuns: string;
@@ -110,7 +109,7 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(async ({ data: { timeRange, repo } }) => {
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -128,7 +127,7 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       p50Duration: string;
       p95Duration: string;
@@ -145,7 +144,7 @@ export const getRepoRecentRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(async ({ data: { timeRange, repo } }) => {
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -168,7 +167,7 @@ export const getRepoRecentRuns = createAuthenticatedServerFn({
 			LIMIT 20
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       trace_id: string;
       run_id: string;
       workflowName: string;
@@ -193,7 +192,7 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(async ({ data: { timeRange, repo } }) => {
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -218,7 +217,7 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
 			LIMIT 10
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       jobName: string;
       workflowName: string;
       totalRuns: string;
@@ -239,7 +238,7 @@ export const getActiveBranches = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(async ({ data: { timeRange, repo } }) => {
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -271,7 +270,7 @@ export const getActiveBranches = createAuthenticatedServerFn({
 			LIMIT 20
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       branch: string;
       latestConclusion: string;
       latestTraceId: string;

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { leafTestFilter, testFullNameExpr } from "./sql-helpers";
@@ -66,7 +65,7 @@ export const getSlowestTests = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(SlowestQueryInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const limit = data.limit ?? 10;
     const offset = data.offset ?? 0;
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
@@ -143,7 +142,7 @@ export const getSlowestTests = createAuthenticatedServerFn({
       LIMIT {limit:UInt32} OFFSET {offset:UInt32}
     `;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       test_package: string;
       test_full_name: string;
       avg_duration: string;
@@ -180,7 +179,7 @@ export const getSlowestJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(SlowestQueryInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const limit = data.limit ?? 10;
     const offset = data.offset ?? 0;
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
@@ -244,7 +243,7 @@ export const getSlowestJobs = createAuthenticatedServerFn({
       LIMIT {limit:UInt32} OFFSET {offset:UInt32}
     `;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       workflow_name: string;
       job_name: string;
       avg_duration: string;

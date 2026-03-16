@@ -1,5 +1,4 @@
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
-import { query } from "@/lib/clickhouse";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
@@ -15,7 +14,7 @@ export const getCostOverview = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -36,7 +35,7 @@ export const getCostOverview = createAuthenticatedServerFn({
       ORDER BY date ASC, totalDurationMs DESC
     `;
 
-    const rows = await query<{
+    const rows = await clickhouse.query<{
       date: string;
       labels: string;
       totalJobs: string;
@@ -156,7 +155,7 @@ export const getCostByRepo = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -178,7 +177,7 @@ export const getCostByRepo = createAuthenticatedServerFn({
       ORDER BY totalDurationMs DESC
     `;
 
-    const rows = await query<{
+    const rows = await clickhouse.query<{
       repo: string;
       labels: string;
       totalJobs: string;
@@ -226,7 +225,7 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -251,7 +250,7 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
       ORDER BY totalDurationMs DESC
     `;
 
-    const rows = await query<{
+    const rows = await clickhouse.query<{
       repo: string;
       workflow: string;
       labels: string;

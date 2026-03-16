@@ -4,7 +4,6 @@ import {
   type TimeRangeInput,
   TimeRangeInputSchema,
 } from "@/data/analytics/schemas";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { testFullNameExpr } from "./sql-helpers";
@@ -30,7 +29,7 @@ export const getTestResultsSummary = createAuthenticatedServerFn({
       includeSkipped: z.boolean().optional(),
     }),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { clickhouse } }) => {
     const { timeRange, includeSkipped = true } = data;
     const { fromISO, toISO } = resolveTimeRange(timeRange);
     const { conditions, params, scopeConditions } = buildFilterConditions(
@@ -69,7 +68,7 @@ export const getTestResultsSummary = createAuthenticatedServerFn({
 			${scopeWhere}
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       totalTests: string;
       passCount: string;
       failCount: string;
@@ -107,7 +106,7 @@ export const getTestDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
     const sql = `
@@ -133,7 +132,7 @@ export const getTestDurationTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
+    const result = await clickhouse.query<{
       date: string;
       avgDuration: string;
       p50Duration: string;
