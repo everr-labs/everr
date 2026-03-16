@@ -41,7 +41,7 @@ async function getRawStepLogs(
     useTail?: boolean;
   },
 ): Promise<LogEntry[]> {
-  const { query } = context.clickhouse;
+  const clickhouse = context.clickhouse;
   const order = params.useTail ? "DESC" : "ASC";
   const limitClause =
     typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
@@ -60,7 +60,7 @@ async function getRawStepLogs(
 		${offsetClause}
 	`;
 
-  const result = await query<{
+  const result = await clickhouse.query<{
     timestamp: string;
     body: string;
   }>(sql, {
@@ -84,7 +84,7 @@ async function isFailedPipelineStep(
     stepNumber: string;
   },
 ): Promise<boolean> {
-  const { query } = context.clickhouse;
+  const clickhouse = context.clickhouse;
   const sql = `
 		SELECT 1 as hit
 		FROM traces
@@ -99,7 +99,7 @@ async function isFailedPipelineStep(
 		LIMIT 1
 	`;
 
-  const result = await query<{ hit: string }>(sql, params);
+  const result = await clickhouse.query<{ hit: string }>(sql, params);
   return result.length > 0;
 }
 
@@ -111,9 +111,9 @@ async function getStepLogsFailing(
     stepNumber: string;
   },
 ): Promise<LogEntry[]> {
-  const { query } = context.clickhouse;
+  const clickhouse = context.clickhouse;
   const sql = buildFailingStepLogsSql();
-  const result = await query<{
+  const result = await clickhouse.query<{
     timestamp: string;
     body: string;
   }>(sql, params);
@@ -125,68 +125,55 @@ export const getLatestRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(
-    async ({
-      data: { timeRange },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
-      const runSummarySql = runSummarySubquery({
-        whereClause: `ResourceAttributes['cicd.pipeline.run.id'] != ''
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const runSummarySql = runSummarySubquery({
+      whereClause: `ResourceAttributes['cicd.pipeline.run.id'] != ''
 				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
 				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 				AND SpanAttributes['everr.test.name'] = ''
 				AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}`,
-        groupByExpr: "TraceId",
-        groupByAlias: "trace_id",
-        includeRunAttempt: true,
-      });
+      groupByExpr: "TraceId",
+      groupByAlias: "trace_id",
+      includeRunAttempt: true,
+    });
 
-      const sql = `
+    const sql = `
       SELECT *
       FROM (${runSummarySql})
 		ORDER BY timestamp DESC
 		LIMIT 10
 	`;
 
-      const result = await query<{
-        trace_id: string;
-        run_id: string;
-        run_attempt: string;
-        repo: string;
-        branch: string;
-        conclusion: string;
-        workflowName: string;
-        timestamp: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      trace_id: string;
+      run_id: string;
+      run_attempt: string;
+      repo: string;
+      branch: string;
+      conclusion: string;
+      workflowName: string;
+      timestamp: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        traceId: row.trace_id,
-        runId: row.run_id,
-        runAttempt: Number(row.run_attempt),
-        repo: row.repo,
-        branch: row.branch,
-        conclusion: row.conclusion,
-        workflowName: row.workflowName || "Workflow",
-        timestamp: row.timestamp,
-      })) satisfies Run[];
-    },
-  );
+    return result.map((row) => ({
+      traceId: row.trace_id,
+      runId: row.run_id,
+      runAttempt: Number(row.run_attempt),
+      repo: row.repo,
+      branch: row.branch,
+      conclusion: row.conclusion,
+      workflowName: row.workflowName || "Workflow",
+      timestamp: row.timestamp,
+    })) satisfies Run[];
+  });
 
 export const getRunDetails = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(
-    async ({
-      data: traceId,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const sql = `
+  .handler(async ({ data: traceId, context: { clickhouse } }) => {
+    const sql = `
 			SELECT
 					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
 					anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
@@ -199,45 +186,38 @@ export const getRunDetails = createAuthenticatedServerFn({
 				WHERE TraceId = {traceId:String}
 		`;
 
-      const result = await query<{
-        run_id: string;
-        run_attempt: string;
-        repo: string;
-        branch: string;
-        conclusion: string;
-        workflowName: string;
-        timestamp: string;
-      }>(sql, { traceId });
+    const result = await clickhouse.query<{
+      run_id: string;
+      run_attempt: string;
+      repo: string;
+      branch: string;
+      conclusion: string;
+      workflowName: string;
+      timestamp: string;
+    }>(sql, { traceId });
 
-      if (result.length === 0) {
-        return null;
-      }
+    if (result.length === 0) {
+      return null;
+    }
 
-      return {
-        traceId,
-        runId: result[0].run_id,
-        runAttempt: Number(result[0].run_attempt),
-        repo: result[0].repo,
-        branch: result[0].branch,
-        conclusion: result[0].conclusion,
-        workflowName: result[0].workflowName || "Workflow",
-        timestamp: result[0].timestamp,
-      } satisfies Run;
-    },
-  );
+    return {
+      traceId,
+      runId: result[0].run_id,
+      runAttempt: Number(result[0].run_attempt),
+      repo: result[0].repo,
+      branch: result[0].branch,
+      conclusion: result[0].conclusion,
+      workflowName: result[0].workflowName || "Workflow",
+      timestamp: result[0].timestamp,
+    } satisfies Run;
+  });
 
 export const getRunJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(
-    async ({
-      data: traceId,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const sql = `
+  .handler(async ({ data: traceId, context: { clickhouse } }) => {
+    const sql = `
 			SELECT
 					ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
 					anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
@@ -254,34 +234,27 @@ export const getRunJobs = createAuthenticatedServerFn({
 			ORDER BY name
 		`;
 
-      const result = await query<{
-        jobId: string;
-        name: string;
-        conclusion: string;
-        duration: string;
-      }>(sql, { traceId });
+    const result = await clickhouse.query<{
+      jobId: string;
+      name: string;
+      conclusion: string;
+      duration: string;
+    }>(sql, { traceId });
 
-      return result.map((row) => ({
-        jobId: row.jobId,
-        name: row.name,
-        conclusion: row.conclusion,
-        duration: Number(row.duration),
-      })) satisfies Job[];
-    },
-  );
+    return result.map((row) => ({
+      jobId: row.jobId,
+      name: row.name,
+      conclusion: row.conclusion,
+      duration: Number(row.duration),
+    })) satisfies Job[];
+  });
 
 export const getJobSteps = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
-  .handler(
-    async ({
-      data: { traceId, jobId },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const sql = `
+  .handler(async ({ data: { traceId, jobId }, context: { clickhouse } }) => {
+    const sql = `
 			SELECT
 					SpanName as name,
 					SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
@@ -300,25 +273,24 @@ export const getJobSteps = createAuthenticatedServerFn({
 			ORDER BY toUInt32OrZero(stepNumber)
 		`;
 
-      const result = await query<{
-        name: string;
-        stepNumber: string;
-        conclusion: string;
-        duration: string;
-        startTime: string;
-        endTime: string;
-      }>(sql, { traceId, jobId });
+    const result = await clickhouse.query<{
+      name: string;
+      stepNumber: string;
+      conclusion: string;
+      duration: string;
+      startTime: string;
+      endTime: string;
+    }>(sql, { traceId, jobId });
 
-      return result.map((row) => ({
-        stepNumber: row.stepNumber,
-        name: row.name,
-        conclusion: row.conclusion,
-        duration: Number(row.duration),
-        startTime: Number(row.startTime),
-        endTime: Number(row.endTime),
-      })) satisfies Step[];
-    },
-  );
+    return result.map((row) => ({
+      stepNumber: row.stepNumber,
+      name: row.name,
+      conclusion: row.conclusion,
+      duration: Number(row.duration),
+      startTime: Number(row.startTime),
+      endTime: Number(row.endTime),
+    })) satisfies Step[];
+  });
 
 export const getAllJobsSteps = createAuthenticatedServerFn({
   method: "GET",
@@ -326,19 +298,13 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
   .inputValidator(
     z.object({ traceId: z.string(), jobIds: z.array(z.string()) }),
   )
-  .handler(
-    async ({
-      data: { traceId, jobIds },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      if (jobIds.length === 0) {
-        return {};
-      }
+  .handler(async ({ data: { traceId, jobIds }, context: { clickhouse } }) => {
+    if (jobIds.length === 0) {
+      return {};
+    }
 
-      const result: Record<string, Step[]> = {};
-      const sql = `
+    const result: Record<string, Step[]> = {};
+    const sql = `
       SELECT
         ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
         SpanName as name,
@@ -357,33 +323,32 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
         AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
       ORDER BY jobId, toUInt32OrZero(stepNumber)
     `;
-      const rows = await query<{
-        jobId: string;
-        name: string;
-        stepNumber: string;
-        conclusion: string;
-        duration: string;
-        startTime: string;
-        endTime: string;
-      }>(sql, { traceId, jobIds });
+    const rows = await clickhouse.query<{
+      jobId: string;
+      name: string;
+      stepNumber: string;
+      conclusion: string;
+      duration: string;
+      startTime: string;
+      endTime: string;
+    }>(sql, { traceId, jobIds });
 
-      for (const row of rows) {
-        if (!result[row.jobId]) {
-          result[row.jobId] = [];
-        }
-        result[row.jobId].push({
-          stepNumber: row.stepNumber,
-          name: row.name,
-          conclusion: row.conclusion,
-          duration: Number(row.duration),
-          startTime: Number(row.startTime),
-          endTime: Number(row.endTime),
-        });
+    for (const row of rows) {
+      if (!result[row.jobId]) {
+        result[row.jobId] = [];
       }
+      result[row.jobId].push({
+        stepNumber: row.stepNumber,
+        name: row.name,
+        conclusion: row.conclusion,
+        duration: Number(row.duration),
+        startTime: Number(row.startTime),
+        endTime: Number(row.endTime),
+      });
+    }
 
-      return result;
-    },
-  );
+    return result;
+  });
 
 export const getStepLogs = createAuthenticatedServerFn({
   method: "GET",
@@ -440,14 +405,8 @@ export const getRunSpans = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(
-    async ({
-      data: traceId,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const sql = `
+  .handler(async ({ data: traceId, context: { clickhouse } }) => {
+    const sql = `
 			SELECT
 				SpanId as spanId,
 				ParentSpanId as parentSpanId,
@@ -488,80 +447,79 @@ export const getRunSpans = createAuthenticatedServerFn({
 			ORDER BY startTime ASC
 		`;
 
-      const result = await query<{
-        spanId: string;
-        parentSpanId: string;
-        name: string;
-        startTime: string;
-        endTime: string;
-        duration: string;
-        conclusion: string;
-        jobId: string;
-        jobName: string;
-        stepNumber: string;
-        createdAt: string;
-        startedAt: string;
-        headBranch: string;
-        headSha: string;
-        runnerName: string;
-        labels: string;
-        sender: string;
-        runAttempt: string;
-        htmlUrl: string;
-        testName: string;
-        testResult: string;
-        testDuration: string;
-        testFramework: string;
-        testLanguage: string;
-        isSubtest: string;
-        isSuite: string;
-      }>(sql, { traceId });
+    const result = await clickhouse.query<{
+      spanId: string;
+      parentSpanId: string;
+      name: string;
+      startTime: string;
+      endTime: string;
+      duration: string;
+      conclusion: string;
+      jobId: string;
+      jobName: string;
+      stepNumber: string;
+      createdAt: string;
+      startedAt: string;
+      headBranch: string;
+      headSha: string;
+      runnerName: string;
+      labels: string;
+      sender: string;
+      runAttempt: string;
+      htmlUrl: string;
+      testName: string;
+      testResult: string;
+      testDuration: string;
+      testFramework: string;
+      testLanguage: string;
+      isSubtest: string;
+      isSuite: string;
+    }>(sql, { traceId });
 
-      return result.map((row) => {
-        // Calculate queue time from created_at and started_at (ISO timestamps)
-        let queueTime: number | undefined;
-        if (row.createdAt && row.startedAt && !row.stepNumber) {
-          const created = new Date(row.createdAt).getTime();
-          const started = new Date(row.startedAt).getTime();
-          if (!Number.isNaN(created) && !Number.isNaN(started)) {
-            queueTime = started - created;
-          }
+    return result.map((row) => {
+      // Calculate queue time from created_at and started_at (ISO timestamps)
+      let queueTime: number | undefined;
+      if (row.createdAt && row.startedAt && !row.stepNumber) {
+        const created = new Date(row.createdAt).getTime();
+        const started = new Date(row.startedAt).getTime();
+        if (!Number.isNaN(created) && !Number.isNaN(started)) {
+          queueTime = started - created;
         }
+      }
 
-        // Only include job-specific attributes for job spans (not steps)
-        const isJobSpan = !row.stepNumber;
+      // Only include job-specific attributes for job spans (not steps)
+      const isJobSpan = !row.stepNumber;
 
-        return {
-          spanId: row.spanId,
-          parentSpanId: row.parentSpanId,
-          name: row.name,
-          startTime: Number(row.startTime),
-          endTime: Number(row.endTime),
-          duration: Number(row.duration),
-          conclusion:
-            row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
-          jobId: row.jobId || undefined,
-          jobName: row.jobName || undefined,
-          stepNumber: row.stepNumber || undefined,
-          queueTime,
-          // Job-specific attributes (only for job spans)
-          headBranch: isJobSpan && row.headBranch ? row.headBranch : undefined,
-          headSha: isJobSpan && row.headSha ? row.headSha : undefined,
-          runnerName: isJobSpan && row.runnerName ? row.runnerName : undefined,
-          labels: isJobSpan && row.labels ? row.labels : undefined,
-          sender: isJobSpan && row.sender ? row.sender : undefined,
-          runAttempt:
-            isJobSpan && row.runAttempt ? Number(row.runAttempt) : undefined,
-          htmlUrl: isJobSpan && row.htmlUrl ? row.htmlUrl : undefined,
-          // Test-specific attributes
-          testName: row.testName || undefined,
-          testResult: row.testResult || undefined,
-          testDuration: row.testDuration ? Number(row.testDuration) : undefined,
-          testFramework: row.testFramework || undefined,
-          testLanguage: row.testLanguage || undefined,
-          isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
-          isSuite: row.isSuite === "true" || row.isSuite === "1",
-        };
-      }) satisfies Span[];
-    },
-  );
+      return {
+        spanId: row.spanId,
+        parentSpanId: row.parentSpanId,
+        name: row.name,
+        startTime: Number(row.startTime),
+        endTime: Number(row.endTime),
+        duration: Number(row.duration),
+        conclusion:
+          row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
+        jobId: row.jobId || undefined,
+        jobName: row.jobName || undefined,
+        stepNumber: row.stepNumber || undefined,
+        queueTime,
+        // Job-specific attributes (only for job spans)
+        headBranch: isJobSpan && row.headBranch ? row.headBranch : undefined,
+        headSha: isJobSpan && row.headSha ? row.headSha : undefined,
+        runnerName: isJobSpan && row.runnerName ? row.runnerName : undefined,
+        labels: isJobSpan && row.labels ? row.labels : undefined,
+        sender: isJobSpan && row.sender ? row.sender : undefined,
+        runAttempt:
+          isJobSpan && row.runAttempt ? Number(row.runAttempt) : undefined,
+        htmlUrl: isJobSpan && row.htmlUrl ? row.htmlUrl : undefined,
+        // Test-specific attributes
+        testName: row.testName || undefined,
+        testResult: row.testResult || undefined,
+        testDuration: row.testDuration ? Number(row.testDuration) : undefined,
+        testFramework: row.testFramework || undefined,
+        testLanguage: row.testLanguage || undefined,
+        isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
+        isSuite: row.isSuite === "true" || row.isSuite === "1",
+      };
+    }) satisfies Span[];
+  });

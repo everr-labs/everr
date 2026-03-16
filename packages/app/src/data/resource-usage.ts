@@ -217,9 +217,7 @@ export const getJobResourceUsage = createAuthenticatedServerFn({
   .handler(
     async ({
       data: { traceId, jobId },
-      context: {
-        clickhouse: { query },
-      },
+      context: { clickhouse },
     }): Promise<JobResourceUsage | null> => {
       const identifierSql = `
       SELECT
@@ -230,10 +228,10 @@ export const getJobResourceUsage = createAuthenticatedServerFn({
         AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
     `;
 
-      const identifierRows = await query<{ runId: string; jobName: string }>(
-        identifierSql,
-        { traceId, jobId },
-      );
+      const identifierRows = await clickhouse.query<{
+        runId: string;
+        jobName: string;
+      }>(identifierSql, { traceId, jobId });
 
       const ids = resolveJobIdentifiers(identifierRows);
       if (!ids || !ids.runId || !ids.jobName) return null;
@@ -272,7 +270,7 @@ export const getJobResourceUsage = createAuthenticatedServerFn({
       ORDER BY timestamp
     `;
 
-      const metricRows = await query<RawMetricRow>(metricsSql, {
+      const metricRows = await clickhouse.query<RawMetricRow>(metricsSql, {
         runId: ids.runId,
         jobName: ids.jobName,
       });

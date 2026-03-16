@@ -13,16 +13,10 @@ export const getDashboardStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(
-    async ({
-      data: { timeRange },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 		SELECT
 			count(*) as totalJobRuns,
 			countIf(conclusion = 'success') as successfulRuns,
@@ -40,51 +34,44 @@ export const getDashboardStats = createAuthenticatedServerFn({
 		)
 	`;
 
-      const result = await query<{
-        totalJobRuns: string;
-        successfulRuns: string;
-        failedRuns: string;
-        cancelledRuns: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      totalJobRuns: string;
+      successfulRuns: string;
+      failedRuns: string;
+      cancelledRuns: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-      if (result.length === 0) {
-        return {
-          totalJobRuns: 0,
-          successfulRuns: 0,
-          failedRuns: 0,
-          cancelledRuns: 0,
-          successRate: 0,
-        } satisfies DashboardStats;
-      }
-
-      const stats = result[0];
-      const total = Number(stats.totalJobRuns);
-      const successful = Number(stats.successfulRuns);
-
+    if (result.length === 0) {
       return {
-        totalJobRuns: total,
-        successfulRuns: successful,
-        failedRuns: Number(stats.failedRuns),
-        cancelledRuns: Number(stats.cancelledRuns),
-        successRate: total > 0 ? Math.round((successful / total) * 100) : 0,
+        totalJobRuns: 0,
+        successfulRuns: 0,
+        failedRuns: 0,
+        cancelledRuns: 0,
+        successRate: 0,
       } satisfies DashboardStats;
-    },
-  );
+    }
+
+    const stats = result[0];
+    const total = Number(stats.totalJobRuns);
+    const successful = Number(stats.successfulRuns);
+
+    return {
+      totalJobRuns: total,
+      successfulRuns: successful,
+      failedRuns: Number(stats.failedRuns),
+      cancelledRuns: Number(stats.cancelledRuns),
+      successRate: total > 0 ? Math.round((successful / total) * 100) : 0,
+    } satisfies DashboardStats;
+  });
 
 export const getRepositories = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(
-    async ({
-      data: { timeRange },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 		SELECT
 			name,
 			count(*) as totalRuns,
@@ -108,36 +95,29 @@ export const getRepositories = createAuthenticatedServerFn({
 		LIMIT 10
 	`;
 
-      const result = await query<{
-        name: string;
-        totalRuns: string;
-        lastRunAt: string;
-        successRate: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      name: string;
+      totalRuns: string;
+      lastRunAt: string;
+      successRate: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        name: row.name,
-        totalRuns: Number(row.totalRuns),
-        lastRunAt: row.lastRunAt,
-        successRate: Number(row.successRate) || 0,
-      })) satisfies Repository[];
-    },
-  );
+    return result.map((row) => ({
+      name: row.name,
+      totalRuns: Number(row.totalRuns),
+      lastRunAt: row.lastRunAt,
+      successRate: Number(row.successRate) || 0,
+    })) satisfies Repository[];
+  });
 
 export const getDashboardDurationStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(
-    async ({
-      data: { timeRange },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 		SELECT
 			avg(Duration) / 1000000 as avgDuration,
 			quantile(0.95)(Duration) / 1000000 as p95Duration
@@ -148,39 +128,32 @@ export const getDashboardDurationStats = createAuthenticatedServerFn({
 			AND SpanAttributes['everr.test.name'] = ''
 	`;
 
-      const result = await query<{
-        avgDuration: string;
-        p95Duration: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      avgDuration: string;
+      p95Duration: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-      if (result.length === 0) {
-        return {
-          avgDuration: 0,
-          p95Duration: 0,
-        } satisfies DashboardDurationStats;
-      }
-
+    if (result.length === 0) {
       return {
-        avgDuration: Number(result[0].avgDuration),
-        p95Duration: Number(result[0].p95Duration),
+        avgDuration: 0,
+        p95Duration: 0,
       } satisfies DashboardDurationStats;
-    },
-  );
+    }
+
+    return {
+      avgDuration: Number(result[0].avgDuration),
+      p95Duration: Number(result[0].p95Duration),
+    } satisfies DashboardDurationStats;
+  });
 
 export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(
-    async ({
-      data: { timeRange },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 		SELECT
 			ResourceAttributes['cicd.pipeline.task.name'] as jobName,
 			ResourceAttributes['vcs.repository.name'] as repo,
@@ -196,34 +169,27 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
 		LIMIT 5
 	`;
 
-      const result = await query<{
-        jobName: string;
-        repo: string;
-        failureCount: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      jobName: string;
+      repo: string;
+      failureCount: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        jobName: row.jobName,
-        repo: row.repo,
-        failureCount: Number(row.failureCount),
-      })) satisfies TopFailingJob[];
-    },
-  );
+    return result.map((row) => ({
+      jobName: row.jobName,
+      repo: row.repo,
+      failureCount: Number(row.failureCount),
+    })) satisfies TopFailingJob[];
+  });
 
 export const getTopFailingWorkflows = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(
-    async ({
-      data: { timeRange },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 		SELECT
 			workflowName,
 			repo,
@@ -246,16 +212,15 @@ export const getTopFailingWorkflows = createAuthenticatedServerFn({
 		LIMIT 5
 	`;
 
-      const result = await query<{
-        workflowName: string;
-        repo: string;
-        failureCount: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      workflowName: string;
+      repo: string;
+      failureCount: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        workflowName: row.workflowName,
-        repo: row.repo,
-        failureCount: Number(row.failureCount),
-      })) satisfies TopFailingWorkflow[];
-    },
-  );
+    return result.map((row) => ({
+      workflowName: row.workflowName,
+      repo: row.repo,
+      failureCount: Number(row.failureCount),
+    })) satisfies TopFailingWorkflow[];
+  });

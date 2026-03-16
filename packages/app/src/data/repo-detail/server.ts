@@ -14,16 +14,10 @@ export const getRepoStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(
-    async ({
-      data: { timeRange, repo },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 			SELECT
 				count(*) as totalRuns,
 				round(countIf(conclusion = 'success') * 100.0 / nullIf(count(*), 0), 1) as successRate,
@@ -43,42 +37,35 @@ export const getRepoStats = createAuthenticatedServerFn({
 			)
 		`;
 
-      const result = await query<{
-        totalRuns: string;
-        successRate: string;
-        avgDuration: string;
-      }>(sql, { repo, fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      totalRuns: string;
+      successRate: string;
+      avgDuration: string;
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
-      if (result.length === 0) {
-        return {
-          totalRuns: 0,
-          successRate: 0,
-          avgDuration: 0,
-        } satisfies RepoStats;
-      }
-
+    if (result.length === 0) {
       return {
-        totalRuns: Number(result[0].totalRuns),
-        successRate: Number(result[0].successRate) || 0,
-        avgDuration: Number(result[0].avgDuration),
+        totalRuns: 0,
+        successRate: 0,
+        avgDuration: 0,
       } satisfies RepoStats;
-    },
-  );
+    }
+
+    return {
+      totalRuns: Number(result[0].totalRuns),
+      successRate: Number(result[0].successRate) || 0,
+      avgDuration: Number(result[0].avgDuration),
+    } satisfies RepoStats;
+  });
 
 export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(
-    async ({
-      data: { timeRange, repo },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 			SELECT
 				date,
 				round(countIf(conclusion = 'success') * 100.0 / nullIf(count(*), 0), 1) as successRate,
@@ -101,38 +88,31 @@ export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-      const result = await query<{
-        date: string;
-        successRate: string;
-        totalRuns: string;
-        successCount: string;
-        failureCount: string;
-      }>(sql, { repo, fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      date: string;
+      successRate: string;
+      totalRuns: string;
+      successCount: string;
+      failureCount: string;
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        date: row.date,
-        successRate: Number(row.successRate) || 0,
-        totalRuns: Number(row.totalRuns),
-        successCount: Number(row.successCount),
-        failureCount: Number(row.failureCount),
-      })) satisfies RepoSuccessRatePoint[];
-    },
-  );
+    return result.map((row) => ({
+      date: row.date,
+      successRate: Number(row.successRate) || 0,
+      totalRuns: Number(row.totalRuns),
+      successCount: Number(row.successCount),
+      failureCount: Number(row.failureCount),
+    })) satisfies RepoSuccessRatePoint[];
+  });
 
 export const getRepoDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(
-    async ({
-      data: { timeRange, repo },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 			SELECT
 				toDate(Timestamp) as date,
 				quantile(0.5)(Duration) / 1000000 as p50Duration,
@@ -147,34 +127,27 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-      const result = await query<{
-        date: string;
-        p50Duration: string;
-        p95Duration: string;
-      }>(sql, { repo, fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      date: string;
+      p50Duration: string;
+      p95Duration: string;
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        date: row.date,
-        p50Duration: Number(row.p50Duration),
-        p95Duration: Number(row.p95Duration),
-      })) satisfies RepoDurationPoint[];
-    },
-  );
+    return result.map((row) => ({
+      date: row.date,
+      p50Duration: Number(row.p50Duration),
+      p95Duration: Number(row.p95Duration),
+    })) satisfies RepoDurationPoint[];
+  });
 
 export const getRepoRecentRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(
-    async ({
-      data: { timeRange, repo },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 			SELECT
 				TraceId as trace_id,
 				anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
@@ -194,42 +167,35 @@ export const getRepoRecentRuns = createAuthenticatedServerFn({
 			LIMIT 20
 		`;
 
-      const result = await query<{
-        trace_id: string;
-        run_id: string;
-        workflowName: string;
-        branch: string;
-        conclusion: string;
-        timestamp: string;
-        sender: string;
-      }>(sql, { repo, fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      trace_id: string;
+      run_id: string;
+      workflowName: string;
+      branch: string;
+      conclusion: string;
+      timestamp: string;
+      sender: string;
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        traceId: row.trace_id,
-        runId: row.run_id,
-        workflowName: row.workflowName || "Workflow",
-        branch: row.branch,
-        conclusion: row.conclusion,
-        timestamp: row.timestamp,
-        sender: row.sender,
-      })) satisfies RepoRecentRun[];
-    },
-  );
+    return result.map((row) => ({
+      traceId: row.trace_id,
+      runId: row.run_id,
+      workflowName: row.workflowName || "Workflow",
+      branch: row.branch,
+      conclusion: row.conclusion,
+      timestamp: row.timestamp,
+      sender: row.sender,
+    })) satisfies RepoRecentRun[];
+  });
 
 export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(
-    async ({
-      data: { timeRange, repo },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 			SELECT
 				ResourceAttributes['cicd.pipeline.task.name'] as jobName,
 				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
@@ -251,38 +217,31 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
 			LIMIT 10
 		`;
 
-      const result = await query<{
-        jobName: string;
-        workflowName: string;
-        totalRuns: string;
-        failureCount: string;
-        failureRate: string;
-      }>(sql, { repo, fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      jobName: string;
+      workflowName: string;
+      totalRuns: string;
+      failureCount: string;
+      failureRate: string;
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        jobName: row.jobName,
-        workflowName: row.workflowName,
-        totalRuns: Number(row.totalRuns),
-        failureCount: Number(row.failureCount),
-        failureRate: Number(row.failureRate) || 0,
-      })) satisfies TopFailingJob[];
-    },
-  );
+    return result.map((row) => ({
+      jobName: row.jobName,
+      workflowName: row.workflowName,
+      totalRuns: Number(row.totalRuns),
+      failureCount: Number(row.failureCount),
+      failureRate: Number(row.failureRate) || 0,
+    })) satisfies TopFailingJob[];
+  });
 
 export const getActiveBranches = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RepoDetailInputSchema)
-  .handler(
-    async ({
-      data: { timeRange, repo },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 			SELECT
 				branch,
 				argMax(conclusion, timestamp) as latestConclusion,
@@ -311,24 +270,23 @@ export const getActiveBranches = createAuthenticatedServerFn({
 			LIMIT 20
 		`;
 
-      const result = await query<{
-        branch: string;
-        latestConclusion: string;
-        latestTraceId: string;
-        latestRunId: string;
-        latestTimestamp: string;
-        totalRuns: string;
-        successRate: string;
-      }>(sql, { repo, fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      branch: string;
+      latestConclusion: string;
+      latestTraceId: string;
+      latestRunId: string;
+      latestTimestamp: string;
+      totalRuns: string;
+      successRate: string;
+    }>(sql, { repo, fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        branch: row.branch,
-        latestConclusion: row.latestConclusion,
-        latestTraceId: row.latestTraceId,
-        latestRunId: row.latestRunId,
-        latestTimestamp: row.latestTimestamp,
-        totalRuns: Number(row.totalRuns),
-        successRate: Number(row.successRate) || 0,
-      })) satisfies ActiveBranch[];
-    },
-  );
+    return result.map((row) => ({
+      branch: row.branch,
+      latestConclusion: row.latestConclusion,
+      latestTraceId: row.latestTraceId,
+      latestRunId: row.latestRunId,
+      latestTimestamp: row.latestTimestamp,
+      totalRuns: Number(row.totalRuns),
+      successRate: Number(row.successRate) || 0,
+    })) satisfies ActiveBranch[];
+  });

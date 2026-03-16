@@ -193,7 +193,7 @@ async function loadFailureRuns(
     branch?: string;
   },
 ): Promise<FailureRunRow[]> {
-  const { query } = context.clickhouse;
+  const clickhouse = context.clickhouse;
   const conditions = [
     `Timestamp >= now() - INTERVAL ${timeWindowMinutes} MINUTE`,
     "ResourceAttributes['cicd.pipeline.run.id'] != ''",
@@ -218,7 +218,7 @@ async function loadFailureRuns(
     params.branch = branch;
   }
 
-  return query<FailureRunRow>(
+  return clickhouse.query<FailureRunRow>(
     `
       SELECT
         TraceId as traceId,
@@ -241,13 +241,13 @@ async function loadFirstFailingSteps(
   context: AuthContext,
   traceIds: string[],
 ): Promise<Map<string, FirstFailingStep>> {
-  const { query } = context.clickhouse;
+  const clickhouse = context.clickhouse;
   if (traceIds.length === 0) {
     return new Map();
   }
 
   const [failedJobsResult, stepsResult] = await Promise.all([
-    query<{
+    clickhouse.query<{
       trace_id: string;
       jobId: string;
     }>(
@@ -267,7 +267,7 @@ async function loadFirstFailingSteps(
         traceIds,
       },
     ),
-    query<{
+    clickhouse.query<{
       trace_id: string;
       jobId: string;
       jobName: string;
@@ -410,7 +410,7 @@ async function loadSuccessfulRunsForScopes(
   failures: FailureRunRow[],
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
-  const { query } = context.clickhouse;
+  const clickhouse = context.clickhouse;
   const scopeFilter = buildScopeFilter(
     failures.map((failure) => ({
       repo: failure.repo,
@@ -420,7 +420,7 @@ async function loadSuccessfulRunsForScopes(
     "ResourceAttributes['vcs.ref.head.name']",
   );
 
-  return query<CandidateRunRow>(
+  return clickhouse.query<CandidateRunRow>(
     `
       SELECT
         anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,

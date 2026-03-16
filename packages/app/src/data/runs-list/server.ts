@@ -165,23 +165,17 @@ export const searchRuns = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(SearchRunsInputSchema)
-  .handler(
-    async ({
-      data,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const results = await query<{
-        trace_id: string;
-        run_id: string;
-        workflowName: string;
-        repo: string;
-        branch: string;
-        conclusion: string;
-        timestamp: string;
-      }>(
-        `
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const results = await clickhouse.query<{
+      trace_id: string;
+      run_id: string;
+      workflowName: string;
+      repo: string;
+      branch: string;
+      conclusion: string;
+      timestamp: string;
+    }>(
+      `
       SELECT *
       FROM (
         ${runSummarySubquery({
@@ -199,20 +193,19 @@ export const searchRuns = createAuthenticatedServerFn({
       ORDER BY timestamp DESC
       LIMIT 5
       `,
-        { pattern: `%${data.query}%` },
-      );
+      { pattern: `%${data.query}%` },
+    );
 
-      return results.map((row) => ({
-        traceId: row.trace_id,
-        runId: row.run_id,
-        workflowName: row.workflowName || "Workflow",
-        repo: row.repo,
-        branch: row.branch,
-        conclusion: row.conclusion,
-        timestamp: row.timestamp,
-      }));
-    },
-  );
+    return results.map((row) => ({
+      traceId: row.trace_id,
+      runId: row.run_id,
+      workflowName: row.workflowName || "Workflow",
+      repo: row.repo,
+      branch: row.branch,
+      conclusion: row.conclusion,
+      timestamp: row.timestamp,
+    }));
+  });
 
 function mapWorkflowRunRow(row: WorkflowRunRow): RunListItem {
   const endedAt = toDateValue(row.completedAt ?? row.lastEventAt);

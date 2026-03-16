@@ -13,39 +13,33 @@ export interface TestPerfFilterOptions {
 // Server function: filter options (repos + branches from last 90 days)
 export const getTestPerfFilterOptions = createAuthenticatedServerFn({
   method: "GET",
-}).handler(
-  async ({
-    context: {
-      clickhouse: { query },
-    },
-  }) => {
-    const [repos, branches] = await Promise.all([
-      query<{ repo: string }>(
-        `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
+}).handler(async ({ context: { clickhouse } }) => {
+  const [repos, branches] = await Promise.all([
+    clickhouse.query<{ repo: string }>(
+      `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
       FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
         AND ResourceAttributes['vcs.repository.name'] != ''
         AND SpanAttributes['everr.test.name'] != ''
       ORDER BY repo
       LIMIT 100`,
-      ),
-      query<{ branch: string }>(
-        `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
+    ),
+    clickhouse.query<{ branch: string }>(
+      `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
       FROM traces
       WHERE Timestamp >= now() - INTERVAL 90 DAY
         AND ResourceAttributes['vcs.ref.head.name'] != ''
         AND SpanAttributes['everr.test.name'] != ''
       ORDER BY branch
       LIMIT 100`,
-      ),
-    ]);
+    ),
+  ]);
 
-    return {
-      repos: repos.map((r) => r.repo),
-      branches: branches.map((r) => r.branch),
-    } satisfies TestPerfFilterOptions;
-  },
-);
+  return {
+    repos: repos.map((r) => r.repo),
+    branches: branches.map((r) => r.branch),
+  } satisfies TestPerfFilterOptions;
+});
 
 export const testPerfFilterOptionsOptions = () =>
   queryOptions({
@@ -78,46 +72,40 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerfChildrenInputSchema)
-  .handler(
-    async ({
-      data,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
-      const baseConditions = [
-        "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
-        "SpanAttributes['everr.test.name'] != ''",
-        "SpanAttributes['everr.test.result'] IN ('pass', 'fail')",
-      ];
-      const params: Record<string, unknown> = {
-        fromTime: fromISO,
-        toTime: toISO,
-      };
+    const baseConditions = [
+      "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
+      "SpanAttributes['everr.test.name'] != ''",
+      "SpanAttributes['everr.test.result'] IN ('pass', 'fail')",
+    ];
+    const params: Record<string, unknown> = {
+      fromTime: fromISO,
+      toTime: toISO,
+    };
 
-      if (data.repo) {
-        baseConditions.push(
-          "ResourceAttributes['vcs.repository.name'] = {repo:String}",
-        );
-        params.repo = data.repo;
-      }
-      if (data.branch) {
-        baseConditions.push(
-          "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
-        );
-        params.branch = data.branch;
-      }
+    if (data.repo) {
+      baseConditions.push(
+        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+      );
+      params.repo = data.repo;
+    }
+    if (data.branch) {
+      baseConditions.push(
+        "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+      );
+      params.branch = data.branch;
+    }
 
-      const isRoot = !data.pkg;
+    const isRoot = !data.pkg;
 
-      if (isRoot) {
-        const rootConditions = [...baseConditions];
-        rootConditions.push("SpanAttributes['everr.test.package'] != ''");
-        const rootWhere = rootConditions.join("\n          AND ");
+    if (isRoot) {
+      const rootConditions = [...baseConditions];
+      rootConditions.push("SpanAttributes['everr.test.package'] != ''");
+      const rootWhere = rootConditions.join("\n          AND ");
 
-        const sql = `
+      const sql = `
         WITH executions AS (
           SELECT
             SpanAttributes['everr.test.package'] as pkg_name,
@@ -198,49 +186,45 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
         ORDER BY pkg_name
       `;
 
-        const result = await query<{
-          name: string;
-          is_suite: number;
-          executions: string;
-          avg_duration: string;
-          p95_duration: string;
-          failure_rate: string;
-        }>(sql, params);
+      const result = await clickhouse.query<{
+        name: string;
+        is_suite: number;
+        executions: string;
+        avg_duration: string;
+        p95_duration: string;
+        failure_rate: string;
+      }>(sql, params);
 
-        return result.map((row) => ({
-          name: row.name,
-          isSuite: row.is_suite === 1,
-          executions: Number(row.executions),
-          avgDuration: Number(row.avg_duration),
-          p95Duration: Number(row.p95_duration),
-          failureRate: Number(row.failure_rate) || 0,
-        })) satisfies TestPerfChild[];
-      }
+      return result.map((row) => ({
+        name: row.name,
+        isSuite: row.is_suite === 1,
+        executions: Number(row.executions),
+        avgDuration: Number(row.avg_duration),
+        p95Duration: Number(row.p95_duration),
+        failureRate: Number(row.failure_rate) || 0,
+      })) satisfies TestPerfChild[];
+    }
 
-      // Package or deeper level: return direct children with suite flag in one query
-      const childConditions = [...baseConditions];
-      childConditions.push(
-        "SpanAttributes['everr.test.package'] = {pkg:String}",
-      );
-      params.pkg = data.pkg;
+    // Package or deeper level: return direct children with suite flag in one query
+    const childConditions = [...baseConditions];
+    childConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
+    params.pkg = data.pkg;
 
-      const parentTest = data.path ?? "";
-      params.parentTest = parentTest;
+    const parentTest = data.path ?? "";
+    params.parentTest = parentTest;
 
-      childConditions.push(
-        "SpanAttributes['everr.test.parent_test'] = {parentTest:String}",
-      );
+    childConditions.push(
+      "SpanAttributes['everr.test.parent_test'] = {parentTest:String}",
+    );
 
-      const childWhere = childConditions.join("\n          AND ");
+    const childWhere = childConditions.join("\n          AND ");
 
-      const suiteConditions = [...baseConditions];
-      suiteConditions.push(
-        "SpanAttributes['everr.test.package'] = {pkg:String}",
-      );
-      suiteConditions.push("SpanAttributes['everr.test.parent_test'] != ''");
-      const suiteWhere = suiteConditions.join("\n          AND ");
+    const suiteConditions = [...baseConditions];
+    suiteConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
+    suiteConditions.push("SpanAttributes['everr.test.parent_test'] != ''");
+    const suiteWhere = suiteConditions.join("\n          AND ");
 
-      const sql = `
+    const sql = `
       SELECT
         c.name,
         if(countIf(s.name != '') > 0, 1, 0) as is_suite,
@@ -269,25 +253,24 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
       ORDER BY c.name
     `;
 
-      const result = await query<{
-        name: string;
-        is_suite: number;
-        executions: string;
-        avg_duration: string;
-        p95_duration: string;
-        failure_rate: string;
-      }>(sql, params);
+    const result = await clickhouse.query<{
+      name: string;
+      is_suite: number;
+      executions: string;
+      avg_duration: string;
+      p95_duration: string;
+      failure_rate: string;
+    }>(sql, params);
 
-      return result.map((row) => ({
-        name: row.name,
-        isSuite: row.is_suite === 1,
-        executions: Number(row.executions),
-        avgDuration: Number(row.avg_duration),
-        p95Duration: Number(row.p95_duration),
-        failureRate: Number(row.failure_rate) || 0,
-      })) satisfies TestPerfChild[];
-    },
-  );
+    return result.map((row) => ({
+      name: row.name,
+      isSuite: row.is_suite === 1,
+      executions: Number(row.executions),
+      avgDuration: Number(row.avg_duration),
+      p95Duration: Number(row.p95_duration),
+      failureRate: Number(row.failure_rate) || 0,
+    })) satisfies TestPerfChild[];
+  });
 
 export const testPerfChildrenOptions = (input: TestPerfChildrenInput) =>
   queryOptions({

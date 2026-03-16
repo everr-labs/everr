@@ -29,28 +29,22 @@ export const getTestResultsSummary = createAuthenticatedServerFn({
       includeSkipped: z.boolean().optional(),
     }),
   )
-  .handler(
-    async ({
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { timeRange, includeSkipped = true } = data;
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { conditions, params, scopeConditions } = buildFilterConditions(
+      fromISO,
+      toISO,
       data,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { timeRange, includeSkipped = true } = data;
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
-      const { conditions, params, scopeConditions } = buildFilterConditions(
-        fromISO,
-        toISO,
-        data,
-        { includeSkipResults: includeSkipped },
-      );
-      const whereClause = conditions.join("\n\t\t\t\t\tAND ");
-      const scopeWhere =
-        scopeConditions.length > 0
-          ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
-          : "";
+      { includeSkipResults: includeSkipped },
+    );
+    const whereClause = conditions.join("\n\t\t\t\t\tAND ");
+    const scopeWhere =
+      scopeConditions.length > 0
+        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
+        : "";
 
-      const sql = `
+    const sql = `
 			SELECT
 				uniqExact(test_full_name) as totalTests,
 				countIf(test_result = 'pass') as passCount,
@@ -74,33 +68,32 @@ export const getTestResultsSummary = createAuthenticatedServerFn({
 			${scopeWhere}
 		`;
 
-      const result = await query<{
-        totalTests: string;
-        passCount: string;
-        failCount: string;
-        skipCount: string;
-        passRate: string;
-      }>(sql, params);
+    const result = await clickhouse.query<{
+      totalTests: string;
+      passCount: string;
+      failCount: string;
+      skipCount: string;
+      passRate: string;
+    }>(sql, params);
 
-      if (result.length === 0) {
-        return {
-          totalTests: 0,
-          passCount: 0,
-          failCount: 0,
-          skipCount: 0,
-          passRate: 0,
-        } satisfies TestResultsSummary;
-      }
-
+    if (result.length === 0) {
       return {
-        totalTests: Number(result[0].totalTests),
-        passCount: Number(result[0].passCount),
-        failCount: Number(result[0].failCount),
-        skipCount: Number(result[0].skipCount),
-        passRate: Number(result[0].passRate) || 0,
+        totalTests: 0,
+        passCount: 0,
+        failCount: 0,
+        skipCount: 0,
+        passRate: 0,
       } satisfies TestResultsSummary;
-    },
-  );
+    }
+
+    return {
+      totalTests: Number(result[0].totalTests),
+      passCount: Number(result[0].passCount),
+      failCount: Number(result[0].failCount),
+      skipCount: Number(result[0].skipCount),
+      passRate: Number(result[0].passRate) || 0,
+    } satisfies TestResultsSummary;
+  });
 
 export interface TestDurationTrendPoint {
   date: string;
@@ -113,16 +106,10 @@ export const getTestDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(
-    async ({
-      data: { timeRange },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const sql = `
+    const sql = `
 			SELECT
 				toDate(timestamp) as date,
 				avg(test_duration) as avgDuration,
@@ -145,21 +132,20 @@ export const getTestDurationTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-      const result = await query<{
-        date: string;
-        avgDuration: string;
-        p50Duration: string;
-        p95Duration: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+    const result = await clickhouse.query<{
+      date: string;
+      avgDuration: string;
+      p50Duration: string;
+      p95Duration: string;
+    }>(sql, { fromTime: fromISO, toTime: toISO });
 
-      return result.map((row) => ({
-        date: row.date,
-        avgDuration: Number(row.avgDuration),
-        p50Duration: Number(row.p50Duration),
-        p95Duration: Number(row.p95Duration),
-      })) satisfies TestDurationTrendPoint[];
-    },
-  );
+    return result.map((row) => ({
+      date: row.date,
+      avgDuration: Number(row.avgDuration),
+      p50Duration: Number(row.p50Duration),
+      p95Duration: Number(row.p95Duration),
+    })) satisfies TestDurationTrendPoint[];
+  });
 
 // Query options factories
 export const testResultsSummaryOptions = (

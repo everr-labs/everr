@@ -55,60 +55,48 @@ function buildFlakyTestConditions(
 
 export const getFlakyTestFilterOptions = createAuthenticatedServerFn({
   method: "GET",
-}).handler(
-  async ({
-    context: {
-      clickhouse: { query },
-    },
-  }) => {
-    const [repos, branches] = await Promise.all([
-      query<{ repo: string }>(
-        `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
+}).handler(async ({ context: { clickhouse } }) => {
+  const [repos, branches] = await Promise.all([
+    clickhouse.query<{ repo: string }>(
+      `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
 			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.repository.name'] != ''
 				AND SpanAttributes['everr.test.name'] != ''
 			ORDER BY repo
 			LIMIT 100`,
-      ),
-      query<{ branch: string }>(
-        `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
+    ),
+    clickhouse.query<{ branch: string }>(
+      `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
 			FROM traces
 			WHERE Timestamp >= now() - INTERVAL 90 DAY
 				AND ResourceAttributes['vcs.ref.head.name'] != ''
 				AND SpanAttributes['everr.test.name'] != ''
 			ORDER BY branch
 			LIMIT 100`,
-      ),
-    ]);
+    ),
+  ]);
 
-    return {
-      repos: repos.map((r) => r.repo),
-      branches: branches.map((r) => r.branch),
-    } satisfies FlakyTestFilterOptions;
-  },
-);
+  return {
+    repos: repos.map((r) => r.repo),
+    branches: branches.map((r) => r.branch),
+  } satisfies FlakyTestFilterOptions;
+});
 
 export const getFlakyTests = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(FlakyTestsFilterInputSchema)
-  .handler(
-    async ({
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { conditions, params } = buildFlakyTestConditions(
+      fromISO,
+      toISO,
       data,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-      const { conditions, params } = buildFlakyTestConditions(
-        fromISO,
-        toISO,
-        data,
-      );
-      const whereClause = conditions.join("\n\t\t\t\t\tAND ");
+    );
+    const whereClause = conditions.join("\n\t\t\t\t\tAND ");
 
-      const sql = `
+    const sql = `
 			SELECT
 				repo, test_package, test_full_name,
 				count(*) as total_executions,
@@ -155,62 +143,55 @@ export const getFlakyTests = createAuthenticatedServerFn({
 			LIMIT 50
 		`;
 
-      const result = await query<{
-        repo: string;
-        test_package: string;
-        test_full_name: string;
-        total_executions: string;
-        fail_count: string;
-        pass_count: string;
-        skip_count: string;
-        distinct_runs: string;
-        distinct_shas: string;
-        failure_rate: string;
-        last_seen: string;
-        avg_duration: string;
-        first_seen: string;
-        recent_failure_rate: string;
-      }>(sql, params);
+    const result = await clickhouse.query<{
+      repo: string;
+      test_package: string;
+      test_full_name: string;
+      total_executions: string;
+      fail_count: string;
+      pass_count: string;
+      skip_count: string;
+      distinct_runs: string;
+      distinct_shas: string;
+      failure_rate: string;
+      last_seen: string;
+      avg_duration: string;
+      first_seen: string;
+      recent_failure_rate: string;
+    }>(sql, params);
 
-      return result.map((row) => ({
-        repo: row.repo,
-        testPackage: row.test_package,
-        testFullName: row.test_full_name,
-        totalExecutions: Number(row.total_executions),
-        failCount: Number(row.fail_count),
-        passCount: Number(row.pass_count),
-        skipCount: Number(row.skip_count),
-        distinctRuns: Number(row.distinct_runs),
-        distinctShas: Number(row.distinct_shas),
-        failureRate: Number(row.failure_rate) || 0,
-        lastSeen: row.last_seen,
-        avgDuration: Number(row.avg_duration),
-        firstSeen: row.first_seen,
-        recentFailureRate: Number(row.recent_failure_rate) || 0,
-      })) satisfies FlakyTest[];
-    },
-  );
+    return result.map((row) => ({
+      repo: row.repo,
+      testPackage: row.test_package,
+      testFullName: row.test_full_name,
+      totalExecutions: Number(row.total_executions),
+      failCount: Number(row.fail_count),
+      passCount: Number(row.pass_count),
+      skipCount: Number(row.skip_count),
+      distinctRuns: Number(row.distinct_runs),
+      distinctShas: Number(row.distinct_shas),
+      failureRate: Number(row.failure_rate) || 0,
+      lastSeen: row.last_seen,
+      avgDuration: Number(row.avg_duration),
+      firstSeen: row.first_seen,
+      recentFailureRate: Number(row.recent_failure_rate) || 0,
+    })) satisfies FlakyTest[];
+  });
 
 export const getFlakyTestSummary = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(FlakyTestsFilterInputSchema)
-  .handler(
-    async ({
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { conditions, params } = buildFlakyTestConditions(
+      fromISO,
+      toISO,
       data,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-      const { conditions, params } = buildFlakyTestConditions(
-        fromISO,
-        toISO,
-        data,
-      );
-      const whereClause = conditions.join("\n\t\t\t\t\t\tAND ");
+    );
+    const whereClause = conditions.join("\n\t\t\t\t\t\tAND ");
 
-      const sql = `
+    const sql = `
 			SELECT
 				uniqExactIf(test_full_name, fail_count > 0 AND pass_count > 0) as flaky_test_count,
 				uniqExact(test_full_name) as total_test_count,
@@ -239,48 +220,41 @@ export const getFlakyTestSummary = createAuthenticatedServerFn({
 			)
 		`;
 
-      const result = await query<{
-        flaky_test_count: string;
-        total_test_count: string;
-        flaky_percentage: string;
-      }>(sql, params);
+    const result = await clickhouse.query<{
+      flaky_test_count: string;
+      total_test_count: string;
+      flaky_percentage: string;
+    }>(sql, params);
 
-      if (result.length === 0) {
-        return {
-          flakyTestCount: 0,
-          totalTestCount: 0,
-          flakyPercentage: 0,
-        } satisfies FlakyTestSummary;
-      }
-
+    if (result.length === 0) {
       return {
-        flakyTestCount: Number(result[0].flaky_test_count),
-        totalTestCount: Number(result[0].total_test_count),
-        flakyPercentage: Number(result[0].flaky_percentage) || 0,
+        flakyTestCount: 0,
+        totalTestCount: 0,
+        flakyPercentage: 0,
       } satisfies FlakyTestSummary;
-    },
-  );
+    }
+
+    return {
+      flakyTestCount: Number(result[0].flaky_test_count),
+      totalTestCount: Number(result[0].total_test_count),
+      flakyPercentage: Number(result[0].flaky_percentage) || 0,
+    } satisfies FlakyTestSummary;
+  });
 
 export const getFlakinessTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(FlakyTestsFilterInputSchema)
-  .handler(
-    async ({
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { conditions, params } = buildFlakyTestConditions(
+      fromISO,
+      toISO,
       data,
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-      const { conditions, params } = buildFlakyTestConditions(
-        fromISO,
-        toISO,
-        data,
-      );
-      const whereClause = conditions.join("\n\t\t\t\t\t\tAND ");
+    );
+    const whereClause = conditions.join("\n\t\t\t\t\t\tAND ");
 
-      const sql = `
+    const sql = `
 			SELECT
 				date,
 				uniqExactIf(test_full_name, fail_count > 0 AND pass_count > 0) as flaky_count,
@@ -313,21 +287,20 @@ export const getFlakinessTrend = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-      const result = await query<{
-        date: string;
-        flaky_count: string;
-        total_count: string;
-        flaky_percentage: string;
-      }>(sql, params);
+    const result = await clickhouse.query<{
+      date: string;
+      flaky_count: string;
+      total_count: string;
+      flaky_percentage: string;
+    }>(sql, params);
 
-      return result.map((row) => ({
-        date: row.date,
-        flakyCount: Number(row.flaky_count),
-        totalCount: Number(row.total_count),
-        flakyPercentage: Number(row.flaky_percentage) || 0,
-      })) satisfies FlakinessTrendPoint[];
-    },
-  );
+    return result.map((row) => ({
+      date: row.date,
+      flakyCount: Number(row.flaky_count),
+      totalCount: Number(row.total_count),
+      flakyPercentage: Number(row.flaky_percentage) || 0,
+    })) satisfies FlakinessTrendPoint[];
+  });
 
 export const getTestHistory = createAuthenticatedServerFn({
   method: "GET",
@@ -344,9 +317,7 @@ export const getTestHistory = createAuthenticatedServerFn({
         limit = 100,
         offset = 0,
       },
-      context: {
-        clickhouse: { query },
-      },
+      context: { clickhouse },
     }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);
       const whereConditions = [
@@ -416,7 +387,7 @@ export const getTestHistory = createAuthenticatedServerFn({
 			LIMIT {limit:UInt32} OFFSET {offset:UInt32}
 		`;
 
-      const result = await query<{
+      const result = await clickhouse.query<{
         trace_id: string;
         run_id: string;
         run_attempt: string;
@@ -453,9 +424,7 @@ export const getRunnerFlakiness = createAuthenticatedServerFn({
   .handler(
     async ({
       data: { timeRange, repo, testFullName },
-      context: {
-        clickhouse: { query },
-      },
+      context: { clickhouse },
     }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -490,7 +459,7 @@ export const getRunnerFlakiness = createAuthenticatedServerFn({
 			ORDER BY failure_rate DESC, total_executions DESC
 		`;
 
-      const result = await query<{
+      const result = await clickhouse.query<{
         runner_name: string;
         total_executions: string;
         fail_count: string;
@@ -518,9 +487,7 @@ export const getTestDailyResults = createAuthenticatedServerFn({
   .handler(
     async ({
       data: { timeRange, repo, testFullName },
-      context: {
-        clickhouse: { query },
-      },
+      context: { clickhouse },
     }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -548,7 +515,7 @@ export const getTestDailyResults = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-      const result = await query<{
+      const result = await clickhouse.query<{
         date: string;
         pass_count: string;
         fail_count: string;
@@ -569,14 +536,8 @@ export const getFlakyTestNames = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ repo: z.string() }))
-  .handler(
-    async ({
-      data: { repo },
-      context: {
-        clickhouse: { query },
-      },
-    }) => {
-      const sql = `
+  .handler(async ({ data: { repo }, context: { clickhouse } }) => {
+    const sql = `
 			SELECT DISTINCT test_full_name
 			FROM (
 				SELECT
@@ -601,7 +562,8 @@ export const getFlakyTestNames = createAuthenticatedServerFn({
 			)
 		`;
 
-      const result = await query<{ test_full_name: string }>(sql, { repo });
-      return result.map((row) => row.test_full_name);
-    },
-  );
+    const result = await clickhouse.query<{ test_full_name: string }>(sql, {
+      repo,
+    });
+    return result.map((row) => row.test_full_name);
+  });

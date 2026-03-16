@@ -429,58 +429,51 @@ export const getGrepMatches = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(GrepInputSchema)
-  .handler(
-    async ({
-      data,
-      context: {
-        clickhouse: { query },
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const timeRangeError = getGrepTimeRangeValidationError(data.timeRange);
+    if (timeRangeError) {
+      throw new Error(timeRangeError);
+    }
+
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { params, whereClause } = buildGrepSqlParts(data, fromISO, toISO);
+
+    const branchRows = await clickhouse.query<GrepBranchRow>(
+      buildBranchSummarySql(whereClause),
+      {
+        ...params,
+        limit: data.limit ?? 20,
+        offset: data.offset ?? 0,
       },
-    }) => {
-      const timeRangeError = getGrepTimeRangeValidationError(data.timeRange);
-      if (timeRangeError) {
-        throw new Error(timeRangeError);
-      }
+    );
 
-      const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-      const { params, whereClause } = buildGrepSqlParts(data, fromISO, toISO);
+    if (branchRows.length === 0) {
+      return buildGrepResult(data, []);
+    }
 
-      const branchRows = await query<GrepBranchRow>(
-        buildBranchSummarySql(whereClause),
-        {
-          ...params,
-          limit: data.limit ?? 20,
-          offset: data.offset ?? 0,
-        },
-      );
+    const branches = branchRows.map((row) => row.branch);
+    const detailRows = await clickhouse.query<GrepDetailRow>(
+      buildOccurrenceDetailsSql(whereClause),
+      {
+        ...params,
+        branches,
+        occurrenceLimit: MAX_RECENT_OCCURRENCES_PER_BRANCH,
+        lineLimit: MAX_MATCHED_LINES_PER_OCCURRENCE,
+      },
+    );
+    const occurrencesByBranch = collectOccurrencesByBranch(detailRows);
 
-      if (branchRows.length === 0) {
-        return buildGrepResult(data, []);
-      }
+    const items = branchRows.map((row) => {
+      return {
+        branch: row.branch,
+        occurrenceCount: Number(row.occurrence_count),
+        lastSeen: row.last_seen,
+        recentOccurrences:
+          occurrencesByBranch
+            .get(row.branch)
+            ?.slice(0, MAX_RECENT_OCCURRENCES_PER_BRANCH) ?? [],
+      } satisfies GrepBranchItem;
+    });
 
-      const branches = branchRows.map((row) => row.branch);
-      const detailRows = await query<GrepDetailRow>(
-        buildOccurrenceDetailsSql(whereClause),
-        {
-          ...params,
-          branches,
-          occurrenceLimit: MAX_RECENT_OCCURRENCES_PER_BRANCH,
-          lineLimit: MAX_MATCHED_LINES_PER_OCCURRENCE,
-        },
-      );
-      const occurrencesByBranch = collectOccurrencesByBranch(detailRows);
-
-      const items = branchRows.map((row) => {
-        return {
-          branch: row.branch,
-          occurrenceCount: Number(row.occurrence_count),
-          lastSeen: row.last_seen,
-          recentOccurrences:
-            occurrencesByBranch
-              .get(row.branch)
-              ?.slice(0, MAX_RECENT_OCCURRENCES_PER_BRANCH) ?? [],
-        } satisfies GrepBranchItem;
-      });
-
-      return buildGrepResult(data, items);
-    },
-  );
+    return buildGrepResult(data, items);
+  });
