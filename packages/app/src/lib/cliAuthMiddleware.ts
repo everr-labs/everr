@@ -1,7 +1,7 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getAccessTokenSessionFromRequest } from "./auth";
 
-export const accessTokenAuthMiddleware = createMiddleware({
+export const cliAuthMiddleware = createMiddleware({
   type: "request",
 }).server(async ({ next, request }) => {
   const accessTokenSession = await getAccessTokenSessionFromRequest(request);

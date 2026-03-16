@@ -12,7 +12,6 @@ const mocked = vi.hoisted(() => ({
   getRequest: vi.fn(),
   getAccessTokenSessionFromRequest: vi.fn(),
   getWorkOSAuthSession: vi.fn(),
-  setRequestContextInStartContext: vi.fn(),
 }));
 
 function getHandler(): FunctionMiddlewareHandler {
@@ -31,7 +30,6 @@ beforeEach(() => {
   mocked.getRequest.mockReset();
   mocked.getAccessTokenSessionFromRequest.mockReset();
   mocked.getWorkOSAuthSession.mockReset();
-  mocked.setRequestContextInStartContext.mockReset();
 });
 
 async function loadModule() {
@@ -49,15 +47,12 @@ async function loadModule() {
   vi.doMock("@tanstack/react-start/server", () => ({
     getRequest: mocked.getRequest,
   }));
-  vi.doMock("@/lib/start-context", () => ({
-    setRequestContextInStartContext: mocked.setRequestContextInStartContext,
-  }));
   vi.doMock("./auth", () => ({
     getAccessTokenSessionFromRequest: mocked.getAccessTokenSessionFromRequest,
     getWorkOSAuthSession: mocked.getWorkOSAuthSession,
   }));
 
-  return import("./serverFn");
+  return vi.importActual<typeof import("./serverFn")>("./serverFn");
 }
 
 describe("createAuthenticatedServerFn", () => {
@@ -93,9 +88,6 @@ describe("authMiddleware", () => {
       request,
     );
     expect(mocked.getWorkOSAuthSession).not.toHaveBeenCalled();
-    expect(mocked.setRequestContextInStartContext).toHaveBeenCalledWith(
-      session,
-    );
     expect(next).toHaveBeenCalledWith({
       context: {
         session,
@@ -121,9 +113,6 @@ describe("authMiddleware", () => {
 
     expect(response).toBe(nextResult);
     expect(mocked.getWorkOSAuthSession).toHaveBeenCalledTimes(1);
-    expect(mocked.setRequestContextInStartContext).toHaveBeenCalledWith(
-      session,
-    );
     expect(next).toHaveBeenCalledWith({
       context: {
         session,
@@ -141,6 +130,5 @@ describe("authMiddleware", () => {
     await expect(getHandler()({ next })).rejects.toThrow("Unauthenticated");
 
     expect(next).not.toHaveBeenCalled();
-    expect(mocked.setRequestContextInStartContext).not.toHaveBeenCalled();
   });
 });

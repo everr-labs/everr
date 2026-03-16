@@ -8,7 +8,6 @@ type RequestMiddlewareHandler = (args: {
 const mocked = vi.hoisted(() => ({
   handler: null as RequestMiddlewareHandler | null,
   getAccessTokenSessionFromRequest: vi.fn(),
-  setRequestContextInStartContext: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", () => ({
@@ -18,10 +17,6 @@ vi.mock("@tanstack/react-start", () => ({
       return { options };
     },
   })),
-}));
-
-vi.mock("@/lib/start-context", () => ({
-  setRequestContextInStartContext: mocked.setRequestContextInStartContext,
 }));
 
 vi.mock("./auth", () => ({
@@ -63,7 +58,6 @@ describe("accessTokenAuthMiddleware", () => {
       error: "You need to be authenticated to use this API",
     });
     expect(next).not.toHaveBeenCalled();
-    expect(mocked.setRequestContextInStartContext).not.toHaveBeenCalled();
   });
 
   it("stores the session in start context and forwards it to the next handler", async () => {
@@ -83,9 +77,6 @@ describe("accessTokenAuthMiddleware", () => {
     expect(response).toBe(nextResult);
     expect(mocked.getAccessTokenSessionFromRequest).toHaveBeenCalledWith(
       request,
-    );
-    expect(mocked.setRequestContextInStartContext).toHaveBeenCalledWith(
-      session,
     );
     expect(next).toHaveBeenCalledWith({
       context: {
