@@ -14,7 +14,7 @@ import {
   createLegendFormatter,
   formatChartDate,
 } from "@/components/ui/chart-helpers";
-import type { CostOverTimePoint } from "@/data/cost-analysis";
+import type { CostOverTimePoint } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 
 interface CostOverTimeChartProps {

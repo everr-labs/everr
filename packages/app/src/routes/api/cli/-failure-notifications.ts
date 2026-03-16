@@ -1,5 +1,6 @@
+import { isFailureConclusion } from "@/data/runs/schemas";
 import { query } from "@/lib/clickhouse";
-import { getWorkOS } from "@/lib/workos";
+import { workOS } from "@/lib/workos";
 
 const FAILURE_LIMIT = 100;
 export const TIME_WINDOW_MINUTES = 30;
@@ -74,8 +75,7 @@ export async function getVerifiedCliUserEmail(
   userId: string,
   expectedGitEmail?: string,
 ): Promise<string | null> {
-  const workos = getWorkOS();
-  const user = await workos.userManagement.getUser(userId);
+  const user = await workOS.userManagement.getUser(userId);
   if (!user.emailVerified) {
     return null;
   }
@@ -150,7 +150,7 @@ export async function getFailureNotifications({
 }
 
 export function buildFailedRunsDashboardUrl(origin: string): string {
-  const url = new URL("/dashboard/runs", origin);
+  const url = new URL("/runs", origin);
   url.searchParams.set("conclusion", "failure");
   url.searchParams.set("from", `now-${TIME_WINDOW_MINUTES}m`);
   url.searchParams.set("to", "now");
@@ -353,7 +353,7 @@ async function loadFirstFailingSteps(
         failingByTraceId,
         row.trace_id,
         candidate,
-        compareFailingStepCandidates,
+        compareFailingSteps,
       );
     }
 
@@ -539,13 +539,6 @@ function compareFailingSteps(a: FirstFailingStep, b: FirstFailingStep): number {
   return parseStepNumber(a.stepNumber) - parseStepNumber(b.stepNumber);
 }
 
-function compareFailingStepCandidates(
-  a: FirstFailingStep,
-  b: FirstFailingStep,
-): number {
-  return compareFailingSteps(a, b);
-}
-
 function compareFallbackStepCandidates(
   a: FirstFailingStep & { conclusion: string },
   b: FirstFailingStep & { conclusion: string },
@@ -582,16 +575,13 @@ function buildFailureDetailsUrl(
   traceId: string,
   failingStep?: FirstFailingStep,
 ): string {
-  const runUrl = new URL(
-    `/dashboard/runs/${encodeURIComponent(traceId)}`,
-    origin,
-  );
+  const runUrl = new URL(`/runs/${encodeURIComponent(traceId)}`, origin);
   if (!failingStep) {
     return runUrl.toString();
   }
 
   return new URL(
-    `/dashboard/runs/${encodeURIComponent(traceId)}/jobs/${encodeURIComponent(
+    `/runs/${encodeURIComponent(traceId)}/jobs/${encodeURIComponent(
       failingStep.jobId,
     )}/steps/${encodeURIComponent(failingStep.stepNumber)}`,
     origin,
@@ -601,11 +591,6 @@ function buildFailureDetailsUrl(
 function parseStepNumber(value: string): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
-}
-
-function isFailureConclusion(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return normalized === "failure" || normalized === "failed";
 }
 
 function isSkippedConclusion(value: string): boolean {

@@ -48,15 +48,13 @@ function makeMatch(
 
 describe("DashboardBreadcrumb", () => {
   it("returns null when no matches have breadcrumb data", () => {
-    mockUseMatches.mockReturnValue([
-      { fullPath: "/dashboard", staticData: {} },
-    ]);
+    mockUseMatches.mockReturnValue([{ fullPath: "/", staticData: {} }]);
     const { container } = render(<DashboardBreadcrumb />);
     expect(container.innerHTML).toBe("");
   });
 
   it("renders a single breadcrumb as a page (not a link)", () => {
-    mockUseMatches.mockReturnValue([makeMatch("/dashboard", "Overview")]);
+    mockUseMatches.mockReturnValue([makeMatch("/", "Overview")]);
     render(<DashboardBreadcrumb />);
 
     expect(screen.getByText("Overview")).toBeInTheDocument();
@@ -68,13 +66,13 @@ describe("DashboardBreadcrumb", () => {
 
   it("renders multiple breadcrumbs with links and a final page", () => {
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/runs", "Runs"),
-      makeMatch("/dashboard/runs/abc123", "My Workflow"),
+      makeMatch("/runs", "Runs"),
+      makeMatch("/runs/abc123", "My Workflow"),
     ]);
     render(<DashboardBreadcrumb />);
 
     const runsLink = screen.getByText("Runs").closest("a");
-    expect(runsLink).toHaveAttribute("href", "/dashboard/runs");
+    expect(runsLink).toHaveAttribute("href", "/runs");
 
     expect(
       screen.getByText("My Workflow").closest("[data-slot='breadcrumb-page']"),
@@ -83,8 +81,8 @@ describe("DashboardBreadcrumb", () => {
 
   it("renders separators only between breadcrumbs", () => {
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/runs", "Runs"),
-      makeMatch("/dashboard/runs/abc123", "My Workflow"),
+      makeMatch("/runs", "Runs"),
+      makeMatch("/runs/abc123", "My Workflow"),
     ]);
     const { container } = render(<DashboardBreadcrumb />);
 
@@ -95,7 +93,7 @@ describe("DashboardBreadcrumb", () => {
   });
 
   it("has no separators for a single breadcrumb", () => {
-    mockUseMatches.mockReturnValue([makeMatch("/dashboard", "Overview")]);
+    mockUseMatches.mockReturnValue([makeMatch("/", "Overview")]);
     const { container } = render(<DashboardBreadcrumb />);
 
     const separators = container.querySelectorAll(
@@ -113,8 +111,8 @@ describe("DashboardBreadcrumb", () => {
     };
 
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/runs", "Runs"),
-      makeMatch("/dashboard/runs/abc123", breadcrumbFn, {
+      makeMatch("/runs", "Runs"),
+      makeMatch("/runs/abc123", breadcrumbFn, {
         loaderData: { runDetails: { workflowName: "CI Build" } },
       }),
     ]);
@@ -132,7 +130,7 @@ describe("DashboardBreadcrumb", () => {
     };
 
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/runs/abc123", breadcrumbFn, {
+      makeMatch("/runs/abc123", breadcrumbFn, {
         loaderData: undefined,
       }),
     ]);
@@ -143,9 +141,9 @@ describe("DashboardBreadcrumb", () => {
 
   it("filters out matches without staticData.breadcrumb", () => {
     mockUseMatches.mockReturnValue([
-      { fullPath: "/dashboard", staticData: {} },
-      makeMatch("/dashboard/runs", "Runs"),
-      { fullPath: "/dashboard/runs/abc123/jobs/1", staticData: {} },
+      { fullPath: "/", staticData: {} },
+      makeMatch("/runs", "Runs"),
+      { fullPath: "/runs/abc123/jobs/1", staticData: {} },
     ]);
     render(<DashboardBreadcrumb />);
 
@@ -157,8 +155,8 @@ describe("DashboardBreadcrumb", () => {
 
   it("filters out crumbs where function returns empty string", () => {
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/runs", "Runs"),
-      makeMatch("/dashboard/runs/abc123", () => ""),
+      makeMatch("/runs", "Runs"),
+      makeMatch("/runs/abc123", () => ""),
     ]);
     render(<DashboardBreadcrumb />);
 
@@ -170,8 +168,8 @@ describe("DashboardBreadcrumb", () => {
 
   it("applies hidden md:block class to non-last items for responsive behavior", () => {
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/runs", "Runs"),
-      makeMatch("/dashboard/runs/abc123", "My Workflow"),
+      makeMatch("/runs", "Runs"),
+      makeMatch("/runs/abc123", "My Workflow"),
     ]);
     const { container } = render(<DashboardBreadcrumb />);
 
@@ -183,13 +181,13 @@ describe("DashboardBreadcrumb", () => {
 
   it("renders parent and leaf breadcrumbs correctly", () => {
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/workflows", "Workflows"),
-      makeMatch("/dashboard/tests-overview", "Tests Overview"),
+      makeMatch("/workflows", "Workflows"),
+      makeMatch("/tests-overview", "Tests Overview"),
     ]);
     render(<DashboardBreadcrumb />);
 
     const parentLink = screen.getByText("Workflows").closest("a");
-    expect(parentLink).toHaveAttribute("href", "/dashboard/workflows");
+    expect(parentLink).toHaveAttribute("href", "/workflows");
 
     expect(
       screen
@@ -209,20 +207,15 @@ describe("DashboardBreadcrumb", () => {
         },
       ] as BreadcrumbSegment[];
 
-    mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/tests-overview", segmentsFn),
-    ]);
+    mockUseMatches.mockReturnValue([makeMatch("/tests-overview", segmentsFn)]);
     render(<DashboardBreadcrumb />);
 
     // First two are links, last is a page
     const rootLink = screen.getByText("Tests Overview").closest("a");
-    expect(rootLink).toHaveAttribute("href", "/dashboard/tests-overview?");
+    expect(rootLink).toHaveAttribute("href", "/tests-overview?");
 
     const pkgLink = screen.getByText("my-pkg").closest("a");
-    expect(pkgLink).toHaveAttribute(
-      "href",
-      "/dashboard/tests-overview?pkg=my-pkg",
-    );
+    expect(pkgLink).toHaveAttribute("href", "/tests-overview?pkg=my-pkg");
 
     expect(
       screen
@@ -239,9 +232,7 @@ describe("DashboardBreadcrumb", () => {
         { label: "Describe", search: { pkg: "pkg", path: "pkg > Describe" } },
       ] as BreadcrumbSegment[];
 
-    mockUseMatches.mockReturnValue([
-      makeMatch("/dashboard/tests-overview", segmentsFn),
-    ]);
+    mockUseMatches.mockReturnValue([makeMatch("/tests-overview", segmentsFn)]);
     const { container } = render(<DashboardBreadcrumb />);
 
     const separators = container.querySelectorAll(

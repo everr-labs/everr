@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getRunsList } from "@/data/runs-list";
+import { getRunsList } from "@/data/runs-list/server";
 import { getWatchStatus } from "@/data/watch";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 import { cliAuthMiddleware } from "./-auth";

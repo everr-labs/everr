@@ -1,23 +1,22 @@
-import { fileURLToPath, URL } from "node:url";
+import {parse} from "dotenv";
 import viteReact from "@vitejs/plugin-react";
-import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const env = parse(readFileSync(join(__dirname, ".env.example"), "utf8"))
 
 export default defineConfig({
 	resolve: {
-		alias: {
-			"@": fileURLToPath(new URL("./src", import.meta.url)),
-		},
+		tsconfigPaths: true,
 	},
 	plugins: [
-		viteTsConfigPaths({
-			projects: ["./tsconfig.json"],
-		}),
 		viteReact(),
 	],
 	test: {
 		environment: "jsdom",
 		setupFiles: ["./src/test-setup.ts"],
 		reporters: ["verbose"],
-	},
+		env: env,
+		},
 });

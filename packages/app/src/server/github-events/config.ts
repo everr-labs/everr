@@ -1,4 +1,4 @@
-import { githubEventsEnv } from "../../github-events.env";
+import { env } from "@/env";
 
 export type GitHubEventsConfig = {
   source: string;
@@ -58,8 +58,8 @@ export function getGitHubEventsConfig(): GitHubEventsConfig {
   }
 
   cachedConfig = {
-    source: githubEventsEnv.INGRESS_SOURCE,
-    collectorURL: resolveCollectorURL(githubEventsEnv.INGRESS_COLLECTOR_URL),
+    source: env.INGRESS_SOURCE,
+    collectorURL: resolveCollectorURL(env.INGRESS_COLLECTOR_URL),
     ...githubEventsConfigConstants,
   };
 

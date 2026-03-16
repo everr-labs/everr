@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { verify } from "@octokit/webhooks-methods";
+import { env } from "@/env";
 import { getGitHubEventsConfig } from "./config";
 import { headersToRecord } from "./headers";
 import { handleInstallationEvent } from "./install-events";
@@ -28,18 +29,15 @@ export async function handleGitHubWebhookRequest(
     return new Response("method not allowed", { status: 405 });
   }
 
-  const webhookSecret = process.env.GITHUB_APP_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    return new Response("missing webhook secret", { status: 500 });
-  }
-
   const signatureHeader = request.headers.get("x-hub-signature-256");
   if (!signatureHeader) {
     return new Response("missing signature", { status: 401 });
   }
 
   const bodyText = await request.text();
-  if (!(await verify(webhookSecret, bodyText, signatureHeader))) {
+  if (
+    !(await verify(env.GITHUB_APP_WEBHOOK_SECRET, bodyText, signatureHeader))
+  ) {
     return new Response("invalid signature", { status: 401 });
   }
 

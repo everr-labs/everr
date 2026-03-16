@@ -24,7 +24,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import type { ScatterPoint } from "@/data/test-performance";
+import type { ScatterPoint } from "@/data/test-performance/metrics";
 import { formatDurationCompact, formatRelativeTime } from "@/lib/formatting";
 
 interface TestPerfScatterChartProps {
@@ -371,7 +371,7 @@ export function TestPerfScatterChart({
                     role="link"
                     render={
                       <Link
-                        to="/dashboard/runs/$traceId"
+                        to="/runs/$traceId"
                         params={{ traceId: selected.traceId }}
                       />
                     }

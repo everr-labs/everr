@@ -4,7 +4,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { TestDailyResult } from "@/data/flaky-tests";
+import type { TestDailyResult } from "@/data/flaky-tests/schemas";
 
 interface TestResultHeatmapProps {
   data: TestDailyResult[];

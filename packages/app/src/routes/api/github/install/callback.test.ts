@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@workos/authkit-tanstack-react-start", () => ({
-  getAuth: vi.fn(),
-}));
-
 vi.mock("@/lib/github-install-state", () => ({
   parseInstallState: vi.fn(),
 }));
@@ -88,7 +84,7 @@ describe("/api/github/install/callback", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/dashboard?github_install=error&reason=already_linked",
+      "http://localhost/?github_install=error&reason=already_linked",
     );
   });
 });

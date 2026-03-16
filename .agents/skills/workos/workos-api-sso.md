@@ -498,7 +498,7 @@ app.get("/callback", async (req, res) => {
     // 4. Create session
     req.session.userId = user.id;
 
-    res.redirect("/dashboard");
+    res.redirect("/");
   } catch (error) {
     console.error("SSO callback error:", error);
     res.redirect("/login?error=sso_failed");

@@ -8,7 +8,8 @@ import {
   ensureTenantForOrganizationId,
   getGithubInstallationsForTenant,
 } from "@/data/tenants";
-import { getWorkOS } from "@/lib/workos";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { workOS } from "@/lib/workos";
 
 export type OnboardingErrorCode =
   | "UNAUTHENTICATED"
@@ -74,13 +75,14 @@ export const createOrganizationForCurrentUser = createServerFn({
       };
     }
 
-    const workos = getWorkOS();
-
     let organizationId: string;
 
     try {
-      const organization = await workos.organizations.createOrganization({
+      const organization = await workOS.organizations.createOrganization({
         name: data.organizationName,
+        metadata: {
+          onboardingCompleted: "false",
+        },
       });
       organizationId = organization.id;
     } catch (error) {
@@ -94,7 +96,7 @@ export const createOrganizationForCurrentUser = createServerFn({
     }
 
     try {
-      await workos.userManagement.createOrganizationMembership({
+      await workOS.userManagement.createOrganizationMembership({
         organizationId,
         userId: auth.user.id,
         roleSlug: "admin",
@@ -141,14 +143,9 @@ export const createOrganizationForCurrentUser = createServerFn({
     };
   });
 
-export const getGithubAppInstallStatus = createServerFn({
+export const getGithubAppInstallStatus = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async () => {
-  const auth = await getAuth();
-  if (!auth.user || !auth.organizationId) {
-    return [];
-  }
-
+}).handler(async ({ context: { auth } }) => {
   const tenantId = await ensureTenantForOrganizationId(auth.organizationId);
   const installations = await getGithubInstallationsForTenant(tenantId);
 

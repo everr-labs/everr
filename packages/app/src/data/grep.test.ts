@@ -1,13 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@tanstack/react-start", () => ({
-  createServerFn: vi.fn(() => ({
-    inputValidator: () => ({
-      handler: (fn: (...args: unknown[]) => unknown) => fn,
-    }),
-  })),
-}));
-
 vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
 }));

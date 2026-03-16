@@ -28,7 +28,7 @@ export function RunHeader({
     <div className="space-y-1">
       <div className="flex items-center gap-3">
         <Link
-          to="/dashboard"
+          to="/"
           className={cn(
             buttonVariants({ variant: "ghost", size: "sm" }),
             "h-7 px-2",

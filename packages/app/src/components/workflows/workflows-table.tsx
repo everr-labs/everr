@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Sparkline } from "@/components/ui/sparkline";
-import type { WorkflowListItem, WorkflowSparklineData } from "@/data/workflows";
+import type {
+  WorkflowListItem,
+  WorkflowSparklineData,
+} from "@/data/workflows/schemas";
 import {
   formatDuration,
   formatRelativeTime,
@@ -104,7 +107,7 @@ export function WorkflowsTable({ data, sparklines }: WorkflowsTableProps) {
               >
                 <td className="py-2 pr-4">
                   <Link
-                    to="/dashboard/workflows/$repo/$workflowName"
+                    to="/workflows/$repo/$workflowName"
                     params={{ repo: wf.repo, workflowName: wf.workflowName }}
                     className="font-medium hover:underline"
                   >

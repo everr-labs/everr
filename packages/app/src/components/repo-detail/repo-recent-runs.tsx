@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
-import type { RepoRecentRun } from "@/data/repo-detail";
+import type { RepoRecentRun } from "@/data/repo-detail/schemas";
 import { formatRelativeTime } from "@/lib/formatting";
 
 interface RepoRecentRunsProps {
@@ -23,7 +23,7 @@ export function RepoRecentRuns({ data }: RepoRecentRunsProps) {
       {data.map((run) => (
         <Link
           key={run.traceId}
-          to="/dashboard/runs/$traceId"
+          to="/runs/$traceId"
           params={{ traceId: run.traceId }}
           className="hover:bg-muted/50 -mx-2 flex items-center justify-between rounded-md px-2 py-2 transition-colors"
         >

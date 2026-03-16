@@ -1,5 +1,5 @@
 import { type Column, DataTable } from "@/components/ui/data-table";
-import type { RunnerFlakiness } from "@/data/flaky-tests";
+import type { RunnerFlakiness } from "@/data/flaky-tests/schemas";
 import { formatDuration, getFailureRateColor } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 

@@ -1186,7 +1186,7 @@ fn build_test_notification() -> Result<FailureNotification> {
         None => ("local repository".to_string(), "current branch".to_string()),
     };
     let details_url = format!(
-        "{}/dashboard/runs/{trace_id}/jobs/{job_id}/steps/1",
+        "{}/runs/{trace_id}/jobs/{job_id}/steps/1",
         current_base_url().trim_end_matches('/')
     );
 
@@ -1666,7 +1666,7 @@ mod tests {
         TraySnapshot {
             unresolved_failures: vec![failure("one"), failure("two")],
             failed_runs_dashboard_url: Some(
-                "https://example.com/dashboard/runs?conclusion=failure".to_string(),
+                "https://example.com/runs?conclusion=failure".to_string(),
             ),
             auto_fix_prompt: Some("Investigate and fix the pipelines.".to_string()),
         }

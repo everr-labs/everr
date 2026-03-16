@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getStepLogs } from "@/data/runs";
+import { getStepLogs } from "@/data/runs/server";
 import { cliAuthMiddleware } from "../../-auth";
 
 const StepLogsQuerySchema = z

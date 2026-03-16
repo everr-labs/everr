@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { type Column, DataTable } from "@/components/ui/data-table";
-import type { TestFailure } from "@/data/test-performance";
+import type { TestFailure } from "@/data/test-performance/metrics";
 import { formatDuration, formatRelativeTime } from "@/lib/formatting";
 
 interface FailuresTableProps {
@@ -45,7 +45,7 @@ const columns: Column<TestFailure>[] = [
     header: "Run",
     cell: (row) => (
       <Link
-        to="/dashboard/runs/$traceId"
+        to="/runs/$traceId"
         params={{ traceId: row.traceId }}
         className="inline-flex items-center hover:underline"
       >

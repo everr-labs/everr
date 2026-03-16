@@ -5,7 +5,14 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 vi.mock("@/lib/workos", () => ({
-  getWorkOS: vi.fn(),
+  workOS: {
+    userManagement: {
+      getUser: vi.fn(),
+    },
+    organizations: {
+      getOrganization: vi.fn(),
+    },
+  },
 }));
 
 vi.mock("./-auth", () => ({
@@ -15,11 +22,11 @@ vi.mock("./-auth", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getWorkOS } from "@/lib/workos";
+import { workOS } from "@/lib/workos";
 import { Route } from "./tray-status";
 
 const mockedQuery = vi.mocked(query);
-const mockedGetWorkOS = vi.mocked(getWorkOS);
+const mockedGetUser = vi.mocked(workOS.userManagement.getUser);
 
 type GetHandler = (args: {
   request: Request;
@@ -49,26 +56,18 @@ function getHandler(): GetHandler {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedGetWorkOS.mockReturnValue({
-    userManagement: {
-      getUser: vi.fn().mockResolvedValue({
-        emailVerified: true,
-        email: "dev@example.com",
-      }),
-    },
-  } as never);
+  mockedGetUser.mockResolvedValue({
+    emailVerified: true,
+    email: "dev@example.com",
+  } as Awaited<ReturnType<typeof mockedGetUser>>);
 });
 
 describe("/api/cli/tray-status", () => {
   it("returns a zeroed tray status when the user email is not verified", async () => {
-    mockedGetWorkOS.mockReturnValue({
-      userManagement: {
-        getUser: vi.fn().mockResolvedValue({
-          emailVerified: false,
-          email: "dev@example.com",
-        }),
-      },
-    } as never);
+    mockedGetUser.mockResolvedValue({
+      emailVerified: false,
+      email: "dev@example.com",
+    } as Awaited<ReturnType<typeof mockedGetUser>>);
 
     const handler = getHandler();
     const response = await handler({
@@ -85,7 +84,7 @@ describe("/api/cli/tray-status", () => {
       verified_match: false,
       unresolved_failures: [],
       failed_runs_dashboard_url:
-        "http://localhost/dashboard/runs?conclusion=failure&from=now-30m&to=now",
+        "http://localhost/runs?conclusion=failure&from=now-30m&to=now",
       auto_fix_prompt: "",
     });
     expect(mockedQuery).not.toHaveBeenCalled();
@@ -277,12 +276,11 @@ describe("/api/cli/tray-status", () => {
 
     const payload = await response.json();
     expect(payload.failed_runs_dashboard_url).toBe(
-      "http://localhost/dashboard/runs?conclusion=failure&from=now-30m&to=now",
+      "http://localhost/runs?conclusion=failure&from=now-30m&to=now",
     );
     expect(payload.unresolved_failures[0]).toMatchObject({
       trace_id: "trace-123",
-      details_url:
-        "http://localhost/dashboard/runs/trace-123/jobs/job-1/steps/3",
+      details_url: "http://localhost/runs/trace-123/jobs/job-1/steps/3",
       job_name: "test",
       step_number: "3",
       step_name: "Run suite",
@@ -295,6 +293,6 @@ describe("/api/cli/tray-status", () => {
     );
     expect(payload.auto_fix_prompt).toContain("trace-123");
     expect(payload.auto_fix_prompt).toContain("feature/granola");
-    expect(payload.auto_fix_prompt).not.toContain("http://localhost/dashboard");
+    expect(payload.auto_fix_prompt).not.toContain("http://localhost");
   });
 });

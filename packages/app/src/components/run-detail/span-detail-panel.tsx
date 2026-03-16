@@ -183,7 +183,7 @@ export function SpanDetailPanel({
         <div className="mt-3 pt-3 border-t flex gap-2">
           {span.stepNumber && span.jobId && (
             <Link
-              to="/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+              to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
               params={{
                 traceId,
                 jobId: span.jobId,

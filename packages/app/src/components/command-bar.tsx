@@ -14,7 +14,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { searchRunsOptions } from "@/data/runs-list";
+import { searchRunsOptions } from "@/data/runs-list/options";
 import { formatRelativeTime } from "@/lib/formatting";
 import { navMain } from "@/lib/navigation";
 

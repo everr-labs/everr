@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { Span } from "@/data/runs";
+import type { Span } from "@/data/runs/schemas";
 import { formatDuration } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";
@@ -75,7 +75,7 @@ export function SpanDetail({ span, traceId, onClose }: SpanDetailProps) {
         {isStep && span.jobId && span.stepNumber && (
           <div className="mt-4 pt-4 border-t">
             <Link
-              to="/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+              to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
               params={{
                 traceId,
                 jobId: span.jobId,

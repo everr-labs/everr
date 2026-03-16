@@ -1,5 +1,5 @@
-import { createServerFn } from "@tanstack/react-start";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import type { WatchRow } from "./watch-status";
 import {
   buildWatchStatus,
@@ -7,7 +7,7 @@ import {
   WatchStatusInputSchema,
 } from "./watch-status";
 
-export const getWatchStatus = createServerFn({
+export const getWatchStatus = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(WatchStatusInputSchema)

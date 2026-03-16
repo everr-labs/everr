@@ -1,5 +1,5 @@
 import { FilterSelect } from "@/components/filter-select";
-import type { FilterOptions } from "@/data/runs-list";
+import type { FilterOptions } from "@/data/runs-list/schemas";
 
 interface RunsFilterBarProps {
   filterOptions: FilterOptions;

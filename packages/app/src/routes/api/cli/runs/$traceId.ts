@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getAllJobsSteps, getRunDetails, getRunJobs } from "@/data/runs";
+import { getAllJobsSteps, getRunDetails, getRunJobs } from "@/data/runs/server";
 import { cliAuthMiddleware } from "../-auth";
 
 export const Route = createFileRoute("/api/cli/runs/$traceId")({

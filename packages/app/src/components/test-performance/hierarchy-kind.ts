@@ -1,4 +1,4 @@
-import type { TestPerfChild } from "@/data/test-performance";
+import type { TestPerfChild } from "@/data/test-performance/children";
 
 export type TestPerfHierarchyKind = "package" | "suite" | "test";
 

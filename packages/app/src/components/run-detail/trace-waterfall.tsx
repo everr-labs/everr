@@ -15,7 +15,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import type { Span } from "@/data/runs";
+import type { Span } from "@/data/runs/schemas";
 import { formatDuration, parseDuration } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";

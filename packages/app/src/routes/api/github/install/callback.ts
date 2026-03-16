@@ -12,7 +12,7 @@ function redirectToDashboard(
   status: string,
   reason?: string,
 ): Response {
-  const url = new URL("/dashboard", origin);
+  const url = new URL("/", origin);
   url.searchParams.set("github_install", status);
   if (reason) {
     url.searchParams.set("reason", reason);
@@ -107,11 +107,13 @@ export const Route = createFileRoute("/api/github/install/callback")({
           );
         }
 
-        const successUrl = new URL(
-          "/onboarding/github-success",
-          callbackURL.origin,
+        return new Response(
+          `<!DOCTYPE html>
+<html><head><title>GitHub App Installed</title></head>
+<body><p>Installation successful. You may close this tab.</p>
+<script>window.close()</script></body></html>`,
+          { status: 200, headers: { "Content-Type": "text/html" } },
         );
-        return Response.redirect(successUrl.toString(), 302);
       },
     },
   },

@@ -1,4 +1,4 @@
-import type { Span } from "@/data/runs";
+import type { Span } from "@/data/runs/schemas";
 
 export interface SpanNode extends Span {
   depth: number;

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Copy } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import type { TestExecution } from "@/data/flaky-tests";
+import type { TestExecution } from "@/data/flaky-tests/schemas";
 import { cn } from "@/lib/utils";
 
 interface FlakyTestTimelineProps {
@@ -94,7 +94,7 @@ export function FlakyTestTimeline({ data }: FlakyTestTimelineProps) {
               </td>
               <td className="py-2 pr-4">
                 <Link
-                  to="/dashboard/runs/$traceId"
+                  to="/runs/$traceId"
                   params={{ traceId: exec.traceId }}
                   className={cn(
                     buttonVariants({ variant: "link", size: "sm" }),

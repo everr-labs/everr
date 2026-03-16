@@ -12,7 +12,7 @@ import {
   createLegendFormatter,
   formatChartDate,
 } from "@/components/ui/chart-helpers";
-import type { RepoDurationPoint } from "@/data/repo-detail";
+import type { RepoDurationPoint } from "@/data/repo-detail/schemas";
 import { formatDurationCompact } from "@/lib/formatting";
 
 interface RepoDurationTrendChartProps {

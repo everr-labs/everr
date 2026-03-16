@@ -1,4 +1,4 @@
-import type { TestPerfFilterOptions } from "@/data/test-performance";
+import type { TestPerfFilterOptions } from "@/data/test-performance/children";
 import { FilterSelect } from "../filter-select";
 
 interface TestPerfFilterBarProps {

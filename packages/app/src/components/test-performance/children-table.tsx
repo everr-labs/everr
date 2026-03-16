@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type Column, DataTable } from "@/components/ui/data-table";
-import type { TestPerfChild } from "@/data/test-performance";
+import type { TestPerfChild } from "@/data/test-performance/children";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import {
@@ -157,7 +157,7 @@ function makeColumns(
             )}
 
             <Link
-              to="/dashboard/tests-overview"
+              to="/tests-overview"
               search={search}
               className="flex min-w-0 flex-1 items-center gap-1 rounded"
             >

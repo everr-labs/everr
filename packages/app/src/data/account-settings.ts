@@ -1,27 +1,21 @@
-import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie } from "@tanstack/react-start/server";
-import { getAuth } from "@workos/authkit-tanstack-react-start";
 import { z } from "zod";
-import { getWorkOS } from "@/lib/workos";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { workOS } from "@/lib/workos";
 
 const DeleteCurrentUserAccountInputSchema = z.object({
   confirmation: z.literal("DELETE"),
 });
 
-export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
+export const deleteCurrentUserAccount = createAuthenticatedServerFn({
+  method: "POST",
+})
   .inputValidator(DeleteCurrentUserAccountInputSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context: { auth } }) => {
     const requestId = crypto.randomUUID();
-    const auth = await getAuth();
-
-    if (!auth.user) {
-      throw new Error("You need to sign in before updating your account.");
-    }
-
-    const workos = getWorkOS();
 
     try {
-      await workos.userManagement.deleteUser(auth.user.id);
+      await workOS.userManagement.deleteUser(auth.user.id);
     } catch (error) {
       console.error("[account-settings] account_delete_failed", {
         requestId,
@@ -35,7 +29,7 @@ export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
 
     if (auth.sessionId) {
       try {
-        await workos.userManagement.revokeSession({
+        await workOS.userManagement.revokeSession({
           sessionId: auth.sessionId,
         });
       } catch (error) {
@@ -49,6 +43,7 @@ export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
     }
 
     const cookieNames = new Set([
+      // TODO: DO NOT ACCESS ENV DIRECTLY
       process.env.WORKOS_COOKIE_NAME,
       "wos-session",
       "wos_session",
@@ -58,6 +53,7 @@ export const deleteCurrentUserAccount = createServerFn({ method: "POST" })
       if (!cookieName) continue;
       deleteCookie(cookieName, {
         path: "/",
+        // TODO: DO NOT ACCESS ENV DIRECTLY
         domain: process.env.WORKOS_COOKIE_DOMAIN,
       });
     }

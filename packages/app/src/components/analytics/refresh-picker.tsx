@@ -58,9 +58,9 @@ export function RefreshPicker() {
             />
           }
         >
-          <span className="text-xs text-center">
-            {refreshInterval ? activeLabel : ""}
-          </span>
+          {refreshInterval && (
+            <span className="text-xs text-center">{activeLabel}</span>
+          )}
           <ChevronDownIcon className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -69,7 +69,7 @@ export function RefreshPicker() {
             return (
               <DropdownMenuItem
                 key={interval.value}
-                className={isActive ? "font-medium text-primary" : ""}
+                className={cn(isActive && "font-medium text-primary")}
                 onClick={() => setRefreshInterval(interval.value)}
               >
                 {interval.label}

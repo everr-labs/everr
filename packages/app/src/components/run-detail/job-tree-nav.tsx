@@ -5,7 +5,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { Job, Step } from "@/data/runs";
+import type { Job, Step } from "@/data/runs/schemas";
 import { formatDuration } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";
@@ -54,7 +54,7 @@ export function JobTreeNav({
                   return (
                     <Link
                       key={step.stepNumber}
-                      to="/dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+                      to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
                       params={{
                         traceId,
                         jobId: job.jobId,

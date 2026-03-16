@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TimeRangeInput } from "@/data/analytics";
+import type { TimeRangeInput } from "@/data/analytics/schemas";
 import { useTimeRange } from "@/hooks/use-time-range";
 import { cn } from "@/lib/utils";
 

@@ -16,16 +16,6 @@ const mocked = vi.hoisted(() => {
   };
 });
 
-vi.mock("@workos/authkit-tanstack-react-start", () => ({
-  getAuth: vi.fn(),
-}));
-
-vi.mock("@tanstack/react-start", () => ({
-  createServerFn: vi.fn(() => ({
-    handler: (fn: (...args: unknown[]) => unknown) => fn,
-  })),
-}));
-
 vi.mock("@/db/client", () => ({
   db: {
     insert: mocked.insert,
@@ -65,7 +55,7 @@ describe("createAccessToken", () => {
     mockedGetAuth.mockResolvedValue({
       user: { id: "user_123" },
       organizationId: "org_123",
-    } as never);
+    } as Awaited<ReturnType<typeof getAuth>>);
 
     const createdAt = new Date("2026-01-01T00:00:00Z");
     mocked.insertReturning.mockResolvedValue([
@@ -100,15 +90,23 @@ describe("createAccessToken", () => {
     );
   });
 
-  it("throws when user is not authenticated or organization is missing", async () => {
+  it("throws when user is not authenticated", async () => {
     mockedGetAuth.mockResolvedValue({
       user: null,
       organizationId: null,
-    } as never);
+    } as Awaited<ReturnType<typeof getAuth>>);
 
-    await expect(createAccessToken()).rejects.toThrow(
-      "You need an active organization to create a token.",
-    );
+    await expect(createAccessToken()).rejects.toThrow("Unauthenticated");
+    expect(mocked.insert).not.toHaveBeenCalled();
+  });
+
+  it("throws when organization is missing", async () => {
+    mockedGetAuth.mockResolvedValue({
+      user: { id: "user_123" },
+      organizationId: null,
+    } as unknown as Awaited<ReturnType<typeof getAuth>>);
+
+    await expect(createAccessToken()).rejects.toThrow("Missing organization");
     expect(mocked.insert).not.toHaveBeenCalled();
   });
 
@@ -123,7 +121,7 @@ describe("createAccessToken", () => {
     mockedGetAuth.mockResolvedValue({
       user: { id: "user_123" },
       organizationId: "org_123",
-    } as never);
+    } as Awaited<ReturnType<typeof getAuth>>);
     mocked.insertReturning.mockRejectedValue(new Error("db down"));
 
     await expect(createAccessToken()).rejects.toThrow(

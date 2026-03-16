@@ -20,7 +20,7 @@ import {
   createLegendFormatter,
   formatChartDate,
 } from "@/components/ui/chart-helpers";
-import type { RepoSuccessRatePoint } from "@/data/repo-detail";
+import type { RepoSuccessRatePoint } from "@/data/repo-detail/schemas";
 
 interface RepoSuccessRateChartProps {
   data: RepoSuccessRatePoint[];

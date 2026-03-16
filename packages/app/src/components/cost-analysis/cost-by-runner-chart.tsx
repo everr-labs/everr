@@ -6,7 +6,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { ChartEmptyState } from "@/components/ui/chart-helpers";
-import type { CostByRunner } from "@/data/cost-analysis";
+import type { CostByRunner } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 
 interface CostByRunnerChartProps {

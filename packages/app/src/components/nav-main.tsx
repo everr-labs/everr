@@ -45,7 +45,7 @@ export function NavMain({ items }: { items: NavItem[] }) {
                         <Link
                           to={subItem.url}
                           activeOptions={{
-                            exact: subItem.url === "/dashboard",
+                            exact: subItem.url === "/",
                           }}
                           activeProps={{ "data-active": true }}
                         />

@@ -6,7 +6,7 @@ export type TimeRange = z.infer<typeof TimeRangeSchema>;
 
 export const DEFAULT_TIME_RANGE: TimeRange = { from: "now-7d", to: "now" };
 
-function toClickHouseDateTime(date: Date): string {
+export function toClickHouseDateTime(date: Date) {
   return date.toISOString().replace("T", " ").replace("Z", "");
 }
 

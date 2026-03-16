@@ -1,15 +1,18 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import {
+  type TimeRangeInput,
+  TimeRangeInputSchema,
+} from "@/data/analytics/schemas";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
-import { type TimeRangeInput, TimeRangeInputSchema } from "./analytics";
 import { testFullNameExpr } from "./sql-helpers";
 import {
   buildFilterConditions,
   type TestPerformanceFilterInput,
   TestPerformanceFilterSchema,
-} from "./test-performance";
+} from "./test-performance/filters";
 
 export interface TestResultsSummary {
   totalTests: number;
@@ -19,7 +22,7 @@ export interface TestResultsSummary {
   passRate: number;
 }
 
-export const getTestResultsSummary = createServerFn({
+export const getTestResultsSummary = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(
@@ -100,7 +103,7 @@ export interface TestDurationTrendPoint {
   p95Duration: number;
 }
 
-export const getTestDurationTrend = createServerFn({
+export const getTestDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
@@ -152,12 +155,10 @@ export const testResultsSummaryOptions = (
   queryOptions({
     queryKey: ["testResults", "summary", input],
     queryFn: () => getTestResultsSummary({ data: input }),
-    staleTime: 60_000,
   });
 
 export const testDurationTrendOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["testResults", "durationTrend", input],
     queryFn: () => getTestDurationTrend({ data: input }),
-    staleTime: 60_000,
   });

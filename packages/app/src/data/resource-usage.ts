@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "@/lib/clickhouse";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 export interface ResourceUsagePoint {
   timestamp: number; // Unix ms
@@ -211,7 +211,7 @@ function deriveSampleInterval(points: ResourceUsagePoint[]): number {
   return Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length);
 }
 
-export const getJobResourceUsage = createServerFn({
+export const getJobResourceUsage = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
@@ -290,5 +290,4 @@ export const jobResourceUsageOptions = (input: {
   queryOptions({
     queryKey: ["runs", "jobResourceUsage", input.traceId, input.jobId],
     queryFn: () => getJobResourceUsage({ data: input }),
-    staleTime: 60_000,
   });
