@@ -349,7 +349,7 @@ export const getFlakinessTrend = createServerFn({
 export interface TestExecution {
   traceId: string;
   runId: string;
-  runAttempt: number;
+  attempts: number;
   headSha: string;
   headBranch: string;
   testResult: string;
@@ -490,7 +490,7 @@ export const getTestHistory = createServerFn({
       return result.map((row) => ({
         traceId: row.trace_id,
         runId: row.run_id,
-        runAttempt: Number(row.run_attempt),
+        attempts: Number(row.run_attempt),
         headSha: row.head_sha,
         headBranch: row.head_branch,
         testResult: row.test_result,

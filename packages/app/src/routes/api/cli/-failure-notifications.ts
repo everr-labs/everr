@@ -1,3 +1,6 @@
+import { and, eq, gte, isNotNull, ne, or, sql } from "drizzle-orm";
+import { db } from "@/db/client";
+import { workflowRuns } from "@/db/schema";
 import { query } from "@/lib/clickhouse";
 import { getWorkOS } from "@/lib/workos";
 
@@ -36,7 +39,7 @@ type CandidateRunRow = {
   runId: string;
   repo: string;
   branch: string;
-  startedAt: string;
+  startedAt: string | Date;
 };
 
 export type FailureNotification = {
@@ -61,6 +64,7 @@ export type TrayStatusResponse = {
 };
 
 type FailureNotificationsOptions = {
+  tenantId: number;
   gitEmail: string;
   origin: string;
   timeWindowMinutes: number;
@@ -92,6 +96,7 @@ export async function getVerifiedCliUserEmail(
 }
 
 export async function getFailureNotifications({
+  tenantId,
   gitEmail,
   origin,
   timeWindowMinutes,
@@ -111,7 +116,7 @@ export async function getFailureNotifications({
   }
 
   const unresolvedFailures = unresolvedOnly
-    ? await filterUnresolvedFailures(failures, timeWindowMinutes)
+    ? await filterUnresolvedFailures(failures, tenantId, timeWindowMinutes)
     : failures;
   if (unresolvedFailures.length === 0) {
     return [];
@@ -396,13 +401,18 @@ async function loadFirstFailingSteps(
 
 async function filterUnresolvedFailures(
   failures: FailureRunRow[],
+  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<FailureRunRow[]> {
   const successfulRuns = await loadSuccessfulRunsForScopes(
     failures,
     timeWindowMinutes,
   );
-  const activeRuns = await loadActiveRunsForScopes(failures, timeWindowMinutes);
+  const activeRuns = await loadActiveRunsForScopes(
+    failures,
+    tenantId,
+    timeWindowMinutes,
+  );
   const candidatesByScope = groupCandidateRunsByScope([
     ...successfulRuns,
     ...activeRuns,
@@ -458,33 +468,58 @@ async function loadSuccessfulRunsForScopes(
 
 async function loadActiveRunsForScopes(
   failures: FailureRunRow[],
+  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
-  const scopeFilter = buildScopeFilter(
-    failures.map((failure) => ({
-      repo: failure.repo,
-      branch: failure.branch,
-    })),
-    "repository",
-    "ref",
+  const scopes = [
+    ...new Map(
+      failures.map((f) => [
+        createScopeKey(f.repo, f.branch),
+        { repo: f.repo, branch: f.branch },
+      ]),
+    ).values(),
+  ];
+
+  if (scopes.length === 0) {
+    return [];
+  }
+
+  const scopeConditions = scopes.map((s) =>
+    and(eq(workflowRuns.repository, s.repo), eq(workflowRuns.ref, s.branch)),
   );
 
-  return query<CandidateRunRow>(
-    `
-      SELECT
-        subject_id as runId,
-        repository as repo,
-        ref as branch,
-        min(event_time) as startedAt
-      FROM app.cdevents
-      WHERE event_kind = 'pipelinerun'
-        AND event_time >= now() - INTERVAL ${timeWindowMinutes} MINUTE
-        AND (${scopeFilter.clause})
-      GROUP BY subject_id, repository, ref
-      HAVING argMax(event_phase, event_time) != 'finished'
-    `,
-    scopeFilter.params,
-  );
+  const rows = await db
+    .select({
+      runId: sql<string>`${workflowRuns.runId}::text`,
+      repo: workflowRuns.repository,
+      branch: workflowRuns.ref,
+      startedAt: workflowRuns.startedAt,
+    })
+    .from(workflowRuns)
+    .where(
+      and(
+        eq(workflowRuns.tenantId, tenantId),
+        ne(workflowRuns.status, "completed"),
+        isNotNull(workflowRuns.startedAt),
+        gte(
+          workflowRuns.lastEventAt,
+          sql`now() - interval '${sql.raw(String(timeWindowMinutes))} minutes'`,
+        ),
+        or(...scopeConditions),
+      ),
+    );
+
+  return rows
+    .filter(
+      (row): row is CandidateRunRow & { startedAt: Date } =>
+        row.startedAt !== null,
+    )
+    .map((row) => ({
+      runId: row.runId,
+      repo: row.repo,
+      branch: row.branch,
+      startedAt: row.startedAt,
+    }));
 }
 
 function groupCandidateRunsByScope(
@@ -626,7 +661,11 @@ function createScopeKey(repo: string, branch: string): string {
   return `${repo}\u0000${branch}`;
 }
 
-function toTimestampMs(value: string): number {
+function toTimestampMs(value: string | Date): number {
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
   const normalized = value.includes("T")
     ? value
     : `${value.replace(" ", "T")}Z`;

@@ -21,7 +21,14 @@ import { Route } from "./runs";
 const mockedGetRunsList = vi.mocked(getRunsList);
 const mockedGetWatchStatus = vi.mocked(getWatchStatus);
 
-type GetHandler = (args: { request: Request }) => Promise<Response>;
+type GetHandler = (args: {
+  request: Request;
+  context: {
+    auth: {
+      tenantId: number;
+    };
+  };
+}) => Promise<Response>;
 
 function getHandler(): GetHandler {
   const routeOptions = Route.options as unknown as {
@@ -55,6 +62,11 @@ describe("/api/cli/runs", () => {
       request: new Request(
         "http://localhost/api/cli/runs?repo=everr-labs%2Feverr&limit=15&offset=30",
       ),
+      context: {
+        auth: {
+          tenantId: 7,
+        },
+      },
     });
 
     expect(response.status).toBe(200);
@@ -79,6 +91,11 @@ describe("/api/cli/runs", () => {
   it("rejects the removed page query parameter", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/runs?page=2"),
+      context: {
+        auth: {
+          tenantId: 7,
+        },
+      },
     });
 
     expect(response.status).toBe(400);
@@ -103,6 +120,11 @@ describe("/api/cli/runs", () => {
       request: new Request(
         "http://localhost/api/cli/runs?repo=everr-labs%2Feverr&branch=main&commit=abc123&watchMode=pipeline",
       ),
+      context: {
+        auth: {
+          tenantId: 7,
+        },
+      },
     });
 
     expect(response.status).toBe(200);
@@ -111,6 +133,7 @@ describe("/api/cli/runs", () => {
         repo: "everr-labs/everr",
         branch: "main",
         commit: "abc123",
+        tenantId: 7,
       },
     });
     expect(mockedGetRunsList).not.toHaveBeenCalled();
@@ -119,6 +142,11 @@ describe("/api/cli/runs", () => {
   it("rejects the legacy waitMode query parameter", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/runs?waitMode=pipeline"),
+      context: {
+        auth: {
+          tenantId: 7,
+        },
+      },
     });
 
     expect(response.status).toBe(400);
@@ -134,6 +162,11 @@ describe("/api/cli/runs", () => {
       request: new Request(
         "http://localhost/api/cli/runs?repo=everr-labs%2Feverr&watchMode=pipeline",
       ),
+      context: {
+        auth: {
+          tenantId: 7,
+        },
+      },
     });
 
     expect(response.status).toBe(400);

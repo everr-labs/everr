@@ -41,7 +41,13 @@ func eventToTraces(event interface{}, config *Config, logger *zap.Logger) (*ptra
 		jobResource := resourceSpans.Resource()
 		createResourceAttributes(jobResource, e, config, logger)
 
-		traceID, err := generateTraceID(e.GetWorkflowJob().GetRunID(), int(e.GetWorkflowJob().GetRunAttempt()))
+		repositoryID, err := requireRepositoryID(e.GetRepo().GetID())
+		if err != nil {
+			logger.Error("Failed to determine repository ID", zap.Error(err))
+			return nil, fmt.Errorf("failed to determine repository ID: %w", err)
+		}
+
+		traceID, err := generateTraceID(repositoryID, e.GetWorkflowJob().GetRunID(), int(e.GetWorkflowJob().GetRunAttempt()))
 		if err != nil {
 			logger.Error("Failed to generate trace ID", zap.Error(err))
 			return nil, fmt.Errorf("failed to generate trace ID: %w", err)
@@ -57,7 +63,13 @@ func eventToTraces(event interface{}, config *Config, logger *zap.Logger) (*ptra
 		logger.Info("Processing WorkflowRunEvent", zap.Int64("workflow_id", e.GetWorkflowRun().GetID()), zap.String("workflow_name", e.GetWorkflowRun().GetName()), zap.String("repo", e.GetRepo().GetFullName()))
 		runResource := resourceSpans.Resource()
 
-		traceID, err := generateTraceID(e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt())
+		repositoryID, err := requireRepositoryID(e.GetRepo().GetID())
+		if err != nil {
+			logger.Error("Failed to determine repository ID", zap.Error(err))
+			return nil, fmt.Errorf("failed to determine repository ID: %w", err)
+		}
+
+		traceID, err := generateTraceID(repositoryID, e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt())
 		if err != nil {
 			logger.Error("Failed to generate trace ID", zap.Error(err))
 			return nil, fmt.Errorf("failed to generate trace ID: %w", err)
@@ -173,7 +185,13 @@ func createRootSpan(resourceSpans ptrace.ResourceSpans, event *github.WorkflowRu
 	if event.GetWorkflowRun().GetPreviousAttemptURL() != "" && event.GetWorkflowRun().GetRunAttempt() > 1 {
 		logger.Debug("Linking to previous trace ID for WorkflowRunEvent")
 		previousRunAttempt := event.GetWorkflowRun().GetRunAttempt() - 1
-		previousTraceID, err := generateTraceID(event.GetWorkflowRun().GetID(), previousRunAttempt)
+		repositoryID, err := requireRepositoryID(event.GetRepo().GetID())
+		if err != nil {
+			logger.Error("Failed to determine repository ID for previous trace link", zap.Error(err))
+			return rootSpanID, nil
+		}
+
+		previousTraceID, err := generateTraceID(repositoryID, event.GetWorkflowRun().GetID(), previousRunAttempt)
 		if err != nil {
 			logger.Error("Failed to generate previous trace ID", zap.Error(err))
 		} else {
@@ -230,8 +248,16 @@ func createSpan(scopeSpans ptrace.ScopeSpans, step *github.TaskStep, job *github
 	return span.SpanID(), nil
 }
 
-func generateTraceID(runID int64, runAttempt int) (pcommon.TraceID, error) {
-	input := fmt.Sprintf("%d%dt", runID, runAttempt)
+func requireRepositoryID(repositoryID int64) (int64, error) {
+	if repositoryID <= 0 {
+		return 0, fmt.Errorf("repository ID must be positive")
+	}
+
+	return repositoryID, nil
+}
+
+func generateTraceID(repositoryID int64, runID int64, runAttempt int) (pcommon.TraceID, error) {
+	input := fmt.Sprintf("%d@%d#%d", repositoryID, runID, runAttempt)
 	hash := sha256.Sum256([]byte(input))
 	traceIDHex := hex.EncodeToString(hash[:])
 

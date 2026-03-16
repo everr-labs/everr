@@ -5,10 +5,6 @@ function stubGitHubEventsEnv(overrides: Partial<Record<string, string>> = {}) {
   const values = {
     INGRESS_SOURCE: "github",
     INGRESS_COLLECTOR_URL: "http://localhost:8080/webhook/github",
-    CDEVENTS_CLICKHOUSE_URL: "http://localhost:8123",
-    CDEVENTS_CLICKHOUSE_USERNAME: "app_cdevents_rw",
-    CDEVENTS_CLICKHOUSE_PASSWORD: "app-cdevents-dev",
-    CDEVENTS_CLICKHOUSE_DATABASE: "app",
     ...overrides,
   };
 
@@ -40,10 +36,6 @@ describe("getGitHubEventsConfig", () => {
     stubGitHubEventsEnv({
       INGRESS_SOURCE: "github-enterprise",
       INGRESS_COLLECTOR_URL: "https://collector.example.com",
-      CDEVENTS_CLICKHOUSE_URL: "https://clickhouse.example.com",
-      CDEVENTS_CLICKHOUSE_USERNAME: "writer",
-      CDEVENTS_CLICKHOUSE_PASSWORD: "secret-value",
-      CDEVENTS_CLICKHOUSE_DATABASE: "analytics",
     });
 
     const { getGitHubEventsConfig } = await import("./config");
@@ -60,12 +52,6 @@ describe("getGitHubEventsConfig", () => {
       retentionDoneDays: 7,
       retentionDeadDays: 30,
       cleanupIntervalMs: 3_600_000,
-      cdeventsClickHouseURL: "https://clickhouse.example.com",
-      cdeventsClickHouseUsername: "writer",
-      cdeventsClickHousePassword: "secret-value",
-      cdeventsClickHouseDatabase: "analytics",
-      cdeventsBatchSize: 100,
-      cdeventsFlushIntervalMs: 5_000,
     });
   });
 

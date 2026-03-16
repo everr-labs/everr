@@ -36,6 +36,13 @@
       "when": 1772894553545,
       "tag": "0004_adorable_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773571502893,
+      "tag": "0005_opposite_firelord",
+      "breakpoints": true
     }
   ]
 }

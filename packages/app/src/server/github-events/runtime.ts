@@ -1,4 +1,3 @@
-import { getCDEventsWriter } from "./cdevents";
 import { type GitHubEventsConfig, getGitHubEventsConfig } from "./config";
 import { processWebhookEvent } from "./processor";
 import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
@@ -19,12 +18,9 @@ type RuntimeManagerOptions = {
   isProduction?: () => boolean;
 };
 
-type RuntimeWriter = Pick<ReturnType<typeof getCDEventsWriter>, "close">;
-
 export type GitHubEventsRuntimeDependencies = {
   config?: GitHubEventsConfig;
   store?: WebhookEventStore;
-  writer?: RuntimeWriter;
   processEvent?: typeof processWebhookEvent;
   sleep?: typeof sleep;
 };
@@ -34,14 +30,12 @@ export class GitHubEventsRuntime implements ManagedRuntime {
   private runPromise: Promise<void> | undefined;
   private readonly config: GitHubEventsConfig;
   private readonly store: WebhookEventStore;
-  private readonly writer: RuntimeWriter;
   private readonly processEvent: typeof processWebhookEvent;
   private readonly sleepFn: typeof sleep;
 
   constructor(dependencies: GitHubEventsRuntimeDependencies = {}) {
     this.config = dependencies.config ?? getGitHubEventsConfig();
     this.store = dependencies.store ?? getWebhookEventStore();
-    this.writer = dependencies.writer ?? getCDEventsWriter();
     this.processEvent = dependencies.processEvent ?? processWebhookEvent;
     this.sleepFn = dependencies.sleep ?? sleep;
   }
@@ -66,7 +60,6 @@ export class GitHubEventsRuntime implements ManagedRuntime {
     console.error("closing github events runtime");
     this.abortController.abort();
     await this.runPromise?.catch(() => undefined);
-    await this.writer.close();
   }
 
   private async runWorkerLoop(workerId: number): Promise<void> {

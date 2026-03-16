@@ -13,12 +13,6 @@ export type GitHubEventsConfig = {
   retentionDoneDays: number;
   retentionDeadDays: number;
   cleanupIntervalMs: number;
-  cdeventsClickHouseURL: string;
-  cdeventsClickHouseUsername: string;
-  cdeventsClickHousePassword: string;
-  cdeventsClickHouseDatabase: string;
-  cdeventsBatchSize: number;
-  cdeventsFlushIntervalMs: number;
 };
 
 const githubEventsConfigConstants = {
@@ -32,8 +26,6 @@ const githubEventsConfigConstants = {
   retentionDoneDays: 7,
   retentionDeadDays: 30,
   cleanupIntervalMs: 3_600_000,
-  cdeventsBatchSize: 100,
-  cdeventsFlushIntervalMs: 5_000,
 } satisfies Pick<
   GitHubEventsConfig,
   | "workerCount"
@@ -46,8 +38,6 @@ const githubEventsConfigConstants = {
   | "retentionDoneDays"
   | "retentionDeadDays"
   | "cleanupIntervalMs"
-  | "cdeventsBatchSize"
-  | "cdeventsFlushIntervalMs"
 >;
 
 let cachedConfig: GitHubEventsConfig | undefined;
@@ -71,10 +61,6 @@ export function getGitHubEventsConfig(): GitHubEventsConfig {
     source: githubEventsEnv.INGRESS_SOURCE,
     collectorURL: resolveCollectorURL(githubEventsEnv.INGRESS_COLLECTOR_URL),
     ...githubEventsConfigConstants,
-    cdeventsClickHouseURL: githubEventsEnv.CDEVENTS_CLICKHOUSE_URL,
-    cdeventsClickHouseUsername: githubEventsEnv.CDEVENTS_CLICKHOUSE_USERNAME,
-    cdeventsClickHousePassword: githubEventsEnv.CDEVENTS_CLICKHOUSE_PASSWORD,
-    cdeventsClickHouseDatabase: githubEventsEnv.CDEVENTS_CLICKHOUSE_DATABASE,
   };
 
   return cachedConfig;

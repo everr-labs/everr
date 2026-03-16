@@ -44,7 +44,7 @@ describe("/api/cli/test-history", () => {
       {
         traceId: "trace-1",
         runId: "run-1",
-        runAttempt: 1,
+        attempts: 1,
         headSha: "abc123",
         headBranch: "main",
         testResult: "pass",

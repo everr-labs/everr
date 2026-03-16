@@ -72,7 +72,7 @@ describe("getTestHistory", () => {
       {
         traceId: "trace-1",
         runId: "run-1",
-        runAttempt: 2,
+        attempts: 2,
         headSha: "abc123",
         headBranch: "main",
         testResult: "pass",

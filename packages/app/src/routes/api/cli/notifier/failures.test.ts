@@ -14,6 +14,16 @@ vi.mock("../-auth", () => ({
   },
 }));
 
+vi.mock("@/db/client", () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => Promise.resolve([]),
+      }),
+    }),
+  },
+}));
+
 import { query } from "@/lib/clickhouse";
 import { getWorkOS } from "@/lib/workos";
 import { Route } from "./failures";
@@ -26,6 +36,7 @@ type GetHandler = (args: {
   context: {
     auth: {
       userId: string;
+      tenantId: number;
     };
   };
 }) => Promise<Response>;
@@ -78,6 +89,7 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -112,6 +124,7 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -145,6 +158,7 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -214,6 +228,7 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -279,6 +294,7 @@ describe("/api/cli/notifier/failures", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });

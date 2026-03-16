@@ -163,11 +163,11 @@ export function SpanDetailPanel({
           </div>
         )}
         {!span.stepNumber &&
-          span.runAttempt !== undefined &&
-          span.runAttempt > 1 && (
+          span.attempts !== undefined &&
+          span.attempts > 1 && (
             <div className="flex gap-2">
               <span className="text-muted-foreground w-20">Attempt</span>
-              <span className="font-medium">#{span.runAttempt}</span>
+              <span className="font-medium">#{span.attempts}</span>
             </div>
           )}
         <div className="flex gap-2">

@@ -8,7 +8,7 @@ import { runSummarySubquery } from "./run-query-helpers";
 export interface RunListItem {
   traceId: string;
   runId: string;
-  runAttempt: number;
+  attempts: number;
   workflowName: string;
   repo: string;
   branch: string;
@@ -169,7 +169,7 @@ export const getRunsList = createServerFn({
     const runs: RunListItem[] = dataResult.map((row) => ({
       traceId: row.trace_id,
       runId: row.run_id,
-      runAttempt: Number(row.run_attempt),
+      attempts: Number(row.run_attempt),
       workflowName: row.workflowName || "Workflow",
       repo: row.repo,
       branch: row.branch,

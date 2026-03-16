@@ -14,6 +14,18 @@ vi.mock("./-auth", () => ({
   },
 }));
 
+const mockDbWhere = vi.fn().mockResolvedValue([]);
+
+vi.mock("@/db/client", () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: (...args: unknown[]) => mockDbWhere(...args),
+      }),
+    }),
+  },
+}));
+
 import { query } from "@/lib/clickhouse";
 import { getWorkOS } from "@/lib/workos";
 import { Route } from "./tray-status";
@@ -26,6 +38,7 @@ type GetHandler = (args: {
   context: {
     auth: {
       userId: string;
+      tenantId: number;
     };
   };
 }) => Promise<Response>;
@@ -76,6 +89,7 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -100,6 +114,7 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -135,7 +150,6 @@ describe("/api/cli/tray-status", () => {
         startedAt: "2026-03-08T10:05:00Z",
       },
     ]);
-    mockedQuery.mockResolvedValueOnce([]);
 
     const handler = getHandler();
     const response = await handler({
@@ -143,6 +157,7 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -166,12 +181,12 @@ describe("/api/cli/tray-status", () => {
       },
     ]);
     mockedQuery.mockResolvedValueOnce([]);
-    mockedQuery.mockResolvedValueOnce([
+    mockDbWhere.mockResolvedValueOnce([
       {
         runId: "run-3",
         repo: "everr-labs/everr",
         branch: "main",
-        startedAt: "2026-03-08T10:06:00Z",
+        startedAt: new Date("2026-03-08T10:06:00Z"),
       },
     ]);
 
@@ -181,6 +196,7 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -214,7 +230,6 @@ describe("/api/cli/tray-status", () => {
     mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([]);
-    mockedQuery.mockResolvedValueOnce([]);
 
     const handler = getHandler();
     const response = await handler({
@@ -222,6 +237,7 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
@@ -247,7 +263,6 @@ describe("/api/cli/tray-status", () => {
       },
     ]);
     mockedQuery.mockResolvedValueOnce([]);
-    mockedQuery.mockResolvedValueOnce([]);
     mockedQuery.mockResolvedValueOnce([
       {
         trace_id: "trace-123",
@@ -271,6 +286,7 @@ describe("/api/cli/tray-status", () => {
       context: {
         auth: {
           userId: "user_1",
+          tenantId: 7,
         },
       },
     });
