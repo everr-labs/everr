@@ -5,8 +5,8 @@ vi.mock("@/data/grep", () => ({
   getGrepTimeRangeValidationError: vi.fn(() => null),
 }));
 
-vi.mock("./-auth", () => ({
-  cliAuthMiddleware: {
+vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
+  accessTokenAuthMiddleware: {
     options: {},
   },
 }));

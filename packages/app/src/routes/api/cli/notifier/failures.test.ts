@@ -21,8 +21,8 @@ vi.mock("@/lib/workos", () => ({
   },
 }));
 
-vi.mock("../-auth", () => ({
-  cliAuthMiddleware: {
+vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
+  accessTokenAuthMiddleware: {
     options: {},
   },
 }));
@@ -39,7 +39,7 @@ const mockedGetUser = vi.mocked(workOS.userManagement.getUser);
 type GetHandler = (args: {
   request: Request;
   context: {
-    auth: {
+    session: {
       userId: string;
       tenantId: number;
     };
@@ -84,7 +84,7 @@ describe("/api/cli/notifier/failures", () => {
         "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com",
       ),
       context: {
-        auth: {
+        session: {
           userId: "user_1",
           tenantId: 42,
         },
@@ -117,7 +117,7 @@ describe("/api/cli/notifier/failures", () => {
         "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com",
       ),
       context: {
-        auth: {
+        session: {
           userId: "user_1",
           tenantId: 42,
         },
@@ -148,7 +148,7 @@ describe("/api/cli/notifier/failures", () => {
         "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com&repo=everr-labs/everr&branch=feature%2Fgranola",
       ),
       context: {
-        auth: {
+        session: {
           userId: "user_1",
           tenantId: 42,
         },
@@ -218,7 +218,7 @@ describe("/api/cli/notifier/failures", () => {
         "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com",
       ),
       context: {
-        auth: {
+        session: {
           userId: "user_1",
           tenantId: 42,
         },
@@ -281,7 +281,7 @@ describe("/api/cli/notifier/failures", () => {
         "http://localhost/api/cli/notifier/failures?gitEmail=dev@example.com",
       ),
       context: {
-        auth: {
+        session: {
           userId: "user_1",
           tenantId: 42,
         },
