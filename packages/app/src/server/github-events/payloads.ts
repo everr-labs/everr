@@ -3,6 +3,7 @@ import { TerminalEventError } from "./types";
 
 const repositorySchema = z
   .object({
+    id: z.number().int().positive().optional(),
     full_name: z.string().optional(),
     html_url: z.string().optional(),
   })
@@ -18,6 +19,7 @@ const workflowRunSchema = z.object({
   workflow_run: z
     .object({
       id: z.number().int(),
+      run_attempt: z.number().int().optional(),
       name: z.string().nullish(),
       html_url: z.string().nullish(),
       head_commit: z
@@ -35,6 +37,15 @@ const workflowRunSchema = z.object({
       created_at: z.string().nullish(),
       updated_at: z.string().nullish(),
       run_started_at: z.string().nullish(),
+      event: z.string().nullish(),
+      workflow_id: z.number().int().nullish(),
+      display_title: z.string().nullish(),
+      run_number: z.number().int().nullish(),
+      path: z.string().nullish(),
+      actor: z.object({ login: z.string() }).nullish(),
+      triggering_actor: z.object({ login: z.string() }).nullish(),
+      pull_requests: z.array(z.object({ number: z.number().int() })).nullish(),
+      head_repository: z.object({ full_name: z.string().optional() }).nullish(),
     })
     .optional(),
   repository: repositorySchema,
@@ -51,6 +62,7 @@ const workflowJobSchema = z.object({
     .object({
       id: z.number().int(),
       run_id: z.number().int(),
+      run_attempt: z.number().int().optional(),
       name: z.string().nullish(),
       html_url: z.string().nullish(),
       head_branch: z.string().nullish(),
@@ -59,6 +71,10 @@ const workflowJobSchema = z.object({
       created_at: z.string().nullish(),
       started_at: z.string().nullish(),
       completed_at: z.string().nullish(),
+      workflow_name: z.string().nullish(),
+      runner_name: z.string().nullish(),
+      runner_labels: z.array(z.string()).nullish(),
+      runner_group_name: z.string().nullish(),
     })
     .optional(),
   repository: repositorySchema,
@@ -122,6 +138,42 @@ export function installationIdFromQueuedEvent(
   }
 
   return installationId;
+}
+
+export function repositoryIdFromQueuedEvent(
+  event: ParsedQueuedWorkflowEvent,
+): number | null {
+  const repositoryId = event.payload.repository?.id;
+  return repositoryId && repositoryId > 0 ? repositoryId : null;
+}
+
+function hasWorkflowPayload(event: ParsedQueuedWorkflowEvent): boolean {
+  if (event.eventType === "workflow_run") {
+    return Boolean(event.payload.workflow_run);
+  }
+
+  return Boolean(event.payload.workflow_job);
+}
+
+export function enqueueMetadataFromWebhookEvent(
+  eventType: string,
+  body: Buffer,
+): {
+  enqueue: boolean;
+  repositoryId: number | null;
+} {
+  try {
+    const event = parseQueuedWorkflowEvent(eventType, body);
+    return {
+      enqueue: hasWorkflowPayload(event),
+      repositoryId: repositoryIdFromQueuedEvent(event),
+    };
+  } catch {
+    return {
+      enqueue: true,
+      repositoryId: null,
+    };
+  }
 }
 
 export function repositoryHTMLURL(repository?: {

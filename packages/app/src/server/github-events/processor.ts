@@ -1,40 +1,30 @@
-import { handleCDEventsRequest } from "./cdevents";
-import { replayWebhookToCollector, tenantHeaderName } from "./collector";
+import { db as defaultDb } from "@/db/client";
+import { replayWebhookToCollector } from "./collector";
 import { type GitHubEventsConfig, getGitHubEventsConfig } from "./config";
-import { firstHeader, recordToHeaders } from "./headers";
+import { firstHeader } from "./headers";
 import {
   installationIdFromQueuedEvent,
   parseQueuedWorkflowEvent,
 } from "./payloads";
 import { getWebhookEventStore, type WebhookEventStore } from "./queue-store";
 import { sleep } from "./sleep";
+import { handleStatusEvent } from "./status-writer";
 import { getTenantResolver, type TenantResolver } from "./tenant-resolver";
 import type { WebhookEventRecord } from "./types";
-import { TerminalEventError, topicCDEvents, topicCollector } from "./types";
+import { TerminalEventError, topicCollector, topicStatus } from "./types";
 
 type ProcessorDependencies = {
   config?: GitHubEventsConfig;
   store?: WebhookEventStore;
   tenantResolver?: TenantResolver;
   replayCollector?: typeof replayWebhookToCollector;
-  handleCDEvents?: typeof handleCDEventsRequest;
+  handleStatus?: typeof handleStatusEvent;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db?: any;
   sleep?: typeof sleep;
 };
 
 const finalizeRetryDelayMs = 1000;
-
-function responseToError(name: string, response: Response): Error {
-  const message = `${name} status=${response.status}`;
-  if (
-    response.status === 408 ||
-    response.status === 429 ||
-    (response.status >= 500 && response.status <= 599)
-  ) {
-    return new Error(message);
-  }
-
-  return new TerminalEventError(message);
-}
 
 export async function processWebhookEvent(
   event: WebhookEventRecord,
@@ -46,7 +36,8 @@ export async function processWebhookEvent(
   const tenantResolver = dependencies.tenantResolver ?? getTenantResolver();
   const replayCollector =
     dependencies.replayCollector ?? replayWebhookToCollector;
-  const handleCDEvents = dependencies.handleCDEvents ?? handleCDEventsRequest;
+  const statusHandler = dependencies.handleStatus ?? handleStatusEvent;
+  const pgDb = dependencies.db ?? defaultDb;
   const sleepFn = dependencies.sleep ?? sleep;
 
   const eventType = firstHeader(event.headers, "x-github-event")?.trim() ?? "";
@@ -73,20 +64,8 @@ export async function processWebhookEvent(
 
     if (event.topic === topicCollector) {
       await replayCollector(event, tenantId, config);
-    } else if (event.topic === topicCDEvents) {
-      const headers = recordToHeaders(event.headers);
-      headers.set(tenantHeaderName, String(tenantId));
-      const response = await handleCDEvents(
-        new Request("http://everr.internal/cdevents", {
-          method: "POST",
-          headers,
-          body: new Uint8Array(event.body),
-        }),
-      );
-
-      if (!response.ok) {
-        throw responseToError("cdevents", response);
-      }
+    } else if (event.topic === topicStatus) {
+      await statusHandler(pgDb, tenantId, parsedEvent);
     } else {
       throw new TerminalEventError(`unsupported topic "${event.topic}"`);
     }

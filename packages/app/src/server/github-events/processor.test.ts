@@ -3,10 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 vi.hoisted(() => {
   process.env.INGRESS_SOURCE = "github";
   process.env.INGRESS_COLLECTOR_URL = "http://localhost:8080/webhook/github";
-  process.env.CDEVENTS_CLICKHOUSE_URL = "http://localhost:8123";
-  process.env.CDEVENTS_CLICKHOUSE_USERNAME = "app_cdevents_rw";
-  process.env.CDEVENTS_CLICKHOUSE_PASSWORD = "app-cdevents-dev";
-  process.env.CDEVENTS_CLICKHOUSE_DATABASE = "app";
 });
 
 vi.mock("./queue-store", () => ({
@@ -21,10 +17,14 @@ vi.mock("./tenant-resolver", () => ({
   },
 }));
 
+vi.mock("@/db/client", () => ({
+  db: {},
+}));
+
 import { processWebhookEvent } from "./processor";
 import type { WebhookEventStore } from "./queue-store";
 import type { WebhookEventRecord } from "./types";
-import { topicCDEvents, topicCollector } from "./types";
+import { topicCollector, topicStatus } from "./types";
 
 class StubStore implements WebhookEventStore {
   finalizeCalls: Array<{
@@ -93,7 +93,7 @@ class StubTenantResolver {
 }
 
 function buildEvent(
-  topic: typeof topicCollector | typeof topicCDEvents,
+  topic: typeof topicCollector | typeof topicStatus,
 ): WebhookEventRecord {
   return {
     id: 1,
@@ -154,28 +154,29 @@ describe("processWebhookEvent", () => {
     });
   });
 
-  it("marks cdevents 4xx responses terminal", async () => {
+  it("marks status deliveries done on success", async () => {
     const store = new StubStore();
+    const handleStatus = vi.fn().mockResolvedValue(undefined);
 
-    await processWebhookEvent(buildEvent(topicCDEvents), {
+    await processWebhookEvent(buildEvent(topicStatus), {
       store,
       tenantResolver: new StubTenantResolver(42) as never,
-      handleCDEvents: async () => new Response("bad request", { status: 400 }),
+      handleStatus,
     });
 
-    expect(store.finalizeCalls.at(-1)).toMatchObject({
-      result: "dead",
-      errorClass: "terminal",
-    });
+    expect(store.finalizeCalls.at(-1)).toMatchObject({ result: "done" });
+    expect(handleStatus).toHaveBeenCalledTimes(1);
+    expect(handleStatus.mock.calls[0]?.[1]).toBe(42);
   });
 
-  it("marks cdevents 5xx responses retryable", async () => {
+  it("marks status failures retryable", async () => {
     const store = new StubStore();
+    const handleStatus = vi.fn().mockRejectedValue(new Error("db error"));
 
-    await processWebhookEvent(buildEvent(topicCDEvents), {
+    await processWebhookEvent(buildEvent(topicStatus), {
       store,
       tenantResolver: new StubTenantResolver(42) as never,
-      handleCDEvents: async () => new Response("unavailable", { status: 503 }),
+      handleStatus,
     });
 
     expect(store.finalizeCalls.at(-1)).toMatchObject({
