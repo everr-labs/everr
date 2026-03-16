@@ -58,7 +58,7 @@ function workflowRunStatus(action: string): WorkflowStatus {
       return action;
     default:
       throw new TerminalEventError(
-        `unsupported workflow_job action "${action}"`,
+        `unsupported workflow_run action "${action}"`,
       );
   }
 }
@@ -86,26 +86,7 @@ function workflowRunLastEventAt(workflowRun: WorkflowRunPayload): Date {
   );
 }
 
-function workflowJobLastEventAt(
-  action: string,
-  workflowJob: WorkflowJobPayload,
-): Date {
-  if (action === "requested" || action === "waiting" || action === "queued") {
-    return parseTimestamp(
-      workflowJob.created_at,
-      workflowJob.started_at,
-      workflowJob.completed_at,
-    );
-  }
-
-  if (action === "in_progress") {
-    return parseTimestamp(
-      workflowJob.started_at,
-      workflowJob.created_at,
-      workflowJob.completed_at,
-    );
-  }
-
+function workflowJobLastEventAt(workflowJob: WorkflowJobPayload): Date {
   return parseTimestamp(
     workflowJob.completed_at,
     workflowJob.started_at,
@@ -215,7 +196,7 @@ export async function upsertWorkflowJob(
   const repository = event.payload.repository?.full_name ?? "";
   const repositoryId = requireRepositoryId(event);
   const runAttempt = workflowJob.run_attempt ?? 1;
-  const lastEventAt = workflowJobLastEventAt(action, workflowJob);
+  const lastEventAt = workflowJobLastEventAt(workflowJob);
   const opTimestamp = new Date();
   const conclusion =
     status === "completed" ? (workflowJob.conclusion ?? null) : null;
