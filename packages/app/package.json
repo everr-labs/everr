@@ -70,6 +70,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.9",
     "jsdom": "^29.0.0",
     "nitro": "npm:nitro-nightly@latest",

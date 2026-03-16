@@ -1,16 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/workos", () => ({
-  workOS: {
-    organizations: {
-      createOrganization: vi.fn(),
-    },
-    userManagement: {
-      createOrganizationMembership: vi.fn(),
-    },
-  },
-}));
-
 vi.mock("@/data/tenants", () => ({
   ensureTenantForOrganizationId: vi.fn(),
 }));

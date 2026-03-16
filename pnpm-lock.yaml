@@ -186,6 +186,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.1
         version: 6.0.1(vite@8.0.0(@types/node@25.5.0)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))
+      dotenv:
+        specifier: ^17.3.1
+        version: 17.3.1
       drizzle-kit:
         specifier: ^0.31.9
         version: 0.31.9
@@ -4998,9 +5001,6 @@ packages:
   finalhandler@2.1.1:
     resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
     engines: {node: '>= 18.0.0'}
-
-  flatted@3.3.3:
-    resolution: {integrity: sha512-GX+ysw4PBCz0PzosHDepZGANEuFCMLrnRTiEy9McGjmkCQYwRq4A/X786G/fjM/+OjsWSU1ZrY5qyARZmO/uwg==}
 
   flatted@3.4.0:
     resolution: {integrity: sha512-kC6Bb+ooptOIvWj5B63EQWkF0FEnNjV2ZNkLMLZRDDduIiWeFF4iKnslwhiWxjAdbg4NzTNo6h0qLuvFrcx+Sw==}
@@ -11053,7 +11053,7 @@ snapshots:
     dependencies:
       '@vitest/utils': 4.0.18
       fflate: 0.8.2
-      flatted: 3.3.3
+      flatted: 3.4.0
       pathe: 2.0.3
       sirv: 3.0.2
       tinyglobby: 0.2.15
@@ -12052,9 +12052,6 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
-
-  flatted@3.3.3:
-    optional: true
 
   flatted@3.4.0: {}
 

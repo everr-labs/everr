@@ -56,6 +56,21 @@ vi.mock("@/lib/serverFn", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// @/lib/workos — prevent env validation at import time.
+// Individual tests can override specific methods.
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/workos", () => ({
+  workOS: {
+    organizations: { createOrganization: vi.fn(), getOrganization: vi.fn() },
+    userManagement: {
+      getUser: vi.fn(),
+      createOrganizationMembership: vi.fn(),
+    },
+  },
+}));
+
+// ---------------------------------------------------------------------------
 // WorkOS authkit — default: authenticated user with org.
 // Override in individual tests: vi.mocked(getAuth).mockResolvedValue(...)
 // ---------------------------------------------------------------------------
