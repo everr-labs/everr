@@ -123,7 +123,7 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
     branch: "feature/granola",
     workflow_name: "CI",
     failure_time: "2026-03-07T13:32:00Z",
-    details_url: "https://example.com/dashboard/runs/trace-one/jobs/job-one/steps/3",
+    details_url: "https://example.com/runs/trace-one/jobs/job-one/steps/3",
     job_name: "test",
     step_number: "3",
     step_name: "Run suite",

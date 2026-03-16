@@ -1,15 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@tanstack/react-start", () => ({
-  createServerFn: vi.fn(() => {
-    const chain = {
-      inputValidator: () => chain,
-      handler: (fn: (...args: unknown[]) => unknown) => fn,
-    };
-    return chain;
-  }),
-}));
-
 vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
 }));
@@ -18,10 +8,8 @@ import { query } from "@/lib/clickhouse";
 import {
   buildFailingLinePredicateSql,
   buildFailingStepLogsSql,
-  getRunJobs,
-  getRunSpans,
-  getStepLogs,
-} from "./runs";
+} from "./runs/schemas";
+import { getRunJobs, getRunSpans, getStepLogs } from "./runs/server";
 
 const mockedQuery = vi.mocked(query);
 

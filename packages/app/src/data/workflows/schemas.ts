@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TimeRangeSchema } from "@/lib/time-range";
-import type { RunListItem } from "../runs-list";
+import type { RunListItem } from "../runs-list/schemas";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

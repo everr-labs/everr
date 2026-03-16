@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@workos/authkit-tanstack-react-start", () => ({
-  getAuth: vi.fn(),
-  switchToOrganization: vi.fn(),
-}));
-
 vi.mock("@/lib/workos", () => ({
   workOS: {
     organizations: {
@@ -79,14 +74,24 @@ describe("createOrganizationForCurrentUser", () => {
       user: { id: "user_123", email: "user@example.com" },
       organizationId: undefined,
     } as never);
-    createOrganization.mockResolvedValue({ id: "org_new", name: "Acme" });
-    createOrganizationMembership.mockResolvedValue({ id: "om_123" });
+    createOrganization.mockResolvedValue({
+      id: "org_new",
+      name: "Acme",
+    } as Awaited<ReturnType<typeof createOrganization>>);
+    createOrganizationMembership.mockResolvedValue({
+      id: "om_123",
+    } as Awaited<ReturnType<typeof createOrganizationMembership>>);
 
     await createOrganizationForCurrentUser({
       data: { organizationName: "Acme" },
     });
 
-    expect(createOrganization).toHaveBeenCalledWith({ name: "Acme" });
+    expect(createOrganization).toHaveBeenCalledWith({
+      name: "Acme",
+      metadata: {
+        onboardingCompleted: "false",
+      },
+    });
     expect(createOrganizationMembership).toHaveBeenCalledWith({
       organizationId: "org_new",
       userId: "user_123",
@@ -142,7 +147,9 @@ describe("createOrganizationForCurrentUser", () => {
       user: { id: "user_123", email: "user@example.com" },
       organizationId: undefined,
     } as never);
-    createOrganization.mockResolvedValue({ id: "org_new" });
+    createOrganization.mockResolvedValue({
+      id: "org_new",
+    } as Awaited<ReturnType<typeof createOrganization>>);
     createOrganizationMembership.mockRejectedValue(new Error("role missing"));
 
     await expect(
@@ -174,8 +181,12 @@ describe("createOrganizationForCurrentUser", () => {
       user: { id: "user_123", email: "user@example.com" },
       organizationId: undefined,
     } as never);
-    createOrganization.mockResolvedValue({ id: "org_new" });
-    createOrganizationMembership.mockResolvedValue({ id: "om_123" });
+    createOrganization.mockResolvedValue({
+      id: "org_new",
+    } as Awaited<ReturnType<typeof createOrganization>>);
+    createOrganizationMembership.mockResolvedValue({
+      id: "om_123",
+    } as Awaited<ReturnType<typeof createOrganizationMembership>>);
     mockedSwitchToOrganization.mockRejectedValue(new Error("cannot switch"));
 
     await expect(

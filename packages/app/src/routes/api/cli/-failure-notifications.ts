@@ -575,16 +575,13 @@ function buildFailureDetailsUrl(
   traceId: string,
   failingStep?: FirstFailingStep,
 ): string {
-  const runUrl = new URL(
-    `/dashboard/runs/${encodeURIComponent(traceId)}`,
-    origin,
-  );
+  const runUrl = new URL(`/runs/${encodeURIComponent(traceId)}`, origin);
   if (!failingStep) {
     return runUrl.toString();
   }
 
   return new URL(
-    `/dashboard/runs/${encodeURIComponent(traceId)}/jobs/${encodeURIComponent(
+    `/runs/${encodeURIComponent(traceId)}/jobs/${encodeURIComponent(
       failingStep.jobId,
     )}/steps/${encodeURIComponent(failingStep.stepNumber)}`,
     origin,

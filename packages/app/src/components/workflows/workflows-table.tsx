@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Sparkline } from "@/components/ui/sparkline";
-import type { WorkflowListItem, WorkflowSparklineData } from "@/data/workflows";
+import type {
+  WorkflowListItem,
+  WorkflowSparklineData,
+} from "@/data/workflows/schemas";
 import {
   formatDuration,
   formatRelativeTime,

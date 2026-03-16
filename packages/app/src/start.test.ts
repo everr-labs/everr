@@ -1,16 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@tanstack/react-start", () => ({
-  createStart: vi.fn(() => ({
-    getOptions: vi.fn(),
-  })),
-}));
-
-vi.mock("@workos/authkit-tanstack-react-start", () => ({
-  authkitMiddleware: vi.fn(() => ({})),
-}));
-
 type RuntimeModuleMock = {
   ensureGitHubEventsRuntimeForAppStart: ReturnType<typeof vi.fn>;
 };

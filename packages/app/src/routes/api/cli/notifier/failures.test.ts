@@ -5,7 +5,14 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 vi.mock("@/lib/workos", () => ({
-  getWorkOS: vi.fn(),
+  workOS: {
+    userManagement: {
+      getUser: vi.fn(),
+    },
+    organizations: {
+      getOrganization: vi.fn(),
+    },
+  },
 }));
 
 vi.mock("../-auth", () => ({
@@ -15,11 +22,11 @@ vi.mock("../-auth", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getWorkOS } from "@/lib/workos";
+import { workOS } from "@/lib/workos";
 import { Route } from "./failures";
 
 const mockedQuery = vi.mocked(query);
-const mockedGetWorkOS = vi.mocked(getWorkOS);
+const mockedGetUser = vi.mocked(workOS.userManagement.getUser);
 
 type GetHandler = (args: {
   request: Request;
@@ -49,26 +56,18 @@ function getHandler(): GetHandler {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedGetWorkOS.mockReturnValue({
-    userManagement: {
-      getUser: vi.fn().mockResolvedValue({
-        emailVerified: true,
-        email: "dev@example.com",
-      }),
-    },
-  } as never);
+  mockedGetUser.mockResolvedValue({
+    emailVerified: true,
+    email: "dev@example.com",
+  } as Awaited<ReturnType<typeof mockedGetUser>>);
 });
 
 describe("/api/cli/notifier/failures", () => {
   it("returns no failures when the verified email does not match", async () => {
-    mockedGetWorkOS.mockReturnValue({
-      userManagement: {
-        getUser: vi.fn().mockResolvedValue({
-          emailVerified: false,
-          email: "dev@example.com",
-        }),
-      },
-    } as never);
+    mockedGetUser.mockResolvedValue({
+      emailVerified: false,
+      email: "dev@example.com",
+    } as Awaited<ReturnType<typeof mockedGetUser>>);
 
     const handler = getHandler();
     const response = await handler({
@@ -127,7 +126,7 @@ describe("/api/cli/notifier/failures", () => {
           branch: "main",
           workflow_name: "CI",
           failure_time: "2026-03-07T13:32:00Z",
-          details_url: "http://localhost/dashboard/runs/trace-123",
+          details_url: "http://localhost/runs/trace-123",
           auto_fix_prompt: expect.stringContaining("trace-123"),
         },
       ],
@@ -220,8 +219,7 @@ describe("/api/cli/notifier/failures", () => {
 
     const payload = await response.json();
     expect(payload.failures[0]).toMatchObject({
-      details_url:
-        "http://localhost/dashboard/runs/trace-123/jobs/job-1/steps/1",
+      details_url: "http://localhost/runs/trace-123/jobs/job-1/steps/1",
       job_name: "test",
       step_number: "1",
       step_name: "Install dependencies",
@@ -231,7 +229,7 @@ describe("/api/cli/notifier/failures", () => {
       'everr runs logs --trace-id trace-123 --job-name "test" --step-number 1',
     );
     expect(payload.failures[0].auto_fix_prompt).not.toContain(
-      "http://localhost/dashboard",
+      "http://localhost",
     );
   });
 
