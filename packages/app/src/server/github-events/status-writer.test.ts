@@ -122,7 +122,7 @@ describe("upsertWorkflowRun", () => {
       authorEmail: "dev@example.com",
       startedAt: new Date("2026-03-05T10:00:05Z"),
       completedAt: null,
-      lastEventAt: new Date("2026-03-05T10:00:00Z"),
+      lastEventAt: new Date("2026-03-05T10:01:00Z"),
       createdAt: opTimestamp,
       updatedAt: opTimestamp,
     });
@@ -144,13 +144,13 @@ describe("upsertWorkflowRun", () => {
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
       status: "waiting",
-      lastEventAt: new Date("2026-03-05T10:00:00Z"),
+      lastEventAt: new Date("2026-03-05T10:01:00Z"),
       createdAt: opTimestamp,
       updatedAt: opTimestamp,
     });
   });
 
-  it("uses event ordering timestamps for in_progress workflow runs", async () => {
+  it("uses the freshest event timestamp for in_progress workflow runs", async () => {
     const { db, values } = createMockDb();
 
     await upsertWorkflowRun(db, 42, buildRunEvent("in_progress"));
@@ -158,7 +158,7 @@ describe("upsertWorkflowRun", () => {
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
       status: "in_progress",
-      lastEventAt: new Date("2026-03-05T10:00:05Z"),
+      lastEventAt: new Date("2026-03-05T10:01:00Z"),
       createdAt: opTimestamp,
       updatedAt: opTimestamp,
     });

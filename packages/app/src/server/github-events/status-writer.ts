@@ -49,43 +49,36 @@ function requireRepositoryId(event: ParsedQueuedWorkflowEvent): number {
 }
 
 function workflowRunStatus(action: string): WorkflowStatus {
-  if (action === "requested" || action === "waiting" || action === "queued") {
-    return action;
+  switch (action) {
+    case "requested":
+    case "waiting":
+    case "queued":
+    case "in_progress":
+    case "completed":
+      return action;
+    default:
+      throw new TerminalEventError(
+        `unsupported workflow_job action "${action}"`,
+      );
   }
-  if (action === "in_progress") return "in_progress";
-  if (action === "completed") return "completed";
-  throw new TerminalEventError(`unsupported workflow_run action "${action}"`);
 }
 
 function workflowJobStatus(action: string): WorkflowStatus {
-  if (action === "requested" || action === "waiting" || action === "queued") {
-    return action;
+  switch (action) {
+    case "requested":
+    case "waiting":
+    case "queued":
+    case "in_progress":
+    case "completed":
+      return action;
+    default:
+      throw new TerminalEventError(
+        `unsupported workflow_job action "${action}"`,
+      );
   }
-  if (action === "in_progress") return "in_progress";
-  if (action === "completed") return "completed";
-  throw new TerminalEventError(`unsupported workflow_job action "${action}"`);
 }
 
-function workflowRunLastEventAt(
-  action: string,
-  workflowRun: WorkflowRunPayload,
-): Date {
-  if (action === "requested" || action === "waiting" || action === "queued") {
-    return parseTimestamp(
-      workflowRun.created_at,
-      workflowRun.updated_at,
-      workflowRun.run_started_at,
-    );
-  }
-
-  if (action === "in_progress") {
-    return parseTimestamp(
-      workflowRun.run_started_at,
-      workflowRun.updated_at,
-      workflowRun.created_at,
-    );
-  }
-
+function workflowRunLastEventAt(workflowRun: WorkflowRunPayload): Date {
   return parseTimestamp(
     workflowRun.updated_at,
     workflowRun.run_started_at,
@@ -135,7 +128,7 @@ export async function upsertWorkflowRun(
   const repository = event.payload.repository?.full_name ?? "";
   const repositoryId = requireRepositoryId(event);
   const attempts = workflowRun.run_attempt ?? 1;
-  const lastEventAt = workflowRunLastEventAt(action, workflowRun);
+  const lastEventAt = workflowRunLastEventAt(workflowRun);
   const opTimestamp = new Date();
   const conclusion =
     status === "completed" ? (workflowRun.conclusion ?? null) : null;
