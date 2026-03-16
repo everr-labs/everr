@@ -1,4 +1,4 @@
-import { and, eq, gte, isNotNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, gte, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { workflowRuns } from "@/db/schema";
 import { query } from "@/lib/clickhouse";
@@ -36,10 +36,11 @@ type FailureRunRow = {
 };
 
 type CandidateRunRow = {
+  traceId: string;
   runId: string;
   repo: string;
   branch: string;
-  startedAt: string | Date;
+  candidateTime: string | Date;
 };
 
 export type FailureNotification = {
@@ -429,8 +430,8 @@ async function filterUnresolvedFailures(
     const failureTime = toTimestampMs(failure.failureTime);
     return !candidates.some(
       (candidate) =>
-        candidate.runId !== failure.runId &&
-        toTimestampMs(candidate.startedAt) > failureTime,
+        candidate.traceId !== failure.traceId &&
+        toTimestampMs(candidate.candidateTime) > failureTime,
     );
   });
 }
@@ -451,10 +452,11 @@ async function loadSuccessfulRunsForScopes(
   return query<CandidateRunRow>(
     `
       SELECT
+        TraceId as traceId,
         anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,
         anyLast(ResourceAttributes['vcs.repository.name']) as repo,
         anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-        min(Timestamp) as startedAt
+        min(Timestamp) as candidateTime
       FROM traces
       WHERE Timestamp >= now() - INTERVAL ${timeWindowMinutes} MINUTE
         AND ResourceAttributes['cicd.pipeline.run.id'] != ''
@@ -490,17 +492,17 @@ async function loadActiveRunsForScopes(
 
   const rows = await db
     .select({
+      traceId: workflowRuns.traceId,
       runId: sql<string>`${workflowRuns.runId}::text`,
       repo: workflowRuns.repository,
       branch: workflowRuns.ref,
-      startedAt: workflowRuns.startedAt,
+      candidateTime: sql<Date>`coalesce(${workflowRuns.startedAt}, ${workflowRuns.lastEventAt})`,
     })
     .from(workflowRuns)
     .where(
       and(
         eq(workflowRuns.tenantId, tenantId),
         ne(workflowRuns.status, "completed"),
-        isNotNull(workflowRuns.startedAt),
         gte(
           workflowRuns.lastEventAt,
           sql`now() - interval '${sql.raw(String(timeWindowMinutes))} minutes'`,
@@ -509,17 +511,13 @@ async function loadActiveRunsForScopes(
       ),
     );
 
-  return rows
-    .filter(
-      (row): row is CandidateRunRow & { startedAt: Date } =>
-        row.startedAt !== null,
-    )
-    .map((row) => ({
-      runId: row.runId,
-      repo: row.repo,
-      branch: row.branch,
-      startedAt: row.startedAt,
-    }));
+  return rows.map((row) => ({
+    traceId: row.traceId,
+    runId: row.runId,
+    repo: row.repo,
+    branch: row.branch,
+    candidateTime: row.candidateTime,
+  }));
 }
 
 function groupCandidateRunsByScope(
