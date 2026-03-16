@@ -30,6 +30,9 @@ type GetHandler = (args: {
       userId: string;
       tenantId: number;
     };
+    clickhouse: {
+      query: typeof mockedQuery;
+    };
   };
 }) => Promise<Response>;
 
@@ -63,6 +66,9 @@ describe("/api/cli/notifier/failures", () => {
         session: {
           userId: "user_1",
           tenantId: 42,
+        },
+        clickhouse: {
+          query: mockedQuery,
         },
       },
     });
@@ -100,6 +106,9 @@ describe("/api/cli/notifier/failures", () => {
           userId: "user_1",
           tenantId: 42,
         },
+        clickhouse: {
+          query: mockedQuery,
+        },
       },
     });
 
@@ -130,6 +139,9 @@ describe("/api/cli/notifier/failures", () => {
         session: {
           userId: "user_1",
           tenantId: 42,
+        },
+        clickhouse: {
+          query: mockedQuery,
         },
       },
     });
@@ -201,6 +213,9 @@ describe("/api/cli/notifier/failures", () => {
           userId: "user_1",
           tenantId: 42,
         },
+        clickhouse: {
+          query: mockedQuery,
+        },
       },
     });
 
@@ -263,6 +278,9 @@ describe("/api/cli/notifier/failures", () => {
         session: {
           userId: "user_1",
           tenantId: 42,
+        },
+        clickhouse: {
+          query: mockedQuery,
         },
       },
     });

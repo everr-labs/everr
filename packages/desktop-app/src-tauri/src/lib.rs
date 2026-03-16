@@ -1237,8 +1237,8 @@ fn build_tray_auto_fix_prompt(failures: &[FailureNotification]) -> Option<String
         String::new(),
         "Required workflow:".to_string(),
         "- Start by pulling logs with the exact `everr runs logs` command listed for each failure below.".to_string(),
-        "- Show where the error is, and verify if it is related to the current branch or if it is a general issue with the repo."
-        "- If it is a general issue with the repo, say so explicitly, verify if it is flaky using Everr."
+        "- Show where the error is, and verify if it is related to the current branch or if it is a general issue with the repo.".to_string(),
+        "- If it is a general issue with the repo, say so explicitly, verify if it is flaky using Everr.".to_string(),
         "- If it is a local issue and something trivially fixable like a linting error or a out-to-date test, make the smallest repo-local fix that addresses the root cause.".to_string(),
         "- If it something more complicated, show me the error message and suggest some possible next steps.".to_string(),
         "- Work repo-by-repo. If a repo is not available locally, say so explicitly.".to_string(),

@@ -1,4 +1,3 @@
-import { getGlobalStartContext } from "@tanstack/react-start";
 import { getAuth } from "@workos/authkit-tanstack-react-start";
 import { getTenantForOrganizationId } from "@/data/tenants";
 import { getBearerToken, validateAccessToken } from "./access-token-auth";
@@ -58,12 +57,4 @@ export async function getWorkOSAuthSession(): Promise<EverrSession | null> {
     sessionId: auth.sessionId,
     tenantId,
   };
-}
-
-export function requireEverrSession() {
-  const ctx = getGlobalStartContext() as { session?: EverrSession } | undefined;
-
-  if (!ctx?.session) throw new Error("Unauthorized");
-
-  return ctx.session;
 }

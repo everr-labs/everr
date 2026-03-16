@@ -1,6 +1,7 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { getAccessTokenSessionFromRequest, getWorkOSAuthSession } from "./auth";
+import { createAuthContext } from "./auth-context";
 
 const authMiddleware = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
@@ -9,9 +10,7 @@ const authMiddleware = createMiddleware({ type: "function" }).server(
 
     if (accessTokenSession) {
       return next({
-        context: {
-          session: accessTokenSession,
-        },
+        context: createAuthContext(accessTokenSession),
       });
     }
 
@@ -19,9 +18,7 @@ const authMiddleware = createMiddleware({ type: "function" }).server(
 
     if (workOSAuthSession) {
       return next({
-        context: {
-          session: workOSAuthSession,
-        },
+        context: createAuthContext(workOSAuthSession),
       });
     }
 

@@ -1,5 +1,4 @@
 import { queryOptions } from "@tanstack/react-query";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   executionsSubquery,
@@ -27,11 +26,17 @@ export const getTestPerfStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
-    const { whereClause, scopeWhere, params } = prepareFilter(data);
-    const inner = executionsSubquery(whereClause);
+  .handler(
+    async ({
+      data,
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { whereClause, scopeWhere, params } = prepareFilter(data);
+      const inner = executionsSubquery(whereClause);
 
-    const sql = `
+      const sql = `
       SELECT
         count(*) as total_executions,
         countIf(test_result = 'fail') as fail_executions,
@@ -54,47 +59,48 @@ export const getTestPerfStats = createAuthenticatedServerFn({
       )
     `;
 
-    const result = await query<{
-      total_executions: string;
-      fail_executions: string;
-      unique_failing_tests: string;
-      avg_duration: string;
-      median_duration: string;
-      p95_duration: string;
-      max_duration: string;
-      stddev_duration: string;
-      coefficient_of_variation: string;
-      failure_rate: string;
-    }>(sql, params);
+      const result = await query<{
+        total_executions: string;
+        fail_executions: string;
+        unique_failing_tests: string;
+        avg_duration: string;
+        median_duration: string;
+        p95_duration: string;
+        max_duration: string;
+        stddev_duration: string;
+        coefficient_of_variation: string;
+        failure_rate: string;
+      }>(sql, params);
 
-    if (result.length === 0) {
+      if (result.length === 0) {
+        return {
+          totalExecutions: 0,
+          failExecutions: 0,
+          uniqueFailingTests: 0,
+          avgDuration: 0,
+          medianDuration: 0,
+          p95Duration: 0,
+          maxDuration: 0,
+          stdDevDuration: 0,
+          coefficientOfVariation: 0,
+          failureRate: 0,
+        } satisfies TestPerformanceStats;
+      }
+
       return {
-        totalExecutions: 0,
-        failExecutions: 0,
-        uniqueFailingTests: 0,
-        avgDuration: 0,
-        medianDuration: 0,
-        p95Duration: 0,
-        maxDuration: 0,
-        stdDevDuration: 0,
-        coefficientOfVariation: 0,
-        failureRate: 0,
+        totalExecutions: Number(result[0].total_executions),
+        failExecutions: Number(result[0].fail_executions),
+        uniqueFailingTests: Number(result[0].unique_failing_tests),
+        avgDuration: Number(result[0].avg_duration),
+        medianDuration: Number(result[0].median_duration),
+        p95Duration: Number(result[0].p95_duration),
+        maxDuration: Number(result[0].max_duration),
+        stdDevDuration: Number(result[0].stddev_duration),
+        coefficientOfVariation: Number(result[0].coefficient_of_variation) || 0,
+        failureRate: Number(result[0].failure_rate) || 0,
       } satisfies TestPerformanceStats;
-    }
-
-    return {
-      totalExecutions: Number(result[0].total_executions),
-      failExecutions: Number(result[0].fail_executions),
-      uniqueFailingTests: Number(result[0].unique_failing_tests),
-      avgDuration: Number(result[0].avg_duration),
-      medianDuration: Number(result[0].median_duration),
-      p95Duration: Number(result[0].p95_duration),
-      maxDuration: Number(result[0].max_duration),
-      stdDevDuration: Number(result[0].stddev_duration),
-      coefficientOfVariation: Number(result[0].coefficient_of_variation) || 0,
-      failureRate: Number(result[0].failure_rate) || 0,
-    } satisfies TestPerformanceStats;
-  });
+    },
+  );
 
 // --- Scatter ---
 
@@ -113,19 +119,25 @@ export const getTestPerfScatter = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
-    const { whereClause, scopeWhere, params, aggregateByRun } =
-      prepareFilter(data);
-    const inner = executionsSubquery(whereClause, {
-      includeMetadata: true,
-      includeTimestamp: true,
-    });
+  .handler(
+    async ({
+      data,
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { whereClause, scopeWhere, params, aggregateByRun } =
+        prepareFilter(data);
+      const inner = executionsSubquery(whereClause, {
+        includeMetadata: true,
+        includeTimestamp: true,
+      });
 
-    let sql: string;
+      let sql: string;
 
-    if (aggregateByRun) {
-      // Package level: one dot per CI run, sum leaf-test durations
-      sql = `
+      if (aggregateByRun) {
+        // Package level: one dot per CI run, sum leaf-test durations
+        sql = `
         SELECT
           {pkg:String} as test_full_name,
           sum(test_duration) as test_duration,
@@ -144,38 +156,39 @@ export const getTestPerfScatter = createAuthenticatedServerFn({
         ORDER BY timestamp ASC
         LIMIT 1000
       `;
-    } else {
-      sql = `
+      } else {
+        sql = `
         SELECT test_full_name, test_duration, test_result, timestamp, branch, repo, trace_id, head_sha
         FROM (${inner})
         ${scopeWhere}
         ORDER BY timestamp ASC
         LIMIT 1000
       `;
-    }
+      }
 
-    const result = await query<{
-      test_full_name: string;
-      test_duration: string;
-      test_result: string;
-      timestamp: string;
-      branch: string;
-      repo: string;
-      trace_id: string;
-      head_sha: string;
-    }>(sql, params);
+      const result = await query<{
+        test_full_name: string;
+        test_duration: string;
+        test_result: string;
+        timestamp: string;
+        branch: string;
+        repo: string;
+        trace_id: string;
+        head_sha: string;
+      }>(sql, params);
 
-    return result.map((row) => ({
-      testName: row.test_full_name,
-      duration: Number(row.test_duration),
-      result: row.test_result,
-      timestamp: row.timestamp,
-      branch: row.branch,
-      repo: row.repo,
-      traceId: row.trace_id,
-      commitSha: row.head_sha,
-    })) satisfies ScatterPoint[];
-  });
+      return result.map((row) => ({
+        testName: row.test_full_name,
+        duration: Number(row.test_duration),
+        result: row.test_result,
+        timestamp: row.timestamp,
+        branch: row.branch,
+        repo: row.repo,
+        traceId: row.trace_id,
+        commitSha: row.head_sha,
+      })) satisfies ScatterPoint[];
+    },
+  );
 
 // --- Trend ---
 
@@ -203,14 +216,20 @@ export const getTestPerfTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
-    const { whereClause, scopeWhere, params } = prepareFilter(data);
-    const inner = executionsSubquery(whereClause, {
-      includeResult: false,
-      includeTimestamp: true,
-    });
+  .handler(
+    async ({
+      data,
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { whereClause, scopeWhere, params } = prepareFilter(data);
+      const inner = executionsSubquery(whereClause, {
+        includeResult: false,
+        includeTimestamp: true,
+      });
 
-    const sql = `
+      const sql = `
       SELECT
         toDate(timestamp) as date,
         avg(test_duration) as avg_duration,
@@ -225,33 +244,40 @@ export const getTestPerfTrend = createAuthenticatedServerFn({
       ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
     `;
 
-    const result = await query<{
-      date: string;
-      avg_duration: string;
-      p50_duration: string;
-      p95_duration: string;
-    }>(sql, params);
+      const result = await query<{
+        date: string;
+        avg_duration: string;
+        p50_duration: string;
+        p95_duration: string;
+      }>(sql, params);
 
-    return result.map((row) => ({
-      date: row.date,
-      avgDuration: Number(row.avg_duration),
-      p50Duration: Number(row.p50_duration),
-      p95Duration: Number(row.p95_duration),
-    })) satisfies TestPerfTrendPoint[];
-  });
+      return result.map((row) => ({
+        date: row.date,
+        avgDuration: Number(row.avg_duration),
+        p50Duration: Number(row.p50_duration),
+        p95Duration: Number(row.p95_duration),
+      })) satisfies TestPerfTrendPoint[];
+    },
+  );
 
 export const getTestPerfStatsTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
-    const { whereClause, scopeWhere, params, fromISO, toISO } =
-      prepareFilter(data);
-    const inner = executionsSubquery(whereClause, {
-      includeTimestamp: true,
-    });
+  .handler(
+    async ({
+      data,
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { whereClause, scopeWhere, params, fromISO, toISO } =
+        prepareFilter(data);
+      const inner = executionsSubquery(whereClause, {
+        includeTimestamp: true,
+      });
 
-    const sql = `
+      const sql = `
       SELECT
         toDate(timestamp) as date,
         count(*) as total_executions,
@@ -276,36 +302,37 @@ export const getTestPerfStatsTrend = createAuthenticatedServerFn({
       ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
     `;
 
-    const result = await query<{
-      date: string;
-      total_executions: string;
-      fail_executions: string;
-      unique_failing_tests: string;
-      avg_duration: string;
-      median_duration: string;
-      p95_duration: string;
-      max_duration: string;
-      coefficient_of_variation: string;
-      failure_rate: string;
-    }>(sql, {
-      ...params,
-      fromTime: fromISO,
-      toTime: toISO,
-    });
+      const result = await query<{
+        date: string;
+        total_executions: string;
+        fail_executions: string;
+        unique_failing_tests: string;
+        avg_duration: string;
+        median_duration: string;
+        p95_duration: string;
+        max_duration: string;
+        coefficient_of_variation: string;
+        failure_rate: string;
+      }>(sql, {
+        ...params,
+        fromTime: fromISO,
+        toTime: toISO,
+      });
 
-    return result.map((row) => ({
-      date: row.date,
-      totalExecutions: Number(row.total_executions),
-      failExecutions: Number(row.fail_executions),
-      uniqueFailingTests: Number(row.unique_failing_tests),
-      avgDuration: Number(row.avg_duration),
-      medianDuration: Number(row.median_duration),
-      p95Duration: Number(row.p95_duration),
-      maxDuration: Number(row.max_duration),
-      coefficientOfVariation: Number(row.coefficient_of_variation) || 0,
-      failureRate: Number(row.failure_rate) || 0,
-    })) satisfies TestPerfStatsTrendPoint[];
-  });
+      return result.map((row) => ({
+        date: row.date,
+        totalExecutions: Number(row.total_executions),
+        failExecutions: Number(row.fail_executions),
+        uniqueFailingTests: Number(row.unique_failing_tests),
+        avgDuration: Number(row.avg_duration),
+        medianDuration: Number(row.median_duration),
+        p95Duration: Number(row.p95_duration),
+        maxDuration: Number(row.max_duration),
+        coefficientOfVariation: Number(row.coefficient_of_variation) || 0,
+        failureRate: Number(row.failure_rate) || 0,
+      })) satisfies TestPerfStatsTrendPoint[];
+    },
+  );
 
 // --- Failures ---
 
@@ -323,16 +350,22 @@ export const getTestPerfFailures = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
-  .handler(async ({ data }) => {
-    const { whereClause, scopeConditions, params } = prepareFilter(data);
-    const inner = executionsSubquery(whereClause, {
-      includeMetadata: true,
-      includeTimestamp: true,
-    });
-    const scopeFilters = [...scopeConditions, "test_result = 'fail'"];
-    const failuresWhere = `WHERE ${scopeFilters.join("\n\t\t\t\t\tAND ")}`;
+  .handler(
+    async ({
+      data,
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { whereClause, scopeConditions, params } = prepareFilter(data);
+      const inner = executionsSubquery(whereClause, {
+        includeMetadata: true,
+        includeTimestamp: true,
+      });
+      const scopeFilters = [...scopeConditions, "test_result = 'fail'"];
+      const failuresWhere = `WHERE ${scopeFilters.join("\n\t\t\t\t\tAND ")}`;
 
-    const sql = `
+      const sql = `
       SELECT test_full_name, test_duration, timestamp, branch, head_sha, trace_id, repo
       FROM (${inner})
       ${failuresWhere}
@@ -340,26 +373,27 @@ export const getTestPerfFailures = createAuthenticatedServerFn({
       LIMIT 50
     `;
 
-    const result = await query<{
-      test_full_name: string;
-      test_duration: string;
-      timestamp: string;
-      branch: string;
-      head_sha: string;
-      trace_id: string;
-      repo: string;
-    }>(sql, params);
+      const result = await query<{
+        test_full_name: string;
+        test_duration: string;
+        timestamp: string;
+        branch: string;
+        head_sha: string;
+        trace_id: string;
+        repo: string;
+      }>(sql, params);
 
-    return result.map((row) => ({
-      testName: row.test_full_name,
-      duration: Number(row.test_duration),
-      timestamp: row.timestamp,
-      branch: row.branch,
-      commitSha: row.head_sha,
-      traceId: row.trace_id,
-      repo: row.repo,
-    })) satisfies TestFailure[];
-  });
+      return result.map((row) => ({
+        testName: row.test_full_name,
+        duration: Number(row.test_duration),
+        timestamp: row.timestamp,
+        branch: row.branch,
+        commitSha: row.head_sha,
+        traceId: row.trace_id,
+        repo: row.repo,
+      })) satisfies TestFailure[];
+    },
+  );
 
 // Query option factories for stats, scatter, trend, failures
 

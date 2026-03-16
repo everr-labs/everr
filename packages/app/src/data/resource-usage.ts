@@ -1,6 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 export interface ResourceUsagePoint {
@@ -216,7 +215,12 @@ export const getJobResourceUsage = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
   .handler(
-    async ({ data: { traceId, jobId } }): Promise<JobResourceUsage | null> => {
+    async ({
+      data: { traceId, jobId },
+      context: {
+        clickhouse: { query },
+      },
+    }): Promise<JobResourceUsage | null> => {
       const identifierSql = `
       SELECT
         anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,

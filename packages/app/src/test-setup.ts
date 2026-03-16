@@ -44,18 +44,22 @@ vi.mock("@/lib/serverFn", () => ({
   createAuthenticatedServerFn: vi.fn(() =>
     makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
       const { getAuth } = await import("@workos/authkit-tanstack-react-start");
+      const { query } = await import("@/lib/clickhouse");
       const auth = await getAuth();
       if (!auth?.user) throw new Error("Unauthenticated");
       if (!auth?.organizationId) throw new Error("Missing organization");
       return fn({
         data: opts?.data,
         context: {
-          auth: { ...auth, organizationId: auth.organizationId },
           session: {
             userId: auth.user.id,
             organizationId: auth.organizationId,
             sessionId: auth.sessionId,
             tenantId: 42,
+          },
+          clickhouse: {
+            query: <T>(sql: string, params?: Record<string, unknown>) =>
+              query<T>(sql, params, 42),
           },
         },
       });

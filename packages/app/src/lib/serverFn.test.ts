@@ -12,6 +12,7 @@ const mocked = vi.hoisted(() => ({
   getRequest: vi.fn(),
   getAccessTokenSessionFromRequest: vi.fn(),
   getWorkOSAuthSession: vi.fn(),
+  createAuthContext: vi.fn(),
 }));
 
 function getHandler(): FunctionMiddlewareHandler {
@@ -30,6 +31,13 @@ beforeEach(() => {
   mocked.getRequest.mockReset();
   mocked.getAccessTokenSessionFromRequest.mockReset();
   mocked.getWorkOSAuthSession.mockReset();
+  mocked.createAuthContext.mockReset();
+  mocked.createAuthContext.mockImplementation((session) => ({
+    session,
+    clickhouse: {
+      query: vi.fn(),
+    },
+  }));
 });
 
 async function loadModule() {
@@ -50,6 +58,9 @@ async function loadModule() {
   vi.doMock("./auth", () => ({
     getAccessTokenSessionFromRequest: mocked.getAccessTokenSessionFromRequest,
     getWorkOSAuthSession: mocked.getWorkOSAuthSession,
+  }));
+  vi.doMock("./auth-context", () => ({
+    createAuthContext: mocked.createAuthContext,
   }));
 
   return vi.importActual<typeof import("./serverFn")>("./serverFn");
@@ -88,9 +99,13 @@ describe("authMiddleware", () => {
       request,
     );
     expect(mocked.getWorkOSAuthSession).not.toHaveBeenCalled();
+    expect(mocked.createAuthContext).toHaveBeenCalledWith(session);
     expect(next).toHaveBeenCalledWith({
       context: {
         session,
+        clickhouse: {
+          query: expect.any(Function),
+        },
       },
     });
   });
@@ -113,9 +128,13 @@ describe("authMiddleware", () => {
 
     expect(response).toBe(nextResult);
     expect(mocked.getWorkOSAuthSession).toHaveBeenCalledTimes(1);
+    expect(mocked.createAuthContext).toHaveBeenCalledWith(session);
     expect(next).toHaveBeenCalledWith({
       context: {
         session,
+        clickhouse: {
+          query: expect.any(Function),
+        },
       },
     });
   });

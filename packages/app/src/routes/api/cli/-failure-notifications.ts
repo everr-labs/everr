@@ -1,6 +1,6 @@
 import { isFailureConclusion } from "@/data/runs/schemas";
 import { pool } from "@/db/client";
-import { query } from "@/lib/clickhouse";
+import type { AuthContext } from "@/lib/auth-context";
 import { parseTimestampAsUTC } from "@/lib/formatting";
 
 const FAILURE_LIMIT = 100;
@@ -55,7 +55,7 @@ export type FailureNotification = {
 };
 
 type FailureNotificationsOptions = {
-  tenantId: number;
+  context: AuthContext;
   gitEmail: string;
   origin: string;
   timeWindowMinutes: number;
@@ -66,7 +66,7 @@ type FailureNotificationsOptions = {
 };
 
 export async function getFailureNotifications({
-  tenantId,
+  context,
   gitEmail,
   origin,
   timeWindowMinutes,
@@ -75,7 +75,7 @@ export async function getFailureNotifications({
   unresolvedOnly = false,
   preloadNotificationContext = false,
 }: FailureNotificationsOptions): Promise<FailureNotification[]> {
-  const failures = await loadFailureRuns({
+  const failures = await loadFailureRuns(context, {
     gitEmail,
     timeWindowMinutes,
     repo,
@@ -86,13 +86,14 @@ export async function getFailureNotifications({
   }
 
   const unresolvedFailures = unresolvedOnly
-    ? await filterUnresolvedFailures(failures, tenantId, timeWindowMinutes)
+    ? await filterUnresolvedFailures(context, failures, timeWindowMinutes)
     : failures;
   if (unresolvedFailures.length === 0) {
     return [];
   }
 
   const firstFailingStepByTraceId = await loadFirstFailingSteps(
+    context,
     unresolvedFailures.map((row) => row.traceId),
   );
 
@@ -178,17 +179,21 @@ export function buildAutoFixPrompt(failures: FailureNotification[]): string {
   return sections.join("\n");
 }
 
-async function loadFailureRuns({
-  gitEmail,
-  timeWindowMinutes,
-  repo,
-  branch,
-}: {
-  gitEmail: string;
-  timeWindowMinutes: number;
-  repo?: string;
-  branch?: string;
-}): Promise<FailureRunRow[]> {
+async function loadFailureRuns(
+  context: AuthContext,
+  {
+    gitEmail,
+    timeWindowMinutes,
+    repo,
+    branch,
+  }: {
+    gitEmail: string;
+    timeWindowMinutes: number;
+    repo?: string;
+    branch?: string;
+  },
+): Promise<FailureRunRow[]> {
+  const { query } = context.clickhouse;
   const conditions = [
     `Timestamp >= now() - INTERVAL ${timeWindowMinutes} MINUTE`,
     "ResourceAttributes['cicd.pipeline.run.id'] != ''",
@@ -233,8 +238,10 @@ async function loadFailureRuns({
 }
 
 async function loadFirstFailingSteps(
+  context: AuthContext,
   traceIds: string[],
 ): Promise<Map<string, FirstFailingStep>> {
+  const { query } = context.clickhouse;
   if (traceIds.length === 0) {
     return new Map();
   }
@@ -362,17 +369,18 @@ async function loadFirstFailingSteps(
 }
 
 async function filterUnresolvedFailures(
+  context: AuthContext,
   failures: FailureRunRow[],
-  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<FailureRunRow[]> {
   const successfulRuns = await loadSuccessfulRunsForScopes(
+    context,
     failures,
     timeWindowMinutes,
   );
   const activeRuns = await loadActiveRunsForScopes(
+    context,
     failures,
-    tenantId,
     timeWindowMinutes,
   );
   const candidatesByScope = groupCandidateRunsByScope([
@@ -398,9 +406,11 @@ async function filterUnresolvedFailures(
 }
 
 async function loadSuccessfulRunsForScopes(
+  context: AuthContext,
   failures: FailureRunRow[],
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
+  const { query } = context.clickhouse;
   const scopeFilter = buildScopeFilter(
     failures.map((failure) => ({
       repo: failure.repo,
@@ -429,8 +439,8 @@ async function loadSuccessfulRunsForScopes(
 }
 
 async function loadActiveRunsForScopes(
+  context: AuthContext,
   failures: FailureRunRow[],
-  tenantId: number,
   timeWindowMinutes: number,
 ): Promise<CandidateRunRow[]> {
   const scopeKeys = new Set(
@@ -449,7 +459,7 @@ async function loadActiveRunsForScopes(
         AND status != 'completed'
         AND last_event_at >= NOW() - make_interval(mins => $2)
     `,
-    [tenantId, timeWindowMinutes],
+    [context.session.tenantId, timeWindowMinutes],
   );
 
   return result.rows.filter((run) =>

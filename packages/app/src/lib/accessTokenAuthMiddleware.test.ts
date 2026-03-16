@@ -8,6 +8,7 @@ type RequestMiddlewareHandler = (args: {
 const mocked = vi.hoisted(() => ({
   handler: null as RequestMiddlewareHandler | null,
   getAccessTokenSessionFromRequest: vi.fn(),
+  createAuthContext: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", () => ({
@@ -23,6 +24,10 @@ vi.mock("./auth", () => ({
   getAccessTokenSessionFromRequest: mocked.getAccessTokenSessionFromRequest,
 }));
 
+vi.mock("./auth-context", () => ({
+  createAuthContext: mocked.createAuthContext,
+}));
+
 import { accessTokenAuthMiddleware } from "./accessTokenAuthMiddleware";
 
 function getHandler(): RequestMiddlewareHandler {
@@ -35,6 +40,12 @@ function getHandler(): RequestMiddlewareHandler {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocked.createAuthContext.mockImplementation((session) => ({
+    session,
+    clickhouse: {
+      query: vi.fn(),
+    },
+  }));
 });
 
 describe("accessTokenAuthMiddleware", () => {
@@ -78,9 +89,13 @@ describe("accessTokenAuthMiddleware", () => {
     expect(mocked.getAccessTokenSessionFromRequest).toHaveBeenCalledWith(
       request,
     );
+    expect(mocked.createAuthContext).toHaveBeenCalledWith(session);
     expect(next).toHaveBeenCalledWith({
       context: {
         session,
+        clickhouse: {
+          query: expect.any(Function),
+        },
       },
     });
   });

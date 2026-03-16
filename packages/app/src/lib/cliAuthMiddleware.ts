@@ -1,5 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getAccessTokenSessionFromRequest } from "./auth";
+import { createAuthContext } from "./auth-context";
 
 export const cliAuthMiddleware = createMiddleware({
   type: "request",
@@ -16,8 +17,6 @@ export const cliAuthMiddleware = createMiddleware({
   }
 
   return next({
-    context: {
-      session: accessTokenSession,
-    },
+    context: createAuthContext(accessTokenSession),
   });
 });

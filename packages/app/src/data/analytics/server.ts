@@ -1,4 +1,3 @@
-import { query } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import {
@@ -14,10 +13,16 @@ export const getDurationTrends = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(
+    async ({
+      data: { timeRange },
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-    const sql = `
+      const sql = `
 			SELECT
 				toDate(Timestamp) as date,
 				avg(Duration) / 1000000 as avgDuration,
@@ -33,32 +38,39 @@ export const getDurationTrends = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
-      date: string;
-      avgDuration: string;
-      p50Duration: string;
-      p95Duration: string;
-      runCount: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
+      const result = await query<{
+        date: string;
+        avgDuration: string;
+        p50Duration: string;
+        p95Duration: string;
+        runCount: string;
+      }>(sql, { fromTime: fromISO, toTime: toISO });
 
-    return result.map((row) => ({
-      date: row.date,
-      avgDuration: Number(row.avgDuration),
-      p50Duration: Number(row.p50Duration),
-      p95Duration: Number(row.p95Duration),
-      runCount: Number(row.runCount),
-    })) satisfies DurationTrendPoint[];
-  });
+      return result.map((row) => ({
+        date: row.date,
+        avgDuration: Number(row.avgDuration),
+        p50Duration: Number(row.p50Duration),
+        p95Duration: Number(row.p95Duration),
+        runCount: Number(row.runCount),
+      })) satisfies DurationTrendPoint[];
+    },
+  );
 
 // Queue Time Analysis
 export const getQueueTimeAnalysis = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(
+    async ({
+      data: { timeRange },
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-    const sql = `
+      const sql = `
 			SELECT
 				toDate(Timestamp) as date,
 				avg(
@@ -86,32 +98,39 @@ export const getQueueTimeAnalysis = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
-      date: string;
-      avgQueueTime: string;
-      p50QueueTime: string;
-      p95QueueTime: string;
-      maxQueueTime: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
+      const result = await query<{
+        date: string;
+        avgQueueTime: string;
+        p50QueueTime: string;
+        p95QueueTime: string;
+        maxQueueTime: string;
+      }>(sql, { fromTime: fromISO, toTime: toISO });
 
-    return result.map((row) => ({
-      date: row.date,
-      avgQueueTime: Math.max(0, Number(row.avgQueueTime)),
-      p50QueueTime: Math.max(0, Number(row.p50QueueTime)),
-      p95QueueTime: Math.max(0, Number(row.p95QueueTime)),
-      maxQueueTime: Math.max(0, Number(row.maxQueueTime)),
-    })) satisfies QueueTimePoint[];
-  });
+      return result.map((row) => ({
+        date: row.date,
+        avgQueueTime: Math.max(0, Number(row.avgQueueTime)),
+        p50QueueTime: Math.max(0, Number(row.p50QueueTime)),
+        p95QueueTime: Math.max(0, Number(row.p95QueueTime)),
+        maxQueueTime: Math.max(0, Number(row.maxQueueTime)),
+      })) satisfies QueueTimePoint[];
+    },
+  );
 
 // Success Rate Trends
 export const getSuccessRateTrends = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(
+    async ({
+      data: { timeRange },
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-    const sql = `
+      const sql = `
 			SELECT
 				date,
 				round(countIf(conclusion = 'success') * 100.0 / nullIf(count(*), 0), 1) as successRate,
@@ -133,32 +152,39 @@ export const getSuccessRateTrends = createAuthenticatedServerFn({
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
 
-    const result = await query<{
-      date: string;
-      successRate: string;
-      totalRuns: string;
-      successCount: string;
-      failureCount: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
+      const result = await query<{
+        date: string;
+        successRate: string;
+        totalRuns: string;
+        successCount: string;
+        failureCount: string;
+      }>(sql, { fromTime: fromISO, toTime: toISO });
 
-    return result.map((row) => ({
-      date: row.date,
-      successRate: Number(row.successRate) || 0,
-      totalRuns: Number(row.totalRuns),
-      successCount: Number(row.successCount),
-      failureCount: Number(row.failureCount),
-    })) satisfies SuccessRatePoint[];
-  });
+      return result.map((row) => ({
+        date: row.date,
+        successRate: Number(row.successRate) || 0,
+        totalRuns: Number(row.totalRuns),
+        successCount: Number(row.successCount),
+        failureCount: Number(row.failureCount),
+      })) satisfies SuccessRatePoint[];
+    },
+  );
 
 // Runner Utilization
 export const getRunnerUtilization = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(
+    async ({
+      data: { timeRange },
+      context: {
+        clickhouse: { query },
+      },
+    }) => {
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-    const sql = `
+      const sql = `
 			SELECT
 				ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
 				count(*) as totalJobs,
@@ -174,19 +200,20 @@ export const getRunnerUtilization = createAuthenticatedServerFn({
 			LIMIT 20
 		`;
 
-    const result = await query<{
-      labels: string;
-      totalJobs: string;
-      avgDuration: string;
-      successRate: string;
-      totalDuration: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
+      const result = await query<{
+        labels: string;
+        totalJobs: string;
+        avgDuration: string;
+        successRate: string;
+        totalDuration: string;
+      }>(sql, { fromTime: fromISO, toTime: toISO });
 
-    return result.map((row) => ({
-      labels: row.labels,
-      totalJobs: Number(row.totalJobs),
-      avgDuration: Number(row.avgDuration),
-      successRate: Number(row.successRate) || 0,
-      totalDuration: Number(row.totalDuration),
-    })) satisfies RunnerUtilization[];
-  });
+      return result.map((row) => ({
+        labels: row.labels,
+        totalJobs: Number(row.totalJobs),
+        avgDuration: Number(row.avgDuration),
+        successRate: Number(row.successRate) || 0,
+        totalDuration: Number(row.totalDuration),
+      })) satisfies RunnerUtilization[];
+    },
+  );
