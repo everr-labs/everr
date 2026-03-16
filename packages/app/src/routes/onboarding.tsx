@@ -1,4 +1,4 @@
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm } from "@tanstack/react-form";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 import { useAuth } from "@workos/authkit-tanstack-react-start/client";
@@ -15,14 +15,27 @@ import {
   Wrench,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { OrganizationNameSchema } from "@/common/organization-name";
+import {
+  type ReactNode,
+  type SubmitEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  CreateOrganizationInputSchema,
+  OrganizationNameSchema,
+} from "@/common/organization-name";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { getCurrentOrganization, updateOrganizationName } from "@/data/auth";
 import {
   createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
 } from "@/data/onboarding";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -174,7 +187,7 @@ function deriveInitialStep(
 function OnboardingWizard() {
   const { hasOrganization, githubInstalled, organizationName } =
     Route.useLoaderData();
-  const { user, loading: authLoading } = useAuth({ ensureSignedIn: true });
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState<Step>(() =>
@@ -206,19 +219,9 @@ function OnboardingWizard() {
     return () => ro.disconnect();
   }, []);
 
-  const form = useForm({
-    defaultValues: {
-      organizationName,
-      organizationCreated: hasOrganization,
-      githubInstalled,
-      githubSkipped: false,
-    },
-    onSubmit: async () => {
-      await navigate({ to: "/dashboard" });
-    },
-  });
+  const [isGithubInstalled, setIsGithubInstalled] = useState(githubInstalled);
 
-  if (authLoading) {
+  if (authLoading || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background" />
     );
@@ -241,17 +244,6 @@ function OnboardingWizard() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-16">
-      {/* Dot grid */}
-      <div
-        className="pointer-events-none fixed inset-0 opacity-[0.03]"
-        aria-hidden="true"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, currentColor 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-
       <motion.div
         className="relative z-10 w-full max-w-xl"
         initial="hidden"
@@ -274,7 +266,7 @@ function OnboardingWizard() {
           className="mb-12"
           aria-label="Onboarding progress"
         >
-          <div className="relative flex items-stretch border border-border bg-card">
+          <div className="relative flex  border border-border bg-card">
             {/* Animated active indicator */}
             <motion.div
               className="pointer-events-none absolute inset-y-0 bg-primary/[0.07]"
@@ -305,15 +297,18 @@ function OnboardingWizard() {
                 <button
                   key={step}
                   type="button"
-                  onClick={() => isClickable && goTo(step)}
+                  onClick={() =>
+                    isClickable && step !== currentStep && goTo(step)
+                  }
                   disabled={!isClickable}
-                  className={`relative flex flex-1 items-center justify-center gap-2 px-3 py-3 text-xs font-medium outline-none transition-colors disabled:cursor-default ${
+                  className={cn(
+                    "relative flex flex-1 items-center justify-center gap-2 px-3 py-3 text-xs font-medium outline-none transition-colors disabled:cursor-default",
                     isActive
                       ? "text-foreground"
                       : isComplete
                         ? "text-muted-foreground hover:text-foreground"
-                        : "text-muted-foreground/50"
-                  }`}
+                        : "text-muted-foreground/50",
+                  )}
                 >
                   {isComplete ? (
                     <span className="flex size-5 items-center justify-center bg-primary/15 text-primary">
@@ -371,26 +366,23 @@ function OnboardingWizard() {
                 >
                   {currentStep === "organization" && (
                     <OrganizationStep
-                      form={form}
                       user={user}
                       savedName={organizationName}
+                      hasOrganization={hasOrganization}
                       onComplete={goForward}
                     />
                   )}
                   {currentStep === "github" && (
                     <GitHubStep
-                      form={form}
+                      installed={isGithubInstalled}
+                      onInstalled={() => setIsGithubInstalled(true)}
                       onBack={goBack}
                       onComplete={goForward}
-                      onSkip={() => {
-                        form.setFieldValue("githubSkipped", true);
-                        goForward();
-                      }}
+                      onSkip={goForward}
                     />
                   )}
                   {currentStep === "app" && (
                     <AppStep
-                      form={form}
                       onBack={goBack}
                       onFinish={() => void navigate({ to: "/dashboard" })}
                     />
@@ -406,46 +398,34 @@ function OnboardingWizard() {
 }
 
 // ---------------------------------------------------------------------------
-// Form type helper
-// ---------------------------------------------------------------------------
-
-interface OnboardingFormValues {
-  organizationName: string;
-  organizationCreated: boolean;
-  githubInstalled: boolean;
-  githubSkipped: boolean;
-}
-
-function createFormInstance() {
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- type-only helper, never called
-  return useForm({
-    defaultValues: {} as OnboardingFormValues,
-    onSubmit: () => {},
-  });
-}
-
-type FormInstance = ReturnType<typeof createFormInstance>;
-
-// ---------------------------------------------------------------------------
 // Step 1: Organization
 // ---------------------------------------------------------------------------
 
 function OrganizationStep({
-  form,
   user,
   savedName,
+  hasOrganization,
   onComplete,
 }: {
-  form: FormInstance;
-  user: { email?: string | null } | null;
+  user: { email: string };
   savedName: string;
+  hasOrganization: boolean;
   onComplete: () => void;
 }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastSavedName, setLastSavedName] = useState(savedName);
+  const [orgCreated, setOrgCreated] = useState(hasOrganization);
+  const lastSavedName = useRef(savedName);
 
-  async function handleSubmit(e: React.FormEvent) {
+  const form = useForm({
+    defaultValues: { organizationName: savedName },
+    onSubmit: () => {},
+    validators: {
+      onChange: CreateOrganizationInputSchema,
+    },
+  });
+
+  async function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (isSubmitting) return;
 
@@ -453,10 +433,9 @@ function OrganizationStep({
     const parsed = OrganizationNameSchema.safeParse(orgName);
     if (!parsed.success) return;
 
-    const alreadyCreated = form.getFieldValue("organizationCreated");
-    const nameChanged = orgName !== lastSavedName;
+    const nameChanged = orgName !== lastSavedName.current;
 
-    if (alreadyCreated && !nameChanged) {
+    if (orgCreated && !nameChanged) {
       onComplete();
       return;
     }
@@ -465,7 +444,7 @@ function OrganizationStep({
     setIsSubmitting(true);
 
     try {
-      if (alreadyCreated && nameChanged) {
+      if (orgCreated && nameChanged) {
         await updateOrganizationName({
           data: { organizationName: orgName },
         });
@@ -473,9 +452,9 @@ function OrganizationStep({
         await createOrganizationForCurrentUser({
           data: { organizationName: orgName },
         });
-        form.setFieldValue("organizationCreated", true);
+        setOrgCreated(true);
       }
-      setLastSavedName(orgName);
+      lastSavedName.current = orgName;
       onComplete();
     } catch (error) {
       const message =
@@ -489,22 +468,16 @@ function OrganizationStep({
   }
 
   return (
-    <motion.div variants={staggerContainer} initial="enter" animate="center">
-      <motion.div variants={staggerItem}>
-        <p className="text-center text-xs font-medium tracking-widest text-muted-foreground uppercase">
-          Step 1
-        </p>
-        <h1 className="mt-2 text-center text-3xl font-bold tracking-tight sm:text-4xl font-heading">
-          Set up your workspace
-        </h1>
-        {user?.email && (
-          <p className="mt-3 text-center text-sm text-muted-foreground">
-            Signed in as{" "}
-            <span className="font-medium text-foreground">{user.email}</span>
-          </p>
-        )}
-      </motion.div>
-
+    <StepContainer
+      title="Set up your workspace"
+      description={
+        <>
+          Signed in as{" "}
+          <span className="font-medium text-foreground">{user.email}</span>
+        </>
+      }
+      index={1}
+    >
       <motion.section
         variants={staggerItem}
         className="mt-8 border border-border bg-card p-6 sm:p-10"
@@ -515,50 +488,33 @@ function OrganizationStep({
         </p>
 
         <form className="mt-8 space-y-5" onSubmit={(e) => void handleSubmit(e)}>
-          <form.Field
-            name="organizationName"
-            validators={{
-              onBlur: ({ value }) => {
-                const parsed = OrganizationNameSchema.safeParse(value);
-                return parsed.success
-                  ? undefined
-                  : parsed.error.issues[0]?.message;
-              },
-            }}
-          >
+          <form.Field name="organizationName">
             {(field) => (
               <div className="space-y-2">
-                <label
+                <Label
                   htmlFor="organization-name"
-                  className="text-xs font-medium tracking-wide uppercase text-muted-foreground"
+                  className="text-xs font-medium tracking-wide text-muted-foreground"
                 >
                   Organization name
-                </label>
-                <input
+                </Label>
+                <Input
                   id="organization-name"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Acme Inc"
+                  placeholder="Acme Inc."
                   required
-                  minLength={2}
-                  maxLength={100}
                   autoComplete="organization"
-                  className="border-input bg-background focus-visible:border-primary focus-visible:ring-primary/20 h-11 w-full border px-4 text-sm outline-none transition-all duration-200 focus-visible:ring-2"
                 />
-                <AnimatePresence>
-                  {field.state.meta.errors.length > 0 && (
-                    <motion.p
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="text-xs text-destructive overflow-hidden"
-                      role="alert"
-                    >
-                      {field.state.meta.errors[0]}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
+
+                {field.state.meta.errors.length > 0 && (
+                  <p
+                    className="text-xs text-destructive overflow-hidden"
+                    role="alert"
+                  >
+                    {JSON.stringify(field.state.meta.errors)}
+                  </p>
+                )}
               </div>
             )}
           </form.Field>
@@ -584,7 +540,7 @@ function OrganizationStep({
                   <Loader2 className="mr-2 size-3.5 animate-spin" />
                   Creating...
                 </>
-              ) : form.getFieldValue("organizationCreated") ? (
+              ) : orgCreated ? (
                 <>
                   Continue
                   <ArrowRight className="ml-2 size-3.5" />
@@ -599,7 +555,7 @@ function OrganizationStep({
           </div>
         </form>
       </motion.section>
-    </motion.div>
+    </StepContainer>
   );
 }
 
@@ -608,17 +564,18 @@ function OrganizationStep({
 // ---------------------------------------------------------------------------
 
 function GitHubStep({
-  form,
+  installed,
+  onInstalled,
   onBack,
   onComplete,
   onSkip,
 }: {
-  form: FormInstance;
+  installed: boolean;
+  onInstalled: () => void;
   onBack: () => void;
   onComplete: () => void;
   onSkip: () => void;
 }) {
-  const installed = useStore(form.store, (s) => s.values.githubInstalled);
   const [tabOpened, setTabOpened] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -641,7 +598,7 @@ function GitHubStep({
               (status as { installed?: boolean } | null | undefined)?.installed,
             );
         if (isInstalled) {
-          form.setFieldValue("githubInstalled", true);
+          onInstalled();
           stopPolling();
         }
       } catch {
@@ -650,7 +607,7 @@ function GitHubStep({
     }, 3000);
 
     return stopPolling;
-  }, [tabOpened, installed, stopPolling, form]);
+  }, [tabOpened, installed, stopPolling, onInstalled]);
 
   function handleOpenInstall() {
     window.open("/api/github/install/start", "_blank", "noopener");
@@ -658,16 +615,7 @@ function GitHubStep({
   }
 
   return (
-    <motion.div variants={staggerContainer} initial="enter" animate="center">
-      <motion.div variants={staggerItem}>
-        <p className="text-center text-xs font-medium tracking-widest text-muted-foreground uppercase">
-          Step 2
-        </p>
-        <h1 className="mt-2 text-center text-3xl font-bold tracking-tight sm:text-4xl font-heading">
-          Connect your repos
-        </h1>
-      </motion.div>
-
+    <StepContainer title="Connect your repos" index={2}>
       <motion.section
         variants={staggerItem}
         className="mt-8 border border-border bg-card p-6 sm:p-10"
@@ -771,7 +719,7 @@ function GitHubStep({
           </>
         )}
       </motion.section>
-    </motion.div>
+    </StepContainer>
   );
 }
 
@@ -780,11 +728,9 @@ function GitHubStep({
 // ---------------------------------------------------------------------------
 
 function AppStep({
-  form: _form,
   onBack,
   onFinish,
 }: {
-  form: FormInstance;
   onBack: () => void;
   onFinish: () => void;
 }) {
@@ -807,16 +753,7 @@ function AppStep({
   ];
 
   return (
-    <motion.div variants={staggerContainer} initial="enter" animate="center">
-      <motion.div variants={staggerItem}>
-        <p className="text-center text-xs font-medium tracking-widest text-muted-foreground uppercase">
-          Step 3
-        </p>
-        <h1 className="mt-2 text-center text-3xl font-bold tracking-tight sm:text-4xl">
-          Get the desktop app
-        </h1>
-      </motion.div>
-
+    <StepContainer title="Get the desktop app" index={3}>
       <motion.section
         variants={staggerItem}
         className="mt-8 border border-border bg-card p-6 sm:p-10"
@@ -884,6 +821,39 @@ function AppStep({
           </Button>
         </div>
       </motion.section>
+    </StepContainer>
+  );
+}
+
+interface StepContainerProps {
+  children: ReactNode;
+  title: string;
+  description?: ReactNode;
+  index: number;
+}
+function StepContainer({
+  children,
+  title,
+  description,
+  index,
+}: StepContainerProps) {
+  return (
+    <motion.div variants={staggerContainer} initial="enter" animate="center">
+      <motion.div variants={staggerItem}>
+        <p className="text-center text-xs font-medium tracking-widest text-muted-foreground uppercase">
+          Step {index}
+        </p>
+        <h1 className="mt-2 text-center text-3xl font-bold tracking-tight sm:text-4xl font-heading">
+          {title}
+        </h1>
+        {description && (
+          <p className="mt-3 text-center text-sm text-muted-foreground">
+            {description}
+          </p>
+        )}
+      </motion.div>
+
+      {children}
     </motion.div>
   );
 }
