@@ -1,5 +1,6 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import {
   createRootRouteWithContext,
@@ -12,6 +13,7 @@ import { getAuthAction } from "@workos/authkit-tanstack-react-start";
 import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
 import { WorkOsWidgets } from "@workos-inc/widgets";
 import { ThemeProvider } from "better-themes";
+import { queryClient } from "@/query-client";
 import type { RouterContext } from "../router";
 import appCss from "../styles.css?url";
 
@@ -53,8 +55,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
     ],
   }),
-  shellComponent: RootDocument,
-  component: RootComponent,
+  shellComponent: ShellComponent,
+  component: Component,
   loader: async () => {
     const auth = await getAuthAction();
     return {
@@ -63,46 +65,46 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   },
 });
 
-function RootComponent() {
+function Component() {
+  const { auth } = Route.useLoaderData();
+
   return (
-    <>
-      <Outlet />
-      <TanStackDevtools
-        config={{ position: "bottom-right" }}
-        plugins={[
-          {
-            name: "Tanstack Router",
-            render: <TanStackRouterDevtoolsPanel />,
-          },
-          {
-            name: "React Query",
-            render: <ReactQueryDevtoolsPanel />,
-          },
-          {
-            name: "React Form",
-            render: <FormDevtoolsPanel />,
-          },
-        ]}
-      />
-    </>
+    <AuthKitProvider initialAuth={auth}>
+      <QueryClientProvider client={queryClient}>
+        <Outlet />
+        <TanStackDevtools
+          config={{ position: "bottom-right" }}
+          plugins={[
+            {
+              name: "Tanstack Router",
+              render: <TanStackRouterDevtoolsPanel />,
+            },
+            {
+              name: "React Query",
+              render: <ReactQueryDevtoolsPanel />,
+            },
+            {
+              name: "React Form",
+              render: <FormDevtoolsPanel />,
+            },
+          ]}
+        />
+      </QueryClientProvider>
+    </AuthKitProvider>
   );
 }
 
-function RootDocument({ children }: { children: React.ReactNode }) {
-  const { auth } = Route.useLoaderData();
-
+function ShellComponent({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        <AuthKitProvider initialAuth={auth}>
-          <ThemeProvider attribute="class" disableTransitionOnChange>
-            <WorkOsWidgets>{children}</WorkOsWidgets>
-            <Scripts />
-          </ThemeProvider>
-        </AuthKitProvider>
+        <ThemeProvider attribute="class" disableTransitionOnChange>
+          <WorkOsWidgets>{children}</WorkOsWidgets>
+          <Scripts />
+        </ThemeProvider>
       </body>
     </html>
   );
