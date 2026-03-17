@@ -37,6 +37,7 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
 const POLL_INTERVAL_SECONDS: u64 = 30;
+const UPDATE_CHECK_INTERVAL_SECONDS: u64 = 15 * 60;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
@@ -55,12 +56,6 @@ const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
 const TRAY_FAILURES_WINDOW_MINUTES: u64 = 5;
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StartupUpdateAction {
-    Skip,
-    Continue,
-    Restart,
-}
 
 #[derive(Clone)]
 struct RuntimeState {
@@ -619,7 +614,7 @@ pub fn run() {
                 open_settings_window(app.handle())?;
             }
             start_notifier_loop(app.handle().clone(), runtime);
-            start_startup_update_check(app.handle().clone());
+            start_update_check_loop(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -660,24 +655,34 @@ fn run_local_startup_maintenance(app: &AppHandle) {
     }
 }
 
-fn start_startup_update_check(app: AppHandle) {
+fn start_update_check_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        let update_installed = match install_startup_update_if_available(&app).await {
-            Ok(update_installed) => update_installed,
-            Err(error) => {
-                eprintln!("[everr-app] updater startup check failed: {error}");
-                false
-            }
-        };
+        loop {
+            let settings_open = app
+                .get_webview_window("main")
+                .and_then(|w| w.is_visible().ok())
+                .unwrap_or(false);
 
-        if startup_update_action(tauri::is_dev(), update_installed) == StartupUpdateAction::Restart
-        {
-            app.request_restart();
+            if !settings_open {
+                let update_installed = match install_update_if_available(&app).await {
+                    Ok(installed) => installed,
+                    Err(error) => {
+                        eprintln!("[everr-app] update check failed: {error}");
+                        false
+                    }
+                };
+
+                if update_installed {
+                    app.request_restart();
+                }
+            }
+
+            tokio::time::sleep(Duration::from_secs(UPDATE_CHECK_INTERVAL_SECONDS)).await;
         }
     });
 }
 
-async fn install_startup_update_if_available(app: &AppHandle) -> Result<bool> {
+async fn install_update_if_available(app: &AppHandle) -> Result<bool> {
     if !should_check_for_updates() {
         return Ok(false);
     }
@@ -1774,16 +1779,6 @@ fn should_check_for_updates() -> bool {
     !tauri::is_dev()
 }
 
-fn startup_update_action(is_dev: bool, update_installed: bool) -> StartupUpdateAction {
-    if is_dev {
-        StartupUpdateAction::Skip
-    } else if update_installed {
-        StartupUpdateAction::Restart
-    } else {
-        StartupUpdateAction::Continue
-    }
-}
-
 fn load_app_settings(session_store: &SessionStore) -> Result<AppSettings> {
     let document = session_store.load_document::<AppSettings>()?;
     let (mut settings, should_persist) = match document.settings {
@@ -1884,9 +1879,9 @@ mod tests {
         current_session_store, format_tray_title, format_tray_tooltip,
         mark_assistant_step_seen_in_settings, mark_launch_at_login_step_seen_in_settings,
         mark_setup_complete_in_settings, migrate_completed_base_url, should_check_for_updates,
-        startup_update_action, sync_installed_cli_from_paths, tray_auto_fix_prompt,
+        sync_installed_cli_from_paths, tray_auto_fix_prompt,
         tray_failed_runs_target, value_has_wizard_metadata, AppSettings, NotificationQueue,
-        StartupUpdateAction, TraySnapshot, TrayState, WizardState, APP_NAME, DEV_APP_NAME,
+        TraySnapshot, TrayState, WizardState, APP_NAME, DEV_APP_NAME,
         TRAY_FAILURES_WINDOW_MINUTES,
     };
 
@@ -2042,19 +2037,6 @@ mod tests {
     #[test]
     fn startup_update_checks_are_disabled_in_dev_only() {
         assert_eq!(should_check_for_updates(), !tauri::is_dev());
-    }
-
-    #[test]
-    fn startup_update_action_restarts_only_after_successful_install() {
-        assert_eq!(startup_update_action(true, true), StartupUpdateAction::Skip);
-        assert_eq!(
-            startup_update_action(false, false),
-            StartupUpdateAction::Continue
-        );
-        assert_eq!(
-            startup_update_action(false, true),
-            StartupUpdateAction::Restart
-        );
     }
 
     #[test]
