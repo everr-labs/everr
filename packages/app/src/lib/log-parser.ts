@@ -1,10 +1,8 @@
-import Anser from "anser";
 import type { LogEntry } from "@/data/runs/schemas";
 
 export interface ParsedLogLine {
   timestamp: string;
   body: string;
-  htmlContent: string; // ANSI-parsed HTML
   isGroupStart?: string; // Group name if this starts a group
   isGroupEnd?: boolean;
   markerType?: MarkerType; // For styling error/warning/notice/debug lines
@@ -65,35 +63,6 @@ export function getMarkerClass(type: MarkerType | undefined): string {
   }
 }
 
-/**
- * Convert URLs in HTML content to clickable anchor tags.
- * Handles URLs inside ANSI-styled spans and cleans trailing punctuation.
- */
-function linkifyUrls(html: string): string {
-  // URL regex that handles common URL patterns
-  // Avoid matching trailing punctuation that's likely not part of the URL
-  const urlRegex = /https?:\/\/[^\s<>"'`)\]}>]+/g;
-
-  return html.replace(urlRegex, (url) => {
-    // Clean trailing punctuation that's unlikely to be part of the URL
-    let cleanUrl = url;
-    const trailingPunctuation = /[.,;:!?)}\]]+$/;
-    const match = cleanUrl.match(trailingPunctuation);
-    let suffix = "";
-    if (match) {
-      suffix = match[0];
-      cleanUrl = cleanUrl.slice(0, -suffix.length);
-    }
-
-    return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="underline hover:text-foreground">${cleanUrl}</a>${suffix}`;
-  });
-}
-
-export function ansiToHtml(text: string): string {
-  const html = Anser.ansiToHtml(text, { use_classes: false });
-  return linkifyUrls(html);
-}
-
 export function parseLogs(logs: LogEntry[]): {
   lines: ParsedLogLine[];
   groups: LogGroup[];
@@ -112,8 +81,7 @@ export function parseLogs(logs: LogEntry[]): {
       groupStack.push({ id, name: marker.message || "Group", startIndex: i });
       lines.push({
         timestamp: log.timestamp,
-        body: log.body,
-        htmlContent: ansiToHtml(marker.message || "Group"),
+        body: marker.message || "Group",
         isGroupStart: marker.message || "Group",
       });
     } else if (marker?.type === "endgroup") {
@@ -124,7 +92,6 @@ export function parseLogs(logs: LogEntry[]): {
       lines.push({
         timestamp: log.timestamp,
         body: log.body,
-        htmlContent: "",
         isGroupEnd: true,
       });
     } else if (marker) {
@@ -132,14 +99,12 @@ export function parseLogs(logs: LogEntry[]): {
       lines.push({
         timestamp: log.timestamp,
         body: log.body,
-        htmlContent: ansiToHtml(marker.message || log.body),
         markerType: marker.type,
       });
     } else {
       lines.push({
         timestamp: log.timestamp,
         body: log.body,
-        htmlContent: ansiToHtml(log.body),
       });
     }
   }

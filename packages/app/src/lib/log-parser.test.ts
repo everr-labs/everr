@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  ansiToHtml,
-  getMarkerClass,
-  parseGitHubMarker,
-  parseLogs,
-} from "./log-parser";
+import { getMarkerClass, parseGitHubMarker, parseLogs } from "./log-parser";
 
 describe("parseGitHubMarker", () => {
   it("parses group markers", () => {
@@ -83,38 +78,6 @@ describe("getMarkerClass", () => {
   });
 });
 
-describe("ansiToHtml", () => {
-  it("converts plain text", () => {
-    expect(ansiToHtml("hello world")).toBe("hello world");
-  });
-
-  it("linkifies URLs", () => {
-    const result = ansiToHtml("Visit https://example.com for more");
-    expect(result).toContain('href="https://example.com"');
-    expect(result).toContain('target="_blank"');
-  });
-
-  it("strips trailing punctuation from URLs", () => {
-    const result = ansiToHtml("See https://example.com.");
-    expect(result).toContain('href="https://example.com"');
-    expect(result).not.toContain('href="https://example.com."');
-  });
-
-  it("escapes HTML in log lines to prevent XSS", () => {
-    const scriptTag = ansiToHtml('<script>alert("xss")</script>');
-    console.log(scriptTag);
-    expect(scriptTag).not.toContain("<script>");
-
-    const imgTag = ansiToHtml('<img src=x onerror=alert("xss")>');
-    console.log(imgTag);
-    expect(imgTag).not.toContain("<img");
-
-    const svgTag = ansiToHtml('<svg onload=alert("xss")>');
-    console.log(svgTag);
-    expect(svgTag).not.toContain("<svg");
-  });
-});
-
 describe("parseLogs", () => {
   it("parses regular log lines", () => {
     const { lines, groups } = parseLogs([
@@ -123,7 +86,7 @@ describe("parseLogs", () => {
     ]);
 
     expect(lines).toHaveLength(2);
-    expect(lines[0].htmlContent).toBe("Hello");
+    expect(lines[0].body).toBe("Hello");
     expect(groups).toHaveLength(0);
   });
 
