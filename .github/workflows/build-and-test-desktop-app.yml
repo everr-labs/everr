@@ -60,5 +60,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck desktop frontend
+        run: pnpm --filter @everr/desktop-app exec tsc --noEmit
+
       - name: Test desktop frontend
         run: pnpm --filter @everr/desktop-app test

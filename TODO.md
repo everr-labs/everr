@@ -15,6 +15,8 @@
 | Use default branches (main, develop, master) instead of feature branches to calculate failure rates.                                                                                                | {"id":"fcc4e214","status":"pending","entry":"2026-03-13T14:53:26.284018Z","modified":"2026-03-13T15:22:29.990533Z"}               |
 | Calculate dashboard average duration from the last X commits with successful pipelines.                                                                                                             | {"id":"656a3ad5","status":"pending","entry":"2026-03-13T14:53:26.321804Z","modified":"2026-03-13T15:22:31.623374Z"}               |
 | Scope the dashboard to a single repository.                                                                                                                                                         | {"id":"535fcd0a","status":"pending","entry":"2026-03-13T14:53:26.355686Z","modified":"2026-03-13T15:22:33.016722Z"}               |
+| Add multi-org login in the CLI and app.                                                                                                                                                             | {"id":"4a16c7fd","status":"pending","entry":"2026-03-17T09:51:35.496992Z","modified":"2026-03-17T09:51:35.496992Z"}               |
+| Add support for different assistant integrations: single-repo via a skill or AGENTS.md, and global integrations like we do now.                                                                     | {"id":"c04839e4","status":"pending","entry":"2026-03-17T09:58:26.784456Z","modified":"2026-03-17T09:58:26.784456Z"}               |
 
 ## Archive
 
