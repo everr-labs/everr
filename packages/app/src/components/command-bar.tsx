@@ -90,9 +90,7 @@ export function CommandBar({
                     <CommandItem
                       key={run.traceId}
                       value={`run ${run.runId} ${run.workflowName} ${run.repo}`}
-                      onSelect={() =>
-                        handleSelect(`/dashboard/runs/${run.traceId}`)
-                      }
+                      onSelect={() => handleSelect(`/runs/${run.traceId}`)}
                       forceMount
                     >
                       <ConclusionIcon

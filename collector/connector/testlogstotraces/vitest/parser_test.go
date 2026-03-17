@@ -113,6 +113,15 @@ func TestParseVerboseOutput(t *testing.T) {
 			expectedTests: 0,
 		},
 		{
+			name: "vite build output not parsed as test",
+			lines: []string{
+				"✓ built in 848ms",
+				"✓ built in 1.8s",
+				"✓ 42 modules transformed.",
+			},
+			expectedTests: 0,
+		},
+		{
 			name: "mixed results",
 			lines: []string{
 				" ✓ src/test.ts > group > passes 1ms",
@@ -434,6 +443,130 @@ func TestNoTestsGeneratesNilSpans(t *testing.T) {
 	resourceAttrs := pcommon.NewMap()
 	traces := GenerateSpans(ctx, resourceAttrs)
 	assert.Nil(t, traces)
+}
+
+func TestNormalizeLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no prefix",
+			input:    " ✓ src/test.ts > group > passes 1ms",
+			expected: "✓ src/test.ts > group > passes 1ms",
+		},
+		{
+			name:     "pnpm test prefix",
+			input:    "packages/app test: ✓ src/test.ts > group > passes 1ms",
+			expected: "✓ src/test.ts > group > passes 1ms",
+		},
+		{
+			name:     "pnpm test:ci prefix",
+			input:    "packages/app test:ci: ✓ src/test.ts > group > passes 1ms",
+			expected: "✓ src/test.ts > group > passes 1ms",
+		},
+		{
+			name:     "pnpm test:unit prefix",
+			input:    "@everr/app test:unit: ✓ src/test.ts > group > passes 1ms",
+			expected: "✓ src/test.ts > group > passes 1ms",
+		},
+		{
+			name:     "pnpm build prefix",
+			input:    "my-package build: some output",
+			expected: "some output",
+		},
+		{
+			name:     "ANSI codes stripped",
+			input:    "\x1b[32m✓\x1b[39m src/test.ts > passes \x1b[2m1ms\x1b[22m",
+			expected: "✓ src/test.ts > passes 1ms",
+		},
+		{
+			name:     "pnpm prefix with ANSI codes",
+			input:    "packages/app test:ci: \x1b[32m✓\x1b[39m src/test.ts > passes 1ms",
+			expected: "✓ src/test.ts > passes 1ms",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, normalizeLine(tt.input))
+		})
+	}
+}
+
+func TestParseVerboseOutputWithWorkspacePrefix(t *testing.T) {
+	logger := zap.NewNop()
+
+	tests := []struct {
+		name            string
+		lines           []string
+		expectedTests   int
+		expectedPassed  int
+		expectedFailed  int
+		expectedSkipped int
+	}{
+		{
+			name: "pnpm test:ci prefix with passing test",
+			lines: []string{
+				"packages/app test:ci: ✓ src/lib/formatting.test.ts > formatDuration > formats milliseconds 1ms",
+			},
+			expectedTests:  2,
+			expectedPassed: 2,
+		},
+		{
+			name: "pnpm test:ci prefix with failing test",
+			lines: []string{
+				"packages/app test:ci: × src/lib/formatting.test.ts > formatDuration > fails 3ms",
+			},
+			expectedTests:  2,
+			expectedFailed: 2,
+		},
+		{
+			name: "pnpm test:ci prefix with skipped test",
+			lines: []string{
+				"packages/app test:ci: ↓ src/lib/formatting.test.ts > formatDuration > skipped",
+			},
+			expectedTests:   2,
+			expectedSkipped: 2,
+		},
+		{
+			name: "scoped package name with test:unit prefix",
+			lines: []string{
+				"@everr/app test:unit: ✓ src/test.ts > group > passes 2ms",
+			},
+			expectedTests:  2,
+			expectedPassed: 2,
+		},
+		{
+			name: "pnpm test:ci prefix with ANSI codes",
+			lines: []string{
+				"packages/app test:ci:  \x1b[32m✓\x1b[39m src/server/github-events/cdevents.test.ts\x1b[2m > \x1b[22mtransformToCDEventRows\x1b[2m > \x1b[22mformats Date values 2\x1b[2mms\x1b[22m\x1b[39m",
+			},
+			expectedTests:  2,
+			expectedPassed: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := gotest.NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
+			parser := NewParser(ctx, logger)
+
+			baseTime := time.Now()
+			for i, line := range tt.lines {
+				parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+			}
+			parser.Finalize()
+
+			assert.Equal(t, tt.expectedTests, ctx.TestCount(), "test count mismatch")
+
+			passed, failed, skipped := countResults(ctx.RootTests)
+			assert.Equal(t, tt.expectedPassed, passed, "passed count mismatch")
+			assert.Equal(t, tt.expectedFailed, failed, "failed count mismatch")
+			assert.Equal(t, tt.expectedSkipped, skipped, "skipped count mismatch")
+		})
+	}
 }
 
 func TestSplitTestName(t *testing.T) {

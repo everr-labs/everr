@@ -18,15 +18,15 @@ var (
 	// Vitest verbose reporter patterns (after ANSI stripping)
 	// Pass: ✓ filepath > describe > test Nms
 	// Also matches checkmark symbol (various Unicode representations)
-	passPattern = regexp.MustCompile(`^[✓✔√]\s+(.+?)\s+(\d+)ms$`)
+	passPattern = regexp.MustCompile(`^[✓✔√]\s+(.+? > .+?)\s+(\d+)ms$`)
 	// Fail: × filepath > describe > test Nms
-	failPattern = regexp.MustCompile(`^[×✕✖xX]\s+(.+?)\s+(\d+)ms$`)
+	failPattern = regexp.MustCompile(`^[×✕✖xX]\s+(.+? > .+?)\s+(\d+)ms$`)
 	// Skip: ↓ filepath > describe > test
-	skipPattern = regexp.MustCompile(`^↓\s+(.+)$`)
+	skipPattern = regexp.MustCompile(`^↓\s+(.+ > .+)$`)
 	// ANSI escape code pattern for stripping color codes from CI output.
 	ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	// pnpm recursive output prefixes each line with "<workspace> test:".
-	workspaceTestPrefixPattern = regexp.MustCompile(`^[^:]+\s+test:\s+`)
+	// pnpm recursive output prefixes each line with "<package> <script>: ".
+	workspaceTestPrefixPattern = regexp.MustCompile(`^\S+\s+\S+:\s+`)
 )
 
 // Parser processes Vitest verbose output and extracts test information.
