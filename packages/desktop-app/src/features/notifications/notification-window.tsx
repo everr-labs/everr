@@ -8,7 +8,9 @@ import {
   formatNotificationAbsoluteTime,
   formatNotificationRelativeTime,
 } from "../../notification-time";
+import { authStatusQueryKey } from "../auth/auth";
 import { SettingsSection } from "../desktop-shell/ui";
+import { wizardStatusQueryKey } from "../setup-wizard/setup-wizard";
 
 const AUTO_DISMISS_MS = 40_000;
 
@@ -28,6 +30,16 @@ export type FailureNotification = {
 
 type TestNotificationResponse = {
   status: "shown" | "queued";
+};
+
+type DevResetResponse = {
+  auth_status: {
+    status: "signed_in" | "signed_out";
+    session_path: string;
+  };
+  wizard_status: {
+    wizard_completed: boolean;
+  };
 };
 
 export const activeNotificationQueryKey = ["desktop-app", "active-notification"] as const;
@@ -50,6 +62,10 @@ function copyNotificationAutoFixPrompt() {
 
 function triggerTestNotification() {
   return invokeCommand<TestNotificationResponse>("trigger_test_notification");
+}
+
+function resetDevOnboarding() {
+  return invokeCommand<DevResetResponse>("reset_dev_onboarding");
 }
 
 function useActiveNotificationQuery() {
@@ -97,8 +113,22 @@ function useTriggerTestNotificationMutation() {
   });
 }
 
+function useResetDevOnboardingMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: resetDevOnboarding,
+    onSuccess(data) {
+      queryClient.setQueryData(authStatusQueryKey, data.auth_status);
+      queryClient.setQueryData(wizardStatusQueryKey, data.wizard_status);
+      toast.success("Developer session reset.");
+    },
+  });
+}
+
 export function DeveloperNotificationSection() {
   const triggerNotificationMutation = useTriggerTestNotificationMutation();
+  const resetOnboardingMutation = useResetDevOnboardingMutation();
 
   async function handleTriggerNotification() {
     const result = await triggerNotificationMutation.mutateAsync();
@@ -112,9 +142,10 @@ export function DeveloperNotificationSection() {
   return (
     <SettingsSection
       title="Developer"
-      description="Preview the notification surface without waiting for a failed pipeline."
+      description="Preview the notification surface and reset the local dev app state."
       compact
-      action={
+    >
+      <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -124,8 +155,17 @@ export function DeveloperNotificationSection() {
         >
           {triggerNotificationMutation.isPending ? "Triggering..." : "Test notification"}
         </Button>
-      }
-    />
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-w-[136px] max-[620px]:w-full"
+          disabled={resetOnboardingMutation.isPending}
+          onClick={() => void resetOnboardingMutation.mutateAsync()}
+        >
+          {resetOnboardingMutation.isPending ? "Resetting..." : "Reset onboarding"}
+        </Button>
+      </div>
+    </SettingsSection>
   );
 }
 
@@ -141,23 +181,7 @@ export function NotificationWindow() {
   }
 
   if (!notificationQuery.data) {
-    return (
-      <main className="h-screen bg-white">
-        <section className="notificationCard grid h-full items-center bg-white px-[18px] py-4">
-          <div className="grid min-w-0 gap-1">
-            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-[#b0b0b0]">
-              Everr
-            </p>
-            <h1 className="m-0 text-[0.8rem] font-semibold text-[#121212]">
-              No active notifications
-            </h1>
-            <p className="m-0 text-[0.68rem] leading-[1.35] text-[#767676]">
-              Waiting for the next failed pipeline.
-            </p>
-          </div>
-        </section>
-      </main>
-    );
+    return null;
   }
 
   return <NotificationCard notification={notificationQuery.data} />;
@@ -214,18 +238,18 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
     ? "Copying..."
     : copiedAutoFixPrompt
       ? "Copied"
-      : "Copy auto-fix prompt";
+      : "Auto-fix prompt";
 
   return (
-    <main className="h-screen bg-white">
+    <main className="h-screen bg-card">
       <section
-        className="notificationCard group relative flex h-full flex-col bg-white"
+        className="notificationCard group relative flex h-full flex-col bg-card pl-4"
         onMouseEnter={pauseAutoDismiss}
         onMouseLeave={resumeAutoDismiss}
       >
         <button
           type="button"
-          className="absolute right-3 top-3 z-10 flex size-[18px] items-center justify-center rounded-full bg-[#e8e8e8] text-[#888] opacity-0 transition-opacity duration-150 hover:bg-[#ddd] hover:text-[#555] group-hover:opacity-100 disabled:pointer-events-none"
+          className="absolute left-2 top-2 z-10 flex size-[18px] items-center justify-center rounded-full transition-opacity duration-150 bg-accent text-accent-foreground disabled:pointer-events-none"
           aria-label="Dismiss"
           disabled={busy}
           onClick={() => void dismissMutation.mutateAsync()}
@@ -245,41 +269,31 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
 
         <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
           <div className="grid min-w-0 flex-1 gap-[3px]">
-            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-[#b0b0b0]">
+            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
               Everr - Failed run
             </p>
-            <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-[#121212]">
+            <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-card-foreground">
               {notification.workflowName}
             </h1>
-            <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-[#767676]">
+            <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-muted-foreground">
               <span className="truncate">{notification.repo}</span>
-              <span className="text-[#b3b3b3]">•</span>
+              <span className="text-border">•</span>
               <span>{notification.branch}</span>
             </p>
             {failureScope ? (
-              <p className="m-0 text-[0.66rem] leading-[1.35] text-[#7c7c7c]">{failureScope}</p>
+              <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">{failureScope}</p>
             ) : null}
-            <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-[#a1a1a1]">
+            <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-muted-foreground/70">
               <span>{absoluteTime}</span>
-              <span className="text-[#cccccc]">·</span>
+              <span className="text-border">·</span>
               <span>{relativeTime}</span>
             </p>
           </div>
 
           <div className="flex min-w-0 shrink-0 flex-col items-stretch gap-2">
             <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 min-w-0 whitespace-nowrap rounded-[10px] bg-[#171717] px-3.5 text-[0.72rem] font-semibold text-white hover:bg-black"
-              disabled={busy}
-              onClick={() => void openMutation.mutateAsync()}
-            >
-              {openMutation.isPending ? "Opening..." : "Open run"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 min-w-0 whitespace-nowrap rounded-[10px] border-[#dcdcdc] bg-white px-3.5 text-[0.72rem] font-semibold text-[#4b4b4b] hover:bg-[#f7f7f7] hover:text-[#4b4b4b]"
+              size="lg"
+              className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
               disabled={busy}
               onClick={() =>
                 void copyMutation.mutateAsync(undefined, {
@@ -291,15 +305,24 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
             >
               <span className="grid">
                 <span aria-hidden="true" className="invisible col-start-1 row-start-1">
-                  Copy auto-fix prompt
+                  Auto-fix prompt
                 </span>
                 <span className="col-start-1 row-start-1">{copyAutoFixPromptLabel}</span>
               </span>
             </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
+              disabled={busy}
+              onClick={() => void openMutation.mutateAsync()}
+            >
+              {openMutation.isPending ? "Opening..." : "Open"}
+            </Button>
           </div>
         </div>
 
-        <div className="h-[3px] w-full shrink-0 bg-[#f0f0f0]">
+        <div className="h-[3px] w-full shrink-0 bg-muted">
           <div
             key={notification.dedupeKey}
             className="notification-progress h-full"
@@ -313,30 +336,30 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
 }
 
 function NotificationLoadingState() {
-  return <main className="h-screen bg-white" />;
+  return <main className="h-screen bg-card" />;
 }
 
 function NotificationErrorState({ onRetry }: { onRetry: () => void }) {
   return (
-    <main className="h-screen bg-white">
-      <section className="notificationCard grid h-full items-center bg-white px-[18px] py-4">
+    <main className="h-screen bg-card">
+      <section className="notificationCard grid h-full items-center bg-card px-[18px] py-4">
         <div className="grid min-w-0 gap-3">
           <div className="grid min-w-0 gap-1">
-            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-[#b0b0b0]">
+            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
               Everr
             </p>
-            <h1 className="m-0 text-[0.8rem] font-semibold text-[#121212]">
+            <h1 className="m-0 text-[0.8rem] font-semibold text-card-foreground">
               Failed to load notification
             </h1>
-            <p className="m-0 text-[0.68rem] leading-[1.35] text-[#767676]">
+            <p className="m-0 text-[0.68rem] leading-[1.35] text-muted-foreground">
               The active failed pipeline could not be fetched.
             </p>
           </div>
           <div>
             <Button
               variant="outline"
-              size="sm"
-              className="h-8 rounded-[10px] border-[#dcdcdc] bg-white px-3.5 text-[0.72rem] font-semibold text-[#4b4b4b] hover:bg-[#f7f7f7]"
+              size="lg"
+              className="px-3.5 text-[0.72rem]"
               onClick={() => onRetry()}
             >
               Retry

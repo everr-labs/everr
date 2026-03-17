@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, bail};
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde_json::{Map, Value};
 use tokio::time::sleep;
 
 use crate::build;
@@ -16,10 +18,27 @@ pub struct AuthConfig {
     pub api_base_url: String,
 }
 
+const SETTINGS_KEY: &str = "settings";
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Session {
     pub api_base_url: String,
     pub token: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SessionDocument<TSettings> {
+    pub session: Option<Session>,
+    pub settings: Option<TSettings>,
+}
+
+impl<TSettings> Default for SessionDocument<TSettings> {
+    fn default() -> Self {
+        Self {
+            session: None,
+            settings: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -59,27 +78,14 @@ impl SessionStore {
     }
 
     pub fn load_session(&self) -> Result<Session> {
-        let path = self.session_file_path()?;
-        if !path.exists() {
-            bail!(NO_ACTIVE_SESSION);
-        }
-
-        let raw = fs::read_to_string(&path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
-        serde_json::from_str::<Session>(&raw).context("failed to parse saved session")
+        let document = self.load_document::<Value>()?;
+        document.session.ok_or_else(|| anyhow::anyhow!(NO_ACTIVE_SESSION))
     }
 
     pub fn save_session(&self, session: &Session) -> Result<()> {
-        let path = self.session_file_path()?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-        let serialized =
-            serde_json::to_string_pretty(session).context("failed to serialize session")?;
-        fs::write(&path, serialized)
-            .with_context(|| format!("failed to write {}", path.display()))?;
-        Ok(())
+        let mut document = self.load_document::<Value>().unwrap_or_default();
+        document.session = Some(session.clone());
+        self.save_document(&document)
     }
 
     pub fn clear_session(&self) -> Result<bool> {
@@ -94,7 +100,7 @@ impl SessionStore {
     }
 
     pub fn has_active_session(&self) -> Result<bool> {
-        Ok(self.session_file_path()?.exists())
+        Ok(self.load_document::<Value>()?.session.is_some())
     }
 
     pub fn load_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<Session> {
@@ -129,6 +135,85 @@ impl SessionStore {
         self.clear_session()?;
         Ok(true)
     }
+
+    pub fn load_document<TSettings>(&self) -> Result<SessionDocument<TSettings>>
+    where
+        TSettings: DeserializeOwned,
+    {
+        let path = self.session_file_path()?;
+        if !path.exists() {
+            return Ok(SessionDocument::default());
+        }
+
+        let raw = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        let value = serde_json::from_str::<Value>(&raw)
+            .with_context(|| format!("failed to parse {}", path.display()))?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| anyhow::anyhow!("{} must contain a JSON object", path.display()))?;
+
+        let session = if object.contains_key("api_base_url") || object.contains_key("token") {
+            Some(
+                serde_json::from_value::<Session>(Value::Object(object.clone()))
+                    .context("failed to parse saved session")?,
+            )
+        } else {
+            None
+        };
+
+        let settings = object
+            .get(SETTINGS_KEY)
+            .cloned()
+            .map(serde_json::from_value::<TSettings>)
+            .transpose()
+            .context("failed to parse saved settings")?;
+
+        Ok(SessionDocument { session, settings })
+    }
+
+    pub fn save_document<TSettings>(&self, document: &SessionDocument<TSettings>) -> Result<()>
+    where
+        TSettings: Serialize,
+    {
+        let path = self.session_file_path()?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+
+        if document.session.is_none() && document.settings.is_none() {
+            if path.exists() {
+                fs::remove_file(&path)
+                    .with_context(|| format!("failed to remove {}", path.display()))?;
+            }
+            return Ok(());
+        }
+
+        let mut root = Map::new();
+        if let Some(session) = &document.session {
+            let session_value =
+                serde_json::to_value(session).context("failed to serialize session")?;
+            let session_object = session_value
+                .as_object()
+                .ok_or_else(|| anyhow::anyhow!("serialized session must be a JSON object"))?;
+            for (key, value) in session_object {
+                root.insert(key.clone(), value.clone());
+            }
+        }
+        if let Some(settings) = &document.settings {
+            root.insert(
+                SETTINGS_KEY.to_string(),
+                serde_json::to_value(settings).context("failed to serialize settings")?,
+            );
+        }
+
+        let serialized =
+            serde_json::to_string_pretty(&Value::Object(root)).context("failed to serialize document")?;
+        fs::write(&path, serialized)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -141,14 +226,32 @@ struct DeviceAuthorizationResponse {
     interval: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
-struct DeviceTokenResponse {
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeviceTokenResponse {
     access_token: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct DeviceErrorResponse {
     error: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeviceAuthorization {
+    pub device_code: String,
+    pub user_code: String,
+    pub verification_url: String,
+    pub expires_in: u64,
+    pub interval: u64,
+}
+
+#[derive(Debug, Clone)]
+pub enum DevicePollStatus {
+    Authorized(DeviceTokenResponse),
+    Pending,
+    SlowDown,
+    Denied,
+    Expired,
 }
 
 pub async fn login_with_prompt<F>(
@@ -160,20 +263,15 @@ where
     F: FnOnce(String, &str),
 {
     let client = build_http_client()?;
-    let token = exchange_device_flow(&client, config, show_prompt).await?;
-    let session = build_session(config.api_base_url.clone(), token)?;
-    store.save_session(&session)?;
-    Ok(session)
+    let authorization = start_device_authorization(&client, config).await?;
+    show_prompt(authorization.verification_url.clone(), &authorization.user_code);
+    login_with_device_authorization(config, store, authorization).await
 }
 
-async fn exchange_device_flow<F>(
+pub async fn start_device_authorization(
     client: &reqwest::Client,
     config: &AuthConfig,
-    show_prompt: F,
-) -> Result<DeviceTokenResponse>
-where
-    F: FnOnce(String, &str),
-{
+) -> Result<DeviceAuthorization> {
     let authorization_response = client
         .post(format!("{}/api/cli/auth/device/start", config.api_base_url))
         .header(CONTENT_TYPE, "application/json")
@@ -195,19 +293,103 @@ where
         .await
         .context("failed to parse device authorization response")?;
 
-    let poll_url = format!("{}/api/cli/auth/device/poll", config.api_base_url);
-    exchange_device_flow_with_prompt(client, &poll_url, authorization_body, show_prompt).await
+    Ok(map_device_authorization(authorization_body))
 }
 
-async fn exchange_device_flow_with_prompt<F>(
+pub async fn poll_device_authorization(
     client: &reqwest::Client,
-    poll_url: &str,
-    authorization_body: DeviceAuthorizationResponse,
-    show_prompt: F,
-) -> Result<DeviceTokenResponse>
-where
-    F: FnOnce(String, &str),
-{
+    config: &AuthConfig,
+    authorization: &DeviceAuthorization,
+) -> Result<DevicePollStatus> {
+    let poll_url = format!("{}/api/cli/auth/device/poll", config.api_base_url);
+    let token_response = client
+        .post(&poll_url)
+        .header(CONTENT_TYPE, "application/json")
+        .body(format!("{{\"device_code\":\"{}\"}}", authorization.device_code))
+        .send()
+        .await
+        .context("failed while polling for CLI access token")?;
+
+    if token_response.status().is_success() {
+        let token_body = token_response
+            .json::<DeviceTokenResponse>()
+            .await
+            .context("failed to parse authentication response")?;
+        return Ok(DevicePollStatus::Authorized(token_body));
+    }
+
+    let error_body = token_response
+        .json::<DeviceErrorResponse>()
+        .await
+        .unwrap_or(DeviceErrorResponse {
+            error: "unknown_error".to_string(),
+        });
+
+    match error_body.error.as_str() {
+        "authorization_pending" => Ok(DevicePollStatus::Pending),
+        "slow_down" => Ok(DevicePollStatus::SlowDown),
+        "access_denied" => Ok(DevicePollStatus::Denied),
+        "expired_token" => Ok(DevicePollStatus::Expired),
+        _ => bail!("device authentication failed: {}", error_body.error),
+    }
+}
+
+pub async fn login_with_device_authorization(
+    config: &AuthConfig,
+    store: &SessionStore,
+    authorization: DeviceAuthorization,
+) -> Result<Session> {
+    let client = build_http_client()?;
+    let token = complete_device_authorization_with_url(
+        &client,
+        &format!("{}/api/cli/auth/device/poll", config.api_base_url),
+        authorization,
+    )
+    .await?;
+    let session = build_session(config.api_base_url.clone(), token)?;
+    store.save_session(&session)?;
+    Ok(session)
+}
+
+pub fn save_session_from_device_token(
+    config: &AuthConfig,
+    store: &SessionStore,
+    token: DeviceTokenResponse,
+) -> Result<Session> {
+    let session = build_session(config.api_base_url.clone(), token)?;
+    store.save_session(&session)?;
+    Ok(session)
+}
+
+fn build_http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .build()
+        .context("failed to build HTTP client")
+}
+
+pub fn build_auth_http_client() -> Result<reqwest::Client> {
+    build_http_client()
+}
+
+pub fn is_no_active_session_error(error: &anyhow::Error) -> bool {
+    error.to_string() == NO_ACTIVE_SESSION
+}
+
+fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
+    actual.trim_end_matches('/') == expected.trim_end_matches('/')
+}
+
+fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Session> {
+    if token.access_token.trim().is_empty() {
+        bail!("received an empty access token");
+    }
+    Ok(Session {
+        api_base_url,
+        token: token.access_token,
+    })
+}
+
+fn map_device_authorization(authorization_body: DeviceAuthorizationResponse) -> DeviceAuthorization {
     let DeviceAuthorizationResponse {
         device_code,
         user_code,
@@ -217,11 +399,22 @@ where
         interval,
     } = authorization_body;
 
-    let verification_url = verification_uri_complete.unwrap_or(verification_uri);
-    show_prompt(verification_url, &user_code);
+    DeviceAuthorization {
+        device_code,
+        user_code,
+        verification_url: verification_uri_complete.unwrap_or(verification_uri),
+        expires_in,
+        interval: interval.unwrap_or(5),
+    }
+}
 
-    let deadline = Instant::now() + Duration::from_secs(expires_in);
-    let mut poll_interval = interval.unwrap_or(5);
+async fn complete_device_authorization_with_url(
+    client: &reqwest::Client,
+    poll_url: &str,
+    authorization: DeviceAuthorization,
+) -> Result<DeviceTokenResponse> {
+    let deadline = Instant::now() + Duration::from_secs(authorization.expires_in);
+    let mut poll_interval = authorization.interval;
 
     loop {
         if Instant::now() >= deadline {
@@ -233,7 +426,7 @@ where
         let token_response = client
             .post(poll_url)
             .header(CONTENT_TYPE, "application/json")
-            .body(format!("{{\"device_code\":\"{}\"}}", device_code))
+            .body(format!("{{\"device_code\":\"{}\"}}", authorization.device_code))
             .send()
             .await
             .context("failed while polling for CLI access token")?;
@@ -264,30 +457,6 @@ where
             _ => bail!("device authentication failed: {}", error_body.error),
         }
     }
-}
-
-fn build_http_client() -> Result<reqwest::Client> {
-    reqwest::Client::builder()
-        .build()
-        .context("failed to build HTTP client")
-}
-
-pub fn is_no_active_session_error(error: &anyhow::Error) -> bool {
-    error.to_string() == NO_ACTIVE_SESSION
-}
-
-fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
-    actual.trim_end_matches('/') == expected.trim_end_matches('/')
-}
-
-fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Session> {
-    if token.access_token.trim().is_empty() {
-        bail!("received an empty access token");
-    }
-    Ok(Session {
-        api_base_url,
-        token: token.access_token,
-    })
 }
 
 #[cfg(test)]

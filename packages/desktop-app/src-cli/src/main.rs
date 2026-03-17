@@ -3,7 +3,6 @@ mod assistant;
 mod auth;
 mod cli;
 mod core;
-mod install;
 mod uninstall;
 
 use anyhow::Result;
@@ -15,11 +14,11 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Install => install::run_install_wizard().await?,
         Commands::Uninstall => uninstall::run_uninstall()?,
         Commands::Login(login) => auth::login(login).await?,
         Commands::Logout => auth::logout()?,
-        Commands::SetupAssistant(init) => assistant::init_from_args(init)?,
+        Commands::SetupAssistant => assistant::init_repo_instructions()?,
+        Commands::AiInstructions => assistant::print_ai_instructions(),
         Commands::Status(args) => core::status(args).await?,
         Commands::Grep(args) => core::grep(args).await?,
         Commands::TestHistory(args) => core::test_history(args).await?,

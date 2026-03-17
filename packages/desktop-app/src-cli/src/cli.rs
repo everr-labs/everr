@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand};
 
 #[cfg(debug_assertions)]
 const VERSION_OUTPUT: &str = concat!(env!("CARGO_PKG_VERSION"), " (debug build)");
@@ -23,16 +23,16 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// First-run setup wizard
-    Install,
     /// Remove local Everr setup artifacts
     Uninstall,
     /// Log in and persist a local session
     Login(LoginArgs),
     /// Log out and clear the local session
     Logout,
-    /// Integrate Everr CLI with your code assistant
-    SetupAssistant(AssistantInitArgs),
+    /// Add Everr instructions to AGENTS.md in the current repository
+    SetupAssistant,
+    /// Print the full AI instructions for Everr CLI usage
+    AiInstructions,
     /// Show all pipeline runs for a specific commit
     Status(StatusArgs),
     /// Search failing step logs on other branches
@@ -238,27 +238,13 @@ pub struct LogPagingArgs {
     pub offset: u32,
 }
 
-#[derive(Args, Debug)]
-pub struct AssistantInitArgs {
-    /// One or more assistants to configure
-    #[arg(long = "assistant", value_enum, required = true)]
-    pub assistants: Vec<AssistantKind>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-pub enum AssistantKind {
-    Codex,
-    Claude,
-    Cursor,
-}
-
 #[cfg(test)]
 mod tests {
     use clap::Parser;
 
     use super::{
-        AssistantKind, Cli, Commands, DEFAULT_LOG_PAGE_SIZE, GrepArgs, RunsCommand,
-        SlowestJobsArgs, SlowestTestsArgs, TestHistoryArgs, WatchArgs,
+        Cli, Commands, DEFAULT_LOG_PAGE_SIZE, GrepArgs, RunsCommand, SlowestJobsArgs,
+        SlowestTestsArgs, TestHistoryArgs, WatchArgs,
     };
 
     #[test]
@@ -271,6 +257,14 @@ mod tests {
 
         let uninstall = Cli::try_parse_from(["everr", "uninstall"]).expect("uninstall command");
         assert!(matches!(uninstall.command, Commands::Uninstall));
+
+        let setup_assistant =
+            Cli::try_parse_from(["everr", "setup-assistant"]).expect("setup-assistant command");
+        assert!(matches!(setup_assistant.command, Commands::SetupAssistant));
+
+        let ai_instructions =
+            Cli::try_parse_from(["everr", "ai-instructions"]).expect("ai-instructions command");
+        assert!(matches!(ai_instructions.command, Commands::AiInstructions));
     }
 
     #[test]
@@ -327,9 +321,9 @@ mod tests {
     }
 
     #[test]
-    fn validates_required_assistants_for_setup_assistant() {
-        let err = Cli::try_parse_from(["everr", "setup-assistant"])
-            .expect_err("setup-assistant should require --assistant");
+    fn setup_assistant_rejects_removed_assistant_flag() {
+        let err = Cli::try_parse_from(["everr", "setup-assistant", "--assistant", "codex"])
+            .expect_err("setup-assistant should reject removed --assistant flag");
         assert!(err.to_string().contains("--assistant"));
     }
 
@@ -550,25 +544,11 @@ mod tests {
     }
 
     #[test]
-    fn setup_assistant_supports_repeated_assistant_flags() {
-        let cli = Cli::try_parse_from([
-            "everr",
-            "setup-assistant",
-            "--assistant",
-            "codex",
-            "--assistant",
-            "cursor",
-        ])
-        .expect("setup-assistant command");
+    fn setup_assistant_parses_without_arguments() {
+        let cli = Cli::try_parse_from(["everr", "setup-assistant"])
+            .expect("setup-assistant command");
 
-        let Commands::SetupAssistant(args) = cli.command else {
-            panic!("expected setup-assistant command");
-        };
-
-        assert_eq!(
-            args.assistants,
-            vec![AssistantKind::Codex, AssistantKind::Cursor]
-        );
+        assert!(matches!(cli.command, Commands::SetupAssistant));
     }
 
     #[test]

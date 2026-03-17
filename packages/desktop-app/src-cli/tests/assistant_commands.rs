@@ -6,121 +6,108 @@ use std::path::Path;
 use predicates::str::contains;
 use support::CliTestEnv;
 
-const BLOCK_START: &str = "<!-- EVERR_CLI_START -->";
-const BLOCK_END: &str = "<!-- EVERR_CLI_END -->";
+const BLOCK_START: &str = "<!-- BEGIN everr -->";
+const BLOCK_END: &str = "<!-- END everr -->";
 
 #[test]
-fn assistant_init_codex_creates_managed_block() {
+fn setup_assistant_creates_repo_agents_file() {
     let env = CliTestEnv::new();
+    let repo_dir = env.home_dir.join("repo");
+    fs::create_dir_all(&repo_dir).expect("create repo dir");
 
     env.command()
-        .args(["setup-assistant", "--assistant", "codex"])
+        .current_dir(&repo_dir)
+        .arg("setup-assistant")
         .assert()
         .success()
-        .stdout(contains("Configured Codex at"));
+        .stdout(contains("Configured Everr instructions at"));
 
-    let codex_file = env.home_dir.join(".codex").join("AGENTS.md");
-    let content = fs::read_to_string(codex_file).expect("codex file should exist");
+    let agents_file = repo_dir.join("AGENTS.md");
+    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
 
     assert!(content.contains(BLOCK_START));
     assert!(content.contains(BLOCK_END));
+    assert!(content.contains("Call `everr ai-instructions` to understand usage."));
+    assert!(!content.contains("`everr status`"));
 }
 
 #[test]
-fn assistant_init_is_idempotent_for_existing_managed_block() {
+fn setup_assistant_is_idempotent_for_existing_managed_block() {
     let env = CliTestEnv::new();
+    let repo_dir = env.home_dir.join("repo");
+    fs::create_dir_all(&repo_dir).expect("create repo dir");
 
     env.command()
-        .args(["setup-assistant", "--assistant", "codex"])
+        .current_dir(&repo_dir)
+        .arg("setup-assistant")
         .assert()
         .success();
 
     env.command()
-        .args(["setup-assistant", "--assistant", "codex"])
+        .current_dir(&repo_dir)
+        .arg("setup-assistant")
         .assert()
         .success();
 
-    let codex_file = env.home_dir.join(".codex").join("AGENTS.md");
-    let content = fs::read_to_string(codex_file).expect("codex file should exist");
+    let agents_file = repo_dir.join("AGENTS.md");
+    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
     assert_eq!(content.matches(BLOCK_START).count(), 1);
 }
 
 #[test]
-fn assistant_init_preserves_existing_user_content() {
+fn setup_assistant_preserves_existing_repo_content() {
     let env = CliTestEnv::new();
-    let codex_file = env.home_dir.join(".codex").join("AGENTS.md");
-    write_file(&codex_file, "# My custom instructions\n");
+    let repo_dir = env.home_dir.join("repo");
+    fs::create_dir_all(&repo_dir).expect("create repo dir");
+    let agents_file = repo_dir.join("AGENTS.md");
+    write_file(&agents_file, "# My custom instructions\n");
 
     env.command()
-        .args(["setup-assistant", "--assistant", "codex"])
+        .current_dir(&repo_dir)
+        .arg("setup-assistant")
         .assert()
         .success();
 
-    let content = fs::read_to_string(codex_file).expect("codex file should exist");
+    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
     assert!(content.contains("# My custom instructions"));
     assert!(content.contains(BLOCK_START));
 }
 
 #[test]
-fn assistant_init_multiple_assistants_creates_all_files() {
+fn setup_assistant_replaces_existing_managed_block() {
     let env = CliTestEnv::new();
+    let repo_dir = env.home_dir.join("repo");
+    fs::create_dir_all(&repo_dir).expect("create repo dir");
+    let agents_file = repo_dir.join("AGENTS.md");
+    write_file(
+        &agents_file,
+        "# Notes\n\n<!-- BEGIN everr -->\nold instructions\n<!-- END everr -->\n",
+    );
 
     env.command()
-        .args([
-            "setup-assistant",
-            "--assistant",
-            "codex",
-            "--assistant",
-            "claude",
-        ])
+        .current_dir(&repo_dir)
+        .arg("setup-assistant")
         .assert()
         .success();
 
-    let codex_file = env.home_dir.join(".codex").join("AGENTS.md");
-    let claude_file = env.home_dir.join(".claude").join("CLAUDE.md");
-    assert!(codex_file.exists());
-    assert!(claude_file.exists());
+    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
+    assert!(content.contains("# Notes"));
+    assert!(content.contains(BLOCK_START));
+    assert!(!content.contains("old instructions"));
+    assert_eq!(content.matches(BLOCK_START).count(), 1);
 }
 
 #[test]
-fn assistant_init_writes_cursor_rules_in_mdc_format() {
+fn ai_instructions_prints_full_guidance() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["setup-assistant", "--assistant", "cursor"])
+        .arg("ai-instructions")
         .assert()
         .success()
-        .stdout(contains("Configured Cursor at"));
-
-    let cursor_file = env.home_dir.join(".cursor").join("rules").join("everr.mdc");
-    let content = fs::read_to_string(cursor_file).expect("cursor file should exist");
-
-    assert!(content.starts_with("---\n"));
-    assert!(content.contains("alwaysApply: false"));
-    assert!(content.contains("description: Use Everr CLI only when the task involves CI"));
-    assert!(content.contains(BLOCK_START));
-    assert!(content.contains("`everr slowest-tests`"));
-}
-
-#[test]
-fn assistant_init_is_idempotent_for_existing_cursor_rule() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["setup-assistant", "--assistant", "cursor"])
-        .assert()
-        .success();
-
-    env.command()
-        .args(["setup-assistant", "--assistant", "cursor"])
-        .assert()
-        .success();
-
-    let cursor_file = env.home_dir.join(".cursor").join("rules").join("everr.mdc");
-    let content = fs::read_to_string(cursor_file).expect("cursor file should exist");
-
-    assert_eq!(content.matches(BLOCK_START).count(), 1);
-    assert_eq!(content.matches("alwaysApply: false").count(), 1);
+        .stdout(contains("Quick commands:"))
+        .stdout(contains("`everr status`"))
+        .stdout(contains("`everr runs list`"));
 }
 
 #[test]
@@ -130,7 +117,7 @@ fn uninstall_removes_managed_block_but_keeps_unrelated_content() {
 
     write_file(
         &codex_file,
-        "# Keep this\n\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\n",
+        "# Keep this\n\n<!-- BEGIN everr -->\nmanaged\n<!-- END everr -->\n",
     );
 
     env.command()
@@ -156,15 +143,15 @@ fn uninstall_logs_out_and_removes_managed_blocks_for_all_assistants() {
 
     write_file(
         &codex_file,
-        "# Codex note\n\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\n",
+        "# Codex note\n\n<!-- BEGIN everr -->\nmanaged\n<!-- END everr -->\n",
     );
     write_file(
         &claude_file,
-        "# Claude note\n\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\n",
+        "# Claude note\n\n<!-- BEGIN everr -->\nmanaged\n<!-- END everr -->\n",
     );
     write_file(
         &cursor_file,
-        "# Cursor note\n\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\n",
+        "# Cursor note\n\n<!-- BEGIN everr -->\nmanaged\n<!-- END everr -->\n",
     );
 
     env.command()

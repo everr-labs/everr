@@ -13,10 +13,11 @@ fn root_help_lists_main_commands() {
         .assert()
         .success()
         .stdout(contains("Usage: everr <COMMAND>"))
-        .stdout(contains("install"))
+        .stdout(predicates::str::contains("\n  install").not())
         .stdout(contains("login"))
         .stdout(contains("logout"))
         .stdout(contains("setup-assistant"))
+        .stdout(contains("ai-instructions"))
         .stdout(contains("status"))
         .stdout(contains("grep"))
         .stdout(contains("slowest-tests"))
@@ -104,8 +105,19 @@ fn setup_assistant_help_lists_supported_assistants() {
         .args(["setup-assistant", "--help"])
         .assert()
         .success()
-        .stdout(contains("--assistant <ASSISTANTS>"))
-        .stdout(contains("possible values: codex, claude, cursor"));
+        .stdout(contains("Add Everr instructions to AGENTS.md in the current repository"))
+        .stdout(predicates::str::contains("--assistant").not());
+}
+
+#[test]
+fn ai_instructions_help_describes_full_guidance_output() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["ai-instructions", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("Print the full AI instructions for Everr CLI usage"));
 }
 
 #[test]

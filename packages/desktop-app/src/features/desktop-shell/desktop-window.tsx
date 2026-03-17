@@ -2,7 +2,7 @@ import { Separator } from "../../components/ui/separator";
 import { Toaster } from "../../components/ui/sonner";
 import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import { toErrorMessageText } from "../../lib/tauri";
-import { AccountHeaderAction } from "../auth/auth";
+import { AccountHeaderAction, AuthSettingsSection } from "../auth/auth";
 import { AssistantsSection } from "../assistants/assistants";
 import { CliInstallSection } from "../cli-install/cli-install";
 import { DeveloperNotificationSection } from "../notifications/notification-window";
@@ -52,6 +52,9 @@ export function DesktopWindow() {
 function SettingsScreen() {
   return (
     <div className="grid divide-y divide-white/[0.06]">
+      <div className="pt-0">
+        <AuthSettingsSection />
+      </div>
       <AssistantsSection />
       <CliInstallSection />
       <LaunchAtLoginSection />

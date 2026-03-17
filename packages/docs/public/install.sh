@@ -54,10 +54,6 @@ case ":${PATH}:" in
 esac
 
 echo
-echo "Starting Everr setup wizard..."
-if [ -r /dev/tty ]; then
-  "${INSTALL_PATH}" install </dev/tty
-else
-  echo "No interactive terminal available. Run manually:"
-  echo "  everr install"
-fi
+echo "Next steps:"
+echo "  Run 'everr setup-assistant' inside a repository to add managed Everr instructions to AGENTS.md."
+echo "  Use the Everr desktop app if you want global assistant integrations in your home directory."

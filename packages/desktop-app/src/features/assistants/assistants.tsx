@@ -56,13 +56,8 @@ export function useSaveAssistantsMutation() {
 
   return useMutation({
     mutationFn: configureAssistants,
-    onSuccess(data, assistants) {
+    onSuccess(data) {
       queryClient.setQueryData(assistantSetupQueryKey, data);
-      toast.success(
-        assistants.length > 0
-          ? "Assistant integrations updated."
-          : "Assistant integrations cleared.",
-      );
     },
     onError(error) {
       toast.error(toErrorMessageText(error));
@@ -163,14 +158,17 @@ function LoadedAssistantsSection({ assistantSetup }: { assistantSetup: Assistant
   );
 }
 
-export function AssistantsWizardStep({ assistantSetup }: { assistantSetup: AssistantSetup }) {
-  const saveMutation = useSaveAssistantsMutation();
-  const skipMutation = useMarkAssistantStepSeenMutation();
-  const { selection, toggleAssistant } = useAssistantSelectionDraft(
-    configuredAssistantsFromStatuses(assistantSetup.assistant_statuses),
-    (selection) => void saveMutation.mutateAsync(selection),
-  );
-
+export function AssistantsWizardStep({
+  assistantSetup,
+  selection,
+  disabled,
+  onToggle,
+}: {
+  assistantSetup: AssistantSetup;
+  selection: AssistantKind[];
+  disabled: boolean;
+  onToggle: (assistant: AssistantKind) => void;
+}) {
   return (
     <WizardStepSection
       title="Select assistants to integrate"
@@ -180,8 +178,8 @@ export function AssistantsWizardStep({ assistantSetup }: { assistantSetup: Assis
       <AssistantChecklist
         selection={selection}
         statuses={assistantSetup.assistant_statuses}
-        disabled={saveMutation.isPending || skipMutation.isPending}
-        onToggle={toggleAssistant}
+        disabled={disabled}
+        onToggle={onToggle}
       />
     </WizardStepSection>
   );
