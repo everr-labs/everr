@@ -764,26 +764,30 @@ describe("notification window", () => {
     await waitFor(() => {
       expect(dismissSpy).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText("No active notifications")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("CI")).not.toBeInTheDocument();
+    });
   });
 
   it("opens the run target and advances the queue", async () => {
     const { openSpy } = await renderNotificationApp();
 
     await screen.findByText("CI");
-    fireEvent.click(screen.getByRole("button", { name: "Open run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
 
     await waitFor(() => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText("No active notifications")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("CI")).not.toBeInTheDocument();
+    });
   });
 
   it("copies the auto-fix prompt without dismissing the notification", async () => {
     const { copySpy } = await renderNotificationApp();
 
     await screen.findByText("CI");
-    fireEvent.click(screen.getByRole("button", { name: "Copy auto-fix prompt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auto-fix prompt" }));
 
     await waitFor(() => {
       expect(copySpy).toHaveBeenCalledTimes(1);
