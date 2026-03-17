@@ -25,8 +25,8 @@ var (
 	skipPattern = regexp.MustCompile(`^↓\s+(.+)$`)
 	// ANSI escape code pattern for stripping color codes from CI output.
 	ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	// pnpm recursive output prefixes each line with "<workspace> test:".
-	workspaceTestPrefixPattern = regexp.MustCompile(`^[^:]+\s+test:\s+`)
+	// pnpm recursive output prefixes each line with "<package> <script>: ".
+	workspaceTestPrefixPattern = regexp.MustCompile(`^\S+\s+\S+:\s+`)
 )
 
 // Parser processes Vitest verbose output and extracts test information.
