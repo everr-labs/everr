@@ -15,13 +15,28 @@ Install the latest Everr CLI build:
 curl -fsSL https://everr.dev/install.sh | sh
 ```
 
-The installer places `everr` in `~/.local/bin` and starts setup when an interactive terminal is available.
+The installer places `everr` in `~/.local/bin`.
+
+To add Everr instructions to the current repository, run:
+
+```bash
+everr setup-assistant
+```
+
+This writes a short `AGENTS.md` hint that points agents to:
+
+```bash
+everr ai-instructions
+```
+
+Use the desktop app if you also want Everr to manage global assistant integrations in your home directory.
 
 ## Commands
 
 - `everr status`
 - `everr grep --job-name <job> --step-number <n> --pattern <text>`
-- `everr install`
+- `everr setup-assistant`
+- `everr ai-instructions`
 - `everr slowest-tests` (repo-wide for non-suite tests by default; use `--branch <name>` to scope it)
 - `everr slowest-jobs` (repo-wide by default; use `--branch <name>` to scope it)
 - `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit; exits non-zero if any completed run finishes with `failure`)

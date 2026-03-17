@@ -4,9 +4,13 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-const BLOCK_START: &str = "<!-- EVERR_CLI_START -->";
-const BLOCK_END: &str = "<!-- EVERR_CLI_END -->";
+const BLOCK_START: &str = "<!-- BEGIN everr -->";
+const BLOCK_END: &str = "<!-- END everr -->";
 const ASSISTANT_INSTRUCTIONS: &str = include_str!("../assets/assistant-instructions.md");
+const REPO_ASSISTANT_INSTRUCTIONS: &str = concat!(
+    "Use Everr CLI guidance when the task involves CI, GitHub Actions workflows, pipelines, CI failures, workflow logs, or CI test performance from the current project directory.\n\n",
+    "Call `everr ai-instructions` to understand usage.\n"
+);
 const CURSOR_RULE_HEADER: &str = concat!(
     "---\n",
     "description: Use Everr CLI only when the task involves CI, GitHub Actions workflows, pipelines, failing jobs, workflow logs, or CI test failures.\n",
@@ -53,6 +57,12 @@ pub fn init_assistants(assistants: &[AssistantKind], command_name: &str) -> Resu
     Ok(())
 }
 
+pub fn init_repo_instructions(cwd: &Path, command_name: &str) -> Result<PathBuf> {
+    let path = cwd.join("AGENTS.md");
+    write_generic_managed_block(&path, &repo_content(command_name))?;
+    Ok(path)
+}
+
 pub fn sync_assistants(assistants: &[AssistantKind], command_name: &str) -> Result<()> {
     for assistant in AssistantKind::ALL {
         let path = path_for_assistant(assistant)?;
@@ -79,7 +89,7 @@ pub fn is_assistant_configured(assistant: AssistantKind) -> Result<bool> {
 
     let current =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
-    Ok(current.contains(BLOCK_START) && current.contains(BLOCK_END))
+    Ok(managed_block_range(&current).is_some())
 }
 
 pub fn assistant_statuses() -> Result<Vec<AssistantStatus>> {
@@ -112,7 +122,7 @@ fn refresh_existing_managed_prompts_in(
 
         let current = fs::read_to_string(&path)
             .with_context(|| format!("failed to read {}", path.display()))?;
-        if !(current.contains(BLOCK_START) && current.contains(BLOCK_END)) {
+        if managed_block_range(&current).is_none() {
             continue;
         }
 
@@ -190,8 +200,19 @@ fn content_for_assistant(assistant: AssistantKind, command_name: &str) -> String
     }
 }
 
+fn repo_content(command_name: &str) -> String {
+    format!(
+        "{BLOCK_START}\n{}\n{BLOCK_END}\n",
+        render_repo_assistant_instructions(command_name).trim_end()
+    )
+}
+
 fn render_assistant_instructions(command_name: &str) -> String {
     ASSISTANT_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
+}
+
+fn render_repo_assistant_instructions(command_name: &str) -> String {
+    REPO_ASSISTANT_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
 }
 
 fn remove_managed_prompt_at(assistant: AssistantKind, path: &Path) -> Result<()> {
@@ -233,6 +254,24 @@ fn write_managed_block(path: &Path, assistant: AssistantKind, block: String) -> 
     Ok(())
 }
 
+fn write_generic_managed_block(path: &Path, block: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    let next = if path.exists() {
+        let current = fs::read_to_string(path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        upsert_generic_managed_block(&current, block)
+    } else {
+        block.to_string()
+    };
+
+    fs::write(path, next).with_context(|| format!("failed to write {}", path.display()))?;
+    Ok(())
+}
+
 fn upsert_managed_block(assistant: AssistantKind, current: &str, block: &str) -> String {
     match assistant {
         AssistantKind::Cursor => {
@@ -264,6 +303,27 @@ fn upsert_managed_block(assistant: AssistantKind, current: &str, block: &str) ->
     }
 }
 
+fn upsert_generic_managed_block(current: &str, block: &str) -> String {
+    match managed_block_range(current) {
+        Some((start, end)) => {
+            let mut out = String::with_capacity(current.len() + block.len());
+            out.push_str(&current[..start]);
+            out.push_str(block);
+            if end < current.len() {
+                out.push_str(&current[end..]);
+            }
+            out
+        }
+        None => {
+            if current.trim().is_empty() {
+                block.to_string()
+            } else {
+                format!("{current}\n\n{block}")
+            }
+        }
+    }
+}
+
 fn remove_managed_block_for_assistant(assistant: AssistantKind, current: &str) -> String {
     match managed_block_range_for_assistant(assistant, current) {
         Some((start, end)) => {
@@ -291,13 +351,21 @@ fn managed_block_range_for_assistant(
 }
 
 fn managed_block_range(current: &str) -> Option<(usize, usize)> {
-    let start = current.find(BLOCK_START)?;
-    let end_marker = current.find(BLOCK_END)?;
-    if end_marker < start {
+    managed_block_range_with_markers(current, BLOCK_START, BLOCK_END)
+}
+
+fn managed_block_range_with_markers(
+    current: &str,
+    start_marker: &str,
+    end_marker: &str,
+) -> Option<(usize, usize)> {
+    let start = current.find(start_marker)?;
+    let end_marker_index = current[start..].find(end_marker)? + start;
+    if end_marker_index < start {
         return None;
     }
 
-    let mut end = end_marker + BLOCK_END.len();
+    let mut end = end_marker_index + end_marker.len();
     if current[end..].starts_with("\r\n") {
         end += 2;
     } else if current[end..].starts_with('\n') {
@@ -343,8 +411,10 @@ mod tests {
 
     use super::{
         AssistantKind, assistant_root_for_home, content_for_assistant, path_for_assistant_in,
-        refresh_existing_managed_prompts_in, remove_managed_block_for_assistant,
-        render_assistant_instructions, upsert_managed_block,
+        init_repo_instructions, refresh_existing_managed_prompts_in,
+        remove_managed_block_for_assistant, render_assistant_instructions,
+        render_repo_assistant_instructions,
+        upsert_generic_managed_block, upsert_managed_block,
     };
 
     #[test]
@@ -372,7 +442,7 @@ mod tests {
 
     #[test]
     fn upsert_managed_block_is_idempotent() {
-        let block = "<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\n";
+        let block = "<!-- BEGIN everr -->\nmanaged\n<!-- END everr -->\n";
         let original = "custom content";
         let once = upsert_managed_block(AssistantKind::Codex, original, block);
         let twice = upsert_managed_block(AssistantKind::Codex, &once, block);
@@ -400,7 +470,7 @@ mod tests {
 
     #[test]
     fn remove_managed_block_removes_only_managed_content() {
-        let current = "before\n<!-- EVERR_CLI_START -->\nmanaged\n<!-- EVERR_CLI_END -->\nafter";
+        let current = "before\n<!-- BEGIN everr -->\nmanaged\n<!-- END everr -->\nafter";
         let updated = remove_managed_block_for_assistant(AssistantKind::Codex, current);
         assert_eq!(updated, "before\nafter");
     }
@@ -426,7 +496,7 @@ mod tests {
         fs::create_dir_all(cursor_path.parent().expect("cursor parent")).expect("cursor dir");
         fs::write(
             &cursor_path,
-            "custom\n\n<!-- EVERR_CLI_START -->\nold\n<!-- EVERR_CLI_END -->\n",
+            "custom\n\n<!-- BEGIN everr -->\nold\n<!-- END everr -->\n",
         )
         .expect("seed cursor file");
 
@@ -448,10 +518,17 @@ mod tests {
     }
 
     #[test]
+    fn repo_assistant_instructions_use_requested_command_name() {
+        let rendered = render_repo_assistant_instructions("everr");
+        assert!(rendered.contains("Call `everr ai-instructions` to understand usage."));
+        assert!(!rendered.contains("`everr status`"));
+    }
+
+    #[test]
     fn assistant_instructions_describe_status_failure_handoff() {
         let rendered = render_assistant_instructions("everr");
         assert!(rendered.contains("`everr status`"));
-        assert!(rendered.contains("When CI fails"));
+        assert!(rendered.contains("Use Everr CLI guidance when the task involves CI"));
         assert!(rendered.contains("`everr runs show --trace-id <trace_id>`"));
     }
 
@@ -465,7 +542,7 @@ mod tests {
         fs::create_dir_all(claude_path.parent().expect("claude parent")).expect("claude dir");
         fs::write(
             &codex_path,
-            "<!-- EVERR_CLI_START -->\nold\n<!-- EVERR_CLI_END -->\n",
+            "<!-- BEGIN everr -->\nold\n<!-- END everr -->\n",
         )
         .expect("seed managed codex file");
         fs::write(&claude_path, "# unmanaged note\n").expect("seed unmanaged claude file");
@@ -483,6 +560,30 @@ mod tests {
             fs::read_to_string(&claude_path).expect("read claude"),
             "# unmanaged note\n"
         );
+    }
+
+    #[test]
+    fn repo_init_writes_managed_block_into_project_agents_file() {
+        let repo = tempdir().expect("tempdir");
+
+        let path = init_repo_instructions(repo.path(), "everr").expect("init repo instructions");
+
+        assert_eq!(path, repo.path().join("AGENTS.md"));
+        let content = fs::read_to_string(path).expect("read AGENTS");
+        assert!(content.contains("<!-- BEGIN everr -->"));
+        assert!(content.contains("Call `everr ai-instructions` to understand usage."));
+    }
+
+    #[test]
+    fn generic_upsert_replaces_existing_managed_block() {
+        let current = "# notes\n\n<!-- BEGIN everr -->\nold\n<!-- END everr -->\n";
+        let next =
+            upsert_generic_managed_block(current, "<!-- BEGIN everr -->\nnew\n<!-- END everr -->\n");
+
+        assert!(next.contains("<!-- BEGIN everr -->"));
+        assert!(next.contains("new"));
+        assert!(!next.contains("\nold\n"));
+        assert!(next.contains("# notes"));
     }
 
     fn sync_assistants_for_home(

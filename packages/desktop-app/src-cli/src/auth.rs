@@ -80,11 +80,6 @@ pub fn logout() -> Result<()> {
     Ok(())
 }
 
-pub fn has_active_session() -> Result<bool> {
-    let api_base_url = current_api_base_url()?;
-    session_store().has_active_session_for_api_base_url(&api_base_url)
-}
-
 pub async fn require_session_with_refresh() -> Result<Session> {
     let store = session_store();
     let api_base_url = current_api_base_url()?;

@@ -5,16 +5,19 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use arboard::Clipboard;
 use everr_core::api::{ApiClient, FailureNotification};
 use everr_core::assistant::{self, AssistantKind, AssistantStatus};
-use everr_core::auth::{is_no_active_session_error, login_with_prompt, AuthConfig, SessionStore};
+use everr_core::auth::{
+    build_auth_http_client, is_no_active_session_error, poll_device_authorization,
+    save_session_from_device_token, start_device_authorization, AuthConfig, DeviceAuthorization,
+    DevicePollStatus, SessionDocument, SessionStore,
+};
 use everr_core::build;
 use everr_core::git::resolve_git_context;
 use everr_core::notifier::FailureTracker;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -52,7 +55,6 @@ const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
 const TRAY_FAILURES_WINDOW_MINUTES: u64 = 5;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StartupUpdateAction {
     Skip,
@@ -66,6 +68,7 @@ struct RuntimeState {
     settings: Arc<Mutex<AppSettings>>,
     notifier: Arc<Mutex<NotifierState>>,
     tray: Arc<Mutex<TrayState>>,
+    pending_auth: Arc<Mutex<Option<PendingAuthState>>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -104,6 +107,47 @@ struct AuthStatusResponse {
     session_path: String,
 }
 
+#[derive(Debug, Clone)]
+struct PendingAuthState {
+    authorization: DeviceAuthorization,
+    expires_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct PendingAuthResponse {
+    status: &'static str,
+    user_code: String,
+    verification_url: String,
+    expires_at: String,
+    poll_interval_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum SignInResponse {
+    SignedIn { session_path: String },
+    Pending {
+        user_code: String,
+        verification_url: String,
+        expires_at: String,
+        poll_interval_seconds: u64,
+    },
+    Denied,
+    Expired,
+}
+
+impl From<PendingAuthResponse> for SignInResponse {
+    fn from(value: PendingAuthResponse) -> Self {
+        Self::Pending {
+            user_code: value.user_code,
+            verification_url: value.verification_url,
+            expires_at: value.expires_at,
+            poll_interval_seconds: value.poll_interval_seconds,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 struct CliInstallStatusResponse {
@@ -129,6 +173,13 @@ struct LaunchAtLoginStatusResponse {
 #[serde(rename_all = "snake_case")]
 struct WizardStatusResponse {
     wizard_completed: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct DevResetResponse {
+    auth_status: AuthStatusResponse,
+    wizard_status: WizardStatusResponse,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -272,16 +323,39 @@ fn get_active_notification(
 
 #[tauri::command]
 async fn start_sign_in(
+    state: State<'_, RuntimeState>,
+) -> Result<SignInResponse, String> {
+    let state = state.inner().clone();
+    start_sign_in_inner(state).await.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn get_pending_sign_in(state: State<'_, RuntimeState>) -> Result<Option<PendingAuthResponse>, String> {
+    pending_auth_response(state.inner())
+        .map(Some)
+        .or_else(|error| {
+            if error.to_string() == "no pending sign-in" {
+                Ok(None)
+            } else {
+                Err(error.to_string())
+            }
+        })
+}
+
+#[tauri::command]
+async fn poll_sign_in(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<AuthStatusResponse, String> {
-    let state = state.inner().clone();
-
-    sign_in_inner(app, state.clone())
+) -> Result<SignInResponse, String> {
+    let runtime = state.inner().clone();
+    poll_sign_in_inner(app, runtime)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| error.to_string())
+}
 
-    run_blocking_command(move || auth_status_response(&state)).await
+#[tauri::command]
+fn open_sign_in_browser(state: State<'_, RuntimeState>) -> Result<(), String> {
+    open_sign_in_browser_inner(state.inner()).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -290,14 +364,36 @@ async fn sign_out(
     state: State<'_, RuntimeState>,
 ) -> Result<AuthStatusResponse, String> {
     let runtime = state.inner().clone();
+    let runtime_for_command = runtime.clone();
     let response = run_blocking_command(move || {
-        runtime.session_store.clear_session()?;
-        auth_status_response(&runtime)
+        runtime_for_command.session_store.clear_session()?;
+        auth_status_response(&runtime_for_command)
     })
     .await?;
 
+    clear_pending_auth(&runtime).map_err(|error| error.to_string())?;
+
     clear_tray_snapshot(&app, state.inner()).map_err(|error| error.to_string())?;
     emit_auth_changed(&app);
+
+    Ok(response)
+}
+
+#[tauri::command]
+async fn reset_dev_onboarding(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> Result<DevResetResponse, String> {
+    if !tauri::is_dev() {
+        return Err("developer reset is only available in dev builds".to_string());
+    }
+
+    let runtime = state.inner().clone();
+    let response = run_blocking_command(move || reset_dev_onboarding_inner(&runtime)).await?;
+
+    clear_tray_snapshot(&app, state.inner()).map_err(|error| error.to_string())?;
+    emit_auth_changed(&app);
+    emit_settings_changed(&app);
 
     Ok(response)
 }
@@ -506,6 +602,7 @@ pub fn run() {
                 settings: Arc::new(Mutex::new(settings)),
                 notifier: Arc::new(Mutex::new(NotifierState::default())),
                 tray: Arc::new(Mutex::new(TrayState::default())),
+                pending_auth: Arc::new(Mutex::new(None)),
             };
 
             app.manage(runtime.clone());
@@ -532,7 +629,11 @@ pub fn run() {
             get_wizard_status,
             get_active_notification,
             start_sign_in,
+            get_pending_sign_in,
+            poll_sign_in,
+            open_sign_in_browser,
             sign_out,
+            reset_dev_onboarding,
             install_cli,
             get_cli_install_status,
             configure_assistants,
@@ -628,26 +729,72 @@ fn build_tray(app: &AppHandle) -> Result<TrayMenu> {
     Ok(tray_menu)
 }
 
-async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
+async fn start_sign_in_inner(state: RuntimeState) -> Result<SignInResponse> {
     let auth_config = current_auth_config();
+    let client = build_auth_http_client()?;
+    let authorization = start_device_authorization(&client, &auth_config).await?;
+    let expires_at = OffsetDateTime::now_utc() + time::Duration::seconds(authorization.expires_in as i64);
 
-    login_with_prompt(&auth_config, &state.session_store, |verification_url, _| {
-        let _ = webbrowser::open(&verification_url);
-    })
-    .await?;
+    {
+        let mut pending = state
+            .pending_auth
+            .lock()
+            .map_err(|_| anyhow!("failed to lock pending auth state"))?;
+        *pending = Some(PendingAuthState {
+            authorization,
+            expires_at,
+        });
+    }
 
-    match load_owned_failures_for_current_repo(&state).await {
+    Ok(pending_auth_response(&state)?.into())
+}
+
+async fn poll_sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<SignInResponse> {
+    let pending = current_pending_auth(&state)?;
+    if pending.expires_at <= OffsetDateTime::now_utc() {
+        clear_pending_auth(&state)?;
+        return Ok(SignInResponse::Expired);
+    }
+
+    let client = build_auth_http_client()?;
+    let auth_config = current_auth_config();
+    match poll_device_authorization(&client, &auth_config, &pending.authorization).await? {
+        DevicePollStatus::Authorized(token) => {
+            let _session =
+                save_session_from_device_token(&auth_config, &state.session_store, token)?;
+            let settings = current_settings(&state)?;
+            save_app_settings(&state.session_store, &settings)?;
+            clear_pending_auth(&state)?;
+            on_sign_in_completed(&app, &state).await;
+            Ok(SignInResponse::SignedIn {
+                session_path: state.session_store.session_file_path()?.display().to_string(),
+            })
+        }
+        DevicePollStatus::Pending | DevicePollStatus::SlowDown => Ok(pending_auth_response(&state)?.into()),
+        DevicePollStatus::Denied => {
+            clear_pending_auth(&state)?;
+            Ok(SignInResponse::Denied)
+        }
+        DevicePollStatus::Expired => {
+            clear_pending_auth(&state)?;
+            Ok(SignInResponse::Expired)
+        }
+    }
+}
+
+async fn on_sign_in_completed(app: &AppHandle, state: &RuntimeState) {
+    match load_owned_failures_for_current_repo(state).await {
         Ok(Some((failures, repo, branch))) => {
             if let Err(error) = update_tray_snapshot(
-                &app,
-                &state,
+                app,
+                state,
                 build_tray_snapshot(&failures, repo.as_deref(), branch.as_deref()),
             ) {
                 eprintln!("[everr-app] failed to refresh tray after sign-in: {error}");
             }
         }
         Ok(None) => {
-            if let Err(error) = clear_tray_snapshot(&app, &state) {
+            if let Err(error) = clear_tray_snapshot(app, state) {
                 eprintln!("[everr-app] failed to clear tray after sign-in: {error}");
             }
         }
@@ -656,8 +803,7 @@ async fn sign_in_inner(app: AppHandle, state: RuntimeState) -> Result<()> {
         }
     }
 
-    emit_auth_changed(&app);
-    Ok(())
+    emit_auth_changed(app);
 }
 
 async fn run_blocking_command<T, F>(operation: F) -> Result<T, String>
@@ -795,6 +941,51 @@ fn auth_status_response(state: &RuntimeState) -> Result<AuthStatusResponse> {
         status,
         session_path: session_path.display().to_string(),
     })
+}
+
+fn pending_auth_response(state: &RuntimeState) -> Result<PendingAuthResponse> {
+    let pending = current_pending_auth(state)?;
+
+    Ok(PendingAuthResponse {
+        status: "pending",
+        user_code: pending.authorization.user_code.clone(),
+        verification_url: pending.authorization.verification_url.clone(),
+        expires_at: pending.expires_at.format(&Rfc3339)?,
+        poll_interval_seconds: pending.authorization.interval,
+    })
+}
+
+fn current_pending_auth(state: &RuntimeState) -> Result<PendingAuthState> {
+    state.pending_auth
+        .lock()
+        .map_err(|_| anyhow!("failed to lock pending auth state"))?
+        .clone()
+        .ok_or_else(|| anyhow!("no pending sign-in"))
+}
+
+fn clear_pending_auth(state: &RuntimeState) -> Result<()> {
+    let mut pending = state
+        .pending_auth
+        .lock()
+        .map_err(|_| anyhow!("failed to lock pending auth state"))?;
+    *pending = None;
+    Ok(())
+}
+
+fn open_sign_in_browser_inner(state: &RuntimeState) -> Result<()> {
+    let pending = current_pending_auth(state)?;
+    if pending.expires_at <= OffsetDateTime::now_utc() {
+        clear_pending_auth(state)?;
+        bail!("device authentication expired");
+    }
+
+    webbrowser::open(&pending.authorization.verification_url).with_context(|| {
+        format!(
+            "failed to open sign-in URL {}",
+            pending.authorization.verification_url
+        )
+    })?;
+    Ok(())
 }
 
 fn cli_install_status_response(app: &AppHandle) -> Result<CliInstallStatusResponse> {
@@ -1493,7 +1684,8 @@ fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
     .always_on_top(true)
     .visible_on_all_workspaces(true)
     .skip_taskbar(true)
-    .shadow(true);
+    .shadow(true)
+    .accept_first_mouse(true);
 
     if let Ok((x, y)) = notification_window_position(app) {
         builder = builder.position(x, y);
@@ -1592,38 +1784,20 @@ fn startup_update_action(is_dev: bool, update_installed: bool) -> StartupUpdateA
     }
 }
 
-fn settings_file_path(session_store: &SessionStore) -> Result<PathBuf> {
-    let session_path = session_store.session_file_path()?;
-    let parent = session_path
-        .parent()
-        .ok_or_else(|| anyhow!("failed to resolve settings directory"))?;
-    Ok(parent.join("settings.json"))
-}
-
 fn load_app_settings(session_store: &SessionStore) -> Result<AppSettings> {
-    let path = settings_file_path(session_store)?;
-    let (mut settings, has_wizard_metadata, should_persist) = if path.exists() {
-        let raw = fs::read_to_string(&path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
-        let value = serde_json::from_str::<Value>(&raw)
-            .with_context(|| format!("failed to parse {}", path.display()))?;
-        let settings = serde_json::from_value::<AppSettings>(value.clone())
-            .with_context(|| format!("failed to parse {}", path.display()))?;
-        (settings, value_has_wizard_metadata(&value), false)
-    } else {
-        (AppSettings::default(), false, true)
+    let document = session_store.load_document::<AppSettings>()?;
+    let (mut settings, should_persist) = match document.settings {
+        Some(settings) => (settings, false),
+        None => (AppSettings::default(), true),
     };
 
     let migrated = apply_wizard_migration(
         &mut settings,
-        needs_legacy_wizard_migration(session_store, path.exists(), has_wizard_metadata)?,
+        session_store.session_file_path()?.exists() || cli_install_path()?.exists(),
     );
     let completed_base_url_migrated = migrate_completed_base_url(&mut settings);
 
-    if migrated
-        || completed_base_url_migrated
-        || should_persist && settings.wizard_state.wizard_completed
-    {
+    if migrated || completed_base_url_migrated || should_persist && settings.wizard_state.wizard_completed {
         save_app_settings(session_store, &settings)?;
     }
 
@@ -1631,15 +1805,30 @@ fn load_app_settings(session_store: &SessionStore) -> Result<AppSettings> {
 }
 
 fn save_app_settings(session_store: &SessionStore, settings: &AppSettings) -> Result<()> {
-    let path = settings_file_path(session_store)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
+    let mut document = session_store.load_document::<AppSettings>()?;
+    document.settings = Some(settings.clone());
+    session_store.save_document(&document)
+}
+
+fn reset_dev_onboarding_inner(state: &RuntimeState) -> Result<DevResetResponse> {
+    clear_pending_auth(state)?;
+    state.session_store.save_document::<AppSettings>(&SessionDocument {
+        session: None,
+        settings: None,
+    })?;
+
+    {
+        let mut settings = state
+            .settings
+            .lock()
+            .map_err(|_| anyhow!("failed to lock settings"))?;
+        *settings = AppSettings::default();
     }
-    let serialized =
-        serde_json::to_string_pretty(settings).context("failed to serialize settings")?;
-    fs::write(&path, serialized).with_context(|| format!("failed to write {}", path.display()))?;
-    Ok(())
+
+    Ok(DevResetResponse {
+        auth_status: auth_status_response(state)?,
+        wizard_status: wizard_status_response(state)?,
+    })
 }
 
 fn open_settings_window(app: &AppHandle) -> Result<()> {
@@ -1650,29 +1839,6 @@ fn open_settings_window(app: &AppHandle) -> Result<()> {
     window.show()?;
     window.set_focus()?;
     Ok(())
-}
-
-fn value_has_wizard_metadata(value: &Value) -> bool {
-    value
-        .as_object()
-        .map(|object| {
-            object.contains_key("wizard_completed")
-                || object.contains_key("assistant_step_seen")
-                || object.contains_key("launch_at_login_step_seen")
-        })
-        .unwrap_or(false)
-}
-
-fn needs_legacy_wizard_migration(
-    session_store: &SessionStore,
-    settings_exists: bool,
-    has_wizard_metadata: bool,
-) -> Result<bool> {
-    if settings_exists {
-        return Ok(!has_wizard_metadata);
-    }
-
-    Ok(session_store.session_file_path()?.exists() || cli_install_path()?.exists())
 }
 
 fn apply_wizard_migration(settings: &mut AppSettings, should_complete_wizard: bool) -> bool {

@@ -22,6 +22,19 @@ type AuthStatus = {
   session_path: string;
 };
 
+type PendingSignIn = {
+  status: "pending";
+  user_code: string;
+  verification_url: string;
+  expires_at: string;
+  poll_interval_seconds: number;
+};
+
+type SignInResponse =
+  | PendingSignIn
+  | { status: "signed_in"; session_path: string }
+  | { status: "denied" | "expired" };
+
 type CliInstallStatus = {
   status: "installed" | "not_installed";
   install_path: string;
@@ -69,7 +82,10 @@ type TestNotificationResponse = {
 type MainCommand =
   | "get_wizard_status"
   | "get_auth_status"
+  | "get_pending_sign_in"
   | "start_sign_in"
+  | "poll_sign_in"
+  | "open_sign_in_browser"
   | "sign_out"
   | "get_assistant_setup"
   | "configure_assistants"
@@ -80,6 +96,7 @@ type MainCommand =
   | "set_launch_at_login"
   | "mark_launch_at_login_step_seen"
   | "complete_setup_wizard"
+  | "reset_dev_onboarding"
   | "trigger_test_notification";
 
 type RenderMainOptions = {
@@ -92,6 +109,7 @@ type RenderMainOptions = {
   launchAtLoginEnabled?: boolean;
   assistantStatuses?: AssistantStatus[];
   testNotification?: TestNotificationResponse;
+  pendingSignIn?: PendingSignIn | null;
   commandOverrides?: Partial<Record<MainCommand, (args: unknown) => unknown>>;
 };
 
@@ -192,6 +210,21 @@ function renderMainApp(options: RenderMainOptions = {}) {
   let wizardStatus: WizardStatus = {
     wizard_completed: options.wizardCompleted ?? true,
   };
+  let pendingSignIn: PendingSignIn | null = options.pendingSignIn ?? null;
+  const openSignInBrowserSpy = vi.fn(() => null);
+  const resetDevOnboardingSpy = vi.fn(() => {
+    authStatus = {
+      ...authStatus,
+      status: "signed_out",
+    };
+    wizardStatus = {
+      wizard_completed: false,
+    };
+    return {
+      auth_status: authStatus,
+      wizard_status: wizardStatus,
+    };
+  });
   const triggerTestNotificationSpy = vi.fn(
     () => options.testNotification ?? { status: "shown" },
   );
@@ -214,17 +247,27 @@ function renderMainApp(options: RenderMainOptions = {}) {
           return wizardStatus;
         case "get_auth_status":
           return authStatus;
+        case "get_pending_sign_in":
+          return pendingSignIn;
         case "start_sign_in":
-          authStatus = {
-            ...authStatus,
-            status: "signed_in",
+          pendingSignIn = {
+            status: "pending",
+            user_code: "ABCD-EFGH",
+            verification_url: "https://app.everr.dev/cli/device?code=ABCD-EFGH",
+            expires_at: "2026-03-20T13:10:00Z",
+            poll_interval_seconds: 1,
           };
-          return authStatus;
+          return pendingSignIn satisfies SignInResponse;
+        case "poll_sign_in":
+          return pendingSignIn ?? ({ status: "expired" } satisfies SignInResponse);
+        case "open_sign_in_browser":
+          return openSignInBrowserSpy();
         case "sign_out":
           authStatus = {
             ...authStatus,
             status: "signed_out",
           };
+          pendingSignIn = null;
           return authStatus;
         case "get_assistant_setup":
           return assistantSetup;
@@ -277,6 +320,8 @@ function renderMainApp(options: RenderMainOptions = {}) {
             launch_at_login_step_seen: true,
           };
           return wizardStatus;
+        case "reset_dev_onboarding":
+          return resetDevOnboardingSpy();
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
         default:
@@ -289,6 +334,8 @@ function renderMainApp(options: RenderMainOptions = {}) {
   renderWithProviders(<App />);
 
   return {
+    openSignInBrowserSpy,
+    resetDevOnboardingSpy,
     triggerTestNotificationSpy,
     setAssistantSetup(next: AssistantSetup) {
       assistantSetup = next;
@@ -502,8 +549,45 @@ describe("desktop window", () => {
     expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
   });
 
+  it("does not advance when toggling an assistant in the wizard", async () => {
+    renderMainApp({
+      signedIn: true,
+      cliInstalled: false,
+      wizardCompleted: false,
+      assistantStepSeen: false,
+      launchStepSeen: false,
+      assistantStatuses: defaultAssistantStatuses(),
+    });
+
+    await screen.findByText("Select assistants to integrate");
+    fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
+
+    expect(screen.getByText("Select assistants to integrate")).toBeInTheDocument();
+    expect(screen.queryByText("Enable background startup")).not.toBeInTheDocument();
+  });
+
   it("advances from authentication to assistant selection after sign in", async () => {
     renderMainApp({
+      signedIn: false,
+      cliInstalled: false,
+      wizardCompleted: false,
+      assistantStepSeen: false,
+      launchStepSeen: false,
+      commandOverrides: {
+        poll_sign_in: () => ({
+          status: "signed_in",
+          session_path: "/tmp/everr/session.json",
+        }),
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("Select assistants to integrate")).toBeInTheDocument();
+  });
+
+  it("shows the device code before opening the browser", async () => {
+    const harness = renderMainApp({
       signedIn: false,
       cliInstalled: false,
       wizardCompleted: false,
@@ -513,10 +597,48 @@ describe("desktop window", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Select assistants to integrate")).toBeInTheDocument();
+    expect(await screen.findByText("A B C D - E F G H")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open browser" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refresh code" })).not.toBeInTheDocument();
+    expect(harness.openSignInBrowserSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open browser" }));
+
+    await waitFor(() => {
+      expect(harness.openSignInBrowserSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
-  it("saves assistant choices and advances to CLI installation", async () => {
+  it("marks the code as expired and disables browser open until refresh", async () => {
+    renderMainApp({
+      signedIn: false,
+      cliInstalled: false,
+      wizardCompleted: false,
+      assistantStepSeen: false,
+      launchStepSeen: false,
+      pendingSignIn: {
+        status: "pending",
+        user_code: "WXYZ-1234",
+        verification_url: "https://app.everr.dev/cli/device?code=WXYZ-1234",
+        expires_at: new Date(Date.now() + 200).toISOString(),
+        poll_interval_seconds: 5,
+      },
+    });
+
+    expect(await screen.findByText("W X Y Z - 1 2 3 4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open browser" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Refresh code" })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("This code expired before it was approved. Refresh it to generate a new one."),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Open browser" })).toBeDisabled();
+      expect(screen.getAllByRole("button", { name: "Refresh code" }).length).toBeGreaterThan(0);
+    });
+  });
+
+  it("saves assistant choices and advances to launch at login", async () => {
     renderMainApp({
       signedIn: true,
       cliInstalled: false,
@@ -529,7 +651,7 @@ describe("desktop window", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByText("Install the Everr CLI")).toBeInTheDocument();
+    expect(await screen.findByText("Enable background startup")).toBeInTheDocument();
   });
 
   it("preserves assistant draft across invalidation and resets after save", async () => {
@@ -574,20 +696,6 @@ describe("desktop window", () => {
     expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
   });
 
-  it("advances from CLI installation to launch-at-login setup", async () => {
-    renderMainApp({
-      signedIn: true,
-      cliInstalled: false,
-      wizardCompleted: false,
-      assistantStepSeen: true,
-      launchStepSeen: false,
-    });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Install CLI" }));
-
-    expect(await screen.findByText("Enable background startup")).toBeInTheDocument();
-  });
-
   it("supports skipping launch at login and finishing the wizard", async () => {
     renderMainApp({
       signedIn: true,
@@ -618,6 +726,18 @@ describe("desktop window", () => {
       await screen.findByText("Test notification queued behind the active notification."),
     ).toBeInTheDocument();
   });
+
+  it("resets the dev session and reopens onboarding from settings", async () => {
+    const { resetDevOnboardingSpy } = renderMainApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reset onboarding" }));
+
+    await waitFor(() => {
+      expect(resetDevOnboardingSpy).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByRole("heading", { name: "Installation wizard" })).toBeInTheDocument();
+    expect(screen.getByText("Authenticate your Everr account")).toBeInTheDocument();
+  });
 });
 
 describe("notification window", () => {
@@ -644,26 +764,30 @@ describe("notification window", () => {
     await waitFor(() => {
       expect(dismissSpy).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText("No active notifications")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("CI")).not.toBeInTheDocument();
+    });
   });
 
   it("opens the run target and advances the queue", async () => {
     const { openSpy } = await renderNotificationApp();
 
     await screen.findByText("CI");
-    fireEvent.click(screen.getByRole("button", { name: "Open run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
 
     await waitFor(() => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText("No active notifications")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("CI")).not.toBeInTheDocument();
+    });
   });
 
   it("copies the auto-fix prompt without dismissing the notification", async () => {
     const { copySpy } = await renderNotificationApp();
 
     await screen.findByText("CI");
-    fireEvent.click(screen.getByRole("button", { name: "Copy auto-fix prompt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auto-fix prompt" }));
 
     await waitFor(() => {
       expect(copySpy).toHaveBeenCalledTimes(1);
