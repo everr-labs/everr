@@ -114,12 +114,10 @@ func createParentSpan(scopeSpans ptrace.ScopeSpans, steps []*github.TaskStep, jo
 
 	span.SetName(job.GetName())
 	span.SetKind(ptrace.SpanKindServer)
-	if len(steps) > 0 {
-		setSpanTimes(span, steps[0].GetStartedAt().Time, steps[len(steps)-1].GetCompletedAt().Time)
-	} else {
-		logger.Warn("No steps found, defaulting to job times")
-		setSpanTimes(span, job.GetStartedAt().Time, job.GetCompletedAt().Time)
-	}
+	// Always use the job's own timestamps for the parent span.
+	// These match GitHub's billing window (started_at → completed_at)
+	// and avoid discrepancies from step boundary timing.
+	setSpanTimes(span, job.GetStartedAt().Time, job.GetCompletedAt().Time)
 
 	allSuccessful := true
 	anyFailure := false
