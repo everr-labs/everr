@@ -99,6 +99,20 @@ describe("ansiToHtml", () => {
     expect(result).toContain('href="https://example.com"');
     expect(result).not.toContain('href="https://example.com."');
   });
+
+  it("escapes HTML in log lines to prevent XSS", () => {
+    const scriptTag = ansiToHtml('<script>alert("xss")</script>');
+    console.log(scriptTag);
+    expect(scriptTag).not.toContain("<script>");
+
+    const imgTag = ansiToHtml('<img src=x onerror=alert("xss")>');
+    console.log(imgTag);
+    expect(imgTag).not.toContain("<img");
+
+    const svgTag = ansiToHtml('<svg onload=alert("xss")>');
+    console.log(svgTag);
+    expect(svgTag).not.toContain("<svg");
+  });
 });
 
 describe("parseLogs", () => {
