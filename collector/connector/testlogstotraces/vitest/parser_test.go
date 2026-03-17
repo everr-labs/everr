@@ -113,6 +113,15 @@ func TestParseVerboseOutput(t *testing.T) {
 			expectedTests: 0,
 		},
 		{
+			name: "vite build output not parsed as test",
+			lines: []string{
+				"✓ built in 848ms",
+				"✓ built in 1.8s",
+				"✓ 42 modules transformed.",
+			},
+			expectedTests: 0,
+		},
+		{
 			name: "mixed results",
 			lines: []string{
 				" ✓ src/test.ts > group > passes 1ms",
