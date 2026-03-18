@@ -154,6 +154,10 @@ code {
   }
 }
 
+body:has(.notificationCard) {
+  background: transparent;
+}
+
 @keyframes notification-progress-shrink {
   from {
     transform: scaleX(1);
