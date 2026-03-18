@@ -41,10 +41,12 @@ const UPDATE_CHECK_INTERVAL_SECONDS: u64 = 15 * 60;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
+const NOTIFICATION_HOVER_EVENT: &str = "everr://notification-hover";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 124.0;
-const NOTIFICATION_WINDOW_MARGIN: f64 = 16.0;
+const NOTIFICATION_WINDOW_MARGIN: f64 = 56.0;
+const NOTIFICATION_WINDOW_INSET: f64 = 12.0;
 const TRAY_ICON_ID: &str = "everr-app";
 const TRAY_MENU_FAILED_STATUS_ID: &str = "tray_failed_status";
 const TRAY_MENU_OPEN_FAILED_RUNS_ID: &str = "tray_open_failed_runs";
@@ -56,6 +58,8 @@ const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
 const TRAY_FAILURES_WINDOW_MINUTES: u64 = 5;
+
+type CommandResult<T> = std::result::Result<T, String>;
 
 #[derive(Clone)]
 struct RuntimeState {
@@ -272,20 +276,20 @@ impl NotificationQueue {
 }
 
 #[tauri::command]
-async fn get_auth_status(state: State<'_, RuntimeState>) -> Result<AuthStatusResponse, String> {
+async fn get_auth_status(state: State<'_, RuntimeState>) -> CommandResult<AuthStatusResponse> {
     let state = state.inner().clone();
     run_blocking_command(move || auth_status_response(&state)).await
 }
 
 #[tauri::command]
-async fn get_cli_install_status(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
+async fn get_cli_install_status(app: AppHandle) -> CommandResult<CliInstallStatusResponse> {
     run_blocking_command(move || cli_install_status_response(&app)).await
 }
 
 #[tauri::command]
 async fn get_assistant_setup(
     state: State<'_, RuntimeState>,
-) -> Result<AssistantSetupResponse, String> {
+) -> CommandResult<AssistantSetupResponse> {
     let state = state.inner().clone();
     run_blocking_command(move || assistant_setup_response(&state)).await
 }
@@ -294,13 +298,13 @@ async fn get_assistant_setup(
 async fn get_launch_at_login_status(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<LaunchAtLoginStatusResponse, String> {
+) -> CommandResult<LaunchAtLoginStatusResponse> {
     let state = state.inner().clone();
     run_blocking_command(move || launch_at_login_status_response(&app, &state)).await
 }
 
 #[tauri::command]
-async fn get_wizard_status(state: State<'_, RuntimeState>) -> Result<WizardStatusResponse, String> {
+async fn get_wizard_status(state: State<'_, RuntimeState>) -> CommandResult<WizardStatusResponse> {
     let state = state.inner().clone();
     run_blocking_command(move || wizard_status_response(&state)).await
 }
@@ -308,7 +312,7 @@ async fn get_wizard_status(state: State<'_, RuntimeState>) -> Result<WizardStatu
 #[tauri::command]
 fn get_active_notification(
     state: State<'_, RuntimeState>,
-) -> Result<Option<FailureNotification>, String> {
+) -> CommandResult<Option<FailureNotification>> {
     let notifier = state
         .notifier
         .lock()
@@ -319,13 +323,13 @@ fn get_active_notification(
 #[tauri::command]
 async fn start_sign_in(
     state: State<'_, RuntimeState>,
-) -> Result<SignInResponse, String> {
+) -> CommandResult<SignInResponse> {
     let state = state.inner().clone();
     start_sign_in_inner(state).await.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-fn get_pending_sign_in(state: State<'_, RuntimeState>) -> Result<Option<PendingAuthResponse>, String> {
+fn get_pending_sign_in(state: State<'_, RuntimeState>) -> CommandResult<Option<PendingAuthResponse>> {
     pending_auth_response(state.inner())
         .map(Some)
         .or_else(|error| {
@@ -341,7 +345,7 @@ fn get_pending_sign_in(state: State<'_, RuntimeState>) -> Result<Option<PendingA
 async fn poll_sign_in(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<SignInResponse, String> {
+) -> CommandResult<SignInResponse> {
     let runtime = state.inner().clone();
     poll_sign_in_inner(app, runtime)
         .await
@@ -349,7 +353,7 @@ async fn poll_sign_in(
 }
 
 #[tauri::command]
-fn open_sign_in_browser(state: State<'_, RuntimeState>) -> Result<(), String> {
+fn open_sign_in_browser(state: State<'_, RuntimeState>) -> CommandResult<()> {
     open_sign_in_browser_inner(state.inner()).map_err(|error| error.to_string())
 }
 
@@ -357,7 +361,7 @@ fn open_sign_in_browser(state: State<'_, RuntimeState>) -> Result<(), String> {
 async fn sign_out(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<AuthStatusResponse, String> {
+) -> CommandResult<AuthStatusResponse> {
     let runtime = state.inner().clone();
     let runtime_for_command = runtime.clone();
     let response = run_blocking_command(move || {
@@ -378,7 +382,7 @@ async fn sign_out(
 async fn reset_dev_onboarding(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<DevResetResponse, String> {
+) -> CommandResult<DevResetResponse> {
     if !tauri::is_dev() {
         return Err("developer reset is only available in dev builds".to_string());
     }
@@ -394,7 +398,7 @@ async fn reset_dev_onboarding(
 }
 
 #[tauri::command]
-async fn install_cli(app: AppHandle) -> Result<CliInstallStatusResponse, String> {
+async fn install_cli(app: AppHandle) -> CommandResult<CliInstallStatusResponse> {
     run_blocking_command(move || {
         install_cli_bundle(&app)?;
         cli_install_status_response(&app)
@@ -407,7 +411,7 @@ async fn configure_assistants(
     app: AppHandle,
     state: State<'_, RuntimeState>,
     assistants: Vec<AssistantKind>,
-) -> Result<AssistantSetupResponse, String> {
+) -> CommandResult<AssistantSetupResponse> {
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || {
         assistant::sync_assistants(&assistants, build::command_name())?;
@@ -426,7 +430,7 @@ async fn configure_assistants(
 async fn mark_assistant_step_seen(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<AssistantSetupResponse, String> {
+) -> CommandResult<AssistantSetupResponse> {
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || {
         update_settings(&runtime, mark_assistant_step_seen_in_settings)?;
@@ -444,7 +448,7 @@ async fn set_launch_at_login(
     app: AppHandle,
     state: State<'_, RuntimeState>,
     enabled: bool,
-) -> Result<LaunchAtLoginStatusResponse, String> {
+) -> CommandResult<LaunchAtLoginStatusResponse> {
     let response_app = app.clone();
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || {
@@ -469,7 +473,7 @@ async fn set_launch_at_login(
 async fn mark_launch_at_login_step_seen(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<LaunchAtLoginStatusResponse, String> {
+) -> CommandResult<LaunchAtLoginStatusResponse> {
     let response_app = app.clone();
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || {
@@ -487,7 +491,7 @@ async fn mark_launch_at_login_step_seen(
 async fn complete_setup_wizard(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<WizardStatusResponse, String> {
+) -> CommandResult<WizardStatusResponse> {
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || {
         if !runtime
@@ -515,12 +519,12 @@ async fn complete_setup_wizard(
 fn dismiss_active_notification(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<(), String> {
+) -> CommandResult<()> {
     dismiss_active_notification_inner(&app, state.inner()).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-fn open_notification_target(app: AppHandle, state: State<'_, RuntimeState>) -> Result<(), String> {
+fn open_notification_target(app: AppHandle, state: State<'_, RuntimeState>) -> CommandResult<()> {
     open_notification_target_inner(&app, state.inner()).map_err(|error| error.to_string())
 }
 
@@ -528,7 +532,7 @@ fn open_notification_target(app: AppHandle, state: State<'_, RuntimeState>) -> R
 fn copy_notification_auto_fix_prompt(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<(), String> {
+) -> CommandResult<()> {
     let _ = app;
     copy_notification_auto_fix_prompt_inner(state.inner()).map_err(|error| error.to_string())
 }
@@ -537,7 +541,7 @@ fn copy_notification_auto_fix_prompt(
 fn trigger_test_notification(
     app: AppHandle,
     state: State<'_, RuntimeState>,
-) -> Result<TestNotificationResponse, String> {
+) -> CommandResult<TestNotificationResponse> {
     let notification = build_test_notification().map_err(|error| error.to_string())?;
     let shown = {
         let mut notifier = state
@@ -1647,12 +1651,56 @@ fn sync_notification_window(app: &AppHandle, state: &RuntimeState) -> Result<()>
 
 fn show_notification_window(app: &AppHandle) -> Result<()> {
     let window = ensure_notification_window(app)?;
+    let was_visible = window.is_visible().unwrap_or(false);
     configure_notification_window_for_fullscreen(&window)?;
     position_notification_window(app, &window)?;
     window
         .show()
         .context("failed to show notification window")?;
+    if !was_visible {
+        start_notification_hover_polling(app);
+    }
     Ok(())
+}
+
+fn start_notification_hover_polling(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut was_hovering = false;
+        loop {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            let Some(window) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) else {
+                break;
+            };
+
+            if !window.is_visible().unwrap_or(false) {
+                break;
+            }
+
+            let is_hovering = cursor_is_over_notification_window(&app, &window);
+            if is_hovering != was_hovering {
+                was_hovering = is_hovering;
+                let _ = window.emit(NOTIFICATION_HOVER_EVENT, is_hovering);
+            }
+        }
+    });
+}
+
+fn cursor_is_over_notification_window(app: &AppHandle, window: &WebviewWindow) -> bool {
+    let Ok(cursor) = app.cursor_position() else {
+        return false;
+    };
+    let Ok(pos) = window.outer_position() else {
+        return false;
+    };
+    let Ok(size) = window.outer_size() else {
+        return false;
+    };
+    cursor.x >= pos.x as f64
+        && cursor.x < pos.x as f64 + size.width as f64
+        && cursor.y >= pos.y as f64
+        && cursor.y < pos.y as f64 + size.height as f64
 }
 
 fn hide_notification_window(app: &AppHandle) -> Result<()> {
@@ -1675,9 +1723,9 @@ fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
         WebviewUrl::App("index.html".into()),
     )
     .title("Everr Notification")
-    .inner_size(NOTIFICATION_WINDOW_WIDTH, NOTIFICATION_WINDOW_HEIGHT)
-    .min_inner_size(NOTIFICATION_WINDOW_WIDTH, NOTIFICATION_WINDOW_HEIGHT)
-    .max_inner_size(NOTIFICATION_WINDOW_WIDTH, NOTIFICATION_WINDOW_HEIGHT)
+    .inner_size(NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET)
+    .min_inner_size(NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET)
+    .max_inner_size(NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET)
     .prevent_overflow()
     .resizable(false)
     .maximizable(false)
@@ -1686,6 +1734,7 @@ fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
     .visible(false)
     .focused(false)
     .decorations(false)
+    .transparent(true)
     .always_on_top(true)
     .visible_on_all_workspaces(true)
     .skip_taskbar(true)
@@ -1720,6 +1769,7 @@ fn configure_notification_window_for_fullscreen(window: &WebviewWindow) -> Resul
                 | NSWindowCollectionBehavior::CanJoinAllSpaces
                 | NSWindowCollectionBehavior::FullScreenAuxiliary;
             ns_window.setCollectionBehavior(behavior);
+            ns_window.setAcceptsMouseMovedEvents(true);
         })
         .context("failed to configure notification window fullscreen behavior")
 }
@@ -1745,10 +1795,11 @@ fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
         .ok_or_else(|| anyhow!("failed to resolve notification monitor"))?;
     let work_area = monitor.work_area();
     let scale_factor = monitor.scale_factor();
-    let width = (NOTIFICATION_WINDOW_WIDTH * scale_factor).round() as i32;
+    let width = ((NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET) * scale_factor).round() as i32;
+    let inset = (NOTIFICATION_WINDOW_INSET * scale_factor).round() as i32;
     let margin = (NOTIFICATION_WINDOW_MARGIN * scale_factor).round() as i32;
-    let x = work_area.position.x + work_area.size.width as i32 - width - margin;
-    let y = work_area.position.y + margin;
+    let x = work_area.position.x + work_area.size.width as i32 - width - margin / 2;
+    let y = work_area.position.y + margin - inset;
 
     Ok((x as f64 / scale_factor, y as f64 / scale_factor))
 }

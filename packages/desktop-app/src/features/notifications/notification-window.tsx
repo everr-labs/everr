@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
-import { invokeCommand, NOTIFICATION_CHANGED_EVENT } from "../../lib/tauri";
-import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
+import { invokeCommand, NOTIFICATION_CHANGED_EVENT, NOTIFICATION_HOVER_EVENT } from "../../lib/tauri";
+import { useInvalidateOnTauriEvent, useTauriEvent } from "../../lib/tauri-events";
 import {
   formatNotificationAbsoluteTime,
   formatNotificationRelativeTime,
@@ -231,6 +231,16 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
     setDeadlineAt(Date.now() + remainingMs);
   }
 
+  const handleHoverEvent = useEffectEvent((hovering: boolean) => {
+    if (hovering) {
+      pauseAutoDismiss();
+    } else {
+      resumeAutoDismiss();
+    }
+  });
+
+  useTauriEvent(NOTIFICATION_HOVER_EVENT, handleHoverEvent);
+
   const absoluteTime = formatNotificationAbsoluteTime(notification.failedAt);
   const relativeTime = formatNotificationRelativeTime(notification.failedAt);
   const failureScope = formatFailureScope(notification);
@@ -241,21 +251,21 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
       : "Auto-fix prompt";
 
   return (
-    <main className="h-screen bg-card">
+    <main className="h-screen bg-transparent pt-3 pl-3">
       <section
-        className="notificationCard group relative flex h-full flex-col bg-card pl-4"
+        className="notificationCard group relative flex h-full flex-col bg-card"
         onMouseEnter={pauseAutoDismiss}
         onMouseLeave={resumeAutoDismiss}
       >
         <button
           type="button"
-          className="absolute left-2 top-2 z-10 flex size-[18px] items-center justify-center rounded-full transition-opacity duration-150 bg-accent text-accent-foreground disabled:pointer-events-none"
+          className={`cursor-pointer absolute -left-[11px] -top-[11px] z-10 flex size-[22px] items-center justify-center rounded-full transition-opacity duration-150 bg-accent text-accent-foreground disabled:pointer-events-none ${hovered ? "opacity-100" : "opacity-0"}`}
           aria-label="Dismiss"
           disabled={busy}
           onClick={() => void dismissMutation.mutateAsync()}
         >
           <svg
-            className="size-[8px]"
+            className="size-[10px]"
             viewBox="0 0 12 12"
             fill="none"
             stroke="currentColor"

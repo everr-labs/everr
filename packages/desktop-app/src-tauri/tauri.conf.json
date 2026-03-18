@@ -29,6 +29,7 @@
         }
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }
