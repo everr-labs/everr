@@ -25,7 +25,6 @@ export type FailureNotification = {
   jobName?: string;
   stepNumber?: string;
   stepName?: string;
-  autoFixPrompt?: string;
 };
 
 type TestNotificationResponse = {

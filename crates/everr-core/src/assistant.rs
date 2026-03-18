@@ -410,11 +410,10 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        AssistantKind, assistant_root_for_home, content_for_assistant, path_for_assistant_in,
-        init_repo_instructions, refresh_existing_managed_prompts_in,
+        AssistantKind, assistant_root_for_home, content_for_assistant, init_repo_instructions,
+        path_for_assistant_in, refresh_existing_managed_prompts_in,
         remove_managed_block_for_assistant, render_assistant_instructions,
-        render_repo_assistant_instructions,
-        upsert_generic_managed_block, upsert_managed_block,
+        render_repo_assistant_instructions, upsert_generic_managed_block, upsert_managed_block,
     };
 
     #[test]
@@ -577,8 +576,10 @@ mod tests {
     #[test]
     fn generic_upsert_replaces_existing_managed_block() {
         let current = "# notes\n\n<!-- BEGIN everr -->\nold\n<!-- END everr -->\n";
-        let next =
-            upsert_generic_managed_block(current, "<!-- BEGIN everr -->\nnew\n<!-- END everr -->\n");
+        let next = upsert_generic_managed_block(
+            current,
+            "<!-- BEGIN everr -->\nnew\n<!-- END everr -->\n",
+        );
 
         assert!(next.contains("<!-- BEGIN everr -->"));
         assert!(next.contains("new"));

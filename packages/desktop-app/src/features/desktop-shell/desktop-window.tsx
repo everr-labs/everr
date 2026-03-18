@@ -4,9 +4,7 @@ import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import { toErrorMessageText } from "../../lib/tauri";
 import { AccountHeaderAction, AuthSettingsSection } from "../auth/auth";
 import { AssistantsSection } from "../assistants/assistants";
-import { CliInstallSection } from "../cli-install/cli-install";
 import { DeveloperNotificationSection } from "../notifications/notification-window";
-import { LaunchAtLoginSection } from "../launch-at-login/launch-at-login";
 import {
   SetupWizard,
   useWizardStatusQuery,
@@ -38,8 +36,8 @@ export function DesktopWindow() {
         title={showingWizard ? "Installation wizard" : "Settings"}
         description={
           showingWizard
-            ? "Authenticate, choose assistant integrations, install the CLI, and decide whether Everr should start in the background when you log in."
-            : "Manage your desktop connection, assistant integrations, and launch behavior from one panel."
+            ? "Authenticate and choose assistant integrations."
+            : "Manage your desktop connection and assistant integrations from one panel."
         }
         headerAction={!showingWizard ? <AccountHeaderAction /> : undefined}
       >
@@ -56,8 +54,6 @@ function SettingsScreen() {
         <AuthSettingsSection />
       </div>
       <AssistantsSection />
-      <CliInstallSection />
-      <LaunchAtLoginSection />
       {import.meta.env.DEV && (
         <>
           <Separator className="bg-[var(--settings-border-soft)]" />

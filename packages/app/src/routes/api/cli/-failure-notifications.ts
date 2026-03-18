@@ -51,7 +51,6 @@ export type FailureNotification = {
   jobName?: string;
   stepNumber?: string;
   stepName?: string;
-  autoFixPrompt?: string;
 };
 
 type FailureNotificationsOptions = {
@@ -62,7 +61,6 @@ type FailureNotificationsOptions = {
   repo?: string;
   branch?: string;
   unresolvedOnly?: boolean;
-  preloadNotificationContext?: boolean;
 };
 
 export async function getFailureNotifications({
@@ -73,7 +71,6 @@ export async function getFailureNotifications({
   repo,
   branch,
   unresolvedOnly = false,
-  preloadNotificationContext = false,
 }: FailureNotificationsOptions): Promise<FailureNotification[]> {
   const failures = await loadFailureRuns(context, {
     gitEmail,
@@ -115,68 +112,7 @@ export async function getFailureNotifications({
     };
   });
 
-  if (!preloadNotificationContext) {
-    return notifications;
-  }
-
-  return notifications.map((notification) => ({
-    ...notification,
-    autoFixPrompt: buildAutoFixPrompt([notification]),
-  }));
-}
-
-export function buildAutoFixPrompt(failures: FailureNotification[]): string {
-  if (failures.length === 0) {
-    return "";
-  }
-
-  const failuresByRepo = new Map<string, FailureNotification[]>();
-  for (const failure of failures) {
-    const repoFailures = failuresByRepo.get(failure.repo);
-    if (repoFailures) {
-      repoFailures.push(failure);
-    } else {
-      failuresByRepo.set(failure.repo, [failure]);
-    }
-  }
-
-  const sections = [
-    "Investigate and fix these unresolved CI pipeline failures.",
-    "Use Everr CLI from the current project directory before guessing.",
-    "",
-    "Required workflow:",
-    "- Start by pulling logs with the exact `everr runs logs` command listed for each failure below.",
-    "- Make the smallest repo-local fix that addresses the root cause.",
-    "- Run the narrowest relevant test or check before finishing.",
-    "- Work repo-by-repo. If a repo is not available locally, say so explicitly.",
-    "",
-    "Current unresolved failures:",
-  ];
-
-  for (const [repo, repoFailures] of failuresByRepo) {
-    sections.push(``);
-    sections.push(`Repo: ${repo}`);
-    for (const failure of repoFailures) {
-      const failingStep =
-        failure.jobName && failure.stepNumber
-          ? ` | step ${failure.jobName} #${failure.stepNumber}${failure.stepName ? ` (${failure.stepName})` : ""}`
-          : "";
-      sections.push(
-        `- branch ${failure.branch} | workflow ${failure.workflowName} | trace ${failure.traceId} | failed at ${failure.failedAt}${failingStep}`,
-      );
-      const logsCommand = buildRunsLogsCommand(failure);
-      if (logsCommand) {
-        sections.push(`  logs: \`${logsCommand}\``);
-      }
-    }
-  }
-
-  sections.push("");
-  sections.push(
-    "Return a concise summary with root cause, code changes, verification, and any follow-up risk.",
-  );
-
-  return sections.join("\n");
+  return notifications;
 }
 
 async function loadFailureRuns(
@@ -575,16 +511,6 @@ function parseStepNumber(value: string): number {
 
 function isSkippedConclusion(value: string): boolean {
   return value.trim().toLowerCase() === "skip";
-}
-
-function buildRunsLogsCommand(failure: FailureNotification): string | null {
-  if (!failure.jobName || !failure.stepNumber) {
-    return null;
-  }
-
-  return `everr runs logs --trace-id ${failure.traceId} --job-name ${JSON.stringify(
-    failure.jobName,
-  )} --step-number ${failure.stepNumber}`;
 }
 
 function createScopeKey(repo: string, branch: string): string {

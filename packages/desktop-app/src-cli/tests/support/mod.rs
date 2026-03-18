@@ -59,8 +59,14 @@ impl CliTestEnv {
         }
 
         let body = serde_json::json!({
-            "api_base_url": api_base_url,
-            "token": token,
+            "session": {
+                "api_base_url": api_base_url,
+                "token": token,
+            },
+            "settings": {
+                "completed_base_url": null,
+                "wizard_completed": false,
+            },
         });
         fs::write(
             session_path,

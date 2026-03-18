@@ -122,7 +122,6 @@ describe("/api/cli/notifier/failures", () => {
         workflowName: "CI",
         failedAt: "2026-03-07T13:32:00Z",
         detailsUrl: "http://localhost/runs/trace-123",
-        autoFixPrompt: expect.stringContaining("trace-123"),
       },
     ]);
   });
@@ -226,11 +225,7 @@ describe("/api/cli/notifier/failures", () => {
       stepNumber: "1",
       stepName: "Install dependencies",
     });
-    expect(payload[0].autoFixPrompt).toContain("trace-123");
-    expect(payload[0].autoFixPrompt).toContain(
-      'everr runs logs --trace-id trace-123 --job-name "test" --step-number 1',
-    );
-    expect(payload[0].autoFixPrompt).not.toContain("http://localhost");
+    expect(payload[0]).not.toHaveProperty("autoFixPrompt");
   });
 
   it("falls back to the latest step in a failed job when no explicit failing step exists", async () => {
@@ -289,9 +284,6 @@ describe("/api/cli/notifier/failures", () => {
     expect(payload[0].jobName).toBe("test");
     expect(payload[0].stepNumber).toBe("3");
     expect(payload[0].stepName).toBe("Run suite");
-    expect(payload[0].autoFixPrompt).toContain("trace-123");
-    expect(payload[0].autoFixPrompt).toContain(
-      'everr runs logs --trace-id trace-123 --job-name "test" --step-number 3',
-    );
+    expect(payload[0]).not.toHaveProperty("autoFixPrompt");
   });
 });

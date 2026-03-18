@@ -1,219 +1,15 @@
-use std::fs;
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use reqwest::header::CONTENT_TYPE;
-use serde::{Deserialize, Serialize};
-use serde::de::DeserializeOwned;
-use serde_json::{Map, Value};
+use serde::Deserialize;
 use tokio::time::sleep;
 
-use crate::build;
-
-const NO_ACTIVE_SESSION: &str = "no active session";
+use crate::state::{AppStateStore, Session};
 
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
     pub api_base_url: String,
-}
-
-const SETTINGS_KEY: &str = "settings";
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Session {
-    pub api_base_url: String,
-    pub token: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionDocument<TSettings> {
-    pub session: Option<Session>,
-    pub settings: Option<TSettings>,
-}
-
-impl<TSettings> Default for SessionDocument<TSettings> {
-    fn default() -> Self {
-        Self {
-            session: None,
-            settings: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionStore {
-    namespace: String,
-    session_file_name: String,
-}
-
-impl SessionStore {
-    pub fn for_namespace(namespace: impl Into<String>) -> Self {
-        Self::for_namespace_with_file_name(namespace, build::default_session_file_name())
-    }
-
-    pub fn for_namespace_with_file_name(
-        namespace: impl Into<String>,
-        session_file_name: impl Into<String>,
-    ) -> Self {
-        Self {
-            namespace: namespace.into(),
-            session_file_name: session_file_name.into(),
-        }
-    }
-
-    pub fn namespace(&self) -> &str {
-        &self.namespace
-    }
-
-    pub fn session_file_name(&self) -> &str {
-        &self.session_file_name
-    }
-
-    pub fn session_file_path(&self) -> Result<PathBuf> {
-        let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
-        Ok(config_dir
-            .join(&self.namespace)
-            .join(&self.session_file_name))
-    }
-
-    pub fn load_session(&self) -> Result<Session> {
-        let document = self.load_document::<Value>()?;
-        document.session.ok_or_else(|| anyhow::anyhow!(NO_ACTIVE_SESSION))
-    }
-
-    pub fn save_session(&self, session: &Session) -> Result<()> {
-        let mut document = self.load_document::<Value>().unwrap_or_default();
-        document.session = Some(session.clone());
-        self.save_document(&document)
-    }
-
-    pub fn clear_session(&self) -> Result<bool> {
-        let path = self.session_file_path()?;
-        if path.exists() {
-            fs::remove_file(&path)
-                .with_context(|| format!("failed to remove {}", path.display()))?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    pub fn has_active_session(&self) -> Result<bool> {
-        Ok(self.load_document::<Value>()?.session.is_some())
-    }
-
-    pub fn load_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<Session> {
-        let session = self.load_session()?;
-        if session_matches_api_base_url(&session.api_base_url, expected_api_base_url) {
-            return Ok(session);
-        }
-
-        self.clear_session()?;
-        bail!(NO_ACTIVE_SESSION);
-    }
-
-    pub fn has_active_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<bool> {
-        match self.load_session_for_api_base_url(expected_api_base_url) {
-            Ok(_) => Ok(true),
-            Err(error) if is_no_active_session_error(&error) => Ok(false),
-            Err(error) => Err(error),
-        }
-    }
-
-    pub fn clear_mismatched_session(&self, expected_api_base_url: &str) -> Result<bool> {
-        let session = match self.load_session() {
-            Ok(session) => session,
-            Err(error) if is_no_active_session_error(&error) => return Ok(false),
-            Err(error) => return Err(error),
-        };
-
-        if session_matches_api_base_url(&session.api_base_url, expected_api_base_url) {
-            return Ok(false);
-        }
-
-        self.clear_session()?;
-        Ok(true)
-    }
-
-    pub fn load_document<TSettings>(&self) -> Result<SessionDocument<TSettings>>
-    where
-        TSettings: DeserializeOwned,
-    {
-        let path = self.session_file_path()?;
-        if !path.exists() {
-            return Ok(SessionDocument::default());
-        }
-
-        let raw = fs::read_to_string(&path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
-        let value = serde_json::from_str::<Value>(&raw)
-            .with_context(|| format!("failed to parse {}", path.display()))?;
-        let object = value
-            .as_object()
-            .ok_or_else(|| anyhow::anyhow!("{} must contain a JSON object", path.display()))?;
-
-        let session = if object.contains_key("api_base_url") || object.contains_key("token") {
-            Some(
-                serde_json::from_value::<Session>(Value::Object(object.clone()))
-                    .context("failed to parse saved session")?,
-            )
-        } else {
-            None
-        };
-
-        let settings = object
-            .get(SETTINGS_KEY)
-            .cloned()
-            .map(serde_json::from_value::<TSettings>)
-            .transpose()
-            .context("failed to parse saved settings")?;
-
-        Ok(SessionDocument { session, settings })
-    }
-
-    pub fn save_document<TSettings>(&self, document: &SessionDocument<TSettings>) -> Result<()>
-    where
-        TSettings: Serialize,
-    {
-        let path = self.session_file_path()?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-
-        if document.session.is_none() && document.settings.is_none() {
-            if path.exists() {
-                fs::remove_file(&path)
-                    .with_context(|| format!("failed to remove {}", path.display()))?;
-            }
-            return Ok(());
-        }
-
-        let mut root = Map::new();
-        if let Some(session) = &document.session {
-            let session_value =
-                serde_json::to_value(session).context("failed to serialize session")?;
-            let session_object = session_value
-                .as_object()
-                .ok_or_else(|| anyhow::anyhow!("serialized session must be a JSON object"))?;
-            for (key, value) in session_object {
-                root.insert(key.clone(), value.clone());
-            }
-        }
-        if let Some(settings) = &document.settings {
-            root.insert(
-                SETTINGS_KEY.to_string(),
-                serde_json::to_value(settings).context("failed to serialize settings")?,
-            );
-        }
-
-        let serialized =
-            serde_json::to_string_pretty(&Value::Object(root)).context("failed to serialize document")?;
-        fs::write(&path, serialized)
-            .with_context(|| format!("failed to write {}", path.display()))?;
-        Ok(())
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -256,7 +52,7 @@ pub enum DevicePollStatus {
 
 pub async fn login_with_prompt<F>(
     config: &AuthConfig,
-    store: &SessionStore,
+    store: &AppStateStore,
     show_prompt: F,
 ) -> Result<Session>
 where
@@ -264,7 +60,10 @@ where
 {
     let client = build_http_client()?;
     let authorization = start_device_authorization(&client, config).await?;
-    show_prompt(authorization.verification_url.clone(), &authorization.user_code);
+    show_prompt(
+        authorization.verification_url.clone(),
+        &authorization.user_code,
+    );
     login_with_device_authorization(config, store, authorization).await
 }
 
@@ -305,7 +104,10 @@ pub async fn poll_device_authorization(
     let token_response = client
         .post(&poll_url)
         .header(CONTENT_TYPE, "application/json")
-        .body(format!("{{\"device_code\":\"{}\"}}", authorization.device_code))
+        .body(format!(
+            "{{\"device_code\":\"{}\"}}",
+            authorization.device_code
+        ))
         .send()
         .await
         .context("failed while polling for CLI access token")?;
@@ -336,7 +138,7 @@ pub async fn poll_device_authorization(
 
 pub async fn login_with_device_authorization(
     config: &AuthConfig,
-    store: &SessionStore,
+    store: &AppStateStore,
     authorization: DeviceAuthorization,
 ) -> Result<Session> {
     let client = build_http_client()?;
@@ -346,19 +148,16 @@ pub async fn login_with_device_authorization(
         authorization,
     )
     .await?;
-    let session = build_session(config.api_base_url.clone(), token)?;
+    let session = session_from_device_token(config, token)?;
     store.save_session(&session)?;
     Ok(session)
 }
 
-pub fn save_session_from_device_token(
+pub fn session_from_device_token(
     config: &AuthConfig,
-    store: &SessionStore,
     token: DeviceTokenResponse,
 ) -> Result<Session> {
-    let session = build_session(config.api_base_url.clone(), token)?;
-    store.save_session(&session)?;
-    Ok(session)
+    build_session(config.api_base_url.clone(), token)
 }
 
 fn build_http_client() -> Result<reqwest::Client> {
@@ -371,14 +170,6 @@ pub fn build_auth_http_client() -> Result<reqwest::Client> {
     build_http_client()
 }
 
-pub fn is_no_active_session_error(error: &anyhow::Error) -> bool {
-    error.to_string() == NO_ACTIVE_SESSION
-}
-
-fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
-    actual.trim_end_matches('/') == expected.trim_end_matches('/')
-}
-
 fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Session> {
     if token.access_token.trim().is_empty() {
         bail!("received an empty access token");
@@ -389,7 +180,9 @@ fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Ses
     })
 }
 
-fn map_device_authorization(authorization_body: DeviceAuthorizationResponse) -> DeviceAuthorization {
+fn map_device_authorization(
+    authorization_body: DeviceAuthorizationResponse,
+) -> DeviceAuthorization {
     let DeviceAuthorizationResponse {
         device_code,
         user_code,
@@ -426,7 +219,10 @@ async fn complete_device_authorization_with_url(
         let token_response = client
             .post(poll_url)
             .header(CONTENT_TYPE, "application/json")
-            .body(format!("{{\"device_code\":\"{}\"}}", authorization.device_code))
+            .body(format!(
+                "{{\"device_code\":\"{}\"}}",
+                authorization.device_code
+            ))
             .send()
             .await
             .context("failed while polling for CLI access token")?;
@@ -461,68 +257,20 @@ async fn complete_device_authorization_with_url(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
-    use tempfile::tempdir;
-
-    use super::{Session, SessionStore};
-    use crate::build;
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use super::{AuthConfig, DeviceTokenResponse, session_from_device_token};
 
     #[test]
-    fn default_session_store_matches_current_build_defaults() {
-        let store = SessionStore::for_namespace("everr");
+    fn session_from_device_token_rejects_blank_tokens() {
+        let error = session_from_device_token(
+            &AuthConfig {
+                api_base_url: "https://app.everr.dev".to_string(),
+            },
+            DeviceTokenResponse {
+                access_token: "   ".to_string(),
+            },
+        )
+        .expect_err("blank token should fail");
 
-        assert_eq!(store.namespace(), "everr");
-        assert_eq!(
-            store.session_file_name(),
-            build::default_session_file_name()
-        );
-    }
-
-    #[test]
-    fn custom_session_file_name_is_preserved() {
-        let store = SessionStore::for_namespace_with_file_name("everr", "session-dev.json");
-
-        assert_eq!(store.namespace(), "everr");
-        assert_eq!(store.session_file_name(), "session-dev.json");
-    }
-
-    #[test]
-    fn load_session_for_api_base_url_clears_mismatched_session() {
-        let _guard = ENV_LOCK.lock().expect("lock env");
-        let temp = tempdir().expect("tempdir");
-        let home = temp.path().join("home");
-        std::fs::create_dir_all(&home).expect("create home dir");
-
-        let original_home = std::env::var_os("HOME");
-        let original_xdg = std::env::var_os("XDG_CONFIG_HOME");
-        unsafe {
-            std::env::set_var("HOME", &home);
-            std::env::remove_var("XDG_CONFIG_HOME");
-        }
-
-        let store = SessionStore::for_namespace("everr");
-        let session = Session {
-            api_base_url: "https://app.everr.dev".to_string(),
-            token: "token-123".to_string(),
-        };
-        store.save_session(&session).expect("save session");
-
-        let error = store
-            .load_session_for_api_base_url("http://localhost:5173")
-            .expect_err("mismatched session should be rejected");
-        assert_eq!(error.to_string(), "no active session");
-        assert!(!store.session_file_path().expect("session path").exists());
-
-        match original_home {
-            Some(value) => unsafe { std::env::set_var("HOME", value) },
-            None => unsafe { std::env::remove_var("HOME") },
-        }
-        match original_xdg {
-            Some(value) => unsafe { std::env::set_var("XDG_CONFIG_HOME", value) },
-            None => unsafe { std::env::remove_var("XDG_CONFIG_HOME") },
-        }
+        assert_eq!(error.to_string(), "received an empty access token");
     }
 }

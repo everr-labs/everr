@@ -23,7 +23,6 @@ export type AssistantStatus = {
 
 export type AssistantSetup = {
   assistant_statuses: AssistantStatus[];
-  assistant_step_seen: boolean;
 };
 
 export const assistantSetupQueryKey = ["desktop-app", "assistant-setup"] as const;
@@ -34,10 +33,6 @@ function getAssistantSetup() {
 
 function configureAssistants(assistants: AssistantKind[]) {
   return invokeCommand<AssistantSetup>("configure_assistants", { assistants });
-}
-
-function markAssistantStepSeen() {
-  return invokeCommand<AssistantSetup>("mark_assistant_step_seen");
 }
 
 export function useAssistantSetupQuery() {
@@ -56,20 +51,6 @@ export function useSaveAssistantsMutation() {
 
   return useMutation({
     mutationFn: configureAssistants,
-    onSuccess(data) {
-      queryClient.setQueryData(assistantSetupQueryKey, data);
-    },
-    onError(error) {
-      toast.error(toErrorMessageText(error));
-    },
-  });
-}
-
-export function useMarkAssistantStepSeenMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: markAssistantStepSeen,
     onSuccess(data) {
       queryClient.setQueryData(assistantSetupQueryKey, data);
     },

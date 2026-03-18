@@ -105,7 +105,9 @@ fn setup_assistant_help_lists_supported_assistants() {
         .args(["setup-assistant", "--help"])
         .assert()
         .success()
-        .stdout(contains("Add Everr instructions to AGENTS.md in the current repository"))
+        .stdout(contains(
+            "Add Everr instructions to AGENTS.md in the current repository",
+        ))
         .stdout(predicates::str::contains("--assistant").not());
 }
 
@@ -117,7 +119,9 @@ fn ai_instructions_help_describes_full_guidance_output() {
         .args(["ai-instructions", "--help"])
         .assert()
         .success()
-        .stdout(contains("Print the full AI instructions for Everr CLI usage"));
+        .stdout(contains(
+            "Print the full AI instructions for Everr CLI usage",
+        ));
 }
 
 #[test]

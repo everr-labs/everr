@@ -35,11 +35,6 @@ type SignInResponse =
   | { status: "signed_in"; session_path: string }
   | { status: "denied" | "expired" };
 
-type CliInstallStatus = {
-  status: "installed" | "not_installed";
-  install_path: string;
-};
-
 type AssistantStatus = {
   assistant: AssistantKind;
   detected: boolean;
@@ -49,12 +44,6 @@ type AssistantStatus = {
 
 type AssistantSetup = {
   assistant_statuses: AssistantStatus[];
-  assistant_step_seen: boolean;
-};
-
-type LaunchAtLoginStatus = {
-  launch_at_login_enabled: boolean;
-  launch_at_login_step_seen: boolean;
 };
 
 type WizardStatus = {
@@ -72,7 +61,6 @@ type FailureNotification = {
   jobName?: string;
   stepNumber?: string;
   stepName?: string;
-  autoFixPrompt?: string;
 };
 
 type TestNotificationResponse = {
@@ -89,24 +77,14 @@ type MainCommand =
   | "sign_out"
   | "get_assistant_setup"
   | "configure_assistants"
-  | "mark_assistant_step_seen"
-  | "get_cli_install_status"
-  | "install_cli"
-  | "get_launch_at_login_status"
-  | "set_launch_at_login"
-  | "mark_launch_at_login_step_seen"
   | "complete_setup_wizard"
   | "reset_dev_onboarding"
   | "trigger_test_notification";
 
 type RenderMainOptions = {
   signedIn?: boolean;
-  cliInstalled?: boolean;
   wizardCompleted?: boolean;
-  assistantStepSeen?: boolean;
-  launchStepSeen?: boolean;
   configuredAssistants?: AssistantKind[];
-  launchAtLoginEnabled?: boolean;
   assistantStatuses?: AssistantStatus[];
   testNotification?: TestNotificationResponse;
   pendingSignIn?: PendingSignIn | null;
@@ -145,7 +123,6 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
     jobName: "test",
     stepNumber: "3",
     stepName: "Run suite",
-    autoFixPrompt: "Investigate and fix trace-one.",
     ...overrides,
   };
 }
@@ -175,16 +152,13 @@ function defaultAssistantStatuses(configuredAssistants: AssistantKind[] = []): A
 
 function createAssistantSetup({
   configuredAssistants = [],
-  assistantStepSeen = true,
   assistantStatuses = defaultAssistantStatuses(configuredAssistants),
 }: {
   configuredAssistants?: AssistantKind[];
-  assistantStepSeen?: boolean;
   assistantStatuses?: AssistantStatus[];
 } = {}): AssistantSetup {
   return {
     assistant_statuses: assistantStatuses,
-    assistant_step_seen: assistantStepSeen,
   };
 }
 
@@ -193,25 +167,17 @@ function renderMainApp(options: RenderMainOptions = {}) {
     status: options.signedIn === false ? "signed_out" : "signed_in",
     session_path: "/tmp/everr/session.json",
   };
-  let cliStatus: CliInstallStatus = {
-    status: options.cliInstalled === false ? "not_installed" : "installed",
-    install_path: "/tmp/everr/bin/everr",
-  };
   let assistantSetup = createAssistantSetup({
     configuredAssistants: options.configuredAssistants ?? [],
-    assistantStepSeen: options.assistantStepSeen ?? true,
     assistantStatuses:
       options.assistantStatuses ?? defaultAssistantStatuses(options.configuredAssistants ?? []),
   });
-  let launchAtLoginStatus: LaunchAtLoginStatus = {
-    launch_at_login_enabled: options.launchAtLoginEnabled ?? false,
-    launch_at_login_step_seen: options.launchStepSeen ?? true,
-  };
   let wizardStatus: WizardStatus = {
     wizard_completed: options.wizardCompleted ?? true,
   };
   let pendingSignIn: PendingSignIn | null = options.pendingSignIn ?? null;
   const openSignInBrowserSpy = vi.fn(() => null);
+  const closeWindowSpy = vi.fn(() => null);
   const resetDevOnboardingSpy = vi.fn(() => {
     authStatus = {
       ...authStatus,
@@ -243,6 +209,8 @@ function renderMainApp(options: RenderMainOptions = {}) {
       }
 
       switch (cmd) {
+        case "plugin:window|close":
+          return closeWindowSpy();
         case "get_wizard_status":
           return wizardStatus;
         case "get_auth_status":
@@ -275,7 +243,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
           const selected = payload.assistants ?? [];
           assistantSetup = {
             ...assistantSetup,
-            assistant_step_seen: true,
             assistant_statuses: assistantSetup.assistant_statuses.map((status) => ({
               ...status,
               configured: selected.includes(status.assistant),
@@ -283,42 +250,8 @@ function renderMainApp(options: RenderMainOptions = {}) {
           };
           return assistantSetup;
         }
-        case "mark_assistant_step_seen":
-          assistantSetup = {
-            ...assistantSetup,
-            assistant_step_seen: true,
-          };
-          return assistantSetup;
-        case "get_cli_install_status":
-          return cliStatus;
-        case "install_cli":
-          cliStatus = {
-            ...cliStatus,
-            status: "installed",
-          };
-          return cliStatus;
-        case "get_launch_at_login_status":
-          return launchAtLoginStatus;
-        case "set_launch_at_login":
-          launchAtLoginStatus = {
-            ...launchAtLoginStatus,
-            launch_at_login_enabled: Boolean(payload.enabled),
-            launch_at_login_step_seen: true,
-          };
-          return launchAtLoginStatus;
-        case "mark_launch_at_login_step_seen":
-          launchAtLoginStatus = {
-            ...launchAtLoginStatus,
-            launch_at_login_step_seen: true,
-          };
-          return launchAtLoginStatus;
         case "complete_setup_wizard":
           wizardStatus = { wizard_completed: true };
-          assistantSetup = { ...assistantSetup, assistant_step_seen: true };
-          launchAtLoginStatus = {
-            ...launchAtLoginStatus,
-            launch_at_login_step_seen: true,
-          };
           return wizardStatus;
         case "reset_dev_onboarding":
           return resetDevOnboardingSpy();
@@ -334,14 +267,12 @@ function renderMainApp(options: RenderMainOptions = {}) {
   renderWithProviders(<App />);
 
   return {
+    closeWindowSpy,
     openSignInBrowserSpy,
     resetDevOnboardingSpy,
     triggerTestNotificationSpy,
     setAssistantSetup(next: AssistantSetup) {
       assistantSetup = next;
-    },
-    setLaunchAtLoginStatus(next: LaunchAtLoginStatus) {
-      launchAtLoginStatus = next;
     },
     setWizardStatus(next: WizardStatus) {
       wizardStatus = next;
@@ -468,7 +399,7 @@ describe("desktop window", () => {
 
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(screen.queryByText("Authenticate your Everr account")).not.toBeInTheDocument();
-    expect(screen.getByText("Background tasks")).toBeInTheDocument();
+    expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
   });
 
   it("loads settings sections independently", async () => {
@@ -483,47 +414,17 @@ describe("desktop window", () => {
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Logout" })).toBeInTheDocument();
     expect(screen.getByText("Loading assistant integrations...")).toBeInTheDocument();
-    expect(screen.getByText("Background tasks")).toBeInTheDocument();
+    expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
 
     assistantSetupDeferred.resolve(createAssistantSetup());
     await screen.findByRole("button", { name: "Save integrations" });
   });
 
-  it("keeps unrelated sections enabled while a mutation is pending", async () => {
-    const installCliDeferred = createDeferred<CliInstallStatus>();
-
-    renderMainApp({
-      cliInstalled: false,
-      commandOverrides: {
-        install_cli: () => installCliDeferred.promise,
-      },
-    });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Install CLI" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Install CLI" })).toBeDisabled();
-    });
-    expect(screen.getByRole("button", { name: "Enable" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Save integrations" })).toBeEnabled();
-
-    await act(async () => {
-      installCliDeferred.resolve({
-        status: "installed",
-        install_path: "/tmp/everr/bin/everr",
-      });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-  });
-
   it("renders the first-run wizard for incomplete setup", async () => {
     renderMainApp({
       signedIn: false,
-      cliInstalled: false,
       wizardCompleted: false,
       assistantStepSeen: false,
-      launchStepSeen: false,
     });
 
     expect(
@@ -536,10 +437,8 @@ describe("desktop window", () => {
   it("does not preselect assistants on the assistant step", async () => {
     renderMainApp({
       signedIn: true,
-      cliInstalled: false,
       wizardCompleted: false,
       assistantStepSeen: false,
-      launchStepSeen: false,
       assistantStatuses: defaultAssistantStatuses(),
     });
 
@@ -552,10 +451,8 @@ describe("desktop window", () => {
   it("does not advance when toggling an assistant in the wizard", async () => {
     renderMainApp({
       signedIn: true,
-      cliInstalled: false,
       wizardCompleted: false,
       assistantStepSeen: false,
-      launchStepSeen: false,
       assistantStatuses: defaultAssistantStatuses(),
     });
 
@@ -563,16 +460,14 @@ describe("desktop window", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
 
     expect(screen.getByText("Select assistants to integrate")).toBeInTheDocument();
-    expect(screen.queryByText("Enable background startup")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
   });
 
   it("advances from authentication to assistant selection after sign in", async () => {
     renderMainApp({
       signedIn: false,
-      cliInstalled: false,
       wizardCompleted: false,
       assistantStepSeen: false,
-      launchStepSeen: false,
       commandOverrides: {
         poll_sign_in: () => ({
           status: "signed_in",
@@ -589,10 +484,8 @@ describe("desktop window", () => {
   it("shows the device code before opening the browser", async () => {
     const harness = renderMainApp({
       signedIn: false,
-      cliInstalled: false,
       wizardCompleted: false,
       assistantStepSeen: false,
-      launchStepSeen: false,
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
@@ -612,10 +505,8 @@ describe("desktop window", () => {
   it("marks the code as expired and disables browser open until refresh", async () => {
     renderMainApp({
       signedIn: false,
-      cliInstalled: false,
       wizardCompleted: false,
       assistantStepSeen: false,
-      launchStepSeen: false,
       pendingSignIn: {
         status: "pending",
         user_code: "WXYZ-1234",
@@ -638,20 +529,20 @@ describe("desktop window", () => {
     });
   });
 
-  it("saves assistant choices and advances to launch at login", async () => {
-    renderMainApp({
+  it("saves assistant choices and finishes setup from the final wizard step", async () => {
+    const { closeWindowSpy } = renderMainApp({
       signedIn: true,
-      cliInstalled: false,
       wizardCompleted: false,
       assistantStepSeen: false,
-      launchStepSeen: false,
     });
 
     await screen.findByText("Select assistants to integrate");
     fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
 
-    expect(await screen.findByText("Enable background startup")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(closeWindowSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("preserves assistant draft across invalidation and resets after save", async () => {
@@ -696,19 +587,19 @@ describe("desktop window", () => {
     expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
   });
 
-  it("supports skipping launch at login and finishing the wizard", async () => {
-    renderMainApp({
+  it("finishes the wizard when assistants are already configured", async () => {
+    const { closeWindowSpy } = renderMainApp({
       signedIn: true,
-      cliInstalled: true,
       wizardCompleted: false,
       assistantStepSeen: true,
-      launchStepSeen: false,
     });
 
-    await screen.findByText("Enable background startup");
+    await screen.findByText("Select assistants to integrate");
     fireEvent.click(await screen.findByRole("button", { name: "Finish" }));
 
-    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(closeWindowSpy).toHaveBeenCalledTimes(1);
+    });
     expect(await screen.findByText("Setup complete.")).toBeInTheDocument();
   });
 
