@@ -10,7 +10,6 @@ function makeLine(
   return {
     timestamp,
     body: "test",
-    htmlContent: "test",
     markerType,
     isGroupEnd,
   };

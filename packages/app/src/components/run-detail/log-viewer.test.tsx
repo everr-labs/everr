@@ -97,4 +97,11 @@ describe("LogViewer", () => {
     await user.click(screen.getByText("Setup"));
     expect(screen.queryByText("Installing deps...")).not.toBeInTheDocument();
   });
+
+  it("renders ANSI escape codes", () => {
+    render(<LogViewer logs={[makeLog("\x1b[31mHello\x1b[0m", 0)]} />);
+    screen.debug();
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+    expect(screen.getByText("Hello")).toHaveClass("ansi-red-fg");
+  });
 });

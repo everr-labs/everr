@@ -1,3 +1,11 @@
+import AnsiImport from "ansi-to-react";
+
+// Handle CJS interop — Vite may double-wrap the default export
+const Ansi =
+  typeof AnsiImport === "function"
+    ? AnsiImport
+    : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
+
 import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
@@ -252,11 +260,11 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
                     !isCollapsed && "rotate-90",
                   )}
                 />
-                <span
-                  className="font-medium"
-                  // biome-ignore lint/security/noDangerouslySetInnerHtml: ANSI-parsed content
-                  dangerouslySetInnerHTML={{ __html: line.htmlContent }}
-                />
+
+                <Ansi useClasses linkify>
+                  {line.body}
+                </Ansi>
+
                 <span className="text-muted-foreground select-none pl-2">
                   {formatTimestampTimeOfDay(line.timestamp)}
                 </span>
@@ -289,10 +297,10 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
                 </span>
                 <span />
                 <span />
-                <span
-                  // biome-ignore lint/security/noDangerouslySetInnerHtml: ANSI-parsed content
-                  dangerouslySetInnerHTML={{ __html: line.htmlContent }}
-                />
+                <Ansi useClasses linkify>
+                  {line.body}
+                </Ansi>
+
                 {hideTimestamp ? (
                   <span />
                 ) : (
@@ -323,10 +331,9 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
               <span className="text-muted-foreground select-none pr-2 text-right">
                 {lineNumber}
               </span>
-              <span
-                // biome-ignore lint/security/noDangerouslySetInnerHtml: ANSI-parsed content
-                dangerouslySetInnerHTML={{ __html: line.htmlContent }}
-              />
+              <Ansi useClasses linkify>
+                {line.body}
+              </Ansi>
               <span className="text-muted-foreground select-none pl-2">
                 {formatTimestampTimeOfDay(line.timestamp)}
               </span>
