@@ -42,7 +42,6 @@ export const Route = createFileRoute("/api/cli/notifier/failures")({
           timeWindowMinutes: 5,
           repo: parsed.data.repo,
           branch: parsed.data.branch,
-          preloadNotificationContext: true,
         });
 
         return Response.json(failures);

@@ -4,28 +4,20 @@ import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Separator } from "../../components/ui/separator";
-import { invokeCommand, toErrorMessageText } from "../../lib/tauri";
+import { closeCurrentWindow, invokeCommand, toErrorMessageText } from "../../lib/tauri";
 import { useAuthStatusQuery } from "../auth/auth";
 import {
   type AssistantKind,
   AssistantsWizardStep,
-  useSaveAssistantsMutation,
   useAssistantSetupQuery,
-  useMarkAssistantStepSeenMutation,
+  useSaveAssistantsMutation,
 } from "../assistants/assistants";
-import { useCliInstallStatusQuery, useInstallCliMutation } from "../cli-install/cli-install";
-import {
-  LaunchAtLoginWizardStep,
-  useLaunchAtLoginStatusQuery,
-  useMarkLaunchAtLoginStepSeenMutation,
-} from "../launch-at-login/launch-at-login";
 import { FeatureErrorText, FeatureLoadingText } from "../desktop-shell/ui";
 import { AuthWizardStep } from "../auth/auth";
 
 const WIZARD_STEPS = [
   { id: "authenticate", label: "Authenticate" },
   { id: "assistants", label: "Assistants" },
-  { id: "launch", label: "Launch at login" },
 ] as const;
 
 export type WizardStatus = {
@@ -50,12 +42,9 @@ export function useWizardStatusQuery() {
 }
 
 export function useCompleteSetupWizardMutation() {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: completeSetupWizard,
-    onSuccess(data) {
-      queryClient.setQueryData(wizardStatusQueryKey, data);
+    onSuccess() {
       toast.success("Setup complete.");
     },
     onError(error) {
@@ -65,34 +54,19 @@ export function useCompleteSetupWizardMutation() {
 }
 
 export function SetupWizard() {
+  const queryClient = useQueryClient();
   const authStatusQuery = useAuthStatusQuery();
   const assistantSetupQuery = useAssistantSetupQuery();
-  const cliInstallStatusQuery = useCliInstallStatusQuery();
   const saveAssistantsMutation = useSaveAssistantsMutation();
-  const installCliMutation = useInstallCliMutation();
-  const launchAtLoginStatusQuery = useLaunchAtLoginStatusQuery();
-  const markAssistantStepSeenMutation = useMarkAssistantStepSeenMutation();
-  const markLaunchAtLoginStepSeenMutation = useMarkLaunchAtLoginStepSeenMutation();
   const completeSetupMutation = useCompleteSetupWizardMutation();
   const [wizardStep, setWizardStep] = useState<number | null>(null);
   const [assistantSelection, setAssistantSelection] = useState<AssistantKind[]>([]);
 
   const signedIn = authStatusQuery.data?.status === "signed_in";
-  const cliInstalled = cliInstallStatusQuery.data?.status === "installed";
-  const assistantStepSeen = assistantSetupQuery.data?.assistant_step_seen ?? false;
-  const launchStepSeen = launchAtLoginStatusQuery.data?.launch_at_login_step_seen ?? false;
-  const derivedStep = resolveWizardStepIndex({
-    signedIn,
-    assistantStepSeen,
-    launchStepSeen,
-  });
+  const derivedStep = resolveWizardStepIndex({ signedIn });
   const currentStep = wizardStep ?? derivedStep;
   const isLastStep = currentStep === WIZARD_STEPS.length - 1;
-  const missingInitialData =
-    !authStatusQuery.data ||
-    !assistantSetupQuery.data ||
-    !cliInstallStatusQuery.data ||
-    !launchAtLoginStatusQuery.data;
+  const missingInitialData = !authStatusQuery.data || !assistantSetupQuery.data;
 
   useEffect(() => {
     setWizardStep((current) => {
@@ -105,7 +79,7 @@ export function SetupWizard() {
   }, [derivedStep]);
 
   useEffect(() => {
-    if (!assistantSetupQuery.data || assistantStepSeen) {
+    if (!assistantSetupQuery.data) {
       return;
     }
 
@@ -114,35 +88,30 @@ export function SetupWizard() {
         .filter((status) => status.configured)
         .map((status) => status.assistant),
     );
-  }, [assistantSetupQuery.data, assistantStepSeen]);
-
-  useEffect(() => {
-    if (!signedIn || cliInstalled || installCliMutation.isPending || cliInstallStatusQuery.isPending) {
-      return;
-    }
-
-    void installCliMutation.mutateAsync();
-  }, [signedIn, cliInstalled, installCliMutation, cliInstallStatusQuery.isPending]);
+  }, [assistantSetupQuery.data]);
 
   async function handleContinue() {
-    if (currentStep === 1 && !assistantStepSeen) {
+    if (currentStep === 1) {
       await saveAssistantsMutation.mutateAsync(assistantSelection);
-      await markAssistantStepSeenMutation.mutateAsync();
-      return;
     }
 
     if (currentStep === WIZARD_STEPS.length - 1) {
-      if (!launchStepSeen) {
-        await markLaunchAtLoginStepSeenMutation.mutateAsync();
+      const wizardStatus = await completeSetupMutation.mutateAsync();
+      try {
+        await closeCurrentWindow();
+      } finally {
+        queryClient.setQueryData(wizardStatusQueryKey, wizardStatus);
       }
-      await completeSetupMutation.mutateAsync();
       return;
     }
 
     setWizardStep((value) => Math.min((value ?? derivedStep) + 1, WIZARD_STEPS.length - 1));
   }
 
-  if (missingInitialData && hasPendingQuery([authStatusQuery.isPending, assistantSetupQuery.isPending, cliInstallStatusQuery.isPending, launchAtLoginStatusQuery.isPending])) {
+  if (
+    missingInitialData &&
+    hasPendingQuery([authStatusQuery.isPending, assistantSetupQuery.isPending])
+  ) {
     return (
       <div className="grid gap-0">
         <div className="px-6 py-6 max-[620px]:px-5">
@@ -157,12 +126,7 @@ export function SetupWizard() {
   }
 
   if (missingInitialData) {
-    const firstError = [
-      authStatusQuery.error,
-      assistantSetupQuery.error,
-      cliInstallStatusQuery.error,
-      launchAtLoginStatusQuery.error,
-    ].find((error) => error !== null);
+    const firstError = [authStatusQuery.error, assistantSetupQuery.error].find((error) => error !== null);
 
     return (
       <div className="grid gap-0">
@@ -178,8 +142,6 @@ export function SetupWizard() {
                     onClick={() => {
                       void authStatusQuery.refetch();
                       void assistantSetupQuery.refetch();
-                      void cliInstallStatusQuery.refetch();
-                      void launchAtLoginStatusQuery.refetch();
                     }}
                   >
                     Retry
@@ -195,9 +157,6 @@ export function SetupWizard() {
 
   const continueDisabled =
     saveAssistantsMutation.isPending ||
-    installCliMutation.isPending ||
-    markAssistantStepSeenMutation.isPending ||
-    markLaunchAtLoginStepSeenMutation.isPending ||
     completeSetupMutation.isPending ||
     (currentStep === 0 && !signedIn) ||
     (isLastStep && !signedIn);
@@ -209,20 +168,19 @@ export function SetupWizard() {
           <CardContent className="grid gap-5 px-5 py-5">
             {currentStep === 0 ? <AuthWizardStep /> : null}
             {currentStep === 1 ? (
-              <AssistantsWizardStep
-                assistantSetup={assistantSetupQuery.data}
-                selection={assistantSelection}
-                disabled={saveAssistantsMutation.isPending || markAssistantStepSeenMutation.isPending}
-                onToggle={(assistant) =>
-                  setAssistantSelection((current) =>
-                    current.includes(assistant)
+                <AssistantsWizardStep
+                  assistantSetup={assistantSetupQuery.data}
+                  selection={assistantSelection}
+                  disabled={saveAssistantsMutation.isPending}
+                  onToggle={(assistant) =>
+                    setAssistantSelection((current) =>
+                      current.includes(assistant)
                       ? current.filter((item) => item !== assistant)
                       : [...current, assistant],
                   )
                 }
               />
             ) : null}
-            {currentStep === 2 ? <LaunchAtLoginWizardStep /> : null}
           </CardContent>
         </Card>
       </div>
@@ -263,24 +221,12 @@ function hasPendingQuery(queries: boolean[]) {
 
 function resolveWizardStepIndex({
   signedIn,
-  assistantStepSeen,
-  launchStepSeen,
 }: {
   signedIn: boolean;
-  assistantStepSeen: boolean;
-  launchStepSeen: boolean;
 }) {
   if (!signedIn) {
     return 0;
   }
 
-  if (!assistantStepSeen) {
-    return 1;
-  }
-
-  if (!launchStepSeen) {
-    return 2;
-  }
-
-  return 2;
+  return 1;
 }

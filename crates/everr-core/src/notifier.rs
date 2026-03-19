@@ -39,7 +39,6 @@ mod tests {
             job_name: Some("build".to_string()),
             step_number: Some("3".to_string()),
             step_name: Some("Install dependencies".to_string()),
-            auto_fix_prompt: Some("Investigate and fix trace-1.".to_string()),
         };
 
         assert_eq!(tracker.retain_new(vec![failure.clone()]).len(), 1);

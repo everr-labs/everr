@@ -35,11 +35,7 @@ pub async fn status(args: StatusArgs) -> Result<()> {
         .or(git.branch)
         .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
 
-    let query = vec![
-        ("repo", repo),
-        ("branch", branch),
-        ("commit", commit),
-    ];
+    let query = vec![("repo", repo), ("branch", branch), ("commit", commit)];
     let payload = client.get_watch_status(&query).await?;
     print_json(&payload)?;
     Ok(())
@@ -646,8 +642,8 @@ mod tests {
             Vec::new(),
         );
 
-        assert!(status.contains(
-            "CI (duration: 2m 5s; expected duration: 1m 58s; active jobs: test)"
-        ));
+        assert!(
+            status.contains("CI (duration: 2m 5s; expected duration: 1m 58s; active jobs: test)")
+        );
     }
 }

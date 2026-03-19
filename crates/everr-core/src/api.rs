@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::auth::Session;
+use crate::state::Session;
 
 pub struct ApiClient {
     http: reqwest::Client,
@@ -163,5 +163,4 @@ pub struct FailureNotification {
     pub job_name: Option<String>,
     pub step_number: Option<String>,
     pub step_name: Option<String>,
-    pub auto_fix_prompt: Option<String>,
 }

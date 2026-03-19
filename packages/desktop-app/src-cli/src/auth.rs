@@ -2,8 +2,9 @@ use std::io::{self, Write};
 use std::thread;
 
 use anyhow::{Result, anyhow};
-use everr_core::auth::{AuthConfig, Session, SessionStore, login_with_prompt};
+use everr_core::auth::{AuthConfig, login_with_prompt};
 use everr_core::build;
+use everr_core::state::{AppStateStore, Session};
 
 use crate::cli::LoginArgs;
 
@@ -11,7 +12,7 @@ const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
 
 pub async fn login(_args: LoginArgs) -> Result<()> {
     let config = resolve_auth_config()?;
-    let store = session_store();
+    let store = state_store();
     login_with_prompt(&config, &store, show_device_sign_in_prompt).await?;
     println!(
         "Logged in. Session saved at {}",
@@ -69,7 +70,7 @@ fn trimmed_non_empty(value: &str) -> Option<&str> {
 }
 
 pub fn logout() -> Result<()> {
-    let store = session_store();
+    let store = state_store();
     let had_session = store.clear_session()?;
     if had_session {
         println!("Logged out.");
@@ -81,7 +82,7 @@ pub fn logout() -> Result<()> {
 }
 
 pub async fn require_session_with_refresh() -> Result<Session> {
-    let store = session_store();
+    let store = state_store();
     let api_base_url = current_api_base_url()?;
     match store.load_session_for_api_base_url(&api_base_url) {
         Ok(session) => Ok(session),
@@ -116,8 +117,8 @@ fn command_name() -> String {
         .unwrap_or_else(|| "everr".to_string())
 }
 
-fn session_store() -> SessionStore {
-    SessionStore::for_namespace(build::session_namespace())
+fn state_store() -> AppStateStore {
+    AppStateStore::for_namespace(build::session_namespace())
 }
 
 fn current_api_base_url() -> Result<String> {
@@ -134,11 +135,11 @@ fn current_api_base_url() -> Result<String> {
 mod tests {
     use everr_core::build;
 
-    use super::session_store;
+    use super::state_store;
 
     #[test]
     fn session_namespace_is_fixed() {
-        let store = session_store();
+        let store = state_store();
 
         assert_eq!(store.namespace(), build::session_namespace());
         assert_eq!(

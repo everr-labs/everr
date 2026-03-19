@@ -545,8 +545,8 @@ mod tests {
 
     #[test]
     fn setup_assistant_parses_without_arguments() {
-        let cli = Cli::try_parse_from(["everr", "setup-assistant"])
-            .expect("setup-assistant command");
+        let cli =
+            Cli::try_parse_from(["everr", "setup-assistant"]).expect("setup-assistant command");
 
         assert!(matches!(cli.command, Commands::SetupAssistant));
     }
