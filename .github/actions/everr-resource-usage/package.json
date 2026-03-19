@@ -19,6 +19,6 @@
     "@types/js-yaml": "4.0.9",
     "@types/node": "24.5.2",
     "@vercel/ncc": "0.38.4",
-    "typescript": "5.9.3"
+    "typescript": "catalog:"
   }
 }

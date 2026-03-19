@@ -48,7 +48,7 @@
     "nitro": "npm:nitro-nightly@3.0.1-20260213-154614-f663e76d",
     "srvx": "^0.11.4",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3",
+    "typescript": "catalog:",
     "vite-plugin-svgr": "^4.5.0",
     "vite-tsconfig-paths": "^6.1.1"
   }
