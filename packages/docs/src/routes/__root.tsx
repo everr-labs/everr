@@ -47,7 +47,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="flex flex-col min-h-screen">
-        <RootProvider>
+        <RootProvider
+          theme={{
+            enableColorScheme: false,
+            forcedTheme: "dark",
+            enabled: true,
+          }}
+        >
           <HomeLayout {...baseOptions()}>{children}</HomeLayout>
         </RootProvider>
         <Scripts />
