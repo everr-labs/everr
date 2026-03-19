@@ -68,6 +68,7 @@ function HeroSection() {
         <Button
           variant="cta"
           size="xl"
+          nativeButton={false}
           render={
             // biome-ignore lint/a11y/useAnchorContent: content is injected
             <a href={APP_URL} target="_blank" rel="noopener noreferrer" />
@@ -79,6 +80,7 @@ function HeroSection() {
         <Button
           variant="outline"
           size="xl"
+          nativeButton={false}
           render={<Link to="/docs/$" params={{ _splat: "" }} />}
         >
           Documentation
@@ -880,6 +882,7 @@ function BottomCTA() {
           <Button
             variant="cta"
             size="xl"
+            nativeButton={false}
             render={
               // biome-ignore lint/a11y/useAnchorContent: content is injected
               <a href={APP_URL} target="_blank" rel="noopener noreferrer" />
@@ -891,6 +894,7 @@ function BottomCTA() {
           <Button
             variant="outline"
             size="xl"
+            nativeButton={false}
             render={<Link to="/docs/$" params={{ _splat: "" }} />}
           >
             Documentation
