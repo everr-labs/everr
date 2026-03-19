@@ -424,7 +424,6 @@ describe("desktop window", () => {
     renderMainApp({
       signedIn: false,
       wizardCompleted: false,
-      assistantStepSeen: false,
     });
 
     expect(
@@ -438,7 +437,6 @@ describe("desktop window", () => {
     renderMainApp({
       signedIn: true,
       wizardCompleted: false,
-      assistantStepSeen: false,
       assistantStatuses: defaultAssistantStatuses(),
     });
 
@@ -452,7 +450,6 @@ describe("desktop window", () => {
     renderMainApp({
       signedIn: true,
       wizardCompleted: false,
-      assistantStepSeen: false,
       assistantStatuses: defaultAssistantStatuses(),
     });
 
@@ -467,7 +464,6 @@ describe("desktop window", () => {
     renderMainApp({
       signedIn: false,
       wizardCompleted: false,
-      assistantStepSeen: false,
       commandOverrides: {
         poll_sign_in: () => ({
           status: "signed_in",
@@ -485,7 +481,6 @@ describe("desktop window", () => {
     const harness = renderMainApp({
       signedIn: false,
       wizardCompleted: false,
-      assistantStepSeen: false,
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
@@ -506,7 +501,6 @@ describe("desktop window", () => {
     renderMainApp({
       signedIn: false,
       wizardCompleted: false,
-      assistantStepSeen: false,
       pendingSignIn: {
         status: "pending",
         user_code: "WXYZ-1234",
@@ -533,7 +527,6 @@ describe("desktop window", () => {
     const { closeWindowSpy } = renderMainApp({
       signedIn: true,
       wizardCompleted: false,
-      assistantStepSeen: false,
     });
 
     await screen.findByText("Select assistants to integrate");
@@ -548,7 +541,6 @@ describe("desktop window", () => {
   it("preserves assistant draft across invalidation and resets after save", async () => {
     const harness = renderMainApp({
       configuredAssistants: ["codex"],
-      assistantStepSeen: true,
       assistantStatuses: defaultAssistantStatuses(["codex"]),
     });
 
@@ -573,7 +565,6 @@ describe("desktop window", () => {
     harness.setAssistantSetup(
       createAssistantSetup({
         configuredAssistants: ["codex"],
-        assistantStepSeen: true,
         assistantStatuses: defaultAssistantStatuses(["codex"]),
       }),
     );
@@ -591,7 +582,6 @@ describe("desktop window", () => {
     const { closeWindowSpy } = renderMainApp({
       signedIn: true,
       wizardCompleted: false,
-      assistantStepSeen: true,
     });
 
     await screen.findByText("Select assistants to integrate");
