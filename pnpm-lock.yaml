@@ -202,8 +202,8 @@ importers:
         specifier: ^29.0.0
         version: 29.0.0(@noble/hashes@1.8.0)
       nitro:
-        specifier: npm:nitro-nightly@latest
-        version: nitro-nightly@3.0.1-20260315-114133-50c3d5f6(chokidar@5.0.0)(dotenv@17.3.1)(drizzle-orm@0.45.1(@types/pg@8.18.0)(pg@8.20.0))(jiti@2.6.1)(lru-cache@11.2.7)(vite@8.0.0(@types/node@25.5.0)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))
+        specifier: 3.0.260311-beta
+        version: 3.0.260311-beta(chokidar@5.0.0)(dotenv@17.3.1)(drizzle-orm@0.45.1(@types/pg@8.18.0)(pg@8.20.0))(jiti@2.6.1)(lru-cache@11.2.7)(vite@8.0.0(@types/node@25.5.0)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -5611,34 +5611,6 @@ packages:
 
   nf3@0.3.11:
     resolution: {integrity: sha512-ObKp/SA3f1g1f/OMeDlRWaZmqGgk7A0NnDIbeO7c/MV4r/quMlpP/BsqMGuTi3lUlXbC1On8YH7ICM2u2bIAOw==}
-
-  nitro-nightly@3.0.1-20260315-114133-50c3d5f6:
-    resolution: {integrity: sha512-O/fCnGdzhE6gVVDFlLgfmiha8SXOYYXYwM/sbpTdfgonBL5yGcePeAWfDCnp/j5sGxoLdU8pFtBhyx6ChC1cvQ==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    hasBin: true
-    peerDependencies:
-      dotenv: '*'
-      giget: '*'
-      jiti: ^2.6.1
-      rollup: ^4.59.0
-      vite: ^7 || ^8 || >=8.0.0-0
-      xml2js: ^0.6.2
-      zephyr-agent: ^0.1.15
-    peerDependenciesMeta:
-      dotenv:
-        optional: true
-      giget:
-        optional: true
-      jiti:
-        optional: true
-      rollup:
-        optional: true
-      vite:
-        optional: true
-      xml2js:
-        optional: true
-      zephyr-agent:
-        optional: true
 
   nitro@3.0.260311-beta:
     resolution: {integrity: sha512-0o0fJ9LUh4WKUqJNX012jyieUOtMCnadkNDWr0mHzdraoHpJP/1CGNefjRyZyMXSpoJfwoWdNEZu2iGf35TUvQ==}
@@ -12361,7 +12333,7 @@ snapshots:
 
   nf3@0.3.11: {}
 
-  nitro-nightly@3.0.1-20260315-114133-50c3d5f6(chokidar@5.0.0)(dotenv@17.3.1)(drizzle-orm@0.45.1(@types/pg@8.18.0)(pg@8.20.0))(jiti@2.6.1)(lru-cache@11.2.7)(vite@8.0.0(@types/node@25.5.0)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)):
+  nitro@3.0.260311-beta(chokidar@5.0.0)(dotenv@17.3.1)(drizzle-orm@0.45.1(@types/pg@8.18.0)(pg@8.20.0))(jiti@2.6.1)(lru-cache@11.2.7)(vite@8.0.0(@types/node@25.5.0)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)):
     dependencies:
       consola: 3.4.2
       crossws: 0.4.4(srvx@0.11.12)
