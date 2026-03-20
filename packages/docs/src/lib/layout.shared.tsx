@@ -20,6 +20,12 @@ export function baseOptions(): BaseLayoutProps {
         text: "Documentation",
         url: "/docs",
       },
+      {
+        text: "Blog",
+        url: "/blog",
+        on: "nav",
+        active: "nested-url",
+      },
     ],
   };
 }
