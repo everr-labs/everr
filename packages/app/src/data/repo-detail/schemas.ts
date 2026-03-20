@@ -5,6 +5,7 @@ const RepoDetailInputSchema = z.object({
   timeRange: TimeRangeSchema,
   repo: z.string(),
 });
+
 export { RepoDetailInputSchema };
 export type RepoDetailInput = z.infer<typeof RepoDetailInputSchema>;
 

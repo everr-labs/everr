@@ -43,7 +43,7 @@ async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
   const parsed = parseQueuedWorkflowEvent(eventType, body);
   const installationId = installationIdFromQueuedEvent(parsed);
   const tenantId = await resolveTenantId(installationId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: db is badly typed
   await handleStatusEvent(db as any, tenantId, parsed);
 }
 

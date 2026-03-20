@@ -16,7 +16,6 @@ const config = defineConfig(() => ({
   },
   plugins: [
     devtools(),
-
     tailwindcss(),
     tanstackStart({
       spa: {

@@ -1,0 +1,99 @@
+---
+title: Introducing Everr
+description: CI/CD pipelines are the most critical infrastructure in modern software delivery, yet they remain completely opaque. We built Everr to change that.
+date: "2026-03-18"
+author: Everr Team
+draft: true
+---
+
+Your CI pipeline just failed. Now what?
+
+You open GitHub Actions. You scroll through a wall of collapsed jobs. You click into the failed one, expand a step, and start reading logs. Raw, unstructured, context-free logs. After ten minutes, you think you found the problem. Maybe it's flaky. Maybe it's real. You re-run the workflow and go back to what you were doing — except you can't, because you've lost your flow.
+
+This happens millions of times a day across the industry. And it's getting worse.
+
+## The new bottleneck
+
+AI coding tools have fundamentally changed how fast teams produce code. Agents write features, generate tests, open pull requests. The constraint has shifted. The bottleneck is no longer writing code — it's validating and shipping it.
+
+CI/CD pipelines sit at the center of this validation loop, and they are completely opaque. There's no structured data. No historical context. No actionable signals. Just logs and exit codes.
+
+When a pipeline fails, a human has to context-switch, manually triage, and figure out what went wrong. When an AI agent hits a CI failure, it's even worse — it has no interface, no structured data to reason about, nothing to work with.
+
+This is the problem we built Everr to solve.
+
+## What Everr is
+
+Everr transforms CI/CD pipelines into fully observable systems. We convert every workflow run into structured [OpenTelemetry](https://opentelemetry.io/) traces — spans with parent-child relationships, precise timing, outcomes, and enriched metadata. No instrumentation. No SDK. No YAML changes. Connect your GitHub repo, push code, and structured telemetry flows automatically.
+
+But structured data alone isn't enough. Raw telemetry is just a better format for the same problem. What teams actually need are **signals** — derived, actionable intelligence that tells you what's wrong and why.
+
+Everr derives these signals automatically from your pipeline history:
+
+- **Flakiness detection** — Which tests are genuinely unstable vs. which failures are real regressions
+- **Performance trends** — P50/P95 duration tracking over time, so you catch regressions before they compound into 20-minute build queues
+- **Failure patterns** — Recurring issues surfaced and correlated across runs, branches, and commits
+- **Cost analysis** — Where your CI spend actually goes, broken down by runner, OS, repository, and workflow
+
+This is what we mean by **software delivery intelligence**. Not another dashboard. Not another log viewer. A system that understands your pipelines and gives you the signals to act on.
+
+## Built for two audiences
+
+Most developer tools are built for humans. Everr is built for humans *and* AI agents — and this distinction shapes everything about the product.
+
+**For engineering teams**, there's a web dashboard with waterfall trace visualizations, test analytics, failure analysis, and cost breakdowns. You can drill from a high-level overview down to the exact log line of a failure in seconds.
+
+**For AI agents**, there's a CLI that returns structured, context-rich data from the terminal. An agent can check CI status, pull failure logs, identify flaky tests, and surface root causes — all without leaving the repo context.
+
+```bash
+$ everr status
+Run ci/build-and-test — failed
+  Job: E2E tests — step 12 failed
+  Duration: 4m 23s (p95: 3m 10s — +40% regression)
+
+$ everr runs logs --trace-id c929f40e --job-name "E2E tests" --step-number 12
+  Error: Timed out waiting 300000ms for config.webServer
+  First seen: commit f92e4d1 (3 days ago)
+  Frequency: 4/7 runs on main — likely flaky
+```
+
+Same data. Same signals. The interface that fits the context. A developer investigating a failure in the browser gets the same intelligence as an AI agent triaging it from the terminal.
+
+This isn't a feature bolted on after the fact. The CLI was designed alongside the dashboard from day one. We believe the next generation of developer tools must be native to both humans and agents, and Everr is built from that premise.
+
+## Detect, explain, resolve
+
+Visibility is necessary but not sufficient. Knowing *that* something failed isn't the same as knowing *why*, and knowing why isn't the same as fixing it.
+
+Everr's approach follows three phases:
+
+**Detect** — Failures, flakiness, performance regressions, and cost anomalies are surfaced automatically from your pipeline data. You don't have to go looking for problems. They come to you.
+
+**Explain** — Every signal is enriched with historical context. Not just "this test failed" but "this test started failing 3 days ago on commit `f92e4d1`, has failed in 4 of the last 7 runs, and is isolated to the `main` branch." That's the difference between data and understanding.
+
+**Resolve** — Engineers fix pipeline issues in minutes instead of hours. AI agents resolve them autonomously. The structured signals and CLI make it possible for an agent to detect a failure, pull the relevant logs, identify the root cause, and propose a fix — in a single loop.
+
+## Zero-config by design
+
+We obsess over the setup experience. Everr requires:
+
+- No instrumentation code
+- No SDK installation
+- No YAML configuration
+- No test framework changes
+
+Install the GitHub App, select your repositories, and push code. That's it. Everr traces every workflow run automatically. Test results from Go, Vitest, and Rust are parsed from verbose output with zero configuration. You get full pipeline observability in under five minutes.
+
+This matters because adoption barriers kill tools. The best observability platform is useless if it takes a week to integrate. We wanted Everr to deliver value on the first run.
+
+## Open source, open standards
+
+Everr is built on OpenTelemetry because we believe pipeline data should be portable, structured, and owned by the teams that produce it. We're not building a proprietary format or a walled garden. We're building on open standards so your data works with the tools you already use.
+
+## What's next
+
+This is the beginning. We're starting with GitHub Actions and expanding to GitLab CI, Jenkins, Tekton, ArgoCD, and Azure Pipelines. The signals will get deeper. The agent capabilities will get smarter. The resolve loop will get tighter.
+
+We're building Everr because we believe CI/CD is critical infrastructure that deserves real intelligence — not just logs and dashboards. If you've ever lost an afternoon to a flaky test, stared at a waterfall of green bars wondering why your build takes 18 minutes, or wished your AI assistant could just handle the CI failure itself — Everr is for you.
+
+[Get started](https://app.everr.dev) or read the [documentation](/docs) to learn more.
