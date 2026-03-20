@@ -1,7 +1,7 @@
-import { blog } from "fumadocs-mdx:collections/server";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { ArrowRight } from "lucide-react";
+import { blogposts } from "@/lib/source";
 
 export const Route = createFileRoute("/blog/")({
   component: BlogIndex,
@@ -10,20 +10,17 @@ export const Route = createFileRoute("/blog/")({
   },
 });
 
-function slugFromPath(filePath: string): string {
-  return filePath.replace(/\.mdx?$/, "");
-}
-
 const loadBlogPosts = createServerFn({ method: "GET" }).handler(async () => {
-  return blog
+  return await blogposts
+    .getPages()
     .map((post) => ({
-      slug: slugFromPath(post.info.path),
-      title: post.title,
-      description: post.description,
-      date: post.date,
-      author: post.author,
+      slug: post.slugs.join("/"),
+      title: post.data.title,
+      description: post.data.description,
+      date: post.data.date,
+      author: post.data.author,
     }))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .filter((post) => !post.draft);
 });
 
 function BlogIndex() {

@@ -13,6 +13,7 @@ export const blog = defineCollections({
     description: z.string(),
     date: z.string().date(),
     author: z.string().optional(),
+    draft: z.boolean().optional(),
   }),
 });
 

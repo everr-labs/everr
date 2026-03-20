@@ -20,7 +20,7 @@ const serverLoader = createServerFn({ method: "GET" })
   .handler(async ({ data: slug }) => {
     const page = blogposts.getPage([slug]);
 
-    if (!page) throw notFound();
+    if (!page || page.data.draft) throw notFound();
 
     return {
       path: page.path,
