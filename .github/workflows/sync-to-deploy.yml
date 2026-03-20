@@ -1,0 +1,35 @@
+name: Sync to Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout everr
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Force-push to everr-deploy sync branch
+        env:
+          DEPLOY_PAT: ${{ secrets.DEPLOY_REPO_PAT }}
+        run: |
+          git remote add deploy https://x-access-token:${DEPLOY_PAT}@github.com/everr-labs/everr-deploy.git
+          git push deploy HEAD:refs/heads/sync/main --force
+
+      - name: Open PR if none exists
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_REPO_PAT }}
+        run: |
+          EXISTING=$(gh pr list --repo everr-labs/everr-deploy --head sync/main --json number --jq '.[0].number')
+          if [ -z "$EXISTING" ]; then
+            gh pr create \
+              --repo everr-labs/everr-deploy \
+              --base main \
+              --head sync/main \
+              --title "deploy: sync from everr" \
+              --body "Automated sync from everr. Force-pushed on every main push."
+          fi
