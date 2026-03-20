@@ -88,7 +88,7 @@ describe("handleGitHubWebhookRequest", () => {
     expect(response.status).toBe(202);
     expect(webhookMocks.send).toHaveBeenCalledTimes(2);
     const queues = webhookMocks.send.mock.calls.map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // biome-ignore lint/suspicious/noExplicitAny: ?
       (c: any[]) => c[0] as string,
     );
     expect(queues).toContain("gh-collector");
@@ -117,7 +117,7 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     const ids = webhookMocks.send.mock.calls.map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // biome-ignore lint/suspicious/noExplicitAny: ?
       (c: any[]) => (c[2] as { id: string }).id,
     );
     expect(ids).toEqual(["delivery-abc", "delivery-abc"]);
