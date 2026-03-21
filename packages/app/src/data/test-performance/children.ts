@@ -63,6 +63,7 @@ const TestPerfChildrenInputSchema = z.object({
   repo: z.string().optional(),
   pkg: z.string().optional(),
   branch: z.string().optional(),
+  branches: z.array(z.string()).nullable().optional(),
   path: z.string().optional(),
 });
 
@@ -96,6 +97,12 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
         "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
       );
       params.branch = data.branch;
+    }
+    if (data.branches != null) {
+      baseConditions.push(
+        "ResourceAttributes['vcs.ref.head.name'] IN ({branches:Array(String)})",
+      );
+      params.branches = data.branches;
     }
 
     const isRoot = !data.pkg;

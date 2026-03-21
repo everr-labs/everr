@@ -26,6 +26,7 @@ import {
   topFailingJobsOptions,
 } from "@/data/repo-detail/options";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
+import { RepoMainBranches } from "./-repos-main-branches";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },
@@ -150,6 +151,8 @@ function RepoDetailPage() {
           <RepoRecentRuns data={recentRuns ?? []} />
         </CardContent>
       </Card>
+
+      <RepoMainBranches repo={name} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ export const TestPerformanceFilterSchema = z.object({
   pkg: z.string().optional(),
   testName: z.string().optional(),
   branch: z.string().optional(),
+  branches: z.array(z.string()).nullable().optional(),
   path: z.string().optional(),
 });
 export type TestPerformanceFilterInput = z.infer<
@@ -68,6 +69,12 @@ export function buildFilterConditions(
     );
     params.branch = data.branch;
   }
+  if (data.branches != null) {
+    conditions.push(
+      "ResourceAttributes['vcs.ref.head.name'] IN ({branches:Array(String)})",
+    );
+    params.branches = data.branches;
+  }
 
   if (data.path) {
     // name already contains the full test path for Vitest, Rust, and Go tests
@@ -87,6 +94,11 @@ export function buildFilterConditions(
     if (data.branch) {
       leafScopeConditions.push(
         "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+      );
+    }
+    if (data.branches != null) {
+      leafScopeConditions.push(
+        "ResourceAttributes['vcs.ref.head.name'] IN ({branches:Array(String)})",
       );
     }
     scopeConditions.push(
