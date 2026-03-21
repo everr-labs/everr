@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Panel } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
   TooltipContent,
@@ -60,6 +61,7 @@ export const Route = createFileRoute(
     testName: z.string().optional(),
     branch: z.string().optional(),
     path: z.string().optional(),
+    branches: z.enum(["main", "all"]).optional().catch("main"),
   }),
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps }) => {
@@ -97,43 +99,91 @@ export const Route = createFileRoute(
   pendingComponent: TestPerformanceSkeleton,
 });
 
+async function fetchMainBranches(repo: string): Promise<string[]> {
+  const res = await fetch(
+    `/api/repos/main-branches?repo=${encodeURIComponent(repo)}`,
+  );
+  if (!res.ok) throw new Error("Failed to load main branches");
+  const data = (await res.json()) as { branches: string[] };
+  return data.branches;
+}
+
 function TestPerformancePage() {
   const { timeRange, repo, pkg, testName, branch, path } =
     Route.useLoaderDeps();
+  const { branches: branchMode = "main" } = Route.useSearch();
 
   const isRootScope = !pkg && !path;
   const { fromDate, toDate } = resolveTimeRange(timeRange);
-  const filterInput = { timeRange, repo, pkg, testName, branch, path };
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
   const [treemapSizeMetric, setTreemapSizeMetric] =
     useState<TreemapSizeMetric>("avgDuration");
 
+  // Fetch resolved main branches when in "main" mode
+  const mainBranchesQuery = useQuery({
+    queryKey: ["repo", "mainBranches", repo ?? ""],
+    queryFn: () => fetchMainBranches(repo ?? ""),
+    enabled: branchMode === "main",
+  });
+
+  // Compute the branches filter to pass to all queries:
+  // - "main" mode: pass the resolved string[] (or undefined while loading)
+  // - "all" mode: pass null (no branch filter)
+  const branchesFilter: string[] | null | undefined =
+    branchMode === "all" ? null : mainBranchesQuery.data;
+
+  const filterInput = {
+    timeRange,
+    repo,
+    pkg,
+    testName,
+    branch,
+    path,
+    branches: branchesFilter,
+  };
+  const childrenInput = {
+    timeRange,
+    repo,
+    pkg,
+    branch,
+    path,
+    branches: branchesFilter,
+  };
+
+  // While in "main" mode, hold off queries until we have the branch list
+  const branchesReady = branchMode === "all" || mainBranchesQuery.isSuccess;
+
   const { data: stats } = useQuery({
     ...testPerfStatsOptions(filterInput),
-    enabled: !isRootScope,
+    enabled: !isRootScope && branchesReady,
   });
-  const { data: summary } = useQuery(testResultsSummaryOptions(filterInput));
+  const { data: summary } = useQuery({
+    ...testResultsSummaryOptions(filterInput),
+    enabled: branchesReady,
+  });
   const { data: statsTrend } = useQuery({
     ...testPerfStatsTrendOptions(filterInput),
-    enabled: !isRootScope,
+    enabled: !isRootScope && branchesReady,
   });
   const { data: scatter } = useQuery({
     ...testPerfScatterOptions(filterInput),
-    enabled: !isRootScope,
+    enabled: !isRootScope && branchesReady,
   });
   const { data: trend } = useQuery({
     ...testPerfTrendOptions(filterInput),
-    enabled: !isRootScope,
+    enabled: !isRootScope && branchesReady,
   });
   const { data: failures } = useQuery({
     ...testPerfFailuresOptions(filterInput),
-    enabled: !isRootScope,
+    enabled: !isRootScope && branchesReady,
   });
   const { data: filterOptions } = useQuery(testPerfFilterOptionsOptions());
 
-  const childrenInput = { timeRange, repo, pkg, branch, path };
-  const childrenQuery = useQuery(testPerfChildrenOptions(childrenInput));
+  const childrenQuery = useQuery({
+    ...testPerfChildrenOptions(childrenInput),
+    enabled: branchesReady,
+  });
   const children = childrenQuery.data ?? [];
 
   const isChildrenReady = childrenQuery.status === "success";
@@ -189,15 +239,47 @@ function TestPerformancePage() {
     pageTitle = pkg;
   }
 
+  const isMainBranchesEmpty =
+    branchMode === "main" &&
+    branchesReady &&
+    summary?.totalTests === 0 &&
+    children.length === 0;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
-        <p className="text-muted-foreground">
-          {isLeaf
-            ? "Individual test execution metrics"
-            : "Analyze test execution duration and failure patterns over time"}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
+          <p className="text-muted-foreground">
+            {isLeaf
+              ? "Individual test execution metrics"
+              : "Analyze test execution duration and failure patterns over time"}
+          </p>
+        </div>
+        <ToggleGroup
+          value={[branchMode]}
+          variant="outline"
+          size="sm"
+          spacing={0}
+          onValueChange={(next) => {
+            const selected = next[0];
+            if (selected === "all") {
+              navigate({ search: (prev) => ({ ...prev, branches: "all" }) });
+            } else if (selected === "main") {
+              navigate({
+                search: (prev) => ({ ...prev, branches: undefined }),
+              });
+            }
+          }}
+          aria-label="Branch scope"
+        >
+          <ToggleGroupItem value="main" aria-label="Main branches">
+            Main branches
+          </ToggleGroupItem>
+          <ToggleGroupItem value="all" aria-label="All branches">
+            All branches
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       <TestPerfFilterBar
@@ -209,6 +291,12 @@ function TestPerformancePage() {
         }
         onBranchChange={(v) => updateFilter({ branch: v })}
       />
+
+      {isMainBranchesEmpty && (
+        <p className="text-muted-foreground text-sm">
+          No runs on main branches in this period.
+        </p>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -485,6 +573,7 @@ function TestPerformancePage() {
                       timeRange,
                       repo,
                       branch,
+                      branches: branchesFilter,
                       pkg: scope.pkg,
                       path: scope.path,
                     }),
