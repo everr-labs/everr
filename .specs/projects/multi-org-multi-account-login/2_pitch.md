@@ -74,7 +74,7 @@ Uses the same state storage. Three desktop-specific additions:
 - **State storage migration**: no backward compatibility needed — existing state is wiped on upgrade. Users re-authenticate with `everr add-account`.
 - **Stale org list**: if a user's GitHub App installation changes (org added or removed), the local `github_orgs` cache is out of date. This is handled automatically — a miss on the local lookup triggers an API refresh before erroring. The edge case to watch: if the refresh API call itself fails (network down, token expired), the error message must be clear about whether it's an auth problem or a connectivity problem.
 - **Multiple orgs per account**: the Everr API may return multiple orgs for a single account — the account entry must store all of them, not just the first.
-- **Everr API org fetch**: `add-account` must call the Everr API post-login to retrieve the GitHub orgs for the new account. If this endpoint doesn't exist yet or returns a different shape than expected, the feature is blocked. Confirm the API contract before building the client side.
+- **Everr API org fetch**: orgs are stored server-side in `githubInstallationTenants` and exposed via the Everr API. The API contract (endpoint shape, field names) must be agreed between server and client before building either side — client and server scopes are sequenced accordingly.
 
 ## No-gos
 

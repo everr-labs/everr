@@ -9,9 +9,17 @@
 - [ ] Update all callers — login flow writes `Account` instead of `Session`; API client takes a token directly; CLI auth gateway replaced with account resolution; desktop app session checks replaced with accounts list
 - [ ] Tests: round-trip, missing keys, old state with `session` field loads as default (wiped)
 
+## Server: store orgs in githubInstallationTenants
+
+*Must ship before `everr add-account` — the client depends on this API response.*
+
+- [ ] Add a column (or related table) to `githubInstallationTenants` to store the GitHub orgs for each installation
+- [ ] Populate orgs at installation time and keep them in sync on installation update events
+- [ ] Expose orgs via the Everr API endpoint called by `add-account` post-login
+
 ## `everr add-account` — CLI command to authenticate a new org
 
-*Prerequisite: confirm the Everr API org fetch endpoint exists and its response shape before building the client side (see Rabbit Holes in pitch).*
+*Depends on: server scope above.*
 
 - [ ] Implement `everr add-account` command: open browser to Everr login flow
 - [ ] On callback: call Everr API to fetch `github_orgs` for the authenticated Everr org
