@@ -2,14 +2,12 @@
 
 ## Data layer — main_branches table and API
 
-- [ ] Add `main_branches` Drizzle schema (`tenantId`, `repository` nullable, `branch`; two partial unique indexes for NULL-safe uniqueness)
-- [ ] API: `GET /repos/:repo/main-branches` — list configured branches for a `(tenantId, repository)` pair; returns org-wide rows or hardcoded defaults if none configured
-- [ ] API: `POST /repos/:repo/main-branches` — add a branch for a specific repo
-- [ ] API: `DELETE /repos/:repo/main-branches/:branch` — remove a branch; returns 422 if it would leave zero rows for that repo
-- [ ] API: `GET /org/main-branches` — list org-wide default branches; returns hardcoded defaults if none configured
-- [ ] API: `POST /org/main-branches` — add an org-wide default branch
-- [ ] API: `DELETE /org/main-branches/:branch` — remove an org-wide default branch; returns 422 if it would leave zero org-wide rows
-- [ ] Tests: CRUD for both repo-level and org-level; partial unique constraints; 422 on last delete at each level; resolution order (repo → org → hardcoded)
+- [ ] Add `main_branches` Drizzle schema (`tenantId`, `repository` nullable, `branches` JSON `string[]`; two partial unique indexes for NULL-safe uniqueness)
+- [ ] API: `GET /repos/:repo/main-branches` — return branches for `(tenantId, repository)`; falls back through resolution order if no row exists
+- [ ] API: `PUT /repos/:repo/main-branches` — upsert the branches array for a repo; returns 422 if the array is empty
+- [ ] API: `GET /org/main-branches` — return org-wide default branches; returns hardcoded defaults if no row exists
+- [ ] API: `PUT /org/main-branches` — upsert the org-wide branches array; returns 422 if the array is empty
+- [ ] Tests: upsert for both repo-level and org-level; partial unique constraints; 422 on empty array; resolution order (repo → org → hardcoded)
 
 ## Query layer — branch filter for test-overview
 
@@ -35,8 +33,8 @@
 
 - [ ] Add main branches section to repo settings page
 - [ ] List configured branches; show org-wide defaults (or hardcoded defaults) when none configured for the repo
-- [ ] Add branch: free-text input, no existence validation
-- [ ] Remove branch: `[×]` button disabled on last remaining entry
+- [ ] Add branch: free-text input, no existence validation; triggers `PUT` with updated array
+- [ ] Remove branch: `[×]` button disabled on last remaining entry; triggers `PUT` with updated array
 
 ## Org settings UI — main branches defaults
 
@@ -44,5 +42,5 @@
 
 - [ ] Add main branches section to org settings page
 - [ ] List org-wide default branches; show hardcoded defaults (`main`, `master`, `develop`) when none configured
-- [ ] Add branch: free-text input, no existence validation
-- [ ] Remove branch: `[×]` button disabled on last remaining entry
+- [ ] Add branch: free-text input, no existence validation; triggers `PUT` with updated array
+- [ ] Remove branch: `[×]` button disabled on last remaining entry; triggers `PUT` with updated array

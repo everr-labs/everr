@@ -26,15 +26,14 @@ export const mainBranches = pgTable('main_branches', {
     .notNull()
     .references(() => tenants.id, { onDelete: 'cascade' }),
   repository: text('repository'), // null = org-wide default; e.g. "everr-labs/everr"
-  branch: text('branch').notNull(),
+  branches: json('branches').$type<string[]>().notNull(),
 }, (t) => [
-  // Two partial unique indexes — Postgres NULLs are never equal, so a single index won't enforce uniqueness for org-wide rows
-  uniqueIndex().on(t.tenantId, t.repository, t.branch).where(sql`repository IS NOT NULL`),
-  uniqueIndex().on(t.tenantId, t.branch).where(sql`repository IS NULL`),
+  uniqueIndex().on(t.tenantId, t.repository).where(sql`repository IS NOT NULL`),
+  uniqueIndex().on(t.tenantId).where(sql`repository IS NULL`),
 ]);
 ```
 
-No seeding required. The query layer resolves branches in order: repo-specific rows → org-wide rows (`repository = null`) → hardcoded defaults `['main', 'master', 'develop']`. An empty result at any level moves to the next. "All branches" mode is only triggered by the UI toggle, never by the absence of config rows.
+One row per `(tenantId, repository)` — branches are stored as a JSON array. No seeding required. The query layer resolves branches in order: repo-specific row → org-wide row (`repository = null`) → hardcoded defaults `['main', 'master', 'develop']`. "All branches" mode is only triggered by the UI toggle, never by the absence of config rows.
 
 ### Query layer (fat marker sketch)
 
@@ -95,7 +94,7 @@ Free-text input for adding a branch name. No validation against existing branche
 ## Rabbit Holes
 
 - **Branch name matching**: branch names are case-sensitive in git but users may type them differently. Keep matching exact and case-sensitive — don't try to normalise.
-- **NULL uniqueness in Postgres**: `NULL != NULL` in unique indexes, so a single `UNIQUE(tenantId, repository, branch)` won't prevent duplicate org-wide rows. Use two partial unique indexes: one for `repository IS NOT NULL`, one for `repository IS NULL`.
+- **NULL uniqueness in Postgres**: `NULL != NULL` in unique indexes, so a single `UNIQUE(tenantId, repository)` won't prevent duplicate org-wide rows. Use two partial unique indexes: one for `repository IS NOT NULL`, one for `repository IS NULL`.
 - **Empty configured list vs. all-branches**: an empty `mainBranches` table means "use defaults", not "show all branches." Make this distinction explicit in the query layer — the "all branches" mode is only triggered by the UI toggle, not by the absence of config rows.
 - **Empty state when no main branches match recent runs**: a user could configure `main` but all recent runs are on feature branches. The chart will be empty. Show a clear empty state ("No runs on main branches in this period") rather than a blank chart.
 
@@ -110,7 +109,7 @@ Free-text input for adding a branch name. No validation against existing branche
 
 Integration-first using Vitest with real ClickHouse and Postgres instances.
 
-- `mainBranches` read/write: add, remove, list per `(tenantId, repository)` and org-wide (`repository = null`); partial unique constraints enforce no duplicates at either level; DELETE of last branch at either level returns 422.
+- `mainBranches` read/write: upsert branches array per `(tenantId, repository)` and org-wide (`repository = null`); partial unique constraints enforce one row per level; PUT with empty array returns 422.
 - Resolution order: repo-specific rows take precedence over org-wide rows; org-wide rows take precedence over hardcoded defaults; all three levels verified with table-driven tests.
 - Query filter: with repo-specific config, with org-wide config only, with no config (falls back to hardcoded defaults), and with all-branches toggle active (filter omitted).
 - UI: component tests for the toggle state, repo settings CRUD, and org settings CRUD.
