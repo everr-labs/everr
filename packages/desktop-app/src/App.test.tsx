@@ -222,7 +222,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
             status: "pending",
             user_code: "ABCD-EFGH",
             verification_url: "https://app.everr.dev/cli/device?code=ABCD-EFGH",
-            expires_at: "2026-03-20T13:10:00Z",
+            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
             poll_interval_seconds: 1,
           };
           return pendingSignIn satisfies SignInResponse;
