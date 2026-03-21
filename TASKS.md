@@ -11,9 +11,11 @@
 ## Projects
 
 - [**multi-org-multi-account-login**](.specs/projects/multi-org-multi-account-login/shaping/problem.md) — In shaping
+- [**protected-branches-metrics**](.specs/projects/protected-branches-metrics/shaping/problem.md) — In shaping
 
 ## Ideas
 
+- [**import-workflows-during-onboarding**](.specs/ideas/import-workflows-during-onboarding.md) — Allow users to import existing CI/CD workflows into Everr as part of the onboarding flow.
 - [**in-progress-statuses-on-runs-list**](.specs/ideas/in-progress-statuses-on-runs-list.md) — Show live in-progress statuses for runs directly in the runs list.
 - [**post-optimization-annotations**](.specs/ideas/post-optimization-annotations.md) — Allow users to annotate jobs and tests after optimization with the date, model type, and a note.
 - [**protected-branches-metrics**](.specs/ideas/protected-branches-metrics.md) — Let users mark certain branches (e.g. main, develop) so metrics focus on those instead of mixing in temporary ones.

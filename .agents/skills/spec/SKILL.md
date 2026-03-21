@@ -58,11 +58,7 @@ Create this file with:
 - Who is affected? (be specific: developers, admins, end users?)
 - Concrete examples — not abstract requirements
 
-**Refinement loop**: After drafting, challenge with questions like:
-- "Who exactly is affected?"
-- "Can you give a concrete example of this failing today?"
-- "Is this a frequency problem or a severity problem?"
-- "What does success look like for the person affected?"
+**Refinement loop**: After drafting, review to find any gaps or improvement areas
 
 After the refinement loop, run `bash scripts/update-tasks.sh` to add the project to TASKS.md.
 
@@ -109,6 +105,7 @@ Create at `.specs/projects/{feature-name}/2_pitch.md`. Include:
 - "Does this solution actually fit the appetite, or are we doing too much?"
 - "Are the breadboards concrete enough to build from?"
 - "Would a new team member understand the intended user experience from this pitch alone?"
+- review to find any gaps or improvement areas. Give to the pitch a confidence score from 1 to 10.
 
 **Pitch Approval Gate**
 > "The pitch is looking solid. Does it reflect what you want to build? If so, we'll move on to scopes."
@@ -137,6 +134,7 @@ Break work into named, interconnected scopes. Scopes emerge from the solution �
 - "This scope looks too large — can it be split?"
 - "Are all tasks in [scope] actually required by the pitch, or is this gold-plating?"
 - "Is there a scope that could be deferred if we run out of time?"
+- review to find any gaps or improvement areas. Give to the document a confidence score from 1 to 10.
 
 **Scopes Approval Gate**
 > "The scopes look solid. Do they match what you expected? If so, we're done with planning."
