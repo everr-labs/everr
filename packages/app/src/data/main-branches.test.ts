@@ -173,7 +173,6 @@ describe("setOrgMainBranches", () => {
 
   it("inserts a new row when no org row exists", async () => {
     mocked.selectLimit.mockResolvedValueOnce([]);
-    mocked.insertValues.mockReturnValue(undefined);
 
     await setOrgMainBranches(1, ["main"]);
 
