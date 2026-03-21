@@ -16,9 +16,10 @@ jobs:
 
       - name: Force-push to everr-deploy sync branch
         env:
-          DEPLOY_PAT: ${{ secrets.DEPLOY_REPO_PAT }}
+          GH_TOKEN: ${{ secrets.DEPLOY_REPO_PAT }}
         run: |
-          git remote add deploy https://x-access-token:${DEPLOY_PAT}@github.com/everr-labs/everr-deploy.git
+          gh auth setup-git
+          git remote add deploy https://github.com/everr-labs/everr-deploy.git
           git push deploy HEAD:refs/heads/sync/main --force
 
       - name: Open PR if none exists
