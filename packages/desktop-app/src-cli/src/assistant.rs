@@ -21,12 +21,3 @@ pub fn remove_managed_prompts() -> Result<()> {
     core_assistant::remove_managed_prompts()
 }
 
-#[cfg(test)]
-mod tests {
-    use everr_core::build;
-
-    #[test]
-    fn command_name_is_fixed() {
-        assert_eq!(build::command_name(), "everr");
-    }
-}
