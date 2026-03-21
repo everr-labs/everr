@@ -134,8 +134,8 @@ export async function publishCliArtifact(sourceBin: string) {
   return { outputBin, outputSha };
 }
 
-export async function installCliBinary(sourceBin: string) {
-  const installPath = path.join(process.env.HOME ?? "", ".local", "bin", "everr");
+export async function installCliBinary(sourceBin: string, destName = "everr") {
+  const installPath = path.join(process.env.HOME ?? "", ".local", "bin", destName);
 
   await mkdir(path.dirname(installPath), { recursive: true });
   await copyFile(sourceBin, installPath);
