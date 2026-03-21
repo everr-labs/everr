@@ -50,6 +50,13 @@
       "when": 1742000000000,
       "tag": "0006_drop_webhook_events",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774137219218,
+      "tag": "0007_mature_serpent_society",
+      "breakpoints": true
     }
   ]
 }
