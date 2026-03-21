@@ -267,3 +267,32 @@ export const workflowJobs = pgTable(
     ),
   ],
 );
+
+export const mainBranches = pgTable(
+  "main_branches",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    tenantId: bigint("tenant_id", { mode: "number" })
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    repository: text("repository"), // null = org-wide default; e.g. "everr-labs/everr"
+    branches: jsonb("branches").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Two partial unique indexes — NULL != NULL in Postgres unique indexes
+    uniqueIndex("main_branches_tenant_repo_uq")
+      .on(t.tenantId, t.repository)
+      .where(sql`repository IS NOT NULL`),
+    uniqueIndex("main_branches_tenant_org_uq")
+      .on(t.tenantId)
+      .where(sql`repository IS NULL`),
+  ],
+);
