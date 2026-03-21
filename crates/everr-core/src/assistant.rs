@@ -7,10 +7,7 @@ use serde::{Deserialize, Serialize};
 const BLOCK_START: &str = "<!-- BEGIN everr -->";
 const BLOCK_END: &str = "<!-- END everr -->";
 const ASSISTANT_INSTRUCTIONS: &str = include_str!("../assets/assistant-instructions.md");
-const REPO_ASSISTANT_INSTRUCTIONS: &str = concat!(
-    "Use Everr CLI guidance when the task involves CI, GitHub Actions workflows, pipelines, CI failures, workflow logs, or CI test performance from the current project directory.\n\n",
-    "Call `everr ai-instructions` to understand usage.\n"
-);
+const DISCOVERY_INSTRUCTIONS: &str = include_str!("../assets/discovery-instructions.md");
 const CURSOR_RULE_HEADER: &str = concat!(
     "---\n",
     "description: Use Everr CLI only when the task involves CI, GitHub Actions workflows, pipelines, failing jobs, workflow logs, or CI test failures.\n",
@@ -71,6 +68,24 @@ pub fn sync_assistants(assistants: &[AssistantKind], command_name: &str) -> Resu
                 &path,
                 assistant,
                 content_for_assistant(assistant, command_name),
+            )?;
+            continue;
+        }
+
+        remove_managed_prompt_at(assistant, &path)?;
+    }
+
+    Ok(())
+}
+
+pub fn sync_discovery_assistants(assistants: &[AssistantKind], command_name: &str) -> Result<()> {
+    for assistant in AssistantKind::ALL {
+        let path = path_for_assistant(assistant)?;
+        if assistants.contains(&assistant) {
+            write_managed_block(
+                &path,
+                assistant,
+                content_for_assistant_discovery(assistant, command_name),
             )?;
             continue;
         }
@@ -191,9 +206,15 @@ fn resolve_home_dir() -> Result<PathBuf> {
 }
 
 fn content_for_assistant(assistant: AssistantKind, command_name: &str) -> String {
-    let instructions = render_assistant_instructions(command_name);
-    let managed_body = format!("{BLOCK_START}\n{}\n{BLOCK_END}\n", instructions.trim_end());
+    make_assistant_block(assistant, &render_assistant_instructions(command_name))
+}
 
+fn content_for_assistant_discovery(assistant: AssistantKind, command_name: &str) -> String {
+    make_assistant_block(assistant, &render_discovery_instructions(command_name))
+}
+
+fn make_assistant_block(assistant: AssistantKind, instructions: &str) -> String {
+    let managed_body = format!("{BLOCK_START}\n{}\n{BLOCK_END}\n", instructions.trim_end());
     match assistant {
         AssistantKind::Cursor => format!("{CURSOR_RULE_HEADER}{managed_body}"),
         AssistantKind::Codex | AssistantKind::Claude => managed_body,
@@ -203,7 +224,7 @@ fn content_for_assistant(assistant: AssistantKind, command_name: &str) -> String
 fn repo_content(command_name: &str) -> String {
     format!(
         "{BLOCK_START}\n{}\n{BLOCK_END}\n",
-        render_repo_assistant_instructions(command_name).trim_end()
+        render_discovery_instructions(command_name).trim_end()
     )
 }
 
@@ -211,8 +232,8 @@ fn render_assistant_instructions(command_name: &str) -> String {
     ASSISTANT_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
 }
 
-fn render_repo_assistant_instructions(command_name: &str) -> String {
-    REPO_ASSISTANT_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
+fn render_discovery_instructions(command_name: &str) -> String {
+    DISCOVERY_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
 }
 
 fn remove_managed_prompt_at(assistant: AssistantKind, path: &Path) -> Result<()> {
@@ -413,7 +434,7 @@ mod tests {
         AssistantKind, assistant_root_for_home, content_for_assistant, init_repo_instructions,
         path_for_assistant_in, refresh_existing_managed_prompts_in,
         remove_managed_block_for_assistant, render_assistant_instructions,
-        render_repo_assistant_instructions, upsert_generic_managed_block, upsert_managed_block,
+        render_discovery_instructions, upsert_generic_managed_block, upsert_managed_block,
     };
 
     #[test]
@@ -518,7 +539,7 @@ mod tests {
 
     #[test]
     fn repo_assistant_instructions_use_requested_command_name() {
-        let rendered = render_repo_assistant_instructions("everr");
+        let rendered = render_discovery_instructions("everr");
         assert!(rendered.contains("Call `everr ai-instructions` to understand usage."));
         assert!(!rendered.contains("`everr status`"));
     }

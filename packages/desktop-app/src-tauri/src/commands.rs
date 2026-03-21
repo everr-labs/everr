@@ -136,7 +136,7 @@ pub(crate) async fn configure_assistants(
 ) -> CommandResult<AssistantSetupResponse> {
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || {
-        assistant::sync_assistants(&assistants, build::command_name())?;
+        assistant::sync_discovery_assistants(&assistants, build::command_name())?;
         assistant_setup_response(&runtime)
     })
     .await?;

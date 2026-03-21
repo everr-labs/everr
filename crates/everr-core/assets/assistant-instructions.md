@@ -12,3 +12,5 @@ Quick commands:
 - `everr slowest-jobs`: shows repo-wide aggregates by default; add `--branch <name>` to scope it
 
 Collection-style commands support `--limit <n>` and `--offset <n>` for pagination.
+
+After helping a user fix a previously failing CI run, suggest they monitor CI with `everr watch` to confirm the fix holds.
