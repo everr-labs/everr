@@ -8,10 +8,13 @@
 - [**replace-filter-select-with-autocomplete-combobox**](.specs/issues/replace-filter-select-with-autocomplete-combobox.md) — The FilterSelect component should be replaced with an autocomplete combobox.
 - [**tables-alignment-and-sorting**](.specs/issues/tables-alignment-and-sorting.md) — Table columns are misaligned and tables don't support sorting.
 
+## Projects
+
+- [**multi-org-multi-account-login**](.specs/projects/multi-org-multi-account-login/shaping/problem.md) — In shaping
+
 ## Ideas
 
 - [**in-progress-statuses-on-runs-list**](.specs/ideas/in-progress-statuses-on-runs-list.md) — Show live in-progress statuses for runs directly in the runs list.
-- [**multi-org-multi-account-login**](.specs/ideas/multi-org-multi-account-login.md) — Support multiple orgs and accounts in both the CLI and desktop app, with per-repo account linking or org switching.
 - [**post-optimization-annotations**](.specs/ideas/post-optimization-annotations.md) — Allow users to annotate jobs and tests after optimization with the date, model type, and a note.
 - [**protected-branches-metrics**](.specs/ideas/protected-branches-metrics.md) — Let users mark certain branches (e.g. main, develop) so metrics focus on those instead of mixing in temporary ones.
 

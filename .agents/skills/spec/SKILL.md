@@ -13,12 +13,10 @@ All artifacts live under `.specs/projects/{feature-name}/`:
 
 ```
 .specs/projects/{feature-name}/
-├── shaping/
-│   ├── problem.md       ← required: raw problem framing
-│   └── appetite.md      ← optional: time budget decision
-├── pitch.md             ← shaped deliverable; input to the betting table
-└── building/
-    └── scopes.md        ← created only after pitch approval
+├── problem.md    ← required: raw problem framing
+├── appetite.md   ← optional: time budget decision
+├── pitch.md      ← shaped deliverable; input to the betting table
+└── scopes.md     ← created only after pitch approval
 ```
 
 ## Refinement Loop (mandatory before every approval gate)
@@ -49,11 +47,11 @@ Follow these steps in order. Do not skip steps.
 
 ### Step 1: Create feature directory
 
-Create `.specs/projects/{feature-name}/shaping/` using kebab-case for the feature name.
+Create `.specs/projects/{feature-name}/` using kebab-case for the feature name.
 
 ---
 
-### Step 2: Problem Statement — `shaping/problem.md` *(required)*
+### Step 2: Problem Statement — `problem.md` *(required)*
 
 Create this file with:
 - What's broken or missing?
@@ -70,7 +68,7 @@ After the refinement loop, run `bash scripts/update-tasks.sh` to add the project
 
 ---
 
-### Step 3: Appetite — `shaping/appetite.md` *(optional)*
+### Step 3: Appetite — `appetite.md` *(optional)*
 
 Ask: *"Appetite is optional. Do you want to define a time budget for this feature, or skip to the pitch?"*
 
@@ -88,10 +86,10 @@ If included, write:
 
 ### Step 4: Pitch — `pitch.md` *(required)*
 
-Create at `.specs/projects/{feature-name}/pitch.md` (not inside `shaping/`). Include:
+Create at `.specs/projects/{feature-name}/pitch.md`. Include:
 
 - **Problem** — 1-3 sentence framing of the raw need
-- **Appetite** — restated from `shaping/appetite.md` if it was written; omit otherwise
+- **Appetite** — restated from `appetite.md` if it was written; omit otherwise
 - **Solution** — described at the right level of abstraction:
   - *Breadboards*: text-based UI/flow descriptions — no wireframes needed
   - *Fat marker sketches*: high-level architecture, data flow, component interactions
@@ -119,7 +117,7 @@ Wait for explicit approval before proceeding.
 
 ---
 
-### Step 5: Scopes — `building/scopes.md` *(required, created after pitch approval)*
+### Step 5: Scopes — `scopes.md` *(required, created after pitch approval)*
 
 Break work into named, interconnected scopes. Scopes emerge from the solution — they are not a flat numbered task list.
 
@@ -163,5 +161,5 @@ After scopes are approved, run `bash scripts/update-tasks.sh` to keep TASKS.md c
 4. Always wait for explicit approval before advancing
 5. No implementation — this workflow is for planning only
 6. Rabbit holes and No-gos sections in `pitch.md` cannot be empty
-7. `building/` is only created after pitch approval
+7. `scopes.md` is only created after pitch approval
 8. Appetite is a constraint, not an estimate — it shapes what solution is possible
