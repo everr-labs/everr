@@ -34,8 +34,8 @@ if (mode === "release") {
   installSource = outputBin;
 }
 
-if (installBin) {
-  await installCliBinary(installSource);
+if (installBin || mode === "debug") {
+  await installCliBinary(installSource, mode === "debug" ? "everr-dev" : "everr");
 }
 
-console.log("Run 'everr --help' to get started.");
+console.log(`Run '${mode === "debug" ? "everr-dev" : "everr"} --help' to get started.`);
