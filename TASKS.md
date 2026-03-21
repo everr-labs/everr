@@ -2,8 +2,8 @@
 
 ## Issues
 
+- [**app-download-only-in-onboarding**](.specs/issues/app-download-only-in-onboarding.md) — The desktop app download link is only accessible during onboarding, with no way to reach it afterwards.
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](.specs/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.
-- [**dev-build-installs-everr-dev-executable**](.specs/issues/dev-build-installs-everr-dev-executable.md) — The dev build of the CLI should produce and install an `everr-dev` binary, and the repo agent instructions should tell assistants to prefer `everr-dev` over `everr` when it is available.
 - [**filter-runs-by-branch-on-click**](.specs/issues/filter-runs-by-branch-on-click.md) — Clicking a branch name in the runs list should filter the runs list to that branch.
 - [**replace-filter-select-with-autocomplete-combobox**](.specs/issues/replace-filter-select-with-autocomplete-combobox.md) — The FilterSelect component should be replaced with an autocomplete combobox.
 - [**tables-alignment-and-sorting**](.specs/issues/tables-alignment-and-sorting.md) — Table columns are misaligned and tables don't support sorting.
