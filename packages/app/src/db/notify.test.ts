@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockExecute = vi.fn().mockResolvedValue(undefined);
-const mockDb = { execute: mockExecute } as Parameters<
+const mockDb = { execute: mockExecute } as unknown as Parameters<
   typeof import("./notify").notifyWorkflowUpdate
 >[0];
 
@@ -12,7 +12,12 @@ vi.mock("drizzle-orm", () => ({
   ),
 }));
 
-import { notifyWorkflowUpdate, tenantChannel, traceChannel } from "./notify";
+import {
+  commitChannel,
+  notifyWorkflowUpdate,
+  tenantChannel,
+  traceChannel,
+} from "./notify";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -30,26 +35,33 @@ describe("traceChannel", () => {
   });
 });
 
+describe("commitChannel", () => {
+  it("returns commit_{tenantId}_{sha_lowercased}", () => {
+    expect(commitChannel(42, "ABC123")).toBe("commit_42_abc123");
+  });
+});
+
 describe("notifyWorkflowUpdate", () => {
-  it("calls db.execute twice — once per channel", async () => {
+  it("calls db.execute three times — once per channel", async () => {
     await notifyWorkflowUpdate(mockDb, {
       tenantId: 42,
       traceId: "abc123",
       runId: "999",
+      sha: "deadbeef",
     });
 
-    expect(mockExecute).toHaveBeenCalledTimes(2);
+    expect(mockExecute).toHaveBeenCalledTimes(3);
   });
 
   it("does not throw when db.execute rejects", async () => {
-    mockExecute.mockRejectedValueOnce(new Error("connection lost"));
-    mockExecute.mockRejectedValueOnce(new Error("connection lost"));
+    mockExecute.mockRejectedValue(new Error("connection lost"));
 
     await expect(
       notifyWorkflowUpdate(mockDb, {
         tenantId: 42,
         traceId: "abc123",
         runId: "999",
+        sha: "deadbeef",
       }),
     ).resolves.not.toThrow();
   });

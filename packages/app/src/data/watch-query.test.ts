@@ -35,9 +35,7 @@ describe("getWatchStatus", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "LEFT(LOWER(sha), LENGTH($4)) = LOWER($4)",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("LOWER(sha) = LOWER($4)");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
       42,
       "everr-labs/everr",
@@ -51,7 +49,7 @@ describe("getWatchStatus", () => {
     });
   });
 
-  it("matches short commit SHA prefixes and returns running runs with active jobs", async () => {
+  it("returns running runs with active jobs for the given commit SHA", async () => {
     mockedQuery
       .mockResolvedValueOnce({
         rows: [

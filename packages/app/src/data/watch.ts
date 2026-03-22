@@ -41,6 +41,7 @@ type WorkflowJobRow = {
 };
 
 const WATCH_LOOKBACK_SQL = "INTERVAL '14 days'";
+
 const BASELINE_LOOKBACK_SQL = "INTERVAL '30 days'";
 
 export async function getWatchStatus({
@@ -65,7 +66,7 @@ export async function getWatchStatus({
       WHERE tenant_id = $1
         AND repository = $2
         AND ref = $3
-        AND LEFT(LOWER(sha), LENGTH($4)) = LOWER($4)
+        AND LOWER(sha) = LOWER($4)
         AND last_event_at >= NOW() - ${WATCH_LOOKBACK_SQL}
       ORDER BY run_id ASC, attempts DESC, last_event_at DESC
     `,

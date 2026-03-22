@@ -147,6 +147,7 @@ describe("upsertWorkflowRun", () => {
       tenantId: 42,
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
+      sha: "abc123",
     });
   });
 
@@ -289,6 +290,7 @@ describe("upsertWorkflowJob", () => {
       tenantId: 42,
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
+      sha: "abc123",
     });
   });
 

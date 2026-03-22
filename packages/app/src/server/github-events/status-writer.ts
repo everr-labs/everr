@@ -185,6 +185,7 @@ export async function upsertWorkflowRun(
     tenantId,
     traceId: values.traceId,
     runId: String(values.runId),
+    sha: values.sha,
   });
 }
 
@@ -274,6 +275,7 @@ export async function upsertWorkflowJob(
     tenantId,
     traceId: values.traceId,
     runId: String(values.runId),
+    sha: values.sha,
   });
 }
 
