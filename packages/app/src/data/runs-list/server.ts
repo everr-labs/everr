@@ -14,6 +14,7 @@ type WorkflowRunRow = {
   workflowName: string;
   repo: string;
   branch: string;
+  status: string;
   conclusion: string | null;
   startedAt: string | Date | null;
   completedAt: string | Date | null;
@@ -34,7 +35,6 @@ export const getRunsList = createAuthenticatedServerFn({
     const timestampExpr = "COALESCE(run_completed_at, last_event_at)";
     const clauses = [
       "tenant_id = $1",
-      "status = 'completed'",
       `${timestampExpr} >= $2`,
       `${timestampExpr} <= $3`,
     ];
@@ -77,6 +77,7 @@ export const getRunsList = createAuthenticatedServerFn({
             workflow_name AS "workflowName",
             repository AS repo,
             ref AS branch,
+            status,
             conclusion,
             run_started_at AS "startedAt",
             run_completed_at AS "completedAt",
@@ -115,7 +116,6 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
         SELECT DISTINCT repository AS value
         FROM workflow_runs
         WHERE tenant_id = $1
-          AND status = 'completed'
           AND repository != ''
           AND COALESCE(run_completed_at, last_event_at) >=
             NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
@@ -129,7 +129,6 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
         SELECT DISTINCT ref AS value
         FROM workflow_runs
         WHERE tenant_id = $1
-          AND status = 'completed'
           AND ref != ''
           AND COALESCE(run_completed_at, last_event_at) >=
             NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
@@ -143,7 +142,6 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
         SELECT DISTINCT workflow_name AS value
         FROM workflow_runs
         WHERE tenant_id = $1
-          AND status = 'completed'
           AND workflow_name != ''
           AND COALESCE(run_completed_at, last_event_at) >=
             NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
@@ -210,7 +208,10 @@ export const searchRuns = createAuthenticatedServerFn({
 function mapWorkflowRunRow(row: WorkflowRunRow): RunListItem {
   const endedAt = toDateValue(row.completedAt ?? row.lastEventAt);
   const startedAt = row.startedAt ? toDateValue(row.startedAt) : endedAt;
-  const conclusion = normalizeConclusion(row.conclusion);
+  const isCompleted = row.status === "completed";
+  const conclusion = isCompleted
+    ? normalizeConclusion(row.conclusion)
+    : row.status;
 
   return {
     traceId: row.traceId,
@@ -221,7 +222,7 @@ function mapWorkflowRunRow(row: WorkflowRunRow): RunListItem {
     branch: row.branch || "—",
     conclusion,
     duration:
-      conclusion === "skip" || conclusion === "skipped"
+      !isCompleted || conclusion === "skip" || conclusion === "skipped"
         ? 0
         : Math.max(0, endedAt.getTime() - startedAt.getTime()),
     timestamp: endedAt.toISOString(),
