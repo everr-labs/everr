@@ -27,17 +27,7 @@ export const RunsListInputSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
   repo: z.string().optional(),
   branch: z.string().optional(),
-  conclusion: z
-    .enum([
-      "success",
-      "failure",
-      "cancellation",
-      "in_progress",
-      "queued",
-      "waiting",
-      "requested",
-    ])
-    .optional(),
+  conclusion: z.enum(["success", "failure", "cancellation"]).optional(),
   workflowName: z.string().optional(),
   runId: z.string().optional(),
 });
