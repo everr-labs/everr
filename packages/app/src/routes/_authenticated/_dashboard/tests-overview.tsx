@@ -125,8 +125,8 @@ function TestPerformancePage() {
   // Compute the branches filter to pass to all queries:
   // - "main" mode: pass the resolved string[] (or undefined while loading)
   // - "all" mode: pass null (no branch filter)
-  const branchesFilter: string[] | null | undefined =
-    branchMode === "all" ? null : mainBranchesQuery.data;
+  const branchesFilter: string[] | null =
+    branchMode === "all" ? null : (mainBranchesQuery.data ?? null);
 
   const filterInput = {
     timeRange,
@@ -258,9 +258,10 @@ function TestPerformancePage() {
           spacing={0}
           onValueChange={(next) => {
             const selected = next[0];
+            if (!selected) return;
             if (selected === "all") {
               navigate({ search: (prev) => ({ ...prev, branches: "all" }) });
-            } else if (selected === "main") {
+            } else {
               navigate({
                 search: (prev) => ({ ...prev, branches: undefined }),
               });

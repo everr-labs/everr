@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +14,8 @@ import { Input } from "@/components/ui/input";
 
 // --- Shared fetch utilities (also used by tests-overview) ---
 
+const branchesResponse = z.object({ branches: z.array(z.string()) });
+
 export const repoMainBranchesQueryKey = (repo: string) => [
   "repo",
   "mainBranches",
@@ -24,8 +27,7 @@ export async function fetchRepoMainBranches(repo: string): Promise<string[]> {
     `/api/repos/main-branches?repo=${encodeURIComponent(repo)}`,
   );
   if (!res.ok) throw new Error("Failed to load main branches");
-  const data = (await res.json()) as { branches: string[] };
-  return data.branches;
+  return branchesResponse.parse(await res.json()).branches;
 }
 
 const orgMainBranchesQueryKey = ["org", "mainBranches"] as const;
@@ -33,8 +35,7 @@ const orgMainBranchesQueryKey = ["org", "mainBranches"] as const;
 async function fetchOrgMainBranches(): Promise<string[]> {
   const res = await fetch("/api/org/main-branches");
   if (!res.ok) throw new Error("Failed to load org main branches");
-  const data = (await res.json()) as { branches: string[] };
-  return data.branches;
+  return branchesResponse.parse(await res.json()).branches;
 }
 
 // --- Generic editor ---
@@ -147,21 +148,26 @@ function MainBranchesEditor({
 // --- Per-scope exports ---
 
 export function RepoMainBranches({ repo }: { repo: string }) {
+  const fetchFn = useCallback(() => fetchRepoMainBranches(repo), [repo]);
+  const updateFn = useCallback(
+    async (branches: string[]) => {
+      const res = await fetch(
+        `/api/repos/main-branches?repo=${encodeURIComponent(repo)}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ branches }),
+        },
+      );
+      if (!res.ok) throw new Error("Failed to save main branches");
+    },
+    [repo],
+  );
   return (
     <MainBranchesEditor
       queryKey={repoMainBranchesQueryKey(repo)}
-      fetchFn={() => fetchRepoMainBranches(repo)}
-      updateFn={async (branches) => {
-        const res = await fetch(
-          `/api/repos/main-branches?repo=${encodeURIComponent(repo)}`,
-          {
-            method: "PUT",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ branches }),
-          },
-        );
-        if (!res.ok) throw new Error("Failed to save main branches");
-      }}
+      fetchFn={fetchFn}
+      updateFn={updateFn}
       description="These branches are used for metrics filtering on this repo. Overrides org-wide defaults."
     />
   );

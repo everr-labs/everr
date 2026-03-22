@@ -10,8 +10,12 @@ const mocked = vi.hoisted(() => {
   }));
 
   const selectLimit = vi.fn();
+  const selectOrderBy = vi.fn(() => ({
+    limit: selectLimit,
+  }));
   const selectWhere = vi.fn(() => ({
     limit: selectLimit,
+    orderBy: selectOrderBy,
   }));
   const selectFrom = vi.fn(() => ({
     where: selectWhere,
@@ -20,30 +24,22 @@ const mocked = vi.hoisted(() => {
     from: selectFrom,
   }));
 
-  const updateWhere = vi.fn();
-  const updateSet = vi.fn(() => ({
-    where: updateWhere,
-  }));
-  const update = vi.fn(() => ({
-    set: updateSet,
-  }));
-
   return {
     insert,
     insertValues,
     insertOnConflictDoUpdate,
     select,
     selectLimit,
-    update,
-    updateSet,
-    updateWhere,
   };
 });
 
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(() => "and_clause"),
+  asc: vi.fn(() => "asc_clause"),
   eq: vi.fn(() => "eq_clause"),
   isNull: vi.fn(() => "is_null_clause"),
+  or: vi.fn(() => "or_clause"),
+  sql: vi.fn(() => "sql_clause"),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -59,7 +55,6 @@ vi.mock("@/db/client", () => ({
   db: {
     insert: mocked.insert,
     select: mocked.select,
-    update: mocked.update,
   },
 }));
 
@@ -76,7 +71,7 @@ beforeEach(() => {
 });
 
 describe("getMainBranches", () => {
-  it("returns repo-specific branches when a repo row exists", async () => {
+  it("returns the first row when one exists (repo-specific wins by ordering)", async () => {
     mocked.selectLimit.mockResolvedValueOnce([
       { branches: ["main", "release"] },
     ]);
@@ -87,26 +82,22 @@ describe("getMainBranches", () => {
     expect(mocked.select).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to org-wide row when no repo row exists", async () => {
-    mocked.selectLimit
-      .mockResolvedValueOnce([]) // no repo row
-      .mockResolvedValueOnce([{ branches: ["trunk"] }]); // org row
+  it("falls back to org-wide row when repo row is absent (single query returns org row)", async () => {
+    mocked.selectLimit.mockResolvedValueOnce([{ branches: ["trunk"] }]);
 
     const result = await getMainBranches(1, "everr-labs/everr");
 
     expect(result).toEqual(["trunk"]);
-    expect(mocked.select).toHaveBeenCalledTimes(2);
+    expect(mocked.select).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to defaults when neither repo nor org rows exist", async () => {
-    mocked.selectLimit
-      .mockResolvedValueOnce([]) // no repo row
-      .mockResolvedValueOnce([]); // no org row
+  it("falls back to defaults when the query returns no rows", async () => {
+    mocked.selectLimit.mockResolvedValueOnce([]);
 
     const result = await getMainBranches(1, "everr-labs/everr");
 
     expect(result).toEqual([...DEFAULT_MAIN_BRANCHES]);
-    expect(mocked.select).toHaveBeenCalledTimes(2);
+    expect(mocked.select).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -150,29 +141,15 @@ describe("setRepoMainBranches", () => {
   it("throws when branches array is empty", async () => {
     await expect(
       setRepoMainBranches(1, "everr-labs/everr", []),
-    ).rejects.toThrow("At least one branch is required");
+    ).rejects.toThrow("All branch names must be non-empty strings");
 
     expect(mocked.insert).not.toHaveBeenCalled();
   });
 });
 
 describe("setOrgMainBranches", () => {
-  it("updates existing org row when one already exists", async () => {
-    mocked.selectLimit.mockResolvedValueOnce([{ id: 42 }]);
-    mocked.updateWhere.mockResolvedValue(undefined);
-
-    await setOrgMainBranches(1, ["main"]);
-
-    expect(mocked.update).toHaveBeenCalledTimes(1);
-    expect(mocked.updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ branches: ["main"] }),
-    );
-    expect(mocked.updateWhere).toHaveBeenCalledTimes(1);
-    expect(mocked.insert).not.toHaveBeenCalled();
-  });
-
-  it("inserts a new row when no org row exists", async () => {
-    mocked.selectLimit.mockResolvedValueOnce([]);
+  it("atomically upserts via insert + onConflictDoUpdate", async () => {
+    mocked.insertOnConflictDoUpdate.mockResolvedValue(undefined);
 
     await setOrgMainBranches(1, ["main"]);
 
@@ -182,12 +159,17 @@ describe("setOrgMainBranches", () => {
       repository: null,
       branches: ["main"],
     });
-    expect(mocked.update).not.toHaveBeenCalled();
+    expect(mocked.insertOnConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({ branches: ["main"] }),
+      }),
+    );
+    expect(mocked.select).not.toHaveBeenCalled();
   });
 
   it("throws when branches array is empty", async () => {
     await expect(setOrgMainBranches(1, [])).rejects.toThrow(
-      "At least one branch is required",
+      "All branch names must be non-empty strings",
     );
 
     expect(mocked.select).not.toHaveBeenCalled();
