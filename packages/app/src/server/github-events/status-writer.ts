@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { notifyWorkflowUpdate } from "@/db/notify";
 import {
   type WorkflowJobMetadata,
   type WorkflowRunMetadata,
@@ -179,6 +180,12 @@ export async function upsertWorkflowRun(
       },
       setWhere: sql`excluded.last_event_at >= ${workflowRuns.lastEventAt}`,
     });
+
+  await notifyWorkflowUpdate(db, {
+    tenantId,
+    traceId: values.traceId,
+    runId: String(values.runId),
+  });
 }
 
 export async function upsertWorkflowJob(
@@ -262,6 +269,12 @@ export async function upsertWorkflowJob(
       },
       setWhere: sql`excluded.last_event_at >= ${workflowJobs.lastEventAt}`,
     });
+
+  await notifyWorkflowUpdate(db, {
+    tenantId,
+    traceId: values.traceId,
+    runId: String(values.runId),
+  });
 }
 
 export async function handleStatusEvent(
