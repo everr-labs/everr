@@ -105,10 +105,6 @@ pub struct WatchArgs {
     pub branch: Option<String>,
     #[arg(long)]
     pub commit: Option<String>,
-    #[arg(long)]
-    pub timeout_seconds: Option<u64>,
-    #[arg(long, default_value_t = 5)]
-    pub interval_seconds: u64,
 }
 
 #[derive(Args, Debug)]
@@ -552,15 +548,13 @@ mod tests {
     }
 
     #[test]
-    fn watch_defaults_to_no_timeout_and_five_second_interval() {
+    fn watch_parses_without_arguments() {
         let cli = Cli::try_parse_from(["everr", "watch"]).expect("watch command");
 
         let Commands::Watch(WatchArgs {
             repo,
             branch,
             commit,
-            timeout_seconds,
-            interval_seconds,
         }) = cli.command
         else {
             panic!("expected watch command");
@@ -569,31 +563,6 @@ mod tests {
         assert_eq!(repo, None);
         assert_eq!(branch, None);
         assert_eq!(commit, None);
-        assert_eq!(timeout_seconds, None);
-        assert_eq!(interval_seconds, 5);
-    }
-
-    #[test]
-    fn watch_parses_custom_timeout_and_interval() {
-        let cli = Cli::try_parse_from([
-            "everr",
-            "watch",
-            "--commit",
-            "abc123",
-            "--timeout-seconds",
-            "1200",
-            "--interval-seconds",
-            "2",
-        ])
-        .expect("watch command");
-
-        let Commands::Watch(args) = cli.command else {
-            panic!("expected watch command");
-        };
-
-        assert_eq!(args.commit.as_deref(), Some("abc123"));
-        assert_eq!(args.timeout_seconds, Some(1200));
-        assert_eq!(args.interval_seconds, 2);
     }
 
     #[test]

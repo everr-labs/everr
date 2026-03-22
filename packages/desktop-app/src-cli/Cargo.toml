@@ -13,6 +13,7 @@ clap = { version = "4.5.38", features = ["derive"] }
 dialoguer = "0.11.0"
 dirs = "6.0.0"
 everr-core = { path = "../../../crates/everr-core" }
+futures-util = "0.3"
 reqwest = { version = "0.12.15", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"

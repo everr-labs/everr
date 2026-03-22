@@ -1,13 +1,10 @@
 import { Client } from "pg";
 import { dbEnv } from "@/env/db";
-
-export type NotificationPayload = {
-  tenantId: number;
-  traceId: string;
-  runId: string;
-};
+import type { NotifyPayload } from "./notify";
 
 type CleanupFn = () => void;
+
+const SAFE_CHANNEL_RE = /^[a-zA-Z0-9_]+$/;
 
 function buildClientConfig() {
   const shouldUseSsl = ["true", "1", "yes", "on"].includes(
@@ -25,7 +22,7 @@ function buildClientConfig() {
 
 export function createSubscription(
   channels: string[],
-  onNotification: (payload: NotificationPayload) => void,
+  onNotification: (payload: NotifyPayload) => void,
   onError: (err: Error) => void,
 ): CleanupFn {
   const client = new Client(buildClientConfig());
@@ -40,27 +37,30 @@ export function createSubscription(
       .finally(() => client.end().catch(() => {}));
   };
 
+  client.on("notification", (msg) => {
+    if (!msg.payload) return;
+    try {
+      const parsed = JSON.parse(msg.payload) as NotifyPayload;
+      onNotification(parsed);
+    } catch {
+      // ignore unparseable payloads
+    }
+  });
+
+  client.on("error", (err) => {
+    onError(err);
+    cleanup();
+  });
+
   client
     .connect()
     .then(async () => {
       for (const channel of channels) {
+        if (!SAFE_CHANNEL_RE.test(channel)) {
+          throw new Error(`Unsafe channel name: ${channel}`);
+        }
         await client.query(`LISTEN "${channel}"`);
       }
-
-      client.on("notification", (msg) => {
-        if (!msg.payload) return;
-        try {
-          const parsed = JSON.parse(msg.payload) as NotificationPayload;
-          onNotification(parsed);
-        } catch {
-          // ignore unparseable payloads
-        }
-      });
-
-      client.on("error", (err) => {
-        onError(err);
-        cleanup();
-      });
     })
     .catch((err: Error) => {
       onError(err);

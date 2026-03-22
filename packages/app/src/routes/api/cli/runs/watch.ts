@@ -4,12 +4,15 @@ import { getWatchStatus } from "@/data/watch";
 import { commitChannel } from "@/db/notify";
 import { createSubscription } from "@/db/subscribe";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
+import { createSSEStream } from "@/lib/sse";
 
 const WatchQuerySchema = z.object({
   repo: z.string().min(1),
   branch: z.string().min(1),
   commit: z.string().min(1),
 });
+
+export { WatchQuerySchema };
 
 export const Route = createFileRoute("/api/cli/runs/watch")({
   server: {
@@ -33,74 +36,66 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           );
         }
 
-        const { readable, writable } = new TransformStream<Uint8Array>();
-        const writer = writable.getWriter();
-        const encoder = new TextEncoder();
-
-        function sendEvent(data: object) {
-          writer
-            .write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
-            .catch(() => {});
-        }
+        const sse = createSSEStream(request);
 
         const initial = await getWatchStatus({
           tenantId: context.session.tenantId,
           ...parsed.data,
         });
-        sendEvent(initial);
+        sse.sendEvent(initial);
 
         if (initial.state === "completed") {
-          writer.close().catch(() => {});
-          return new Response(readable, {
-            headers: {
-              "Content-Type": "text/event-stream",
-              "Cache-Control": "no-cache",
-              Connection: "keep-alive",
-            },
-          });
+          sse.close();
+          return sse.response();
         }
 
-        let cleanup: (() => void) | null = null;
-        const heartbeatInterval = setInterval(() => {
-          sendEvent({ type: "ping" });
-        }, 30_000);
+        let throttled = false;
+        let pendingFetch = false;
 
-        cleanup = createSubscription(
-          [commitChannel(context.session.tenantId, parsed.data.commit)],
-          (_payload) => {
-            getWatchStatus({
-              tenantId: context.session.tenantId,
-              ...parsed.data,
+        function fetchAndSend() {
+          throttled = true;
+          getWatchStatus({
+            tenantId: context.session.tenantId,
+            ...parsed.data,
+          })
+            .then((status) => {
+              sse.sendEvent(status);
+              if (status.state === "completed") {
+                cleanup();
+                sse.close();
+              }
             })
-              .then((status) => {
-                sendEvent(status);
-                if (status.state === "completed") {
-                  clearInterval(heartbeatInterval);
-                  cleanup?.();
-                  writer.close().catch(() => {});
-                }
-              })
-              .catch(() => {});
+            .catch(() => {})
+            .finally(() => {
+              if (pendingFetch) {
+                pendingFetch = false;
+                fetchAndSend();
+              } else {
+                throttled = false;
+              }
+            });
+        }
+
+        const cleanup = createSubscription(
+          [commitChannel(context.session.tenantId, parsed.data.commit)],
+          () => {
+            if (throttled) {
+              pendingFetch = true;
+            } else {
+              fetchAndSend();
+            }
           },
           () => {
-            clearInterval(heartbeatInterval);
-            writer.close().catch(() => {});
+            sse.sendEvent({ type: "error", message: "subscription lost" });
+            sse.close();
           },
         );
 
         request.signal.addEventListener("abort", () => {
-          clearInterval(heartbeatInterval);
-          cleanup?.();
-          writer.close().catch(() => {});
+          cleanup();
         });
 
-        return new Response(readable, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-          },
-        });
+        return sse.response();
       },
     },
   },

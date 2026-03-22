@@ -14,6 +14,23 @@ vi.mock("@/lib/auth", () => ({
   getWorkOSAuthSession: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/lib/sse", () => ({
+  createSSEStream: vi.fn(() => ({
+    sendEvent: vi.fn(),
+    close: vi.fn(),
+    response: vi.fn(
+      () =>
+        new Response(null, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        }),
+    ),
+  })),
+}));
+
 import { createSubscription } from "@/db/subscribe";
 import {
   getAccessTokenSessionFromRequest,

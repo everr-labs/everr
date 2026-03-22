@@ -154,7 +154,7 @@ export async function upsertWorkflowRun(
     updatedAt: opTimestamp,
   };
 
-  await db
+  const result = await db
     .insert(workflowRuns)
     .values(values)
     .onConflictDoUpdate({
@@ -179,14 +179,17 @@ export async function upsertWorkflowRun(
         updatedAt: sql`excluded.updated_at`,
       },
       setWhere: sql`excluded.last_event_at >= ${workflowRuns.lastEventAt}`,
-    });
+    })
+    .returning({ traceId: workflowRuns.traceId });
 
-  await notifyWorkflowUpdate(db, {
-    tenantId,
-    traceId: values.traceId,
-    runId: String(values.runId),
-    sha: values.sha,
-  });
+  if (result.length > 0) {
+    void notifyWorkflowUpdate(db, {
+      tenantId,
+      traceId: values.traceId,
+      runId: String(values.runId),
+      sha: values.sha,
+    });
+  }
 }
 
 export async function upsertWorkflowJob(
@@ -247,7 +250,7 @@ export async function upsertWorkflowJob(
     updatedAt: opTimestamp,
   };
 
-  await db
+  const result = await db
     .insert(workflowJobs)
     .values(values)
     .onConflictDoUpdate({
@@ -269,14 +272,17 @@ export async function upsertWorkflowJob(
         updatedAt: sql`excluded.updated_at`,
       },
       setWhere: sql`excluded.last_event_at >= ${workflowJobs.lastEventAt}`,
-    });
+    })
+    .returning({ traceId: workflowJobs.traceId });
 
-  await notifyWorkflowUpdate(db, {
-    tenantId,
-    traceId: values.traceId,
-    runId: String(values.runId),
-    sha: values.sha,
-  });
+  if (result.length > 0) {
+    void notifyWorkflowUpdate(db, {
+      tenantId,
+      traceId: values.traceId,
+      runId: String(values.runId),
+      sha: values.sha,
+    });
+  }
 }
 
 export async function handleStatusEvent(

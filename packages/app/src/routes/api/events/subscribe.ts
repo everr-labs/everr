@@ -6,6 +6,7 @@ import {
   getAccessTokenSessionFromRequest,
   getWorkOSAuthSession,
 } from "@/lib/auth";
+import { createSSEStream } from "@/lib/sse";
 
 const SubscribeQuerySchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("tenant") }),
@@ -45,39 +46,22 @@ export const Route = createFileRoute("/api/events/subscribe")({
             ? tenantChannel(session.tenantId)
             : traceChannel(parsed.data.traceId);
 
-        const { readable, writable } = new TransformStream<Uint8Array>();
-        const writer = writable.getWriter();
-        const encoder = new TextEncoder();
-
-        function sendEvent(data: object) {
-          writer
-            .write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
-            .catch(() => {});
-        }
+        const sse = createSSEStream(request);
 
         const cleanup = createSubscription(
           [channel],
-          (payload) => sendEvent({ type: "update", ...payload }),
-          () => writer.close().catch(() => {}),
+          (payload) => sse.sendEvent({ type: "update", ...payload }),
+          () => {
+            sse.sendEvent({ type: "error", message: "subscription lost" });
+            sse.close();
+          },
         );
 
-        const heartbeatInterval = setInterval(() => {
-          sendEvent({ type: "ping" });
-        }, 30_000);
-
         request.signal.addEventListener("abort", () => {
-          clearInterval(heartbeatInterval);
           cleanup();
-          writer.close().catch(() => {});
         });
 
-        return new Response(readable, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-          },
-        });
+        return sse.response();
       },
     },
   },

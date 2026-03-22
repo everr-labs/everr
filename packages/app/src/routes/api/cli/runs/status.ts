@@ -1,13 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { getWatchStatus } from "@/data/watch";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
-
-const StatusQuerySchema = z.object({
-  repo: z.string().min(1),
-  branch: z.string().min(1),
-  commit: z.string().min(1),
-});
+import { WatchQuerySchema } from "./watch";
 
 export const Route = createFileRoute("/api/cli/runs/status")({
   server: {
@@ -15,7 +9,7 @@ export const Route = createFileRoute("/api/cli/runs/status")({
     handlers: {
       GET: async ({ request, context }) => {
         const url = new URL(request.url);
-        const parsed = StatusQuerySchema.safeParse({
+        const parsed = WatchQuerySchema.safeParse({
           repo: url.searchParams.get("repo") ?? undefined,
           branch: url.searchParams.get("branch") ?? undefined,
           commit: url.searchParams.get("commit") ?? undefined,

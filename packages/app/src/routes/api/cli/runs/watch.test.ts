@@ -21,6 +21,27 @@ vi.mock("@/db/subscribe", () => ({
   createSubscription: vi.fn(() => vi.fn()),
 }));
 
+vi.mock("@/lib/sse", () => ({
+  createSSEStream: vi.fn(() => {
+    const events: object[] = [];
+    return {
+      sendEvent: vi.fn((data: object) => events.push(data)),
+      close: vi.fn(),
+      response: vi.fn(
+        () =>
+          new Response(null, {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+            },
+          }),
+      ),
+      _events: events,
+    };
+  }),
+}));
+
 import { getWatchStatus } from "@/data/watch";
 import { createSubscription } from "@/db/subscribe";
 import { Route } from "./watch";

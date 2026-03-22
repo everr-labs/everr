@@ -17,7 +17,8 @@ import { generateWorkflowTraceId } from "./trace-id";
 const mockedNotify = vi.mocked(notifyWorkflowUpdate);
 
 function createMockDb() {
-  const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+  const returning = vi.fn().mockResolvedValue([{ traceId: "t1" }]);
+  const onConflictDoUpdate = vi.fn().mockReturnValue({ returning });
   const values = vi.fn().mockReturnValue({ onConflictDoUpdate });
   const insert = vi.fn().mockReturnValue({ values });
   return {
@@ -25,6 +26,7 @@ function createMockDb() {
     insert,
     values,
     onConflictDoUpdate,
+    returning,
   };
 }
 
@@ -233,6 +235,15 @@ describe("upsertWorkflowRun", () => {
     });
   });
 
+  it("does not notify when upsert returns no rows (stale event)", async () => {
+    const { db, returning } = createMockDb();
+    returning.mockResolvedValue([]);
+
+    await upsertWorkflowRun(db, 42, buildRunEvent("requested"));
+
+    expect(mockedNotify).not.toHaveBeenCalled();
+  });
+
   it("throws on missing workflow_run", async () => {
     const { db } = createMockDb();
     const event = buildRunEvent("requested");
@@ -358,6 +369,15 @@ describe("upsertWorkflowJob", () => {
       createdAt: opTimestamp,
       updatedAt: opTimestamp,
     });
+  });
+
+  it("does not notify when upsert returns no rows (stale event)", async () => {
+    const { db, returning } = createMockDb();
+    returning.mockResolvedValue([]);
+
+    await upsertWorkflowJob(db, 42, buildJobEvent("queued"));
+
+    expect(mockedNotify).not.toHaveBeenCalled();
   });
 
   it("throws on missing workflow_job", async () => {

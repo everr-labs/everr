@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -41,8 +42,73 @@ impl ApiClient {
         self.get_json("/runs", query).await
     }
 
-    pub async fn get_watch_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
-        self.get("/runs/watch", query).await
+    pub async fn get_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
+        self.get("/runs/status", query).await
+    }
+
+    pub async fn watch_sse(
+        &self,
+        query: &[(&str, String)],
+    ) -> Result<impl futures_util::Stream<Item = Result<WatchResponse>>> {
+        let response = self
+            .http
+            .get(format!("{}/runs/watch", self.base_endpoint))
+            .query(query)
+            .send()
+            .await
+            .context("SSE connection failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            bail!("SSE connection failed with {status}: {text}");
+        }
+
+        let stream = response.bytes_stream();
+
+        Ok(futures_util::stream::unfold(
+            (stream, String::new()),
+            |(mut stream, mut buffer)| async move {
+                loop {
+                    if let Some(pos) = buffer.find("\n\n") {
+                        let data = buffer[..pos]
+                            .lines()
+                            .filter_map(|line| {
+                                line.strip_prefix("data:")
+                                    .map(|v| v.strip_prefix(' ').unwrap_or(v))
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        buffer.drain(..pos + 2);
+
+                        if data.is_empty() {
+                            continue;
+                        }
+
+                        match serde_json::from_str::<WatchResponse>(&data) {
+                            Ok(response) => return Some((Ok(response), (stream, buffer))),
+                            Err(_) => continue,
+                        }
+                    }
+
+                    match stream.next().await {
+                        Some(Ok(bytes)) => {
+                            buffer.push_str(&String::from_utf8_lossy(&bytes));
+                        }
+                        Some(Err(e)) => {
+                            return Some((
+                                Err(anyhow::anyhow!("SSE stream error: {e}")),
+                                (stream, buffer),
+                            ));
+                        }
+                        None => return None,
+                    }
+                }
+            },
+        ))
     }
 
     pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {

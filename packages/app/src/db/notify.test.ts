@@ -33,16 +33,28 @@ describe("traceChannel", () => {
   it("returns trace_{traceId}", () => {
     expect(traceChannel("abc123")).toBe("trace_abc123");
   });
+
+  it("throws on unsafe traceId", () => {
+    expect(() => traceChannel('abc"; DROP TABLE--')).toThrow(
+      "Unsafe channel name component",
+    );
+  });
 });
 
 describe("commitChannel", () => {
   it("returns commit_{tenantId}_{sha_lowercased}", () => {
     expect(commitChannel(42, "ABC123")).toBe("commit_42_abc123");
   });
+
+  it("throws on unsafe sha", () => {
+    expect(() => commitChannel(42, 'abc"; DROP TABLE--')).toThrow(
+      "Unsafe channel name component",
+    );
+  });
 });
 
 describe("notifyWorkflowUpdate", () => {
-  it("calls db.execute three times — once per channel", async () => {
+  it("calls db.execute once with all three pg_notify calls", async () => {
     await notifyWorkflowUpdate(mockDb, {
       tenantId: 42,
       traceId: "abc123",
@@ -50,7 +62,7 @@ describe("notifyWorkflowUpdate", () => {
       sha: "deadbeef",
     });
 
-    expect(mockExecute).toHaveBeenCalledTimes(3);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 
   it("does not throw when db.execute rejects", async () => {

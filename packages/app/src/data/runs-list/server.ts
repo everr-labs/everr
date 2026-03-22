@@ -116,6 +116,7 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
         SELECT DISTINCT repository AS value
         FROM workflow_runs
         WHERE tenant_id = $1
+          AND status = 'completed'
           AND repository != ''
           AND COALESCE(run_completed_at, last_event_at) >=
             NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
@@ -129,6 +130,7 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
         SELECT DISTINCT ref AS value
         FROM workflow_runs
         WHERE tenant_id = $1
+          AND status = 'completed'
           AND ref != ''
           AND COALESCE(run_completed_at, last_event_at) >=
             NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
@@ -142,6 +144,7 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
         SELECT DISTINCT workflow_name AS value
         FROM workflow_runs
         WHERE tenant_id = $1
+          AND status = 'completed'
           AND workflow_name != ''
           AND COALESCE(run_completed_at, last_event_at) >=
             NOW() - ${RECENT_COMPLETED_WINDOW_SQL}

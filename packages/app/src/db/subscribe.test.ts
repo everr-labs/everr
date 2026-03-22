@@ -29,6 +29,8 @@ vi.mock("@/env/db", () => ({
   },
 }));
 
+vi.mock("./notify", () => ({}));
+
 import { createSubscription } from "./subscribe";
 
 beforeEach(() => {
@@ -57,12 +59,30 @@ describe("createSubscription", () => {
     expect(mockConnect).toHaveBeenCalledOnce();
   });
 
+  it("registers notification and error listeners before connecting", () => {
+    createSubscription(["tenant_42"], vi.fn(), vi.fn());
+
+    const events = mockOn.mock.calls.map(([e]) => e);
+    expect(events).toContain("notification");
+    expect(events).toContain("error");
+  });
+
   it("LISTENs on each channel after connecting", async () => {
     createSubscription(["tenant_42", "trace_abc"], vi.fn(), vi.fn());
     await new Promise((r) => setTimeout(r, 0));
 
     expect(mockQuery).toHaveBeenCalledWith('LISTEN "tenant_42"');
     expect(mockQuery).toHaveBeenCalledWith('LISTEN "trace_abc"');
+  });
+
+  it("rejects unsafe channel names", async () => {
+    const onError = vi.fn();
+    createSubscription(['tenant_42"; DROP TABLE--'], vi.fn(), onError);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("Unsafe") }),
+    );
   });
 
   it("forwards parsed notification payloads to onNotification", async () => {
