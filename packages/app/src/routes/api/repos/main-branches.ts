@@ -35,9 +35,10 @@ export const Route = createFileRoute("/api/repos/main-branches")({
         if (!repo)
           return Response.json({ error: "missing repo" }, { status: 400 });
 
-        const parsed = z
-          .object({ branches: z.array(z.string().min(1)).min(1) })
-          .safeParse(await request.json());
+        const branchesBody = z.object({
+          branches: z.array(z.string().min(1)).min(1),
+        });
+        const parsed = branchesBody.safeParse(await request.json());
         if (!parsed.success) {
           return Response.json(
             { error: "branches must be a non-empty array of strings" },

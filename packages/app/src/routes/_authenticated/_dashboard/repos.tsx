@@ -26,7 +26,7 @@ import {
   topFailingJobsOptions,
 } from "@/data/repo-detail/options";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
-import { RepoMainBranches } from "./-repos-main-branches";
+import { RepoMainBranches } from "./-main-branches-editor";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },

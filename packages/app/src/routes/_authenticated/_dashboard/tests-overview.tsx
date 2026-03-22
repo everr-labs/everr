@@ -43,6 +43,10 @@ import {
   TimeRangeSearchSchema,
   withTimeRange,
 } from "@/lib/time-range";
+import {
+  fetchRepoMainBranches,
+  repoMainBranchesQueryKey,
+} from "./-main-branches-editor";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/tests-overview",
@@ -99,15 +103,6 @@ export const Route = createFileRoute(
   pendingComponent: TestPerformanceSkeleton,
 });
 
-async function fetchMainBranches(repo: string): Promise<string[]> {
-  const res = await fetch(
-    `/api/repos/main-branches?repo=${encodeURIComponent(repo)}`,
-  );
-  if (!res.ok) throw new Error("Failed to load main branches");
-  const data = (await res.json()) as { branches: string[] };
-  return data.branches;
-}
-
 function TestPerformancePage() {
   const { timeRange, repo, pkg, testName, branch, path } =
     Route.useLoaderDeps();
@@ -122,8 +117,8 @@ function TestPerformancePage() {
 
   // Fetch resolved main branches when in "main" mode
   const mainBranchesQuery = useQuery({
-    queryKey: ["repo", "mainBranches", repo ?? ""],
-    queryFn: () => fetchMainBranches(repo ?? ""),
+    queryKey: repoMainBranchesQueryKey(repo ?? ""),
+    queryFn: () => fetchRepoMainBranches(repo ?? ""),
     enabled: branchMode === "main",
   });
 

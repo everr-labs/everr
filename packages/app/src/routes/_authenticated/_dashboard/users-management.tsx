@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAccessToken } from "@workos/authkit-tanstack-react-start/client";
 import { UsersManagement } from "@workos-inc/widgets";
-import { OrgMainBranches } from "./-org-main-branches";
+import { OrgMainBranches } from "./-main-branches-editor";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/users-management",
