@@ -48,7 +48,7 @@ export function createSubscription(
   });
 
   client.on("error", (err) => {
-    onError(err);
+    if (!cleaned) onError(err);
     cleanup();
   });
 
@@ -63,7 +63,7 @@ export function createSubscription(
       }
     })
     .catch((err: Error) => {
-      onError(err);
+      if (!cleaned) onError(err);
       cleanup();
     });
 

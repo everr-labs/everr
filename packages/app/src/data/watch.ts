@@ -66,7 +66,7 @@ export async function getWatchStatus({
       WHERE tenant_id = $1
         AND repository = $2
         AND ref = $3
-        AND LOWER(sha) = LOWER($4)
+        AND sha = $4
         AND last_event_at >= NOW() - ${WATCH_LOOKBACK_SQL}
       ORDER BY run_id ASC, attempts DESC, last_event_at DESC
     `,
