@@ -36,11 +36,12 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           );
         }
 
+        const filters = parsed.data;
         const sse = createSSEStream(request);
 
         const initial = await getWatchStatus({
           tenantId: context.session.tenantId,
-          ...parsed.data,
+          ...filters,
         });
         sse.sendEvent(initial);
 
@@ -56,7 +57,7 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           throttled = true;
           getWatchStatus({
             tenantId: context.session.tenantId,
-            ...parsed.data,
+            ...filters,
           })
             .then((status) => {
               sse.sendEvent(status);
@@ -77,7 +78,7 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
         }
 
         const cleanup = createSubscription(
-          [commitChannel(context.session.tenantId, parsed.data.commit)],
+          [commitChannel(context.session.tenantId, filters.commit)],
           () => {
             if (throttled) {
               pendingFetch = true;
