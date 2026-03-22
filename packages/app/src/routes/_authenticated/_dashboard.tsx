@@ -19,6 +19,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
 function RouteComponent() {
   const [commandBarOpen, setCommandBarOpen] = useState(false);
   const search = Route.useSearch();
+  useRealtimeSubscription({ scope: "tenant" });
 
   const toggleCommandBar = useCallback((open: boolean) => {
     if (document.startViewTransition) {

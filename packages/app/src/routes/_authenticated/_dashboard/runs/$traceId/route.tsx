@@ -23,6 +23,7 @@ import {
   runDetailsOptions,
   runJobsOptions,
 } from "@/data/runs/options";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute(
@@ -58,6 +59,7 @@ export const Route = createFileRoute(
 
 function RunDetailLayout() {
   const { traceId } = Route.useParams();
+  useRealtimeSubscription({ scope: "trace", traceId });
   const { data: runDetails } = useQuery(runDetailsOptions(traceId));
   const { data: jobs } = useQuery(runJobsOptions(traceId));
   const { data: stepsByJobId } = useQuery(
