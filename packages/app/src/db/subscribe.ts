@@ -48,7 +48,8 @@ export class Subscription {
 
     this.connectPromise = this.client
       .connect()
-      .then(async () => this.handleConnect(channel));
+      .then(async () => this.handleConnect(channel))
+      .catch(this.handleError);
   }
 
   handleError = (err: Error) => {
@@ -65,7 +66,7 @@ export class Subscription {
 
     this.state = "listening";
 
-    this.client.query(`LISTEN "${channel}"`).catch(this.handleError);
+    await this.client.query(`LISTEN "${channel}"`);
   }
 
   dispose(): void {
