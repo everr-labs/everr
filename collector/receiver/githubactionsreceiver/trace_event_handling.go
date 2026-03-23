@@ -1,3 +1,10 @@
+// Copyright The OpenTelemetry Authors
+// Copyright 2026 Giordano Ricci (operating as "Everr Labs")
+// SPDX-License-Identifier: Apache-2.0
+//
+// This file has been modified from its original version.
+// Original code is licensed under the Apache License, Version 2.0.
+
 package githubactionsreceiver
 
 import (

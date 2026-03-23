@@ -1,6 +1,3 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
-
 package semconv
 
 // Contrib — CICD extensions from opentelemetry-collector-contrib/receiver/githubreceiver
