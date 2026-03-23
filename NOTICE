@@ -1,0 +1,23 @@
+Everr
+Copyright 2026 Giordano Ricci (operating as "Everr Labs")
+
+Licensed under the Functional Source License, Version 1.1, ALv2 Future License
+(FSL-1.1-ALv2). See LICENSE for the full text.
+
+This product includes code from OpenTelemetry projects, licensed under the
+Apache License, Version 2.0. The full text of the Apache License can be found
+at http://www.apache.org/licenses/LICENSE-2.0.
+
+Third-party components:
+
+- collector/internal/sharedcomponent/
+  Copied unmodified from the OpenTelemetry Collector
+  (https://github.com/open-telemetry/opentelemetry-collector).
+  Licensed in its entirety under the Apache License, Version 2.0.
+
+- collector/receiver/githubactionsreceiver/
+  Derived from the OpenTelemetry Collector Contrib
+  (https://github.com/open-telemetry/opentelemetry-collector-contrib).
+  Files modified from upstream retain the Apache License, Version 2.0.
+  Files added by Everr Labs are licensed under FSL-1.1-ALv2.
+  See individual file headers for specifics.
