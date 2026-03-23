@@ -820,8 +820,8 @@ fn watch_receives_sse_events_until_completion() {
     env.write_session(&server.url(), "token-abc");
 
     let sse_body = [
-        "data: {\"state\":\"running\",\"active\":[{\"runId\":\"42\",\"workflowName\":\"CI\",\"conclusion\":null,\"durationSeconds\":125,\"expectedDurationSeconds\":118,\"activeJobs\":[\"test\",\"lint\"]}],\"completed\":[{\"runId\":\"41\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"durationSeconds\":59,\"expectedDurationSeconds\":57,\"activeJobs\":[]}]}\n\n",
-        "data: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"42\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]},{\"runId\":\"41\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"durationSeconds\":59,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n",
+        "event: message\ndata: {\"state\":\"running\",\"active\":[{\"runId\":\"42\",\"workflowName\":\"CI\",\"conclusion\":null,\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":null,\"expectedDurationSeconds\":118,\"activeJobs\":[\"test\",\"lint\"]}],\"completed\":[{\"runId\":\"41\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T09:58:01Z\",\"durationSeconds\":59,\"expectedDurationSeconds\":57,\"activeJobs\":[]}]}\n\n",
+        "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"42\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]},{\"runId\":\"41\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T09:58:01Z\",\"durationSeconds\":59,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n",
     ].join("");
 
     let mock = server
@@ -847,9 +847,8 @@ fn watch_receives_sse_events_until_completion() {
         .stdout(contains("\"runId\": \"42\""))
         .stdout(contains("\"runId\": \"41\""))
         .stderr(contains("Watching pipeline for commit"))
-        .stderr(contains(
-            "Active runs:\n- CI (duration: 2m 5s; expected duration: 1m 58s; active jobs: test, lint)",
-        ))
+        .stderr(contains("Active runs:\n- CI (duration:"))
+        .stderr(contains("expected duration: 1m 58s; active jobs: test, lint)"))
         .stderr(contains("Completed runs: Lint"));
 
     mock.assert();
@@ -868,7 +867,7 @@ fn watch_exits_when_completed_runs_exist_even_without_pipeline_found() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "data: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"52\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"52\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
@@ -909,7 +908,7 @@ fn watch_uses_explicit_commit_when_provided() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "data: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"77\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"77\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
@@ -953,7 +952,7 @@ fn watch_resolves_short_commit_sha_to_full() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "data: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
@@ -993,7 +992,7 @@ fn watch_fails_when_completed_runs_include_failure() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "data: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"workflowName\":\"CI\",\"conclusion\":\"failure\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"workflowName\":\"CI\",\"conclusion\":\"failure\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
