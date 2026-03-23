@@ -18,7 +18,7 @@ If the intent is ambiguous, ask one question to clarify:
 
 ---
 
-## Workflow A: Quick Capture (Idea)
+## Idea
 
 For raw ideas that aren't ready for shaping yet.
 
@@ -82,7 +82,7 @@ Optionally, if the idea seems mature enough: *"When you're ready to shape this, 
 
 ---
 
-## Workflow B: Quick Capture (Issue)
+## Issue
 
 For bugs and focused problems. Small and scoped — not feature ideas.
 
@@ -142,11 +142,11 @@ If the list is empty except for the new issue, say so.
 3. No gates, no refinement loops, no approval steps
 4. Always show the full issue list after saving
 5. Do not investigate, diagnose, or fix — capture only
-6. Issues are small and focused — if it sounds like a feature, route to Workflow A (idea) or Workflow C (spec) instead
+6. Issues are small and focused — if it sounds like a feature, route to the Idea or Spec workflow instead
 
 ---
 
-## Workflow C: Shape Up Spec
+## Project
 
 Full design workflow producing shaping documents and a pitch. **No implementation is done here.**
 

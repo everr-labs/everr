@@ -1,6 +1,5 @@
 ---
 name: review-current-branch
-command: /check-changes
 description: Review the current branch's diff vs main for simplicity, performance, and bugs. Spawns 3 parallel agents.
 ---
 
@@ -29,8 +28,6 @@ Each agent MUST format its output as:
 
 {numbered list of findings, each as:}
 {n}. [{severity}] `file/path:line` — {description}
-
-**Score: {n}/10**
 ```
 
 Where `{severity}` is one of: `critical`, `warning`, `nitpick`.
@@ -62,7 +59,6 @@ Output format:
 1. [severity] `file:line` — description
 ...
 
-**Score: X/10** (10 = perfectly simple, 1 = severely over-engineered)
 ```
 
 #### Agent 2: Performance
@@ -92,8 +88,6 @@ Output format:
 
 1. [severity] `file:line` — description
 ...
-
-**Score: X/10** (10 = optimal query efficiency, 1 = severe DB/API performance issues)
 ```
 
 #### Agent 3: Bug Hunter
@@ -124,48 +118,33 @@ Output format:
 1. [severity] `file:line` — description
 ...
 
-**Score: X/10** (10 = no bugs found, 1 = critical bugs present)
 ```
 
-### Step 3: Print results
+### Step 3: Filter the false positives
 
-As each agent completes, print its output verbatim.
+Spawn a sub-agent and double-check every reported item.
+
+Filter out every false-positive.
 
 ### Step 4: Final summary
 
-After all 3 agents complete, compile a final summary:
-
-1. Group ALL findings from all agents by severity:
+After all sub-agents complete, synthesize their findings into a final report with the following sections:
 
 ```
-## Summary
+### Critical / Must Fix
+(bugs or security issues that must be addressed before merge)
 
-### Critical
-- `file:line` — {description} ({agent name})
+### Recommended Changes
+(simplicity, performance, coverage gaps worth fixing now)
 
-### Warning
-- `file:line` — {description} ({agent name})
+### Low Priority / FYI
+(micro-opts and minor notes that can be deferred)
 
-### Nitpick
-- `file:line` — {description} ({agent name})
+### Summary
+(2–4 sentence overall assessment)
 ```
 
-Omit empty severity sections.
-
-2. Print the overall quality score:
-
-```
-### Quality Score
-
-| Area        | Score |
-|-------------|-------|
-| Simplicity  | X/10  |
-| Performance | X/10  |
-| Correctness | X/10  |
-| **Overall** | **X/10** |
-
-Overall = average of the 3 scores, rounded to 1 decimal.
-```
+Deduplicate overlapping findings across agents. Prefer concrete file:line references over vague statements.
 
 ## Rules
 
