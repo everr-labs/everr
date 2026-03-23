@@ -1,37 +1,57 @@
-# Everr
+<p align="center">
+  <img src="packages/app/public/everr.svg" height="60" alt="Everr" />
+</p>
 
-**Software delivery intelligence for developers and AI agents.**
+<h3 align="center">Software delivery intelligence for developers and AI agents.</h3>
 
-Everr transforms your CI/CD pipelines into fully observable systems. It collects structured telemetry from GitHub Actions and turns it into actionable signals -- so both humans and AI agents can detect failures, understand root causes, and resolve issues fast.
+<p align="center">
+  <a href="https://everr.dev">Website</a> &middot; <a href="https://everr.dev/docs">Docs</a> &middot; <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-FSL--1.1--ALv2-blue" alt="License" /></a>
+</p>
+
+---
+
+Everr transforms your CI/CD pipelines into fully observable systems. It collects structured telemetry from GitHub Actions and turns it into actionable signals -- so both developers and AI coding agents can detect failures, understand root causes, and resolve issues fast.
+
+<!-- TODO: Add a product screenshot here
+<p align="center">
+  <img src="assets/screenshot.png" alt="Everr dashboard" width="800" />
+</p>
+-->
 
 ## The problem
 
-AI coding agents are making development faster than ever. But every change still has to pass through CI -- and when pipelines break, everything stops. Developers context-switch between dashboards and logs. AI agents hit a wall because pipeline data is fragmented and unstructured. The bottleneck has moved from writing code to validating it.
+AI coding agents are making development faster than ever. But every change still has to pass through CI -- and when pipelines break, everything stops.
 
-## What Everr does
+Developers context-switch between dashboards and raw logs. AI agents hit a wall because pipeline data is fragmented and unstructured. **The bottleneck has moved from writing code to validating it.**
 
-**Structured telemetry, not raw logs.** Everr converts every workflow run into OpenTelemetry traces and automatically surfaces what matters: flakiness scores, performance trends, failure patterns, and cost anomalies.
+## How Everr helps
 
-**Built for both humans and agents.** The same structured data is accessible through the web dashboard, a native desktop app, and a CLI designed for AI-native workflows. Agents can query pipeline status, search logs, and act on failures autonomously.
+**Structured telemetry, not raw logs.** Every workflow run is converted into OpenTelemetry traces. Everr automatically surfaces flakiness scores, performance trends, failure patterns, and cost anomalies.
 
-- **Every run, fully traced** -- Drill into any workflow run with a trace waterfall, structured logs, and resource usage. Debug failures in seconds, not hours.
+**Built for humans and agents.** The same structured data is accessible through the web dashboard, a native desktop app, and a CLI designed for AI-native workflows. Agents can query pipeline status, search logs, and act on failures autonomously -- no screen-scraping, no log parsing.
 
-- **Flaky test detection** -- Track test flakiness over time with heatmaps and timelines. Stop re-running pipelines and start fixing root causes.
+### Key capabilities
 
-- **Cost visibility** -- Break down runner spend by repository, workflow, and runner type. Find the workflows burning through your budget.
+- **Full run tracing** -- Trace waterfall, structured logs, and resource usage for every workflow run. Debug failures in seconds.
+- **Flaky test detection** -- Heatmaps and timelines that track flakiness over time. Stop re-running and start fixing.
+- **Cost visibility** -- Runner spend broken down by repo, workflow, and runner type. Find what's burning your budget.
+- **Performance trends** -- Spot slowdowns across repos, branches, and jobs before your team feels them.
+- **AI-native CLI** -- Query status, search logs, and surface slow tests from your terminal -- or let your agent do it.
 
-- **Performance trends** -- Spot slowdowns before your team feels them. Track duration trends across repos, branches, and jobs.
+## Get early access
 
-## How it works
+Everr is currently in closed beta. [Join the waitlist](https://everr.dev/waitlist) to get access.
 
-Install the Everr GitHub App on your repositories. That's it -- no YAML changes, no config files, no modifications to your workflows. Everr starts collecting data immediately.
+Once you're in, just install the GitHub App on your repositories -- no YAML changes, no config files, no modifications to your workflows.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and architecture details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup instructions.
 
 ## License
 
-This project is licensed under the [Functional Source License, Version 1.1, ALv2 Future License](LICENSE).
-
-Some components are subject to different license terms. Refer to [NOTICE](NOTICE) for attribution and licensing details.
+This project is licensed under the [Functional Source License, Version 1.1, ALv2 Future License](LICENSE). Some components are subject to different license terms -- see [NOTICE](NOTICE) for details.
