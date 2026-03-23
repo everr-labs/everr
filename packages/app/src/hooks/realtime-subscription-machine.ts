@@ -147,7 +147,9 @@ export class RealtimeSubscriptionMachine {
         }
         // Re-arm timer without setting pending — if no new MESSAGE arrives
         // before the next tick, the timer will see pending=false and stop.
-        this.startThrottleTimer();
+        if (this.state !== "disconnected") {
+          this.startThrottleTimer();
+        }
       }
     }, THROTTLE_MS);
   }

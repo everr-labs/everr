@@ -43,7 +43,11 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
         const initial = await getWatchStatus({
           tenantId: context.session.tenantId,
           ...filters,
+        }).catch((error) => {
+          sse.close();
+          throw error;
         });
+
         sse.sendEvent(initial);
 
         if (initial.state === "completed") {

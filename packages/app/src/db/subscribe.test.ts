@@ -166,4 +166,71 @@ describe("createSubscription", () => {
 
     expect(mockEnd).toHaveBeenCalledOnce();
   });
+
+  it("defers client.end() until connect() settles when disposed during connecting", async () => {
+    let resolveConnect!: () => void;
+    mockConnect.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveConnect = resolve;
+      }),
+    );
+
+    const cleanup = createSubscription("tenant_42", vi.fn(), vi.fn());
+
+    // Dispose while connect() is still pending
+    cleanup();
+
+    // client.end() should NOT have been called yet
+    expect(mockEnd).not.toHaveBeenCalled();
+
+    // Now let connect() resolve
+    resolveConnect();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // client.end() should be called after connect settles
+    expect(mockEnd).toHaveBeenCalledOnce();
+  });
+
+  it("defers client.end() until connect() rejects when disposed during connecting", async () => {
+    let rejectConnect!: (err: Error) => void;
+    mockConnect.mockReturnValue(
+      new Promise<void>((_resolve, reject) => {
+        rejectConnect = reject;
+      }),
+    );
+
+    const onError = vi.fn();
+    const cleanup = createSubscription("tenant_42", vi.fn(), onError);
+
+    // Dispose while connect() is still pending
+    cleanup();
+
+    expect(mockEnd).not.toHaveBeenCalled();
+
+    // Now let connect() reject
+    rejectConnect(new Error("connection refused"));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // client.end() should be called after connect settles
+    expect(mockEnd).toHaveBeenCalledOnce();
+    // onError should not be called since we disposed before the error
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("does not deliver notifications after dispose", async () => {
+    const onNotification = vi.fn();
+    const cleanup = createSubscription("tenant_42", onNotification, vi.fn());
+    await new Promise((r) => setTimeout(r, 0));
+
+    cleanup();
+
+    const handler = getHandler("notification") as (msg: {
+      payload?: string;
+    }) => void;
+    handler({
+      payload: JSON.stringify({ tenantId: 42, traceId: "abc", runId: "1" }),
+    });
+
+    expect(onNotification).not.toHaveBeenCalled();
+  });
 });
