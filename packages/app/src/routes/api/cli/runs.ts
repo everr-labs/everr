@@ -38,12 +38,14 @@ export const Route = createFileRoute("/api/cli/runs")({
           );
         }
 
+        const timeRange = {
+          from: parsed.data.from ?? DEFAULT_TIME_RANGE.from,
+          to: parsed.data.to ?? DEFAULT_TIME_RANGE.to,
+        };
+
         const result = await getRunsList({
           data: {
-            timeRange: {
-              from: parsed.data.from ?? DEFAULT_TIME_RANGE.from,
-              to: parsed.data.to ?? DEFAULT_TIME_RANGE.to,
-            },
+            timeRange,
             limit: parsed.data.limit,
             offset: parsed.data.offset,
             repo: parsed.data.repo,
@@ -54,7 +56,20 @@ export const Route = createFileRoute("/api/cli/runs")({
           },
         });
 
-        return Response.json(result);
+        return Response.json({
+          ...result,
+          filters: {
+            from: timeRange.from,
+            to: timeRange.to,
+            repo: parsed.data.repo ?? undefined,
+            branch: parsed.data.branch ?? undefined,
+            conclusion: parsed.data.conclusion ?? undefined,
+            workflowName: parsed.data.workflowName ?? undefined,
+            runId: parsed.data.runId ?? undefined,
+            limit: parsed.data.limit ?? 20,
+            offset: parsed.data.offset ?? 0,
+          },
+        });
       },
     },
   },

@@ -88,7 +88,11 @@ pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
     let repo = args.repo.or(git.repo);
-    let branch = args.branch.or(git.branch);
+    let branch = if args.current_branch {
+        args.branch.or(git.branch)
+    } else {
+        args.branch
+    };
 
     let mut query: Vec<(&str, String)> = Vec::new();
     push_opt(&mut query, "repo", repo);

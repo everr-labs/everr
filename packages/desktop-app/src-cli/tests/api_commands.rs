@@ -240,7 +240,41 @@ fn runs_list_sends_filter_query_params() {
 }
 
 #[test]
-fn runs_list_defaults_branch_to_current_git_branch() {
+fn runs_list_does_not_default_branch_without_current_branch_flag() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.init_git_repo(
+        "repo",
+        "feature/default-branch",
+        "git@github.com:everr-labs/everr.git",
+    );
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("limit".into(), "20".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
+        ]))
+        .with_status(200)
+        .with_body(r#"{"runs":[],"totalCount":0}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["runs", "list"])
+        .assert()
+        .success()
+        .stdout(contains("\"runs\": []"));
+
+    mock.assert();
+}
+
+#[test]
+fn runs_list_uses_current_branch_when_flag_is_passed() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
         "repo",
@@ -266,7 +300,7 @@ fn runs_list_defaults_branch_to_current_git_branch() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["runs", "list"])
+        .args(["runs", "list", "--current-branch"])
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));

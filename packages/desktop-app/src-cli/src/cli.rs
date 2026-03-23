@@ -163,6 +163,9 @@ pub struct ListRunsArgs {
     pub repo: Option<String>,
     #[arg(long)]
     pub branch: Option<String>,
+    /// Use the current git branch as the branch filter
+    #[arg(long)]
+    pub current_branch: bool,
     #[arg(long)]
     pub conclusion: Option<String>,
     #[arg(long)]
