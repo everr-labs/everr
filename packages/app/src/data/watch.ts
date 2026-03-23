@@ -4,7 +4,8 @@ export type WatchRun = {
   runId: string;
   workflowName: string;
   conclusion: string | null;
-  durationSeconds: number;
+  startedAt: string;
+  durationSeconds: number | null;
   expectedDurationSeconds: number | null;
   activeJobs: string[];
 };
@@ -107,6 +108,7 @@ export async function getWatchStatus({
           AND run_completed_at IS NOT NULL
           AND last_event_at >= NOW() - ${BASELINE_LOOKBACK_SQL}
         ORDER BY run_id ASC, attempts DESC, last_event_at DESC
+        LIMIT 50
       `,
       [tenantId, repo, branch],
     ),
@@ -136,11 +138,13 @@ export async function getWatchStatus({
   const completed: WatchRun[] = [];
 
   for (const run of runs) {
+    const isCompleted = run.status === "completed";
     const watchRun: WatchRun = {
       runId: String(run.runId),
       workflowName: run.workflowName,
-      conclusion: run.status === "completed" ? run.conclusion : null,
-      durationSeconds: computeDurationSeconds(run),
+      conclusion: isCompleted ? run.conclusion : null,
+      startedAt: new Date(run.createdAt).toISOString(),
+      durationSeconds: isCompleted ? computeDurationSeconds(run) : null,
       expectedDurationSeconds:
         expectedDurationByWorkflow.get(run.workflowName) ?? null,
       activeJobs: activeJobNamesByTraceId.get(run.traceId) ?? [],

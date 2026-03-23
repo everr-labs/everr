@@ -35,7 +35,7 @@ describe("getWatchStatus", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("LOWER(sha) = LOWER($4)");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("sha = $4");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
       42,
       "everr-labs/everr",
@@ -137,7 +137,8 @@ describe("getWatchStatus", () => {
           runId: "42",
           workflowName: "CI",
           conclusion: null,
-          durationSeconds: 120,
+          startedAt: "2026-03-06T10:00:00.000Z",
+          durationSeconds: null,
           expectedDurationSeconds: 118,
           activeJobs: ["lint", "test"],
         },
@@ -147,6 +148,7 @@ describe("getWatchStatus", () => {
           runId: "41",
           workflowName: "Lint",
           conclusion: "success",
+          startedAt: "2026-03-06T09:58:01.000Z",
           durationSeconds: 59,
           expectedDurationSeconds: null,
           activeJobs: [],
@@ -203,6 +205,7 @@ describe("getWatchStatus", () => {
           runId: "88",
           workflowName: "CI",
           conclusion: "success",
+          startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: 61,
           expectedDurationSeconds: null,
           activeJobs: [],

@@ -29,7 +29,9 @@ vi.mock("@/env/db", () => ({
   },
 }));
 
-vi.mock("./notify", () => ({}));
+vi.mock("./notify", () => ({
+  SAFE_CHANNEL_RE: /^[a-zA-Z0-9_]+$/,
+}));
 
 import { createSubscription } from "./subscribe";
 
@@ -53,31 +55,30 @@ function getHandler(event: string) {
 
 describe("createSubscription", () => {
   it("creates a pg.Client and connects", async () => {
-    createSubscription(["tenant_42"], vi.fn(), vi.fn());
+    createSubscription("tenant_42", vi.fn(), vi.fn());
     await Promise.resolve();
 
     expect(mockConnect).toHaveBeenCalledOnce();
   });
 
   it("registers notification and error listeners before connecting", () => {
-    createSubscription(["tenant_42"], vi.fn(), vi.fn());
+    createSubscription("tenant_42", vi.fn(), vi.fn());
 
     const events = mockOn.mock.calls.map(([e]) => e);
     expect(events).toContain("notification");
     expect(events).toContain("error");
   });
 
-  it("LISTENs on each channel after connecting", async () => {
-    createSubscription(["tenant_42", "trace_abc"], vi.fn(), vi.fn());
+  it("LISTENs on the channel after connecting", async () => {
+    createSubscription("tenant_42", vi.fn(), vi.fn());
     await new Promise((r) => setTimeout(r, 0));
 
     expect(mockQuery).toHaveBeenCalledWith('LISTEN "tenant_42"');
-    expect(mockQuery).toHaveBeenCalledWith('LISTEN "trace_abc"');
   });
 
   it("rejects unsafe channel names", async () => {
     const onError = vi.fn();
-    createSubscription(['tenant_42"; DROP TABLE--'], vi.fn(), onError);
+    createSubscription('tenant_42"; DROP TABLE--', vi.fn(), onError);
     await new Promise((r) => setTimeout(r, 0));
 
     expect(onError).toHaveBeenCalledWith(
@@ -87,7 +88,7 @@ describe("createSubscription", () => {
 
   it("forwards parsed notification payloads to onNotification", async () => {
     const onNotification = vi.fn();
-    createSubscription(["tenant_42"], onNotification, vi.fn());
+    createSubscription("tenant_42", onNotification, vi.fn());
     await new Promise((r) => setTimeout(r, 0));
 
     const handler = getHandler("notification") as (msg: {
@@ -106,7 +107,7 @@ describe("createSubscription", () => {
 
   it("ignores notifications with no payload", async () => {
     const onNotification = vi.fn();
-    createSubscription(["tenant_42"], onNotification, vi.fn());
+    createSubscription("tenant_42", onNotification, vi.fn());
     await new Promise((r) => setTimeout(r, 0));
 
     const handler = getHandler("notification") as (msg: {
@@ -119,7 +120,7 @@ describe("createSubscription", () => {
 
   it("ignores notifications with unparseable payload", async () => {
     const onNotification = vi.fn();
-    createSubscription(["tenant_42"], onNotification, vi.fn());
+    createSubscription("tenant_42", onNotification, vi.fn());
     await new Promise((r) => setTimeout(r, 0));
 
     const handler = getHandler("notification") as (msg: {
@@ -132,7 +133,7 @@ describe("createSubscription", () => {
 
   it("calls onError and cleans up when pg.Client emits error", async () => {
     const onError = vi.fn();
-    createSubscription(["tenant_42"], vi.fn(), onError);
+    createSubscription("tenant_42", vi.fn(), onError);
     await new Promise((r) => setTimeout(r, 0));
 
     const errHandler = getHandler("error") as (err: Error) => void;
@@ -145,28 +146,24 @@ describe("createSubscription", () => {
     expect(mockEnd).toHaveBeenCalled();
   });
 
-  it("UNLISTENs and ends client when cleanup is called", async () => {
-    const cleanup = createSubscription(["tenant_42"], vi.fn(), vi.fn());
+  it("ends client when cleanup is called", async () => {
+    const cleanup = createSubscription("tenant_42", vi.fn(), vi.fn());
     await new Promise((r) => setTimeout(r, 0));
 
     cleanup();
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockQuery).toHaveBeenCalledWith("UNLISTEN *");
     expect(mockEnd).toHaveBeenCalled();
   });
 
   it("cleanup is idempotent — calling twice only disconnects once", async () => {
-    const cleanup = createSubscription(["tenant_42"], vi.fn(), vi.fn());
+    const cleanup = createSubscription("tenant_42", vi.fn(), vi.fn());
     await new Promise((r) => setTimeout(r, 0));
 
     cleanup();
     cleanup();
     await new Promise((r) => setTimeout(r, 0));
 
-    const unlistenCalls = mockQuery.mock.calls.filter(
-      ([q]) => q === "UNLISTEN *",
-    );
-    expect(unlistenCalls).toHaveLength(1);
+    expect(mockEnd).toHaveBeenCalledOnce();
   });
 });

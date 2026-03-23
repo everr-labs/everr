@@ -1,8 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-type AnyDb = NodePgDatabase<Record<string, never>>;
-
 export type NotifyPayload = {
   tenantId: number;
   traceId: string;
@@ -10,7 +8,7 @@ export type NotifyPayload = {
   sha: string;
 };
 
-const SAFE_CHANNEL_RE = /^[a-zA-Z0-9_]+$/;
+export const SAFE_CHANNEL_RE = /^[a-zA-Z0-9_]+$/;
 
 function assertSafeChannel(value: string): string {
   if (!SAFE_CHANNEL_RE.test(value)) {
@@ -34,15 +32,15 @@ export function commitChannel(tenantId: number, sha: string): string {
 }
 
 export async function notifyWorkflowUpdate(
-  db: AnyDb,
+  db: NodePgDatabase<Record<string, never>>,
   payload: NotifyPayload,
 ): Promise<void> {
-  const payloadJson = JSON.stringify(payload);
-  const tenant = tenantChannel(payload.tenantId);
-  const trace = traceChannel(payload.traceId);
-  const commit = commitChannel(payload.tenantId, payload.sha);
-
   try {
+    const payloadJson = JSON.stringify(payload);
+    const tenant = tenantChannel(payload.tenantId);
+    const trace = traceChannel(payload.traceId);
+    const commit = commitChannel(payload.tenantId, payload.sha);
+
     await db.execute(
       sql`SELECT pg_notify(${tenant}, ${payloadJson}), pg_notify(${trace}, ${payloadJson}), pg_notify(${commit}, ${payloadJson})`,
     );

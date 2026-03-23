@@ -5,6 +5,7 @@ import { commitChannel } from "@/db/notify";
 import { createSubscription } from "@/db/subscribe";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 import { createSSEStream } from "@/lib/sse";
+import { WatchMachine } from "./watch-machine";
 
 const WatchQuerySchema = z.object({
   repo: z.string().min(1),
@@ -50,51 +51,22 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           return sse.response();
         }
 
-        let throttled = false;
-        let pendingFetch = false;
+        const channel = commitChannel(context.session.tenantId, filters.commit);
 
-        function fetchAndSend() {
-          throttled = true;
-          getWatchStatus({
-            tenantId: context.session.tenantId,
-            ...filters,
-          })
-            .then((status) => {
-              sse.sendEvent(status);
-              if (status.state === "completed") {
-                cleanup();
-                sse.close();
-              }
-            })
-            .catch(() => {})
-            .finally(() => {
-              if (pendingFetch) {
-                pendingFetch = false;
-                fetchAndSend();
-              } else {
-                throttled = false;
-              }
-            });
-        }
-
-        const cleanup = createSubscription(
-          [commitChannel(context.session.tenantId, filters.commit)],
-          () => {
-            if (throttled) {
-              pendingFetch = true;
-            } else {
-              fetchAndSend();
-            }
-          },
-          () => {
-            sse.sendEvent({ type: "error", message: "subscription lost" });
-            sse.close();
-          },
-        );
-
-        request.signal.addEventListener("abort", () => {
-          cleanup();
+        const machine = new WatchMachine({
+          fetchStatus: () =>
+            getWatchStatus({
+              tenantId: context.session.tenantId,
+              ...filters,
+            }),
+          sendEvent: (data) => sse.sendEvent(data),
+          subscribe: (onNotify, onError) =>
+            createSubscription(channel, onNotify, onError),
+          close: () => sse.close(),
         });
+        machine.start();
+
+        request.signal.addEventListener("abort", () => machine.dispose());
 
         return sse.response();
       },

@@ -17,10 +17,11 @@ use crate::cli::{
 
 fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
     match explicit {
+        Some(input) if looks_like_full_sha(&input) => Ok(input),
         Some(input) => {
             run_git(["rev-parse", &input], cwd).ok_or_else(|| {
                 anyhow::anyhow!(
-                    "failed to resolve commit '{input}'; pass a valid commit SHA or run from a git repository"
+                    "failed to resolve commit '{input}'; pass a full commit SHA or run from a git repository"
                 )
             })
         }
@@ -30,6 +31,10 @@ fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<Str
             )
         }),
     }
+}
+
+fn looks_like_full_sha(input: &str) -> bool {
+    input.len() >= 40 && input.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 pub async fn status(args: StatusArgs) -> Result<()> {
@@ -353,9 +358,11 @@ fn format_watch_status(
     } else {
         let _ = writeln!(status, "Active runs:");
         for run in active_runs {
+            let duration_seconds = run.duration_seconds
+                .unwrap_or_else(|| elapsed_since(&run.started_at));
             let mut details = vec![format!(
                 "duration: {}",
-                format_elapsed_duration(run.duration_seconds)
+                format_elapsed_duration(duration_seconds)
             )];
             if let Some(expected_duration_seconds) = run.expected_duration_seconds {
                 details.push(format!(
@@ -376,6 +383,14 @@ fn format_watch_status(
         format_completed_run_list(completed_runs)
     );
     status
+}
+
+fn elapsed_since(iso_timestamp: &str) -> u64 {
+    let Ok(started) = iso_timestamp.parse::<chrono::DateTime<chrono::Utc>>() else {
+        return 0;
+    };
+    let elapsed = chrono::Utc::now() - started;
+    elapsed.num_seconds().max(0) as u64
 }
 
 fn render_watch_status_block(message: &str, last_lines: &mut usize) -> Result<()> {

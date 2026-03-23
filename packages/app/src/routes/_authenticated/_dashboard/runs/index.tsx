@@ -8,6 +8,7 @@ import {
   runFilterOptionsOptions,
   runsListOptions,
 } from "@/data/runs-list/options";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
 const PAGE_SIZE = 20;
@@ -43,6 +44,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
 });
 
 function RunsListPage() {
+  useRealtimeSubscription({ scope: "tenant" });
   const { timeRange, page, repo, branch, conclusion, workflowName, runId } =
     Route.useLoaderDeps();
 

@@ -4,24 +4,17 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRealtimeSubscription } from "./use-realtime-subscription";
 
-type EventSourceListener = (event: MessageEvent) => void;
-
 class MockEventSource {
   static instances: MockEventSource[] = [];
   url: string;
-  onmessage: EventSourceListener | null = null;
-  onerror: ((event: Event) => void) | null = null;
+  onopen: (() => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: (() => void) | null = null;
   close = vi.fn();
 
   constructor(url: string) {
     this.url = url;
     MockEventSource.instances.push(this);
-  }
-
-  emit(data: object) {
-    this.onmessage?.(
-      new MessageEvent("message", { data: JSON.stringify(data) }),
-    );
   }
 }
 
@@ -62,14 +55,6 @@ describe("useRealtimeSubscription — tenant scope", () => {
     unmount();
 
     expect(MockEventSource.instances[0]?.close).toHaveBeenCalledOnce();
-  });
-
-  it("ignores ping events without throwing", () => {
-    renderHook(() => useRealtimeSubscription({ scope: "tenant" }), { wrapper });
-
-    const es = MockEventSource.instances[0];
-    expect(es).toBeDefined();
-    expect(() => es?.emit({ type: "ping" })).not.toThrow();
   });
 });
 

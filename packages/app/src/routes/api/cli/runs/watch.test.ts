@@ -89,7 +89,8 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
           runId: "42",
           workflowName: "CI",
           conclusion: null,
-          durationSeconds: 30,
+          startedAt: "2026-03-06T10:00:00.000Z",
+          durationSeconds: null,
           expectedDurationSeconds: 60,
           activeJobs: ["test"],
         },
@@ -124,10 +125,8 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
       context: { session: { tenantId: 42 } },
     });
 
-    const [channels] = mockedCreateSubscription.mock.calls[0];
-    expect(channels).toEqual([
-      "commit_42_abc123def456abc123def456abc123def456abc1",
-    ]);
+    const [channel] = mockedCreateSubscription.mock.calls[0];
+    expect(channel).toBe("commit_42_abc123def456abc123def456abc123def456abc1");
   });
 
   it("does not open subscription when initial state is already completed", async () => {
@@ -139,6 +138,7 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
           runId: "88",
           workflowName: "CI",
           conclusion: "success",
+          startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: 61,
           expectedDurationSeconds: 58,
           activeJobs: [],

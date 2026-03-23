@@ -182,7 +182,7 @@ export async function upsertWorkflowRun(
     })
     .returning({ traceId: workflowRuns.traceId });
 
-  if (result.length > 0) {
+  if (result.length > 0 && values.sha) {
     void notifyWorkflowUpdate(db, {
       tenantId,
       traceId: values.traceId,
@@ -275,7 +275,7 @@ export async function upsertWorkflowJob(
     })
     .returning({ traceId: workflowJobs.traceId });
 
-  if (result.length > 0) {
+  if (result.length > 0 && values.sha) {
     void notifyWorkflowUpdate(db, {
       tenantId,
       traceId: values.traceId,

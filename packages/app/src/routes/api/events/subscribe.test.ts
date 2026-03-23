@@ -112,7 +112,7 @@ describe("GET /api/events/subscribe", () => {
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
     expect(response.headers.get("Cache-Control")).toBe("no-cache");
     expect(mockedCreateSubscription).toHaveBeenCalledWith(
-      ["tenant_42"],
+      "tenant_42",
       expect.any(Function),
       expect.any(Function),
     );
@@ -129,7 +129,7 @@ describe("GET /api/events/subscribe", () => {
 
     expect(response.status).toBe(200);
     expect(mockedCreateSubscription).toHaveBeenCalledWith(
-      ["trace_abc123"],
+      "trace_abc123",
       expect.any(Function),
       expect.any(Function),
     );

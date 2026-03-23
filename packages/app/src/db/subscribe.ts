@@ -1,10 +1,8 @@
 import { Client } from "pg";
 import { dbEnv } from "@/env/db";
-import type { NotifyPayload } from "./notify";
+import { type NotifyPayload, SAFE_CHANNEL_RE } from "./notify";
 
 type CleanupFn = () => void;
-
-const SAFE_CHANNEL_RE = /^[a-zA-Z0-9_]+$/;
 
 function buildClientConfig() {
   const shouldUseSsl = ["true", "1", "yes", "on"].includes(
@@ -20,8 +18,11 @@ function buildClientConfig() {
   };
 }
 
+// A dedicated pg.Client (not from the pool) is required because LISTEN/NOTIFY
+// is session-scoped and long-lived. Pool connections get recycled, which would
+// drop the subscription. One client per SSE connection is the standard pattern.
 export function createSubscription(
-  channels: string[],
+  channel: string,
   onNotification: (payload: NotifyPayload) => void,
   onError: (err: Error) => void,
 ): CleanupFn {
@@ -31,10 +32,7 @@ export function createSubscription(
   const cleanup: CleanupFn = () => {
     if (cleaned) return;
     cleaned = true;
-    client
-      .query("UNLISTEN *")
-      .catch(() => {})
-      .finally(() => client.end().catch(() => {}));
+    client.end().catch(() => {});
   };
 
   client.on("notification", (msg) => {
@@ -55,12 +53,10 @@ export function createSubscription(
   client
     .connect()
     .then(async () => {
-      for (const channel of channels) {
-        if (!SAFE_CHANNEL_RE.test(channel)) {
-          throw new Error(`Unsafe channel name: ${channel}`);
-        }
-        await client.query(`LISTEN "${channel}"`);
+      if (!SAFE_CHANNEL_RE.test(channel)) {
+        throw new Error(`Unsafe channel name: ${channel}`);
       }
+      await client.query(`LISTEN "${channel}"`);
     })
     .catch((err: Error) => {
       if (!cleaned) onError(err);

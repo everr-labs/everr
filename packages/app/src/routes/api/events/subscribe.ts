@@ -49,8 +49,8 @@ export const Route = createFileRoute("/api/events/subscribe")({
         const sse = createSSEStream(request);
 
         const cleanup = createSubscription(
-          [channel],
-          (payload) => sse.sendEvent({ type: "update", ...payload }),
+          channel,
+          () => sse.sendEvent({ type: "update" }),
           () => {
             sse.sendEvent({ type: "error", message: "subscription lost" });
             sse.close();

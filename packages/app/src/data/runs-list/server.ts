@@ -22,17 +22,13 @@ type WorkflowRunRow = {
   sender: string | null;
 };
 
-type FilterRow = {
-  value: string;
-};
-
 export const getRunsList = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(RunsListInputSchema)
   .handler(async ({ data, context: { session } }) => {
     const { fromDate, toDate } = resolveTimeRange(data.timeRange);
-    const timestampExpr = "COALESCE(run_completed_at, last_event_at)";
+    const timestampExpr = "last_event_at";
     const clauses = [
       "tenant_id = $1",
       `${timestampExpr} >= $2`,
@@ -55,6 +51,10 @@ export const getRunsList = createAuthenticatedServerFn({
       clauses.push(`workflow_name = $${params.length}`);
     }
 
+    // Only terminal conclusion values (success, failure, cancellation) are supported.
+    // In-progress runs have conclusion = NULL in the DB, so filtering by non-terminal
+    // statuses like "in_progress" would match nothing. If we add those filters later,
+    // we'll need to branch: use the `status` column for non-terminal states.
     if (data.conclusion) {
       params.push(denormalizeConclusion(data.conclusion));
       clauses.push(`conclusion = $${params.length}`);
@@ -110,55 +110,40 @@ export const getRunsList = createAuthenticatedServerFn({
 export const getRunFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const [repos, branches, workflowNames] = await Promise.all([
-    pool.query<FilterRow>(
-      `
-        SELECT DISTINCT repository AS value
-        FROM workflow_runs
-        WHERE tenant_id = $1
-          AND status = 'completed'
-          AND repository != ''
-          AND COALESCE(run_completed_at, last_event_at) >=
-            NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
-        ORDER BY value
-        LIMIT 100
-      `,
-      [session.tenantId],
-    ),
-    pool.query<FilterRow>(
-      `
-        SELECT DISTINCT ref AS value
-        FROM workflow_runs
-        WHERE tenant_id = $1
-          AND status = 'completed'
-          AND ref != ''
-          AND COALESCE(run_completed_at, last_event_at) >=
-            NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
-        ORDER BY value
-        LIMIT 100
-      `,
-      [session.tenantId],
-    ),
-    pool.query<FilterRow>(
-      `
-        SELECT DISTINCT workflow_name AS value
-        FROM workflow_runs
-        WHERE tenant_id = $1
-          AND status = 'completed'
-          AND workflow_name != ''
-          AND COALESCE(run_completed_at, last_event_at) >=
-            NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
-        ORDER BY value
-        LIMIT 100
-      `,
-      [session.tenantId],
-    ),
-  ]);
+  const result = await pool.query<{
+    repos: string[];
+    branches: string[];
+    workflowNames: string[];
+  }>(
+    `
+      SELECT
+        (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
+          SELECT DISTINCT repository AS v FROM workflow_runs
+          WHERE tenant_id = $1 AND status = 'completed' AND repository != ''
+            AND COALESCE(run_completed_at, last_event_at) >= NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+          LIMIT 100
+        ) r) AS repos,
+        (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
+          SELECT DISTINCT ref AS v FROM workflow_runs
+          WHERE tenant_id = $1 AND status = 'completed' AND ref != ''
+            AND COALESCE(run_completed_at, last_event_at) >= NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+          LIMIT 100
+        ) b) AS branches,
+        (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
+          SELECT DISTINCT workflow_name AS v FROM workflow_runs
+          WHERE tenant_id = $1 AND status = 'completed' AND workflow_name != ''
+            AND COALESCE(run_completed_at, last_event_at) >= NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+          LIMIT 100
+        ) w) AS "workflowNames"
+    `,
+    [session.tenantId],
+  );
 
+  const row = result.rows[0];
   return {
-    repos: repos.rows.map((row) => row.value),
-    branches: branches.rows.map((row) => row.value),
-    workflowNames: workflowNames.rows.map((row) => row.value),
+    repos: row?.repos ?? [],
+    branches: row?.branches ?? [],
+    workflowNames: row?.workflowNames ?? [],
   } satisfies FilterOptions;
 });
 
