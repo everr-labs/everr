@@ -8,19 +8,22 @@ function createMachine(
   overrides: Partial<ConstructorParameters<typeof WatchMachine>[0]> = {},
 ) {
   const unsubscribe = vi.fn();
+  const subscribe = vi.fn<
+    (onNotify: () => void, onError: () => void) => () => void
+  >(() => unsubscribe);
   const opts = {
-    fetchStatus: vi.fn<[], Promise<WatchResponse>>().mockResolvedValue({
+    fetchStatus: vi.fn<() => Promise<WatchResponse>>().mockResolvedValue({
       state: "running" as const,
       active: [],
       completed: [],
     }),
     sendEvent: vi.fn(),
-    subscribe: vi.fn(() => unsubscribe),
+    subscribe,
     close: vi.fn(),
     ...overrides,
   };
   const machine = new WatchMachine(opts);
-  return { machine, opts, unsubscribe };
+  return { machine, opts, subscribe, unsubscribe };
 }
 
 beforeEach(() => {
@@ -59,20 +62,20 @@ describe("subscription lifecycle", () => {
 
 describe("trailing throttle", () => {
   it("does not fetch immediately on NOTIFY", () => {
-    const { machine, opts } = createMachine();
+    const { machine, opts, subscribe } = createMachine();
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
 
     expect(opts.fetchStatus).not.toHaveBeenCalled();
   });
 
   it("fetches after throttle delay", async () => {
-    const { machine, opts } = createMachine();
+    const { machine, opts, subscribe } = createMachine();
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
 
     vi.advanceTimersByTime(THROTTLE_MS);
@@ -81,10 +84,10 @@ describe("trailing throttle", () => {
   });
 
   it("batches multiple notifications into one fetch", () => {
-    const { machine, opts } = createMachine();
+    const { machine, opts, subscribe } = createMachine();
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
     onNotify();
     onNotify();
@@ -95,10 +98,10 @@ describe("trailing throttle", () => {
   });
 
   it("does not fire extra fetch after notifications stop", async () => {
-    const { machine, opts } = createMachine();
+    const { machine, opts, subscribe } = createMachine();
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
 
     vi.advanceTimersByTime(THROTTLE_MS);
@@ -118,12 +121,12 @@ describe("fetch cycle", () => {
       active: [],
       completed: [],
     };
-    const { machine, opts } = createMachine({
+    const { machine, opts, subscribe } = createMachine({
       fetchStatus: vi.fn().mockResolvedValue(result),
     });
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
     vi.advanceTimersByTime(THROTTLE_MS);
     await vi.advanceTimersByTimeAsync(0);
@@ -137,12 +140,12 @@ describe("fetch cycle", () => {
       active: [],
       completed: [],
     };
-    const { machine, opts, unsubscribe } = createMachine({
+    const { machine, opts, subscribe, unsubscribe } = createMachine({
       fetchStatus: vi.fn().mockResolvedValue(result),
     });
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
     vi.advanceTimersByTime(THROTTLE_MS);
     await vi.advanceTimersByTimeAsync(0);
@@ -160,10 +163,10 @@ describe("fetch cycle", () => {
           resolvePromise = resolve;
         }),
     );
-    const { machine, opts } = createMachine({ fetchStatus });
+    const { machine, opts, subscribe } = createMachine({ fetchStatus });
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(fetchStatus).toHaveBeenCalledTimes(1);
@@ -187,10 +190,10 @@ describe("fetch cycle", () => {
       .fn()
       .mockRejectedValueOnce(new Error("db error"))
       .mockResolvedValueOnce({ state: "running", active: [], completed: [] });
-    const { machine, opts } = createMachine({ fetchStatus });
+    const { machine, opts, subscribe } = createMachine({ fetchStatus });
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
     vi.advanceTimersByTime(THROTTLE_MS);
     await vi.advanceTimersByTimeAsync(0); // flush rejected promise
@@ -208,10 +211,10 @@ describe("fetch cycle", () => {
 
 describe("subscribe error", () => {
   it("sends error event and closes on subscription error", () => {
-    const { machine, opts } = createMachine();
+    const { machine, opts, subscribe } = createMachine();
     machine.start();
 
-    const onError = opts.subscribe.mock.calls[0][1];
+    const onError = subscribe.mock.calls[0][1];
     onError();
 
     expect(opts.sendEvent).toHaveBeenCalledWith({
@@ -224,10 +227,10 @@ describe("subscribe error", () => {
 
 describe("dispose edge cases", () => {
   it("cancels throttle timer on dispose", () => {
-    const { machine, opts } = createMachine();
+    const { machine, opts, subscribe } = createMachine();
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
 
     machine.dispose();
@@ -244,10 +247,10 @@ describe("dispose edge cases", () => {
           resolvePromise = resolve;
         }),
     );
-    const { machine, opts } = createMachine({ fetchStatus });
+    const { machine, opts, subscribe } = createMachine({ fetchStatus });
     machine.start();
 
-    const onNotify = opts.subscribe.mock.calls[0][0];
+    const onNotify = subscribe.mock.calls[0][0];
     onNotify();
     vi.advanceTimersByTime(THROTTLE_MS);
 
