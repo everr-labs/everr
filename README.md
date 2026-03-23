@@ -24,7 +24,7 @@ Everr transforms your CI/CD pipelines into fully observable systems. It collects
 
 ## The problem
 
-AI coding agents are making development faster than ever. But every change still has to pass through CI -- and when pipelines break, everything stops.
+AI coding agents are making development faster than ever. But every change still has to pass through CI - and when pipelines break, everything stops.
 
 Developers context-switch between dashboards and raw logs. AI agents hit a wall because pipeline data is fragmented and unstructured. **The bottleneck has moved from writing code to validating it.**
 
@@ -32,21 +32,21 @@ Developers context-switch between dashboards and raw logs. AI agents hit a wall 
 
 **Structured telemetry, not raw logs.** Every workflow run is converted into OpenTelemetry traces. Everr automatically surfaces flakiness scores, performance trends, failure patterns, and cost anomalies.
 
-**Built for humans and agents.** The same structured data is accessible through the web dashboard, a native desktop app, and a CLI designed for AI-native workflows. Agents can query pipeline status, search logs, and act on failures autonomously -- no screen-scraping, no log parsing.
+**Built for humans and agents.** The same structured data is accessible through the web dashboard, a native desktop app, and a CLI designed for AI-native workflows. Agents can query pipeline status, search logs, and act on failures autonomously - no screen-scraping, no log parsing.
 
 ### Key capabilities
 
-- **Full run tracing** -- Trace waterfall, structured logs, and resource usage for every workflow run. Debug failures in seconds.
-- **Flaky test detection** -- Heatmaps and timelines that track flakiness over time. Stop re-running and start fixing.
-- **Cost visibility** -- Runner spend broken down by repo, workflow, and runner type. Find what's burning your budget.
-- **Performance trends** -- Spot slowdowns across repos, branches, and jobs before your team feels them.
-- **AI-native CLI** -- Query status, search logs, and surface slow tests from your terminal -- or let your agent do it.
+- **Full run tracing** - Trace waterfall, structured logs, and resource usage for every workflow run. Debug failures in seconds.
+- **Flaky test detection** - Heatmaps and timelines that track flakiness over time. Stop re-running and start fixing.
+- **Cost visibility** - Runner spend broken down by repo, workflow, and runner type. Find what's burning your budget.
+- **Performance trends** - Spot slowdowns across repos, branches, and jobs before your team feels them.
+- **AI-native CLI** - Query status, search logs, and surface slow tests from your terminal - or let your agent do it.
 
 ## Get early access
 
 Everr is currently in closed beta. [Join the waitlist](https://everr.dev/waitlist) to get access.
 
-Once you're in, just install the GitHub App on your repositories -- no YAML changes, no config files, no modifications to your workflows.
+Once you're in, just install the GitHub App on your repositories - no YAML changes, no config files, no modifications to your workflows.
 
 ## Contributing
 
