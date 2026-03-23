@@ -60,9 +60,7 @@ describe("getRunsList", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("FROM workflow_runs");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "COALESCE(run_completed_at, last_event_at) >= $2",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("last_event_at >= $2");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
       42,
       expect.any(Date),
