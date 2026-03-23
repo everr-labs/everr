@@ -14,7 +14,7 @@
 
 ---
 
-Everr transforms your CI/CD pipelines into fully observable systems. It collects structured telemetry from GitHub Actions and turns it into actionable signals -- so both developers and AI coding agents can detect failures, understand root causes, and resolve issues fast.
+Everr transforms your CI/CD pipelines into fully observable systems. It collects structured telemetry from GitHub Actions and turns it into actionable signals - so both developers and AI coding agents can detect failures, understand root causes, and resolve issues fast.
 
 <!-- TODO: Add a product screenshot here
 <p align="center">
@@ -54,4 +54,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup instructions.
 
 ## License
 
-This project is licensed under the [Functional Source License, Version 1.1, ALv2 Future License](LICENSE). Some components are subject to different license terms -- see [NOTICE](NOTICE) for details.
+This project is licensed under the [Functional Source License, Version 1.1, ALv2 Future License](LICENSE). Some components are subject to different license terms - see [NOTICE](NOTICE) for details.
