@@ -53,6 +53,7 @@ export function createSubscription(
   client
     .connect()
     .then(async () => {
+      if (cleaned) return;
       if (!SAFE_CHANNEL_RE.test(channel)) {
         throw new Error(`Unsafe channel name: ${channel}`);
       }

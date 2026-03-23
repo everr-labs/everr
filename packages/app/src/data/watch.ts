@@ -29,7 +29,7 @@ type WorkflowRunRow = {
   workflowName: string;
   status: string;
   conclusion: string | null;
-  createdAt: string | Date;
+  startedAt: string | Date | null;
   completedAt: string | Date | null;
   lastEventAt: string | Date;
   attempts: number;
@@ -59,7 +59,7 @@ export async function getWatchStatus({
         workflow_name AS "workflowName",
         status,
         conclusion,
-        created_at AS "createdAt",
+        run_started_at AS "startedAt",
         run_completed_at AS "completedAt",
         last_event_at AS "lastEventAt",
         attempts
@@ -96,7 +96,7 @@ export async function getWatchStatus({
           workflow_name AS "workflowName",
           status,
           conclusion,
-          created_at AS "createdAt",
+          run_started_at AS "startedAt",
           run_completed_at AS "completedAt",
           last_event_at AS "lastEventAt",
           attempts
@@ -143,7 +143,9 @@ export async function getWatchStatus({
       runId: String(run.runId),
       workflowName: run.workflowName,
       conclusion: isCompleted ? run.conclusion : null,
-      startedAt: new Date(run.createdAt).toISOString(),
+      startedAt: run.startedAt
+        ? new Date(run.startedAt).toISOString()
+        : new Date(run.lastEventAt).toISOString(),
       durationSeconds: isCompleted ? computeDurationSeconds(run) : null,
       expectedDurationSeconds:
         expectedDurationByWorkflow.get(run.workflowName) ?? null,
@@ -230,10 +232,10 @@ function groupActiveJobNames(rows: WorkflowJobRow[]): Map<string, string[]> {
 function computeDurationSeconds(
   run: Pick<
     WorkflowRunRow,
-    "status" | "createdAt" | "completedAt" | "lastEventAt"
+    "status" | "startedAt" | "completedAt" | "lastEventAt"
   >,
 ): number {
-  const startedAtMs = toTimestampMs(run.createdAt);
+  const startedAtMs = toTimestampMs(run.startedAt ?? run.lastEventAt);
   const endedAtMs =
     run.status === "completed"
       ? toTimestampMs(run.completedAt ?? run.lastEventAt)

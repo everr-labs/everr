@@ -115,7 +115,8 @@ export class WatchMachine {
           } else {
             this.state = "listening";
           }
-        } else if (event === "FETCH_ERROR") {
+        } else if (event === "FETCH_SUCCESS" || event === "FETCH_ERROR") {
+          // FETCH_SUCCESS without data or FETCH_ERROR: fall back to listening
           if (this.pendingNotify) {
             this.pendingNotify = false;
             this.state = "throttling";

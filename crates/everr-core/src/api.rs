@@ -74,6 +74,13 @@ impl ApiClient {
             .filter_map(|event| async {
                 match event {
                     Ok(ev) if ev.event == "message" && !ev.data.is_empty() => {
+                        // Check for server-side error events before deserializing
+                        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&ev.data) {
+                            if obj.get("type").and_then(|t| t.as_str()) == Some("error") {
+                                let msg = obj.get("message").and_then(|m| m.as_str()).unwrap_or("unknown error");
+                                return Some(Err(anyhow::anyhow!("server error: {msg}")));
+                            }
+                        }
                         match serde_json::from_str::<WatchResponse>(&ev.data) {
                             Ok(response) => Some(Ok(response)),
                             Err(_) => None,

@@ -30,7 +30,7 @@ export function createSSEStream(request: Request): SSEStream {
     writer.close().catch(() => {});
   }
 
-  request.signal.addEventListener("abort", close);
+  request.signal.addEventListener("abort", close, { once: true });
 
   function response() {
     return new Response(readable, {
