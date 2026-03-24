@@ -1,10 +1,10 @@
 use clap::{Args, Parser, Subcommand};
 
 #[cfg(debug_assertions)]
-const VERSION_OUTPUT: &str = concat!(env!("CARGO_PKG_VERSION"), " (debug build)");
+const VERSION_OUTPUT: &str = concat!(env!("EVERR_VERSION"), " (debug build)");
 
 #[cfg(not(debug_assertions))]
-const VERSION_OUTPUT: &str = concat!(env!("CARGO_PKG_VERSION"), " (release build)");
+const VERSION_OUTPUT: &str = concat!(env!("EVERR_VERSION"), " (release build)");
 
 pub const DEFAULT_LOG_PAGE_SIZE: u32 = 1000;
 pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
