@@ -35,9 +35,7 @@ describe("getWatchStatus", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "LEFT(LOWER(sha), LENGTH($4)) = LOWER($4)",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("sha = $4");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
       42,
       "everr-labs/everr",
@@ -51,7 +49,7 @@ describe("getWatchStatus", () => {
     });
   });
 
-  it("matches short commit SHA prefixes and returns running runs with active jobs", async () => {
+  it("returns running runs with active jobs for the given commit SHA", async () => {
     mockedQuery
       .mockResolvedValueOnce({
         rows: [
@@ -61,7 +59,7 @@ describe("getWatchStatus", () => {
             workflowName: "CI",
             status: "in_progress",
             conclusion: null,
-            createdAt: "2026-03-06T10:00:00Z",
+            startedAt: "2026-03-06T10:00:00Z",
             completedAt: null,
             lastEventAt: "2026-03-06T10:01:00Z",
             attempts: 2,
@@ -72,7 +70,7 @@ describe("getWatchStatus", () => {
             workflowName: "Lint",
             status: "completed",
             conclusion: "success",
-            createdAt: "2026-03-06T09:58:01Z",
+            startedAt: "2026-03-06T09:58:01Z",
             completedAt: "2026-03-06T09:59:00Z",
             lastEventAt: "2026-03-06T09:59:00Z",
             attempts: 1,
@@ -87,7 +85,7 @@ describe("getWatchStatus", () => {
             workflowName: "CI",
             status: "completed",
             conclusion: "success",
-            createdAt: "2026-03-05T10:00:00Z",
+            startedAt: "2026-03-05T10:00:00Z",
             completedAt: "2026-03-05T10:01:58Z",
             lastEventAt: "2026-03-05T10:01:58Z",
             attempts: 1,
@@ -98,7 +96,7 @@ describe("getWatchStatus", () => {
             workflowName: "CI",
             status: "completed",
             conclusion: "success",
-            createdAt: "2026-03-04T10:00:00Z",
+            startedAt: "2026-03-04T10:00:00Z",
             completedAt: "2026-03-04T10:01:58Z",
             lastEventAt: "2026-03-04T10:01:58Z",
             attempts: 1,
@@ -109,7 +107,7 @@ describe("getWatchStatus", () => {
             workflowName: "CI",
             status: "completed",
             conclusion: "success",
-            createdAt: "2026-03-03T10:00:00Z",
+            startedAt: "2026-03-03T10:00:00Z",
             completedAt: "2026-03-03T10:01:58Z",
             lastEventAt: "2026-03-03T10:01:58Z",
             attempts: 1,
@@ -139,7 +137,8 @@ describe("getWatchStatus", () => {
           runId: "42",
           workflowName: "CI",
           conclusion: null,
-          durationSeconds: 120,
+          startedAt: "2026-03-06T10:00:00.000Z",
+          durationSeconds: null,
           expectedDurationSeconds: 118,
           activeJobs: ["lint", "test"],
         },
@@ -149,6 +148,7 @@ describe("getWatchStatus", () => {
           runId: "41",
           workflowName: "Lint",
           conclusion: "success",
+          startedAt: "2026-03-06T09:58:01.000Z",
           durationSeconds: 59,
           expectedDurationSeconds: null,
           activeJobs: [],
@@ -167,7 +167,7 @@ describe("getWatchStatus", () => {
             workflowName: "CI",
             status: "completed",
             conclusion: "success",
-            createdAt: "2026-03-06T10:00:00Z",
+            startedAt: "2026-03-06T10:00:00Z",
             completedAt: "2026-03-06T10:01:01Z",
             lastEventAt: "2026-03-06T10:01:01Z",
             attempts: 2,
@@ -178,7 +178,7 @@ describe("getWatchStatus", () => {
             workflowName: "CI",
             status: "completed",
             conclusion: "failure",
-            createdAt: "2026-03-06T09:00:00Z",
+            startedAt: "2026-03-06T09:00:00Z",
             completedAt: "2026-03-06T09:01:00Z",
             lastEventAt: "2026-03-06T09:01:00Z",
             attempts: 1,
@@ -205,6 +205,7 @@ describe("getWatchStatus", () => {
           runId: "88",
           workflowName: "CI",
           conclusion: "success",
+          startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: 61,
           expectedDurationSeconds: null,
           activeJobs: [],

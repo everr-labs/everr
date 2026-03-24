@@ -67,6 +67,15 @@ describe("/api/cli/runs", () => {
         runId: undefined,
       },
     });
+
+    const body = await response.json();
+    expect(body.filters).toEqual({
+      from: "now-7d",
+      to: "now",
+      repo: "everr-labs/everr",
+      limit: 15,
+      offset: 30,
+    });
   });
 
   it("rejects removed legacy query parameters", async () => {

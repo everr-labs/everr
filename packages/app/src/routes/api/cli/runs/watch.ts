@@ -1,13 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getWatchStatus } from "@/data/watch";
+import { commitChannel } from "@/db/notify";
+import { createSubscription } from "@/db/subscribe";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
+import { createSSEStream } from "@/lib/sse";
+import { WatchMachine } from "./watch-machine";
 
 const WatchQuerySchema = z.object({
   repo: z.string().min(1),
   branch: z.string().min(1),
   commit: z.string().min(1),
 });
+
+export { WatchQuerySchema };
 
 export const Route = createFileRoute("/api/cli/runs/watch")({
   server: {
@@ -31,14 +37,42 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           );
         }
 
-        const result = await getWatchStatus({
+        const filters = parsed.data;
+        const sse = createSSEStream(request);
+
+        const initial = await getWatchStatus({
           tenantId: context.session.tenantId,
-          repo: parsed.data.repo,
-          branch: parsed.data.branch,
-          commit: parsed.data.commit,
+          ...filters,
+        }).catch((error) => {
+          sse.close();
+          throw error;
         });
 
-        return Response.json(result);
+        sse.sendEvent(initial);
+
+        if (initial.state === "completed") {
+          sse.close();
+          return sse.response();
+        }
+
+        const channel = commitChannel(context.session.tenantId, filters.commit);
+
+        const machine = new WatchMachine({
+          fetchStatus: () =>
+            getWatchStatus({
+              tenantId: context.session.tenantId,
+              ...filters,
+            }),
+          sendEvent: (data) => sse.sendEvent(data),
+          subscribe: (onNotify, onError) =>
+            createSubscription(channel, onNotify, onError),
+          close: () => sse.close(),
+        });
+        machine.start();
+
+        request.signal.addEventListener("abort", () => machine.dispose());
+
+        return sse.response();
       },
     },
   },

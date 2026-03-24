@@ -33,6 +33,7 @@ describe("getRunsList", () => {
             workflowName: "CI",
             repo: "everr-labs/everr",
             branch: "main",
+            status: "completed",
             conclusion: "success",
             startedAt: "2026-03-09T11:58:00Z",
             completedAt: "2026-03-09T12:00:00Z",
@@ -59,9 +60,7 @@ describe("getRunsList", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("FROM workflow_runs");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "COALESCE(run_completed_at, last_event_at) >= $2",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("last_event_at >= $2");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
       42,
       expect.any(Date),
@@ -100,6 +99,7 @@ describe("getRunsList", () => {
             workflowName: "Deploy",
             repo: "everr-labs/everr",
             branch: "release",
+            status: "completed",
             conclusion: "cancelled",
             startedAt: "2026-03-10T08:00:00Z",
             completedAt: "2026-03-10T08:00:30Z",

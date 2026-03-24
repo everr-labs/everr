@@ -1,4 +1,6 @@
 use anyhow::{Context, Result, bail};
+use eventsource_stream::Eventsource;
+use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -41,8 +43,55 @@ impl ApiClient {
         self.get_json("/runs", query).await
     }
 
-    pub async fn get_watch_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
-        self.get("/runs/watch", query).await
+    pub async fn get_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
+        self.get("/runs/status", query).await
+    }
+
+    pub async fn watch_sse(
+        &self,
+        query: &[(&str, String)],
+    ) -> Result<impl futures_util::Stream<Item = Result<WatchResponse>>> {
+        let response = self
+            .http
+            .get(format!("{}/runs/watch", self.base_endpoint))
+            .query(query)
+            .send()
+            .await
+            .context("SSE connection failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            bail!("SSE connection failed with {status}: {text}");
+        }
+
+        let stream = response
+            .bytes_stream()
+            .eventsource()
+            .filter_map(|event| async {
+                match event {
+                    Ok(ev) if ev.event == "message" && !ev.data.is_empty() => {
+                        // Check for server-side error events before deserializing
+                        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&ev.data) {
+                            if obj.get("type").and_then(|t| t.as_str()) == Some("error") {
+                                let msg = obj.get("message").and_then(|m| m.as_str()).unwrap_or("unknown error");
+                                return Some(Err(anyhow::anyhow!("server error: {msg}")));
+                            }
+                        }
+                        match serde_json::from_str::<WatchResponse>(&ev.data) {
+                            Ok(response) => Some(Ok(response)),
+                            Err(_) => None,
+                        }
+                    }
+                    Err(e) => Some(Err(anyhow::anyhow!("SSE stream error: {e}"))),
+                    _ => None,
+                }
+            });
+
+        Ok(stream)
     }
 
     pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
@@ -137,7 +186,8 @@ pub struct WatchRun {
     pub run_id: String,
     pub workflow_name: String,
     pub conclusion: Option<String>,
-    pub duration_seconds: u64,
+    pub started_at: String,
+    pub duration_seconds: Option<u64>,
     pub expected_duration_seconds: Option<u64>,
     pub active_jobs: Vec<String>,
 }

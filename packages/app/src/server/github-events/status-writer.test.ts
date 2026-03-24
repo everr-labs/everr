@@ -1,5 +1,10 @@
+vi.mock("@/db/notify", () => ({
+  notifyWorkflowUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { notifyWorkflowUpdate } from "@/db/notify";
 import { workflowJobs, workflowRuns } from "@/db/schema";
 import type { ParsedQueuedWorkflowEvent } from "./payloads";
 import {
@@ -9,8 +14,11 @@ import {
 } from "./status-writer";
 import { generateWorkflowTraceId } from "./trace-id";
 
+const mockedNotify = vi.mocked(notifyWorkflowUpdate);
+
 function createMockDb() {
-  const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+  const returning = vi.fn().mockResolvedValue([{ traceId: "t1" }]);
+  const onConflictDoUpdate = vi.fn().mockReturnValue({ returning });
   const values = vi.fn().mockReturnValue({ onConflictDoUpdate });
   const insert = vi.fn().mockReturnValue({ values });
   return {
@@ -18,6 +26,7 @@ function createMockDb() {
     insert,
     values,
     onConflictDoUpdate,
+    returning,
   };
 }
 
@@ -94,6 +103,7 @@ const opTimestamp = new Date("2026-03-06T12:00:00Z");
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(opTimestamp);
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -134,6 +144,13 @@ describe("upsertWorkflowRun", () => {
         setWhere: expect.anything(),
       }),
     );
+    expect(mockedNotify).toHaveBeenCalledOnce();
+    expect(mockedNotify).toHaveBeenCalledWith(db, {
+      tenantId: 42,
+      traceId: generateWorkflowTraceId(654321, 456, 1),
+      runId: "456",
+      sha: "abc123",
+    });
   });
 
   it("preserves waiting workflow run status", async () => {
@@ -218,6 +235,15 @@ describe("upsertWorkflowRun", () => {
     });
   });
 
+  it("does not notify when upsert returns no rows (stale event)", async () => {
+    const { db, returning } = createMockDb();
+    returning.mockResolvedValue([]);
+
+    await upsertWorkflowRun(db, 42, buildRunEvent("requested"));
+
+    expect(mockedNotify).not.toHaveBeenCalled();
+  });
+
   it("throws on missing workflow_run", async () => {
     const { db } = createMockDb();
     const event = buildRunEvent("requested");
@@ -226,6 +252,7 @@ describe("upsertWorkflowRun", () => {
     await expect(upsertWorkflowRun(db, 42, event)).rejects.toThrow(
       "workflow_run payload missing workflow_run",
     );
+    expect(mockedNotify).not.toHaveBeenCalled();
   });
 
   it("throws when repository.id is missing from workflow runs", async () => {
@@ -236,6 +263,7 @@ describe("upsertWorkflowRun", () => {
     await expect(upsertWorkflowRun(db, 42, event)).rejects.toThrow(
       "workflow event missing repository.id",
     );
+    expect(mockedNotify).not.toHaveBeenCalled();
   });
 });
 
@@ -268,6 +296,13 @@ describe("upsertWorkflowJob", () => {
         setWhere: expect.anything(),
       }),
     );
+    expect(mockedNotify).toHaveBeenCalledOnce();
+    expect(mockedNotify).toHaveBeenCalledWith(db, {
+      tenantId: 42,
+      traceId: generateWorkflowTraceId(654321, 456, 1),
+      runId: "456",
+      sha: "abc123",
+    });
   });
 
   it("preserves requested workflow job status", async () => {
@@ -336,6 +371,15 @@ describe("upsertWorkflowJob", () => {
     });
   });
 
+  it("does not notify when upsert returns no rows (stale event)", async () => {
+    const { db, returning } = createMockDb();
+    returning.mockResolvedValue([]);
+
+    await upsertWorkflowJob(db, 42, buildJobEvent("queued"));
+
+    expect(mockedNotify).not.toHaveBeenCalled();
+  });
+
   it("throws on missing workflow_job", async () => {
     const { db } = createMockDb();
     const event = buildJobEvent("in_progress");
@@ -344,6 +388,7 @@ describe("upsertWorkflowJob", () => {
     await expect(upsertWorkflowJob(db, 42, event)).rejects.toThrow(
       "workflow_job payload missing workflow_job",
     );
+    expect(mockedNotify).not.toHaveBeenCalled();
   });
 
   it("throws when repository.id is missing from workflow jobs", async () => {
@@ -354,6 +399,7 @@ describe("upsertWorkflowJob", () => {
     await expect(upsertWorkflowJob(db, 42, event)).rejects.toThrow(
       "workflow event missing repository.id",
     );
+    expect(mockedNotify).not.toHaveBeenCalled();
   });
 });
 

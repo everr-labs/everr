@@ -73,7 +73,7 @@ export function RunsTable({ data }: RunsTableProps) {
                 <Badge variant="outline">{run.branch}</Badge>
               </td>
               <td className="py-2 pr-4 font-mono text-xs">
-                {formatDuration(run.duration, "ms")}
+                {run.duration > 0 ? formatDuration(run.duration, "ms") : "—"}
               </td>
               <td className="py-2 pr-4 text-xs text-muted-foreground">
                 {formatRelativeTime(run.timestamp)}

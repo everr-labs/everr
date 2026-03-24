@@ -4,7 +4,8 @@ export type WatchRun = {
   runId: string;
   workflowName: string;
   conclusion: string | null;
-  durationSeconds: number;
+  startedAt: string;
+  durationSeconds: number | null;
   expectedDurationSeconds: number | null;
   activeJobs: string[];
 };
@@ -28,7 +29,7 @@ type WorkflowRunRow = {
   workflowName: string;
   status: string;
   conclusion: string | null;
-  createdAt: string | Date;
+  startedAt: string | Date | null;
   completedAt: string | Date | null;
   lastEventAt: string | Date;
   attempts: number;
@@ -41,6 +42,7 @@ type WorkflowJobRow = {
 };
 
 const WATCH_LOOKBACK_SQL = "INTERVAL '14 days'";
+
 const BASELINE_LOOKBACK_SQL = "INTERVAL '30 days'";
 
 export async function getWatchStatus({
@@ -57,7 +59,7 @@ export async function getWatchStatus({
         workflow_name AS "workflowName",
         status,
         conclusion,
-        created_at AS "createdAt",
+        run_started_at AS "startedAt",
         run_completed_at AS "completedAt",
         last_event_at AS "lastEventAt",
         attempts
@@ -65,7 +67,7 @@ export async function getWatchStatus({
       WHERE tenant_id = $1
         AND repository = $2
         AND ref = $3
-        AND LEFT(LOWER(sha), LENGTH($4)) = LOWER($4)
+        AND sha = $4
         AND last_event_at >= NOW() - ${WATCH_LOOKBACK_SQL}
       ORDER BY run_id ASC, attempts DESC, last_event_at DESC
     `,
@@ -94,7 +96,7 @@ export async function getWatchStatus({
           workflow_name AS "workflowName",
           status,
           conclusion,
-          created_at AS "createdAt",
+          run_started_at AS "startedAt",
           run_completed_at AS "completedAt",
           last_event_at AS "lastEventAt",
           attempts
@@ -106,6 +108,7 @@ export async function getWatchStatus({
           AND run_completed_at IS NOT NULL
           AND last_event_at >= NOW() - ${BASELINE_LOOKBACK_SQL}
         ORDER BY run_id ASC, attempts DESC, last_event_at DESC
+        LIMIT 50
       `,
       [tenantId, repo, branch],
     ),
@@ -135,11 +138,15 @@ export async function getWatchStatus({
   const completed: WatchRun[] = [];
 
   for (const run of runs) {
+    const isCompleted = run.status === "completed";
     const watchRun: WatchRun = {
       runId: String(run.runId),
       workflowName: run.workflowName,
-      conclusion: run.status === "completed" ? run.conclusion : null,
-      durationSeconds: computeDurationSeconds(run),
+      conclusion: isCompleted ? run.conclusion : null,
+      startedAt: run.startedAt
+        ? new Date(run.startedAt).toISOString()
+        : new Date(run.lastEventAt).toISOString(),
+      durationSeconds: isCompleted ? computeDurationSeconds(run) : null,
       expectedDurationSeconds:
         expectedDurationByWorkflow.get(run.workflowName) ?? null,
       activeJobs: activeJobNamesByTraceId.get(run.traceId) ?? [],
@@ -225,10 +232,10 @@ function groupActiveJobNames(rows: WorkflowJobRow[]): Map<string, string[]> {
 function computeDurationSeconds(
   run: Pick<
     WorkflowRunRow,
-    "status" | "createdAt" | "completedAt" | "lastEventAt"
+    "status" | "startedAt" | "completedAt" | "lastEventAt"
   >,
 ): number {
-  const startedAtMs = toTimestampMs(run.createdAt);
+  const startedAtMs = toTimestampMs(run.startedAt ?? run.lastEventAt);
   const endedAtMs =
     run.status === "completed"
       ? toTimestampMs(run.completedAt ?? run.lastEventAt)

@@ -1,32 +1,48 @@
 use std::fmt::Write as _;
 use std::io::{self, Write};
-use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use everr_core::git::{resolve_git_context, run_git};
 use serde::Serialize;
-use tokio::time::sleep;
+use tokio::pin;
 
-use crate::api::{ApiClient, StepLogEntry, WatchRun, WatchState};
+use futures_util::StreamExt;
+
+use crate::api::{ApiClient, StepLogEntry, WatchResponse, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
     SlowestTestsArgs, StatusArgs, TestHistoryArgs, WatchArgs,
 };
 
+fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
+    match explicit {
+        Some(input) if looks_like_full_sha(&input) => Ok(input),
+        Some(input) => {
+            run_git(["rev-parse", &input], cwd).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "failed to resolve commit '{input}'; pass a full commit SHA or run from a git repository"
+                )
+            })
+        }
+        None => run_git(["rev-parse", "HEAD"], cwd).ok_or_else(|| {
+            anyhow::anyhow!(
+                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
+            )
+        }),
+    }
+}
+
+fn looks_like_full_sha(input: &str) -> bool {
+    input.len() >= 40 && input.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 pub async fn status(args: StatusArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
-    let commit = args
-        .commit
-        .or_else(|| run_git(["rev-parse", "HEAD"], &cwd))
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
-            )
-        })?;
+    let commit = resolve_commit(args.commit, &cwd)?;
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
@@ -36,7 +52,7 @@ pub async fn status(args: StatusArgs) -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
 
     let query = vec![("repo", repo), ("branch", branch), ("commit", commit)];
-    let payload = client.get_watch_status(&query).await?;
+    let payload = client.get_status(&query).await?;
     print_json(&payload)?;
     Ok(())
 }
@@ -72,7 +88,11 @@ pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
     let repo = args.repo.or(git.repo);
-    let branch = args.branch.or(git.branch);
+    let branch = if args.current_branch {
+        args.branch.or(git.branch)
+    } else {
+        args.branch
+    };
 
     let mut query: Vec<(&str, String)> = Vec::new();
     push_opt(&mut query, "repo", repo);
@@ -190,14 +210,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
-    let target_commit = args
-        .commit
-        .or_else(|| run_git(["rev-parse", "HEAD"], &cwd))
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
-            )
-        })?;
+    let target_commit = resolve_commit(args.commit, &cwd)?;
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
@@ -211,72 +224,56 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         ("branch", branch.clone()),
         ("commit", target_commit.clone()),
     ];
-    let start = Instant::now();
+
+    let sse_stream = client.watch_sse(&query).await?;
+    pin!(sse_stream);
+
     let mut watch_status_lines = 0usize;
+    let mut last_payload: Option<WatchResponse> = None;
+    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
     loop {
-        let payload = match client.get_watch_status(&query).await {
-            Ok(payload) => payload,
-            Err(error) => {
-                finish_watch_status_block(watch_status_lines)?;
-                return Err(error);
-            }
-        };
+        tokio::select! {
+            event = sse_stream.next() => {
+                match event {
+                    Some(Ok(payload)) => {
+                        let watch_complete = matches!(payload.state, WatchState::Completed);
 
-        let active_runs = payload.active.clone();
-        let completed_runs = payload.completed.clone();
-        let watch_complete = matches!(payload.state, WatchState::Completed);
+                        if watch_complete {
+                            finish_watch_status_block(watch_status_lines)?;
+                            print_json(&payload)?;
+                            let failed_runs = failed_watch_run_names(&payload.completed);
+                            if !failed_runs.is_empty() {
+                                bail!(
+                                    "pipeline finished with failed run(s): {}",
+                                    failed_runs.join(", ")
+                                );
+                            }
+                            return Ok(());
+                        }
 
-        if watch_complete {
-            finish_watch_status_block(watch_status_lines)?;
-            print_json(&payload)?;
-            let failed_runs = failed_watch_run_names(&completed_runs);
-            if !failed_runs.is_empty() {
-                bail!(
-                    "pipeline finished with failed run(s): {}",
-                    failed_runs.join(", ")
-                );
-            }
-            return Ok(());
-        }
-
-        if let Some(timeout_seconds) = args.timeout_seconds {
-            if start.elapsed() >= Duration::from_secs(timeout_seconds) {
-                finish_watch_status_block(watch_status_lines)?;
-                if matches!(payload.state, WatchState::Running) {
-                    bail!(
-                        "timed out after {}s waiting for {} active run(s) to finish for commit {} on {repo}@{branch}",
-                        timeout_seconds,
-                        active_runs.len(),
-                        target_commit
-                    );
+                        let status = format_watch_status(&target_commit, &payload.active, &payload.completed);
+                        last_payload = Some(payload);
+                        render_watch_status_block(&status, &mut watch_status_lines)?;
+                    }
+                    Some(Err(error)) => {
+                        finish_watch_status_block(watch_status_lines)?;
+                        return Err(error);
+                    }
+                    None => {
+                        finish_watch_status_block(watch_status_lines)?;
+                        bail!("SSE connection closed unexpectedly");
+                    }
                 }
-
-                bail!(
-                    "timed out after {}s waiting for commit {} to appear in workflow runs for {repo}@{branch}",
-                    timeout_seconds,
-                    target_commit
-                );
+            }
+            _ = ticker.tick() => {
+                if let Some(ref payload) = last_payload {
+                    let status = format_watch_status(&target_commit, &payload.active, &payload.completed);
+                    render_watch_status_block(&status, &mut watch_status_lines)?;
+                }
             }
         }
-
-        let status = if matches!(payload.state, WatchState::Running) {
-            format_watch_status(
-                &target_commit,
-                args.interval_seconds,
-                active_runs,
-                completed_runs,
-            )
-        } else {
-            format_watch_status(
-                &target_commit,
-                args.interval_seconds,
-                Vec::new(),
-                Vec::new(),
-            )
-        };
-        render_watch_status_block(&status, &mut watch_status_lines)?;
-
-        sleep(Duration::from_secs(args.interval_seconds)).await;
     }
 }
 
@@ -351,24 +348,25 @@ struct PagedStepLogs {
 
 fn format_watch_status(
     target_commit: &str,
-    interval_seconds: u64,
-    active_runs: Vec<WatchRun>,
-    completed_runs: Vec<WatchRun>,
+    active_runs: &[WatchRun],
+    completed_runs: &[WatchRun],
 ) -> String {
     let mut status = String::new();
     let short_commit = shorten_commit(target_commit);
     let _ = writeln!(
         status,
-        "Watching pipeline for commit {short_commit} (refresh: {interval_seconds}s)"
+        "Watching pipeline for commit {short_commit}"
     );
     if active_runs.is_empty() {
         let _ = writeln!(status, "Active runs: none");
     } else {
         let _ = writeln!(status, "Active runs:");
         for run in active_runs {
+            let duration_seconds = run.duration_seconds
+                .unwrap_or_else(|| elapsed_since(&run.started_at));
             let mut details = vec![format!(
                 "duration: {}",
-                format_elapsed_duration(run.duration_seconds)
+                format_elapsed_duration(duration_seconds)
             )];
             if let Some(expected_duration_seconds) = run.expected_duration_seconds {
                 details.push(format!(
@@ -386,9 +384,17 @@ fn format_watch_status(
     let _ = writeln!(
         status,
         "Completed runs: {}",
-        format_completed_run_list(&completed_runs)
+        format_completed_run_list(completed_runs)
     );
     status
+}
+
+fn elapsed_since(iso_timestamp: &str) -> u64 {
+    let Ok(started) = iso_timestamp.parse::<chrono::DateTime<chrono::Utc>>() else {
+        return 0;
+    };
+    let elapsed = chrono::Utc::now() - started;
+    elapsed.num_seconds().max(0) as u64
 }
 
 fn render_watch_status_block(message: &str, last_lines: &mut usize) -> Result<()> {
@@ -570,20 +576,21 @@ mod tests {
     fn watch_status_output_has_no_trailing_blank_line() {
         let status = format_watch_status(
             "df0c52b63dfa0123456789",
-            5,
-            vec![WatchRun {
+            &[WatchRun {
                 run_id: "42".to_string(),
                 workflow_name: "Build & Test Collector".to_string(),
                 conclusion: None,
-                duration_seconds: 139,
+                started_at: "2026-03-06T10:00:00Z".to_string(),
+                duration_seconds: Some(139),
                 expected_duration_seconds: None,
                 active_jobs: vec!["Lint".to_string(), "Build".to_string()],
             }],
-            vec![WatchRun {
+            &[WatchRun {
                 run_id: "41".to_string(),
                 workflow_name: "Build & Test Ingress".to_string(),
                 conclusion: Some("success".to_string()),
-                duration_seconds: 0,
+                started_at: "2026-03-06T09:58:00Z".to_string(),
+                duration_seconds: Some(0),
                 expected_duration_seconds: None,
                 active_jobs: Vec::new(),
             }],
@@ -599,14 +606,14 @@ mod tests {
     fn watch_status_output_marks_failed_completed_runs() {
         let status = format_watch_status(
             "df0c52b63dfa0123456789",
-            5,
-            Vec::new(),
-            vec![
+            &[],
+            &[
                 WatchRun {
                     run_id: "42".to_string(),
                     workflow_name: "Build & Test Collector".to_string(),
                     conclusion: Some("failure".to_string()),
-                    duration_seconds: 0,
+                    started_at: "2026-03-06T10:00:00Z".to_string(),
+                    duration_seconds: Some(0),
                     expected_duration_seconds: None,
                     active_jobs: Vec::new(),
                 },
@@ -614,7 +621,8 @@ mod tests {
                     run_id: "41".to_string(),
                     workflow_name: "Build & Test App".to_string(),
                     conclusion: Some("success".to_string()),
-                    duration_seconds: 0,
+                    started_at: "2026-03-06T10:00:00Z".to_string(),
+                    duration_seconds: Some(0),
                     expected_duration_seconds: None,
                     active_jobs: Vec::new(),
                 },
@@ -630,16 +638,16 @@ mod tests {
     fn watch_status_output_includes_usual_duration_when_available() {
         let status = format_watch_status(
             "df0c52b63dfa0123456789",
-            5,
-            vec![WatchRun {
+            &[WatchRun {
                 run_id: "99".to_string(),
                 workflow_name: "CI".to_string(),
                 conclusion: None,
-                duration_seconds: 125,
+                started_at: "2026-03-06T10:00:00Z".to_string(),
+                duration_seconds: Some(125),
                 expected_duration_seconds: Some(118),
                 active_jobs: vec!["test".to_string()],
             }],
-            Vec::new(),
+            &[],
         );
 
         assert!(
