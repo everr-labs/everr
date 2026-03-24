@@ -12,6 +12,7 @@ export function baseOptions(): BaseLayoutProps {
       ),
       url: "/",
     },
+    githubUrl: "https://github.com/everr-labs/everr",
     themeSwitch: {
       enabled: false,
     },
