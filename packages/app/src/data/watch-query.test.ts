@@ -134,6 +134,7 @@ describe("getWatchStatus", () => {
       state: "running",
       active: [
         {
+          traceId: "trace-42",
           runId: "42",
           workflowName: "CI",
           conclusion: null,
@@ -145,6 +146,7 @@ describe("getWatchStatus", () => {
       ],
       completed: [
         {
+          traceId: "trace-41",
           runId: "41",
           workflowName: "Lint",
           conclusion: "success",
@@ -202,6 +204,7 @@ describe("getWatchStatus", () => {
       active: [],
       completed: [
         {
+          traceId: "trace-88-attempt-2",
           runId: "88",
           workflowName: "CI",
           conclusion: "success",

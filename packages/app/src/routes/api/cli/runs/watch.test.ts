@@ -129,7 +129,10 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
     expect(channel).toBe("commit_42_abc123def456abc123def456abc123def456abc1");
   });
 
-  it("does not open subscription when initial state is already completed", async () => {
+  it("disposes subscription when initial state is already completed", async () => {
+    const unsubscribe = vi.fn();
+    mockedCreateSubscription.mockReturnValue(unsubscribe);
+
     mockedGetWatchStatus.mockResolvedValue({
       state: "completed",
       active: [],
@@ -155,7 +158,8 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(mockedCreateSubscription).not.toHaveBeenCalled();
+    expect(mockedCreateSubscription).toHaveBeenCalledOnce();
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
   it("requires repo, branch, and commit", async () => {

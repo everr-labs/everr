@@ -1,6 +1,7 @@
 import { pool } from "@/db/client";
 
 export type WatchRun = {
+  traceId: string;
   runId: string;
   workflowName: string;
   conclusion: string | null;
@@ -105,6 +106,7 @@ export async function getWatchStatus({
           AND repository = $2
           AND ref = $3
           AND status = 'completed'
+          AND conclusion = 'success'
           AND run_completed_at IS NOT NULL
           AND last_event_at >= NOW() - ${BASELINE_LOOKBACK_SQL}
         ORDER BY run_id ASC, attempts DESC, last_event_at DESC
@@ -140,6 +142,7 @@ export async function getWatchStatus({
   for (const run of runs) {
     const isCompleted = run.status === "completed";
     const watchRun: WatchRun = {
+      traceId: run.traceId,
       runId: String(run.runId),
       workflowName: run.workflowName,
       conclusion: isCompleted ? run.conclusion : null,

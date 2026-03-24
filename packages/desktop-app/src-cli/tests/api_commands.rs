@@ -215,8 +215,7 @@ fn runs_list_sends_filter_query_params() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "runs",
-            "list",
+            "runs-list",
             "--branch",
             "feature/tests",
             "--conclusion",
@@ -265,7 +264,7 @@ fn runs_list_does_not_default_branch_without_current_branch_flag() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["runs", "list"])
+        .args(["runs-list"])
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));
@@ -300,7 +299,7 @@ fn runs_list_uses_current_branch_when_flag_is_passed() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["runs", "list", "--current-branch"])
+        .args(["runs-list", "--current-branch"])
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));
@@ -323,7 +322,7 @@ fn runs_show_calls_trace_id_endpoint() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["runs", "show", "--trace-id", "trace-123"])
+        .args(["runs-show", "--trace-id", "trace-123"])
         .assert()
         .success()
         .stdout(contains("\"traceId\": \"trace-123\""));
@@ -344,7 +343,7 @@ fn runs_logs_prints_plain_text_by_default() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("jobName".into(), "build".into()),
             Matcher::UrlEncoded("stepNumber".into(), "2".into()),
-            Matcher::UrlEncoded("fullLogs".into(), "false".into()),
+            Matcher::UrlEncoded("tail".into(), "1000".into()),
         ]))
         .with_status(200)
         .with_body(
@@ -354,8 +353,7 @@ fn runs_logs_prints_plain_text_by_default() {
 
     env.command_with_api_base_url(&server.url())
         .args([
-            "runs",
-            "logs",
+            "runs-logs",
             "--trace-id",
             "trace-123",
             "--job-name",
@@ -366,47 +364,6 @@ fn runs_logs_prints_plain_text_by_default() {
         .assert()
         .success()
         .stdout(predicate::str::diff("Starting build\nCompiling\n"))
-        .stderr(predicate::str::is_empty());
-
-    mock.assert();
-}
-
-#[test]
-fn runs_logs_prints_full_logs_as_plain_text() {
-    let env = CliTestEnv::new();
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-abc");
-
-    let mock = server
-        .mock("GET", "/api/cli/runs/trace-123/logs")
-        .match_header("authorization", "Bearer token-abc")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("jobName".into(), "build".into()),
-            Matcher::UrlEncoded("stepNumber".into(), "2".into()),
-            Matcher::UrlEncoded("fullLogs".into(), "true".into()),
-        ]))
-        .with_status(200)
-        .with_body(
-            r#"[{"timestamp":"2026-03-10T10:00:00.000Z","body":"first line"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"second line\n"}]"#,
-        )
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .args([
-            "runs",
-            "logs",
-            "--trace-id",
-            "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--full",
-        ])
-        .assert()
-        .success()
-        .stdout(predicate::str::diff("first line\nsecond line\n"))
         .stderr(predicate::str::is_empty());
 
     mock.assert();
@@ -425,7 +382,6 @@ fn runs_logs_offset_without_limit_defaults_to_one_thousand_lines() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("jobName".into(), "build".into()),
             Matcher::UrlEncoded("stepNumber".into(), "2".into()),
-            Matcher::UrlEncoded("fullLogs".into(), "false".into()),
             Matcher::UrlEncoded("limit".into(), "1001".into()),
             Matcher::UrlEncoded("offset".into(), "1000".into()),
         ]))
@@ -435,8 +391,7 @@ fn runs_logs_offset_without_limit_defaults_to_one_thousand_lines() {
 
     env.command_with_api_base_url(&server.url())
         .args([
-            "runs",
-            "logs",
+            "runs-logs",
             "--trace-id",
             "trace-123",
             "--job-name",
@@ -467,7 +422,6 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("jobName".into(), "build".into()),
             Matcher::UrlEncoded("stepNumber".into(), "2".into()),
-            Matcher::UrlEncoded("fullLogs".into(), "false".into()),
             Matcher::UrlEncoded("limit".into(), "3".into()),
             Matcher::UrlEncoded("offset".into(), "0".into()),
         ]))
@@ -479,8 +433,7 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
 
     env.command_with_api_base_url(&server.url())
         .args([
-            "runs",
-            "logs",
+            "runs-logs",
             "--trace-id",
             "trace-123",
             "--job-name",
@@ -831,7 +784,7 @@ fn api_errors_are_reported_to_the_user() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["runs", "show", "--trace-id", "trace-123"])
+        .args(["runs-show", "--trace-id", "trace-123"])
         .assert()
         .failure()
         .stderr(contains("CLI API request failed with 500"))
@@ -854,8 +807,8 @@ fn watch_receives_sse_events_until_completion() {
     env.write_session(&server.url(), "token-abc");
 
     let sse_body = [
-        "event: message\ndata: {\"state\":\"running\",\"active\":[{\"runId\":\"42\",\"workflowName\":\"CI\",\"conclusion\":null,\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":null,\"expectedDurationSeconds\":118,\"activeJobs\":[\"test\",\"lint\"]}],\"completed\":[{\"runId\":\"41\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T09:58:01Z\",\"durationSeconds\":59,\"expectedDurationSeconds\":57,\"activeJobs\":[]}]}\n\n",
-        "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"42\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]},{\"runId\":\"41\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T09:58:01Z\",\"durationSeconds\":59,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n",
+        "event: message\ndata: {\"state\":\"running\",\"active\":[{\"runId\":\"42\",\"traceId\":\"mock-trace-id-1\",\"workflowName\":\"CI\",\"conclusion\":null,\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":null,\"expectedDurationSeconds\":118,\"activeJobs\":[\"test\",\"lint\"]}],\"completed\":[{\"runId\":\"41\",\"traceId\":\"mock-trace-id-2\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T09:58:01Z\",\"durationSeconds\":59,\"expectedDurationSeconds\":57,\"activeJobs\":[]}]}\n\n",
+        "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"42\",\"traceId\":\"mock-trace-id-1\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]},{\"runId\":\"41\",\"traceId\":\"mock-trace-id-2\",\"workflowName\":\"Lint\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T09:58:01Z\",\"durationSeconds\":59,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n",
     ].join("");
 
     let mock = server
@@ -881,9 +834,9 @@ fn watch_receives_sse_events_until_completion() {
         .stdout(contains("\"runId\": \"42\""))
         .stdout(contains("\"runId\": \"41\""))
         .stderr(contains("Watching pipeline for commit"))
-        .stderr(contains("Active runs:\n- CI (duration:"))
+        .stderr(contains("Active runs:\n- CI [mock-trace-id-1] (duration:"))
         .stderr(contains("expected duration: 1m 58s; active jobs: test, lint)"))
-        .stderr(contains("Completed runs: Lint"));
+        .stderr(contains("Completed runs: Lint [mock-trace-id-2]"));
 
     mock.assert();
 }
@@ -901,7 +854,7 @@ fn watch_exits_when_completed_runs_exist_even_without_pipeline_found() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"52\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"52\",\"traceId\":\"mock-trace-id-3\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
@@ -942,7 +895,7 @@ fn watch_uses_explicit_commit_when_provided() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"77\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"77\",\"traceId\":\"mock-trace-id-4\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
@@ -986,7 +939,7 @@ fn watch_resolves_short_commit_sha_to_full() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"traceId\":\"mock-trace-id-5\",\"workflowName\":\"CI\",\"conclusion\":\"success\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
@@ -1026,7 +979,7 @@ fn watch_fails_when_completed_runs_include_failure() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"workflowName\":\"CI\",\"conclusion\":\"failure\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
+    let sse_body = "event: message\ndata: {\"state\":\"completed\",\"active\":[],\"completed\":[{\"runId\":\"88\",\"traceId\":\"mock-trace-id-6\",\"workflowName\":\"CI\",\"conclusion\":\"failure\",\"startedAt\":\"2026-03-06T10:00:00Z\",\"durationSeconds\":61,\"expectedDurationSeconds\":null,\"activeJobs\":[]}]}\n\n";
 
     let mock = server
         .mock("GET", "/api/cli/runs/watch")
@@ -1107,7 +1060,7 @@ fn commands_require_existing_session() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["runs", "list"])
+        .args(["runs-list"])
         .assert()
         .failure()
         .stderr(contains("no active session; run `everr login`"));

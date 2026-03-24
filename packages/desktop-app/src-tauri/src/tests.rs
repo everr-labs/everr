@@ -138,7 +138,7 @@ fn notification_prompt_builder_formats_single_failure_with_exact_logs_command() 
     assert!(prompt.contains("Current unresolved failure:"));
     assert!(prompt.contains("workflow CI | trace trace-one | step test #2 (Run suite)"));
     assert!(
-        prompt.contains("everr runs logs --trace-id trace-one --job-name \"test\" --step-number 2")
+        prompt.contains("everr runs-logs --trace-id trace-one --job-name \"test\" --step-number 2")
     );
 }
 

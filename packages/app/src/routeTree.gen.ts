@@ -17,6 +17,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
 import { Route as ApiEventsSubscribeRouteImport } from './routes/api/events/subscribe'
+import { Route as ApiCliWorkflowsListRouteImport } from './routes/api/cli/workflows-list'
 import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
 import { Route as ApiCliSlowestTestsRouteImport } from './routes/api/cli/slowest-tests'
 import { Route as ApiCliSlowestJobsRouteImport } from './routes/api/cli/slowest-jobs'
@@ -85,6 +86,11 @@ const AuthenticatedDashboardIndexRoute =
 const ApiEventsSubscribeRoute = ApiEventsSubscribeRouteImport.update({
   id: '/api/events/subscribe',
   path: '/api/events/subscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliWorkflowsListRoute = ApiCliWorkflowsListRouteImport.update({
+  id: '/api/cli/workflows-list',
+  path: '/api/cli/workflows-list',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCliTestHistoryRoute = ApiCliTestHistoryRouteImport.update({
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
+  '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
@@ -308,6 +315,7 @@ export interface FileRoutesByTo {
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
+  '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -347,6 +355,7 @@ export interface FileRoutesById {
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
+  '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -388,6 +397,7 @@ export interface FileRouteTypes {
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
+    | '/api/cli/workflows-list'
     | '/api/events/subscribe'
     | '/runs/$traceId'
     | '/api/cli/notifier/failures'
@@ -425,6 +435,7 @@ export interface FileRouteTypes {
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
+    | '/api/cli/workflows-list'
     | '/api/events/subscribe'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
@@ -463,6 +474,7 @@ export interface FileRouteTypes {
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
+    | '/api/cli/workflows-list'
     | '/api/events/subscribe'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
@@ -497,6 +509,7 @@ export interface RootRouteChildren {
   ApiCliSlowestJobsRoute: typeof ApiCliSlowestJobsRoute
   ApiCliSlowestTestsRoute: typeof ApiCliSlowestTestsRoute
   ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
+  ApiCliWorkflowsListRoute: typeof ApiCliWorkflowsListRoute
   ApiEventsSubscribeRoute: typeof ApiEventsSubscribeRoute
   ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
@@ -562,6 +575,13 @@ declare module '@tanstack/react-router' {
       path: '/api/events/subscribe'
       fullPath: '/api/events/subscribe'
       preLoaderRoute: typeof ApiEventsSubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/workflows-list': {
+      id: '/api/cli/workflows-list'
+      path: '/api/cli/workflows-list'
+      fullPath: '/api/cli/workflows-list'
+      preLoaderRoute: typeof ApiCliWorkflowsListRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cli/test-history': {
@@ -905,6 +925,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCliSlowestJobsRoute: ApiCliSlowestJobsRoute,
   ApiCliSlowestTestsRoute: ApiCliSlowestTestsRoute,
   ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
+  ApiCliWorkflowsListRoute: ApiCliWorkflowsListRoute,
   ApiEventsSubscribeRoute: ApiEventsSubscribeRoute,
   ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,

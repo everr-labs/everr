@@ -534,7 +534,7 @@ mod tests {
     fn assistant_instructions_use_requested_command_name() {
         let rendered = render_assistant_instructions("everr");
         assert!(rendered.contains("`everr status`"));
-        assert!(rendered.contains("`everr runs list`"));
+        assert!(rendered.contains("`everr runs-list`"));
     }
 
     #[test]
@@ -549,7 +549,7 @@ mod tests {
         let rendered = render_assistant_instructions("everr");
         assert!(rendered.contains("`everr status`"));
         assert!(rendered.contains("Use Everr CLI guidance when the task involves CI"));
-        assert!(rendered.contains("`everr runs show --trace-id <trace_id>`"));
+        assert!(rendered.contains("`everr runs-show --trace-id <trace_id>`"));
     }
 
     #[test]

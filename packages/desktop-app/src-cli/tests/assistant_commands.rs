@@ -107,7 +107,7 @@ fn ai_instructions_prints_full_guidance() {
         .success()
         .stdout(contains("Quick commands:"))
         .stdout(contains("`everr status`"))
-        .stdout(contains("`everr runs list`"));
+        .stdout(contains("`everr runs-list`"));
 }
 
 #[test]

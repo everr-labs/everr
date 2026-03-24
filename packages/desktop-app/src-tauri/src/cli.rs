@@ -36,7 +36,8 @@ fn install_cli_from_path(source_path: &Path, install_path: &Path) -> Result<()> 
 }
 
 pub(crate) fn sync_installed_cli(app: &AppHandle) -> Result<bool> {
-    let install_path = cli_install_path()?;
+    let bin_name = if tauri::is_dev() { "everr-dev" } else { "everr" };
+    let install_path = cli_install_path(bin_name)?;
     if !install_path.exists() {
         return Ok(false);
     }
@@ -81,9 +82,9 @@ fn cli_sha256(path: &Path) -> Result<[u8; 32]> {
     Ok(hasher.finalize().into())
 }
 
-fn cli_install_path() -> Result<PathBuf> {
+fn cli_install_path(bin_name: &str) -> Result<PathBuf> {
     let home = dirs::home_dir().context("failed to resolve home directory")?;
-    Ok(home.join(".local").join("bin").join("everr"))
+    Ok(home.join(".local").join("bin").join(bin_name))
 }
 
 fn bundled_cli_path(app: &AppHandle) -> Result<PathBuf> {
