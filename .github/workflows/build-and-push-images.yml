@@ -1,0 +1,179 @@
+name: Build & Push Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-push-images.yml
+      - packages/app/**
+      - packages/datemath/**
+      - packages/docs/**
+      - collector/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-and-push-images
+  cancel-in-progress: false
+
+env:
+  AWS_DEFAULT_REGION: eu-central-1
+  APP_ECR_REPOSITORY: everr-dev/nodejs-app
+  DOCS_ECR_REPOSITORY: everr-dev/docs
+  COLLECTOR_ECR_REPOSITORY: everr-dev/everr-otel-collector
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      collector: ${{ steps.filter.outputs.collector }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            app:
+              - .github/workflows/build-and-push-images.yml
+              - packages/app/**
+              - packages/datemath/**
+              - package.json
+              - pnpm-lock.yaml
+              - pnpm-workspace.yaml
+            collector:
+              - .github/workflows/build-and-push-images.yml
+              - collector/**
+            docs:
+              - .github/workflows/build-and-push-images.yml
+              - packages/docs/**
+              - package.json
+              - pnpm-lock.yaml
+              - pnpm-workspace.yaml
+
+  build-app:
+    name: Build App Image
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: detect-changes
+    if: needs.detect-changes.outputs.app == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Build and push app image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: packages/app/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_ECR_REPOSITORY }}:latest
+
+  build-collector:
+    name: Build Collector Image
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: detect-changes
+    if: needs.detect-changes.outputs.collector == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Build and push collector image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: ./collector
+          file: collector/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COLLECTOR_ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COLLECTOR_ECR_REPOSITORY }}:latest
+
+  build-docs:
+    name: Build Docs Image
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Build and push docs image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: packages/docs/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCS_ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCS_ECR_REPOSITORY }}:latest
+
+  notify-deploy:
+    name: Notify Deploy Repo
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: [detect-changes, build-app, build-collector, build-docs]
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.app == 'true' ||
+       needs.detect-changes.outputs.collector == 'true' ||
+       needs.detect-changes.outputs.docs == 'true') &&
+      !contains(needs.*.result, 'failure')
+    steps:
+      - name: Dispatch image update event
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ secrets.DEPLOY_REPO_PAT }}
+          repository: everr-labs/everr-deploy
+          event-type: image-update
+          client-payload: |
+            {
+              "sha": "${{ github.sha }}",
+              "app": ${{ needs.detect-changes.outputs.app }},
+              "collector": ${{ needs.detect-changes.outputs.collector }},
+              "docs": ${{ needs.detect-changes.outputs.docs }}
+            }
