@@ -60,7 +60,7 @@ func eventToTraces(event interface{}, config *Config, logger *zap.Logger) (*ptra
 			return nil, fmt.Errorf("failed to generate trace ID: %w", err)
 		}
 
-		parentSpanID, err := createParentSpan(scopeSpans, e.GetWorkflowJob().Steps, e.GetWorkflowJob(), traceID, logger)
+		parentSpanID, err := createParentSpan(scopeSpans, e.GetWorkflowJob(), traceID, logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create parent span: %w", err)
 		}
@@ -96,7 +96,7 @@ func eventToTraces(event interface{}, config *Config, logger *zap.Logger) (*ptra
 	return &traces, nil
 }
 
-func createParentSpan(scopeSpans ptrace.ScopeSpans, steps []*github.TaskStep, job *github.WorkflowJob, traceID pcommon.TraceID, logger *zap.Logger) (pcommon.SpanID, error) {
+func createParentSpan(scopeSpans ptrace.ScopeSpans, job *github.WorkflowJob, traceID pcommon.TraceID, logger *zap.Logger) (pcommon.SpanID, error) {
 	logger.Debug("Creating parent span", zap.String("name", job.GetName()))
 	span := scopeSpans.Spans().AppendEmpty()
 	span.SetTraceID(traceID)
@@ -120,33 +120,24 @@ func createParentSpan(scopeSpans ptrace.ScopeSpans, steps []*github.TaskStep, jo
 	span.SetSpanID(jobSpanID)
 
 	span.SetName(job.GetName())
-	span.SetKind(ptrace.SpanKindServer)
+	span.SetKind(ptrace.SpanKindInternal)
 	// Always use the job's own timestamps for the parent span.
 	// These match GitHub's billing window (started_at → completed_at)
 	// and avoid discrepancies from step boundary timing.
-	setSpanTimes(span, job.GetStartedAt().Time, job.GetCompletedAt().Time)
+	startTime, endTime := correctActionTimestamps(job.GetStartedAt().Time, job.GetCompletedAt().Time)
+	setSpanTimes(span, startTime, endTime)
 
-	allSuccessful := true
-	anyFailure := false
-	for _, step := range steps {
-		if step.GetStatus() != "completed" || step.GetConclusion() != "success" {
-			allSuccessful = false
-		}
-		if step.GetConclusion() == "failure" {
-			anyFailure = true
-			break
-		}
-	}
-
-	if anyFailure {
-		span.Status().SetCode(ptrace.StatusCodeError)
-	} else if allSuccessful {
+	conclusion := mapConclusion(job.GetConclusion())
+	switch strings.ToLower(conclusion) {
+	case "success":
 		span.Status().SetCode(ptrace.StatusCodeOk)
-	} else {
+	case "failure":
+		span.Status().SetCode(ptrace.StatusCodeError)
+	default:
 		span.Status().SetCode(ptrace.StatusCodeUnset)
 	}
 
-	span.Status().SetMessage(mapConclusion(job.GetConclusion()))
+	span.Status().SetMessage(conclusion)
 
 	return span.SpanID(), nil
 }
@@ -172,10 +163,11 @@ func createRootSpan(resourceSpans ptrace.ResourceSpans, event *github.WorkflowRu
 	span.SetSpanID(rootSpanID)
 	span.SetName(event.GetWorkflowRun().GetName())
 	span.SetKind(ptrace.SpanKindServer)
-	setSpanTimes(span, event.GetWorkflowRun().GetRunStartedAt().Time, event.GetWorkflowRun().GetUpdatedAt().Time)
+	startTime, endTime := correctActionTimestamps(event.GetWorkflowRun().GetRunStartedAt().Time, event.GetWorkflowRun().GetUpdatedAt().Time)
+	setSpanTimes(span, startTime, endTime)
 
 	conclusion := mapConclusion(event.GetWorkflowRun().GetConclusion())
-	switch conclusion {
+	switch strings.ToLower(conclusion) {
 	case "success":
 		span.Status().SetCode(ptrace.StatusCodeOk)
 	case "failure":
@@ -226,20 +218,16 @@ func createSpan(scopeSpans ptrace.ScopeSpans, step *github.TaskStep, job *github
 	}
 	span.SetSpanID(spanID)
 
-	// Set completed_at to same as started_at if ""
-	// GitHub emits zero values sometimes
-	if step.GetCompletedAt().IsZero() {
-		step.CompletedAt = step.StartedAt
-	}
-	span.Attributes().PutStr(semconv.EverrGitHubWorkflowJobStepStartedAt, step.GetStartedAt().Format(time.RFC3339))
-	span.Attributes().PutStr(semconv.EverrGitHubWorkflowJobStepCompletedAt, step.GetCompletedAt().Format(time.RFC3339))
-	setSpanTimes(span, step.GetStartedAt().Time, step.GetCompletedAt().Time)
+	stepStart, stepEnd := correctActionTimestamps(step.GetStartedAt().Time, step.GetCompletedAt().Time)
+	span.Attributes().PutStr(semconv.EverrGitHubWorkflowJobStepStartedAt, stepStart.Format(time.RFC3339))
+	span.Attributes().PutStr(semconv.EverrGitHubWorkflowJobStepCompletedAt, stepEnd.Format(time.RFC3339))
+	setSpanTimes(span, stepStart, stepEnd)
 
 	span.SetName(step.GetName())
-	span.SetKind(ptrace.SpanKindServer)
+	span.SetKind(ptrace.SpanKindInternal)
 
 	stepConclusion := mapConclusion(step.GetConclusion())
-	switch stepConclusion {
+	switch strings.ToLower(stepConclusion) {
 	case "success":
 		span.Status().SetCode(ptrace.StatusCodeOk)
 	case "failure":
@@ -331,6 +319,24 @@ func processSteps(scopeSpans ptrace.ScopeSpans, steps []*github.TaskStep, job *g
 			logger.Error("Failed to create span for step", zap.String("step_name", step.GetName()), zap.Error(err))
 		}
 	}
+}
+
+// correctActionTimestamps ensures span timestamps are valid. When GitHub
+// reports zero or reversed timestamps (which occurs with skipped or cancelled
+// jobs/steps), the function collapses both to the non-zero value, producing a
+// zero-duration span. This prevents uint64 underflow in Duration that would
+// otherwise appear as excessively long spans in telemetry systems.
+func correctActionTimestamps(start, end time.Time) (time.Time, time.Time) {
+	if start.IsZero() && end.IsZero() {
+		return start, end
+	}
+	if start.IsZero() {
+		return end, end
+	}
+	if end.IsZero() || end.Before(start) {
+		return start, start
+	}
+	return start, end
 }
 
 func setSpanTimes(span ptrace.Span, start, end time.Time) {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/everr-labs/everr/collector/receiver/githubactionsreceiver/internal/metadata"
 	"github.com/everr-labs/everr/collector/semconv"
@@ -30,6 +31,10 @@ import (
 )
 
 func int64Ptr(v int64) *int64 {
+	return &v
+}
+
+func intPtr(v int) *int {
 	return &v
 }
 
@@ -184,7 +189,7 @@ func TestProcessSteps(t *testing.T) {
 			ss := rs.ScopeSpans().AppendEmpty()
 
 			traceID, _ := generateTraceID(456, 123, 1)
-			parentSpanID, err := createParentSpan(ss, tc.givenSteps, &github.WorkflowJob{}, traceID, logger)
+			parentSpanID, err := createParentSpan(ss, &github.WorkflowJob{}, traceID, logger)
 			require.NoError(t, err)
 
 			processSteps(ss, tc.givenSteps, &github.WorkflowJob{}, traceID, parentSpanID, logger)
@@ -290,6 +295,136 @@ func attributeValueToString(attr pcommon.Value) string {
 		return "<Slice Value>"
 	default:
 		return "<Unknown Value Type>"
+	}
+}
+
+func TestCorrectActionTimestamps(t *testing.T) {
+	real1 := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	real2 := time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC)
+	zero := time.Time{}
+
+	tests := []struct {
+		desc          string
+		start, end    time.Time
+		wantStart     time.Time
+		wantEnd       time.Time
+		wantZeroDelta bool
+	}{
+		{desc: "both valid", start: real1, end: real2, wantStart: real1, wantEnd: real2},
+		{desc: "both zero", start: zero, end: zero, wantStart: zero, wantEnd: zero, wantZeroDelta: true},
+		{desc: "start zero, end real", start: zero, end: real2, wantStart: real2, wantEnd: real2, wantZeroDelta: true},
+		{desc: "start real, end zero", start: real1, end: zero, wantStart: real1, wantEnd: real1, wantZeroDelta: true},
+		{desc: "end before start (reversed)", start: real2, end: real1, wantStart: real2, wantEnd: real2, wantZeroDelta: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			gotStart, gotEnd := correctActionTimestamps(tc.start, tc.end)
+			require.Equal(t, tc.wantStart, gotStart, "start mismatch")
+			require.Equal(t, tc.wantEnd, gotEnd, "end mismatch")
+			if tc.wantZeroDelta {
+				require.Equal(t, gotStart, gotEnd, "expected zero-duration span")
+			}
+		})
+	}
+}
+
+func TestCreateParentSpanZeroTimestamps(t *testing.T) {
+	logger := zap.NewNop()
+
+	tests := []struct {
+		desc string
+		job  *github.WorkflowJob
+	}{
+		{
+			desc: "Both started_at and completed_at zero (skipped job)",
+			job:  &github.WorkflowJob{},
+		},
+		{
+			desc: "started_at set, completed_at zero",
+			job: &github.WorkflowJob{
+				StartedAt: &github.Timestamp{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
+			},
+		},
+		{
+			desc: "started_at zero, completed_at set (cancelled before starting)",
+			job: &github.WorkflowJob{
+				CompletedAt: &github.Timestamp{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+			rs := traces.ResourceSpans().AppendEmpty()
+			ss := rs.ScopeSpans().AppendEmpty()
+
+			traceID, _ := generateTraceID(456, 123, 1)
+			_, err := createParentSpan(ss, tc.job, traceID, logger)
+			require.NoError(t, err)
+
+			span := ss.Spans().At(0)
+			start := span.StartTimestamp()
+			end := span.EndTimestamp()
+			duration := uint64(end) - uint64(start)
+
+			// Duration must never exceed 24 hours — the uint64 underflow produces ~10^19
+			require.LessOrEqual(t, duration, uint64(86400000000000),
+				"Duration overflowed: got %d ns, likely a uint64 underflow from zero timestamps", duration)
+		})
+	}
+}
+
+func TestCreateRootSpanZeroTimestamps(t *testing.T) {
+	logger := zap.NewNop()
+
+	tests := []struct {
+		desc  string
+		event *github.WorkflowRunEvent
+	}{
+		{
+			desc: "updated_at zero",
+			event: &github.WorkflowRunEvent{
+				WorkflowRun: &github.WorkflowRun{
+					ID:           int64Ptr(123),
+					RunAttempt:   intPtr(1),
+					RunStartedAt: &github.Timestamp{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
+				},
+				Repo: &github.Repository{ID: int64Ptr(456)},
+			},
+		},
+		{
+			desc: "run_started_at zero",
+			event: &github.WorkflowRunEvent{
+				WorkflowRun: &github.WorkflowRun{
+					ID:         int64Ptr(123),
+					RunAttempt: intPtr(1),
+					UpdatedAt:  &github.Timestamp{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
+				},
+				Repo: &github.Repository{ID: int64Ptr(456)},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+			rs := traces.ResourceSpans().AppendEmpty()
+
+			traceID, _ := generateTraceID(456, 123, 1)
+			_, err := createRootSpan(rs, tc.event, traceID, logger)
+			require.NoError(t, err)
+
+			ss := rs.ScopeSpans().At(0)
+			span := ss.Spans().At(0)
+			start := span.StartTimestamp()
+			end := span.EndTimestamp()
+			duration := uint64(end) - uint64(start)
+
+			require.LessOrEqual(t, duration, uint64(86400000000000),
+				"Duration overflowed: got %d ns, likely a uint64 underflow from zero timestamps", duration)
+		})
 	}
 }
 
