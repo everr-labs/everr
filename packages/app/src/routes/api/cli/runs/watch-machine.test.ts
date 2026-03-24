@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WatchResponse } from "@/data/watch";
-import { WatchMachine } from "./watch-machine";
+import { WatchMachine } from "./-watch-machine";
 
 const THROTTLE_MS = 300;
 

@@ -60,9 +60,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared packages
-        run: pnpm -r --filter @everr/datemath build
-
       - name: Lint
         run: pnpm exec biome check packages/app packages/datemath
 
