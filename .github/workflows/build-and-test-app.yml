@@ -82,4 +82,4 @@ jobs:
             exit 1
           fi
       - name: Build
-        run: BUILD=true pnpm -r --filter @everr/app build
+        run: pnpm -r --filter @everr/app build
