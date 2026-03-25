@@ -4,7 +4,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@everr/ui/components/select";
 
 interface FilterSelectProps {
   value?: string;

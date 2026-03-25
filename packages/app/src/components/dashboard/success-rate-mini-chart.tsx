@@ -1,16 +1,16 @@
-import { Bar, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+} from "@everr/ui/components/chart";
 import {
   ChartEmptyState,
   chartTooltipLabelFormatter,
   createChartTooltipFormatter,
   formatChartDate,
-} from "@/components/ui/chart-helpers";
+} from "@everr/ui/components/chart-helpers";
+import { Bar, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import type { SuccessRatePoint } from "@/data/analytics/schemas";
 
 interface SuccessRateMiniChartProps {

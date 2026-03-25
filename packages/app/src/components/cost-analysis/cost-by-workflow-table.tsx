@@ -1,5 +1,5 @@
-import { type Column, DataTable } from "@/components/ui/data-table";
-import { Empty, EmptyDescription } from "@/components/ui/empty";
+import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import type { CostByWorkflow } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 

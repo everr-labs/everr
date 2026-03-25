@@ -1,4 +1,17 @@
 import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@everr/ui/components/chart";
+import {
+  ChartEmptyState,
+  chartTooltipLabelFormatter,
+  createChartTooltipFormatter,
+  createLegendFormatter,
+  formatChartDate,
+} from "@everr/ui/components/chart-helpers";
+import {
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -7,19 +20,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import {
-  ChartEmptyState,
-  chartTooltipLabelFormatter,
-  createChartTooltipFormatter,
-  createLegendFormatter,
-  formatChartDate,
-} from "@/components/ui/chart-helpers";
 import type { RepoSuccessRatePoint } from "@/data/repo-detail/schemas";
 
 interface RepoSuccessRateChartProps {

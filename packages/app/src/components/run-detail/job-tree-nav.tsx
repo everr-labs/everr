@@ -1,13 +1,13 @@
-import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from "@everr/ui/components/collapsible";
+import { cn } from "@everr/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import type { Job, Step } from "@/data/runs/schemas";
 import { formatDuration } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";
 
 interface JobTreeNavProps {

@@ -1,4 +1,3 @@
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
   ChartContainer,
@@ -6,14 +5,15 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+} from "@everr/ui/components/chart";
 import {
   ChartEmptyState,
   chartTooltipLabelFormatter,
   createChartTooltipFormatter,
   createLegendFormatter,
   formatChartDate,
-} from "@/components/ui/chart-helpers";
+} from "@everr/ui/components/chart-helpers";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import type { CostOverTimePoint } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 

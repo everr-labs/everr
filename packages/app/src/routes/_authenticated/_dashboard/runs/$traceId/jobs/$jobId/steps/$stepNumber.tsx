@@ -1,9 +1,9 @@
+import { Card, CardContent } from "@everr/ui/components/card";
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { LogViewer } from "@/components/run-detail";
 import { ResourceUsagePanel } from "@/components/run-detail/resource-usage-panel";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { jobResourceUsageOptions } from "@/data/resource-usage";
 import {
   allJobsStepsOptions,

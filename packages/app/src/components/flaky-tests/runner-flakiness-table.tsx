@@ -1,7 +1,7 @@
-import { type Column, DataTable } from "@/components/ui/data-table";
+import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { cn } from "@everr/ui/lib/utils";
 import type { RunnerFlakiness } from "@/data/flaky-tests/schemas";
 import { formatDuration, getFailureRateColor } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 
 interface RunnerFlakinessTableProps {
   data: RunnerFlakiness[];

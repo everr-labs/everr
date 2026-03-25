@@ -1,8 +1,8 @@
+import { Card, CardContent } from "@everr/ui/components/card";
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { TraceWaterfall } from "@/components/run-detail";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { flakyTestNamesOptions } from "@/data/flaky-tests/options";
 import { runDetailsOptions, runSpansOptions } from "@/data/runs/options";
 

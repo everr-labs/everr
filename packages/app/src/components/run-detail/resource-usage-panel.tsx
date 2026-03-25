@@ -1,3 +1,10 @@
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@everr/ui/components/chart";
+import { cn } from "@everr/ui/lib/utils";
 import { useId } from "react";
 import {
   Area,
@@ -7,12 +14,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
 import type {
   JobResourceUsage,
   ResourceUsagePoint,
@@ -23,7 +24,6 @@ import {
   formatSpeed,
   formatTimeOfDay,
 } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 
 interface ResourceUsagePanelProps {
   data: JobResourceUsage;

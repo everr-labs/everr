@@ -1,3 +1,7 @@
+import { Button } from "@everr/ui/components/button";
+import { Input } from "@everr/ui/components/input";
+import { Label } from "@everr/ui/components/label";
+import { cn } from "@everr/ui/lib/utils";
 import { SiApple } from "@icons-pack/react-simple-icons";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,9 +31,6 @@ import {
   CreateOrganizationInputSchema,
   OrganizationNameSchema,
 } from "@/common/organization-name";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   activeOrganizationOptions,
   markOnboardingComplete,
@@ -39,7 +40,6 @@ import {
   createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
 } from "@/data/onboarding";
-import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Constants

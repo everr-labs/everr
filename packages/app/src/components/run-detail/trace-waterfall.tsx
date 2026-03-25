@@ -1,3 +1,12 @@
+import { Badge } from "@everr/ui/components/badge";
+import { buttonVariants } from "@everr/ui/components/button";
+import { Input } from "@everr/ui/components/input";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@everr/ui/components/resizable";
+import { cn } from "@everr/ui/lib/utils";
 import {
   ChevronRight,
   ChevronsDownUp,
@@ -7,17 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
 import type { Span } from "@/data/runs/schemas";
 import { formatDuration, parseDuration } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";
 import { FrameworkIcon } from "./framework-icon";
 import { SpanDetailPanel } from "./span-detail-panel";
