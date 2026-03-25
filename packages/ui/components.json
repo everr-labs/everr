@@ -12,7 +12,7 @@
   "iconLibrary": "lucide",
   "aliases": {
     "components": "@everr/ui/components",
-    "utils": "@workspace/ui/lib/utils",
+    "utils": "@everr/ui/lib/utils",
     "hooks": "@everr/ui/hooks",
     "lib": "@everr/ui/lib",
     "ui": "@everr/ui/components"
