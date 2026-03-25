@@ -5,7 +5,7 @@ import { commitChannel } from "@/db/notify";
 import { createSubscription } from "@/db/subscribe";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 import { createSSEStream } from "@/lib/sse";
-import { WatchMachine } from "./watch-machine";
+import { WatchMachine } from "./-watch-machine";
 
 const WatchQuerySchema = z.object({
   repo: z.string().min(1),
