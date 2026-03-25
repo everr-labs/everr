@@ -541,7 +541,8 @@ mod tests {
     fn repo_assistant_instructions_use_requested_command_name() {
         let rendered = render_discovery_instructions("everr");
         assert!(rendered.contains("call `everr ai-instructions` for full usage."));
-        assert!(!rendered.contains("`everr status`"));
+        assert!(rendered.contains("`everr status`"));
+        assert!(!rendered.contains("`everr runs-list`"));
     }
 
     #[test]

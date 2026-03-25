@@ -121,12 +121,12 @@ describe("getStepLogs", () => {
   it("normalizes full log timestamps to timezone-aware UTC ISO strings", async () => {
     mockedQuery.mockResolvedValue([
       {
-        timestamp: "2026-03-09 12:00:00.123",
-        body: "Starting build",
-      },
-      {
         timestamp: "2026-03-09T12:00:01",
         body: "Compiling",
+      },
+      {
+        timestamp: "2026-03-09 12:00:00.123",
+        body: "Starting build",
       },
     ]);
 
