@@ -35,12 +35,13 @@ describe("getWatchStatus", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("sha = $4");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("sha = $3");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ref = $4");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
       42,
       "everr-labs/everr",
-      "feature/watch-short-commit",
       "7f14b13",
+      "feature/watch-short-commit",
     ]);
     expect(result).toEqual({
       state: "pending",

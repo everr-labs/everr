@@ -12,7 +12,6 @@
 - [**remove-light-theme**](todo/issues/remove-light-theme.md) — Remove the light theme entirely so we only ship a dark theme.
 - [**replace-filter-select-with-autocomplete-combobox**](todo/issues/replace-filter-select-with-autocomplete-combobox.md) — The FilterSelect component should be replaced with an autocomplete combobox.
 - [**tables-alignment-and-sorting**](todo/issues/tables-alignment-and-sorting.md) — Table columns are misaligned and tables don't support sorting.
-- [**watch-with-explicit-commit-should-skip-branch-filter**](todo/issues/watch-with-explicit-commit-should-skip-branch-filter.md) — When running `everr watch --commit f5ebfdb4`, the CLI still resolves and sends the current git branch as a query parameter. Since the user is targeting a specific commit, the branch filter is unnecessary and can cause the watch to miss runs if the commit exists on a different branch than the current one.
 
 ## Projects
 

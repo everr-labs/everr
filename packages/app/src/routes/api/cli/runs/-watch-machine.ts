@@ -64,6 +64,7 @@ export class WatchMachine {
       this.clearTimers();
       this.unsubscribe?.();
       this.unsubscribe = null;
+      this.closeFn();
       return;
     }
 

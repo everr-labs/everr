@@ -233,20 +233,26 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
+    let explicit_commit = args.commit.is_some();
     let target_commit = resolve_commit(args.commit, &cwd)?;
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
-    let branch = args
-        .branch
-        .or(git.branch)
-        .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
+    let branch = if explicit_commit {
+        args.branch
+    } else {
+        Some(args.branch.or(git.branch).ok_or_else(|| {
+            anyhow::anyhow!("failed to resolve branch; provide --branch")
+        })?)
+    };
 
-    let query = vec![
+    let mut query = vec![
         ("repo", repo.clone()),
-        ("branch", branch.clone()),
         ("commit", target_commit.clone()),
     ];
+    if let Some(ref b) = branch {
+        query.push(("branch", b.clone()));
+    }
 
     let sse_stream = client.watch_sse(&query).await?;
     pin!(sse_stream);

@@ -370,7 +370,7 @@ fn runs_logs_prints_plain_text_by_default() {
 }
 
 #[test]
-fn runs_logs_offset_without_limit_defaults_to_one_thousand_lines() {
+fn runs_logs_offset_without_limit_uses_tail_mode() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
@@ -382,7 +382,7 @@ fn runs_logs_offset_without_limit_defaults_to_one_thousand_lines() {
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("jobName".into(), "build".into()),
             Matcher::UrlEncoded("stepNumber".into(), "2".into()),
-            Matcher::UrlEncoded("limit".into(), "1001".into()),
+            Matcher::UrlEncoded("tail".into(), "1000".into()),
             Matcher::UrlEncoded("offset".into(), "1000".into()),
         ]))
         .with_status(200)
@@ -902,10 +902,6 @@ fn watch_uses_explicit_commit_when_provided() {
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded(
-                "branch".into(),
-                "feature/wait-explicit-commit".into(),
-            ),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
         ]))
         .with_status(200)
@@ -946,7 +942,6 @@ fn watch_resolves_short_commit_sha_to_full() {
         .match_header("authorization", "Bearer token-abc")
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("branch".into(), "feature/wait-short-commit".into()),
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
         ]))
         .with_status(200)

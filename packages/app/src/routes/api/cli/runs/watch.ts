@@ -9,7 +9,7 @@ import { WatchMachine } from "./-watch-machine";
 
 const WatchQuerySchema = z.object({
   repo: z.string().min(1),
-  branch: z.string().min(1),
+  branch: z.string().min(1).optional(),
   commit: z.string().min(1),
 });
 
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           return Response.json(
             {
               error:
-                "Invalid query parameters for watch. Required: repo, branch, commit.",
+                "Invalid query parameters for watch. Required: repo, commit. Optional: branch.",
             },
             { status: 400 },
           );
