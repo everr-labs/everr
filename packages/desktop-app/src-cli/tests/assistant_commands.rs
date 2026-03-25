@@ -27,7 +27,7 @@ fn setup_assistant_creates_repo_agents_file() {
 
     assert!(content.contains(BLOCK_START));
     assert!(content.contains(BLOCK_END));
-    assert!(content.contains("Call `everr ai-instructions` to understand usage."));
+    assert!(content.contains("call `everr ai-instructions` for full usage."));
     assert!(!content.contains("`everr status`"));
 }
 

@@ -77,6 +77,7 @@ describe("/api/cli/runs/status", () => {
       state: "running",
       active: [
         {
+          traceId: "trace-42",
           runId: "42",
           workflowName: "CI",
           conclusion: null,
@@ -119,6 +120,7 @@ describe("/api/cli/runs/status", () => {
       active: [],
       completed: [
         {
+          traceId: "trace-88",
           runId: "88",
           workflowName: "CI",
           conclusion: "success",

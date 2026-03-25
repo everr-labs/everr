@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn repo_assistant_instructions_use_requested_command_name() {
         let rendered = render_discovery_instructions("everr");
-        assert!(rendered.contains("Call `everr ai-instructions` to understand usage."));
+        assert!(rendered.contains("call `everr ai-instructions` for full usage."));
         assert!(!rendered.contains("`everr status`"));
     }
 
@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(path, repo.path().join("AGENTS.md"));
         let content = fs::read_to_string(path).expect("read AGENTS");
         assert!(content.contains("<!-- BEGIN everr -->"));
-        assert!(content.contains("Call `everr ai-instructions` to understand usage."));
+        assert!(content.contains("call `everr ai-instructions` for full usage."));
     }
 
     #[test]

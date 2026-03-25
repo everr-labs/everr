@@ -86,6 +86,7 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
       state: "running",
       active: [
         {
+          traceId: "trace-42",
           runId: "42",
           workflowName: "CI",
           conclusion: null,
@@ -138,6 +139,7 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
       active: [],
       completed: [
         {
+          traceId: "trace-88",
           runId: "88",
           workflowName: "CI",
           conclusion: "success",
@@ -187,6 +189,7 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
       state: "running",
       active: [
         {
+          traceId: "trace-42",
           runId: "42",
           workflowName: "CI",
           conclusion: null,
