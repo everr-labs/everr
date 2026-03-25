@@ -2,6 +2,7 @@ import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 
 export const githubEnv = createEnv({
+  skipValidation: !!process.env.BUILD,
   server: {
     GITHUB_APP_INSTALL_URL: z.url(),
     GITHUB_APP_STATE_SECRET: z.string().min(32),
