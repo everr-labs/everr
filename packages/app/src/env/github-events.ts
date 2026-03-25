@@ -11,7 +11,7 @@ function trim(value: unknown): unknown {
 }
 
 export const githubEventsEnv = createEnv({
-  skipValidation: !!process.env.BUILD,
+  isServer: true,
   server: {
     INGRESS_SOURCE: z.preprocess(trim, z.string().min(1)),
     INGRESS_COLLECTOR_URL: z.preprocess(trim, z.url()),

@@ -8,7 +8,6 @@ import { githubEventsEnv } from "./github-events";
 import { workOsEnv } from "./workos";
 
 export const env = createEnv({
-  skipValidation: !!process.env.BUILD,
   extends: [dbEnv, clickhouseEnv, githubEnv, workOsEnv, githubEventsEnv],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),

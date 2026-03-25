@@ -9,10 +9,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import {
-  getAuthAction,
-  type NoUserInfo,
-} from "@workos/authkit-tanstack-react-start";
+import { getAuthAction } from "@workos/authkit-tanstack-react-start";
 import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
 import { WorkOsWidgets } from "@workos-inc/widgets";
 import { ThemeProvider } from "better-themes";
@@ -61,10 +58,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   shellComponent: ShellComponent,
   component: Component,
   loader: async () => {
-    const auth = process.env.BUILD
-      ? ({ user: null } satisfies NoUserInfo)
-      : await getAuthAction();
-
+    const auth = await getAuthAction();
     return {
       auth,
     };
