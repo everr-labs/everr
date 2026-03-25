@@ -98,7 +98,6 @@ function StepLogSkeleton() {
       <CardContent className="h-full p-0">
         <div className="space-y-1 p-3">
           {Array.from({ length: 20 }).map((_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton
             <Skeleton key={i} className="h-4 w-full" />
           ))}
         </div>

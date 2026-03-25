@@ -170,7 +170,6 @@ function RepoDetailSkeleton() {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {Array.from({ length: 2 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
           <Card key={i}>
             <CardHeader>
               <Skeleton className="h-5 w-32" />

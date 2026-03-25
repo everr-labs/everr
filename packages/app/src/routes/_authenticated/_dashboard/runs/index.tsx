@@ -133,7 +133,6 @@ function RunsListSkeleton() {
       </div>
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
           <Skeleton key={i} className="h-9 w-[160px]" />
         ))}
       </div>

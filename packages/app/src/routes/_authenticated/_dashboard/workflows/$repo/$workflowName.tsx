@@ -133,7 +133,6 @@ function WorkflowDetailPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {statsPending || !stats ? (
           Array.from({ length: 4 }).map((_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholder
             <Card key={i}>
               <CardHeader className="pb-1">
                 <Skeleton className="h-4 w-20" />
@@ -469,7 +468,6 @@ function WorkflowDetailSkeleton() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholder
           <Card key={i}>
             <CardHeader className="pb-1">
               <Skeleton className="h-4 w-20" />

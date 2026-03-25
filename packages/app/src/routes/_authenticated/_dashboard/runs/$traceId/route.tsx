@@ -197,7 +197,6 @@ function RunDetailSkeleton() {
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2 overflow-auto">
             {Array.from({ length: 3 }).map((_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton
               <Skeleton key={i} className="h-8 w-full" />
             ))}
           </CardContent>

@@ -62,7 +62,6 @@ function TraceViewSkeleton() {
     <Card size="sm">
       <CardContent className="space-y-2 p-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton
           <div key={i} className="flex items-center gap-2">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="h-6 flex-1" />

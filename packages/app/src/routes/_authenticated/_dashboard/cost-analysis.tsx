@@ -157,7 +157,6 @@ function CostAnalysisSkeleton() {
       </div>
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
           <Card key={i}>
             <CardHeader className="pb-2">
               <Skeleton className="h-4 w-24" />

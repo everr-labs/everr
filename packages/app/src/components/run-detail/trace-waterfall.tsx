@@ -124,7 +124,6 @@ export function TraceWaterfall({
     });
   };
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedSpanId triggers remeasure when detail panel appears/disappears
   useLayoutEffect(() => {
     if (detailRef.current) {
       setDetailHeight(detailRef.current.offsetHeight);
