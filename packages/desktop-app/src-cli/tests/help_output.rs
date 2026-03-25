@@ -24,9 +24,9 @@ fn root_help_lists_main_commands() {
         .stdout(contains("slowest-jobs"))
         .stdout(contains("watch"))
         .stdout(predicates::str::contains("wait-pipeline").not())
-        .stdout(contains("runs-list"))
-        .stdout(contains("runs-show"))
-        .stdout(contains("runs-logs"));
+        .stdout(contains("runs"))
+        .stdout(contains("show"))
+        .stdout(contains("logs"));
 }
 
 #[test]
@@ -37,9 +37,9 @@ fn runs_help_lists_pipeline_subcommands() {
         .args(["--help"])
         .assert()
         .success()
-        .stdout(contains("runs-list"))
-        .stdout(contains("runs-show"))
-        .stdout(contains("runs-logs"));
+        .stdout(contains("runs"))
+        .stdout(contains("show"))
+        .stdout(contains("logs"));
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn runs_list_help_lists_limit_and_offset() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["runs-list", "--help"])
+        .args(["runs", "--help"])
         .assert()
         .success()
         .stdout(contains("--limit <LIMIT>"))
@@ -74,7 +74,7 @@ fn runs_logs_help_lists_paging_flags_and_default_page_size() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["runs-logs", "--help"])
+        .args(["logs", "--help"])
         .assert()
         .success()
         .stdout(contains("--tail"))

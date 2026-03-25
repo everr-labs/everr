@@ -215,7 +215,7 @@ fn runs_list_sends_filter_query_params() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "runs-list",
+            "runs",
             "--branch",
             "feature/tests",
             "--conclusion",
@@ -264,7 +264,7 @@ fn runs_list_does_not_default_branch_without_current_branch_flag() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["runs-list"])
+        .args(["runs"])
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));
@@ -299,7 +299,7 @@ fn runs_list_uses_current_branch_when_flag_is_passed() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["runs-list", "--current-branch"])
+        .args(["runs", "--current-branch"])
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));
@@ -322,7 +322,7 @@ fn runs_show_calls_trace_id_endpoint() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["runs-show", "--trace-id", "trace-123"])
+        .args(["show", "--trace-id", "trace-123"])
         .assert()
         .success()
         .stdout(contains("\"traceId\": \"trace-123\""));
@@ -353,7 +353,7 @@ fn runs_logs_prints_plain_text_by_default() {
 
     env.command_with_api_base_url(&server.url())
         .args([
-            "runs-logs",
+            "logs",
             "--trace-id",
             "trace-123",
             "--job-name",
@@ -391,7 +391,7 @@ fn runs_logs_offset_without_limit_uses_tail_mode() {
 
     env.command_with_api_base_url(&server.url())
         .args([
-            "runs-logs",
+            "logs",
             "--trace-id",
             "trace-123",
             "--job-name",
@@ -433,7 +433,7 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
 
     env.command_with_api_base_url(&server.url())
         .args([
-            "runs-logs",
+            "logs",
             "--trace-id",
             "trace-123",
             "--job-name",
@@ -784,7 +784,7 @@ fn api_errors_are_reported_to_the_user() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["runs-show", "--trace-id", "trace-123"])
+        .args(["show", "--trace-id", "trace-123"])
         .assert()
         .failure()
         .stderr(contains("CLI API request failed with 500"))
@@ -1055,7 +1055,7 @@ fn commands_require_existing_session() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["runs-list"])
+        .args(["runs"])
         .assert()
         .failure()
         .stderr(contains("no active session; run `everr login`"));
