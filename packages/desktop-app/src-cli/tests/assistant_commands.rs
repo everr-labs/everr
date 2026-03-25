@@ -29,7 +29,7 @@ fn setup_assistant_creates_repo_agents_file() {
     assert!(content.contains(BLOCK_END));
     assert!(content.contains("call `everr ai-instructions` for full usage."));
     assert!(content.contains("`everr status`"));
-    assert!(!content.contains("`everr runs-list`"));
+    assert!(!content.contains("`everr runs`"));
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn ai_instructions_prints_full_guidance() {
         .success()
         .stdout(contains("Quick commands:"))
         .stdout(contains("`everr status`"))
-        .stdout(contains("`everr runs-list`"));
+        .stdout(contains("`everr runs`"));
 }
 
 #[test]
