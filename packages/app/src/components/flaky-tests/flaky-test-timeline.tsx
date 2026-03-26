@@ -41,11 +41,11 @@ function getResultColor(result: string): string {
 function getResultBg(result: string): string {
   switch (result) {
     case "pass":
-      return "bg-green-100 dark:bg-green-950";
+      return "bg-green-950";
     case "fail":
-      return "bg-red-100 dark:bg-red-950";
+      return "bg-red-950";
     case "skip":
-      return "bg-yellow-100 dark:bg-yellow-950";
+      return "bg-yellow-950";
     default:
       return "bg-muted";
   }

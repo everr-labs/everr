@@ -42,7 +42,7 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>
@@ -51,7 +51,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           theme={{
             enableColorScheme: false,
             forcedTheme: "dark",
-            enabled: true,
+            enabled: false,
           }}
         >
           <HomeLayout {...baseOptions()}>{children}</HomeLayout>

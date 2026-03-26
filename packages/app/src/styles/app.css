@@ -14,7 +14,7 @@
 }
 
 /* ANSI to React styles */
-/* TODO: Very basic styles. Needs to be improved to be light/dark mode friendly and properly render black(bold) text and links. */
+/* ANSI to React: basic color styles for terminal output rendering */
 
 .ansi-black-fg {
   color: black;

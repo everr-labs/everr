@@ -1,3 +1,4 @@
+import { Theme } from "@radix-ui/themes";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -12,7 +13,6 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { getAuthAction } from "@workos/authkit-tanstack-react-start";
 import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
 import { WorkOsWidgets } from "@workos-inc/widgets";
-import { ThemeProvider } from "better-themes";
 import { queryClient } from "@/query-client";
 import appCss from "@/styles/app.css?url";
 import type { RouterContext } from "../router";
@@ -96,15 +96,21 @@ function Component() {
 
 function ShellComponent({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
-        <ThemeProvider attribute="class" disableTransitionOnChange>
+        <Theme
+          appearance="dark"
+          accentColor="yellow"
+          grayColor="gray"
+          radius="small"
+          scaling="95%"
+        >
           <WorkOsWidgets>{children}</WorkOsWidgets>
           <Scripts />
-        </ThemeProvider>
+        </Theme>
       </body>
     </html>
   );

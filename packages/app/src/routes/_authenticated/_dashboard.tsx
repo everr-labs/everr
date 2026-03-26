@@ -94,7 +94,7 @@ function RouteComponent() {
                     ? undefined
                     : "command-bar",
                 }}
-                className="flex h-7 w-52 items-center gap-2 rounded-md border border-input bg-input/20 px-2 text-xs text-muted-foreground transition-colors hover:bg-input/40 dark:bg-input/30"
+                className="flex h-7 w-52 items-center gap-2 rounded-md border border-input bg-input/30 px-2 text-xs text-muted-foreground transition-colors hover:bg-input/40"
               >
                 <SearchIcon className="size-3.5 shrink-0" />
                 <span className="flex-1 text-left">Search...</span>

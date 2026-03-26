@@ -677,7 +677,7 @@ function RunsAndTestsViz() {
           >
             <div className="flex items-center justify-between">
               <span className="text-[13px] font-bold">{run.title}</span>
-              <span className="inline-flex items-center gap-[3px] border border-green-500/15 bg-green-500/5 px-1.5 py-px text-[10px] font-bold uppercase text-green-500 dark:text-green-400">
+              <span className="inline-flex items-center gap-[3px] border border-green-500/15 bg-green-500/5 px-1.5 py-px text-[10px] font-bold uppercase text-green-400">
                 {/** biome-ignore lint/a11y/noSvgWithoutTitle: decorative */}
                 <svg
                   width="8"

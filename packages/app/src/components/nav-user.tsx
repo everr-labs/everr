@@ -14,23 +14,13 @@ import {
 } from "@everr/ui/components/sidebar";
 import { Link } from "@tanstack/react-router";
 import { useAuth } from "@workos/authkit-tanstack-react-start/client";
-import { useTheme } from "better-themes";
-import {
-  BadgeCheck,
-  ChevronsUpDown,
-  LogOut,
-  Monitor,
-  Moon,
-  Sun,
-  Users,
-} from "lucide-react";
+import { BadgeCheck, ChevronsUpDown, LogOut, Users } from "lucide-react";
 
 export function NavUser() {
   const { user, roles, signOut } = useAuth();
   const isAdmin = roles?.includes("admin") === true;
 
   const { isMobile } = useSidebar();
-  const { theme, setTheme } = useTheme();
 
   if (!user) {
     return null;
@@ -99,28 +89,6 @@ export function NavUser() {
                 </DropdownMenuItem>
               ) : null}
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <div className="flex items-center justify-between px-2 py-1.5 text-xs">
-              <span>Theme</span>
-              <div className="bg-muted flex items-center gap-0.5 rounded-md p-0.5">
-                {(
-                  [
-                    { value: "light", icon: Sun },
-                    { value: "system", icon: Monitor },
-                    { value: "dark", icon: Moon },
-                  ] as const
-                ).map(({ value, icon: Icon }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setTheme(value)}
-                    className={`rounded-sm p-1 ${theme === value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    <Icon className="size-3.5" />
-                  </button>
-                ))}
-              </div>
-            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void signOut({ returnTo: "/" })}>
               <LogOut />

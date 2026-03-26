@@ -594,7 +594,7 @@ function GitHubStep({
           <>
             <div className="flex flex-col items-center py-4">
               <motion.div
-                className="flex size-12 items-center justify-center text-green-600 dark:text-green-400"
+                className="flex size-12 items-center justify-center text-green-400"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{
@@ -645,7 +645,7 @@ function GitHubStep({
                     exit={{ opacity: 0, height: 0 }}
                     className="overflow-hidden"
                   >
-                    <div className="flex items-center gap-3 border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-700 dark:text-amber-300">
+                    <div className="flex items-center gap-3 border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-300">
                       <Loader2 className="size-4 shrink-0 animate-spin" />
                       <span>
                         Waiting for GitHub installation to complete&hellip;

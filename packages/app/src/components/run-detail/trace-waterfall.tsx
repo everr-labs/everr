@@ -265,7 +265,7 @@ export function TraceWaterfall({
                           flakySet.size > 0 &&
                           (flakySet.has(span.testName) ||
                             flakySet.has(span.name)) && (
-                            <span className="shrink-0 rounded bg-orange-100 px-1 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-400">
+                            <span className="shrink-0 rounded bg-orange-950 px-1 py-0.5 text-[10px] font-medium text-orange-400">
                               Flaky
                             </span>
                           )}
