@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +43,7 @@ type githubActionsReceiver struct {
 	logger          *zap.Logger
 	obsrecv         *receiverhelper.ObsReport
 	ghClient        *github.Client
+	jobNames        *jobNameCache
 }
 
 func newReceiver(
@@ -82,6 +84,7 @@ func newReceiver(
 		logger:   settings.Logger,
 		obsrecv:  obsrecv,
 		ghClient: ghClient,
+		jobNames: newJobNameCache(1024, 30*time.Minute),
 	}
 
 	return gar, nil
@@ -237,6 +240,20 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		jobName := e.GetWorkflowJob().GetName()
+		// Cache job names containing "/" (need resolution) and "_" (need to
+		// distinguish genuine underscores from sanitized slashes). If the cache
+		// has entries for a run, it's authoritative — a cache hit with no "/"
+		// match means the "_" was literal, avoiding a false-positive API call
+		// from the looksLikeSanitizedJobName heuristic.
+		if strings.Contains(jobName, "/") || strings.Contains(jobName, "_") {
+			key := runKey{
+				repoID:     e.GetRepo().GetID(),
+				runID:      e.GetWorkflowJob().GetRunID(),
+				runAttempt: int(e.GetWorkflowJob().GetRunAttempt()),
+			}
+			gar.jobNames.AddJobName(key, jobName)
+		}
 	case *github.WorkflowRunEvent:
 		if e.GetWorkflowRun().GetStatus() != "completed" {
 			gar.logger.Debug("Skipping non-completed WorkflowRunEvent", zap.String("status", e.GetWorkflowRun().GetStatus()))
@@ -332,7 +349,7 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		} else {
 			withTraceInfo := gar.tracesConsumer != nil && !traceErr
 
-			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo)
+			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo, gar.jobNames)
 			if err != nil {
 				processingFailed = true
 				gar.logger.Error("Failed to process logs", zap.Error(err))
