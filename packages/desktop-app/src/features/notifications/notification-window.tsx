@@ -1,9 +1,16 @@
+import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@everr/ui/components/button";
-import { invokeCommand, NOTIFICATION_CHANGED_EVENT, NOTIFICATION_HOVER_EVENT } from "@/lib/tauri";
-import { useInvalidateOnTauriEvent, useTauriEvent } from "../../lib/tauri-events";
+import {
+  invokeCommand,
+  NOTIFICATION_CHANGED_EVENT,
+  NOTIFICATION_HOVER_EVENT,
+} from "@/lib/tauri";
+import {
+  useInvalidateOnTauriEvent,
+  useTauriEvent,
+} from "../../lib/tauri-events";
 import {
   formatNotificationAbsoluteTime,
   formatNotificationRelativeTime,
@@ -41,7 +48,10 @@ type DevResetResponse = {
   };
 };
 
-export const activeNotificationQueryKey = ["desktop-app", "active-notification"] as const;
+export const activeNotificationQueryKey = [
+  "desktop-app",
+  "active-notification",
+] as const;
 
 function getActiveNotification() {
   return invokeCommand<FailureNotification | null>("get_active_notification");
@@ -69,7 +79,9 @@ function resetDevOnboarding() {
 
 function useActiveNotificationQuery() {
   useInvalidateOnTauriEvent(NOTIFICATION_CHANGED_EVENT, (queryClient) => {
-    void queryClient.invalidateQueries({ queryKey: activeNotificationQueryKey });
+    void queryClient.invalidateQueries({
+      queryKey: activeNotificationQueryKey,
+    });
   });
 
   return useQuery({
@@ -84,7 +96,9 @@ function useDismissActiveNotificationMutation() {
   return useMutation({
     mutationFn: dismissActiveNotification,
     onSuccess() {
-      void queryClient.invalidateQueries({ queryKey: activeNotificationQueryKey });
+      void queryClient.invalidateQueries({
+        queryKey: activeNotificationQueryKey,
+      });
     },
   });
 }
@@ -95,7 +109,9 @@ function useOpenNotificationTargetMutation() {
   return useMutation({
     mutationFn: openNotificationTarget,
     onSuccess() {
-      void queryClient.invalidateQueries({ queryKey: activeNotificationQueryKey });
+      void queryClient.invalidateQueries({
+        queryKey: activeNotificationQueryKey,
+      });
     },
   });
 }
@@ -152,7 +168,9 @@ export function DeveloperNotificationSection() {
           disabled={triggerNotificationMutation.isPending}
           onClick={() => void handleTriggerNotification()}
         >
-          {triggerNotificationMutation.isPending ? "Triggering..." : "Test notification"}
+          {triggerNotificationMutation.isPending
+            ? "Triggering..."
+            : "Test notification"}
         </Button>
         <Button
           variant="outline"
@@ -161,7 +179,9 @@ export function DeveloperNotificationSection() {
           disabled={resetOnboardingMutation.isPending}
           onClick={() => void resetOnboardingMutation.mutateAsync()}
         >
-          {resetOnboardingMutation.isPending ? "Resetting..." : "Reset onboarding"}
+          {resetOnboardingMutation.isPending
+            ? "Resetting..."
+            : "Reset onboarding"}
         </Button>
       </div>
     </SettingsSection>
@@ -176,7 +196,11 @@ export function NotificationWindow() {
   }
 
   if (notificationQuery.isError) {
-    return <NotificationErrorState onRetry={() => void notificationQuery.refetch()} />;
+    return (
+      <NotificationErrorState
+        onRetry={() => void notificationQuery.refetch()}
+      />
+    );
   }
 
   if (!notificationQuery.data) {
@@ -186,7 +210,11 @@ export function NotificationWindow() {
   return <NotificationCard notification={notificationQuery.data} />;
 }
 
-export function NotificationCard({ notification }: { notification: FailureNotification }) {
+export function NotificationCard({
+  notification,
+}: {
+  notification: FailureNotification;
+}) {
   const dismissMutation = useDismissActiveNotificationMutation();
   const openMutation = useOpenNotificationTargetMutation();
   const copyMutation = useCopyAutoFixPromptMutation();
@@ -194,7 +222,10 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
   const [hovered, setHovered] = useState(false);
   const [remainingMs, setRemainingMs] = useState(AUTO_DISMISS_MS);
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
-  const busy = dismissMutation.isPending || openMutation.isPending || copyMutation.isPending;
+  const busy =
+    dismissMutation.isPending ||
+    openMutation.isPending ||
+    copyMutation.isPending;
 
   useEffect(() => {
     setHovered(false);
@@ -208,9 +239,12 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
       return;
     }
 
-    const timeout = window.setTimeout(() => {
-      void dismissMutation.mutateAsync();
-    }, Math.max(deadlineAt - Date.now(), 0));
+    const timeout = window.setTimeout(
+      () => {
+        void dismissMutation.mutateAsync();
+      },
+      Math.max(deadlineAt - Date.now(), 0),
+    );
 
     return () => {
       window.clearTimeout(timeout);
@@ -251,6 +285,7 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
 
   return (
     <main className="h-screen bg-transparent pt-3 pl-3">
+      {/** biome-ignore lint/a11y/noStaticElementInteractions: we need to track mouse enter and leave events */}
       <section
         className="notificationCard group relative flex h-full flex-col bg-card"
         onMouseEnter={pauseAutoDismiss}
@@ -271,6 +306,7 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
             strokeWidth="2"
             strokeLinecap="round"
           >
+            <title>Close</title>
             <path d="M2 2 10 10" />
             <path d="M10 2 2 10" />
           </svg>
@@ -290,7 +326,9 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
               <span>{notification.branch}</span>
             </p>
             {failureScope ? (
-              <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">{failureScope}</p>
+              <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">
+                {failureScope}
+              </p>
             ) : null}
             <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-muted-foreground/70">
               <span>{absoluteTime}</span>
@@ -313,10 +351,15 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
               }
             >
               <span className="grid">
-                <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+                <span
+                  aria-hidden="true"
+                  className="invisible col-start-1 row-start-1"
+                >
                   Auto-fix prompt
                 </span>
-                <span className="col-start-1 row-start-1">{copyAutoFixPromptLabel}</span>
+                <span className="col-start-1 row-start-1">
+                  {copyAutoFixPromptLabel}
+                </span>
               </span>
             </Button>
             <Button
@@ -381,7 +424,11 @@ function NotificationErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 function formatFailureScope(notification: FailureNotification): string | null {
-  if (notification.jobName && notification.stepNumber && notification.stepName) {
+  if (
+    notification.jobName &&
+    notification.stepNumber &&
+    notification.stepName
+  ) {
     return `${notification.jobName} • Step ${notification.stepNumber}: ${notification.stepName}`;
   }
 

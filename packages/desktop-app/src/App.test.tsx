@@ -1,13 +1,19 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 import {
-  NotificationCard,
   activeNotificationQueryKey,
+  NotificationCard,
 } from "./features/notifications/notification-window";
 import { createQueryClient } from "./lib/query-client";
 
@@ -93,8 +99,13 @@ type RenderMainOptions = {
 
 type NotificationResult = FailureNotification | null | Error;
 
-function renderWithProviders(node: ReactNode, queryClient = createQueryClient()) {
-  render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
+function renderWithProviders(
+  node: ReactNode,
+  queryClient = createQueryClient(),
+) {
+  render(
+    <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>,
+  );
 
   return queryClient;
 }
@@ -111,7 +122,9 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
-function createNotification(overrides: Partial<FailureNotification> = {}): FailureNotification {
+function createNotification(
+  overrides: Partial<FailureNotification> = {},
+): FailureNotification {
   return {
     dedupeKey: "one",
     traceId: "trace-one",
@@ -127,7 +140,9 @@ function createNotification(overrides: Partial<FailureNotification> = {}): Failu
   };
 }
 
-function defaultAssistantStatuses(configuredAssistants: AssistantKind[] = []): AssistantStatus[] {
+function defaultAssistantStatuses(
+  configuredAssistants: AssistantKind[] = [],
+): AssistantStatus[] {
   return [
     {
       assistant: "codex",
@@ -170,7 +185,8 @@ function renderMainApp(options: RenderMainOptions = {}) {
   let assistantSetup = createAssistantSetup({
     configuredAssistants: options.configuredAssistants ?? [],
     assistantStatuses:
-      options.assistantStatuses ?? defaultAssistantStatuses(options.configuredAssistants ?? []),
+      options.assistantStatuses ??
+      defaultAssistantStatuses(options.configuredAssistants ?? []),
   });
   let wizardStatus: WizardStatus = {
     wizard_completed: options.wizardCompleted ?? true,
@@ -227,7 +243,9 @@ function renderMainApp(options: RenderMainOptions = {}) {
           };
           return pendingSignIn satisfies SignInResponse;
         case "poll_sign_in":
-          return pendingSignIn ?? ({ status: "expired" } satisfies SignInResponse);
+          return (
+            pendingSignIn ?? ({ status: "expired" } satisfies SignInResponse)
+          );
         case "open_sign_in_browser":
           return openSignInBrowserSpy();
         case "sign_out":
@@ -243,10 +261,12 @@ function renderMainApp(options: RenderMainOptions = {}) {
           const selected = payload.assistants ?? [];
           assistantSetup = {
             ...assistantSetup,
-            assistant_statuses: assistantSetup.assistant_statuses.map((status) => ({
-              ...status,
-              configured: selected.includes(status.assistant),
-            })),
+            assistant_statuses: assistantSetup.assistant_statuses.map(
+              (status) => ({
+                ...status,
+                configured: selected.includes(status.assistant),
+              }),
+            ),
           };
           return assistantSetup;
         }
@@ -397,8 +417,12 @@ describe("desktop window", () => {
   it("renders the settings view for completed users", async () => {
     renderMainApp();
 
-    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.queryByText("Authenticate your Everr account")).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Authenticate your Everr account"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
   });
 
@@ -411,9 +435,15 @@ describe("desktop window", () => {
       },
     });
 
-    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Logout" })).toBeInTheDocument();
-    expect(screen.getByText("Loading assistant integrations...")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Logout" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading assistant integrations..."),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
 
     assistantSetupDeferred.resolve(createAssistantSetup());
@@ -429,7 +459,9 @@ describe("desktop window", () => {
     expect(
       await screen.findByRole("heading", { name: "Installation wizard" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Authenticate your Everr account")).toBeInTheDocument();
+    expect(
+      screen.getByText("Authenticate your Everr account"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 
@@ -440,7 +472,9 @@ describe("desktop window", () => {
       assistantStatuses: defaultAssistantStatuses(),
     });
 
-    expect(await screen.findByText("Select assistants to integrate")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Select assistants to integrate"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /codex/i })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: /cursor/i })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
@@ -456,8 +490,12 @@ describe("desktop window", () => {
     await screen.findByText("Select assistants to integrate");
     fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
 
-    expect(screen.getByText("Select assistants to integrate")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Select assistants to integrate"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Settings" }),
+    ).not.toBeInTheDocument();
   });
 
   it("advances from authentication to assistant selection after sign in", async () => {
@@ -474,7 +512,9 @@ describe("desktop window", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Select assistants to integrate")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Select assistants to integrate"),
+    ).toBeInTheDocument();
   });
 
   it("shows the device code before opening the browser", async () => {
@@ -486,8 +526,12 @@ describe("desktop window", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("A B C D - E F G H")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open browser" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Refresh code" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open browser" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Refresh code" }),
+    ).not.toBeInTheDocument();
     expect(harness.openSignInBrowserSpy).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Open browser" }));
@@ -512,14 +556,22 @@ describe("desktop window", () => {
 
     expect(await screen.findByText("W X Y Z - 1 2 3 4")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open browser" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Refresh code" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Refresh code" }),
+    ).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(
-        screen.getByText("This code expired before it was approved. Refresh it to generate a new one."),
+        screen.getByText(
+          "This code expired before it was approved. Refresh it to generate a new one.",
+        ),
       ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Open browser" })).toBeDisabled();
-      expect(screen.getAllByRole("button", { name: "Refresh code" }).length).toBeGreaterThan(0);
+      expect(
+        screen.getByRole("button", { name: "Open browser" }),
+      ).toBeDisabled();
+      expect(
+        screen.getAllByRole("button", { name: "Refresh code" }).length,
+      ).toBeGreaterThan(0);
     });
   });
 
@@ -544,7 +596,9 @@ describe("desktop window", () => {
       assistantStatuses: defaultAssistantStatuses(["codex"]),
     });
 
-    const claudeCheckbox = await screen.findByRole("checkbox", { name: /claude/i });
+    const claudeCheckbox = await screen.findByRole("checkbox", {
+      name: /claude/i,
+    });
 
     fireEvent.click(claudeCheckbox);
     expect(claudeCheckbox).toBeChecked();
@@ -598,26 +652,36 @@ describe("desktop window", () => {
       testNotification: { status: "queued" },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Test notification" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Test notification" }),
+    );
 
     await waitFor(() => {
       expect(triggerTestNotificationSpy).toHaveBeenCalledTimes(1);
     });
     expect(
-      await screen.findByText("Test notification queued behind the active notification."),
+      await screen.findByText(
+        "Test notification queued behind the active notification.",
+      ),
     ).toBeInTheDocument();
   });
 
   it("resets the dev session and reopens onboarding from settings", async () => {
     const { resetDevOnboardingSpy } = renderMainApp();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Reset onboarding" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reset onboarding" }),
+    );
 
     await waitFor(() => {
       expect(resetDevOnboardingSpy).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByRole("heading", { name: "Installation wizard" })).toBeInTheDocument();
-    expect(screen.getByText("Authenticate your Everr account")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Installation wizard" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Authenticate your Everr account"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -742,7 +806,9 @@ describe("notification window", () => {
   it("shows a retry state when fetching the active notification fails", async () => {
     const harness = await renderNotificationApp(new Error("boom"));
 
-    expect(await screen.findByText("Failed to load notification")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Failed to load notification"),
+    ).toBeInTheDocument();
 
     harness.setNotification(createNotification());
     await act(async () => {

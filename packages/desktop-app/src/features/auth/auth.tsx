@@ -1,20 +1,20 @@
+import { Badge } from "@everr/ui/components/badge";
+import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@everr/ui/components/badge";
-import { Button } from "@everr/ui/components/button";
-import {
-  FeatureErrorText,
-  FeatureLoadingText,
-  SettingsSection,
-  WizardStepSection,
-} from "../desktop-shell/ui";
 import {
   AUTH_CHANGED_EVENT,
   invokeCommand,
   toErrorMessageText,
 } from "../../lib/tauri";
 import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
+import {
+  FeatureErrorText,
+  FeatureLoadingText,
+  SettingsSection,
+  WizardStepSection,
+} from "../desktop-shell/ui";
 
 export type AuthStatus = {
   status: "signed_in" | "signed_out";
@@ -66,7 +66,9 @@ function signOut() {
   return invokeCommand<AuthStatus>("sign_out");
 }
 
-function isPendingSignIn(value: SignInResponse | PendingSignIn | null | undefined): value is PendingSignIn {
+function isPendingSignIn(
+  value: SignInResponse | PendingSignIn | null | undefined,
+): value is PendingSignIn {
   return value?.status === "pending";
 }
 
@@ -184,7 +186,11 @@ export function AccountHeaderAction() {
     <Button
       variant="outline"
       size="sm"
-      disabled={signOutMutation.isPending || authStatusQuery.isPending || authStatusQuery.isError}
+      disabled={
+        signOutMutation.isPending ||
+        authStatusQuery.isPending ||
+        authStatusQuery.isError
+      }
       onClick={() => void signOutMutation.mutateAsync()}
     >
       {signOutMutation.isPending ? "Logging out..." : "Logout"}
@@ -198,14 +204,22 @@ function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
   const signInMutation = useSignInMutation();
   const openBrowserMutation = useOpenSignInBrowserMutation();
   const signedIn = authStatusQuery.data?.status === "signed_in";
-  const pendingQuery = usePendingSignInQuery(!signedIn && !authStatusQuery.isPending);
+  const pendingQuery = usePendingSignInQuery(
+    !signedIn && !authStatusQuery.isPending,
+  );
   const pendingSignIn = pendingQuery.data;
   const now = useNow();
-  const expiresAtMs = pendingSignIn ? new Date(pendingSignIn.expires_at).getTime() : 0;
+  const expiresAtMs = pendingSignIn
+    ? new Date(pendingSignIn.expires_at).getTime()
+    : 0;
   const isExpired = Boolean(pendingSignIn) && now >= expiresAtMs;
 
   const pollQuery = useQuery({
-    queryKey: [...pendingSignInQueryKey, "poll", pendingSignIn?.user_code ?? "idle"] as const,
+    queryKey: [
+      ...pendingSignInQueryKey,
+      "poll",
+      pendingSignIn?.user_code ?? "idle",
+    ] as const,
     queryFn: pollSignIn,
     enabled: Boolean(pendingSignIn) && !isExpired,
     refetchInterval: pendingSignIn
@@ -255,7 +269,11 @@ function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
   const action = showAction ? (
     <Button
       className={layout === "wizard" ? "min-w-[132px]" : undefined}
-      disabled={authStatusQuery.isPending || signInMutation.isPending || authStatusQuery.isError}
+      disabled={
+        authStatusQuery.isPending ||
+        signInMutation.isPending ||
+        authStatusQuery.isError
+      }
       onClick={() => void signInMutation.mutateAsync()}
     >
       {signInMutation.isPending
@@ -275,20 +293,29 @@ function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
     <FeatureErrorText
       message={toErrorMessageText(authStatusQuery.error)}
       action={
-        <Button variant="outline" size="sm" onClick={() => void authStatusQuery.refetch()}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void authStatusQuery.refetch()}
+        >
           Retry
         </Button>
       }
     />
   ) : signedIn ? (
     <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-      This desktop app is connected and ready to receive CI failure notifications.
+      This desktop app is connected and ready to receive CI failure
+      notifications.
     </p>
   ) : pendingError ? (
     <FeatureErrorText
       message={toErrorMessageText(pendingError)}
       action={
-        <Button variant="outline" size="sm" onClick={() => void pendingQuery.refetch()}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void pendingQuery.refetch()}
+        >
           Retry
         </Button>
       }
@@ -313,7 +340,9 @@ function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
           {openBrowserMutation.isPending ? "Opening..." : "Open browser"}
         </Button>
         <Badge variant="outline">
-          {isExpired ? "Expired" : `Valid for ${formatRemainingTime(pendingSignIn.expires_at, now)}`}
+          {isExpired
+            ? "Expired"
+            : `Valid for ${formatRemainingTime(pendingSignIn.expires_at, now)}`}
         </Badge>
         {isExpired ? (
           <Button

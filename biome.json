@@ -16,6 +16,14 @@
       "packages/docs/vite.config.ts",
       "packages/docs/**/*.css",
 
+      "packages/desktop-app/**/src/**/*",
+      "packages/desktop-app/vite.config.ts",
+      "packages/desktop-app/**/*.css",
+
+      "packages/docs/**/src/**/*",
+      "packages/docs/vite.config.ts",
+      "packages/docs/**/*.css",
+
       "packages/datemath/**/src/**/*",
       "packages/datemath/vite.config.ts",
 

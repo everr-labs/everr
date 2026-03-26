@@ -1,19 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { Separator } from "@everr/ui/components/separator";
-import { closeCurrentWindow, invokeCommand, toErrorMessageText } from "@/lib/tauri";
-import { useAuthStatusQuery } from "../auth/auth";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import {
+  closeCurrentWindow,
+  invokeCommand,
+  toErrorMessageText,
+} from "@/lib/tauri";
 import {
   type AssistantKind,
   AssistantsWizardStep,
   useAssistantSetupQuery,
   useSaveAssistantsMutation,
 } from "../assistants/assistants";
+import { AuthWizardStep, useAuthStatusQuery } from "../auth/auth";
 import { FeatureErrorText, FeatureLoadingText } from "../desktop-shell/ui";
-import { AuthWizardStep } from "../auth/auth";
 
 const WIZARD_STEPS = [
   { id: "authenticate", label: "Authenticate" },
@@ -60,7 +63,9 @@ export function SetupWizard() {
   const saveAssistantsMutation = useSaveAssistantsMutation();
   const completeSetupMutation = useCompleteSetupWizardMutation();
   const [wizardStep, setWizardStep] = useState<number | null>(null);
-  const [assistantSelection, setAssistantSelection] = useState<AssistantKind[]>([]);
+  const [assistantSelection, setAssistantSelection] = useState<AssistantKind[]>(
+    [],
+  );
 
   const signedIn = authStatusQuery.data?.status === "signed_in";
   const derivedStep = resolveWizardStepIndex({ signedIn });
@@ -105,7 +110,9 @@ export function SetupWizard() {
       return;
     }
 
-    setWizardStep((value) => Math.min((value ?? derivedStep) + 1, WIZARD_STEPS.length - 1));
+    setWizardStep((value) =>
+      Math.min((value ?? derivedStep) + 1, WIZARD_STEPS.length - 1),
+    );
   }
 
   if (
@@ -126,7 +133,9 @@ export function SetupWizard() {
   }
 
   if (missingInitialData) {
-    const firstError = [authStatusQuery.error, assistantSetupQuery.error].find((error) => error !== null);
+    const firstError = [authStatusQuery.error, assistantSetupQuery.error].find(
+      (error) => error !== null,
+    );
 
     return (
       <div className="grid gap-0">
@@ -168,13 +177,13 @@ export function SetupWizard() {
           <CardContent className="grid gap-5 px-5 py-5">
             {currentStep === 0 ? <AuthWizardStep /> : null}
             {currentStep === 1 ? (
-                <AssistantsWizardStep
-                  assistantSetup={assistantSetupQuery.data}
-                  selection={assistantSelection}
-                  disabled={saveAssistantsMutation.isPending}
-                  onToggle={(assistant) =>
-                    setAssistantSelection((current) =>
-                      current.includes(assistant)
+              <AssistantsWizardStep
+                assistantSetup={assistantSetupQuery.data}
+                selection={assistantSelection}
+                disabled={saveAssistantsMutation.isPending}
+                onToggle={(assistant) =>
+                  setAssistantSelection((current) =>
+                    current.includes(assistant)
                       ? current.filter((item) => item !== assistant)
                       : [...current, assistant],
                   )
@@ -191,7 +200,9 @@ export function SetupWizard() {
         <Button
           variant="ghost"
           disabled={currentStep === 0}
-          onClick={() => setWizardStep((value) => Math.max((value ?? derivedStep) - 1, 0))}
+          onClick={() =>
+            setWizardStep((value) => Math.max((value ?? derivedStep) - 1, 0))
+          }
         >
           Back
         </Button>
@@ -219,11 +230,7 @@ function hasPendingQuery(queries: boolean[]) {
   return queries.some(Boolean);
 }
 
-function resolveWizardStepIndex({
-  signedIn,
-}: {
-  signedIn: boolean;
-}) {
+function resolveWizardStepIndex({ signedIn }: { signedIn: boolean }) {
   if (!signedIn) {
     return 0;
   }
