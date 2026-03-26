@@ -7,7 +7,7 @@
 
 @layer base {
   body {
-    /* This is necessary to ensure the notifications window background is transparent */
+    /* This override is necessary to ensure the notifications window background is transparent */
     background: transparent;
   }
 }

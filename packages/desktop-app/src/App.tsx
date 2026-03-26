@@ -3,11 +3,13 @@ import { NotificationWindow } from "./features/notifications/notification-window
 import { NOTIFICATION_WINDOW_LABEL, resolveWindowLabel } from "./lib/tauri";
 
 function App() {
-  return resolveWindowLabel() === NOTIFICATION_WINDOW_LABEL ? (
-    <NotificationWindow />
-  ) : (
-    <DesktopWindow />
-  );
+  const isNotification = resolveWindowLabel() === NOTIFICATION_WINDOW_LABEL;
+
+  if (!isNotification) {
+    document.body.classList.add("bg-background");
+  }
+
+  return isNotification ? <NotificationWindow /> : <DesktopWindow />;
 }
 
 export default App;
