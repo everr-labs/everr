@@ -1,156 +1,13 @@
 ---
 name: project
-description: Unified project management — captures ideas, issues, and shapes specs. Auto-routes based on intent. Use for any planning, tracking, or shaping work.
+description: Shape a feature into a full spec using Shape Up. Use when designing a feature, writing a pitch, shaping an idea into a project, defining scopes, or turning a concept into a buildable plan. Triggers on "shape", "design", "spec", "pitch", "scope", "plan a feature", "let's build", "define the project".
 ---
 
-# Project Management Skill
+# Project Shaping Skill
 
-Single entry point for all project management. Classify the user's intent and run the matching workflow:
+Full Shape Up design workflow producing shaping documents and a pitch. **No implementation is done here.**
 
-| Intent | Signal | Workflow |
-|--------|--------|----------|
-| **Idea** | Raw feature thought, opportunity, "what if..." | Quick capture → `todo/ideas/` |
-| **Issue** | Bug, broken behavior, focused problem | Quick capture → `todo/issues/` |
-| **Spec** | "Let's design...", "shape this", mature idea ready for shaping | Full Shape Up → `todo/projects/` |
-
-If the intent is ambiguous, ask one question to clarify:
-> *"Is this a quick capture (idea or bug), or do you want to shape it into a full spec?"*
-
----
-
-## Idea
-
-For raw ideas that aren't ready for shaping yet.
-
-### Step 1: Capture
-
-If the user described the idea in the prompt, use that — don't re-ask. If the idea is unclear, ask for:
-- A name (1-4 words, kebab-case for the filename)
-- A one-liner description
-
-Keep it fast. This is a low-friction capture, not an interview.
-
-### Step 2: Create `todo/ideas/{idea-name}.md`
-
-```markdown
-# {Idea Title}
-
-## What
-[One sentence: what this is]
-
-## Why
-[Why this matters — what problem it solves or opportunity it opens]
-
-## Who
-[Who is affected or who benefits]
-
-## Rough appetite
-[small / medium / big / unknown]
-
-## Notes
-[Any early thoughts, links, prior art, related ideas]
-```
-
-Fields are intentionally loose. An idea doesn't need to be fully formed. Leave `Notes` empty if not provided. Use `unknown` for `Rough appetite` if not stated.
-
-### Step 3: Update TODO.md
-
-Run `bash scripts/update-todo.sh` to regenerate `TODO.md` at the repo root.
-
-### Step 4: Show the backlog
-
-After saving, list all existing files in `todo/ideas/` with their `What` line as a one-liner summary:
-
-```
-Current idea backlog:
-- flame-graph-for-slow-jobs — Show a flame graph for slow CI jobs
-- webhook-retry-ui — Manual retry button for failed webhook deliveries
-```
-
-If the backlog is empty except for the new idea, say so.
-
-Optionally, if the idea seems mature enough: *"When you're ready to shape this, run `/project` again to turn it into a spec."*
-
-### Rules (Quick Capture — Idea)
-
-1. Low-friction — ask only what's needed; use what's already in the prompt
-2. All fields are optional; `unknown` is always valid
-3. No gates, no refinement loops, no approval steps
-4. Always show the full backlog after saving
-5. Do not start shaping or writing code
-6. Ideas are uncommitted — capturing one is not a decision to build it
-
----
-
-## Issue
-
-For bugs and focused problems. Small and scoped — not feature ideas.
-
-### Step 1: Capture
-
-If the user described the issue in the prompt, use that — don't re-ask. Only ask for clarification if the issue is too vague to name or describe in one sentence. Keep it fast.
-
-### Step 2: Create `todo/issues/{issue-name}.md`
-
-```markdown
-# {Issue Title}
-
-## What
-[One sentence: what's broken or wrong]
-
-## Where
-[Area / component / file affected]
-
-## Steps to reproduce
-[How to trigger it — numbered list, or "N/A" if not applicable]
-
-## Expected
-[What should happen]
-
-## Actual
-[What actually happens]
-
-## Priority
-[critical / high / medium / low / unknown]
-
-## Notes
-[Any context, links, related issues, logs]
-```
-
-`What` is the only required field. All others are optional — use `unknown` or `N/A` for anything not provided. Derive a kebab-case filename from the issue description.
-
-### Step 3: Update TODO.md
-
-Run `bash scripts/update-todo.sh` to regenerate `TODO.md` at the repo root.
-
-### Step 4: Show the issue list
-
-After saving, list all existing files in `todo/issues/` with their `What` line:
-
-```
-Open issues:
-- webhook-job-missing-on-rerun — Webhook re-run events don't create a new job row
-- slow-query-on-trace-view — Trace view query takes >5s on large repos
-```
-
-If the list is empty except for the new issue, say so.
-
-### Rules (Quick Capture — Issue)
-
-1. Low-friction — use what's in the prompt; don't interrogate
-2. `What` is required; all other fields are optional — `unknown` / `N/A` always valid
-3. No gates, no refinement loops, no approval steps
-4. Always show the full issue list after saving
-5. Do not investigate, diagnose, or fix — capture only
-6. Issues are small and focused — if it sounds like a feature, route to the Idea or Spec workflow instead
-
----
-
-## Project
-
-Full design workflow producing shaping documents and a pitch. **No implementation is done here.**
-
-### Directory Structure
+## Directory Structure
 
 ```
 todo/projects/{feature-name}/
@@ -160,7 +17,7 @@ todo/projects/{feature-name}/
 └── 3_scopes.md    ← created only after pitch approval
 ```
 
-### Refinement Loop (mandatory before every approval gate)
+## Refinement Loop (mandatory before every approval gate)
 
 After creating each document, run at least one refinement round before moving to the approval gate:
 
@@ -173,7 +30,7 @@ After creating each document, run at least one refinement round before moving to
 
 **Never skip the refinement loop.** A document is not ready for approval unless it has been challenged.
 
-### Optional Step Handling
+## Optional Step Handling
 
 Before any optional step, explicitly ask:
 > *"[Step name] is optional. Do you want to include it, or skip to the next step?"*
@@ -182,13 +39,13 @@ The user must choose. Never skip silently.
 
 ---
 
-### Step 1: Create feature directory
+## Step 1: Create feature directory
 
 Create `todo/projects/{feature-name}/` using kebab-case for the feature name.
 
 ---
 
-### Step 2: Problem Statement — `1_problem.md` *(required)*
+## Step 2: Problem Statement — `1_problem.md` *(required)*
 
 Create this file with:
 - What's broken or missing?
@@ -201,7 +58,7 @@ After the refinement loop, run `bash scripts/update-todo.sh` to add the project 
 
 ---
 
-### Step 3: Appetite — `1b_appetite.md` *(optional)*
+## Step 3: Appetite — `1b_appetite.md` *(optional)*
 
 Ask: *"Appetite is optional. Do you want to define a time budget for this feature, or skip to the pitch?"*
 
@@ -217,7 +74,7 @@ If included, write:
 
 ---
 
-### Step 4: Pitch — `2_pitch.md` *(required)*
+## Step 4: Pitch — `2_pitch.md` *(required)*
 
 Create at `todo/projects/{feature-name}/2_pitch.md`. Include:
 
@@ -251,7 +108,7 @@ Wait for explicit approval before proceeding.
 
 ---
 
-### Step 5: Scopes — `3_scopes.md` *(required, created after pitch approval)*
+## Step 5: Scopes — `3_scopes.md` *(required, created after pitch approval)*
 
 Break work into named, interconnected scopes. Scopes emerge from the solution — they are not a flat numbered task list.
 
@@ -282,11 +139,11 @@ After scopes are approved, run `bash scripts/update-todo.sh` to keep TODO.md cur
 
 ---
 
-### Step 6: Stop
+## Step 6: Stop
 
 **Do not write any code.** The workflow ends here. Implementation is a separate activity initiated by the user.
 
-### Rules (Shape Up Spec)
+## Rules
 
 1. Never skip steps (except explicitly optional ones, after asking the user)
 2. Refinement loop is mandatory — at least one round before every approval gate
