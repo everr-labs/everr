@@ -174,6 +174,7 @@ function StepDetailPage() {
         )}
         <div className="min-h-0 flex-1">
           <LogViewer
+            key={stepNumber} // Need to reset the internal state when navigating to a new step
             logs={allLogs}
             stepName={stepName}
             onLoadPrevious={hasPreviousPage ? fetchPreviousPage : undefined}
