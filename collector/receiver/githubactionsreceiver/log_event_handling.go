@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -265,36 +266,10 @@ func resolveJobNames(ctx context.Context, zipJobNames []string, jobNamesCache *j
 
 // looksLikeSanitizedJobName checks if a ZIP directory name could be a
 // sanitized matrix/shard job name (e.g., "test (1_2)" from "test (1/2)").
-func looksLikeSanitizedJobName(name string) bool {
-	for i := 0; i < len(name); i++ {
-		if name[i] == '(' {
-			for j := i + 1; j < len(name); j++ {
-				if name[j] == ')' {
-					inner := name[i+1 : j]
-					if strings.Contains(inner, "_") {
-						parts := strings.SplitN(inner, "_", 2)
-						if len(parts) == 2 && isDigits(parts[0]) && isDigits(parts[1]) {
-							return true
-						}
-					}
-					break
-				}
-			}
-		}
-	}
-	return false
-}
+var sanitizedJobNamePattern = regexp.MustCompile(`\(\d+_\d+\)`)
 
-func isDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
+func looksLikeSanitizedJobName(name string) bool {
+	return sanitizedJobNamePattern.MatchString(name)
 }
 
 // listSanitizedJobNames calls the GitHub API to list workflow jobs and
