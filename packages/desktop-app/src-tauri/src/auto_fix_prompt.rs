@@ -1,35 +1,18 @@
 use everr_core::api::FailureNotification;
 
+const TEMPLATE: &str = include_str!("auto_fix_prompt.md");
+
 pub(crate) fn build_notification_auto_fix_prompt(failure: &FailureNotification) -> String {
-    let mut sections = vec![
-        "Investigate and fix this unresolved CI pipeline failure.".to_string(),
-        "Use Everr CLI from the current project directory before guessing.".to_string(),
-        String::new(),
-        "Required workflow:".to_string(),
-    ];
+    let logs_instruction = match build_runs_logs_command(failure) {
+        Some(cmd) => format!("`{cmd}`"),
+        None => "Pull the relevant Everr logs for this failure before guessing.".to_string(),
+    };
 
-    if let Some(logs_command) = build_runs_logs_command(failure) {
-        sections.push("- Start by pulling logs with this exact command:".to_string());
-        sections.push(format!("  `{logs_command}`"));
-    } else {
-        sections.push(
-            "- Start by pulling the relevant Everr logs for this failure before guessing."
-                .to_string(),
-        );
-    }
-
-    sections.push("- Make the smallest repo-local fix that addresses the root cause.".to_string());
-    sections.push("- Run the narrowest relevant test or check before finishing.".to_string());
-    sections.push(String::new());
-    sections.push("Current unresolved failure:".to_string());
-    sections.push(format!("- {}", format_notification_failure(failure)));
-    sections.push(String::new());
-    sections.push(
-        "Return a concise summary with root cause, code changes, verification, and any follow-up risk."
-            .to_string(),
-    );
-
-    sections.join("\n")
+    TEMPLATE
+        .replace("{{failure_details}}", &format_notification_failure(failure))
+        .replace("{{logs_instruction}}", &logs_instruction)
+        .trim_end()
+        .to_string()
 }
 
 pub(crate) fn build_runs_logs_command(failure: &FailureNotification) -> Option<String> {
