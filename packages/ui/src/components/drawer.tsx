@@ -1,7 +1,6 @@
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
-import type * as React from "react";
-
 import { cn } from "@everr/ui/lib/utils";
+import type * as React from "react";
 
 function Drawer({ ...props }: DrawerPrimitive.Root.Props) {
   return <DrawerPrimitive.Root data-slot="drawer" {...props} />;

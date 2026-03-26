@@ -1,5 +1,5 @@
-import { ArrowUpDown } from "lucide-react";
 import { Button } from "@everr/ui/components/button";
+import { ArrowUpDown } from "lucide-react";
 
 export function SortableColumnHeader({
   label,

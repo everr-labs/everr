@@ -1,6 +1,6 @@
+import { cn } from "@everr/ui/lib/utils";
 import { createContext, useContext, useId, useMemo } from "react";
 import * as RechartsPrimitive from "recharts";
-import { cn } from "@everr/ui/lib/utils";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -77,7 +77,6 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
   return (
     <style
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: ok
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(

@@ -31,7 +31,6 @@ export function DataTable<T>({
           <tr className="border-b text-left text-muted-foreground">
             {columns.map((col, i) => (
               <th
-                // biome-ignore lint/suspicious/noArrayIndexKey: Column order is static
                 key={i}
                 className={
                   col.className ??
@@ -53,7 +52,6 @@ export function DataTable<T>({
             >
               {columns.map((col, i) => (
                 <td
-                  // biome-ignore lint/suspicious/noArrayIndexKey: Column order is static
                   key={i}
                   className={
                     col.cellClassName ??

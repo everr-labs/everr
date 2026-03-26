@@ -1,6 +1,3 @@
-import { Command as CommandPrimitive } from "cmdk";
-import { CheckIcon, SearchIcon } from "lucide-react";
-import type * as React from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +7,9 @@ import {
 } from "@everr/ui/components/dialog";
 import { InputGroup, InputGroupAddon } from "@everr/ui/components/input-group";
 import { cn } from "@everr/ui/lib/utils";
+import { Command as CommandPrimitive } from "cmdk";
+import { CheckIcon, SearchIcon } from "lucide-react";
+import type * as React from "react";
 
 function Command({
   className,
