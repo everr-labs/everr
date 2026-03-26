@@ -60,16 +60,11 @@ func TestResolveJobNamesCacheMissNoSanitizedNames(t *testing.T) {
 
 func TestLooksLikeSanitizedJobName(t *testing.T) {
 	require.True(t, looksLikeSanitizedJobName("deploy (1_2)"))
-	require.True(t, looksLikeSanitizedJobName("deploy (12_34)"))
-	require.True(t, looksLikeSanitizedJobName("test (1_2) extra"))
+	require.True(t, looksLikeSanitizedJobName("build_deploy"))
+	require.True(t, looksLikeSanitizedJobName("test_rust"))
 	require.False(t, looksLikeSanitizedJobName("lint"))
-	require.False(t, looksLikeSanitizedJobName("test-rust"))
-	require.False(t, looksLikeSanitizedJobName("deploy (fast_mode)"))
 	require.False(t, looksLikeSanitizedJobName("deploy"))
-	require.False(t, looksLikeSanitizedJobName("deploy ()"))
-	require.False(t, looksLikeSanitizedJobName("deploy (_)"))
-	require.False(t, looksLikeSanitizedJobName("deploy (1_)"))
-	require.False(t, looksLikeSanitizedJobName("deploy (_2)"))
+	require.False(t, looksLikeSanitizedJobName("test-rust"))
 }
 
 func TestSpanIDMatchesTraceGeneration(t *testing.T) {
