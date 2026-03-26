@@ -2,6 +2,8 @@
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
 
+@source "../../../ui/src/**/*.{ts,tsx}";
+
 @layer base {
   *::selection {
     background-color: var(--primary);

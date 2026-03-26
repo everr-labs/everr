@@ -13,6 +13,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # Stage 2: build
 FROM deps AS build
 COPY packages/datemath ./packages/datemath
+COPY packages/ui ./packages/ui
 COPY packages/app ./packages/app
 RUN pnpm --filter @everr/app build
 
