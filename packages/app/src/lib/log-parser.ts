@@ -49,13 +49,13 @@ export function parseGitHubMarker(
 export function getMarkerClass(type: MarkerType | undefined): string {
   switch (type) {
     case "error":
-      return "bg-red-500/10 text-red-600 dark:text-red-400";
+      return "bg-red-500/10 text-red-400";
     case "warning":
-      return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400";
+      return "bg-yellow-500/10 text-yellow-400";
     case "notice":
-      return "bg-blue-500/10 text-blue-600 dark:text-blue-400";
+      return "bg-blue-500/10 text-blue-400";
     case "command":
-      return "text-cyan-600 dark:text-cyan-400";
+      return "text-cyan-400";
     case "debug":
       return "text-muted-foreground/60";
     default:

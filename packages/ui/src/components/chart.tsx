@@ -3,7 +3,7 @@ import { createContext, useContext, useId, useMemo } from "react";
 import * as RechartsPrimitive from "recharts";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
-const THEMES = { light: "", dark: ".dark" } as const;
+const THEMES = { dark: "" } as const;
 
 export type ChartConfig = {
   [k in string]: {

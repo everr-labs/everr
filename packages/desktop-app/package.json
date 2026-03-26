@@ -24,7 +24,6 @@
     "@radix-ui/themes": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tauri-apps/api": "^2",
-    "better-themes": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

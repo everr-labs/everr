@@ -42,7 +42,7 @@ export function RefreshPicker() {
       >
         <RefreshCwIcon
           className={cn(
-            "size-3.5 linear ",
+            "size-3.5 linear",
             spinning && "animate-[spin_600ms_ease_infinite]",
           )}
           onAnimationIteration={handleAnimationIteration}

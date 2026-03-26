@@ -90,18 +90,18 @@ function heatTone(row: TestPerfChild) {
   if (row.failureRate >= 20) {
     return {
       dot: "bg-red-500",
-      chip: "bg-red-500/8 text-red-700 dark:text-red-300",
+      chip: "bg-red-500/8 text-red-300",
     };
   }
   if (row.failureRate >= 8) {
     return {
       dot: "bg-amber-500",
-      chip: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      chip: "bg-amber-500/10 text-amber-300",
     };
   }
   return {
     dot: "bg-emerald-500/80",
-    chip: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    chip: "bg-emerald-500/10 text-emerald-300",
   };
 }
 

@@ -120,7 +120,7 @@ export function LogSummaryPanel({
           </div>
         )}
 
-        {error && <div className="text-red-600 dark:text-red-400">{error}</div>}
+        {error && <div className="text-red-400">{error}</div>}
 
         {summary && (
           <ul className="list-disc space-y-0.5">{renderMarkdown(summary)}</ul>

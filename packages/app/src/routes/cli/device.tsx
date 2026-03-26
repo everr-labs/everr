@@ -100,7 +100,7 @@ function CliDeviceApprovalPage() {
               </div>
 
               {status === "error" ? (
-                <p className="mt-4 text-center text-sm text-red-600 dark:text-red-400">
+                <p className="mt-4 text-center text-sm text-red-400">
                   Invalid or expired code. Restart `everr login` from your
                   terminal.
                 </p>
