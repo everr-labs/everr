@@ -1,16 +1,16 @@
-import { Link } from "@tanstack/react-router";
-import { X } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@everr/ui/components/card";
+import { cn } from "@everr/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
+import { X } from "lucide-react";
 import type { Span } from "@/data/runs/schemas";
 import { formatDuration } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";
 
 interface SpanDetailProps {

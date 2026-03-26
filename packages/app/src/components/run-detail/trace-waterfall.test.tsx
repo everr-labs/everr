@@ -5,7 +5,7 @@ import type { Span } from "@/data/runs/schemas";
 import { TraceWaterfall } from "./trace-waterfall";
 
 // Mock resizable panels — react-resizable-panels needs browser layout APIs
-vi.mock("@/components/ui/resizable", () => ({
+vi.mock("@everr/ui/components/resizable", () => ({
   ResizablePanelGroup: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),

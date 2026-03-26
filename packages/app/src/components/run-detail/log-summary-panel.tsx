@@ -1,7 +1,7 @@
+import { buttonVariants } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { Loader2, X } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
 import type { SummarizerStatus } from "@/hooks/use-log-summarizer";
-import { cn } from "@/lib/utils";
 
 interface LogSummaryPanelProps {
   status: SummarizerStatus;

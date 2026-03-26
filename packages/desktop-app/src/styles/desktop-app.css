@@ -1,0 +1,40 @@
+@import "@everr/ui/src/styles/global.css";
+@import "@radix-ui/themes/styles.css";
+
+@source "../../../ui/src/**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  body {
+    /* This is necessary to ensure the notifications window background is transparent */
+    background: transparent;
+  }
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+@keyframes notification-progress-shrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.notification-progress {
+  animation: notification-progress-shrink 120s linear forwards;
+}
+
+.notification-progress[data-paused] {
+  animation-play-state: paused;
+}

@@ -1,9 +1,13 @@
+import { Button } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
-import { cn } from "../../lib/utils";
-import { SETTINGS_CHANGED_EVENT, invokeCommand, toErrorMessageText } from "../../lib/tauri";
+import {
+  invokeCommand,
+  SETTINGS_CHANGED_EVENT,
+  toErrorMessageText,
+} from "../../lib/tauri";
 import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
 import {
   FeatureErrorText,
@@ -25,7 +29,10 @@ export type AssistantSetup = {
   assistant_statuses: AssistantStatus[];
 };
 
-export const assistantSetupQueryKey = ["desktop-app", "assistant-setup"] as const;
+export const assistantSetupQueryKey = [
+  "desktop-app",
+  "assistant-setup",
+] as const;
 
 function getAssistantSetup() {
   return invokeCommand<AssistantSetup>("get_assistant_setup");
@@ -83,7 +90,11 @@ export function AssistantsSection() {
         <FeatureErrorText
           message={toErrorMessageText(assistantSetupQuery.error)}
           action={
-            <Button variant="outline" size="sm" onClick={() => void assistantSetupQuery.refetch()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void assistantSetupQuery.refetch()}
+            >
               Retry
             </Button>
           }
@@ -95,7 +106,11 @@ export function AssistantsSection() {
   return <LoadedAssistantsSection assistantSetup={assistantSetupQuery.data} />;
 }
 
-function LoadedAssistantsSection({ assistantSetup }: { assistantSetup: AssistantSetup }) {
+function LoadedAssistantsSection({
+  assistantSetup,
+}: {
+  assistantSetup: AssistantSetup;
+}) {
   const saveMutation = useSaveAssistantsMutation();
   const { selection, setDraftFromServer, resetDraft, toggleAssistant } =
     useAssistantSelectionDraft(
@@ -104,7 +119,9 @@ function LoadedAssistantsSection({ assistantSetup }: { assistantSetup: Assistant
 
   async function handleSave() {
     const next = await saveMutation.mutateAsync(selection);
-    setDraftFromServer(configuredAssistantsFromStatuses(next.assistant_statuses));
+    setDraftFromServer(
+      configuredAssistantsFromStatuses(next.assistant_statuses),
+    );
   }
 
   return (
@@ -166,11 +183,18 @@ export function AssistantsWizardStep({
   );
 }
 
-function configuredAssistantsFromStatuses(statuses: AssistantStatus[]): AssistantKind[] {
-  return statuses.filter((status) => status.configured).map((status) => status.assistant);
+function configuredAssistantsFromStatuses(
+  statuses: AssistantStatus[],
+): AssistantKind[] {
+  return statuses
+    .filter((status) => status.configured)
+    .map((status) => status.assistant);
 }
 
-function useAssistantSelectionDraft(serverSelection: AssistantKind[], onChange?: (selection: AssistantKind[]) => void) {
+function useAssistantSelectionDraft(
+  serverSelection: AssistantKind[],
+  onChange?: (selection: AssistantKind[]) => void,
+) {
   const [selection, setSelection] = useState<AssistantKind[]>(serverSelection);
   const [isDirty, setIsDirty] = useState(false);
   const serverSelectionKey = serverSelection.join("|");
@@ -195,14 +219,12 @@ function useAssistantSelectionDraft(serverSelection: AssistantKind[], onChange?:
     toggleAssistant(assistant: AssistantKind) {
       setIsDirty(true);
       setSelection((current) => {
-        const next = 
-        current.includes(assistant)
+        const next = current.includes(assistant)
           ? current.filter((item) => item !== assistant)
-          : [...current, assistant]
+          : [...current, assistant];
         onChange?.(next);
         return next;
-      },
-      );
+      });
     },
   };
 }

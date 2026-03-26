@@ -1,10 +1,10 @@
-import { Bar, BarChart, XAxis } from "recharts";
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+} from "@everr/ui/components/chart";
+import { Bar, BarChart, XAxis } from "recharts";
 import type { LogVolumeBin } from "@/lib/log-volume";
 
 interface LogVolumeChartProps {

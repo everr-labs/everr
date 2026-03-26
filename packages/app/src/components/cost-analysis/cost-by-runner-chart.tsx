@@ -1,11 +1,11 @@
-import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
-import { ChartEmptyState } from "@/components/ui/chart-helpers";
+} from "@everr/ui/components/chart";
+import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import type { CostByRunner } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 

@@ -1,0 +1,89 @@
+@import "@everr/ui/src/styles/global.css";
+@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/preset.css";
+
+@source "../../../ui/src/**/*.{ts,tsx}";
+
+@layer base {
+  *::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .everr-decoration:not(.everr-decoration-primary)::selection {
+    background-color: var(--primary-foreground);
+    color: var(--primary);
+  }
+}
+
+@layer utilities {
+  .everr-decoration {
+    @apply after:content-[''] after:inline-block after:-mb-[.1ch] after:h-[.1ch] after:w-[.8ch] after:bg-current;
+  }
+  .everr-decoration-primary {
+    @apply after:bg-primary;
+  }
+  .everr-decoration-primary-foreground {
+    @apply after:text-primary-foreground;
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+.product-perspective {
+  perspective: min(1400px, 100vw);
+  perspective-origin: 50% 40%;
+}
+
+.product-tilt {
+  transform: rotateX(48deg) rotateY(0deg) rotateZ(0deg);
+  transform-origin: 0px 2%;
+  border-radius: 0;
+  overflow: hidden;
+  border: 2px solid var(--color-fd-border);
+  background: var(--color-fd-card, transparent);
+  position: relative;
+  box-shadow: 6px 6px 0 0 var(--color-fd-border);
+  mask-image: linear-gradient(
+    black 50%,
+    rgba(0, 0, 0, 0.5) 75%,
+    transparent 100%
+  );
+}
+
+@keyframes terminal-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+  }
+}
+
+button[data-search-full] {
+  border-radius: 0;
+}

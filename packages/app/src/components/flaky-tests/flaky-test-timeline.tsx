@@ -1,8 +1,8 @@
+import { buttonVariants } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Copy } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
 import type { TestExecution } from "@/data/flaky-tests/schemas";
-import { cn } from "@/lib/utils";
 
 interface FlakyTestTimelineProps {
   data: TestExecution[];
@@ -76,11 +76,7 @@ export function FlakyTestTimeline({ data }: FlakyTestTimelineProps) {
         </thead>
         <tbody>
           {data.map((exec, i) => (
-            <tr
-              // biome-ignore lint/suspicious/noArrayIndexKey: Unique per row in ordered result set
-              key={i}
-              className="border-b last:border-0 hover:bg-muted/50"
-            >
+            <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
               <td className="py-2 pr-4">
                 <span
                   className={cn(

@@ -12,6 +12,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # Stage 2: build
 FROM deps AS build
 COPY . .
+COPY packages/ui ./packages/ui
 RUN pnpm --filter docs build
 
 # Stage 3: production

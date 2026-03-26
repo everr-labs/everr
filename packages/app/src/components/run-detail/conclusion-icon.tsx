@@ -1,3 +1,4 @@
+import { cn } from "@everr/ui/lib/utils";
 import {
   Ban,
   CheckCircle,
@@ -6,7 +7,6 @@ import {
   Loader2,
   XCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface ConclusionIconProps {
   conclusion: string;

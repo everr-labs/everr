@@ -1,6 +1,6 @@
+import { Card, CardContent } from "@everr/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Card, CardContent } from "@/components/ui/card";
 import { runDetailsOptions } from "@/data/runs/options";
 
 export const Route = createFileRoute(

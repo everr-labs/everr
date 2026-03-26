@@ -1,5 +1,3 @@
-import { Link, useMatches } from "@tanstack/react-router";
-import { Fragment } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,7 +5,9 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+} from "@everr/ui/components/breadcrumb";
+import { Link, useMatches } from "@tanstack/react-router";
+import { Fragment } from "react";
 
 interface Crumb {
   label: string;

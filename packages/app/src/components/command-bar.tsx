@@ -1,9 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useTheme } from "better-themes";
-import { type LucideIcon, Monitor, Moon, Palette, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
-import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import {
   Command,
   CommandDialog,
@@ -13,7 +7,13 @@ import {
   CommandItem,
   CommandList,
   CommandShortcut,
-} from "@/components/ui/command";
+} from "@everr/ui/components/command";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { useTheme } from "better-themes";
+import { type LucideIcon, Monitor, Moon, Palette, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { searchRunsOptions } from "@/data/runs-list/options";
 import { formatRelativeTime } from "@/lib/formatting";
 import { navMain } from "@/lib/navigation";

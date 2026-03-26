@@ -14,8 +14,8 @@ import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
 import { WorkOsWidgets } from "@workos-inc/widgets";
 import { ThemeProvider } from "better-themes";
 import { queryClient } from "@/query-client";
+import appCss from "@/styles/app.css?url";
 import type { RouterContext } from "../router";
-import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({

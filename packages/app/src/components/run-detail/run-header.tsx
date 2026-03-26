@@ -1,8 +1,8 @@
+import { buttonVariants } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 import { ConclusionIcon } from "./conclusion-icon";
 
 interface RunHeaderProps {

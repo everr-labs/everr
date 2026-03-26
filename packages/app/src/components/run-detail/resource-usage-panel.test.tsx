@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { JobResourceUsage } from "@/data/resource-usage";
 import { ResourceUsagePanel } from "./resource-usage-panel";
 
-vi.mock("@/components/ui/chart", () => ({
+vi.mock("@everr/ui/components/chart", () => ({
   ChartContainer: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="chart-container">{children}</div>
   ),

@@ -1,20 +1,20 @@
 import { resolve } from "@everr/datemath";
-import { ChevronDownIcon, Clock } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@everr/ui/components/button";
+import { Input } from "@everr/ui/components/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@everr/ui/components/popover";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@everr/ui/components/tooltip";
+import { ChevronDownIcon, Clock } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTimeRange } from "@/hooks/use-time-range";
 import { formatTimeRangeDisplay, QUICK_RANGE_GROUPS } from "@/lib/time-range";
-import { Input } from "../ui/input";
 
 type ResolvedPreview = {
   date: Date;

@@ -1,8 +1,8 @@
+import { Button } from "@everr/ui/components/button";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
 import { useState } from "react";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/cli/device")({
   validateSearch: z.object({

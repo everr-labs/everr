@@ -1,3 +1,9 @@
+import { Separator } from "@everr/ui/components/separator";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@everr/ui/components/sidebar";
 import {
   createFileRoute,
   Outlet,
@@ -13,12 +19,6 @@ import { RefreshPicker, TimeRangePicker } from "@/components/analytics";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
-import { Separator } from "@/components/ui/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
 import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({

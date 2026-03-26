@@ -44,14 +44,18 @@ describe("formatNotificationRelativeTime", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-07T13:35:00Z"));
 
-    expect(formatNotificationRelativeTime("2026-03-07T13:32:00Z")).toBe("3m ago");
+    expect(formatNotificationRelativeTime("2026-03-07T13:32:00Z")).toBe(
+      "3m ago",
+    );
   });
 
   it("treats timezone-less ISO timestamps as UTC", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-07T13:35:00Z"));
 
-    expect(formatNotificationRelativeTime("2026-03-07T13:32:00")).toBe("3m ago");
+    expect(formatNotificationRelativeTime("2026-03-07T13:32:00")).toBe(
+      "3m ago",
+    );
   });
 
   it("returns a safe placeholder for invalid timestamps", () => {

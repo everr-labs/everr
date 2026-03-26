@@ -6,15 +6,15 @@ const Ansi =
     ? AnsiImport
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
+import { buttonVariants } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { buttonVariants } from "@/components/ui/button";
 import type { LogEntry } from "@/data/runs/schemas";
 import { useLogSummarizer } from "@/hooks/use-log-summarizer";
 import { formatTimestampTimeOfDay } from "@/lib/formatting";
 import { getMarkerClass, parseLogs } from "@/lib/log-parser";
 import { aggregateLogVolume } from "@/lib/log-volume";
-import { cn } from "@/lib/utils";
 import { LogSummaryPanel } from "./log-summary-panel";
 import { LogVolumeChart } from "./log-volume-chart";
 

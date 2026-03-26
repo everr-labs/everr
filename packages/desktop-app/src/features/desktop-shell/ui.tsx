@@ -1,7 +1,12 @@
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from "@everr/ui/components/card";
+import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
-import { Card, CardContent, CardDescription, CardHeader } from "../../components/ui/card";
-import { APP_DISPLAY_NAME } from "../../lib/app-name";
-import { cn } from "../../lib/utils";
+import { APP_DISPLAY_NAME } from "@/lib/app-name";
 
 export function DesktopFrame({
   title,
@@ -33,7 +38,9 @@ export function DesktopFrame({
                 {description}
               </CardDescription>
             </div>
-            {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+            {headerAction ? (
+              <div className="shrink-0">{headerAction}</div>
+            ) : null}
           </div>
         </CardHeader>
 
@@ -49,7 +56,9 @@ export function DesktopLoadingState({ text }: { text: string }) {
       <section className="flex min-h-screen items-center justify-center px-6 py-14">
         <Card className="w-full max-w-[420px] border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
           <CardContent className="grid place-items-center px-6 py-12">
-            <p className="m-0 text-sm text-[var(--settings-text-muted)]">{text}</p>
+            <p className="m-0 text-sm text-[var(--settings-text-muted)]">
+              {text}
+            </p>
           </CardContent>
         </Card>
       </section>
@@ -85,7 +94,9 @@ export function SettingsSection({
           </p>
         </div>
 
-        {action ? <div className="shrink-0 max-[620px]:w-full">{action}</div> : null}
+        {action ? (
+          <div className="shrink-0 max-[620px]:w-full">{action}</div>
+        ) : null}
       </div>
 
       {children}
@@ -128,7 +139,11 @@ export function WizardStepSection({
 }
 
 export function FeatureLoadingText({ text }: { text: string }) {
-  return <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">{text}</p>;
+  return (
+    <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
+      {text}
+    </p>
+  );
 }
 
 export function FeatureErrorText({
@@ -140,7 +155,9 @@ export function FeatureErrorText({
 }) {
   return (
     <div className="grid gap-3">
-      <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">{message}</p>
+      <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
+        {message}
+      </p>
       {action ? <div>{action}</div> : null}
     </div>
   );

@@ -3,7 +3,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@everr/ui/components/tooltip";
 import type { TestDailyResult } from "@/data/flaky-tests/schemas";
 
 interface TestResultHeatmapProps {

@@ -8,7 +8,7 @@ import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type * as React from "react";
 import { baseOptions } from "@/lib/layout.shared";
-import appCss from "@/styles/app.css?url";
+import docsCss from "@/styles/docs.css?url";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -26,7 +26,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "icon", href: "/favicon.ico" },
-      { rel: "stylesheet", href: appCss },
+      { rel: "stylesheet", href: docsCss },
     ],
   }),
   component: RootComponent,

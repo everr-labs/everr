@@ -1,8 +1,8 @@
+import { Badge } from "@everr/ui/components/badge";
+import { Empty, EmptyDescription } from "@everr/ui/components/empty";
+import { Sparkline } from "@everr/ui/components/sparkline";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyDescription } from "@/components/ui/empty";
-import { Sparkline } from "@/components/ui/sparkline";
 import type {
   WorkflowListItem,
   WorkflowSparklineData,
