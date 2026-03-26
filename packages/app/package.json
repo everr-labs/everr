@@ -19,15 +19,15 @@
     "@clickhouse/client": "^1.18.2",
     "@everr/datemath": "workspace:*",
     "@everr/ui": "workspace:*",
-    "@icons-pack/react-simple-icons": "^13.12.0",
+    "@icons-pack/react-simple-icons": "catalog:",
     "@octokit/webhooks-methods": "^6.0.0",
-    "@radix-ui/themes": "^3.3.0",
-    "@t3-oss/env-core": "^0.13.10",
+    "@radix-ui/themes": "catalog:",
+    "@t3-oss/env-core": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "^0.10.0",
     "@tanstack/react-form": "^1.28.5",
     "@tanstack/react-form-start": "^1.28.5",
-    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-devtools": "^5.91.3",
     "@tanstack/react-router": "1.167.1",
     "@tanstack/react-router-devtools": "1.166.8",
@@ -37,10 +37,10 @@
     "@workos-inc/widgets": "^1.10.0",
     "@workos/authkit-tanstack-react-start": "^0.5.0",
     "ansi-to-react": "^6.2.6",
-    "better-themes": "^1.1.0",
+    "better-themes": "catalog:",
     "drizzle-orm": "^0.45.1",
     "lucide-react": "catalog:",
-    "motion": "^12.36.0",
+    "motion": "catalog:",
     "pg": "^8.20.0",
     "pg-boss": "^12.14.0",
     "react": "catalog:",
@@ -48,7 +48,7 @@
     "recharts": "catalog:",
     "simple-icons": "^16.13.0",
     "tailwindcss": "catalog:",
-    "zod": "^4.3.6"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@tanstack/devtools-vite": "^0.6.0",
@@ -61,12 +61,12 @@
     "@types/pg": "^8.18.0",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "catalog:",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.9",
     "jsdom": "^29.0.0",
-    "nitro": "3.0.260311-beta",
+    "nitro": "catalog:",
     "typescript": "catalog:",
-    "vite": "^8.0.0"
+    "vite": "catalog:"
   }
 }
