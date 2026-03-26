@@ -134,12 +134,14 @@ fn tray_snapshot_builds_recent_failures_dashboard_url_for_current_scope() {
 fn notification_prompt_builder_formats_single_failure_with_exact_logs_command() {
     let prompt = build_notification_auto_fix_prompt(&failure("one"));
 
-    assert!(prompt.contains("Investigate and fix this unresolved CI pipeline failure."));
-    assert!(prompt.contains("Current unresolved failure:"));
+    assert!(prompt.contains("Investigate and fix this CI pipeline failure."));
+    assert!(prompt.contains("Failure details:"));
     assert!(prompt.contains("workflow CI | trace trace-one | step test #2 (Run suite)"));
     assert!(
         prompt.contains("everr logs --trace-id trace-one --job-name \"test\" --step-number 2")
     );
+    assert!(prompt.contains("Step 2"));
+    assert!(prompt.contains("Step 3"));
 }
 
 #[test]
