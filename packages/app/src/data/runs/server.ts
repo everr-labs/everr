@@ -22,6 +22,21 @@ function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
   };
 }
 
+async function countStepLogs(
+  context: AuthContext,
+  params: { traceId: string; jobName: string; stepNumber: string },
+): Promise<number> {
+  const sql = `
+    SELECT count() as cnt
+    FROM logs
+    WHERE TraceId = {traceId:String}
+      AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+      AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
+  `;
+  const result = await context.clickhouse.query<{ cnt: string }>(sql, params);
+  return result.length > 0 ? Number(result[0].cnt) : 0;
+}
+
 async function getRawStepLogs(
   context: AuthContext,
   params: {
@@ -311,27 +326,38 @@ export const getStepLogs = createAuthenticatedServerFn({
     }),
   )
   .handler(async ({ data, context }) => {
+    const totalCount = await countStepLogs(context, {
+      traceId: data.traceId,
+      jobName: data.jobName,
+      stepNumber: data.stepNumber,
+    });
+
     if (
       data.tail !== undefined ||
       (data.limit === undefined && data.offset === undefined)
     ) {
-      return getRawStepLogs(context, {
+      const maxLines = data.tail ?? DEFAULT_LOG_PAGE_SIZE;
+      const logs = await getRawStepLogs(context, {
         traceId: data.traceId,
         jobName: data.jobName,
         stepNumber: data.stepNumber,
-        maxLines: data.tail ?? DEFAULT_LOG_PAGE_SIZE,
+        maxLines,
         offsetLines: data.offset,
         useTail: true,
       });
+      const startOffset = Math.max(0, totalCount - maxLines);
+      return { logs, totalCount, offset: startOffset };
     }
 
-    return getRawStepLogs(context, {
+    const offset = data.offset ?? 0;
+    const logs = await getRawStepLogs(context, {
       traceId: data.traceId,
       jobName: data.jobName,
       stepNumber: data.stepNumber,
       maxLines: data.limit ?? DEFAULT_LOG_PAGE_SIZE,
-      offsetLines: data.offset ?? 0,
+      offsetLines: offset,
     });
+    return { logs, totalCount, offset };
   });
 
 export const getRunSpans = createAuthenticatedServerFn({

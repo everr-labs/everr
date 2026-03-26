@@ -48,7 +48,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
           );
         }
 
-        const logs = await getStepLogs({
+        const { logs } = await getStepLogs({
           data: {
             traceId,
             jobName: parsed.data.jobName,
