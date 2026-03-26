@@ -281,7 +281,7 @@ func listSanitizedJobNames(ctx context.Context, ghClient *github.Client, e *gith
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 
-	var sanitized []string
+	var originals []string
 	for {
 		jobsResp, resp, err := ghClient.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
 		if err != nil {
@@ -292,7 +292,7 @@ func listSanitizedJobNames(ctx context.Context, ghClient *github.Client, e *gith
 		for _, job := range jobsResp.Jobs {
 			name := job.GetName()
 			if strings.Contains(name, "/") {
-				sanitized = append(sanitized, name)
+				originals = append(originals, name)
 			}
 		}
 
@@ -302,5 +302,5 @@ func listSanitizedJobNames(ctx context.Context, ghClient *github.Client, e *gith
 		opts.Page = resp.NextPage
 	}
 
-	return sanitized
+	return originals
 }
