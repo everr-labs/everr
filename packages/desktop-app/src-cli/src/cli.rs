@@ -1,10 +1,10 @@
 use clap::{Args, Parser, Subcommand};
 
 #[cfg(debug_assertions)]
-const VERSION_OUTPUT: &str = concat!(env!("CARGO_PKG_VERSION"), " (debug build)");
+const VERSION_OUTPUT: &str = concat!(env!("EVERR_VERSION"), " (debug build)");
 
 #[cfg(not(debug_assertions))]
-const VERSION_OUTPUT: &str = concat!(env!("CARGO_PKG_VERSION"), " (release build)");
+const VERSION_OUTPUT: &str = concat!(env!("EVERR_VERSION"), " (release build)");
 
 pub const DEFAULT_LOG_PAGE_SIZE: u32 = 1000;
 pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
@@ -45,25 +45,22 @@ pub enum Commands {
     SlowestTests(SlowestTestsArgs),
     /// Show the slowest jobs in the selected time range, repo-wide by default
     SlowestJobs(SlowestJobsArgs),
-    /// Pipeline runs commands
-    Runs {
-        #[command(subcommand)]
-        command: RunsCommand,
-    },
+    /// List recent runs
+    #[command(name = "runs")]
+    RunsList(ListRunsArgs),
+    /// Show run details
+    #[command(name = "show")]
+    RunsShow(ShowRunArgs),
+    /// Show step logs for a run
+    #[command(name = "logs")]
+    RunsLogs(GetLogsArgs),
+    /// List workflows and their jobs for a repository
+    #[command(name = "workflows")]
+    WorkflowsList(WorkflowsListArgs),
 }
 
 #[derive(Args, Debug, Default)]
 pub struct LoginArgs {}
-
-#[derive(Subcommand, Debug)]
-pub enum RunsCommand {
-    /// List recent runs
-    List(ListRunsArgs),
-    /// Show run details
-    Show(ShowRunArgs),
-    /// Show step logs for a run
-    Logs(GetLogsArgs),
-}
 
 #[derive(Args, Debug, Default)]
 pub struct StatusArgs {
@@ -196,31 +193,35 @@ pub struct GetLogsArgs {
     pub job_name: String,
     #[arg(long)]
     pub step_number: String,
+    /// Show the last N lines of the log (default: 1000); combine with --offset to skip lines from the bottom
+    #[arg(long, conflicts_with_all = ["limit"])]
+    pub tail: Option<u32>,
     #[arg(
         long,
-        default_value_t = false,
-        conflicts_with_all = ["limit", "offset"],
-        help = "Print the entire raw log instead of a focused excerpt or paged slice"
-    )]
-    pub full: bool,
-    #[arg(
-        long,
-        conflicts_with = "full",
+        conflicts_with_all = ["tail"],
         value_parser = clap::value_parser!(u32).range(1..=MAX_LOG_PAGE_SIZE as i64),
         help = "Fetch a raw log page of N lines (oldest-first)"
     )]
     pub limit: Option<u32>,
     #[arg(
         long,
-        conflicts_with = "full",
-        help = "Skip this many raw log lines before printing the page; if --limit is omitted, Everr defaults to a 1000-line page"
+        help = "Skip this many lines before printing; works with both --tail (from bottom) and --limit (from top)"
     )]
     pub offset: Option<u32>,
 }
 
+#[derive(Args, Debug, Default)]
+pub struct WorkflowsListArgs {
+    #[arg(long)]
+    pub repo: Option<String>,
+
+    #[arg(long)]
+    pub branch: Option<String>,
+}
+
 impl GetLogsArgs {
     pub fn paging(&self) -> Option<LogPagingArgs> {
-        if self.limit.is_none() && self.offset.is_none() {
+        if self.limit.is_none() {
             return None;
         }
 
@@ -242,8 +243,8 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        Cli, Commands, DEFAULT_LOG_PAGE_SIZE, GrepArgs, RunsCommand, SlowestJobsArgs,
-        SlowestTestsArgs, TestHistoryArgs, WatchArgs,
+        Cli, Commands, DEFAULT_LOG_PAGE_SIZE, GrepArgs, SlowestJobsArgs, SlowestTestsArgs,
+        TestHistoryArgs, WatchArgs,
     };
 
     #[test]
@@ -268,8 +269,8 @@ mod tests {
 
     #[test]
     fn validates_required_trace_id_for_runs_show() {
-        let err = Cli::try_parse_from(["everr", "runs", "show"])
-            .expect_err("runs show should require --trace-id");
+        let err = Cli::try_parse_from(["everr", "show"])
+            .expect_err("show should require --trace-id");
         let err_string = err.to_string();
         assert!(err_string.contains("--trace-id"));
     }
@@ -301,14 +302,13 @@ mod tests {
     fn validates_required_arguments_for_runs_logs() {
         let err = Cli::try_parse_from([
             "everr",
-            "runs",
             "logs",
             "--trace-id",
             "trace-1",
             "--job-name",
             "build",
         ])
-        .expect_err("runs logs should require --step-number");
+        .expect_err("logs should require --step-number");
         assert!(err.to_string().contains("--step-number"));
     }
 
@@ -327,10 +327,9 @@ mod tests {
     }
 
     #[test]
-    fn runs_logs_full_flag_defaults_to_false() {
+    fn runs_logs_defaults_to_no_paging() {
         let cli = Cli::try_parse_from([
             "everr",
-            "runs",
             "logs",
             "--trace-id",
             "trace-1",
@@ -339,15 +338,11 @@ mod tests {
             "--step-number",
             "2",
         ])
-        .expect("valid runs logs command");
+        .expect("valid logs command");
 
-        let Commands::Runs { command } = cli.command else {
-            panic!("expected runs command");
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
         };
-        let RunsCommand::Logs(args) = command else {
-            panic!("expected runs logs command");
-        };
-        assert!(!args.full);
         assert_eq!(args.paging(), None);
     }
 
@@ -415,35 +410,9 @@ mod tests {
     }
 
     #[test]
-    fn runs_logs_full_flag_parses_true_when_present() {
-        let cli = Cli::try_parse_from([
-            "everr",
-            "runs",
-            "logs",
-            "--trace-id",
-            "trace-1",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--full",
-        ])
-        .expect("valid runs logs command");
-
-        let Commands::Runs { command } = cli.command else {
-            panic!("expected runs command");
-        };
-        let RunsCommand::Logs(args) = command else {
-            panic!("expected runs logs command");
-        };
-        assert!(args.full);
-    }
-
-    #[test]
     fn runs_logs_limit_enables_paging_mode() {
         let cli = Cli::try_parse_from([
             "everr",
-            "runs",
             "logs",
             "--trace-id",
             "trace-1",
@@ -454,13 +423,10 @@ mod tests {
             "--limit",
             "250",
         ])
-        .expect("valid paged runs logs command");
+        .expect("valid paged logs command");
 
-        let Commands::Runs { command } = cli.command else {
-            panic!("expected runs command");
-        };
-        let RunsCommand::Logs(args) = command else {
-            panic!("expected runs logs command");
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
         };
 
         assert_eq!(
@@ -470,10 +436,9 @@ mod tests {
     }
 
     #[test]
-    fn runs_logs_offset_defaults_page_size_to_one_thousand() {
+    fn runs_logs_offset_alone_uses_tail_mode() {
         let cli = Cli::try_parse_from([
             "everr",
-            "runs",
             "logs",
             "--trace-id",
             "trace-1",
@@ -484,49 +449,20 @@ mod tests {
             "--offset",
             "2000",
         ])
-        .expect("valid paged runs logs command");
+        .expect("valid logs command");
 
-        let Commands::Runs { command } = cli.command else {
-            panic!("expected runs command");
-        };
-        let RunsCommand::Logs(args) = command else {
-            panic!("expected runs logs command");
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
         };
 
-        assert_eq!(
-            args.paging().map(|value| (value.limit, value.offset)),
-            Some((DEFAULT_LOG_PAGE_SIZE, 2000))
-        );
-    }
-
-    #[test]
-    fn runs_logs_full_conflicts_with_paging_flags() {
-        let err = Cli::try_parse_from([
-            "everr",
-            "runs",
-            "logs",
-            "--trace-id",
-            "trace-1",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--full",
-            "--limit",
-            "25",
-        ])
-        .expect_err("runs logs should reject --full with paging flags");
-
-        let err_string = err.to_string();
-        assert!(err_string.contains("--full"));
-        assert!(err_string.contains("--limit"));
+        assert_eq!(args.paging(), None);
+        assert_eq!(args.offset, Some(2000));
     }
 
     #[test]
     fn runs_logs_limit_rejects_values_over_maximum() {
         let err = Cli::try_parse_from([
             "everr",
-            "runs",
             "logs",
             "--trace-id",
             "trace-1",
@@ -537,7 +473,7 @@ mod tests {
             "--limit",
             "5001",
         ])
-        .expect_err("runs logs should reject oversize page limits");
+        .expect_err("logs should reject oversize page limits");
 
         assert!(err.to_string().contains("--limit"));
     }
@@ -726,14 +662,12 @@ mod tests {
 
     #[test]
     fn runs_list_parses_limit_and_offset() {
-        let cli = Cli::try_parse_from(["everr", "runs", "list", "--limit", "15", "--offset", "30"])
-            .expect("runs list command");
+        let cli =
+            Cli::try_parse_from(["everr", "runs", "--limit", "15", "--offset", "30"])
+                .expect("runs command");
 
-        let Commands::Runs { command } = cli.command else {
+        let Commands::RunsList(args) = cli.command else {
             panic!("expected runs command");
-        };
-        let RunsCommand::List(args) = command else {
-            panic!("expected runs list command");
         };
 
         assert_eq!(args.limit, 15);
@@ -742,13 +676,10 @@ mod tests {
 
     #[test]
     fn runs_list_defaults_to_limit_twenty_and_offset_zero() {
-        let cli = Cli::try_parse_from(["everr", "runs", "list"]).expect("runs list command");
+        let cli = Cli::try_parse_from(["everr", "runs"]).expect("runs command");
 
-        let Commands::Runs { command } = cli.command else {
+        let Commands::RunsList(args) = cli.command else {
             panic!("expected runs command");
-        };
-        let RunsCommand::List(args) = command else {
-            panic!("expected runs list command");
         };
 
         assert_eq!(args.limit, 20);

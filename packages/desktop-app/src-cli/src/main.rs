@@ -7,7 +7,7 @@ mod uninstall;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands, RunsCommand};
+use cli::{Cli, Commands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,11 +25,10 @@ async fn main() -> Result<()> {
         Commands::SlowestTests(args) => core::slowest_tests(args).await?,
         Commands::SlowestJobs(args) => core::slowest_jobs(args).await?,
         Commands::Watch(args) => core::watch(args).await?,
-        Commands::Runs { command } => match command {
-            RunsCommand::List(args) => core::runs_list(args).await?,
-            RunsCommand::Show(args) => core::runs_show(args).await?,
-            RunsCommand::Logs(args) => core::runs_logs(args).await?,
-        },
+        Commands::RunsList(args) => core::runs_list(args).await?,
+        Commands::RunsShow(args) => core::runs_show(args).await?,
+        Commands::RunsLogs(args) => core::runs_logs(args).await?,
+        Commands::WorkflowsList(args) => core::workflows_list(args).await?,
     }
 
     Ok(())

@@ -12,7 +12,7 @@ use crate::api::{ApiClient, StepLogEntry, WatchResponse, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
-    SlowestTestsArgs, StatusArgs, TestHistoryArgs, WatchArgs,
+    SlowestTestsArgs, StatusArgs, TestHistoryArgs, WatchArgs, WorkflowsListArgs,
 };
 
 fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
@@ -121,23 +121,27 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let paging = args.paging();
-    let query = vec![
+    let mut query = vec![
         ("jobName", args.job_name),
         ("stepNumber", args.step_number),
-        ("fullLogs", args.full.to_string()),
     ];
 
-    let logs = if let Some(paging) = paging {
+    if let Some(paging) = paging {
         let paged_logs = get_paged_step_logs(&client, &args.trace_id, query, paging).await?;
         print_step_logs(&paged_logs.logs)?;
         if paged_logs.has_more {
             print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
         }
         return Ok(());
-    } else {
-        client.get_step_logs(&args.trace_id, &query).await?
-    };
+    }
 
+    let tail_lines = args.tail.unwrap_or(1000);
+    query.push(("tail", tail_lines.to_string()));
+    if let Some(offset) = args.offset {
+        query.push(("offset", offset.to_string()));
+    }
+
+    let logs = client.get_step_logs(&args.trace_id, &query).await?;
     print_step_logs(&logs)?;
     Ok(())
 }
@@ -205,25 +209,50 @@ pub async fn slowest_jobs(args: SlowestJobsArgs) -> Result<()> {
     Ok(())
 }
 
+pub async fn workflows_list(args: WorkflowsListArgs) -> Result<()> {
+    let session = auth::require_session_with_refresh().await?;
+    let client = ApiClient::from_session(&session)?;
+    let cwd = std::env::current_dir()?;
+    let git = resolve_git_context(&cwd);
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+
+    let mut query: Vec<(&str, String)> = vec![("repo", repo)];
+    push_opt(&mut query, "branch", args.branch);
+
+    let payload = client.get_workflows_list(&query).await?;
+
+    print_json(&payload)?;
+
+    Ok(())
+}
+
 pub async fn watch(args: WatchArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
+    let explicit_commit = args.commit.is_some();
     let target_commit = resolve_commit(args.commit, &cwd)?;
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
-    let branch = args
-        .branch
-        .or(git.branch)
-        .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
+    let branch = if explicit_commit {
+        args.branch
+    } else {
+        Some(args.branch.or(git.branch).ok_or_else(|| {
+            anyhow::anyhow!("failed to resolve branch; provide --branch")
+        })?)
+    };
 
-    let query = vec![
+    let mut query = vec![
         ("repo", repo.clone()),
-        ("branch", branch.clone()),
         ("commit", target_commit.clone()),
     ];
+    if let Some(ref b) = branch {
+        query.push(("branch", b.clone()));
+    }
 
     let sse_stream = client.watch_sse(&query).await?;
     pin!(sse_stream);
@@ -378,7 +407,11 @@ fn format_watch_status(
                 "active jobs: {}",
                 format_name_list(&run.active_jobs)
             ));
-            let _ = writeln!(status, "- {} ({})", run.workflow_name, details.join("; "));
+            let _ = writeln!(
+                status,
+                "- {} [{}] ({})",
+                run.workflow_name, run.trace_id, details.join("; ")
+            );
         }
     }
     let _ = writeln!(
@@ -454,6 +487,7 @@ fn format_completed_run_list(runs: &[WatchRun]) -> String {
             formatted.push_str(", ");
         }
         formatted.push_str(&run.workflow_name);
+        formatted.push_str(&format!(" [{}]", run.trace_id));
         if is_failure_conclusion(run.conclusion.as_deref().unwrap_or_default()) {
             formatted.push_str(" (failed)");
         }
@@ -578,6 +612,7 @@ mod tests {
             "df0c52b63dfa0123456789",
             &[WatchRun {
                 run_id: "42".to_string(),
+                trace_id: "trace-1".to_string(),
                 workflow_name: "Build & Test Collector".to_string(),
                 conclusion: None,
                 started_at: "2026-03-06T10:00:00Z".to_string(),
@@ -587,6 +622,7 @@ mod tests {
             }],
             &[WatchRun {
                 run_id: "41".to_string(),
+                trace_id: "trace-2".to_string(),
                 workflow_name: "Build & Test Ingress".to_string(),
                 conclusion: Some("success".to_string()),
                 started_at: "2026-03-06T09:58:00Z".to_string(),
@@ -610,6 +646,7 @@ mod tests {
             &[
                 WatchRun {
                     run_id: "42".to_string(),
+                    trace_id: "trace-3".to_string(),
                     workflow_name: "Build & Test Collector".to_string(),
                     conclusion: Some("failure".to_string()),
                     started_at: "2026-03-06T10:00:00Z".to_string(),
@@ -619,6 +656,7 @@ mod tests {
                 },
                 WatchRun {
                     run_id: "41".to_string(),
+                    trace_id: "trace-4".to_string(),
                     workflow_name: "Build & Test App".to_string(),
                     conclusion: Some("success".to_string()),
                     started_at: "2026-03-06T10:00:00Z".to_string(),
@@ -630,7 +668,7 @@ mod tests {
         );
 
         assert!(
-            status.contains("Completed runs: Build & Test Collector (failed), Build & Test App")
+            status.contains("Completed runs: Build & Test Collector [trace-3] (failed), Build & Test App [trace-4]")
         );
     }
 
@@ -640,6 +678,7 @@ mod tests {
             "df0c52b63dfa0123456789",
             &[WatchRun {
                 run_id: "99".to_string(),
+                trace_id: "trace-5".to_string(),
                 workflow_name: "CI".to_string(),
                 conclusion: None,
                 started_at: "2026-03-06T10:00:00Z".to_string(),
@@ -651,7 +690,7 @@ mod tests {
         );
 
         assert!(
-            status.contains("CI (duration: 2m 5s; expected duration: 1m 58s; active jobs: test)")
+            status.contains("CI [trace-5] (duration: 2m 5s; expected duration: 1m 58s; active jobs: test)")
         );
     }
 }

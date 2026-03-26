@@ -15,8 +15,12 @@ When the everr cli doesn't work, investigate why instead of falling back to some
 
 - Do not generate the migrations when modifying the schema, otherwise we can't iterate on it without messing with the dev env
 
-<!-- BEGIN everr -->
-Use Everr CLI guidance when the task involves CI, GitHub Actions workflows, pipelines, CI failures, workflow logs, or CI test performance from the current project directory.
+## Everr CLI
 
-Call `everr ai-instructions` to understand usage.
+<!-- BEGIN everr -->
+For CI, GitHub Actions, pipelines, workflow logs, or test performance tasks: call `everr ai-instructions` for full usage.
+
+Quick start — run `everr status` to get the current commit's pipeline state while you plan your next steps.
 <!-- END everr -->
+
+Use `everr-dev` (not `everr`) when running CLI commands in this workspace if available.

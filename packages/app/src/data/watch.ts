@@ -1,6 +1,7 @@
 import { pool } from "@/db/client";
 
 export type WatchRun = {
+  traceId: string;
   runId: string;
   workflowName: string;
   conclusion: string | null;
@@ -19,7 +20,7 @@ export type WatchResponse = {
 type WatchStatusInput = {
   tenantId: number;
   repo: string;
-  branch: string;
+  branch?: string;
   commit: string;
 };
 
@@ -51,6 +52,13 @@ export async function getWatchStatus({
   branch,
   commit,
 }: WatchStatusInput): Promise<WatchResponse> {
+  const matchingRunsParams: (string | number)[] = [tenantId, repo, commit];
+  let matchingRunsBranchClause = "";
+  if (branch) {
+    matchingRunsParams.push(branch);
+    matchingRunsBranchClause = `AND ref = $${matchingRunsParams.length}`;
+  }
+
   const matchingRuns = await pool.query<WorkflowRunRow>(
     `
       SELECT
@@ -66,12 +74,12 @@ export async function getWatchStatus({
       FROM workflow_runs
       WHERE tenant_id = $1
         AND repository = $2
-        AND ref = $3
-        AND sha = $4
+        AND sha = $3
+        ${matchingRunsBranchClause}
         AND last_event_at >= NOW() - ${WATCH_LOOKBACK_SQL}
       ORDER BY run_id ASC, attempts DESC, last_event_at DESC
     `,
-    [tenantId, repo, branch, commit],
+    matchingRunsParams,
   );
 
   const runs = latestRunAttempts(matchingRuns.rows);
@@ -88,30 +96,39 @@ export async function getWatchStatus({
     .map((run) => run.traceId);
 
   const [baselineRuns, jobs] = await Promise.all([
-    pool.query<WorkflowRunRow>(
-      `
-        SELECT
-          run_id AS "runId",
-          trace_id AS "traceId",
-          workflow_name AS "workflowName",
-          status,
-          conclusion,
-          run_started_at AS "startedAt",
-          run_completed_at AS "completedAt",
-          last_event_at AS "lastEventAt",
-          attempts
-        FROM workflow_runs
-        WHERE tenant_id = $1
-          AND repository = $2
-          AND ref = $3
-          AND status = 'completed'
-          AND run_completed_at IS NOT NULL
-          AND last_event_at >= NOW() - ${BASELINE_LOOKBACK_SQL}
-        ORDER BY run_id ASC, attempts DESC, last_event_at DESC
-        LIMIT 50
-      `,
-      [tenantId, repo, branch],
-    ),
+    (() => {
+      const params: (string | number)[] = [tenantId, repo];
+      let branchClause = "";
+      if (branch) {
+        params.push(branch);
+        branchClause = `AND ref = $${params.length}`;
+      }
+      return pool.query<WorkflowRunRow>(
+        `
+          SELECT
+            run_id AS "runId",
+            trace_id AS "traceId",
+            workflow_name AS "workflowName",
+            status,
+            conclusion,
+            run_started_at AS "startedAt",
+            run_completed_at AS "completedAt",
+            last_event_at AS "lastEventAt",
+            attempts
+          FROM workflow_runs
+          WHERE tenant_id = $1
+            AND repository = $2
+            ${branchClause}
+            AND status = 'completed'
+            AND conclusion = 'success'
+            AND run_completed_at IS NOT NULL
+            AND last_event_at >= NOW() - ${BASELINE_LOOKBACK_SQL}
+          ORDER BY run_id ASC, attempts DESC, last_event_at DESC
+          LIMIT 50
+        `,
+        params,
+      );
+    })(),
     activeTraceIds.length === 0
       ? Promise.resolve({ rows: [] as WorkflowJobRow[] })
       : pool.query<WorkflowJobRow>(
@@ -140,6 +157,7 @@ export async function getWatchStatus({
   for (const run of runs) {
     const isCompleted = run.status === "completed";
     const watchRun: WatchRun = {
+      traceId: run.traceId,
       runId: String(run.runId),
       workflowName: run.workflowName,
       conclusion: isCompleted ? run.conclusion : null,

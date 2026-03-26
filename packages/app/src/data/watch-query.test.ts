@@ -35,12 +35,13 @@ describe("getWatchStatus", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("sha = $4");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("sha = $3");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ref = $4");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
       42,
       "everr-labs/everr",
-      "feature/watch-short-commit",
       "7f14b13",
+      "feature/watch-short-commit",
     ]);
     expect(result).toEqual({
       state: "pending",
@@ -134,6 +135,7 @@ describe("getWatchStatus", () => {
       state: "running",
       active: [
         {
+          traceId: "trace-42",
           runId: "42",
           workflowName: "CI",
           conclusion: null,
@@ -145,6 +147,7 @@ describe("getWatchStatus", () => {
       ],
       completed: [
         {
+          traceId: "trace-41",
           runId: "41",
           workflowName: "Lint",
           conclusion: "success",
@@ -202,6 +205,7 @@ describe("getWatchStatus", () => {
       active: [],
       completed: [
         {
+          traceId: "trace-88-attempt-2",
           runId: "88",
           workflowName: "CI",
           conclusion: "success",

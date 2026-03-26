@@ -5,10 +5,6 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import {
-  buildFailingLinePredicateSql,
-  buildFailingStepLogsSql,
-} from "./runs/schemas";
 import { getRunJobs, getRunSpans, getStepLogs } from "./runs/server";
 
 const mockedQuery = vi.mocked(query);
@@ -125,12 +121,12 @@ describe("getStepLogs", () => {
   it("normalizes full log timestamps to timezone-aware UTC ISO strings", async () => {
     mockedQuery.mockResolvedValue([
       {
-        timestamp: "2026-03-09 12:00:00.123",
-        body: "Starting build",
-      },
-      {
         timestamp: "2026-03-09T12:00:01",
         body: "Compiling",
+      },
+      {
+        timestamp: "2026-03-09 12:00:00.123",
+        body: "Starting build",
       },
     ]);
 
@@ -139,7 +135,6 @@ describe("getStepLogs", () => {
         traceId: "trace-1",
         jobName: "build",
         stepNumber: "2",
-        fullLogs: true,
       },
     });
 
@@ -159,11 +154,11 @@ describe("getStepLogs", () => {
     ]);
   });
 
-  it("normalizes focused failing log timestamps before returning them", async () => {
-    mockedQuery.mockResolvedValueOnce([{ hit: "1" }]).mockResolvedValueOnce([
+  it("uses tail mode when tail param is provided", async () => {
+    mockedQuery.mockResolvedValue([
       {
         timestamp: "2026-03-09 12:00:02",
-        body: "##[error]Build failed",
+        body: "Last line",
       },
     ]);
 
@@ -172,17 +167,20 @@ describe("getStepLogs", () => {
         traceId: "trace-1",
         jobName: "build",
         stepNumber: "2",
-        fullLogs: false,
+        tail: 500,
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(2);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("SELECT 1 as hit");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("LIMIT 1");
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ORDER BY Timestamp DESC");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("LIMIT {maxLines:UInt32}");
+    expect(mockedQuery.mock.calls[0]?.[1]).toMatchObject({
+      maxLines: 500,
+    });
     expect(result).toEqual([
       {
         timestamp: "2026-03-09T12:00:02.000Z",
-        body: "##[error]Build failed",
+        body: "Last line",
       },
     ]);
   });
@@ -251,28 +249,5 @@ describe("getStepLogs", () => {
       maxLines: 1000,
       offsetLines: 2000,
     });
-  });
-});
-
-describe("buildFailingStepLogsSql", () => {
-  it("uses a windowed anchor scan instead of materializing anchor arrays", () => {
-    const sql = buildFailingStepLogsSql();
-
-    expect(sql).toContain("ROWS BETWEEN 50 PRECEDING");
-    expect(sql).toContain("AND 50 FOLLOWING");
-    expect(sql).not.toContain("groupArray");
-    expect(sql).not.toContain("arrayExists");
-  });
-});
-
-describe("buildFailingLinePredicateSql", () => {
-  it("includes the expanded failure vocabulary", () => {
-    const sql = buildFailingLinePredicateSql();
-
-    expect(sql).toContain("stack trace");
-    expect(sql).toContain("connection refused");
-    expect(sql).toContain("process completed with exit code");
-    expect(sql).toContain("ModuleNotFound");
-    expect(sql).toContain("oomkilled");
   });
 });
