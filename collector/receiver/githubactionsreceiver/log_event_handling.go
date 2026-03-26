@@ -29,7 +29,7 @@ import (
 
 const maxLogArchiveSize = 256 * 1024 * 1024 // 256 MB
 
-func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool) (*plog.Logs, error) {
+func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool, jobNamesCache *jobNameCache) (*plog.Logs, error) {
 	e, ok := event.(*github.WorkflowRunEvent)
 	if !ok {
 		return nil, nil
@@ -132,16 +132,31 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 
 	logger.Debug("Extracted jobs from zip", zap.Strings("jobs", jobs), zap.Int("file_count", len(files)))
 
-	for _, jobName := range jobs {
+	// Resolve sanitized ZIP directory names to original job names.
+	// GitHub sanitizes "/" to "_" in ZIP paths, causing span ID mismatches
+	// for matrix/sharded jobs like "test (1/2)" → "test (1_2)".
+	resolvedNames := resolveJobNames(ctx, jobs, jobNamesCache, ghClient, e, logger)
+
+	for _, zipJobName := range jobs {
+		// Use the original (unsanitized) name for scope attributes and span IDs.
+		// The ZIP directory name is kept for file path matching.
+		jobName := zipJobName
+		if resolvedNames != nil {
+			if resolved, ok := resolvedNames[zipJobName]; ok {
+				jobName = resolved
+			}
+		}
+
 		jobLogsScope := allLogs.ScopeLogs().AppendEmpty()
 		jobLogsScope.Scope().Attributes().PutStr(string(conventions.CICDPipelineTaskNameKey), jobName)
 
 		for _, logFile := range files {
-			if !strings.HasPrefix(logFile.Name, jobName) {
+			// File matching uses the ZIP directory name
+			if !strings.HasPrefix(logFile.Name, zipJobName+"/") {
 				continue
 			}
 
-			fileNameWithoutDir := strings.TrimPrefix(logFile.Name, jobName+"/")
+			fileNameWithoutDir := strings.TrimPrefix(logFile.Name, zipJobName+"/")
 			stepNumberStr := strings.Split(fileNameWithoutDir, "_")[0]
 			stepNumber, err := strconv.Atoi(stepNumberStr)
 			if err != nil {
@@ -149,6 +164,7 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 				continue
 			}
 
+			// Span ID uses the original name to match trace-side generation
 			spanID, err := generateStepSpanID(e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt(), jobName, int64(stepNumber))
 			if err != nil {
 				logger.Error("Failed to generate span ID", zap.Error(err))
@@ -201,4 +217,90 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 	}
 
 	return &logs, nil
+}
+
+func resolveJobNames(ctx context.Context, zipJobNames []string, jobNamesCache *jobNameCache, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) map[string]string {
+	if jobNamesCache == nil {
+		return nil
+	}
+
+	resolvedNames := make(map[string]string) // zipDirName → originalName
+
+	key := runKey{
+		repoID:     e.GetRepo().GetID(),
+		runID:      e.GetWorkflowRun().GetID(),
+		runAttempt: e.GetWorkflowRun().GetRunAttempt(),
+	}
+	originals := jobNamesCache.GetJobNames(key)
+
+	if originals == nil {
+		// Cache miss — check if any ZIP name looks sanitized before calling API
+		needsAPI := false
+		for _, zipName := range zipJobNames {
+			if looksLikeSanitizedJobName(zipName) {
+				needsAPI = true
+				break
+			}
+		}
+		if needsAPI {
+			originals = listSanitizedJobNames(ctx, ghClient, e, logger)
+		}
+	}
+
+	for _, original := range originals {
+		sanitized := strings.ReplaceAll(original, "/", "_")
+		for _, zipName := range zipJobNames {
+			if zipName == sanitized {
+				resolvedNames[zipName] = original
+				break
+			}
+		}
+	}
+
+	// Clean up cache entry after consumption
+	jobNamesCache.Delete(key)
+
+	return resolvedNames
+}
+
+// looksLikeSanitizedJobName checks if a ZIP directory name contains "_"
+// which could be a "/" sanitized by GitHub's ZIP archive builder.
+func looksLikeSanitizedJobName(name string) bool {
+	return strings.Contains(name, "_")
+}
+
+// listSanitizedJobNames calls the GitHub API to list workflow jobs and
+// returns original names that contain "/" (i.e., names GitHub would sanitize).
+func listSanitizedJobNames(ctx context.Context, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) []string {
+	owner := e.GetRepo().GetOwner().GetLogin()
+	repo := e.GetRepo().GetName()
+	runID := e.GetWorkflowRun().GetID()
+
+	opts := &github.ListWorkflowJobsOptions{
+		Filter:      "latest",
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	var originals []string
+	for {
+		jobsResp, resp, err := ghClient.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
+		if err != nil {
+			logger.Warn("Failed to list workflow jobs for name resolution", zap.Error(err))
+			return nil
+		}
+
+		for _, job := range jobsResp.Jobs {
+			name := job.GetName()
+			if strings.Contains(name, "/") || strings.Contains(name, "_") {
+				originals = append(originals, name)
+			}
+		}
+
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return originals
 }

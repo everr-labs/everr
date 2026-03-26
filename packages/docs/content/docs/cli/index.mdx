@@ -40,14 +40,17 @@ Use the desktop app if you also want Everr to manage global assistant integratio
 - `everr slowest-tests` (repo-wide for non-suite tests by default; use `--branch <name>` to scope it)
 - `everr slowest-jobs` (repo-wide by default; use `--branch <name>` to scope it)
 - `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit; exits non-zero if any completed run finishes with `failure`)
-- `everr runs list`
-- `everr runs show --trace-id <trace_id>`
-- `everr runs logs --trace-id <trace_id> --job-name <job> --step-number <n>` (prints native-style logs; add `--limit <n>` and `--offset <n>` for raw paging, or `--full` for the entire raw log)
+- `everr runs` (list recent runs; use `--branch`, `--conclusion`, `--workflow-name` to filter)
+- `everr show --trace-id <trace_id>`
+- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>` (prints the last 1000 lines by default; use `--tail <n>` to change, or `--limit <n>` and `--offset <n>` for raw paging)
+- `everr workflows` (list workflows and their jobs; use `--repo` and `--branch` to filter)
+- `everr test-history --test-name <name>` (show historical executions for a specific test; use `--module` to disambiguate)
+- `everr login` / `everr logout`
 
 `everr status` returns the current watch payload for the target commit, including `state`, `active`, and `completed`.
 
 `everr grep` searches failing step logs for a literal, case-insensitive pattern. Use `--job-name` together with `--step-number` to target one specific failing step. By default it searches the current repository over the last 7 days and excludes the currently checked out branch so you can quickly answer whether the same failure happened elsewhere.
 
-`everr runs logs` prints a focused failure excerpt by default. For contiguous raw log paging, pass `--limit <n>` and `--offset <n>`; if you provide `--offset` without `--limit`, Everr defaults to a 1000-line page.
+`everr logs` prints the last 1000 lines of a step log by default. Use `--tail <n>` to control how many lines from the bottom. For contiguous raw log paging, pass `--limit <n>` and `--offset <n>`.
 
 Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination.
