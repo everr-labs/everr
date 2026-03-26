@@ -310,9 +310,6 @@ importers:
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.0
-      tw-animate-css:
-        specifier: ^1.4.0
-        version: 1.4.0
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
