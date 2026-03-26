@@ -24,12 +24,24 @@ var (
 	ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	// pnpm recursive output prefixes each line with "<package> <script>: ".
 	workspaceTestPrefixPattern = regexp.MustCompile(`^\S+\s+\S+:\s+`)
+
+	// Default reporter file summary patterns
+	// Pass: ✓ [project] filepath (N tests) Nms  or  ✓ [project] TS filepath (N tests)
+	fileSummaryPassPattern = regexp.MustCompile(`^[✓✔√]\s+.*?(\S+\.(?:test|spec|test-d)\.(?:ts|tsx|js|jsx|mts|mjs|cts|cjs))\s+\(\d+\s+tests?(?:\s*\|\s*\d+\s+skipped)?\)\s*(?:(\d+)\s*ms)?$`)
+	// Fail: × [project] filepath (N tests | M failed) Nms
+	fileSummaryFailPattern = regexp.MustCompile(`^[×✕✖xX]\s+.*?(\S+\.(?:test|spec|test-d)\.(?:ts|tsx|js|jsx|mts|mjs|cts|cjs))\s+\(\d+\s+tests?(?:\s*\|\s*\d+\s+(?:failed|skipped))*\)\s*(?:(\d+)\s*ms)?$`)
+
+	// Default reporter slow test line (indented, no hierarchy separator, no test count)
+	// Example: "    ✓ server responds with hello world  2097ms"
+	slowTestPassPattern = regexp.MustCompile(`^[✓✔√]\s+(.+?)\s+(\d+)\s*ms$`)
+	slowTestFailPattern = regexp.MustCompile(`^[×✕✖xX]\s+(.+?)\s+(\d+)\s*ms$`)
 )
 
 // Parser processes Vitest verbose output and extracts test information.
 type Parser struct {
-	ctx    *gotest.TestParseContext
-	logger *zap.Logger
+	ctx             *gotest.TestParseContext
+	logger          *zap.Logger
+	lastFileSummary *gotest.TestInfo // tracks current file context for slow test lines
 }
 
 // NewParser creates a new Parser for processing Vitest verbose output.
@@ -70,6 +82,49 @@ func (p *Parser) ProcessLine(line string, timestamp time.Time) {
 		p.addTest(fullName, gotest.TestResultSkip, 0, timestamp)
 		return
 	}
+
+	// Check for default reporter file summary pass: ✓ project filepath (N tests) Nms
+	if matches := fileSummaryPassPattern.FindStringSubmatch(trimmed); matches != nil {
+		filePath := matches[1]
+		var durationMs float64
+		if matches[2] != "" {
+			durationMs, _ = strconv.ParseFloat(matches[2], 64)
+		}
+		p.addFileSummary(filePath, gotest.TestResultPass, durationMs, timestamp)
+		return
+	}
+
+	// Check for default reporter file summary fail: × project filepath (N tests | M failed) Nms
+	if matches := fileSummaryFailPattern.FindStringSubmatch(trimmed); matches != nil {
+		filePath := matches[1]
+		var durationMs float64
+		if matches[2] != "" {
+			durationMs, _ = strconv.ParseFloat(matches[2], 64)
+		}
+		p.addFileSummary(filePath, gotest.TestResultFail, durationMs, timestamp)
+		return
+	}
+
+	// Check for default reporter slow test lines (only if we have a file context)
+	if p.lastFileSummary != nil {
+		if matches := slowTestPassPattern.FindStringSubmatch(trimmed); matches != nil {
+			testName := strings.TrimSpace(matches[1])
+			if !strings.Contains(testName, " > ") {
+				durationMs, _ := strconv.ParseFloat(matches[2], 64)
+				p.addSlowTest(testName, gotest.TestResultPass, durationMs, timestamp)
+				return
+			}
+		}
+
+		if matches := slowTestFailPattern.FindStringSubmatch(trimmed); matches != nil {
+			testName := strings.TrimSpace(matches[1])
+			if !strings.Contains(testName, " > ") {
+				durationMs, _ := strconv.ParseFloat(matches[2], 64)
+				p.addSlowTest(testName, gotest.TestResultFail, durationMs, timestamp)
+				return
+			}
+		}
+	}
 }
 
 func normalizeLine(line string) string {
@@ -77,6 +132,62 @@ func normalizeLine(line string) string {
 	trimmed := strings.TrimSpace(cleaned)
 	normalized := workspaceTestPrefixPattern.ReplaceAllString(trimmed, "")
 	return strings.TrimSpace(normalized)
+}
+
+// addFileSummary creates a suite-level TestInfo for a default reporter file summary line.
+func (p *Parser) addFileSummary(filePath string, result gotest.TestResult, durationMs float64, timestamp time.Time) {
+	duration := time.Duration(durationMs * float64(time.Millisecond))
+
+	test := &gotest.TestInfo{
+		Name:      filePath,
+		Package:   filePath,
+		StartTime: timestamp.Add(-duration),
+		EndTime:   timestamp,
+		Result:    result,
+		Duration:  duration,
+		Output:    make([]string, 0),
+		Subtests:  make([]*gotest.TestInfo, 0),
+	}
+	test.SpanID = gotest.GenerateTestSpanID()
+
+	p.ctx.RootTests = append(p.ctx.RootTests, test)
+	p.lastFileSummary = test
+
+	p.logger.Debug("Parsed vitest file summary",
+		zap.String("file", filePath),
+		zap.String("result", string(result)),
+		zap.Duration("duration", duration),
+	)
+}
+
+// addSlowTest creates a TestInfo for an indented slow-test line in the default reporter,
+// adding it as a child of the most recent file summary.
+func (p *Parser) addSlowTest(testName string, result gotest.TestResult, durationMs float64, timestamp time.Time) {
+	duration := time.Duration(durationMs * float64(time.Millisecond))
+	filePath := p.lastFileSummary.Package
+
+	fullName := filePath + " > " + testName
+
+	test := &gotest.TestInfo{
+		Name:       fullName,
+		Package:    filePath,
+		ParentTest: filePath,
+		StartTime:  timestamp.Add(-duration),
+		EndTime:    timestamp,
+		Result:     result,
+		Duration:   duration,
+		Output:     make([]string, 0),
+		Subtests:   make([]*gotest.TestInfo, 0),
+	}
+	test.SpanID = gotest.GenerateTestSpanID()
+
+	p.lastFileSummary.Subtests = append(p.lastFileSummary.Subtests, test)
+
+	p.logger.Debug("Parsed vitest slow test",
+		zap.String("test", fullName),
+		zap.String("result", string(result)),
+		zap.Duration("duration", duration),
+	)
 }
 
 // addTest creates a TestInfo for a completed Vitest test line.

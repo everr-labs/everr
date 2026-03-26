@@ -460,3 +460,274 @@ func TestConnectorMissingResourceAttributes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, tracesSink.SpanCount(), "should not produce spans when resource attributes are missing")
 }
+
+func TestConnectorMixedRustAndVitestVerbose(t *testing.T) {
+	// When both Rust and Vitest verbose output appear in the same step,
+	// the parser with more tests should win.
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			// Rust test output (2 tests)
+			"Running unittests src/lib.rs (target/debug/deps/my_crate-abc123)",
+			"running 2 tests",
+			"test utils::tests::parses_config ... ok <0.010s>",
+			"test utils::tests::handles_empty ... ok <0.005s>",
+			// Vitest verbose output (3 tests) — should win
+			" ✓ src/app.test.ts > App > renders title 5ms",
+			" ✓ src/app.test.ts > App > handles click 3ms",
+			" × src/app.test.ts > App > shows error 2ms",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"test-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	traces := tracesSink.AllTraces()
+	require.Len(t, traces, 1)
+
+	// Vitest has 3 leaf tests + 1 describe block = 4 spans; Rust has 2 leaf + 1 module = 3 spans.
+	// Vitest wins because vitestCtx.TestCount() > rustCtx.TestCount().
+	scopeSpans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0)
+	assert.Equal(t, "vitest", scopeSpans.Scope().Name(), "Vitest should win when it has more tests")
+
+	// Verify framework attribute
+	spans := scopeSpans.Spans()
+	for i := 0; i < spans.Len(); i++ {
+		fw, ok := spans.At(i).Attributes().Get(semconv.EverrTestFramework)
+		require.True(t, ok)
+		assert.Equal(t, "vitest", fw.Str(), "all spans should be attributed to vitest")
+	}
+}
+
+func TestConnectorMixedRustAndVitestDefaultReporter(t *testing.T) {
+	// When Rust output and Vitest default reporter output appear in the same step,
+	// the parser with more tests should win. Vitest default reporter lines must not
+	// be misattributed to Rust.
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			// Vitest default reporter (1 file summary + 2 slow tests = 3 spans)
+			" ✓ src/utils.test.ts (5 tests) 120ms",
+			"    ✓ parses input correctly  2097ms",
+			"    × validates schema  1500ms",
+			// Rust test output (1 test = 1 span)
+			"Running unittests src/lib.rs (target/debug/deps/my_crate-abc123)",
+			"test config::parse ... ok <0.010s>",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"test-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	traces := tracesSink.AllTraces()
+	require.Len(t, traces, 1)
+
+	// Vitest: 1 file summary + 2 slow tests = 3 spans. Rust: 1 test = 1 span.
+	// Vitest wins.
+	scopeSpans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0)
+	assert.Equal(t, "vitest", scopeSpans.Scope().Name(), "Vitest should win with more tests")
+}
+
+func TestConnectorRustWinsOverVitestDefaultReporter(t *testing.T) {
+	// When Rust has more tests than Vitest default reporter, Rust should win.
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			// Vitest default reporter (1 file summary only)
+			" ✓ src/utils.test.ts (5 tests) 120ms",
+			// Rust test output (3 tests)
+			"Running unittests src/lib.rs (target/debug/deps/my_crate-abc123)",
+			"test config::parse ... ok <0.010s>",
+			"test config::validate ... ok <0.020s>",
+			"test config::serialize ... FAILED <0.030s>",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"test-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	traces := tracesSink.AllTraces()
+	require.Len(t, traces, 1)
+
+	// Rust: 3 leaf tests + 1 module node = 4 spans. Vitest: 1 file summary = 1 span.
+	// Rust wins.
+	scopeSpans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0)
+	assert.Equal(t, "rusttest", scopeSpans.Scope().Name(), "Rust should win with more tests")
+}
+
+func TestConnectorMixedGoAndVitestDefaultReporter(t *testing.T) {
+	// Go test output mixed with Vitest default reporter. Go should win when it has more tests.
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			// Go test output (3 tests)
+			"=== RUN   TestFoo",
+			"--- PASS: TestFoo (0.100s)",
+			"=== RUN   TestBar",
+			"--- PASS: TestBar (0.200s)",
+			"=== RUN   TestBaz",
+			"--- FAIL: TestBaz (0.300s)",
+			// Vitest default reporter (1 file summary)
+			" ✓ src/utils.test.ts (5 tests) 120ms",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"test-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	traces := tracesSink.AllTraces()
+	require.Len(t, traces, 1)
+
+	// Go has 3 tests, Vitest has 1 file summary. Go wins (goCtx >= vitestCtx && goCtx >= rustCtx).
+	spans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	fw, ok := spans.At(0).Attributes().Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "go", fw.Str(), "Go should win with more tests")
+}
+
+func TestConnectorVitestDefaultReporterNoFalsePositivesFromBuildOutput(t *testing.T) {
+	// Non-test output that contains checkmarks or similar characters should not
+	// produce false positives in the Vitest parser.
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			// Common build output that should NOT match any parser
+			"✓ Compiled successfully in 1200ms",
+			"✓ Build complete",
+			"✓ Linting passed",
+			"× ESLint found 2 errors",
+			"✓ Dependencies installed 500ms",
+			"✓ TypeScript check passed 3200ms",
+			"Downloading artifact build-output 42ms",
+			"Step completed with status: success",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"build-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, tracesSink.SpanCount(), "build output with checkmarks should not produce test spans")
+}
+
+func TestConnectorVitestDefaultReporterNotConfusedByRustOutput(t *testing.T) {
+	// Rust test lines must not be parsed as Vitest slow tests.
+	// Rust format: "test name ... ok <0.010s>" — contains no checkmarks and uses "..." separator.
+	// This verifies the Vitest slow test pattern doesn't match Rust output.
+	tracesSink := &consumertest.TracesSink{}
+	set := connectortest.NewNopSettings(metadata.Type)
+
+	c, err := newConnector(set, &Config{}, tracesSink)
+	require.NoError(t, err)
+
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	logs := buildTestLogs(
+		[]string{
+			// Only Rust output — Vitest parser should detect 0 tests
+			"Running unittests src/lib.rs (target/debug/deps/my_crate-abc123)",
+			"running 3 tests",
+			"test utils::parse ... ok <0.010s>",
+			"test utils::validate ... ok <0.020s>",
+			"test utils::serialize ... FAILED <0.030s>",
+		},
+		map[string]any{
+			string(conventions.CICDPipelineRunIDKey): int64(123),
+			semconv.EverrGitHubWorkflowRunRunAttempt: int64(1),
+		},
+		"test-job",
+		1,
+		traceID,
+		spanID,
+	)
+
+	err = c.ConsumeLogs(context.Background(), logs)
+	require.NoError(t, err)
+
+	traces := tracesSink.AllTraces()
+	require.Len(t, traces, 1)
+
+	// Must be attributed to Rust, not Vitest
+	scopeSpans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0)
+	assert.Equal(t, "rusttest", scopeSpans.Scope().Name(), "Rust output should be attributed to Rust parser")
+}
