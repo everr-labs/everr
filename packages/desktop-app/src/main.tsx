@@ -9,9 +9,6 @@ import "@/styles/desktop-app.css";
 const queryClient = createQueryClient();
 document.title = APP_DISPLAY_NAME;
 
-document.documentElement.classList.add("dark");
-document.documentElement.style.backgroundColor = "#0a0a0a";
-
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
