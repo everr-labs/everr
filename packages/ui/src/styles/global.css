@@ -7,20 +7,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-body {
-  @apply m-0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
-    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family:
-    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
-}
-
 @theme inline {
   --font-sans: "Inter Variable", sans-serif;
   --font-heading: "Space Grotesk Variable", sans-serif;
@@ -144,8 +130,10 @@ code {
   body {
     @apply font-sans bg-background text-foreground;
   }
-  html {
-    @apply font-sans;
+
+  code {
+    font-family:
+      source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
 }
 

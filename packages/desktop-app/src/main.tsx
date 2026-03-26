@@ -5,7 +5,6 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { APP_DISPLAY_NAME } from "./lib/app-name";
 import { createQueryClient } from "./lib/query-client";
-import "@everr/ui/styles/global.css";
 import "./styles.css";
 
 const queryClient = createQueryClient();

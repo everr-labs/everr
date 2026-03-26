@@ -1,19 +1,13 @@
+@import "@everr/ui/src/styles/global.css";
 @import "@radix-ui/themes/styles.css";
 
 @custom-variant dark (&:is(.dark *));
 
-body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
-    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: transparent;
-}
-
-code {
-  font-family:
-    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+@layer base {
+  body {
+    /* This is necessary to ensure the notifications window background is transparent */
+    background: transparent;
+  }
 }
 
 @theme inline {
@@ -24,16 +18,6 @@ code {
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
-  --animate-highlight-fade: highlight-fade 1.5s ease-out forwards;
-
-  @keyframes highlight-fade {
-    0% {
-      background-color: oklch(0.85 0.15 85 / 0.4);
-    }
-    100% {
-      background-color: transparent;
-    }
-  }
 }
 
 @keyframes notification-progress-shrink {
@@ -46,9 +30,7 @@ code {
 }
 
 .notification-progress {
-  background: var(--primary);
   animation: notification-progress-shrink 120s linear forwards;
-  transform-origin: left;
 }
 
 .notification-progress[data-paused] {

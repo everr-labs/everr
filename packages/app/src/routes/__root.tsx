@@ -1,4 +1,3 @@
-import rootCss from "@everr/ui/styles/global.css?url";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -33,10 +32,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: rootCss,
-      },
       {
         rel: "stylesheet",
         href: appCss,

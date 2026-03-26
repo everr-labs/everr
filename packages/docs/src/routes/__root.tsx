@@ -1,3 +1,4 @@
+import rootCss from "@everr/ui/styles/global.css?url";
 import {
   createRootRoute,
   HeadContent,
@@ -26,6 +27,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "icon", href: "/favicon.ico" },
+      { rel: "stylesheet", href: rootCss },
       { rel: "stylesheet", href: appCss },
     ],
   }),

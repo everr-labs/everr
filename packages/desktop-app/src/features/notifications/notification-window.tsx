@@ -284,7 +284,7 @@ export function NotificationCard({
       : "Auto-fix prompt";
 
   return (
-    <main className="h-screen bg-transparent pt-3 pl-3">
+    <main className="h-screen pt-3 pl-3">
       {/** biome-ignore lint/a11y/noStaticElementInteractions: we need to track mouse enter and leave events */}
       <section
         className="notificationCard group relative flex h-full flex-col bg-card"
@@ -377,7 +377,7 @@ export function NotificationCard({
         <div className="h-[3px] w-full shrink-0 bg-muted">
           <div
             key={notification.dedupeKey}
-            className="notification-progress h-full"
+            className="notification-progress h-full bg-primary origin-left"
             style={{ animationDuration: `${AUTO_DISMISS_MS}ms` }}
             data-paused={hovered || undefined}
           />
