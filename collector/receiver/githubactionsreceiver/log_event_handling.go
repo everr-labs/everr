@@ -291,7 +291,7 @@ func listSanitizedJobNames(ctx context.Context, ghClient *github.Client, e *gith
 
 		for _, job := range jobsResp.Jobs {
 			name := job.GetName()
-			if strings.Contains(name, "/") {
+			if strings.Contains(name, "/") || strings.Contains(name, "_") {
 				originals = append(originals, name)
 			}
 		}
