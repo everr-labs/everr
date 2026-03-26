@@ -1,10 +1,15 @@
 import { isValid, resolve } from "@everr/datemath";
 import { z } from "zod";
 
-export const TimeRangeSchema = z.object({ from: z.string(), to: z.string() });
-export type TimeRange = z.infer<typeof TimeRangeSchema>;
+const datemath = z.string().refine(isValid);
 
-export const DEFAULT_TIME_RANGE: TimeRange = { from: "now-7d", to: "now" };
+export const DEFAULT_TIME_RANGE = { from: "now-7d", to: "now" } as const;
+
+export const TimeRangeSchema = z.object({
+  from: datemath.catch(DEFAULT_TIME_RANGE.from),
+  to: datemath.catch(DEFAULT_TIME_RANGE.to),
+});
+export type TimeRange = z.infer<typeof TimeRangeSchema>;
 
 export function toClickHouseDateTime(date: Date) {
   return date.toISOString().replace("T", " ").replace("Z", "");
@@ -44,8 +49,10 @@ export const TimeRangeSearchSchema = z.object({
 });
 
 export const ResolvedTimeRangeSearchSchema = z.object({
-  from: z.string().default(DEFAULT_TIME_RANGE.from),
-  to: z.string().default(DEFAULT_TIME_RANGE.to),
+  from: datemath
+    .catch(DEFAULT_TIME_RANGE.from)
+    .default(DEFAULT_TIME_RANGE.from),
+  to: datemath.catch(DEFAULT_TIME_RANGE.to).default(DEFAULT_TIME_RANGE.to),
   refresh: z.string().default(""),
 });
 
@@ -55,18 +62,6 @@ export function withTimeRange<T extends { from?: string; to?: string }>(
   const from = search.from ?? DEFAULT_TIME_RANGE.from;
   const to = search.to ?? DEFAULT_TIME_RANGE.to;
   return { ...search, from, to, timeRange: { from, to } };
-}
-
-export function validateTimeRange(range: TimeRange): TimeRange {
-  if (!isValid(range.from) || !isValid(range.to)) {
-    return DEFAULT_TIME_RANGE;
-  }
-  const fromDate = resolve(range.from, { roundUp: false });
-  const toDate = resolve(range.to, { roundUp: true });
-  if (fromDate >= toDate) {
-    return DEFAULT_TIME_RANGE;
-  }
-  return range;
 }
 
 export interface QuickRange {
