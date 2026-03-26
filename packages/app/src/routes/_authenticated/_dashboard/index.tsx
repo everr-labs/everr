@@ -1,3 +1,6 @@
+import { Badge } from "@everr/ui/components/badge";
+import { Sparkline } from "@everr/ui/components/sparkline";
+import { SiGithub } from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -5,15 +8,12 @@ import {
   Clock,
   DollarSign,
   GitBranch,
-  Github,
   Hash,
   TrendingUp,
 } from "lucide-react";
 import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
+import { Panel } from "@/components/panel";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
-import { Badge } from "@/components/ui/badge";
-import { Panel } from "@/components/ui/panel";
-import { Sparkline } from "@/components/ui/sparkline";
 import {
   durationTrendsOptions,
   successRateTrendsOptions,
@@ -333,7 +333,7 @@ function DashboardPage() {
                       </span>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Badge variant="outline">
-                          <Github data-icon="inline-start" />
+                          <SiGithub data-icon="inline-start" />
                           {run.repo}
                         </Badge>
                         <Badge variant="outline">

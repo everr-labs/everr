@@ -1,9 +1,14 @@
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@everr/ui/components/card";
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   runFilterOptionsOptions,
   runsListOptions,
@@ -128,7 +133,6 @@ function RunsListSkeleton() {
       </div>
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton items
           <Skeleton key={i} className="h-9 w-[160px]" />
         ))}
       </div>

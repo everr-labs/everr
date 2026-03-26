@@ -50,7 +50,7 @@ export const stepLogsOptions = (input: {
       input.jobName,
       input.stepNumber,
     ],
-    queryFn: () => getStepLogs({ data: { ...input, fullLogs: true } }),
+    queryFn: () => getStepLogs({ data: input }),
   });
 
 export const runSpansOptions = (traceId: string) =>

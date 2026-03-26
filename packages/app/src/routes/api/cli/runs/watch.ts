@@ -5,11 +5,11 @@ import { commitChannel } from "@/db/notify";
 import { createSubscription } from "@/db/subscribe";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 import { createSSEStream } from "@/lib/sse";
-import { WatchMachine } from "./watch-machine";
+import { WatchMachine } from "./-watch-machine";
 
 const WatchQuerySchema = z.object({
   repo: z.string().min(1),
-  branch: z.string().min(1),
+  branch: z.string().min(1).optional(),
   commit: z.string().min(1),
 });
 
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           return Response.json(
             {
               error:
-                "Invalid query parameters for watch. Required: repo, branch, commit.",
+                "Invalid query parameters for watch. Required: repo, commit. Optional: branch.",
             },
             { status: 400 },
           );
@@ -39,36 +39,36 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
 
         const filters = parsed.data;
         const sse = createSSEStream(request);
-
-        const initial = await getWatchStatus({
-          tenantId: context.session.tenantId,
-          ...filters,
-        }).catch((error) => {
-          sse.close();
-          throw error;
-        });
-
-        sse.sendEvent(initial);
-
-        if (initial.state === "completed") {
-          sse.close();
-          return sse.response();
-        }
-
         const channel = commitChannel(context.session.tenantId, filters.commit);
 
+        const fetchStatus = () =>
+          getWatchStatus({
+            tenantId: context.session.tenantId,
+            ...filters,
+          });
+
+        // Subscribe BEFORE the initial fetch so no NOTIFY is missed
+        // between the read and the LISTEN.
         const machine = new WatchMachine({
-          fetchStatus: () =>
-            getWatchStatus({
-              tenantId: context.session.tenantId,
-              ...filters,
-            }),
+          fetchStatus,
           sendEvent: (data) => sse.sendEvent(data),
           subscribe: (onNotify, onError) =>
             createSubscription(channel, onNotify, onError),
           close: () => sse.close(),
         });
         machine.start();
+
+        const initial = await fetchStatus().catch((error) => {
+          machine.dispose();
+          throw error;
+        });
+
+        sse.sendEvent(initial);
+
+        if (initial.state === "completed") {
+          machine.dispose();
+          return sse.response();
+        }
 
         request.signal.addEventListener("abort", () => machine.dispose());
 

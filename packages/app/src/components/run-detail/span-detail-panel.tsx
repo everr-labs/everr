@@ -1,8 +1,8 @@
+import { buttonVariants } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Copy, ExternalLink, GitBranch } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
 import { formatDuration } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 import type { SpanNode } from "./trace-waterfall-utils";
 import { stringToColor } from "./trace-waterfall-utils";
 

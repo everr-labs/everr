@@ -86,6 +86,7 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
       state: "running",
       active: [
         {
+          traceId: "trace-42",
           runId: "42",
           workflowName: "CI",
           conclusion: null,
@@ -129,12 +130,16 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
     expect(channel).toBe("commit_42_abc123def456abc123def456abc123def456abc1");
   });
 
-  it("does not open subscription when initial state is already completed", async () => {
+  it("disposes subscription when initial state is already completed", async () => {
+    const unsubscribe = vi.fn();
+    mockedCreateSubscription.mockReturnValue(unsubscribe);
+
     mockedGetWatchStatus.mockResolvedValue({
       state: "completed",
       active: [],
       completed: [
         {
+          traceId: "trace-88",
           runId: "88",
           workflowName: "CI",
           conclusion: "success",
@@ -155,10 +160,11 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(mockedCreateSubscription).not.toHaveBeenCalled();
+    expect(mockedCreateSubscription).toHaveBeenCalledOnce();
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
-  it("requires repo, branch, and commit", async () => {
+  it("requires repo and commit", async () => {
     const response = await getHandler()({
       request: new Request(
         "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr",
@@ -173,8 +179,37 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error:
-        "Invalid query parameters for watch. Required: repo, branch, commit.",
+        "Invalid query parameters for watch. Required: repo, commit. Optional: branch.",
     });
     expect(mockedGetWatchStatus).not.toHaveBeenCalled();
+  });
+
+  it("works without branch when commit is provided", async () => {
+    mockedGetWatchStatus.mockResolvedValue({
+      state: "running",
+      active: [
+        {
+          traceId: "trace-42",
+          runId: "42",
+          workflowName: "CI",
+          conclusion: null,
+          startedAt: "2026-03-06T10:00:00.000Z",
+          durationSeconds: null,
+          expectedDurationSeconds: 60,
+          activeJobs: ["test"],
+        },
+      ],
+      completed: [],
+    });
+
+    const response = await getHandler()({
+      request: new Request(
+        "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&commit=abc123def456abc123def456abc123def456abc1",
+      ),
+      context: { session: { tenantId: 42 } },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockedGetWatchStatus).toHaveBeenCalledOnce();
   });
 });

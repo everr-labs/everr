@@ -1,9 +1,9 @@
-import { Separator } from "../../components/ui/separator";
-import { Toaster } from "../../components/ui/sonner";
-import { APP_DISPLAY_NAME } from "../../lib/app-name";
-import { toErrorMessageText } from "../../lib/tauri";
-import { AccountHeaderAction, AuthSettingsSection } from "../auth/auth";
+import { Separator } from "@everr/ui/components/separator";
+import { Toaster } from "@everr/ui/components/sonner";
+import { APP_DISPLAY_NAME } from "@/lib/app-name";
+import { toErrorMessageText } from "@/lib/tauri";
 import { AssistantsSection } from "../assistants/assistants";
+import { AccountHeaderAction, AuthSettingsSection } from "../auth/auth";
 import { DeveloperNotificationSection } from "../notifications/notification-window";
 import {
   SetupWizard,
@@ -19,7 +19,9 @@ export function DesktopWindow() {
   }
 
   if (wizardStatusQuery.isError) {
-    return <DesktopLoadingState text={toErrorMessageText(wizardStatusQuery.error)} />;
+    return (
+      <DesktopLoadingState text={toErrorMessageText(wizardStatusQuery.error)} />
+    );
   }
 
   const wizardStatus = wizardStatusQuery.data;

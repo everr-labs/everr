@@ -1,7 +1,3 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useAccessToken } from "@workos/authkit-tanstack-react-start/client";
-import { UserProfile, UserSecurity } from "@workos-inc/widgets";
-import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,16 +8,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
+} from "@everr/ui/components/alert-dialog";
+import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+} from "@everr/ui/components/card";
+import { Input } from "@everr/ui/components/input";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useAccessToken } from "@workos/authkit-tanstack-react-start/client";
+import { UserProfile, UserSecurity } from "@workos-inc/widgets";
+import { useState } from "react";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/account")({

@@ -5,15 +5,7 @@ import { normalizeTimestampToUtc } from "@/lib/formatting";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { runSummarySubquery } from "../run-query-helpers";
-import {
-  buildFailingStepLogsSql,
-  DEFAULT_RAW_TAIL_LINES,
-  type Job,
-  type LogEntry,
-  type Run,
-  type Span,
-  type Step,
-} from "./schemas";
+import type { Job, LogEntry, Run, Span, Step } from "./schemas";
 
 const DEFAULT_LOG_PAGE_SIZE = 1000;
 const MAX_LOG_PAGE_SIZE = 5000;
@@ -74,51 +66,6 @@ async function getRawStepLogs(
   const logs = result.map(mapLogRow);
 
   return params.useTail ? logs.reverse() : logs;
-}
-
-async function isFailedPipelineStep(
-  context: AuthContext,
-  params: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
-  },
-): Promise<boolean> {
-  const clickhouse = context.clickhouse;
-  const sql = `
-		SELECT 1 as hit
-		FROM traces
-		WHERE TraceId = {traceId:String}
-			AND ResourceAttributes['cicd.pipeline.task.name'] = {jobName:String}
-			AND SpanAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
-			AND (
-				lowerUTF8(StatusMessage) IN ('failure', 'failed')
-				OR lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
-				OR lowerUTF8(ResourceAttributes['cicd.pipeline.result']) IN ('failure', 'failed')
-			)
-		LIMIT 1
-	`;
-
-  const result = await clickhouse.query<{ hit: string }>(sql, params);
-  return result.length > 0;
-}
-
-async function getStepLogsFailing(
-  context: AuthContext,
-  params: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
-  },
-): Promise<LogEntry[]> {
-  const clickhouse = context.clickhouse;
-  const sql = buildFailingStepLogsSql();
-  const result = await clickhouse.query<{
-    timestamp: string;
-    body: string;
-  }>(sql, params);
-
-  return result.map(mapLogRow);
 }
 
 export const getLatestRuns = createAuthenticatedServerFn({
@@ -358,46 +305,32 @@ export const getStepLogs = createAuthenticatedServerFn({
       traceId: z.string(),
       jobName: z.string(),
       stepNumber: z.string(),
-      fullLogs: z.boolean().optional(),
+      tail: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
       limit: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
       offset: z.number().int().min(0).optional(),
     }),
   )
   .handler(async ({ data, context }) => {
-    const isPaged = data.limit !== undefined || data.offset !== undefined;
-    if (isPaged) {
+    if (
+      data.tail !== undefined ||
+      (data.limit === undefined && data.offset === undefined)
+    ) {
       return getRawStepLogs(context, {
         traceId: data.traceId,
         jobName: data.jobName,
         stepNumber: data.stepNumber,
-        maxLines: data.limit ?? DEFAULT_LOG_PAGE_SIZE,
-        offsetLines: data.offset ?? 0,
+        maxLines: data.tail ?? DEFAULT_LOG_PAGE_SIZE,
+        offsetLines: data.offset,
+        useTail: true,
       });
-    }
-
-    if (data.fullLogs) {
-      return getRawStepLogs(context, data);
-    }
-
-    const isFailedStep = await isFailedPipelineStep(context, data);
-    if (isFailedStep) {
-      const failingLogs = await getStepLogsFailing(context, {
-        traceId: data.traceId,
-        jobName: data.jobName,
-        stepNumber: data.stepNumber,
-      });
-
-      if (failingLogs.length > 0) {
-        return failingLogs;
-      }
     }
 
     return getRawStepLogs(context, {
       traceId: data.traceId,
       jobName: data.jobName,
       stepNumber: data.stepNumber,
-      maxLines: DEFAULT_RAW_TAIL_LINES,
-      useTail: true,
+      maxLines: data.limit ?? DEFAULT_LOG_PAGE_SIZE,
+      offsetLines: data.offset ?? 0,
     });
   });
 

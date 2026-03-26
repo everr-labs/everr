@@ -1,5 +1,5 @@
-import { type EventName, type UnlistenFn } from "@tauri-apps/api/event";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import type { EventName, UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent } from "react";
 import { safeGetCurrentWindow } from "./tauri";
 

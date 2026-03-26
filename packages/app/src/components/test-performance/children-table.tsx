@@ -1,3 +1,5 @@
+import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
   ChevronDown,
@@ -7,10 +9,8 @@ import {
   Package,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { type Column, DataTable } from "@/components/ui/data-table";
 import type { TestPerfChild } from "@/data/test-performance/children";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
-import { cn } from "@/lib/utils";
 import {
   getTestPerfHierarchyKind,
   getTestPerfHierarchyKindLabel,

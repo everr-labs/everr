@@ -1,4 +1,7 @@
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@everr/ui/components/toggle-group";
 import type { TreemapSizeMetric } from "./treemap";
 
 export function getTreemapMetricLabel(metric: TreemapSizeMetric): string {

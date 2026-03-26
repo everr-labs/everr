@@ -17,6 +17,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
+      "@everr/ui/*": ["../ui/src/*"],
       "fumadocs-mdx:collections/*": [".source/*"]
     },
     "noEmit": true

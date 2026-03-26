@@ -1,16 +1,16 @@
-import { useIsFetching } from "@tanstack/react-query";
-import { ChevronDownIcon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@everr/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@everr/ui/components/dropdown-menu";
+import { cn } from "@everr/ui/lib/utils";
+import { useIsFetching } from "@tanstack/react-query";
+import { ChevronDownIcon, RefreshCwIcon } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { REFRESH_INTERVALS } from "@/lib/time-range";
-import { cn } from "@/lib/utils";
 
 export function RefreshPicker() {
   const { refreshInterval, setRefreshInterval, refreshNow } = useAutoRefresh();

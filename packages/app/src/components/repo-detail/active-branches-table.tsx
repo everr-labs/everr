@@ -1,8 +1,8 @@
+import { Badge } from "@everr/ui/components/badge";
+import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { Link } from "@tanstack/react-router";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
-import { Badge } from "@/components/ui/badge";
-import { type Column, DataTable } from "@/components/ui/data-table";
-import { Empty, EmptyDescription } from "@/components/ui/empty";
 import type { ActiveBranch } from "@/data/repo-detail/schemas";
 import { formatRelativeTime, getSuccessRateVariant } from "@/lib/formatting";
 

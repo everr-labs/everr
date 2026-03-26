@@ -7,22 +7,14 @@ const StepLogsQuerySchema = z
   .object({
     jobName: z.string().min(1),
     stepNumber: z.string().min(1),
-    fullLogs: z
-      .string()
-      .transform((value) => value === "true" || value === "1")
-      .optional(),
+    tail: z.coerce.number().int().min(1).max(5000).optional(),
     limit: z.coerce.number().int().min(1).max(5000).optional(),
     offset: z.coerce.number().int().min(0).optional(),
   })
-  .refine(
-    (value) =>
-      value.fullLogs !== true ||
-      (value.limit === undefined && value.offset === undefined),
-    {
-      message: "Provide either fullLogs or limit/offset paging, not both.",
-      path: ["fullLogs"],
-    },
-  );
+  .refine((value) => value.tail === undefined || value.limit === undefined, {
+    message: "Provide either tail or limit, not both.",
+    path: ["tail"],
+  });
 
 export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
   server: {
@@ -41,7 +33,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
         const parsed = StepLogsQuerySchema.safeParse({
           jobName: url.searchParams.get("jobName") ?? undefined,
           stepNumber: url.searchParams.get("stepNumber") ?? undefined,
-          fullLogs: url.searchParams.get("fullLogs") ?? undefined,
+          tail: url.searchParams.get("tail") ?? undefined,
           limit: url.searchParams.get("limit") ?? undefined,
           offset: url.searchParams.get("offset") ?? undefined,
         });
@@ -50,7 +42,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: jobName, stepNumber. Optional: fullLogs=true|false, limit, offset.",
+                "Invalid query parameters. Required: jobName, stepNumber. Optional: tail, limit, offset.",
             },
             { status: 400 },
           );
@@ -61,7 +53,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
             traceId,
             jobName: parsed.data.jobName,
             stepNumber: parsed.data.stepNumber,
-            fullLogs: parsed.data.fullLogs,
+            tail: parsed.data.tail,
             limit: parsed.data.limit,
             offset: parsed.data.offset,
           },

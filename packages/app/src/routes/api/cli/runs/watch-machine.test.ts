@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WatchResponse } from "@/data/watch";
-import { WatchMachine } from "./watch-machine";
+import { WatchMachine } from "./-watch-machine";
 
 const THROTTLE_MS = 300;
 
@@ -47,11 +47,12 @@ describe("subscription lifecycle", () => {
     expect(opts.fetchStatus).not.toHaveBeenCalled();
   });
 
-  it("unsubscribes on dispose()", () => {
-    const { machine, unsubscribe } = createMachine();
+  it("unsubscribes and closes on dispose()", () => {
+    const { machine, opts, unsubscribe } = createMachine();
     machine.start();
     machine.dispose();
     expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(opts.close).toHaveBeenCalledOnce();
   });
 
   it("is safe to call dispose() from idle", () => {
@@ -260,5 +261,6 @@ describe("dispose edge cases", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(opts.sendEvent).not.toHaveBeenCalled();
+    expect(opts.close).toHaveBeenCalledOnce();
   });
 });

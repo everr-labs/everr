@@ -1,17 +1,17 @@
-import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+} from "@everr/ui/components/chart";
 import {
   ChartEmptyState,
   chartTooltipLabelFormatter,
   createChartTooltipFormatter,
   createLegendFormatter,
   formatChartDate,
-} from "@/components/ui/chart-helpers";
+} from "@everr/ui/components/chart-helpers";
+import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import type { RepoDurationPoint } from "@/data/repo-detail/schemas";
 import { formatDurationCompact } from "@/lib/formatting";
 

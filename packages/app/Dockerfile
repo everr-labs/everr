@@ -13,9 +13,9 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # Stage 2: build
 FROM deps AS build
 COPY packages/datemath ./packages/datemath
+COPY packages/ui ./packages/ui
 COPY packages/app ./packages/app
-RUN pnpm --filter @everr/datemath build && \
-    pnpm --filter @everr/app build
+RUN pnpm --filter @everr/app build
 
 # Stage 3: production
 FROM node:24.4-alpine3.22 AS runner

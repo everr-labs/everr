@@ -119,6 +119,99 @@ func TestParseVerboseOutput(t *testing.T) {
 			expectedTests: 0,
 		},
 		{
+			name: "default reporter file summary pass",
+			lines: []string{
+				"✓  my-app  src/tests/permissions.test.ts (106 tests | 3 skipped) 1090ms",
+			},
+			expectedTests:  1,
+			expectedPassed: 1,
+		},
+		{
+			name: "default reporter file summary with project containing parens",
+			lines: []string{
+				"✓  e2e-tests (chrome)  src/createImage.test.ts (2 tests) 164ms",
+			},
+			expectedTests:  1,
+			expectedPassed: 1,
+		},
+		{
+			name: "default reporter file summary fail",
+			lines: []string{
+				"×  my-app  src/tests/sync.test.ts (33 tests | 2 failed) 5027ms",
+			},
+			expectedTests:  1,
+			expectedFailed: 1,
+		},
+		{
+			name: "default reporter type-check file summary (no duration)",
+			lines: []string{
+				"✓  my-lib   TS  src/tools/tests/coMap.test-d.ts (33 tests)",
+			},
+			expectedTests:  1,
+			expectedPassed: 1,
+		},
+		{
+			name: "default reporter single test file",
+			lines: []string{
+				"✓  web-server  tests/integration.test.ts (1 test) 3721ms",
+			},
+			expectedTests:  1,
+			expectedPassed: 1,
+		},
+		{
+			name: "default reporter file summary with ANSI codes",
+			lines: []string{
+				" \x1b[32m✓\x1b[39m \x1b[30m\x1b[42m my-app \x1b[49m\x1b[39m src/tests/permissions.test.ts \x1b[2m(\x1b[22m\x1b[2m106 tests\x1b[22m\x1b[2m)\x1b[22m\x1b[32m 1090\x1b[2mms\x1b[22m\x1b[39m",
+			},
+			expectedTests:  1,
+			expectedPassed: 1,
+		},
+		{
+			name: "default reporter does not match non-test checkmarks",
+			lines: []string{
+				"✓ Starting...",
+				"✓ built in 848ms",
+				"✓ 42 modules transformed.",
+			},
+			expectedTests: 0,
+		},
+		{
+			name: "default reporter file summary with slow tests",
+			lines: []string{
+				"✓  web-server  tests/integration.test.ts (2 tests) 3721ms",
+				"    ✓ server responds with hello world  2097ms",
+				"    ✓ WASM crypto works  1623ms",
+			},
+			expectedTests:  3, // 1 file suite + 2 slow tests
+			expectedPassed: 3,
+		},
+		{
+			name: "default reporter slow test without file context is ignored",
+			lines: []string{
+				"    ✓ some orphan test  500ms",
+			},
+			expectedTests: 0,
+		},
+		{
+			name: "default reporter multiple files with slow tests",
+			lines: []string{
+				"✓  my-app  src/tests/sync.test.ts (33 tests) 5027ms",
+				"    ✓ Node handles disconnection  307ms",
+				"✓  my-app  src/tests/permissions.test.ts (106 tests) 1090ms",
+			},
+			expectedTests:  3, // 2 file suites + 1 slow test
+			expectedPassed: 3,
+		},
+		{
+			name: "default reporter slow test fail",
+			lines: []string{
+				"×  my-app  src/tests/sync.test.ts (33 tests | 1 failed) 5027ms",
+				"    × Node handles disconnection  307ms",
+			},
+			expectedTests:  2,
+			expectedFailed: 2,
+		},
+		{
 			name: "mixed results",
 			lines: []string{
 				" ✓ src/test.ts > group > passes 1ms",
@@ -564,6 +657,115 @@ func TestParseVerboseOutputWithWorkspacePrefix(t *testing.T) {
 			assert.Equal(t, tt.expectedSkipped, skipped, "skipped count mismatch")
 		})
 	}
+}
+
+func TestSpanGenerationDefaultReporter(t *testing.T) {
+	logger := zap.NewNop()
+	traceID := pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	stepSpanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+	ctx := gotest.NewParseContext(123, 1, "test-job", 1, traceID, stepSpanID)
+	parser := NewParser(ctx, logger)
+
+	lines := []string{
+		"✓  web-server  tests/integration.test.ts (2 tests) 3721ms",
+		"    ✓ server responds with hello world  2097ms",
+		"    ✓ WASM crypto works  1623ms",
+	}
+
+	baseTime := time.Now()
+	for i, line := range lines {
+		parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+	}
+	parser.Finalize()
+
+	resourceAttrs := pcommon.NewMap()
+	traces := GenerateSpans(ctx, resourceAttrs)
+	require.NotNil(t, traces)
+	assert.Equal(t, 3, traces.SpanCount()) // 1 file suite + 2 slow tests
+
+	resourceSpans := traces.ResourceSpans()
+	require.Equal(t, 1, resourceSpans.Len())
+
+	traceResourceAttrs := resourceSpans.At(0).Resource().Attributes()
+	resourceFramework, ok := traceResourceAttrs.Get(semconv.EverrTestFramework)
+	require.True(t, ok)
+	assert.Equal(t, "vitest", resourceFramework.Str())
+
+	spans := resourceSpans.At(0).ScopeSpans().At(0).Spans()
+	spanMap := make(map[string]ptrace.Span)
+	for i := 0; i < spans.Len(); i++ {
+		span := spans.At(i)
+		spanMap[span.Name()] = span
+	}
+
+	// File suite span
+	fileSuiteSpan, ok := spanMap["tests/integration.test.ts"]
+	require.True(t, ok, "file suite span not found, got: %v", spanNames(spans))
+	assert.Equal(t, stepSpanID, fileSuiteSpan.ParentSpanID())
+
+	isSuite, ok := fileSuiteSpan.Attributes().Get(semconv.EverrTestIsSuite)
+	require.True(t, ok)
+	assert.True(t, isSuite.Bool())
+
+	pkg, ok := fileSuiteSpan.Attributes().Get(semconv.EverrTestPackage)
+	require.True(t, ok)
+	assert.Equal(t, "tests/integration.test.ts", pkg.Str())
+
+	// Slow test spans are children of the file suite
+	slowSpan1, ok := spanMap["server responds with hello world"]
+	require.True(t, ok, "slow test span not found")
+	assert.Equal(t, fileSuiteSpan.SpanID(), slowSpan1.ParentSpanID())
+
+	isSubtest, ok := slowSpan1.Attributes().Get(semconv.EverrTestIsSubtest)
+	require.True(t, ok)
+	assert.True(t, isSubtest.Bool())
+
+	slowSpan2, ok := spanMap["WASM crypto works"]
+	require.True(t, ok, "slow test span not found")
+	assert.Equal(t, fileSuiteSpan.SpanID(), slowSpan2.ParentSpanID())
+}
+
+func TestDefaultReporterSlowTestHierarchy(t *testing.T) {
+	logger := zap.NewNop()
+	ctx := gotest.NewParseContext(123, 1, "test-job", 1, pcommon.TraceID{}, pcommon.SpanID{})
+	parser := NewParser(ctx, logger)
+
+	lines := []string{
+		"✓  web-server  tests/integration.test.ts (2 tests) 3721ms",
+		"    ✓ server responds with hello world  2097ms",
+		"    ✓ WASM crypto works  1623ms",
+	}
+
+	baseTime := time.Now()
+	for i, line := range lines {
+		parser.ProcessLine(line, baseTime.Add(time.Duration(i)*time.Millisecond))
+	}
+	parser.Finalize()
+
+	// Should have 1 root test (file suite)
+	require.Len(t, ctx.RootTests, 1)
+	fileSuite := ctx.RootTests[0]
+	assert.Equal(t, "tests/integration.test.ts", fileSuite.Name)
+	assert.Equal(t, "tests/integration.test.ts", fileSuite.Package)
+	assert.True(t, fileSuite.IsSuite())
+	assert.Equal(t, gotest.TestResultPass, fileSuite.Result)
+
+	// File suite should have 2 slow test children
+	require.Len(t, fileSuite.Subtests, 2)
+
+	child1 := fileSuite.Subtests[0]
+	assert.Equal(t, "tests/integration.test.ts > server responds with hello world", child1.Name)
+	assert.Equal(t, "tests/integration.test.ts", child1.Package)
+	assert.Equal(t, "tests/integration.test.ts", child1.ParentTest)
+	assert.True(t, child1.IsSubtest())
+	assert.Equal(t, gotest.TestResultPass, child1.Result)
+	assert.Equal(t, 2097*time.Millisecond, child1.Duration)
+
+	child2 := fileSuite.Subtests[1]
+	assert.Equal(t, "tests/integration.test.ts > WASM crypto works", child2.Name)
+	assert.Equal(t, "tests/integration.test.ts", child2.Package)
+	assert.Equal(t, gotest.TestResultPass, child2.Result)
 }
 
 func TestSplitTestName(t *testing.T) {

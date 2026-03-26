@@ -1,7 +1,7 @@
+import { Badge } from "@everr/ui/components/badge";
+import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
 import { useMemo } from "react";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
-import { Badge } from "@/components/ui/badge";
-import { ChartEmptyState } from "@/components/ui/chart-helpers";
 import type { TestPerfChild } from "@/data/test-performance/children";
 import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
 import {

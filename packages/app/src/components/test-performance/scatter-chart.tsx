@@ -1,3 +1,18 @@
+import { Button } from "@everr/ui/components/button";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartTooltip,
+} from "@everr/ui/components/chart";
+import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@everr/ui/components/drawer";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -9,21 +24,6 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { Button } from "@/components/ui/button";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartLegend,
-  ChartTooltip,
-} from "@/components/ui/chart";
-import { ChartEmptyState } from "@/components/ui/chart-helpers";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
 import type { ScatterPoint } from "@/data/test-performance/metrics";
 import { formatDurationCompact, formatRelativeTime } from "@/lib/formatting";
 

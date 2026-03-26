@@ -1,8 +1,8 @@
+import { Card, CardContent } from "@everr/ui/components/card";
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { TraceWaterfall } from "@/components/run-detail";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { flakyTestNamesOptions } from "@/data/flaky-tests/options";
 import { runDetailsOptions, runSpansOptions } from "@/data/runs/options";
 
@@ -62,7 +62,6 @@ function TraceViewSkeleton() {
     <Card size="sm">
       <CardContent className="space-y-2 p-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton
           <div key={i} className="flex items-center gap-2">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="h-6 flex-1" />

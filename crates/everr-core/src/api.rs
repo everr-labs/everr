@@ -106,6 +106,10 @@ impl ApiClient {
         self.get_json("/slowest-jobs", query).await
     }
 
+    pub async fn get_workflows_list(&self, query: &[(&str, String)]) -> Result<WorkflowsListResponse> {
+        self.get("/workflows-list", query).await
+    }
+
     pub async fn get_run_details(&self, trace_id: &str) -> Result<Value> {
         let path = format!("/runs/{trace_id}");
         self.get_json(&path, &[]).await
@@ -183,6 +187,7 @@ pub enum WatchState {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchRun {
+    pub trace_id: String,
     pub run_id: String,
     pub workflow_name: String,
     pub conclusion: Option<String>,
@@ -198,6 +203,17 @@ pub struct WatchResponse {
     pub state: WatchState,
     pub active: Vec<WatchRun>,
     pub completed: Vec<WatchRun>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct WorkflowsListResponse {
+    pub workflows: Vec<WorkflowWithJobs>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct WorkflowWithJobs {
+    pub name: String,
+    pub jobs: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

@@ -1,14 +1,14 @@
-import { WandSparkles } from "lucide-react";
-import { useId, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
+} from "@everr/ui/components/card";
+import { Textarea } from "@everr/ui/components/textarea";
+import { WandSparkles } from "lucide-react";
+import { useId, useState } from "react";
 import { createAccessToken } from "@/data/access-tokens";
 
 interface AccessTokenPanelProps {

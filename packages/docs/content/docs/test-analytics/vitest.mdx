@@ -3,11 +3,13 @@ title: Vitest
 description: Set up test analytics for Vitest projects.
 ---
 
-Everr parses verbose Vitest output to track individual test results, detect flaky tests, and analyze failures.
+Everr automatically parses Vitest output to track test results, detect flaky tests, and analyze failures.
 
-## Setup
+## Supported reporters
 
-Run Vitest with the `verbose` reporter so that individual test results are printed:
+### Verbose reporter (recommended)
+
+The verbose reporter prints every individual test result, giving Everr full per-test visibility:
 
 ```bash
 vitest run --reporter=verbose
@@ -23,18 +25,26 @@ export default defineConfig({
 });
 ```
 
-### GitHub Actions workflow example
+### Default reporter
+
+The default reporter (no extra configuration needed) is also supported. Everr parses:
+- **File-level summaries** for every test file (pass/fail status and duration)
+- **Individual slow tests** that Vitest prints below each file summary
+
+Since the default reporter only shows individual results for slow tests, the verbose reporter gives more granular per-test tracking.
+
+## GitHub Actions workflow example
 
 ```yaml
 - name: Run tests
   run: npx vitest run --reporter=verbose
 ```
 
-Everr automatically detects and parses Vitest verbose output from workflow logs.
+Everr automatically detects and parses Vitest output from workflow logs.
 
 ## What gets parsed
 
-The parser recognizes Vitest verbose reporter output patterns (after stripping ANSI color codes):
+### Verbose reporter patterns
 
 | Pattern | Meaning |
 |---------|---------|
@@ -42,9 +52,18 @@ The parser recognizes Vitest verbose reporter output patterns (after stripping A
 | `× filepath > describe > test 15ms` | Test failed |
 | `↓ filepath > describe > test` | Test skipped |
 
+### Default reporter patterns
+
+| Pattern | Meaning |
+|---------|---------|
+| `✓ project filepath (N tests) 42ms` | File passed |
+| `× project filepath (N tests \| M failed) 42ms` | File failed |
+| `    ✓ test name 42ms` | Slow test passed (child of file above) |
+| `    × test name 15ms` | Slow test failed (child of file above) |
+
 ## Describe block hierarchy
 
-Vitest uses the ` > ` separator to represent the test hierarchy: file path, describe blocks, and test name. For example:
+Vitest verbose output uses the ` > ` separator to represent the test hierarchy: file path, describe blocks, and test name. For example:
 
 ```
 ✓ src/utils.test.ts > parseConfig > handles empty input 3ms
@@ -66,6 +85,6 @@ Nested describe blocks are automatically detected. Describe nodes get `everr.tes
 | `everr.test.duration_seconds` | Duration from the test output |
 | `everr.test.framework` | `vitest` |
 | `everr.test.package` | File path (e.g. `src/utils.test.ts`) |
-| `everr.test.is_suite` | `true` for describe blocks that contain child tests |
-| `everr.test.is_subtest` | `true` for tests within describe blocks |
-| `everr.test.parent_test` | Parent describe block name |
+| `everr.test.is_suite` | `true` for describe blocks or file summaries that contain child tests |
+| `everr.test.is_subtest` | `true` for tests within describe blocks or file summaries |
+| `everr.test.parent_test` | Parent describe block or file name |

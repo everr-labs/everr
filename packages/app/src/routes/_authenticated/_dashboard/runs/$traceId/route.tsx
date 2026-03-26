@@ -1,3 +1,19 @@
+import { buttonVariants } from "@everr/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@everr/ui/components/card";
+import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@everr/ui/components/tabs";
+import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -8,23 +24,12 @@ import {
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { JobTreeNav, RunHeader } from "@/components/run-detail";
-import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   allJobsStepsOptions,
   runDetailsOptions,
   runJobsOptions,
 } from "@/data/runs/options";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/runs/$traceId",
@@ -192,7 +197,6 @@ function RunDetailSkeleton() {
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2 overflow-auto">
             {Array.from({ length: 3 }).map((_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton
               <Skeleton key={i} className="h-8 w-full" />
             ))}
           </CardContent>

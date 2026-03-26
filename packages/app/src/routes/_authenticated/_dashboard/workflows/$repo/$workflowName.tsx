@@ -1,31 +1,31 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
-import { ComposedChart, Line, XAxis, YAxis } from "recharts";
-import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
-import { RunsTable } from "@/components/runs-list";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@everr/ui/components/badge";
 import {
   Card,
   CardAction,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@everr/ui/components/card";
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+} from "@everr/ui/components/chart";
 import {
   ChartEmptyState,
   chartTooltipLabelFormatter,
   createChartTooltipFormatter,
   formatChartDate,
-} from "@/components/ui/chart-helpers";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkline } from "@/components/ui/sparkline";
+} from "@everr/ui/components/chart-helpers";
+import { Skeleton } from "@everr/ui/components/skeleton";
+import { Sparkline } from "@everr/ui/components/sparkline";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
+import { ComposedChart, Line, XAxis, YAxis } from "recharts";
+import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
+import { RunsTable } from "@/components/runs-list";
 import {
   workflowCostOptions,
   workflowDurationTrendOptions,
@@ -133,7 +133,6 @@ function WorkflowDetailPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {statsPending || !stats ? (
           Array.from({ length: 4 }).map((_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholder
             <Card key={i}>
               <CardHeader className="pb-1">
                 <Skeleton className="h-4 w-20" />
@@ -469,7 +468,6 @@ function WorkflowDetailSkeleton() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholder
           <Card key={i}>
             <CardHeader className="pb-1">
               <Skeleton className="h-4 w-20" />

@@ -29,10 +29,12 @@ For raw feature thoughts not ready for shaping. Template sections: `What`, `Why`
 
 For bugs and focused problems. Template sections: `What`, `Where`, `Steps to reproduce`, `Expected`, `Actual`, `Priority` (critical/high/medium/low/unknown), `Notes`. Only `What` is required — use `unknown`/`N/A` for the rest. Do not investigate or fix — capture only. If it sounds like a feature, route to Idea or `/project` instead.
 
-<!-- BEGIN everr -->
-Use Everr CLI guidance when the task involves CI, GitHub Actions workflows, pipelines, CI failures, workflow logs, or CI test performance from the current project directory.
+## Everr CLI
 
-Call `everr ai-instructions` to understand usage.
+<!-- BEGIN everr -->
+For CI, GitHub Actions, pipelines, workflow logs, or test performance tasks: call `everr ai-instructions` for full usage.
+
+Quick start — run `everr status` to get the current commit's pipeline state while you plan your next steps.
 <!-- END everr -->
 
-Do not commit while doing tasks. I choose when to commit.
+Use `everr-dev` (not `everr`) when running CLI commands in this workspace if available.

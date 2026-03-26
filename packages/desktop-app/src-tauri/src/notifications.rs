@@ -243,12 +243,17 @@ fn show_notification_window(app: &AppHandle) -> Result<()> {
     let was_visible = window.is_visible().unwrap_or(false);
     configure_notification_window_for_fullscreen(&window)?;
     position_notification_window(app, &window)?;
-    window
-        .show()
-        .context("failed to show notification window")?;
+    show_without_focus(&window)?;
     if !was_visible {
         start_notification_hover_polling(app);
     }
+    Ok(())
+}
+
+fn show_without_focus(window: &WebviewWindow) -> Result<()> {
+    let ns_window = window.ns_window().context("failed to get ns_window")?;
+    let ns_window: &NSWindow = unsafe { &*ns_window.cast() };
+    ns_window.orderFront(None);
     Ok(())
 }
 
