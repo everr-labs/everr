@@ -1,3 +1,4 @@
+import { resolve } from "@everr/datemath";
 import { Separator } from "@everr/ui/components/separator";
 import {
   SidebarInset,
@@ -7,6 +8,7 @@ import {
 import {
   createFileRoute,
   Outlet,
+  redirect,
   retainSearchParams,
   stripSearchParams,
   useMatches,
@@ -19,7 +21,11 @@ import { RefreshPicker, TimeRangePicker } from "@/components/analytics";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
-import { DEFAULT_TIME_RANGE, TimeRangeSearchSchema } from "@/lib/time-range";
+import {
+  DEFAULT_TIME_RANGE,
+  ResolvedTimeRangeSearchSchema,
+  TimeRangeSearchSchema,
+} from "@/lib/time-range";
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   github_install: z.string().optional(),
@@ -37,6 +43,17 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
       }),
       retainSearchParams(["from", "to", "refresh"]),
     ],
+  },
+  beforeLoad({ search }) {
+    const { from, to } = ResolvedTimeRangeSearchSchema.parse(search);
+    const fromDate = resolve(from, { roundUp: false });
+    const toDate = resolve(to, { roundUp: true });
+    if (fromDate >= toDate) {
+      throw redirect({
+        search: { ...search, from: to, to: from },
+        replace: true,
+      });
+    }
   },
   component: RouteComponent,
 });

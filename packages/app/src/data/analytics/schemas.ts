@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { TimeRangeSchema } from "@/lib/time-range";
 
-export { TimeRangeSchema };
-
 export const TimeRangeInputSchema = z.object({ timeRange: TimeRangeSchema });
 export type TimeRangeInput = z.infer<typeof TimeRangeInputSchema>;
 
