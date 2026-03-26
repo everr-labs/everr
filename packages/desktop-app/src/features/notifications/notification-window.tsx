@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
-import { invokeCommand, NOTIFICATION_CHANGED_EVENT, NOTIFICATION_HOVER_EVENT } from "../../lib/tauri";
+import { Button } from "@everr/ui/components/button";
+import { invokeCommand, NOTIFICATION_CHANGED_EVENT, NOTIFICATION_HOVER_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent, useTauriEvent } from "../../lib/tauri-events";
 import {
   formatNotificationAbsoluteTime,

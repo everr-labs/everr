@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent } from "../../components/ui/card";
-import { Separator } from "../../components/ui/separator";
-import { closeCurrentWindow, invokeCommand, toErrorMessageText } from "../../lib/tauri";
+import { Button } from "@everr/ui/components/button";
+import { Card, CardContent } from "@everr/ui/components/card";
+import { Separator } from "@everr/ui/components/separator";
+import { closeCurrentWindow, invokeCommand, toErrorMessageText } from "@/lib/tauri";
 import { useAuthStatusQuery } from "../auth/auth";
 import {
   type AssistantKind,

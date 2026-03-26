@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
+import { Badge } from "@everr/ui/components/badge";
+import { Button } from "@everr/ui/components/button";
 import {
   FeatureErrorText,
   FeatureLoadingText,

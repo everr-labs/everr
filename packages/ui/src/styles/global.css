@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/noto-sans";
 @import "@fontsource-variable/space-grotesk";
 
 @source "../../../apps/**/*.{ts,tsx}";

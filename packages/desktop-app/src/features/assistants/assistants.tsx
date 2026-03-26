@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
-import { cn } from "../../lib/utils";
 import { SETTINGS_CHANGED_EVENT, invokeCommand, toErrorMessageText } from "../../lib/tauri";
 import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
 import {
@@ -11,6 +9,8 @@ import {
   SettingsSection,
   WizardStepSection,
 } from "../desktop-shell/ui";
+import { Button } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 
 export type AssistantKind = "codex" | "claude" | "cursor";
 
@@ -195,7 +195,7 @@ function useAssistantSelectionDraft(serverSelection: AssistantKind[], onChange?:
     toggleAssistant(assistant: AssistantKind) {
       setIsDirty(true);
       setSelection((current) => {
-        const next = 
+        const next =
         current.includes(assistant)
           ? current.filter((item) => item !== assistant)
           : [...current, assistant]

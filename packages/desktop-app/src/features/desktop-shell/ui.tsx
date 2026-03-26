@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Card, CardContent, CardDescription, CardHeader } from "../../components/ui/card";
-import { APP_DISPLAY_NAME } from "../../lib/app-name";
-import { cn } from "../../lib/utils";
+import { Card, CardContent, CardDescription, CardHeader } from "@everr/ui/components/card";
+import { APP_DISPLAY_NAME } from "@/lib/app-name";
+import { cn } from "@everr/ui/lib/utils";
 
 export function DesktopFrame({
   title,
