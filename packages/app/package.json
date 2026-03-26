@@ -47,7 +47,6 @@
     "react-dom": "catalog:",
     "recharts": "catalog:",
     "simple-icons": "^16.13.0",
-    "tailwindcss": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
