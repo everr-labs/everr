@@ -1,14 +1,7 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
-import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { Panel } from "@/components/panel";
 import {
   ActiveBranchesTable,
   RepoDurationTrendChart,
@@ -17,6 +10,7 @@ import {
   RepoSuccessRateChart,
   TopFailingJobsTable,
 } from "@/components/repo-detail";
+import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
   activeBranchesOptions,
   repoDurationTrendOptions,
@@ -51,7 +45,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard/repos")({
       queryClient.prefetchQuery(activeBranchesOptions(input)),
     ]);
   },
-  pendingComponent: RepoDetailSkeleton,
 });
 
 function RepoDetailPage() {
@@ -59,26 +52,18 @@ function RepoDetailPage() {
   const input = { timeRange, repo: name };
   const enabled = !!name;
   const { data: stats } = useQuery({ ...repoStatsOptions(input), enabled });
-  const { data: successTrend } = useQuery({
-    ...repoSuccessRateTrendOptions(input),
-    enabled,
-  });
-  const { data: durationTrend } = useQuery({
-    ...repoDurationTrendOptions(input),
-    enabled,
-  });
-  const { data: recentRuns } = useQuery({
-    ...repoRecentRunsOptions(input),
-    enabled,
-  });
-  const { data: failingJobs } = useQuery({
-    ...topFailingJobsOptions(input),
-    enabled,
-  });
-  const { data: branches } = useQuery({
-    ...activeBranchesOptions(input),
-    enabled,
-  });
+
+  // Closures that bind `repo` so Panel can pass just { timeRange }
+  const successRateTrend = (tr: TimeRangeInput) =>
+    repoSuccessRateTrendOptions({ ...tr, repo: name });
+  const durationTrend = (tr: TimeRangeInput) =>
+    repoDurationTrendOptions({ ...tr, repo: name });
+  const failingJobs = (tr: TimeRangeInput) =>
+    topFailingJobsOptions({ ...tr, repo: name });
+  const branches = (tr: TimeRangeInput) =>
+    activeBranchesOptions({ ...tr, repo: name });
+  const recentRuns = (tr: TimeRangeInput) =>
+    repoRecentRunsOptions({ ...tr, repo: name });
 
   if (!name) {
     return (
@@ -98,107 +83,46 @@ function RepoDetailPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Success Rate</CardTitle>
-            <CardDescription>Build reliability over time</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RepoSuccessRateChart data={successTrend ?? []} />
-          </CardContent>
-        </Card>
+        <Panel
+          title="Success Rate"
+          description="Build reliability over time"
+          queries={[successRateTrend]}
+        >
+          {(data) => <RepoSuccessRateChart data={data} />}
+        </Panel>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Duration Trends</CardTitle>
-            <CardDescription>Job duration P50 and P95</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RepoDurationTrendChart data={durationTrend ?? []} />
-          </CardContent>
-        </Card>
+        <Panel
+          title="Duration Trends"
+          description="Job duration P50 and P95"
+          queries={[durationTrend]}
+        >
+          {(data) => <RepoDurationTrendChart data={data} />}
+        </Panel>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Failing Jobs</CardTitle>
-          <CardDescription>Jobs with the highest failure count</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TopFailingJobsTable data={failingJobs ?? []} />
-        </CardContent>
-      </Card>
+      <Panel
+        title="Top Failing Jobs"
+        description="Jobs with the highest failure count"
+        queries={[failingJobs]}
+      >
+        {(data) => <TopFailingJobsTable data={data} />}
+      </Panel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Active Branches</CardTitle>
-          <CardDescription>Branches with recent activity</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ActiveBranchesTable data={branches ?? []} />
-        </CardContent>
-      </Card>
+      <Panel
+        title="Active Branches"
+        description="Branches with recent activity"
+        queries={[branches]}
+      >
+        {(data) => <ActiveBranchesTable data={data} />}
+      </Panel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Runs</CardTitle>
-          <CardDescription>
-            Latest workflow runs for this repository
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RepoRecentRuns data={recentRuns ?? []} />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function RepoDetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Skeleton className="h-8 w-48" />
-          <div className="mt-2 flex gap-3">
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-5 w-20" />
-          </div>
-        </div>
-        <Skeleton className="h-10 w-[140px]" />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {Array.from({ length: 2 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-4 w-48" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-[300px] w-full" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-4 w-48" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[200px] w-full" />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-4 w-48" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[200px] w-full" />
-        </CardContent>
-      </Card>
+      <Panel
+        title="Recent Runs"
+        description="Latest workflow runs for this repository"
+        queries={[recentRuns]}
+      >
+        {(data) => <RepoRecentRuns data={data} />}
+      </Panel>
     </div>
   );
 }

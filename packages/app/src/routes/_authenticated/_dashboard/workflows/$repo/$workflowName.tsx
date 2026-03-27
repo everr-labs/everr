@@ -1,12 +1,5 @@
 import { Badge } from "@everr/ui/components/badge";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
-import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
@@ -18,14 +11,14 @@ import {
   createChartTooltipFormatter,
   formatChartDate,
 } from "@everr/ui/components/chart-helpers";
-import { Skeleton } from "@everr/ui/components/skeleton";
 import { Sparkline } from "@everr/ui/components/sparkline";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
 import { ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
+import { Panel } from "@/components/panel";
 import { RunsTable } from "@/components/runs-list";
+import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
   workflowCostOptions,
   workflowDurationTrendOptions,
@@ -35,7 +28,6 @@ import {
   workflowSuccessRateTrendOptions,
   workflowTopFailingJobsOptions,
 } from "@/data/workflows/options";
-import { useTimeRange } from "@/hooks/use-time-range";
 import {
   formatDuration,
   formatRelativeTime,
@@ -52,7 +44,6 @@ export const Route = createFileRoute(
   }),
   component: WorkflowDetailPage,
   validateSearch: TimeRangeSearchSchema,
-  pendingComponent: WorkflowDetailSkeleton,
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -98,29 +89,22 @@ function WorkflowDetailPage() {
   const { workflowName: rawName, repo: rawRepo } = Route.useParams();
   const workflowName = decodeURIComponent(rawName);
   const repo = decodeURIComponent(rawRepo);
-  const { timeRange } = useTimeRange();
 
-  const detailInput = { timeRange, workflowName, repo };
-
-  const { data: stats, isPending: statsPending } = useQuery(
-    workflowStatsOptions(detailInput),
-  );
-  const { data: successTrend, isPending: successTrendPending } = useQuery(
-    workflowSuccessRateTrendOptions(detailInput),
-  );
-  const { data: durationTrend, isPending: durationTrendPending } = useQuery(
-    workflowDurationTrendOptions(detailInput),
-  );
-  const { data: cost } = useQuery(workflowCostOptions(detailInput));
-  const { data: failingJobs, isPending: failingJobsPending } = useQuery(
-    workflowTopFailingJobsOptions(detailInput),
-  );
-  const { data: failureReasons, isPending: failureReasonsPending } = useQuery(
-    workflowFailureReasonsOptions(detailInput),
-  );
-  const { data: recentRuns, isPending: recentRunsPending } = useQuery(
-    workflowRecentRunsOptions(detailInput),
-  );
+  // Closures that bind workflowName + repo so Panel can pass just { timeRange }
+  const wfStats = (tr: TimeRangeInput) =>
+    workflowStatsOptions({ ...tr, workflowName, repo });
+  const wfSuccessTrend = (tr: TimeRangeInput) =>
+    workflowSuccessRateTrendOptions({ ...tr, workflowName, repo });
+  const wfDurationTrend = (tr: TimeRangeInput) =>
+    workflowDurationTrendOptions({ ...tr, workflowName, repo });
+  const wfCost = (tr: TimeRangeInput) =>
+    workflowCostOptions({ ...tr, workflowName, repo });
+  const wfFailingJobs = (tr: TimeRangeInput) =>
+    workflowTopFailingJobsOptions({ ...tr, workflowName, repo });
+  const wfFailureReasons = (tr: TimeRangeInput) =>
+    workflowFailureReasonsOptions({ ...tr, workflowName, repo });
+  const wfRecentRuns = (tr: TimeRangeInput) =>
+    workflowRecentRunsOptions({ ...tr, workflowName, repo });
 
   return (
     <div className="space-y-3">
@@ -129,175 +113,145 @@ function WorkflowDetailPage() {
         <h1 className="text-xl font-bold tracking-tight">{workflowName}</h1>
         <p className="text-muted-foreground">{repo}</p>
       </div>
+
       {/* KPI stat cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {statsPending || !stats ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-1">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-9 w-24" />
-              </CardHeader>
-            </Card>
-          ))
-        ) : (
-          <>
-            {/* Total Runs */}
-            <Card className="relative">
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 opacity-15">
-                <Sparkline
-                  data={successTrend?.map((t) => t.totalRuns) ?? []}
-                  className="h-full w-full"
-                />
-              </div>
-              <CardHeader className="relative pb-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground text-xs">
-                    Total Runs
-                  </span>
-                  <Activity className="text-muted-foreground size-4" />
-                </div>
-                <div className="text-3xl font-medium tabular-nums">
-                  {stats.totalRuns.toLocaleString()}{" "}
-                  <DeltaIndicator
-                    current={stats.totalRuns}
-                    previous={stats.prevTotalRuns}
-                  />
-                </div>
-              </CardHeader>
-            </Card>
+        <Panel
+          title="Total Runs"
+          queries={[wfStats, wfSuccessTrend]}
+          variant="stat"
+          icon={Activity}
+          background={(_stats, trends) => (
+            <Sparkline
+              data={trends.map((t) => t.totalRuns)}
+              className="h-full w-full"
+            />
+          )}
+        >
+          {(stats) => (
+            <>
+              {stats.totalRuns.toLocaleString()}{" "}
+              <DeltaIndicator
+                current={stats.totalRuns}
+                previous={stats.prevTotalRuns}
+              />
+            </>
+          )}
+        </Panel>
 
-            {/* Success Rate */}
-            <Card className="relative">
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 opacity-15">
-                <Sparkline
-                  data={successTrend?.map((t) => t.successRate) ?? []}
-                  maxValue={100}
-                  className="h-full w-full"
-                />
-              </div>
-              <CardHeader className="relative pb-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground text-xs">
-                    Success Rate
-                  </span>
-                  <TrendingUp className="text-muted-foreground size-4" />
-                </div>
-                <div className="text-3xl font-medium tabular-nums">
-                  <span
-                    className={
-                      stats.successRate >= 80
-                        ? "text-green-600"
-                        : stats.successRate >= 50
-                          ? "text-yellow-600"
-                          : "text-red-600"
-                    }
-                  >
-                    {stats.successRate}%
-                  </span>{" "}
-                  <DeltaIndicator
-                    current={stats.successRate}
-                    previous={stats.prevSuccessRate}
-                  />
-                </div>
-              </CardHeader>
-            </Card>
+        <Panel
+          title="Success Rate"
+          queries={[wfStats, wfSuccessTrend]}
+          variant="stat"
+          icon={TrendingUp}
+          background={(_stats, trends) => (
+            <Sparkline
+              data={trends.map((t) => t.successRate)}
+              maxValue={100}
+              className="h-full w-full"
+            />
+          )}
+        >
+          {(stats) => (
+            <>
+              <span
+                className={
+                  stats.successRate >= 80
+                    ? "text-green-600"
+                    : stats.successRate >= 50
+                      ? "text-yellow-600"
+                      : "text-red-600"
+                }
+              >
+                {stats.successRate}%
+              </span>{" "}
+              <DeltaIndicator
+                current={stats.successRate}
+                previous={stats.prevSuccessRate}
+              />
+            </>
+          )}
+        </Panel>
 
-            {/* Avg Duration */}
-            <Card className="relative">
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 opacity-15">
-                <Sparkline
-                  data={durationTrend?.map((t) => t.avgDuration) ?? []}
-                  className="h-full w-full"
-                />
-              </div>
-              <CardHeader className="relative pb-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground text-xs">
-                    Avg Duration
-                  </span>
-                  <Clock className="text-muted-foreground size-4" />
-                </div>
-                <div className="text-3xl font-medium tabular-nums">
-                  {formatDuration(stats.avgDuration, "ms")}{" "}
-                  <DeltaIndicator
-                    current={stats.avgDuration}
-                    previous={stats.prevAvgDuration}
-                    invertColors
-                  />
-                </div>
-              </CardHeader>
-            </Card>
+        <Panel
+          title="Avg Duration"
+          queries={[wfStats, wfDurationTrend]}
+          variant="stat"
+          icon={Clock}
+          background={(_stats, trends) => (
+            <Sparkline
+              data={trends.map((t) => t.avgDuration)}
+              className="h-full w-full"
+            />
+          )}
+        >
+          {(stats) => (
+            <>
+              {formatDuration(stats.avgDuration, "ms")}{" "}
+              <DeltaIndicator
+                current={stats.avgDuration}
+                previous={stats.prevAvgDuration}
+                invertColors
+              />
+            </>
+          )}
+        </Panel>
 
-            {/* Est. Cost */}
-            <Card className="relative">
-              {cost && cost.overTime.length > 0 && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 opacity-15">
-                  <Sparkline data={cost.overTime} className="h-full w-full" />
-                </div>
-              )}
-              <CardHeader className="relative pb-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground text-xs">
-                    Est. Cost
-                  </span>
-                  <DollarSign className="text-muted-foreground size-4" />
-                </div>
-                <div className="text-3xl font-medium tabular-nums">
-                  {cost ? formatCost(cost.totalCost) : "—"}{" "}
-                  {cost && (
-                    <DeltaIndicator
-                      current={cost.totalCost}
-                      previous={cost.prevTotalCost}
-                      invertColors
-                    />
-                  )}
-                </div>
-                {cost && (
-                  <p className="text-muted-foreground text-xs">
-                    {Math.round(cost.totalMinutes)} min
-                  </p>
-                )}
-              </CardHeader>
-            </Card>
-          </>
-        )}
+        <Panel
+          title="Est. Cost"
+          queries={[wfCost]}
+          variant="stat"
+          icon={DollarSign}
+          background={(cost) =>
+            cost.overTime.length > 0 ? (
+              <Sparkline data={cost.overTime} className="h-full w-full" />
+            ) : null
+          }
+        >
+          {(cost) => (
+            <>
+              {formatCost(cost.totalCost)}{" "}
+              <DeltaIndicator
+                current={cost.totalCost}
+                previous={cost.prevTotalCost}
+                invertColors
+              />
+              <p className="text-muted-foreground text-xs font-normal">
+                {Math.round(cost.totalMinutes)} min
+              </p>
+            </>
+          )}
+        </Panel>
       </div>
+
       {/* Trend charts */}
       <div className="grid gap-3 md:grid-cols-2">
-        {/* Success Rate Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Success Rate Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {successTrendPending ? (
-              <Skeleton className="h-40 w-full" />
-            ) : successTrend && successTrend.length > 0 ? (
-              <SuccessRateMiniChart data={successTrend} />
+        <Panel
+          title="Success Rate Trend"
+          queries={[wfSuccessTrend]}
+          skeleton={<div className="h-40" />}
+        >
+          {(data) =>
+            data.length > 0 ? (
+              <SuccessRateMiniChart data={data} />
             ) : (
               <ChartEmptyState message="No success rate data available" />
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        </Panel>
 
-        {/* Duration Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Duration Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {durationTrendPending ? (
-              <Skeleton className="h-40 w-full" />
-            ) : durationTrend && durationTrend.length > 0 ? (
+        <Panel
+          title="Duration Trend"
+          queries={[wfDurationTrend]}
+          skeleton={<div className="h-40" />}
+        >
+          {(data) =>
+            data.length > 0 ? (
               <ChartContainer
                 config={durationChartConfig}
                 className="h-40 w-full"
               >
-                <ComposedChart
-                  data={durationTrend}
-                  margin={{ left: -20, right: 4 }}
-                >
+                <ComposedChart data={data} margin={{ left: -20, right: 4 }}>
                   <XAxis
                     dataKey="date"
                     tickLine={false}
@@ -343,23 +297,18 @@ function WorkflowDetailPage() {
               </ChartContainer>
             ) : (
               <ChartEmptyState message="No duration data available" />
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        </Panel>
       </div>
+
       {/* Detail panels */}
       <div className="grid gap-3 md:grid-cols-2">
-        {/* Top Failing Jobs */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Failing Jobs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {failingJobsPending ? (
-              <Skeleton className="h-[200px] w-full" />
-            ) : failingJobs && failingJobs.length > 0 ? (
+        <Panel title="Top Failing Jobs" queries={[wfFailingJobs]}>
+          {(jobs) =>
+            jobs.length > 0 ? (
               <div className="space-y-3">
-                {failingJobs.map((job) => (
+                {jobs.map((job) => (
                   <div
                     key={job.jobName}
                     className="flex items-center justify-between"
@@ -385,21 +334,15 @@ function WorkflowDetailPage() {
               <p className="text-muted-foreground text-sm">
                 No failing jobs found
               </p>
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        </Panel>
 
-        {/* Failure Reasons */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Failure Reasons</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {failureReasonsPending ? (
-              <Skeleton className="h-[200px] w-full" />
-            ) : failureReasons && failureReasons.length > 0 ? (
+        <Panel title="Failure Reasons" queries={[wfFailureReasons]}>
+          {(reasons) =>
+            reasons.length > 0 ? (
               <div className="space-y-3">
-                {failureReasons.map((reason) => (
+                {reasons.map((reason) => (
                   <div
                     key={reason.pattern}
                     className="flex items-center justify-between"
@@ -420,80 +363,34 @@ function WorkflowDetailPage() {
               <p className="text-muted-foreground text-sm">
                 No failure reasons found
               </p>
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        </Panel>
       </div>
+
       {/* Recent Runs */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Runs</CardTitle>
-          <CardAction>
-            <Link
-              to="/runs"
-              search={{
-                page: 1,
-                workflowName,
-                repo,
-                branch: undefined,
-                conclusion: undefined,
-                runId: undefined,
-              }}
-              className="text-muted-foreground hover:text-foreground text-xs"
-            >
-              View all
-            </Link>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {recentRunsPending ? (
-            <Skeleton className="h-[300px] w-full" />
-          ) : recentRuns ? (
-            <RunsTable data={recentRuns} />
-          ) : null}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ── Skeleton ─────────────────────────────────────────────────────────────
-
-function WorkflowDetailSkeleton() {
-  return (
-    <div className="space-y-3">
-      <div>
-        <Skeleton className="h-7 w-48" />
-        <Skeleton className="mt-1 h-4 w-64" />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="pb-1">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-9 w-24" />
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-5 w-32" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-40 w-full" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-5 w-32" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-40 w-full" />
-          </CardContent>
-        </Card>
-      </div>
+      <Panel
+        title="Recent Runs"
+        queries={[wfRecentRuns]}
+        action={
+          <Link
+            to="/runs"
+            search={{
+              page: 1,
+              workflowName,
+              repo,
+              branch: undefined,
+              conclusion: undefined,
+              runId: undefined,
+            }}
+            className="text-muted-foreground hover:text-foreground text-xs"
+          >
+            View all
+          </Link>
+        }
+      >
+        {(runs) => <RunsTable data={runs} />}
+      </Panel>
     </div>
   );
 }
