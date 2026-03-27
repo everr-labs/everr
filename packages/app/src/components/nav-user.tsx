@@ -101,6 +101,7 @@ export function NavUser() {
                     href={getDownloadUrl(PLATFORMS[0].os, PLATFORMS[0].arch)}
                     download
                   >
+                    <Download />
                     Download App
                   </a>
                 }
