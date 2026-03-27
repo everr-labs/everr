@@ -1,4 +1,5 @@
 import type { LogEntry } from "@/data/runs/schemas";
+import { formatTimestampTimeOfDay } from "@/lib/formatting";
 
 export interface ParsedLogLine {
   timestamp: string;
@@ -118,4 +119,91 @@ export function parseLogs(logs: LogEntry[]): {
   }
 
   return { lines, groups };
+}
+
+export interface VisibleLine {
+  index: number;
+  indentLevel: number;
+  displayLine: number;
+}
+
+export function computeVisibleLines(
+  lines: ParsedLogLine[],
+  groups: LogGroup[],
+  collapsed: Set<string>,
+) {
+  const lineToGroup = new Map<number, { groupId: string; depth: number }>();
+  const groupsWithUniformTimestamps = new Set<string>();
+
+  for (const group of groups) {
+    let depth = 0;
+    for (const other of groups) {
+      if (
+        other.startIndex < group.startIndex &&
+        other.endIndex > group.endIndex
+      ) {
+        depth++;
+      }
+    }
+
+    for (let i = group.startIndex + 1; i < group.endIndex; i++) {
+      const existing = lineToGroup.get(i);
+      if (!existing || depth > existing.depth) {
+        lineToGroup.set(i, { groupId: group.id, depth });
+      }
+    }
+
+    const headerTimestamp = formatTimestampTimeOfDay(
+      lines[group.startIndex].timestamp,
+    );
+    let hasUniformTimestamps = true;
+    for (let i = group.startIndex + 1; i < group.endIndex; i++) {
+      if (
+        !lines[i].isGroupEnd &&
+        formatTimestampTimeOfDay(lines[i].timestamp) !== headerTimestamp
+      ) {
+        hasUniformTimestamps = false;
+        break;
+      }
+    }
+    if (hasUniformTimestamps) {
+      groupsWithUniformTimestamps.add(group.id);
+    }
+  }
+
+  const visible: VisibleLine[] = [];
+
+  let displayLine = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.isGroupEnd) continue;
+    displayLine++;
+
+    const groupInfo = lineToGroup.get(i);
+    let isHidden = false;
+    if (groupInfo) {
+      for (const group of groups) {
+        if (
+          i > group.startIndex &&
+          i < group.endIndex &&
+          collapsed.has(group.id)
+        ) {
+          isHidden = true;
+          break;
+        }
+      }
+    }
+
+    if (!isHidden) {
+      let indentLevel = 0;
+      for (const group of groups) {
+        if (i > group.startIndex && i <= group.endIndex) {
+          indentLevel++;
+        }
+      }
+      visible.push({ index: i, indentLevel, displayLine });
+    }
+  }
+
+  return { visible, lineToGroup, groupsWithUniformTimestamps };
 }
