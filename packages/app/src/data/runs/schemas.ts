@@ -7,6 +7,8 @@ export interface Run {
   conclusion: string;
   workflowName: string;
   timestamp: string;
+  htmlUrl?: string;
+  pullRequestUrls?: string[];
 }
 
 export interface Job {
