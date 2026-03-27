@@ -10,7 +10,6 @@
 - [**missing-links-to-github**](todo/issues/missing-links-to-github.md) — There are no links from Everr's run detail/list views to the corresponding GitHub Action run page or associated PR, forcing users to manually search on GitHub.
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**pg-connection-per-sse-client**](todo/issues/pg-connection-per-sse-client.md) — `createSubscription` in `packages/app/src/db/subscribe.ts` opens a dedicated `pg.Client` (not from the pool) for every active SSE connection. This includes one connection per browser tab (via `/api/events/subscribe`) and one per CLI `watch` session (via `/api/cli/runs/watch`).
-- [**remove-light-theme**](todo/issues/remove-light-theme.md) — Remove the light theme entirely so we only ship a dark theme.
 - [**replace-filter-select-with-autocomplete-combobox**](todo/issues/replace-filter-select-with-autocomplete-combobox.md) — The FilterSelect component should be replaced with an autocomplete combobox.
 - [**tables-alignment-and-sorting**](todo/issues/tables-alignment-and-sorting.md) — Table columns are misaligned and tables don't support sorting.
 

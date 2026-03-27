@@ -10,11 +10,7 @@ pub fn init_repo_instructions() -> Result<()> {
 }
 
 pub fn print_ai_instructions() {
-    print!(
-        "{}",
-        include_str!("../../../../crates/everr-core/assets/assistant-instructions.md")
-            .replace("`everr ", &format!("`{} ", build::command_name()))
-    );
+    print!("{}", core_assistant::render_assistant_instructions());
 }
 
 pub fn remove_managed_prompts() -> Result<()> {

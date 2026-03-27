@@ -205,12 +205,12 @@ fn resolve_home_dir() -> Result<PathBuf> {
     dirs::home_dir().context("failed to resolve home dir")
 }
 
-fn content_for_assistant(assistant: AssistantKind, command_name: &str) -> String {
-    make_assistant_block(assistant, &render_assistant_instructions(command_name))
+fn content_for_assistant(assistant: AssistantKind, _command_name: &str) -> String {
+    make_assistant_block(assistant, render_assistant_instructions())
 }
 
-fn content_for_assistant_discovery(assistant: AssistantKind, command_name: &str) -> String {
-    make_assistant_block(assistant, &render_discovery_instructions(command_name))
+fn content_for_assistant_discovery(assistant: AssistantKind, _command_name: &str) -> String {
+    make_assistant_block(assistant, render_discovery_instructions())
 }
 
 fn make_assistant_block(assistant: AssistantKind, instructions: &str) -> String {
@@ -221,19 +221,19 @@ fn make_assistant_block(assistant: AssistantKind, instructions: &str) -> String 
     }
 }
 
-fn repo_content(command_name: &str) -> String {
+fn repo_content(_command_name: &str) -> String {
     format!(
         "{BLOCK_START}\n{}\n{BLOCK_END}\n",
-        render_discovery_instructions(command_name).trim_end()
+        render_discovery_instructions().trim_end()
     )
 }
 
-fn render_assistant_instructions(command_name: &str) -> String {
-    ASSISTANT_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
+pub fn render_assistant_instructions() -> &'static str {
+    ASSISTANT_INSTRUCTIONS
 }
 
-fn render_discovery_instructions(command_name: &str) -> String {
-    DISCOVERY_INSTRUCTIONS.replace("`everr ", &format!("`{command_name} "))
+pub fn render_discovery_instructions() -> &'static str {
+    DISCOVERY_INSTRUCTIONS
 }
 
 fn remove_managed_prompt_at(assistant: AssistantKind, path: &Path) -> Result<()> {
@@ -532,14 +532,14 @@ mod tests {
 
     #[test]
     fn assistant_instructions_use_requested_command_name() {
-        let rendered = render_assistant_instructions("everr");
+        let rendered = render_assistant_instructions();
         assert!(rendered.contains("`everr status`"));
         assert!(rendered.contains("`everr runs`"));
     }
 
     #[test]
     fn repo_assistant_instructions_use_requested_command_name() {
-        let rendered = render_discovery_instructions("everr");
+        let rendered = render_discovery_instructions();
         assert!(rendered.contains("call `everr ai-instructions` for full usage."));
         assert!(rendered.contains("`everr status`"));
         assert!(!rendered.contains("`everr runs`"));
@@ -547,7 +547,7 @@ mod tests {
 
     #[test]
     fn assistant_instructions_describe_status_failure_handoff() {
-        let rendered = render_assistant_instructions("everr");
+        let rendered = render_assistant_instructions();
         assert!(rendered.contains("`everr status`"));
         assert!(rendered.contains("Use Everr CLI guidance when the task involves CI"));
         assert!(rendered.contains("`everr show --trace-id <trace_id>`"));
