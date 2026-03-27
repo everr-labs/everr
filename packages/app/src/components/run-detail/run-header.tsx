@@ -49,40 +49,46 @@ export function RunHeader({
             </span>
           )}
         </h1>
+        {(htmlUrl || pullRequestUrls) && (
+          <div className="ml-auto flex items-center gap-2">
+            {htmlUrl && (
+              <a
+                href={htmlUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "h-7 text-xs gap-1",
+                )}
+              >
+                <ExternalLink className="size-3" />
+                GitHub Actions
+              </a>
+            )}
+            {pullRequestUrls?.map((url) => {
+              const prNumber = url.split("/").pop();
+              return (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "h-7 text-xs gap-1",
+                  )}
+                >
+                  <ExternalLink className="size-3" />
+                  PR #{prNumber}
+                </a>
+              );
+            })}
+          </div>
+        )}
       </div>
       <p className="text-muted-foreground ml-14 text-xs">
         {repo} • {branch} • {formatRelativeTime(timestamp)}
       </p>
-      {(htmlUrl || pullRequestUrls) && (
-        <div className="ml-14 flex items-center gap-3 text-xs">
-          {htmlUrl && (
-            <a
-              href={htmlUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-            >
-              <ExternalLink className="size-3" />
-              GitHub Actions
-            </a>
-          )}
-          {pullRequestUrls?.map((url) => {
-            const prNumber = url.split("/").pop();
-            return (
-              <a
-                key={url}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-              >
-                <ExternalLink className="size-3" />
-                PR #{prNumber}
-              </a>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
