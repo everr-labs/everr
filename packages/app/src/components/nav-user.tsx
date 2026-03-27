@@ -14,7 +14,14 @@ import {
 } from "@everr/ui/components/sidebar";
 import { Link } from "@tanstack/react-router";
 import { useAuth } from "@workos/authkit-tanstack-react-start/client";
-import { BadgeCheck, ChevronsUpDown, LogOut, Users } from "lucide-react";
+import {
+  BadgeCheck,
+  ChevronsUpDown,
+  Download,
+  LogOut,
+  Users,
+} from "lucide-react";
+import { getDownloadUrl, PLATFORMS } from "@/lib/app-download";
 
 export function NavUser() {
   const { user, roles, signOut } = useAuth();
@@ -88,6 +95,19 @@ export function NavUser() {
                   Users Management
                 </DropdownMenuItem>
               ) : null}
+              <DropdownMenuItem
+                render={
+                  <a
+                    href={getDownloadUrl(PLATFORMS[0].os, PLATFORMS[0].arch)}
+                    download
+                  >
+                    Download App
+                  </a>
+                }
+              >
+                <Download />
+                Download App
+              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void signOut({ returnTo: "/" })}>
