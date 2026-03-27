@@ -6,7 +6,6 @@ import {
   getRunDetails,
   getRunJobs,
   getRunSpans,
-  getStepLogs,
 } from "./server";
 
 // Query options factories
@@ -35,22 +34,6 @@ export const allJobsStepsOptions = (input: {
   queryOptions({
     queryKey: ["runs", "allJobsSteps", input.traceId, input.jobIds],
     queryFn: () => getAllJobsSteps({ data: input }),
-  });
-
-export const stepLogsOptions = (input: {
-  traceId: string;
-  jobName: string;
-  stepNumber: string;
-}) =>
-  queryOptions({
-    queryKey: [
-      "runs",
-      "stepLogs",
-      input.traceId,
-      input.jobName,
-      input.stepNumber,
-    ],
-    queryFn: () => getStepLogs({ data: input }),
   });
 
 export const runSpansOptions = (traceId: string) =>

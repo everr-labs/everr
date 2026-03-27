@@ -119,7 +119,7 @@ describe("getRunSpans", () => {
 
 describe("getStepLogs", () => {
   it("normalizes full log timestamps to timezone-aware UTC ISO strings", async () => {
-    mockedQuery.mockResolvedValue([
+    mockedQuery.mockResolvedValueOnce([{ cnt: "2" }]).mockResolvedValueOnce([
       {
         timestamp: "2026-03-09T12:00:01",
         body: "Compiling",
@@ -138,24 +138,28 @@ describe("getStepLogs", () => {
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "WHERE TraceId = {traceId:String}",
     );
-    expect(result).toEqual([
-      {
-        timestamp: "2026-03-09T12:00:00.123Z",
-        body: "Starting build",
-      },
-      {
-        timestamp: "2026-03-09T12:00:01.000Z",
-        body: "Compiling",
-      },
-    ]);
+    expect(result).toEqual({
+      logs: [
+        {
+          timestamp: "2026-03-09T12:00:00.123Z",
+          body: "Starting build",
+        },
+        {
+          timestamp: "2026-03-09T12:00:01.000Z",
+          body: "Compiling",
+        },
+      ],
+      totalCount: 2,
+      offset: 0,
+    });
   });
 
   it("uses tail mode when tail param is provided", async () => {
-    mockedQuery.mockResolvedValue([
+    mockedQuery.mockResolvedValueOnce([{ cnt: "1" }]).mockResolvedValueOnce([
       {
         timestamp: "2026-03-09 12:00:02",
         body: "Last line",
@@ -171,22 +175,26 @@ describe("getStepLogs", () => {
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ORDER BY Timestamp DESC");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("LIMIT {maxLines:UInt32}");
-    expect(mockedQuery.mock.calls[0]?.[1]).toMatchObject({
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("ORDER BY Timestamp DESC");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("LIMIT {maxLines:UInt32}");
+    expect(mockedQuery.mock.calls[1]?.[1]).toMatchObject({
       maxLines: 500,
     });
-    expect(result).toEqual([
-      {
-        timestamp: "2026-03-09T12:00:02.000Z",
-        body: "Last line",
-      },
-    ]);
+    expect(result).toEqual({
+      logs: [
+        {
+          timestamp: "2026-03-09T12:00:02.000Z",
+          body: "Last line",
+        },
+      ],
+      totalCount: 1,
+      offset: 0,
+    });
   });
 
   it("uses oldest-first limit and offset for explicit raw log paging", async () => {
-    mockedQuery.mockResolvedValue([
+    mockedQuery.mockResolvedValueOnce([{ cnt: "2001" }]).mockResolvedValueOnce([
       {
         timestamp: "2026-03-09 12:00:03",
         body: "Line three",
@@ -203,32 +211,36 @@ describe("getStepLogs", () => {
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ORDER BY Timestamp ASC");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("LIMIT {maxLines:UInt32}");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("ORDER BY Timestamp ASC");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("LIMIT {maxLines:UInt32}");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "OFFSET {offsetLines:UInt32}",
     );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "WHERE TraceId = {traceId:String}",
     );
-    expect(mockedQuery.mock.calls[0]?.[1]).toEqual({
+    expect(mockedQuery.mock.calls[1]?.[1]).toEqual({
       traceId: "trace-1",
       jobName: "build",
       stepNumber: "2",
       maxLines: 1001,
       offsetLines: 1000,
     });
-    expect(result).toEqual([
-      {
-        timestamp: "2026-03-09T12:00:03.000Z",
-        body: "Line three",
-      },
-    ]);
+    expect(result).toEqual({
+      logs: [
+        {
+          timestamp: "2026-03-09T12:00:03.000Z",
+          body: "Line three",
+        },
+      ],
+      totalCount: 2001,
+      offset: 1000,
+    });
   });
 
   it("defaults paged raw logs to 1000 lines when only an offset is provided", async () => {
-    mockedQuery.mockResolvedValue([
+    mockedQuery.mockResolvedValueOnce([{ cnt: "5000" }]).mockResolvedValueOnce([
       {
         timestamp: "2026-03-09 12:00:04",
         body: "Line four",
@@ -244,8 +256,8 @@ describe("getStepLogs", () => {
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[1]).toMatchObject({
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(mockedQuery.mock.calls[1]?.[1]).toMatchObject({
       maxLines: 1000,
       offsetLines: 2000,
     });

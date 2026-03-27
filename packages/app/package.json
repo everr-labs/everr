@@ -32,6 +32,7 @@
     "@tanstack/react-router": "1.167.1",
     "@tanstack/react-router-devtools": "1.166.8",
     "@tanstack/react-start": "1.166.12",
+    "@tanstack/react-virtual": "^3.13.23",
     "@tanstack/router-plugin": "1.166.10",
     "@workos-inc/node": "^8.9.0",
     "@workos-inc/widgets": "^1.10.0",
@@ -44,6 +45,7 @@
     "pg-boss": "^12.14.0",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-virtuoso": "^4.18.3",
     "recharts": "catalog:",
     "simple-icons": "^16.13.0",
     "zod": "catalog:"

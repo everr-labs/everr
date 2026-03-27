@@ -1,8 +1,25 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LogEntry } from "@/data/runs/schemas";
 import { LogViewer } from "./log-viewer";
+
+// Virtuoso needs element dimensions that jsdom doesn't provide
+beforeEach(() => {
+  // Mock element dimensions so Virtuoso calculates a visible range
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get() {
+      return 600;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+    configurable: true,
+    get() {
+      return 800;
+    },
+  });
+});
 
 // Mock the summarizer hook — Chrome Summarizer API not available in jsdom
 vi.mock("@/hooks/use-log-summarizer", () => ({
@@ -19,6 +36,26 @@ vi.mock("@/hooks/use-log-summarizer", () => ({
 // Mock the chart — Recharts won't render in jsdom
 vi.mock("./log-volume-chart", () => ({
   LogVolumeChart: () => <div data-testid="log-volume-chart" />,
+}));
+
+// Mock Virtuoso — it doesn't render items in jsdom due to missing layout
+vi.mock("react-virtuoso", () => ({
+  Virtuoso: ({
+    totalCount,
+    itemContent,
+    firstItemIndex = 0,
+  }: {
+    totalCount: number;
+    itemContent: (index: number) => React.ReactNode;
+    firstItemIndex?: number;
+    [key: string]: unknown;
+  }) => (
+    <div data-testid="virtuoso-mock">
+      {Array.from({ length: totalCount }, (_, i) => (
+        <div key={i}>{itemContent(firstItemIndex + i)}</div>
+      ))}
+    </div>
+  ),
 }));
 
 function makeLog(body: string, offsetSeconds = 0): LogEntry {
@@ -100,7 +137,6 @@ describe("LogViewer", () => {
 
   it("renders ANSI escape codes", () => {
     render(<LogViewer logs={[makeLog("\x1b[31mHello\x1b[0m", 0)]} />);
-    screen.debug();
     expect(screen.getByText("Hello")).toBeInTheDocument();
     expect(screen.getByText("Hello")).toHaveClass("ansi-red-fg");
   });

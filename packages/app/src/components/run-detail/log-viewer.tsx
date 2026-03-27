@@ -8,49 +8,87 @@ const Ansi =
 
 import { buttonVariants } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
-import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import {
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Loader2,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Virtuoso } from "react-virtuoso";
 import type { LogEntry } from "@/data/runs/schemas";
-import { useLogSummarizer } from "@/hooks/use-log-summarizer";
 import { formatTimestampTimeOfDay } from "@/lib/formatting";
-import { getMarkerClass, parseLogs } from "@/lib/log-parser";
-import { aggregateLogVolume } from "@/lib/log-volume";
-import { LogSummaryPanel } from "./log-summary-panel";
-import { LogVolumeChart } from "./log-volume-chart";
+import {
+  computeVisibleLines,
+  getMarkerClass,
+  parseLogs,
+} from "@/lib/log-parser";
 
 interface LogViewerProps {
   logs: LogEntry[];
   stepName?: string;
+  onLoadPrevious?: () => void;
+  onLoadNext?: () => void;
+  isLoadingPrevious?: boolean;
+  isLoadingNext?: boolean;
+  /** Offset of the first log in the full dataset (for correct line numbering) */
+  lineOffset?: number;
+  /** Whether to scroll to the bottom on initial load (false when anchored) */
+  initialScrollToBottom?: boolean;
 }
 
-export function LogViewer({ logs, stepName }: LogViewerProps) {
+export function LogViewer({
+  logs,
+  stepName,
+  onLoadPrevious,
+  onLoadNext,
+  isLoadingPrevious,
+  isLoadingNext,
+  lineOffset = 0,
+  initialScrollToBottom = true,
+}: LogViewerProps) {
   const { lines, groups } = useMemo(() => parseLogs(logs), [logs]);
-  const volumeData = useMemo(() => aggregateLogVolume(lines), [lines]);
-  const logContentRef = useRef<HTMLDivElement>(null);
-  const [highlightedLine, setHighlightedLine] = useState<number | null>(null);
-  const { status, summary, error, reset } = useLogSummarizer();
 
-  const handleBarClick = (firstLineIndex: number) => {
-    if (logContentRef.current) {
-      const lineHeight = 18;
-      const scrollPosition = (firstLineIndex - 1) * lineHeight;
-      logContentRef.current.scrollTo({
-        top: scrollPosition,
-        behavior: "smooth",
-      });
+  const [anchoredLine, setAnchoredLine] = useState<number | null>(() => {
+    const match = window.location.hash.match(/^#L(\d+)$/);
+    return match ? Number(match[1]) : null;
+  });
 
-      // Highlight the line briefly
-      setHighlightedLine(firstLineIndex);
-      setTimeout(() => setHighlightedLine(null), 1500);
-    }
-  };
+  const handleLineClick = useCallback(
+    (lineNumber: number, e: React.MouseEvent) => {
+      e.preventDefault();
+      const hash = `#L${lineNumber}`;
+      window.history.replaceState(null, "", hash);
+      setAnchoredLine(lineNumber);
+    },
+    [],
+  );
 
   // Default all groups to collapsed
   const [collapsed, setCollapsed] = useState<Set<string>>(
     () => new Set(groups.map((g) => g.id)),
   );
 
-  const toggleGroup = (groupId: string) => {
+  const {
+    visible: visibleLines,
+    lineToGroup,
+    groupsWithUniformTimestamps,
+  } = useMemo(
+    () => computeVisibleLines(lines, groups, collapsed),
+    [lines, groups, collapsed],
+  );
+
+  const firstItemIndex = lineOffset;
+
+  // Compute initial scroll target for anchor line
+  const initialAnchorIndex = useMemo(() => {
+    if (anchoredLine === null) return undefined;
+    const logIndex = anchoredLine - 1 - lineOffset;
+    const visibleIndex = visibleLines.findIndex((v) => v.index === logIndex);
+    return visibleIndex >= 0 ? firstItemIndex + visibleIndex : undefined;
+  }, [anchoredLine, lineOffset, visibleLines, firstItemIndex]);
+
+  const toggleGroup = useCallback((groupId: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) {
@@ -60,10 +98,156 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
       }
       return next;
     });
-  };
+  }, []);
 
-  const expandAll = () => setCollapsed(new Set());
-  const collapseAll = () => setCollapsed(new Set(groups.map((g) => g.id)));
+  const expandAll = useCallback(() => setCollapsed(new Set()), []);
+  const collapseAll = useCallback(
+    () => setCollapsed(new Set(groups.map((g) => g.id))),
+    [groups],
+  );
+
+  const renderLine = useCallback(
+    (absoluteIndex: number) => {
+      const entry = visibleLines[absoluteIndex - firstItemIndex];
+      if (!entry) {
+        return (
+          <div className={cn("grid whitespace-pre-wrap px-1 py-px")}></div>
+        );
+      }
+      const { index, indentLevel, displayLine } = entry;
+      const line = lines[index];
+      const hasGroups = groups.length > 0;
+      const lineNumber = displayLine + lineOffset;
+
+      const group = line.isGroupStart
+        ? groups.find((g) => g.startIndex === index)
+        : null;
+
+      const isAnchored = anchoredLine === lineNumber;
+
+      if (line.isGroupStart && group) {
+        const isCollapsed = collapsed.has(group.id);
+        return (
+          <button
+            type="button"
+            className={cn(
+              "grid w-full items-center px-1 py-px text-left",
+              isAnchored ? "bg-yellow-500/20" : "hover:bg-muted cursor-pointer",
+            )}
+            style={{
+              gridTemplateColumns: `40px ${indentLevel * 16}px 16px 1fr auto`,
+            }}
+            onClick={() => toggleGroup(group.id)}
+          >
+            <a
+              href={`#L${lineNumber}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLineClick(lineNumber, e);
+              }}
+              className="text-muted-foreground select-none pr-2 text-right hover:text-foreground"
+            >
+              {lineNumber}
+            </a>
+            <span />
+            <ChevronRight
+              className={cn(
+                "size-3 shrink-0 transition-transform",
+                !isCollapsed && "rotate-90",
+              )}
+            />
+            <Ansi useClasses linkify>
+              {line.body}
+            </Ansi>
+            <span className="text-muted-foreground select-none pl-2">
+              {formatTimestampTimeOfDay(line.timestamp)}
+            </span>
+          </button>
+        );
+      }
+
+      if (hasGroups) {
+        const groupInfo = lineToGroup.get(index);
+        const hideTimestamp =
+          groupInfo && groupsWithUniformTimestamps.has(groupInfo.groupId);
+
+        return (
+          <div
+            className={cn(
+              "grid whitespace-pre-wrap px-1 py-px",
+              "hover:bg-muted",
+              getMarkerClass(line.markerType),
+              isAnchored && "bg-yellow-500/20",
+            )}
+            style={{
+              gridTemplateColumns: `40px ${indentLevel * 16}px 16px 1fr auto`,
+            }}
+          >
+            <a
+              href={`#L${lineNumber}`}
+              onClick={(e) => handleLineClick(lineNumber, e)}
+              className="text-muted-foreground select-none pr-2 text-right hover:text-foreground"
+            >
+              {lineNumber}
+            </a>
+            <span />
+            <span />
+            <Ansi useClasses linkify>
+              {line.body}
+            </Ansi>
+            {hideTimestamp ? (
+              <span />
+            ) : (
+              <span className="text-muted-foreground select-none pl-2">
+                {formatTimestampTimeOfDay(line.timestamp)}
+              </span>
+            )}
+          </div>
+        );
+      }
+
+      return (
+        <div
+          className={cn(
+            "grid whitespace-pre-wrap px-1 py-px",
+            getMarkerClass(line.markerType),
+            isAnchored ? "bg-yellow-500/20" : "hover:bg-muted",
+          )}
+          style={{
+            gridTemplateColumns: `40px 1fr auto`,
+            paddingLeft: `${indentLevel * 16}px`,
+          }}
+        >
+          <a
+            href={`#L${lineNumber}`}
+            onClick={(e) => handleLineClick(lineNumber, e)}
+            className="text-muted-foreground select-none pr-2 text-right hover:text-foreground"
+          >
+            {lineNumber}
+          </a>
+          <Ansi useClasses linkify>
+            {line.body}
+          </Ansi>
+          <span className="text-muted-foreground select-none pl-2">
+            {formatTimestampTimeOfDay(line.timestamp)}
+          </span>
+        </div>
+      );
+    },
+    [
+      visibleLines,
+      lines,
+      groups,
+      collapsed,
+      anchoredLine,
+      lineOffset,
+      firstItemIndex,
+      lineToGroup,
+      groupsWithUniformTimestamps,
+      toggleGroup,
+      handleLineClick,
+    ],
+  );
 
   if (logs.length === 0) {
     return (
@@ -73,110 +257,10 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
     );
   }
 
-  // Build a map of line index to group info for efficient lookup
-  const lineToGroup = new Map<number, { groupId: string; depth: number }>();
-  const groupDepths = new Map<string, number>();
-  // Track which groups have uniform timestamps (all lines same as group header)
-  const groupsWithUniformTimestamps = new Set<string>();
-
-  // Calculate group depths and line mappings
-  for (const group of groups) {
-    // Find depth by counting nested groups
-    let depth = 0;
-    for (const other of groups) {
-      if (
-        other.startIndex < group.startIndex &&
-        other.endIndex > group.endIndex
-      ) {
-        depth++;
-      }
-    }
-    groupDepths.set(group.id, depth);
-
-    // Mark lines as belonging to this group
-    for (let i = group.startIndex + 1; i < group.endIndex; i++) {
-      const existing = lineToGroup.get(i);
-      // Only set if this group is more deeply nested (higher depth)
-      if (!existing || depth > existing.depth) {
-        lineToGroup.set(i, { groupId: group.id, depth });
-      }
-    }
-
-    // Check if all lines in this group have the same rendered timestamp as the group header
-    const headerTimestamp = formatTimestampTimeOfDay(
-      lines[group.startIndex].timestamp,
-    );
-    let hasUniformTimestamps = true;
-    for (let i = group.startIndex + 1; i < group.endIndex; i++) {
-      if (
-        !lines[i].isGroupEnd &&
-        formatTimestampTimeOfDay(lines[i].timestamp) !== headerTimestamp
-      ) {
-        hasUniformTimestamps = false;
-        break;
-      }
-    }
-    if (hasUniformTimestamps) {
-      groupsWithUniformTimestamps.add(group.id);
-    }
-  }
-
-  // Determine which lines to show based on collapsed state
-  const visibleLines: {
-    index: number;
-    indentLevel: number;
-  }[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Find the innermost group this line belongs to
-    const groupInfo = lineToGroup.get(i);
-
-    // Check if any parent group is collapsed
-    let isHidden = false;
-    if (groupInfo) {
-      // Check all groups that contain this line
-      for (const group of groups) {
-        if (
-          i > group.startIndex &&
-          i < group.endIndex &&
-          collapsed.has(group.id)
-        ) {
-          isHidden = true;
-          break;
-        }
-      }
-    }
-
-    // Skip endgroup markers entirely
-    if (line.isGroupEnd) {
-      continue;
-    }
-
-    if (!isHidden) {
-      // Calculate indent level based on how many groups contain this line
-      let indentLevel = 0;
-      for (const group of groups) {
-        if (i > group.startIndex && i <= group.endIndex) {
-          indentLevel++;
-        }
-      }
-      visibleLines.push({ index: i, indentLevel });
-    }
-  }
-
   return (
     <div className="flex h-full flex-col">
-      {/* Log volume chart */}
-      {volumeData.length > 0 && (
-        <div className="border-b px-2">
-          <LogVolumeChart data={volumeData} onBarClick={handleBarClick} />
-        </div>
-      )}
-
       {/* Header with expand/collapse buttons */}
-      <div className="flex items-center justify-between border-b px-3 py-1.5">
+      <div className="flex min-h-9 items-center justify-between border-b px-3 py-1.5">
         {stepName && <span className="text-xs font-medium">{stepName}</span>}
         {!stepName && <span />}
         <div className="flex gap-1">
@@ -209,137 +293,49 @@ export function LogViewer({ logs, stepName }: LogViewerProps) {
         </div>
       </div>
 
-      {/* AI Summary panel */}
-      {status !== "idle" && (
-        <LogSummaryPanel
-          status={status}
-          summary={summary}
-          error={error}
-          onClose={reset}
+      {/* Virtualized log content */}
+      <div className="bg-muted/50 min-h-0 flex-1 font-mono text-xs">
+        <Virtuoso
+          totalCount={visibleLines.length}
+          firstItemIndex={firstItemIndex}
+          initialTopMostItemIndex={
+            initialAnchorIndex ??
+            (initialScrollToBottom
+              ? firstItemIndex + visibleLines.length - 1
+              : firstItemIndex)
+          }
+          overscan={50}
+          followOutput={initialScrollToBottom}
+          startReached={() => {
+            if (onLoadPrevious && !isLoadingPrevious) {
+              onLoadPrevious();
+            }
+          }}
+          endReached={() => {
+            if (onLoadNext && !isLoadingNext) {
+              onLoadNext();
+            }
+          }}
+          itemContent={renderLine}
+          components={{
+            Header: isLoadingPrevious
+              ? () => (
+                  <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
+                    <Loader2 className="size-3 animate-spin" />
+                    Loading older logs...
+                  </div>
+                )
+              : undefined,
+            Footer: isLoadingNext
+              ? () => (
+                  <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
+                    <Loader2 className="size-3 animate-spin" />
+                    Loading newer logs...
+                  </div>
+                )
+              : undefined,
+          }}
         />
-      )}
-
-      {/* Log content with groups */}
-      <div
-        ref={logContentRef}
-        className="bg-muted/50 flex-1 overflow-auto font-mono text-xs"
-      >
-        {visibleLines.map(({ index, indentLevel }) => {
-          const line = lines[index];
-          const hasGroups = groups.length > 0;
-          const lineNumber = index + 1;
-
-          // Find group info for this line if it's a group start
-          const group = line.isGroupStart
-            ? groups.find((g) => g.startIndex === index)
-            : null;
-
-          if (line.isGroupStart && group) {
-            const isCollapsed = collapsed.has(group.id);
-            return (
-              <button
-                type="button"
-                key={index}
-                className={cn(
-                  "grid w-full items-center px-1 py-px text-left",
-                  "hover:bg-muted cursor-pointer",
-                  highlightedLine === index && "animate-highlight-fade",
-                )}
-                style={{
-                  gridTemplateColumns: `40px ${indentLevel * 16}px 16px 1fr auto`,
-                }}
-                onClick={() => toggleGroup(group.id)}
-              >
-                <span className="text-muted-foreground select-none pr-2 text-right">
-                  {lineNumber}
-                </span>
-                <span />
-                <ChevronRight
-                  className={cn(
-                    "size-3 shrink-0 transition-transform",
-                    !isCollapsed && "rotate-90",
-                  )}
-                />
-
-                <Ansi useClasses linkify>
-                  {line.body}
-                </Ansi>
-
-                <span className="text-muted-foreground select-none pl-2">
-                  {formatTimestampTimeOfDay(line.timestamp)}
-                </span>
-              </button>
-            );
-          }
-
-          // When groups exist, use grid layout to align with chevron column
-          if (hasGroups) {
-            // Check if this line is inside a group with uniform timestamps
-            const groupInfo = lineToGroup.get(index);
-            const hideTimestamp =
-              groupInfo && groupsWithUniformTimestamps.has(groupInfo.groupId);
-
-            return (
-              <div
-                key={index}
-                className={cn(
-                  "grid whitespace-pre-wrap px-1 py-px",
-                  "hover:bg-muted",
-                  getMarkerClass(line.markerType),
-                  highlightedLine === index && "animate-highlight-fade",
-                )}
-                style={{
-                  gridTemplateColumns: `40px ${indentLevel * 16}px 16px 1fr auto`,
-                }}
-              >
-                <span className="text-muted-foreground select-none pr-2 text-right">
-                  {lineNumber}
-                </span>
-                <span />
-                <span />
-                <Ansi useClasses linkify>
-                  {line.body}
-                </Ansi>
-
-                {hideTimestamp ? (
-                  <span />
-                ) : (
-                  <span className="text-muted-foreground select-none pl-2">
-                    {formatTimestampTimeOfDay(line.timestamp)}
-                  </span>
-                )}
-              </div>
-            );
-          }
-
-          // Without groups, use simpler layout with grid
-          return (
-            <div
-              key={index}
-              className={cn(
-                "grid whitespace-pre-wrap px-1 py-px",
-                "hover:bg-muted",
-                getMarkerClass(line.markerType),
-                highlightedLine === index &&
-                  "animate-highlight-fade bg-yellow-500/30",
-              )}
-              style={{
-                gridTemplateColumns: `40px 1fr auto`,
-                paddingLeft: `${indentLevel * 16}px`,
-              }}
-            >
-              <span className="text-muted-foreground select-none pr-2 text-right">
-                {lineNumber}
-              </span>
-              <Ansi useClasses linkify>
-                {line.body}
-              </Ansi>
-              <span className="text-muted-foreground select-none pl-2">
-                {formatTimestampTimeOfDay(line.timestamp)}
-              </span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
