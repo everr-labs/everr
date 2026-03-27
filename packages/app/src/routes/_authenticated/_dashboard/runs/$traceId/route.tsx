@@ -110,6 +110,8 @@ function RunDetailLayout() {
         repo={runDetails.repo}
         branch={runDetails.branch}
         timestamp={runDetails.timestamp}
+        htmlUrl={runDetails.htmlUrl}
+        pullRequestUrls={runDetails.pullRequestUrls}
       />
 
       <Tabs
