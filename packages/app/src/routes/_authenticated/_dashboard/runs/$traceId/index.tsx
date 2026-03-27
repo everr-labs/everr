@@ -1,42 +1,41 @@
 import { Card, CardContent } from "@everr/ui/components/card";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { allJobsStepsOptions, runJobsOptions } from "@/data/runs/options";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/runs/$traceId/",
 )({
-  component: RunDetailPage,
-});
+  loader: async ({ context: { queryClient }, params }) => {
+    const jobs = await queryClient.ensureQueryData(
+      runJobsOptions(params.traceId),
+    );
+    if (!jobs.length) return;
 
-function RunDetailPage() {
-  const { traceId } = Route.useParams();
-  const navigate = useNavigate();
-  const { data: jobs } = useQuery(runJobsOptions(traceId));
-  const { data: stepsByJobId } = useQuery(
-    allJobsStepsOptions({
-      traceId,
-      jobIds: (jobs ?? []).map((j) => j.jobId),
-    }),
-  );
+    const stepsByJobId = await queryClient.ensureQueryData(
+      allJobsStepsOptions({
+        traceId: params.traceId,
+        jobIds: jobs.map((j) => j.jobId),
+      }),
+    );
 
-  useEffect(() => {
-    if (!jobs?.length || !stepsByJobId) return;
     const firstJob = jobs[0];
     const firstSteps = stepsByJobId[firstJob.jobId];
     if (!firstSteps?.length) return;
-    void navigate({
+
+    throw redirect({
       to: "/runs/$traceId/jobs/$jobId/steps/$stepNumber",
       params: {
-        traceId,
+        traceId: params.traceId,
         jobId: firstJob.jobId,
         stepNumber: firstSteps[0].stepNumber,
       },
       replace: true,
     });
-  }, [jobs, stepsByJobId, traceId, navigate]);
+  },
+  component: RunDetailPage,
+});
 
+function RunDetailPage() {
   return (
     <Card size="sm">
       <CardContent className="flex h-[calc(100vh-200px)] items-center justify-center">
