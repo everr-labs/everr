@@ -12,6 +12,7 @@
 - [**pg-connection-per-sse-client**](todo/issues/pg-connection-per-sse-client.md) — `createSubscription` in `packages/app/src/db/subscribe.ts` opens a dedicated `pg.Client` (not from the pool) for every active SSE connection. This includes one connection per browser tab (via `/api/events/subscribe`) and one per CLI `watch` session (via `/api/cli/runs/watch`).
 - [**replace-filter-select-with-autocomplete-combobox**](todo/issues/replace-filter-select-with-autocomplete-combobox.md) — The FilterSelect component should be replaced with an autocomplete combobox.
 - [**tables-alignment-and-sorting**](todo/issues/tables-alignment-and-sorting.md) — Table columns are misaligned and tables don't support sorting.
+- [**watch-missing-attempt-param**](todo/issues/watch-missing-attempt-param.md) — The `everr watch` CLI command has no `--attempt` parameter, so there's no way to wait for a specific retry attempt of a workflow run.
 
 ## Projects
 
@@ -22,6 +23,7 @@
 
 - [**align-collector-with-upstream-receiver**](todo/ideas/align-collector-with-upstream-receiver.md) — Track the remaining differences between our `githubactionsreceiver` and the upstream `opentelemetry-collector-contrib/receiver/githubreceiver` and decide which to adopt.
 - [**import-workflows-during-onboarding**](todo/ideas/import-workflows-during-onboarding.md) — Allow users to import existing CI/CD workflows into Everr as part of the onboarding flow.
+- [**merge-notifications-by-commit**](todo/ideas/merge-notifications-by-commit.md) — Merge multiple notifications triggered by the same commit into a single commit-level notification instead of showing one notification per failing run or job.
 - [**post-optimization-annotations**](todo/ideas/post-optimization-annotations.md) — Allow users to annotate jobs and tests after optimization with the date, model type, and a note.
 - [**protected-branches-metrics**](todo/ideas/protected-branches-metrics.md) — Let users mark certain branches (e.g. main, develop) so metrics focus on those instead of mixing in temporary ones.
 - [**queue-span-for-workflow-jobs**](todo/ideas/queue-span-for-workflow-jobs.md) — Emit a dedicated span representing the time a job spends queued (created → started) instead of computing queue time client-side from resource attributes.
