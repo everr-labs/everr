@@ -70,7 +70,14 @@ export function RunsTable({ data }: RunsTableProps) {
                 </Link>
               </td>
               <td className="py-2 pr-4">
-                <Badge variant="outline">{run.branch}</Badge>
+                <Link to="/runs" search={{ branch: run.branch }}>
+                  <Badge
+                    variant="outline"
+                    className="cursor-pointer hover:bg-accent"
+                  >
+                    {run.branch}
+                  </Badge>
+                </Link>
               </td>
               <td className="py-2 pr-4 font-mono text-xs">
                 {run.duration > 0 ? formatDuration(run.duration, "ms") : "—"}
