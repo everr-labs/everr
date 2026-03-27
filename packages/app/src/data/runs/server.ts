@@ -144,7 +144,6 @@ export const getRunDetails = createAuthenticatedServerFn({
 					coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
 					anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
 					max(Timestamp) as timestamp,
-					anyLast(ResourceAttributes['cicd.pipeline.run.url.full']) as htmlUrl,
 					anyLast(ResourceAttributes['everr.git.pull_requests.url']) as pullRequestsUrl
 				FROM traces
 				WHERE TraceId = {traceId:String}
@@ -158,7 +157,6 @@ export const getRunDetails = createAuthenticatedServerFn({
       conclusion: string;
       workflowName: string;
       timestamp: string;
-      htmlUrl: string;
       pullRequestsUrl: string;
     }>(sql, { traceId });
 
@@ -175,7 +173,7 @@ export const getRunDetails = createAuthenticatedServerFn({
       conclusion: result[0].conclusion,
       workflowName: result[0].workflowName || "Workflow",
       timestamp: result[0].timestamp,
-      htmlUrl: result[0].htmlUrl || undefined,
+      htmlUrl: `https://github.com/${result[0].repo}/actions/runs/${result[0].run_id}`,
       pullRequestUrls: result[0].pullRequestsUrl
         ? result[0].pullRequestsUrl.split(";")
         : undefined,
