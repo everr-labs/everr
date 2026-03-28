@@ -1,22 +1,41 @@
 import { Card, CardContent } from "@everr/ui/components/card";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { runDetailsOptions } from "@/data/runs/options";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { allJobsStepsOptions, runJobsOptions } from "@/data/runs/options";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/runs/$traceId/",
 )({
+  loader: async ({ context: { queryClient }, params }) => {
+    const jobs = await queryClient.ensureQueryData(
+      runJobsOptions(params.traceId),
+    );
+    if (!jobs.length) return;
+
+    const stepsByJobId = await queryClient.ensureQueryData(
+      allJobsStepsOptions({
+        traceId: params.traceId,
+        jobIds: jobs.map((j) => j.jobId),
+      }),
+    );
+
+    const firstJob = jobs[0];
+    const firstSteps = stepsByJobId[firstJob.jobId];
+    if (!firstSteps?.length) return;
+
+    throw redirect({
+      to: "/runs/$traceId/jobs/$jobId/steps/$stepNumber",
+      params: {
+        traceId: params.traceId,
+        jobId: firstJob.jobId,
+        stepNumber: firstSteps[0].stepNumber,
+      },
+      replace: true,
+    });
+  },
   component: RunDetailPage,
 });
 
 function RunDetailPage() {
-  const { traceId } = Route.useParams();
-  const { data: runDetails } = useQuery(runDetailsOptions(traceId));
-
-  if (!runDetails) {
-    return null;
-  }
-
   return (
     <Card size="sm">
       <CardContent className="flex h-[calc(100vh-200px)] items-center justify-center">

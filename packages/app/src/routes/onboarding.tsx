@@ -40,6 +40,10 @@ import {
   createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
 } from "@/data/onboarding";
+import {
+  PLATFORMS as DOWNLOAD_PLATFORMS,
+  getDownloadUrl,
+} from "@/lib/app-download";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -54,23 +58,10 @@ const STEP_LABELS: Record<Step, string> = {
   app: "Desktop App",
 };
 
-const DOCS_ORIGIN = import.meta.env.DEV
-  ? "http://localhost:3000"
-  : "https://everr.dev";
-const APP_DOWNLOAD_BASE = `${DOCS_ORIGIN}/everr-app`;
-
-const PLATFORMS = [
-  {
-    label: "macOS (Apple Silicon)",
-    os: "macos",
-    arch: "arm64",
-    icon: SiApple,
-  },
-] as const;
-
-function getDownloadUrl(os: string, arch: string) {
-  return `${APP_DOWNLOAD_BASE}/everr-app-${os}-${arch}.dmg`;
-}
+const PLATFORMS = DOWNLOAD_PLATFORMS.map((p) => ({
+  ...p,
+  icon: SiApple,
+}));
 
 // ---------------------------------------------------------------------------
 // Motion variants
