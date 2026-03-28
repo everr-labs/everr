@@ -1,3 +1,4 @@
+import { Input } from "@everr/ui/components/input";
 import { FilterSelect } from "@/components/filter-select";
 import type { FilterOptions } from "@/data/runs-list/schemas";
 
@@ -31,39 +32,39 @@ export function RunsFilterBar({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <FilterSelect
-        value={repo}
+        value={repo ?? ""}
         onChange={onRepoChange}
         items={filterOptions.repos}
         placeholder="All repos"
       />
 
       <FilterSelect
-        value={branch}
+        value={branch ?? ""}
         onChange={onBranchChange}
         items={filterOptions.branches}
         placeholder="All branches"
       />
 
       <FilterSelect
-        value={conclusion}
+        value={conclusion ?? ""}
         onChange={onConclusionChange}
         items={["success", "failure", "cancellation"]}
         placeholder="All statuses"
       />
 
       <FilterSelect
-        value={workflowName}
+        value={workflowName ?? ""}
         onChange={onWorkflowNameChange}
         items={filterOptions.workflowNames}
         placeholder="All workflows"
       />
 
-      <input
+      <Input
         type="text"
         placeholder="Search run ID..."
         value={runId || ""}
         onChange={(e) => onRunIdChange(e.target.value)}
-        className="border-input bg-background placeholder:text-muted-foreground h-9 rounded-md border px-3 text-sm"
+        className="w-45"
       />
     </div>
   );

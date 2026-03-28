@@ -70,7 +70,10 @@ export function RunsTable({ data }: RunsTableProps) {
                 </Link>
               </td>
               <td className="py-2 pr-4">
-                <Link to="/runs" search={{ branch: run.branch }}>
+                <Link
+                  to="/runs"
+                  search={(prev) => ({ ...prev, branch: run.branch })}
+                >
                   <Badge
                     variant="outline"
                     className="cursor-pointer hover:bg-accent"
