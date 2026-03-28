@@ -102,6 +102,8 @@ pub struct WatchArgs {
     pub branch: Option<String>,
     #[arg(long)]
     pub commit: Option<String>,
+    #[arg(long)]
+    pub attempt: Option<u32>,
 }
 
 #[derive(Args, Debug)]
@@ -243,7 +245,7 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        Cli, Commands, DEFAULT_LOG_PAGE_SIZE, GrepArgs, SlowestJobsArgs, SlowestTestsArgs,
+        Cli, Commands, GrepArgs, SlowestJobsArgs, SlowestTestsArgs,
         TestHistoryArgs, WatchArgs,
     };
 
@@ -494,6 +496,7 @@ mod tests {
             repo,
             branch,
             commit,
+            attempt: _,
         }) = cli.command
         else {
             panic!("expected watch command");

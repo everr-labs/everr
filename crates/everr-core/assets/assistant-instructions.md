@@ -2,7 +2,7 @@ Use Everr CLI guidance when the task involves CI, GitHub Actions workflows, pipe
 
 Quick commands:
 - `everr status`: returns the status of the runs on the current commit; add `--commit <sha>` to target a specific commit
-- `everr watch`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit
+- `everr watch`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit, `--attempt <n>` to target a specific retry attempt
 - `everr grep --job-name <job> --step-number <n> --pattern <text>`: searches failing step logs on other branches by default (7 days of history unless `--from/--to` are passed)
 - `everr runs`: the list of runs across all branches; add `--current-branch` to scope to the current git branch, `--branch <BRANCH_NAME>` to specify a different branch, `--conclusion <success|failure|cancellation>` to filter by outcome, `--workflow-name <name>` to filter by workflow, or `--run-id <id>` to find a specific run
 - `everr show --trace-id <trace_id>`

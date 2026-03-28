@@ -160,6 +160,30 @@ describe("getWatchStatus", () => {
     });
   });
 
+  it("filters by attempt when provided", async () => {
+    mockedQuery.mockResolvedValueOnce({ rows: [] } as Awaited<
+      ReturnType<typeof mockedQuery>
+    >);
+
+    await getWatchStatus({
+      tenantId: 42,
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
+      attempt: 2,
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("attempts = $5");
+    expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
+      42,
+      "everr-labs/everr",
+      "abc123",
+      "main",
+      2,
+    ]);
+  });
+
   it("keeps only the latest attempt per run and returns completed state", async () => {
     mockedQuery
       .mockResolvedValueOnce({

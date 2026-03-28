@@ -834,7 +834,7 @@ fn watch_receives_sse_events_until_completion() {
         .stdout(contains("\"runId\": \"42\""))
         .stdout(contains("\"runId\": \"41\""))
         .stderr(contains("Watching pipeline for commit"))
-        .stderr(contains("Active runs:\n- CI [mock-trace-id-1] (duration:"))
+        .stderr(contains("Active runs:\n- CI [mock-trace-id-1] (started at:"))
         .stderr(contains("expected duration: 1m 58s; active jobs: test, lint)"))
         .stderr(contains("Completed runs: Lint [mock-trace-id-2]"));
 

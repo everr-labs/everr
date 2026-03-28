@@ -11,6 +11,7 @@ const WatchQuerySchema = z.object({
   repo: z.string().min(1),
   branch: z.string().min(1).optional(),
   commit: z.string().min(1),
+  attempt: z.coerce.number().int().min(1).optional(),
 });
 
 export { WatchQuerySchema };
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
           repo: url.searchParams.get("repo") ?? undefined,
           branch: url.searchParams.get("branch") ?? undefined,
           commit: url.searchParams.get("commit") ?? undefined,
+          attempt: url.searchParams.get("attempt") ?? undefined,
         });
 
         if (!parsed.success) {
