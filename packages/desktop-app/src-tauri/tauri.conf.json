@@ -21,7 +21,7 @@
         "visible": false,
         "skipTaskbar": true,
         "resizable": true,
-        "titleBarStyle": "Transparent",
+        "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {
           "x": 18,
