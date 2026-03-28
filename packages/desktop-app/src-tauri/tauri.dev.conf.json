@@ -5,11 +5,12 @@
     "windows": [
       {
         "label": "main",
+        "backgroundColor": "#0A0A0A",
         "title": "Everr_Dev",
-        "width": 620,
-        "height": 560,
-        "minWidth": 520,
-        "minHeight": 500,
+        "width": 680,
+        "height": 680,
+        "minWidth": 680,
+        "minHeight": 680,
         "visible": false,
         "skipTaskbar": true,
         "resizable": true,
@@ -20,6 +21,10 @@
           "y": 20
         }
       }
-    ]
+    ],
+    "macOSPrivateApi": true,
+    "security": {
+      "csp": null
+    }
   }
 }

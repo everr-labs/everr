@@ -21,11 +21,9 @@ export function DesktopFrame({
 }) {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
+      <div data-tauri-drag-region className="fixed inset-x-0 top-0 h-9" />
       <Card className="w-full max-w-[860px] overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
-        <CardHeader
-          className="gap-5 px-6 pb-0 pt-8 max-[620px]:px-5"
-          data-tauri-drag-region
-        >
+        <CardHeader className="gap-5 px-6 pb-0 pt-8 max-[620px]:px-5">
           <div className="flex items-start justify-between gap-4 max-[720px]:flex-col">
             <div className="grid gap-1.5">
               <p className="m-0 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[var(--settings-text-soft)]">

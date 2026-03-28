@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "backgroundColor": "#0A0A0A",
         "title": "Everr",
         "width": 680,
         "height": 680,
@@ -21,7 +22,7 @@
         "visible": false,
         "skipTaskbar": true,
         "resizable": true,
-        "titleBarStyle": "Transparent",
+        "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {
           "x": 18,

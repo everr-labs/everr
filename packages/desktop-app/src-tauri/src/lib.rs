@@ -262,12 +262,17 @@ pub fn run() {
                     }
                 } else {
                     let _ = window.hide();
+
+                    let _ = window
+                        .app_handle()
+                        .set_activation_policy(tauri::ActivationPolicy::Accessory);
                 }
             }
         })
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
 
             let mut autostart = tauri_plugin_autostart::Builder::new().app_name(current_app_name());
             #[cfg(target_os = "macos")]
