@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "backgroundColor": "#0A0A0A",
         "title": "Everr",
         "width": 680,
         "height": 680,

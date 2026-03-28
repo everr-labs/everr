@@ -5,10 +5,6 @@ import { NOTIFICATION_WINDOW_LABEL, resolveWindowLabel } from "./lib/tauri";
 function App() {
   const isNotification = resolveWindowLabel() === NOTIFICATION_WINDOW_LABEL;
 
-  if (!isNotification) {
-    document.body.classList.add("bg-background");
-  }
-
   return isNotification ? <NotificationWindow /> : <DesktopWindow />;
 }
 
