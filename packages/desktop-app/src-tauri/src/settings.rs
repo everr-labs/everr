@@ -116,5 +116,8 @@ pub(crate) fn open_settings_window(app: &AppHandle) -> Result<()> {
 
     window.show()?;
     window.set_focus()?;
+
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+
     Ok(())
 }
