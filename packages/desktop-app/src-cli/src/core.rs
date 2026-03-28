@@ -8,7 +8,7 @@ use tokio::pin;
 
 use futures_util::StreamExt;
 
-use crate::api::{ApiClient, StepLogEntry, WatchResponse, WatchRun, WatchState};
+use crate::api::{ApiClient, StepLogEntry, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
@@ -253,54 +253,43 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     if let Some(ref b) = branch {
         query.push(("branch", b.clone()));
     }
+    if let Some(attempt) = args.attempt {
+        query.push(("attempt", attempt.to_string()));
+    }
 
     let sse_stream = client.watch_sse(&query).await?;
     pin!(sse_stream);
 
     let mut watch_status_lines = 0usize;
-    let mut last_payload: Option<WatchResponse> = None;
-    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
-        tokio::select! {
-            event = sse_stream.next() => {
-                match event {
-                    Some(Ok(payload)) => {
-                        let watch_complete = matches!(payload.state, WatchState::Completed);
+        match sse_stream.next().await {
+            Some(Ok(payload)) => {
+                let watch_complete = matches!(payload.state, WatchState::Completed);
 
-                        if watch_complete {
-                            finish_watch_status_block(watch_status_lines)?;
-                            print_json(&payload)?;
-                            let failed_runs = failed_watch_run_names(&payload.completed);
-                            if !failed_runs.is_empty() {
-                                bail!(
-                                    "pipeline finished with failed run(s): {}",
-                                    failed_runs.join(", ")
-                                );
-                            }
-                            return Ok(());
-                        }
-
-                        let status = format_watch_status(&target_commit, &payload.active, &payload.completed);
-                        last_payload = Some(payload);
-                        render_watch_status_block(&status, &mut watch_status_lines)?;
+                if watch_complete {
+                    finish_watch_status_block(watch_status_lines)?;
+                    print_json(&payload)?;
+                    let failed_runs = failed_watch_run_names(&payload.completed);
+                    if !failed_runs.is_empty() {
+                        bail!(
+                            "pipeline finished with failed run(s): {}",
+                            failed_runs.join(", ")
+                        );
                     }
-                    Some(Err(error)) => {
-                        finish_watch_status_block(watch_status_lines)?;
-                        return Err(error);
-                    }
-                    None => {
-                        finish_watch_status_block(watch_status_lines)?;
-                        bail!("SSE connection closed unexpectedly");
-                    }
+                    return Ok(());
                 }
+
+                let status = format_watch_status(&target_commit, &payload.active, &payload.completed);
+                render_watch_status_block(&status, &mut watch_status_lines)?;
             }
-            _ = ticker.tick() => {
-                if let Some(ref payload) = last_payload {
-                    let status = format_watch_status(&target_commit, &payload.active, &payload.completed);
-                    render_watch_status_block(&status, &mut watch_status_lines)?;
-                }
+            Some(Err(error)) => {
+                finish_watch_status_block(watch_status_lines)?;
+                return Err(error);
+            }
+            None => {
+                finish_watch_status_block(watch_status_lines)?;
+                bail!("SSE connection closed unexpectedly");
             }
         }
     }
@@ -391,12 +380,7 @@ fn format_watch_status(
     } else {
         let _ = writeln!(status, "Active runs:");
         for run in active_runs {
-            let duration_seconds = run.duration_seconds
-                .unwrap_or_else(|| elapsed_since(&run.started_at));
-            let mut details = vec![format!(
-                "duration: {}",
-                format_elapsed_duration(duration_seconds)
-            )];
+            let mut details = vec![format!("started at: {}", &run.started_at)];
             if let Some(expected_duration_seconds) = run.expected_duration_seconds {
                 details.push(format!(
                     "expected duration: {}",
@@ -420,14 +404,6 @@ fn format_watch_status(
         format_completed_run_list(completed_runs)
     );
     status
-}
-
-fn elapsed_since(iso_timestamp: &str) -> u64 {
-    let Ok(started) = iso_timestamp.parse::<chrono::DateTime<chrono::Utc>>() else {
-        return 0;
-    };
-    let elapsed = chrono::Utc::now() - started;
-    elapsed.num_seconds().max(0) as u64
 }
 
 fn render_watch_status_block(message: &str, last_lines: &mut usize) -> Result<()> {
@@ -690,7 +666,7 @@ mod tests {
         );
 
         assert!(
-            status.contains("CI [trace-5] (duration: 2m 5s; expected duration: 1m 58s; active jobs: test)")
+            status.contains("CI [trace-5] (started at: 2026-03-06T10:00:00Z; expected duration: 1m 58s; active jobs: test)")
         );
     }
 }

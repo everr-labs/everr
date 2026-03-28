@@ -22,6 +22,7 @@ type WatchStatusInput = {
   repo: string;
   branch?: string;
   commit: string;
+  attempt?: number;
 };
 
 type WorkflowRunRow = {
@@ -51,12 +52,18 @@ export async function getWatchStatus({
   repo,
   branch,
   commit,
+  attempt,
 }: WatchStatusInput): Promise<WatchResponse> {
   const matchingRunsParams: (string | number)[] = [tenantId, repo, commit];
   let matchingRunsBranchClause = "";
   if (branch) {
     matchingRunsParams.push(branch);
     matchingRunsBranchClause = `AND ref = $${matchingRunsParams.length}`;
+  }
+  let matchingRunsAttemptClause = "";
+  if (attempt !== undefined) {
+    matchingRunsParams.push(attempt);
+    matchingRunsAttemptClause = `AND attempts = $${matchingRunsParams.length}`;
   }
 
   const matchingRuns = await pool.query<WorkflowRunRow>(
@@ -76,6 +83,7 @@ export async function getWatchStatus({
         AND repository = $2
         AND sha = $3
         ${matchingRunsBranchClause}
+        ${matchingRunsAttemptClause}
         AND last_event_at >= NOW() - ${WATCH_LOOKBACK_SQL}
       ORDER BY run_id ASC, attempts DESC, last_event_at DESC
     `,
