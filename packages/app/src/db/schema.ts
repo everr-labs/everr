@@ -211,11 +211,15 @@ export const workflowRuns = pgTable(
       table.tenantId,
       table.traceId,
     ),
-    index("workflow_runs_tenant_repo_ref_sha_idx").on(
+    index("workflow_runs_tenant_repo_sha_ref_idx").on(
       table.tenantId,
       table.repository,
-      table.ref,
       table.sha,
+      table.ref,
+    ),
+    index("workflow_runs_tenant_last_event_idx").on(
+      table.tenantId,
+      sql`last_event_at DESC`,
     ),
   ],
 );
