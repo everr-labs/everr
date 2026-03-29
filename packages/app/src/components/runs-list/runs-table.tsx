@@ -2,6 +2,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { Link } from "@tanstack/react-router";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
+import { SenderCell } from "@/components/sender-cell";
 import type { RunListItem } from "@/data/runs-list/schemas";
 import { formatDuration, formatRelativeTime } from "@/lib/formatting";
 
@@ -89,7 +90,7 @@ export function RunsTable({ data }: RunsTableProps) {
                 {formatRelativeTime(run.timestamp)}
               </td>
               <td className="py-2 pr-3 text-xs text-muted-foreground">
-                {run.sender || "—"}
+                <SenderCell sender={run.sender} />
               </td>
             </tr>
           ))}
