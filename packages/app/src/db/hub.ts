@@ -9,6 +9,7 @@ function ensureStarted(): void {
   if (!started) {
     started = true;
     hub.start().catch((err) => {
+      started = false;
       console.error("[NotificationHub] failed to start", err);
     });
   }

@@ -125,7 +125,13 @@ export class NotificationHub {
 
   private scheduleReconnect(): void {
     if (this.stopped) return;
-    if (this.consecutiveFailures >= MAX_RETRIES) return;
+    if (this.reconnectTimer) return;
+    if (this.consecutiveFailures >= MAX_RETRIES) {
+      console.error(
+        `[NotificationHub] gave up reconnecting after ${MAX_RETRIES} consecutive failures`,
+      );
+      return;
+    }
 
     const backoff = Math.min(
       1000 * 2 ** this.consecutiveFailures,
