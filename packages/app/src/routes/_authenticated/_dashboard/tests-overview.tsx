@@ -55,27 +55,27 @@ export const Route = createFileRoute(
   },
   component: TestPerformancePage,
   validateSearch: TimeRangeSearchSchema.extend({
-    repo: z.string().optional(),
+    repos: z.array(z.string()).default([]),
     pkg: z.string().optional(),
     testName: z.string().optional(),
-    branch: z.string().optional(),
+    branches: z.array(z.string()).default([]),
     path: z.string().optional(),
   }),
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps }) => {
     const filterInput = {
       timeRange: deps.timeRange,
-      repo: deps.repo,
+      repos: deps.repos,
       pkg: deps.pkg,
       testName: deps.testName,
-      branch: deps.branch,
+      branches: deps.branches,
       path: deps.path,
     };
     const childrenInput = {
       timeRange: deps.timeRange,
-      repo: deps.repo,
+      repos: deps.repos,
       pkg: deps.pkg,
-      branch: deps.branch,
+      branches: deps.branches,
       path: deps.path,
     };
     const prefetches = [
@@ -98,12 +98,12 @@ export const Route = createFileRoute(
 });
 
 function TestPerformancePage() {
-  const { timeRange, repo, pkg, testName, branch, path } =
+  const { timeRange, repos, pkg, testName, branches, path } =
     Route.useLoaderDeps();
 
   const isRootScope = !pkg && !path;
   const { fromDate, toDate } = resolveTimeRange(timeRange);
-  const filterInput = { timeRange, repo, pkg, testName, branch, path };
+  const filterInput = { timeRange, repos, pkg, testName, branches, path };
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
   const [treemapSizeMetric, setTreemapSizeMetric] =
@@ -132,7 +132,7 @@ function TestPerformancePage() {
   });
   const { data: filterOptions } = useQuery(testPerfFilterOptionsOptions());
 
-  const childrenInput = { timeRange, repo, pkg, branch, path };
+  const childrenInput = { timeRange, repos, pkg, branches, path };
   const childrenQuery = useQuery(testPerfChildrenOptions(childrenInput));
   const children = childrenQuery.data ?? [];
 
@@ -202,12 +202,12 @@ function TestPerformancePage() {
 
       <TestPerfFilterBar
         filterOptions={filterOptions ?? { repos: [], branches: [] }}
-        repo={repo}
-        branch={branch}
-        onRepoChange={(v) =>
-          updateFilter({ repo: v, pkg: undefined, path: undefined })
+        repos={repos}
+        branches={branches}
+        onReposChange={(v) =>
+          updateFilter({ repos: v, pkg: undefined, path: undefined })
         }
-        onBranchChange={(v) => updateFilter({ branch: v })}
+        onBranchesChange={(v) => updateFilter({ branches: v })}
       />
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -476,15 +476,15 @@ function TestPerformancePage() {
               <ChildrenTable
                 data={children}
                 pkg={pkg}
-                repo={repo}
-                branch={branch}
+                repos={repos}
+                branches={branches}
                 timeRange={timeRange}
                 fetchChildren={(scope) =>
                   queryClient.fetchQuery(
                     testPerfChildrenOptions({
                       timeRange,
-                      repo,
-                      branch,
+                      repos,
+                      branches,
                       pkg: scope.pkg,
                       path: scope.path,
                     }),

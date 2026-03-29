@@ -19,8 +19,8 @@ import {
 interface ChildrenTableProps {
   data: TestPerfChild[];
   pkg?: string;
-  repo?: string;
-  branch?: string;
+  repos?: string[];
+  branches?: string[];
   timeRange: { from: string; to: string };
   fetchChildren?: (scope: {
     pkg?: string;
@@ -215,8 +215,8 @@ function makeColumns(
 export function ChildrenTable({
   data,
   pkg,
-  repo: _repo,
-  branch: _branch,
+  repos: _repos,
+  branches: _branches,
   timeRange: _timeRange,
   fetchChildren,
 }: ChildrenTableProps) {

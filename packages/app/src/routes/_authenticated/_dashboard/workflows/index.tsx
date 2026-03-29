@@ -4,11 +4,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
+import { Input } from "@everr/ui/components/input";
+import { Label } from "@everr/ui/components/label";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { FilterSelect } from "@/components/filter-select";
+import { FilterCombobox } from "@/components/filter-combobox";
 import { Pagination } from "@/components/runs-list";
 import { WorkflowsTable } from "@/components/workflows/workflows-table";
 import { runFilterOptionsOptions } from "@/data/runs-list/options";
@@ -26,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/workflows/")({
   component: WorkflowsListPage,
   validateSearch: TimeRangeSearchSchema.extend({
     page: z.coerce.number().default(1),
-    repo: z.string().optional(),
+    repos: z.array(z.string()).default([]),
     search: z.string().optional(),
   }),
   loaderDeps: ({ search }) => withTimeRange(search),
@@ -34,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/workflows/")({
     const listInput = {
       timeRange: deps.timeRange,
       page: deps.page,
-      repo: deps.repo,
+      repos: deps.repos,
       search: deps.search,
     };
     await Promise.all([
@@ -46,10 +48,10 @@ export const Route = createFileRoute("/_authenticated/_dashboard/workflows/")({
 });
 
 function WorkflowsListPage() {
-  const { timeRange, page, repo, search } = Route.useLoaderDeps();
+  const { timeRange, page, repos, search } = Route.useLoaderDeps();
 
   const { data: listResult } = useQuery(
-    workflowsListOptions({ timeRange, page, repo, search }),
+    workflowsListOptions({ timeRange, page, repos, search }),
   );
   const { data: filterOptions } = useQuery(runFilterOptionsOptions());
   const { data: sparklines } = useQuery(
@@ -80,23 +82,34 @@ function WorkflowsListPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterSelect
-          value={repo}
-          onChange={(v) => updateFilter({ repo: v })}
+      <div className="flex flex-wrap items-end gap-2">
+        <FilterCombobox
+          label="Repo"
+          values={repos}
+          onChange={(v) => updateFilter({ repos: v })}
           items={filterOptions?.repos ?? []}
-          placeholder="All repos"
+          placeholder="All"
+          searchPlaceholder="Search repos..."
         />
 
-        <input
-          type="text"
-          placeholder="Search workflows..."
-          value={search || ""}
-          onChange={(e) =>
-            updateFilter({ search: e.target.value || undefined })
-          }
-          className="border-input bg-background placeholder:text-muted-foreground h-9 rounded-md border px-3 text-sm"
-        />
+        <div className="flex flex-col gap-1">
+          <Label
+            htmlFor="workflow-search"
+            className="text-muted-foreground text-xs"
+          >
+            Search
+          </Label>
+          <Input
+            id="workflow-search"
+            type="text"
+            placeholder="Search workflows..."
+            value={search || ""}
+            onChange={(e) =>
+              updateFilter({ search: e.target.value || undefined })
+            }
+            className="w-45 h-8"
+          />
+        </div>
       </div>
 
       <Card>

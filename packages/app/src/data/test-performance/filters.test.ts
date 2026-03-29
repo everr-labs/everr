@@ -8,17 +8,17 @@ describe("buildFilterConditions", () => {
   it("adds scoped leaf filter at root level", () => {
     const { scopeConditions } = buildFilterConditions(fromISO, toISO, {
       timeRange: { from: "now-7d", to: "now" },
-      repo: "acme/repo",
-      branch: "main",
+      repos: ["acme/repo"],
+      branches: ["main"],
     });
 
     const sql = scopeConditions.join("\n");
     expect(sql).toContain("NOT IN");
     expect(sql).toContain(
-      "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+      "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
     );
     expect(sql).toContain(
-      "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+      "ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}",
     );
   });
 

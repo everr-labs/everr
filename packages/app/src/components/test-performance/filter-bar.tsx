@@ -1,35 +1,39 @@
 import type { TestPerfFilterOptions } from "@/data/test-performance/children";
-import { FilterSelect } from "../filter-select";
+import { FilterCombobox } from "../filter-combobox";
 
 interface TestPerfFilterBarProps {
   filterOptions: TestPerfFilterOptions;
-  repo?: string;
-  branch?: string;
-  onRepoChange: (value: string | undefined) => void;
-  onBranchChange: (value: string | undefined) => void;
+  repos: string[];
+  branches: string[];
+  onReposChange: (values: string[]) => void;
+  onBranchesChange: (values: string[]) => void;
 }
 
 export function TestPerfFilterBar({
   filterOptions,
-  repo,
-  branch,
-  onRepoChange,
-  onBranchChange,
+  repos,
+  branches,
+  onReposChange,
+  onBranchesChange,
 }: TestPerfFilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <FilterSelect
-        value={repo}
-        onChange={onRepoChange}
+    <div className="flex flex-wrap items-end gap-2">
+      <FilterCombobox
+        label="Repo"
+        values={repos}
+        onChange={onReposChange}
         items={filterOptions.repos}
-        placeholder="All repos"
+        placeholder="All"
+        searchPlaceholder="Search repos..."
       />
 
-      <FilterSelect
-        value={branch}
-        onChange={onBranchChange}
+      <FilterCombobox
+        label="Branch"
+        values={branches}
+        onChange={onBranchesChange}
         items={filterOptions.branches}
-        placeholder="All branches"
+        placeholder="All"
+        searchPlaceholder="Search branches..."
       />
     </div>
   );

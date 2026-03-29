@@ -60,9 +60,9 @@ export interface TestPerfChild {
 
 const TestPerfChildrenInputSchema = z.object({
   timeRange: TimeRangeSchema,
-  repo: z.string().optional(),
+  repos: z.array(z.string()).optional(),
   pkg: z.string().optional(),
-  branch: z.string().optional(),
+  branches: z.array(z.string()).optional(),
   path: z.string().optional(),
 });
 
@@ -85,17 +85,17 @@ export const getTestPerfChildren = createAuthenticatedServerFn({
       toTime: toISO,
     };
 
-    if (data.repo) {
+    if (data.repos?.length) {
       baseConditions.push(
-        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+        "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
       );
-      params.repo = data.repo;
+      params.repos = data.repos;
     }
-    if (data.branch) {
+    if (data.branches?.length) {
       baseConditions.push(
-        "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+        "ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}",
       );
-      params.branch = data.branch;
+      params.branches = data.branches;
     }
 
     const isRoot = !data.pkg;

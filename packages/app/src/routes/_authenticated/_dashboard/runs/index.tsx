@@ -22,10 +22,12 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
   component: RunsListPage,
   validateSearch: TimeRangeSearchSchema.extend({
     page: z.coerce.number().int().default(1),
-    repo: z.string().optional(),
-    branch: z.string().optional(),
-    conclusion: z.enum(["success", "failure", "cancellation"]).optional(),
-    workflowName: z.string().optional(),
+    repos: z.array(z.string()).default([]),
+    branches: z.array(z.string()).default([]),
+    conclusions: z
+      .array(z.enum(["success", "failure", "cancellation"]))
+      .default([]),
+    workflowNames: z.array(z.string()).default([]),
     runId: z.string().optional(),
   }),
   loaderDeps: ({ search }) => withTimeRange(search),
@@ -34,10 +36,10 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
       timeRange: deps.timeRange,
       limit: PAGE_SIZE,
       offset: (deps.page - 1) * PAGE_SIZE,
-      repo: deps.repo,
-      branch: deps.branch,
-      conclusion: deps.conclusion,
-      workflowName: deps.workflowName,
+      repos: deps.repos,
+      branches: deps.branches,
+      conclusions: deps.conclusions,
+      workflowNames: deps.workflowNames,
       runId: deps.runId,
     };
     await Promise.all([
@@ -50,17 +52,24 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
 
 function RunsListPage() {
   useRealtimeSubscription({ scope: "tenant" });
-  const { timeRange, page, repo, branch, conclusion, workflowName, runId } =
-    Route.useLoaderDeps();
+  const {
+    timeRange,
+    page,
+    repos,
+    branches,
+    conclusions,
+    workflowNames,
+    runId,
+  } = Route.useLoaderDeps();
 
   const runsInput = {
     timeRange,
     limit: PAGE_SIZE,
     offset: (page - 1) * PAGE_SIZE,
-    repo,
-    branch,
-    conclusion,
-    workflowName,
+    repos,
+    branches,
+    conclusions,
+    workflowNames,
     runId,
   };
   const { data: runsResult } = useQuery(runsListOptions(runsInput));
@@ -88,15 +97,15 @@ function RunsListPage() {
         filterOptions={
           filterOptions ?? { repos: [], branches: [], workflowNames: [] }
         }
-        repo={repo}
-        branch={branch}
-        conclusion={conclusion}
-        workflowName={workflowName}
+        repos={repos}
+        branches={branches}
+        conclusions={conclusions}
+        workflowNames={workflowNames}
         runId={runId}
-        onRepoChange={(v) => updateFilter({ repo: v })}
-        onBranchChange={(v) => updateFilter({ branch: v })}
-        onConclusionChange={(v) => updateFilter({ conclusion: v })}
-        onWorkflowNameChange={(v) => updateFilter({ workflowName: v })}
+        onReposChange={(v) => updateFilter({ repos: v })}
+        onBranchesChange={(v) => updateFilter({ branches: v })}
+        onConclusionsChange={(v) => updateFilter({ conclusions: v })}
+        onWorkflowNamesChange={(v) => updateFilter({ workflowNames: v })}
         onRunIdChange={(v) => updateFilter({ runId: v || undefined })}
       />
 

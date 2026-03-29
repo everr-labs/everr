@@ -25,10 +25,12 @@ export const RunsListInputSchema = z.object({
   timeRange: TimeRangeSchema,
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
-  repo: z.string().optional(),
-  branch: z.string().optional(),
-  conclusion: z.enum(["success", "failure", "cancellation"]).optional(),
-  workflowName: z.string().optional(),
+  repos: z.array(z.string()).optional(),
+  branches: z.array(z.string()).optional(),
+  conclusions: z
+    .array(z.enum(["success", "failure", "cancellation"]))
+    .optional(),
+  workflowNames: z.array(z.string()).optional(),
   runId: z.string().optional(),
 });
 export type RunsListInput = z.infer<typeof RunsListInputSchema>;
