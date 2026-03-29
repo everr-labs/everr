@@ -11,7 +11,7 @@ import { workOS } from "@/lib/workos";
 export const getActiveOrganization = createServerFn().handler(
   async ({ context: { auth } }) => {
     const authResult = auth();
-    if (!authResult.user) {
+    if (!authResult?.user) {
       throw new Error("No user found");
     }
 

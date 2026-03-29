@@ -105,6 +105,26 @@ export async function startGitHubEventsRuntime(): Promise<PgBoss> {
   return boss;
 }
 
+export async function enqueueWebhookEvent(
+  eventId: string,
+  data: WebhookJobData,
+): Promise<void> {
+  let b = getBoss();
+  if (!b) {
+    b = await startGitHubEventsRuntime();
+  }
+
+  await Promise.all(
+    (["gh-collector", "gh-status"] as const).map((queue) =>
+      b.send(queue, data, {
+        id: eventId,
+        retryLimit: GH_EVENTS_CONFIG.maxAttempts,
+        retryBackoff: true,
+      }),
+    ),
+  );
+}
+
 export async function stopGitHubEventsRuntime(): Promise<void> {
   const b = boss;
   boss = undefined;

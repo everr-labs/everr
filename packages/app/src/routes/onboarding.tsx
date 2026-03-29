@@ -39,6 +39,8 @@ import {
 import {
   createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
+  getInstallationRepos,
+  importWorkflows,
 } from "@/data/onboarding";
 import {
   PLATFORMS as DOWNLOAD_PLATFORMS,
@@ -49,12 +51,13 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
-const STEPS = ["organization", "github", "app"] as const;
+const STEPS = ["organization", "github", "workflows", "app"] as const;
 type Step = (typeof STEPS)[number];
 
 const STEP_LABELS: Record<Step, string> = {
   organization: "Organization",
   github: "GitHub",
+  workflows: "Import",
   app: "Desktop App",
 };
 
@@ -177,7 +180,11 @@ function OnboardingWizard() {
   const organizationName = organization?.name ?? "";
 
   const [currentStep, setCurrentStep] = useState<Step>(() =>
-    !hasOrganization ? "organization" : !githubInstalled ? "github" : "app",
+    !hasOrganization
+      ? "organization"
+      : !githubInstalled
+        ? "github"
+        : "workflows",
   );
   const [[stepKey, direction], setStepState] = useState<[number, number]>([
     0, 0,
@@ -354,6 +361,14 @@ function OnboardingWizard() {
                     <GitHubStep
                       installed={isGithubInstalled}
                       onInstalled={() => setIsGithubInstalled(true)}
+                      onBack={goBack}
+                      onComplete={goForward}
+                      onSkip={() => goTo("app")}
+                    />
+                  )}
+                  {currentStep === "workflows" && (
+                    <WorkflowsStep
+                      githubInstalled={isGithubInstalled}
                       onBack={goBack}
                       onComplete={goForward}
                       onSkip={goForward}
@@ -702,6 +717,229 @@ const APP_FEATURES = [
   },
 ] as const;
 
+function WorkflowsStep({
+  githubInstalled,
+  onBack,
+  onComplete,
+  onSkip,
+}: {
+  githubInstalled: boolean;
+  onBack: () => void;
+  onComplete: () => void;
+  onSkip: () => void;
+}) {
+  const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [importingRepo, setImportingRepo] = useState<string | null>(null);
+
+  const reposQuery = useQuery({
+    queryKey: ["onboarding", "installation-repos"],
+    queryFn: () => getInstallationRepos(),
+    enabled: githubInstalled,
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      const repos = Array.from(selectedRepos);
+      let totalJobs = 0;
+      let totalErrors = 0;
+      for (const repoFullName of repos) {
+        setImportingRepo(repoFullName);
+        const result = await importWorkflows({ data: { repoFullName } });
+        totalJobs += result.jobsReplayed;
+        totalErrors += result.errors.length;
+      }
+      setImportingRepo(null);
+      return { totalJobs, totalErrors };
+    },
+    onSuccess: (result) => {
+      if (result.totalJobs > 0 || result.totalErrors === 0) {
+        setShowSuccess(true);
+      }
+    },
+  });
+
+  const maxRepos = 3;
+
+  function toggleRepo(fullName: string) {
+    setSelectedRepos((prev) => {
+      const next = new Set(prev);
+      if (next.has(fullName)) {
+        next.delete(fullName);
+      } else if (next.size < maxRepos) {
+        next.add(fullName);
+      }
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    if (!githubInstalled) {
+      onSkip();
+    }
+  }, [githubInstalled, onSkip]);
+
+  if (!githubInstalled) {
+    return null;
+  }
+
+  return (
+    <StepContainer
+      title="Import workflows"
+      description="Select repositories to import recent workflow history from."
+      index={3}
+    >
+      <motion.section
+        variants={staggerItem}
+        className="mt-8 border border-border bg-card p-6 sm:p-10"
+      >
+        {showSuccess ? (
+          <div className="flex flex-col items-center py-8">
+            <Check className="size-8 text-green-400" />
+            <p className="mt-4 text-sm text-foreground">
+              Import completed successfully.
+            </p>
+            <p className="mt-1 text-sm text-center text-muted-foreground">
+              Your data is being processed and will appear gradually on the
+              dashboard.
+            </p>
+            <Button
+              type="button"
+              size="lg"
+              className="mt-6"
+              onClick={onComplete}
+            >
+              Continue
+              <ArrowRight className="ml-2 size-3.5" />
+            </Button>
+          </div>
+        ) : importMutation.isPending ? (
+          <div className="flex flex-col items-center py-8">
+            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+            <p className="mt-4 text-sm text-muted-foreground">
+              Importing runs from{importingRepo ? ` ${importingRepo}` : ""}
+            </p>
+          </div>
+        ) : (
+          <>
+            {reposQuery.isLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {reposQuery.isError && (
+              <div className="py-4 text-sm text-red-400">
+                Failed to load repositories. Please try again.
+              </div>
+            )}
+
+            {reposQuery.data && (
+              <div className="space-y-1">
+                {reposQuery.data.length > 0 && (
+                  <p className="px-3 pb-1 text-xs text-muted-foreground">
+                    Select up to {maxRepos} repositories
+                  </p>
+                )}
+                {reposQuery.data.length === 0 ? (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    No repositories found for this installation.
+                  </p>
+                ) : (
+                  <ul className="max-h-64 space-y-1 overflow-y-auto">
+                    {reposQuery.data.map((repo) => {
+                      const selected = selectedRepos.has(repo.fullName);
+                      const disabled =
+                        !selected && selectedRepos.size >= maxRepos;
+                      return (
+                        <li key={repo.id}>
+                          <button
+                            type="button"
+                            onClick={() => toggleRepo(repo.fullName)}
+                            disabled={disabled}
+                            className={cn(
+                              "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
+                              selected
+                                ? "bg-primary/10 text-foreground"
+                                : disabled
+                                  ? "cursor-not-allowed text-muted-foreground/40"
+                                  : "text-muted-foreground hover:bg-muted/50",
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "flex size-4 shrink-0 items-center justify-center border",
+                                selected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-muted-foreground/30",
+                              )}
+                            >
+                              {selected && <Check className="size-3" />}
+                            </div>
+                            <span className="truncate">{repo.fullName}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {importMutation.isError && (
+              <div className="mt-4 text-sm text-red-400">
+                Import failed. You can try again or skip this step.
+              </div>
+            )}
+
+            {importMutation.isSuccess &&
+              importMutation.data.totalErrors > 0 &&
+              importMutation.data.totalJobs === 0 && (
+                <div className="mt-4 flex items-center justify-between text-sm text-amber-400">
+                  Could not import any workflow data. You can try again or skip
+                  this step.
+                </div>
+              )}
+
+            <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={onBack}
+              >
+                <ArrowLeft className="mr-2 size-3.5" />
+                Back
+              </Button>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  onClick={onSkip}
+                  className="text-muted-foreground"
+                >
+                  Skip
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={() => importMutation.mutate()}
+                  disabled={selectedRepos.size === 0}
+                >
+                  Import
+                  <ArrowRight className="ml-2 size-3.5" />
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </motion.section>
+    </StepContainer>
+  );
+}
+
 function AppStep({
   onBack,
   onFinish,
@@ -710,7 +948,7 @@ function AppStep({
   onFinish: () => void;
 }) {
   return (
-    <StepContainer title="Get the desktop app" index={3}>
+    <StepContainer title="Get the desktop app" index={4}>
       <motion.section
         variants={staggerItem}
         className="mt-8 border border-border bg-card p-6 sm:p-10"

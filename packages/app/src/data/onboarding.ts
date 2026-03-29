@@ -3,6 +3,7 @@ import {
   getAuth,
   switchToOrganization,
 } from "@workos/authkit-tanstack-react-start";
+import { z } from "zod";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import {
   ensureTenantForOrganizationId,
@@ -10,6 +11,10 @@ import {
 } from "@/data/tenants";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { workOS } from "@/lib/workos";
+import {
+  backfillRepo,
+  listInstallationRepos,
+} from "@/server/github-events/backfill";
 
 export type OnboardingErrorCode =
   | "UNAUTHENTICATED"
@@ -156,3 +161,47 @@ export const getGithubAppInstallStatus = createAuthenticatedServerFn({
     status: installation.status,
   }));
 });
+
+export const getInstallationRepos = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context: { session } }) => {
+  const tenantId = await ensureTenantForOrganizationId(session.organizationId);
+  const installations = await getGithubInstallationsForTenant(tenantId);
+  const active = installations.find((i) => i.status === "active");
+
+  if (!active) {
+    return [];
+  }
+
+  const repos = await listInstallationRepos(active.installationId);
+  return repos.map((r) => ({ id: r.id, fullName: r.full_name }));
+});
+
+const ImportWorkflowsInputSchema = z.object({
+  repoFullName: z.string().min(1),
+});
+
+export const importWorkflows = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(ImportWorkflowsInputSchema)
+  .handler(async ({ data, context: { session } }) => {
+    const tenantId = await ensureTenantForOrganizationId(
+      session.organizationId,
+    );
+    const installations = await getGithubInstallationsForTenant(tenantId);
+    const active = installations.find((i) => i.status === "active");
+
+    if (!active) {
+      throw new Error("No active GitHub installation found.");
+    }
+
+    const allRepos = await listInstallationRepos(active.installationId);
+    const repo = allRepos.find((r) => r.full_name === data.repoFullName);
+
+    if (!repo) {
+      throw new Error("Repository is not accessible.");
+    }
+
+    return backfillRepo(active.installationId, tenantId, repo);
+  });

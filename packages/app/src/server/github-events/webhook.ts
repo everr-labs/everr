@@ -2,10 +2,8 @@ import { verify } from "@octokit/webhooks-methods";
 import { z } from "zod";
 import { setGithubInstallationStatus } from "@/data/tenants";
 import { env } from "@/env";
-import { GH_EVENTS_CONFIG } from "./config";
 import { headersToRecord } from "./headers";
-import { getBoss, startGitHubEventsRuntime } from "./runtime";
-import type { WebhookJobData } from "./types";
+import { enqueueWebhookEvent } from "./runtime";
 
 const installationEventSchema = z.object({
   action: z.string().optional(),
@@ -91,27 +89,11 @@ export async function handleGitHubWebhookRequest(
   }
 
   const body = Buffer.from(bodyText, "utf8");
-  const jobData: WebhookJobData = {
+
+  await enqueueWebhookEvent(eventId, {
     headers: headersToRecord(request.headers),
     body: body.toString("base64"),
-  };
+  });
 
-  let boss = getBoss();
-  if (!boss) {
-    boss = await startGitHubEventsRuntime();
-  }
-
-  const results = await Promise.all(
-    (["gh-collector", "gh-status"] as const).map((queue) =>
-      boss.send(queue, jobData, {
-        id: eventId,
-        retryLimit: GH_EVENTS_CONFIG.maxAttempts,
-        retryBackoff: true,
-      }),
-    ),
-  );
-
-  // null = deduped (already queued), non-null = inserted
-  const anyInserted = results.some((result) => result !== null);
-  return new Response(null, { status: anyInserted ? 202 : 200 });
+  return new Response(null, { status: 202 });
 }
