@@ -10,6 +10,7 @@ import {
   CommandShortcut,
 } from "@everr/ui/components/command";
 import { Kbd } from "@everr/ui/components/kbd";
+import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SearchIcon } from "lucide-react";
@@ -75,10 +76,7 @@ export function CommandBar() {
         variant="outline"
         size="lg"
         onClick={() => toggleCommandBar(true)}
-        style={{
-          viewTransitionName: open ? undefined : "command-bar",
-        }}
-        className="w-52 cursor-text"
+        className={cn("w-52 cursor-text", open ? "opacity-0" : "opacity-100")}
       >
         <SearchIcon className="size-3.5 shrink-0" />
         <span className="flex-1 text-left text-muted-foreground">
@@ -89,13 +87,16 @@ export function CommandBar() {
       <CommandDialog
         open={open}
         onOpenChange={toggleCommandBar}
-        style={{ viewTransitionName: open ? "command-bar" : undefined }}
+        className="transition-none"
       >
-        <Command>
+        <Command className="p-0">
           <CommandInput
             placeholder="Search..."
             value={search}
             onValueChange={setSearch}
+            inputGroupClassName="h-10 border-none rounded-none"
+            className="p-0"
+            wrapperClassName="p-0 border-b"
           />
           <CommandList>
             {!hasRunResults && <CommandEmpty>No results found.</CommandEmpty>}
