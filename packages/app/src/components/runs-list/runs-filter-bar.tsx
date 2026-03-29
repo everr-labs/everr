@@ -1,10 +1,21 @@
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { FilterCombobox } from "@/components/filter-combobox";
-import type { FilterOptions } from "@/data/runs-list/schemas";
+import {
+  runBranchFilterOptions,
+  runRepoFilterOptions,
+  runWorkflowNameFilterOptions,
+} from "@/data/runs-list/options";
+import type { TimeRange } from "@/lib/time-range";
+
+const conclusionFilterOptions = {
+  queryKey: ["runs", "conclusions"] as const,
+  queryFn: () => ["success", "failure", "cancellation"],
+  select: (data: string[]) => data,
+};
 
 interface RunsFilterBarProps {
-  filterOptions: FilterOptions;
+  timeRange: TimeRange;
   repos: string[];
   branches: string[];
   conclusions: string[];
@@ -18,7 +29,7 @@ interface RunsFilterBarProps {
 }
 
 export function RunsFilterBar({
-  filterOptions,
+  timeRange,
   repos,
   branches,
   conclusions,
@@ -36,7 +47,7 @@ export function RunsFilterBar({
         label="Repo"
         values={repos}
         onChange={onReposChange}
-        items={filterOptions.repos}
+        options={runRepoFilterOptions({ timeRange })}
         placeholder="All"
         searchPlaceholder="Search repos..."
       />
@@ -45,7 +56,7 @@ export function RunsFilterBar({
         label="Branch"
         values={branches}
         onChange={onBranchesChange}
-        items={filterOptions.branches}
+        options={runBranchFilterOptions({ timeRange })}
         placeholder="All"
         searchPlaceholder="Search branches..."
       />
@@ -54,7 +65,7 @@ export function RunsFilterBar({
         label="Status"
         values={conclusions}
         onChange={onConclusionsChange}
-        items={["success", "failure", "cancellation"]}
+        options={conclusionFilterOptions}
         placeholder="All"
         searchPlaceholder="Search statuses..."
       />
@@ -63,7 +74,7 @@ export function RunsFilterBar({
         label="Workflow"
         values={workflowNames}
         onChange={onWorkflowNamesChange}
-        items={filterOptions.workflowNames}
+        options={runWorkflowNameFilterOptions({ timeRange })}
         placeholder="All"
         searchPlaceholder="Search workflows..."
       />

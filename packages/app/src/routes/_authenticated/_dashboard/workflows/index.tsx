@@ -13,7 +13,7 @@ import { z } from "zod";
 import { FilterCombobox } from "@/components/filter-combobox";
 import { Pagination } from "@/components/runs-list";
 import { WorkflowsTable } from "@/components/workflows/workflows-table";
-import { runFilterOptionsOptions } from "@/data/runs-list/options";
+import { runRepoFilterOptions } from "@/data/runs-list/options";
 import {
   workflowsListOptions,
   workflowsSparklineOptions,
@@ -39,10 +39,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/workflows/")({
       repos: deps.repos,
       search: deps.search,
     };
-    await Promise.all([
-      queryClient.prefetchQuery(workflowsListOptions(listInput)),
-      queryClient.prefetchQuery(runFilterOptionsOptions()),
-    ]);
+    await queryClient.prefetchQuery(workflowsListOptions(listInput));
   },
   pendingComponent: WorkflowsListSkeleton,
 });
@@ -53,7 +50,6 @@ function WorkflowsListPage() {
   const { data: listResult } = useQuery(
     workflowsListOptions({ timeRange, page, repos, search }),
   );
-  const { data: filterOptions } = useQuery(runFilterOptionsOptions());
   const { data: sparklines } = useQuery(
     workflowsSparklineOptions({
       timeRange,
@@ -87,7 +83,7 @@ function WorkflowsListPage() {
           label="Repo"
           values={repos}
           onChange={(v) => updateFilter({ repos: v })}
-          items={filterOptions?.repos ?? []}
+          options={runRepoFilterOptions({ timeRange })}
           placeholder="All"
           searchPlaceholder="Search repos..."
         />

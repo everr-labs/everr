@@ -9,10 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
-import {
-  runFilterOptionsOptions,
-  runsListOptions,
-} from "@/data/runs-list/options";
+import { runsListOptions } from "@/data/runs-list/options";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
@@ -42,10 +39,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
       workflowNames: deps.workflowNames,
       runId: deps.runId,
     };
-    await Promise.all([
-      queryClient.prefetchQuery(runsListOptions(runsInput)),
-      queryClient.prefetchQuery(runFilterOptionsOptions()),
-    ]);
+    await queryClient.prefetchQuery(runsListOptions(runsInput));
   },
   pendingComponent: RunsListSkeleton,
 });
@@ -73,7 +67,6 @@ function RunsListPage() {
     runId,
   };
   const { data: runsResult } = useQuery(runsListOptions(runsInput));
-  const { data: filterOptions } = useQuery(runFilterOptionsOptions());
   const navigate = Route.useNavigate();
 
   if (!runsResult) return null;
@@ -94,9 +87,7 @@ function RunsListPage() {
       </div>
 
       <RunsFilterBar
-        filterOptions={
-          filterOptions ?? { repos: [], branches: [], workflowNames: [] }
-        }
+        timeRange={timeRange}
         repos={repos}
         branches={branches}
         conclusions={conclusions}

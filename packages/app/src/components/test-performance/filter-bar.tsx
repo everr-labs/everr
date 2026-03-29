@@ -1,8 +1,12 @@
-import type { TestPerfFilterOptions } from "@/data/test-performance/children";
+import {
+  testPerfBranchFilterOptions,
+  testPerfRepoFilterOptions,
+} from "@/data/test-performance/children";
+import type { TimeRange } from "@/lib/time-range";
 import { FilterCombobox } from "../filter-combobox";
 
 interface TestPerfFilterBarProps {
-  filterOptions: TestPerfFilterOptions;
+  timeRange: TimeRange;
   repos: string[];
   branches: string[];
   onReposChange: (values: string[]) => void;
@@ -10,7 +14,7 @@ interface TestPerfFilterBarProps {
 }
 
 export function TestPerfFilterBar({
-  filterOptions,
+  timeRange,
   repos,
   branches,
   onReposChange,
@@ -22,7 +26,7 @@ export function TestPerfFilterBar({
         label="Repo"
         values={repos}
         onChange={onReposChange}
-        items={filterOptions.repos}
+        options={testPerfRepoFilterOptions({ timeRange })}
         placeholder="All"
         searchPlaceholder="Search repos..."
       />
@@ -31,7 +35,7 @@ export function TestPerfFilterBar({
         label="Branch"
         values={branches}
         onChange={onBranchesChange}
-        items={filterOptions.branches}
+        options={testPerfBranchFilterOptions({ timeRange })}
         placeholder="All"
         searchPlaceholder="Search branches..."
       />

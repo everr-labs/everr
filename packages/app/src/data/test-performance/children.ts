@@ -1,7 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
+import {
+  resolveTimeRange,
+  type TimeRange,
+  TimeRangeSchema,
+} from "@/lib/time-range";
 import { testFullNameExpr } from "../sql-helpers";
 
 // Filter options (repos + branches that have test data)
@@ -10,42 +14,60 @@ export interface TestPerfFilterOptions {
   branches: string[];
 }
 
-// Server function: filter options (repos + branches from last 90 days)
+const TestPerfFilterOptionsInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+});
+
 export const getTestPerfFilterOptions = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async ({ context: { clickhouse } }) => {
-  const [repos, branches] = await Promise.all([
-    clickhouse.query<{ repo: string }>(
-      `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
+})
+  .inputValidator(TestPerfFilterOptionsInputSchema)
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const [repos, branches] = await Promise.all([
+      clickhouse.query<{ repo: string }>(
+        `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
       FROM traces
-      WHERE Timestamp >= now() - INTERVAL 90 DAY
+      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
         AND ResourceAttributes['vcs.repository.name'] != ''
         AND SpanAttributes['everr.test.name'] != ''
       ORDER BY repo
       LIMIT 100`,
-    ),
-    clickhouse.query<{ branch: string }>(
-      `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
+        { from: fromISO, to: toISO },
+      ),
+      clickhouse.query<{ branch: string }>(
+        `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
       FROM traces
-      WHERE Timestamp >= now() - INTERVAL 90 DAY
+      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
         AND ResourceAttributes['vcs.ref.head.name'] != ''
         AND SpanAttributes['everr.test.name'] != ''
       ORDER BY branch
       LIMIT 100`,
-    ),
-  ]);
+        { from: fromISO, to: toISO },
+      ),
+    ]);
 
-  return {
-    repos: repos.map((r) => r.repo),
-    branches: branches.map((r) => r.branch),
-  } satisfies TestPerfFilterOptions;
+    return {
+      repos: repos.map((r) => r.repo),
+      branches: branches.map((r) => r.branch),
+    } satisfies TestPerfFilterOptions;
+  });
+
+const testPerfFilterOptionsBase = (input: { timeRange: TimeRange }) => ({
+  queryKey: ["testPerf", "filterOptions", input.timeRange] as const,
+  queryFn: () => getTestPerfFilterOptions({ data: input }),
 });
 
-export const testPerfFilterOptionsOptions = () =>
-  queryOptions({
-    queryKey: ["testPerf", "filterOptions"],
-    queryFn: () => getTestPerfFilterOptions(),
+const createTestPerfFieldFilter =
+  (field: keyof TestPerfFilterOptions) =>
+  (input: { timeRange: TimeRange }) => ({
+    ...testPerfFilterOptionsBase(input),
+    select: (data: TestPerfFilterOptions) => data[field],
   });
+
+export const testPerfRepoFilterOptions = createTestPerfFieldFilter("repos");
+export const testPerfBranchFilterOptions =
+  createTestPerfFieldFilter("branches");
 
 // --- Children (hierarchy browser) ---
 

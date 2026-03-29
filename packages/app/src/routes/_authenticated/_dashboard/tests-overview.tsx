@@ -23,10 +23,7 @@ import {
   TestPerfTreemapMetricToggle,
   type TreemapSizeMetric,
 } from "@/components/test-performance";
-import {
-  testPerfChildrenOptions,
-  testPerfFilterOptionsOptions,
-} from "@/data/test-performance/children";
+import { testPerfChildrenOptions } from "@/data/test-performance/children";
 import {
   testPerfFailuresOptions,
   testPerfScatterOptions,
@@ -80,7 +77,6 @@ export const Route = createFileRoute(
     };
     const prefetches = [
       queryClient.prefetchQuery(testResultsSummaryOptions(filterInput)),
-      queryClient.prefetchQuery(testPerfFilterOptionsOptions()),
       queryClient.prefetchQuery(testPerfChildrenOptions(childrenInput)),
     ];
     if (deps.pkg || deps.path) {
@@ -130,8 +126,6 @@ function TestPerformancePage() {
     ...testPerfFailuresOptions(filterInput),
     enabled: !isRootScope,
   });
-  const { data: filterOptions } = useQuery(testPerfFilterOptionsOptions());
-
   const childrenInput = { timeRange, repos, pkg, branches, path };
   const childrenQuery = useQuery(testPerfChildrenOptions(childrenInput));
   const children = childrenQuery.data ?? [];
@@ -201,7 +195,7 @@ function TestPerformancePage() {
       </div>
 
       <TestPerfFilterBar
-        filterOptions={filterOptions ?? { repos: [], branches: [] }}
+        timeRange={timeRange}
         repos={repos}
         branches={branches}
         onReposChange={(v) =>

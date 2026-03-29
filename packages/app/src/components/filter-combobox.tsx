@@ -14,30 +14,43 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@everr/ui/components/popover";
+import type { QueryFunction, QueryKey } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
 import { useId, useState } from "react";
 
-interface FilterComboboxProps {
+interface FilterQueryOptions<TData> {
+  queryKey: QueryKey;
+  queryFn: QueryFunction<TData>;
+  select: (data: TData) => string[];
+}
+
+interface FilterComboboxProps<TData> {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
-  items: string[];
+  options: FilterQueryOptions<TData>;
   placeholder: string;
   searchPlaceholder?: string;
   className?: string;
 }
 
-export function FilterCombobox({
+export function FilterCombobox<TData>({
   label,
   values,
   onChange,
-  items,
+  options,
   placeholder,
   searchPlaceholder,
   className = "w-45",
-}: FilterComboboxProps) {
+}: FilterComboboxProps<TData>) {
   const id = useId();
   const [open, setOpen] = useState(false);
+
+  const { data: items = [], isLoading } = useQuery({
+    ...options,
+    enabled: open,
+  });
 
   const isAll = values.length === 0;
 
@@ -119,7 +132,9 @@ export function FilterCombobox({
               placeholder={searchPlaceholder ?? `Search...`}
             />
             <CommandList>
-              <CommandEmpty>No results.</CommandEmpty>
+              <CommandEmpty>
+                {isLoading ? "Loading..." : "No results."}
+              </CommandEmpty>
               <CommandGroup>
                 <CommandItem
                   value="__all__"
