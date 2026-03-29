@@ -129,7 +129,6 @@ export async function getWatchStatus({
             ${branchClause}
             AND status = 'completed'
             AND conclusion = 'success'
-            AND run_completed_at IS NOT NULL
             AND last_event_at >= NOW() - ${BASELINE_LOOKBACK_SQL}
           ORDER BY run_id ASC, attempts DESC, last_event_at DESC
           LIMIT 50
