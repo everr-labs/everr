@@ -108,7 +108,7 @@ function WorkflowsListPage() {
         </div>
       </div>
 
-      <Card>
+      <Card inset="flush-content">
         <CardHeader>
           <CardTitle>All Workflows</CardTitle>
         </CardHeader>

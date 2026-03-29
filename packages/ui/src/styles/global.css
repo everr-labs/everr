@@ -94,6 +94,9 @@
     font-family:
       source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
+  th {
+    @apply font-medium;
+  }
 }
 
 /* Drawer backdrop: opacity tracks swipe progress for smooth dismissal */

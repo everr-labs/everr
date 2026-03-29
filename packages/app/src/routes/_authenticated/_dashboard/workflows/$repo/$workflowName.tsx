@@ -372,6 +372,7 @@ function WorkflowDetailPage() {
       <Panel
         title="Recent Runs"
         queries={[wfRecentRuns]}
+        inset="flush-content"
         action={
           <Link
             to="/runs"

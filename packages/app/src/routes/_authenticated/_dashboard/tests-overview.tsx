@@ -518,6 +518,7 @@ function TestPerformancePage() {
             title="Recent Failures"
             description="Most recent test failures with links to CI runs"
             queries={[]}
+            inset="flush-content"
           >
             {() => <TestPerfFailuresTable data={failures ?? []} />}
           </Panel>

@@ -23,14 +23,14 @@ export function RunsTable({ data }: RunsTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-muted-foreground">
-            <th className="pb-2 pr-4 font-medium">Status</th>
-            <th className="pb-2 pr-4 font-medium">Run ID</th>
-            <th className="pb-2 pr-4 font-medium">Workflow</th>
-            <th className="pb-2 pr-4 font-medium">Repository</th>
-            <th className="pb-2 pr-4 font-medium">Branch</th>
-            <th className="pb-2 pr-4 font-medium">Duration</th>
-            <th className="pb-2 pr-4 font-medium">When</th>
-            <th className="pb-2 font-medium">Sender</th>
+            <th className="pb-2 pl-3 pr-4">Status</th>
+            <th className="pb-2 pr-4">Run ID</th>
+            <th className="pb-2 pr-4">Workflow</th>
+            <th className="pb-2 pr-4">Repository</th>
+            <th className="pb-2 pr-4">Branch</th>
+            <th className="pb-2 pr-4">Duration</th>
+            <th className="pb-2 pr-4">When</th>
+            <th className="pb-2 pr-3">Sender</th>
           </tr>
         </thead>
         <tbody>
@@ -39,7 +39,7 @@ export function RunsTable({ data }: RunsTableProps) {
               key={run.traceId}
               className="border-b last:border-0 hover:bg-muted/50"
             >
-              <td className="py-2 pr-4">
+              <td className="py-2 pl-3 pr-4">
                 <ConclusionIcon
                   conclusion={run.conclusion}
                   className="size-4"
@@ -59,7 +59,7 @@ export function RunsTable({ data }: RunsTableProps) {
                   )}
                 </Link>
               </td>
-              <td className="py-2 pr-4 font-medium">{run.workflowName}</td>
+              <td className="py-2 pr-4 ">{run.workflowName}</td>
               <td className="py-2 pr-4">
                 <Link
                   to="/repos"
@@ -88,7 +88,7 @@ export function RunsTable({ data }: RunsTableProps) {
               <td className="py-2 pr-4 text-xs text-muted-foreground">
                 {formatRelativeTime(run.timestamp)}
               </td>
-              <td className="py-2 text-xs text-muted-foreground">
+              <td className="py-2 pr-3 text-xs text-muted-foreground">
                 {run.sender || "—"}
               </td>
             </tr>

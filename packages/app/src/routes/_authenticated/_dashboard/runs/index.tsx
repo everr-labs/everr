@@ -100,7 +100,7 @@ function RunsListPage() {
         onRunIdChange={(v) => updateFilter({ runId: v || undefined })}
       />
 
-      <Card>
+      <Card inset="flush-content">
         <CardHeader>
           <CardTitle>Workflow Runs</CardTitle>
         </CardHeader>

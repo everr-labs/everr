@@ -104,6 +104,7 @@ function RepoDetailPage() {
         title="Top Failing Jobs"
         description="Jobs with the highest failure count"
         queries={[failingJobs]}
+        inset="flush-content"
       >
         {(data) => <TopFailingJobsTable data={data} />}
       </Panel>
@@ -112,6 +113,7 @@ function RepoDetailPage() {
         title="Active Branches"
         description="Branches with recent activity"
         queries={[branches]}
+        inset="flush-content"
       >
         {(data) => <ActiveBranchesTable data={data} />}
       </Panel>

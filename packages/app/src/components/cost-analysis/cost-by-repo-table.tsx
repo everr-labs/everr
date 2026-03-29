@@ -11,31 +11,31 @@ interface CostByRepoTableProps {
 const columns: Column<CostByRepo>[] = [
   {
     header: "Repository",
-    cell: (row) => <span className="font-medium">{row.repo}</span>,
+    cell: (row) => <span className="">{row.repo}</span>,
   },
   {
     header: "Jobs",
     cell: (row) => row.totalJobs.toLocaleString(),
-    className: "pb-2 pr-4 font-medium text-right",
+    className: "pb-2 pr-4",
   },
   {
     header: "Minutes",
     cell: (row) => Math.round(row.totalMinutes).toLocaleString(),
-    className: "pb-2 pr-4 font-medium text-right",
+    className: "pb-2 pr-4",
   },
   {
     header: "Billing Minutes",
     cell: (row) => row.billingMinutes.toLocaleString(),
-    className: "pb-2 pr-4 font-medium text-right",
+    className: "pb-2 pr-4",
   },
   {
     header: "Est. Cost",
     cell: (row) => (
-      <span className="font-mono font-medium tabular-nums">
+      <span className="font-mono  tabular-nums">
         {formatCost(row.estimatedCost)}
       </span>
     ),
-    className: "pb-2 pr-4 font-medium text-right",
+    className: "pb-2 pr-4",
   },
   {
     header: "Top Runner",
