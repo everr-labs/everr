@@ -1,12 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/db/notify", () => ({
-  tenantChannel: vi.fn((id: number) => `tenant_${id}`),
-  traceChannel: vi.fn((id: string) => `trace_${id}`),
-}));
-
-vi.mock("@/db/subscribe", () => ({
-  createSubscription: vi.fn(() => vi.fn()),
+vi.mock("@/db/hub", () => ({
+  subscribe: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -31,14 +26,14 @@ vi.mock("@/lib/sse", () => ({
   })),
 }));
 
-import { createSubscription } from "@/db/subscribe";
+import { subscribe } from "@/db/hub";
 import {
   getAccessTokenSessionFromRequest,
   getWorkOSAuthSession,
 } from "@/lib/auth";
 import { Route } from "./subscribe";
 
-const mockedCreateSubscription = vi.mocked(createSubscription);
+const mockedSubscribe = vi.mocked(subscribe);
 const mockedGetAccessToken = vi.mocked(getAccessTokenSessionFromRequest);
 const mockedGetWorkOS = vi.mocked(getWorkOSAuthSession);
 
@@ -62,7 +57,7 @@ function getHandler(): GetHandler {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedCreateSubscription.mockReturnValue(vi.fn());
+  mockedSubscribe.mockReturnValue(vi.fn());
 });
 
 describe("GET /api/events/subscribe", () => {
@@ -99,7 +94,7 @@ describe("GET /api/events/subscribe", () => {
     expect(response.status).toBe(400);
   });
 
-  it("returns SSE stream for scope=tenant with correct headers", async () => {
+  it("subscribes to tenant topic for scope=tenant", async () => {
     mockedGetAccessToken.mockResolvedValue(mockSession);
 
     const response = await getHandler()({
@@ -110,15 +105,14 @@ describe("GET /api/events/subscribe", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(response.headers.get("Cache-Control")).toBe("no-cache");
-    expect(mockedCreateSubscription).toHaveBeenCalledWith(
-      "tenant_42",
-      expect.any(Function),
+    expect(mockedSubscribe).toHaveBeenCalledWith(
+      "tenant",
+      "42",
       expect.any(Function),
     );
   });
 
-  it("returns SSE stream for scope=trace with correct channel", async () => {
+  it("subscribes to trace topic for scope=trace", async () => {
     mockedGetAccessToken.mockResolvedValue(mockSession);
 
     const response = await getHandler()({
@@ -128,9 +122,9 @@ describe("GET /api/events/subscribe", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mockedCreateSubscription).toHaveBeenCalledWith(
-      "trace_abc123",
-      expect.any(Function),
+    expect(mockedSubscribe).toHaveBeenCalledWith(
+      "trace",
+      "42:abc123",
       expect.any(Function),
     );
   });

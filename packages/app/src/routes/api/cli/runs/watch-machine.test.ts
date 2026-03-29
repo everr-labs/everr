@@ -8,9 +8,9 @@ function createMachine(
   overrides: Partial<ConstructorParameters<typeof WatchMachine>[0]> = {},
 ) {
   const unsubscribe = vi.fn();
-  const subscribe = vi.fn<
-    (onNotify: () => void, onError: () => void) => () => void
-  >(() => unsubscribe);
+  const subscribe = vi.fn<(onNotify: () => void) => () => void>(
+    () => unsubscribe,
+  );
   const opts = {
     fetchStatus: vi.fn<() => Promise<WatchResponse>>().mockResolvedValue({
       state: "running" as const,
@@ -207,22 +207,6 @@ describe("fetch cycle", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(opts.sendEvent).toHaveBeenCalledOnce();
-  });
-});
-
-describe("subscribe error", () => {
-  it("sends error event and closes on subscription error", () => {
-    const { machine, opts, subscribe } = createMachine();
-    machine.start();
-
-    const onError = subscribe.mock.calls[0][1];
-    onError();
-
-    expect(opts.sendEvent).toHaveBeenCalledWith({
-      type: "error",
-      message: "subscription lost",
-    });
-    expect(opts.close).toHaveBeenCalledOnce();
   });
 });
 

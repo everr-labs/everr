@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getWatchStatus } from "@/data/watch";
-import { commitChannel } from "@/db/notify";
-import { createSubscription } from "@/db/subscribe";
+import { subscribe } from "@/db/hub";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 import { createSSEStream } from "@/lib/sse";
 import { WatchMachine } from "./-watch-machine";
@@ -41,7 +40,7 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
 
         const filters = parsed.data;
         const sse = createSSEStream(request);
-        const channel = commitChannel(context.session.tenantId, filters.commit);
+        const key = `${context.session.tenantId}:${filters.commit}`;
 
         const fetchStatus = () =>
           getWatchStatus({
@@ -49,13 +48,10 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
             ...filters,
           });
 
-        // Subscribe BEFORE the initial fetch so no NOTIFY is missed
-        // between the read and the LISTEN.
         const machine = new WatchMachine({
           fetchStatus,
           sendEvent: (data) => sse.sendEvent(data),
-          subscribe: (onNotify, onError) =>
-            createSubscription(channel, onNotify, onError),
+          subscribe: (onNotify) => subscribe("commit", key, onNotify),
           close: () => sse.close(),
         });
         machine.start();
