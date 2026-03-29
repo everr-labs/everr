@@ -1,21 +1,37 @@
-import { NotificationHub } from "./notification-hub";
-
-export type { Topic } from "./notification-hub";
+import { NotificationHub, type Topic } from "./notification-hub";
+import type { NotifyPayload } from "./notify";
 
 const hub = new NotificationHub();
 
 let started = false;
 
-export function subscribe(
-  ...args: Parameters<NotificationHub["subscribe"]>
-): ReturnType<NotificationHub["subscribe"]> {
+function ensureStarted(): void {
   if (!started) {
     started = true;
     hub.start().catch((err) => {
       console.error("[NotificationHub] failed to start", err);
     });
   }
-  return hub.subscribe(...args);
+}
+
+type Callback = (payload: NotifyPayload) => void;
+
+export function subscribeTenant(
+  tenantId: number,
+  callback: Callback,
+): () => void {
+  ensureStarted();
+  return hub.subscribe("tenant", String(tenantId), callback);
+}
+
+export function subscribe(
+  topic: Exclude<Topic, "tenant">,
+  tenantId: number,
+  id: string,
+  callback: Callback,
+): () => void {
+  ensureStarted();
+  return hub.subscribe(topic, `${tenantId}:${id}`, callback);
 }
 
 export function shutdownHub(): void {

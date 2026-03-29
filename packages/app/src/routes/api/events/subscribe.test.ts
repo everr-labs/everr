@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/hub", () => ({
   subscribe: vi.fn(() => vi.fn()),
+  subscribeTenant: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -26,7 +27,7 @@ vi.mock("@/lib/sse", () => ({
   })),
 }));
 
-import { subscribe } from "@/db/hub";
+import { subscribe, subscribeTenant } from "@/db/hub";
 import {
   getAccessTokenSessionFromRequest,
   getWorkOSAuthSession,
@@ -34,6 +35,7 @@ import {
 import { Route } from "./subscribe";
 
 const mockedSubscribe = vi.mocked(subscribe);
+const mockedSubscribeTenant = vi.mocked(subscribeTenant);
 const mockedGetAccessToken = vi.mocked(getAccessTokenSessionFromRequest);
 const mockedGetWorkOS = vi.mocked(getWorkOSAuthSession);
 
@@ -58,6 +60,7 @@ function getHandler(): GetHandler {
 beforeEach(() => {
   vi.clearAllMocks();
   mockedSubscribe.mockReturnValue(vi.fn());
+  mockedSubscribeTenant.mockReturnValue(vi.fn());
 });
 
 describe("GET /api/events/subscribe", () => {
@@ -105,9 +108,8 @@ describe("GET /api/events/subscribe", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(mockedSubscribe).toHaveBeenCalledWith(
-      "tenant",
-      "42",
+    expect(mockedSubscribeTenant).toHaveBeenCalledWith(
+      42,
       expect.any(Function),
     );
   });
@@ -124,7 +126,8 @@ describe("GET /api/events/subscribe", () => {
     expect(response.status).toBe(200);
     expect(mockedSubscribe).toHaveBeenCalledWith(
       "trace",
-      "42:abc123",
+      42,
+      "abc123",
       expect.any(Function),
     );
   });

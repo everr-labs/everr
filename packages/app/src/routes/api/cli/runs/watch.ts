@@ -40,8 +40,6 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
 
         const filters = parsed.data;
         const sse = createSSEStream(request);
-        const key = `${context.session.tenantId}:${filters.commit}`;
-
         const fetchStatus = () =>
           getWatchStatus({
             tenantId: context.session.tenantId,
@@ -51,7 +49,13 @@ export const Route = createFileRoute("/api/cli/runs/watch")({
         const machine = new WatchMachine({
           fetchStatus,
           sendEvent: (data) => sse.sendEvent(data),
-          subscribe: (onNotify) => subscribe("commit", key, onNotify),
+          subscribe: (onNotify) =>
+            subscribe(
+              "commit",
+              context.session.tenantId,
+              filters.commit,
+              onNotify,
+            ),
           close: () => sse.close(),
         });
         machine.start();

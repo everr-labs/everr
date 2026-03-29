@@ -121,7 +121,8 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
 
     expect(mockedSubscribe).toHaveBeenCalledWith(
       "commit",
-      "42:abc123def456abc123def456abc123def456abc1",
+      42,
+      "abc123def456abc123def456abc123def456abc1",
       expect.any(Function),
     );
   });

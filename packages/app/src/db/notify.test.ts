@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 describe("notifyWorkflowUpdate", () => {
-  it("calls db.execute once with a single pg_notify to 'notifications'", async () => {
+  it("calls db.execute once with pg_notify to 'workflows'", async () => {
     await notifyWorkflowUpdate(mockDb, {
       tenantId: 42,
       traceId: "abc123",
@@ -32,8 +32,8 @@ describe("notifyWorkflowUpdate", () => {
     const sqlArg = mockExecute.mock.calls[0][0];
     const joinedSql = sqlArg.strings.join("?");
     expect(joinedSql).toContain("pg_notify");
-    expect(sqlArg.values).toHaveLength(2);
-    expect(sqlArg.values[0]).toBe("notifications");
+    expect(joinedSql).toContain("workflows");
+    expect(sqlArg.values).toHaveLength(1);
   });
 
   it("does not throw when db.execute rejects", async () => {

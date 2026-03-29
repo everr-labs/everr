@@ -179,10 +179,10 @@ describe("NotificationHub — pg.Client lifecycle", () => {
     await hub.shutdown();
   });
 
-  it("start() connects and LISTENs on 'notifications'", async () => {
+  it("start() connects and LISTENs on 'workflows'", async () => {
     await hub.start();
     expect(mockConnect).toHaveBeenCalledOnce();
-    expect(mockQuery).toHaveBeenCalledWith('LISTEN "notifications"');
+    expect(mockQuery).toHaveBeenCalledWith('LISTEN "workflows"');
   });
 
   it("dispatches parsed notification payloads to subscribers", async () => {
@@ -261,7 +261,7 @@ describe("NotificationHub — reconnect", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(mockConnect).toHaveBeenCalledTimes(1);
-    expect(mockQuery).toHaveBeenCalledWith('LISTEN "notifications"');
+    expect(mockQuery).toHaveBeenCalledWith('LISTEN "workflows"');
   });
 
   it("uses exponential backoff on consecutive failures", async () => {

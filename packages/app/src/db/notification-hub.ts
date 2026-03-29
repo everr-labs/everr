@@ -6,7 +6,6 @@ export type Topic = "tenant" | "trace" | "commit";
 
 type Callback = (payload: NotifyPayload) => void;
 
-const CHANNEL = "notifications";
 const MAX_BACKOFF_MS = 30_000;
 const MAX_RETRIES = 10;
 
@@ -106,7 +105,7 @@ export class NotificationHub {
       client.on("end", () => this.handleDisconnect());
 
       await client.connect();
-      await client.query(`LISTEN "${CHANNEL}"`);
+      await client.query('LISTEN "workflows"');
 
       this.consecutiveFailures = 0;
     } catch {
