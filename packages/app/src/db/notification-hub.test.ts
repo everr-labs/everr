@@ -159,7 +159,7 @@ describe("NotificationHub", () => {
 });
 
 function getHandler(event: string) {
-  const call = mockOn.mock.calls.find(([e]: [string]) => e === event);
+  const call = mockOn.mock.calls.find((c) => c[0] === event);
   if (!call) throw new Error(`${event} handler not registered`);
   return call[1] as (...args: unknown[]) => void;
 }
