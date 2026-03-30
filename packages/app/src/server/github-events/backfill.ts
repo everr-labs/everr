@@ -339,8 +339,8 @@ export interface BackfillResult {
 export interface BackfillProgress {
   status: "importing" | "done";
   jobsEnqueued: number;
+  jobsQuota: number;
   runsProcessed: number;
-  runsTotal: number;
   errors?: string[];
 }
 
@@ -419,7 +419,6 @@ export async function backfillRepo(
   };
 
   let jobCount = 0;
-  let totalRunsToProcess = 0;
   let runsProcessed = 0;
 
   for (const branch of BRANCHES) {
@@ -446,15 +445,11 @@ export async function backfillRepo(
       );
       const existing = await getExistingTraceIds(tenantId, traceIds);
 
-      const runsTotal = candidateRuns.filter(
-        (_, idx) => !existing.has(traceIds[idx]),
-      ).length;
-      totalRunsToProcess += runsTotal;
       onProgress?.({
         status: "importing",
         jobsEnqueued: result.jobsReplayed,
+        jobsQuota: JOB_QUOTA_PER_REPO,
         runsProcessed,
-        runsTotal: totalRunsToProcess,
       });
 
       for (let i = 0; i < candidateRuns.length; i++) {
@@ -511,8 +506,8 @@ export async function backfillRepo(
           onProgress?.({
             status: "importing",
             jobsEnqueued: result.jobsReplayed,
+            jobsQuota: JOB_QUOTA_PER_REPO,
             runsProcessed,
-            runsTotal: totalRunsToProcess,
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -536,8 +531,8 @@ export async function backfillRepo(
   onProgress?.({
     status: "done",
     jobsEnqueued: result.jobsReplayed,
+    jobsQuota: JOB_QUOTA_PER_REPO,
     runsProcessed,
-    runsTotal: totalRunsToProcess,
     errors: result.errors,
   });
 

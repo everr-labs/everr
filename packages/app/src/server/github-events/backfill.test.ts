@@ -408,8 +408,8 @@ describe("backfillRepo", () => {
     const progressEvents: Array<{
       status: string;
       jobsEnqueued: number;
+      jobsQuota: number;
       runsProcessed: number;
-      runsTotal: number;
       errors?: string[];
     }> = [];
     const onProgress = vi.fn((event) => progressEvents.push(event));
@@ -421,18 +421,18 @@ describe("backfillRepo", () => {
     // At least: initial event per branch + one per run processed + final done
     expect(progressEvents.length).toBeGreaterThanOrEqual(5);
 
-    // First event should be "importing" with runsProcessed 0 and runsTotal known
+    // First event should be "importing" with runsProcessed 0 and jobsQuota 100
     const first = progressEvents[0];
     expect(first.status).toBe("importing");
     expect(first.runsProcessed).toBe(0);
-    expect(first.runsTotal).toBe(3);
+    expect(first.jobsQuota).toBe(100);
 
     // Last event should be "done"
     const last = progressEvents[progressEvents.length - 1];
     expect(last.status).toBe("done");
     expect(last.runsProcessed).toBe(3);
-    expect(last.runsTotal).toBe(3);
     expect(last.jobsEnqueued).toBe(3);
+    expect(last.jobsQuota).toBe(100);
 
     // Incremental events should show increasing runsProcessed
     const importingEvents = progressEvents.filter(
