@@ -379,9 +379,8 @@ describe("backfillRepo", () => {
     ];
     setupFetch(runs, jobs);
 
-    // Make replay fail for run 1's job
+    // Make replay fail for run 1's job (jobs are enqueued before runs)
     mockEnqueue
-      .mockResolvedValueOnce(undefined) // run 1 event OK
       .mockRejectedValueOnce(new Error("collector down")) // run 1's job fails
       .mockResolvedValue(undefined); // rest OK
 

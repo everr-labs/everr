@@ -29,7 +29,7 @@ import { generateWorkflowTraceId } from "./trace-id";
 // Constants
 // ---------------------------------------------------------------------------
 
-const JOB_QUOTA_PER_REPO = 50;
+const JOB_QUOTA_PER_REPO = 100;
 const BRANCHES = ["main", "master", "develop"] as const;
 const VALID_CONCLUSIONS = new Set(["success", "failure"]);
 
@@ -445,16 +445,8 @@ export async function backfillRepo(
         }
 
         try {
-          const runBody = apiRunToCollectorBody(run, repo, installationId);
-          await enqueueWebhookEvent(
-            deterministicUuid(`backfill-${tenantId}-run-${traceIds[i]}`),
-            {
-              headers: signedHeaders("workflow_run", runBody),
-              body: runBody.toString("base64"),
-            },
-          );
-          result.runsReplayed++;
-
+          // Enqueue job events BEFORE the run event so the collector's
+          // step-timing cache is populated when eventToLogs processes the run.
           const jobsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs/${run.id}/jobs?per_page=100`;
           const freshToken = await getInstallationToken(installationId);
 
@@ -483,6 +475,16 @@ export async function backfillRepo(
               result.errors.push(`job ${job.id} in run ${run.id}: ${msg}`);
             }
           }
+
+          const runBody = apiRunToCollectorBody(run, repo, installationId);
+          await enqueueWebhookEvent(
+            deterministicUuid(`backfill-${tenantId}-run-${traceIds[i]}`),
+            {
+              headers: signedHeaders("workflow_run", runBody),
+              body: runBody.toString("base64"),
+            },
+          );
+          result.runsReplayed++;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(`run ${run.id}: ${msg}`);
