@@ -756,7 +756,6 @@ function WorkflowsStep({
             index: repoIndex,
             total: reposTotal,
           });
-          setProgress(null);
         },
         onProgress: setProgress,
         onComplete: () => {
@@ -829,27 +828,31 @@ function WorkflowsStep({
           <div className="flex flex-col items-center py-8">
             <p className="text-sm text-muted-foreground">
               Importing runs from{importingRepo ? ` ${importingRepo.name}` : ""}
-              {importingRepo && importingRepo.total > 1
-                ? ` (${importingRepo.index + 1}/${importingRepo.total})`
-                : ""}
             </p>
-            {progress ? (
-              <div className="mt-4 w-full max-w-xs">
-                <div className="h-2 w-full overflow-hidden bg-muted">
-                  <div
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{
-                      width: `${Math.min((progress.jobsEnqueued / progress.jobsQuota) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-                <p className="mt-2 text-center text-xs text-muted-foreground">
-                  {progress.runsProcessed} runs imported
-                </p>
+            <div className="mt-4 w-full max-w-xs">
+              <div className="h-2 w-full overflow-hidden bg-muted">
+                <div
+                  className={cn(
+                    "h-full bg-primary",
+                    progress
+                      ? "transition-all duration-300"
+                      : "animate-fake-progress",
+                  )}
+                  style={
+                    progress
+                      ? {
+                          width: `${10 + Math.min((progress.jobsEnqueued / progress.jobsQuota) * 90, 90)}%`,
+                        }
+                      : undefined
+                  }
+                />
               </div>
-            ) : (
-              <Loader2 className="mt-4 size-8 animate-spin text-muted-foreground" />
-            )}
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                {progress
+                  ? `${progress.runsProcessed} runs imported`
+                  : "Gathering the runs list"}
+              </p>
+            </div>
           </div>
         ) : (
           <>

@@ -27,7 +27,11 @@ export async function importRepo({
   repoFullName,
   onProgress,
   fetchFn = fetch,
-}: ImportRepoOptions): Promise<{ jobsEnqueued: number; errors: number }> {
+}: ImportRepoOptions): Promise<{
+  jobsEnqueued: number;
+  runsProcessed: number;
+  errors: number;
+}> {
   const response = await fetchFn("/api/onboarding/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -42,6 +46,7 @@ export async function importRepo({
   const decoder = new TextDecoder();
   let buffer = "";
   let jobsEnqueued = 0;
+  let runsProcessed = 0;
   let errors = 0;
 
   for (;;) {
@@ -62,12 +67,13 @@ export async function importRepo({
       });
       if (update.status === "done") {
         jobsEnqueued = update.jobsEnqueued;
+        runsProcessed = update.runsProcessed;
         errors = update.errors?.length ?? 0;
       }
     }
   }
 
-  return { jobsEnqueued, errors };
+  return { jobsEnqueued, runsProcessed, errors };
 }
 
 /**
@@ -94,10 +100,26 @@ export async function importRepos({
   let totalJobs = 0;
   let totalErrors = 0;
 
+  let runsOffset = 0;
+  const perRepoQuota = 100;
+  const totalQuota = repos.length * perRepoQuota;
+
   for (let i = 0; i < repos.length; i++) {
     const repoFullName = repos[i];
     onRepoStart(repoFullName, i, repos.length);
-    const result = await importRepo({ repoFullName, onProgress, fetchFn });
+    const jobsBase = i * perRepoQuota;
+    const currentRunsOffset = runsOffset;
+    const result = await importRepo({
+      repoFullName,
+      onProgress: (p) =>
+        onProgress({
+          jobsEnqueued: jobsBase + p.jobsEnqueued,
+          jobsQuota: totalQuota,
+          runsProcessed: currentRunsOffset + p.runsProcessed,
+        }),
+      fetchFn,
+    });
+    runsOffset += result.runsProcessed;
     totalJobs += result.jobsEnqueued;
     totalErrors += result.errors;
   }

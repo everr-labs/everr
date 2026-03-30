@@ -71,7 +71,7 @@ describe("importRepo", () => {
       jobsQuota: 100,
       runsProcessed: 2,
     });
-    expect(result).toEqual({ jobsEnqueued: 7, errors: 0 });
+    expect(result).toEqual({ jobsEnqueued: 7, runsProcessed: 2, errors: 0 });
   });
 
   it("counts errors from the done event", async () => {
@@ -98,7 +98,7 @@ describe("importRepo", () => {
       fetchFn: makeFetch(events),
     });
 
-    expect(result).toEqual({ jobsEnqueued: 5, errors: 2 });
+    expect(result).toEqual({ jobsEnqueued: 5, runsProcessed: 3, errors: 2 });
   });
 
   it("throws on non-ok response", async () => {
@@ -145,7 +145,7 @@ describe("importRepo", () => {
     });
 
     expect(onProgress).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({ jobsEnqueued: 3, errors: 0 });
+    expect(result).toEqual({ jobsEnqueued: 3, runsProcessed: 1, errors: 0 });
   });
 });
 
@@ -208,5 +208,31 @@ describe("importRepos", () => {
     expect(onRepoStart).toHaveBeenNthCalledWith(2, "org/repo-b", 1, 2);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ totalJobs: 15, totalErrors: 1 });
+
+    // Progress should accumulate across repos (total quota = 2 * 100 = 200)
+    // Repo A (index 0, base 0): importing(0), done(10)
+    // Repo B (index 1, base 100): importing(0), done(5) — runs offset 2
+    expect(onProgress).toHaveBeenCalledTimes(4);
+    expect(onProgress).toHaveBeenNthCalledWith(1, {
+      jobsEnqueued: 0,
+      jobsQuota: 200,
+      runsProcessed: 0,
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(2, {
+      jobsEnqueued: 10,
+      jobsQuota: 200,
+      runsProcessed: 2,
+    });
+    // Repo B starts at base 100 (full quota for repo A)
+    expect(onProgress).toHaveBeenNthCalledWith(3, {
+      jobsEnqueued: 100,
+      jobsQuota: 200,
+      runsProcessed: 2,
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(4, {
+      jobsEnqueued: 105,
+      jobsQuota: 200,
+      runsProcessed: 3,
+    });
   });
 });

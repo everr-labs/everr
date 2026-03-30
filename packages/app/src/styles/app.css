@@ -4,6 +4,19 @@
 
 @source "../../../ui/src/**/*.{ts,tsx}";
 
+@keyframes fake-progress {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 10%;
+  }
+}
+
+@utility animate-fake-progress {
+  animation: fake-progress 5s ease-out forwards;
+}
+
 @keyframes highlight-fade {
   0% {
     background-color: oklch(0.85 0.15 85 / 0.4);
