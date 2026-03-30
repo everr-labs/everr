@@ -39,15 +39,16 @@ const traceSkeleton = (
 function TraceView() {
   const { traceId } = Route.useParams();
   const { data: runDetails } = useQuery(runDetailsOptions(traceId));
+  const repo = runDetails?.repo;
 
   return (
     <DataPanel
-      title=""
       queries={[
         runSpansOptions(traceId),
-        flakyTestNamesOptions(runDetails?.repo ?? ""),
+        ...(repo ? [flakyTestNamesOptions(repo)] : []),
       ]}
       className="flex h-full flex-col overflow-hidden"
+      inset="flush-content"
       skeleton={traceSkeleton}
     >
       {(spans, flakyTestNames) =>
@@ -70,7 +71,6 @@ function TraceView() {
 function TraceViewSkeleton() {
   return (
     <PanelShell
-      title=""
       status="pending"
       className="flex h-full flex-col overflow-hidden"
       skeleton={traceSkeleton}

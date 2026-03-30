@@ -188,7 +188,7 @@ function DashboardPage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {repositories.slice(0, 5).map((repo) => (
+                {repositories.map((repo) => (
                   <div
                     key={repo.name}
                     className="flex items-center justify-between"
@@ -318,7 +318,7 @@ function DashboardPage() {
             <p className="text-muted-foreground text-sm">No runs found</p>
           ) : (
             <div className="space-y-3">
-              {runs.slice(0, 5).map((run) => (
+              {runs.map((run) => (
                 <Link
                   key={run.traceId}
                   to="/runs/$traceId"

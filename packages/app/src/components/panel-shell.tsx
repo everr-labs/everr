@@ -34,7 +34,7 @@ export function PanelShell({
       return (
         <Card inset={inset} className={className}>
           <CardHeader className="pb-1">
-            <CardDescription>{title}</CardDescription>
+            {title && <CardDescription>{title}</CardDescription>}
             <Skeleton className="h-9 w-24" />
           </CardHeader>
         </Card>
@@ -42,11 +42,13 @@ export function PanelShell({
     }
     return (
       <Card inset={inset} className={className}>
-        <CardHeader>
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-4 w-48" />
-        </CardHeader>
-        <CardContent>
+        {title !== undefined && (
+          <CardHeader>
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </CardHeader>
+        )}
+        <CardContent className={cn(title === undefined && "min-h-0 flex-1")}>
           {skeleton ?? <Skeleton className="h-[300px] w-full" />}
         </CardContent>
       </Card>
@@ -58,7 +60,7 @@ export function PanelShell({
       return (
         <Card inset={inset} className={className}>
           <CardHeader className="pb-1">
-            <CardDescription>{title}</CardDescription>
+            {title && <CardDescription>{title}</CardDescription>}
             <CardTitle className="text-3xl tabular-nums">--</CardTitle>
           </CardHeader>
         </Card>
@@ -67,7 +69,7 @@ export function PanelShell({
     return (
       <Card inset={inset} className={className}>
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
+          {title && <CardTitle>{title}</CardTitle>}
           {description && <CardDescription>{description}</CardDescription>}
         </CardHeader>
         <CardContent>
@@ -85,7 +87,7 @@ export function PanelShell({
       <Card inset={inset} className={cn(className)}>
         <CardHeader className="relative pb-2">
           <div className="flex items-center justify-between">
-            <CardDescription>{title}</CardDescription>
+            {title && <CardDescription>{title}</CardDescription>}
             {Icon && <Icon className="text-muted-foreground size-4" />}
           </div>
           <CardTitle className="text-3xl tabular-nums">{children}</CardTitle>
@@ -94,14 +96,20 @@ export function PanelShell({
     );
   }
 
+  const hasHeader = title || description || action;
+
   return (
     <Card inset={inset} className={cn(className)}>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-        {action && <CardAction>{action}</CardAction>}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
+      {hasHeader && (
+        <CardHeader>
+          {title && <CardTitle>{title}</CardTitle>}
+          {description && <CardDescription>{description}</CardDescription>}
+          {action && <CardAction>{action}</CardAction>}
+        </CardHeader>
+      )}
+      <CardContent className={cn(!hasHeader && "min-h-0 flex-1")}>
+        {children}
+      </CardContent>
     </Card>
   );
 }

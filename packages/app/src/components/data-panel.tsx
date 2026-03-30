@@ -23,10 +23,9 @@ export function DataPanel<const TQueries extends readonly unknown[]>({
   // @ts-expect-error -- loose generic constraint preserves element types for inference; queries are valid UseQueryOptions at runtime
   const results: UseQueryResult[] = useQueries({ queries });
   const isPending = results.some((r) => r.isPending);
-  const isError = results.some((r) => r.isError);
-  const allReady = results.every((r) => r.data !== undefined);
+  const allSuccess = results.every((r) => r.isSuccess);
 
-  if (isPending || isError || !allReady) {
+  if (!allSuccess) {
     return (
       <PanelShell
         {...chromeProps}
