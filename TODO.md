@@ -3,11 +3,17 @@
 ## Issues
 
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](todo/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.
+- [**everr-logs-grep-option**](todo/issues/everr-logs-grep-option.md) — `everr logs` should support a `--grep <pattern>` option to filter log output by a text pattern, similar to how `everr grep` works but scoped to a single trace/job/step.
+- [**everr-logs-strip-ansi-by-default**](todo/issues/everr-logs-strip-ansi-by-default.md) — `everr logs` should strip ANSI escape codes from log output by default. Currently raw ANSI sequences are returned, which breaks grep and makes output harder to read in non-terminal contexts.
 - [**failure-notifications-polling-to-sse**](todo/issues/failure-notifications-polling-to-sse.md) — The CLI failure notifications endpoint is polled on an interval. It should use the existing SSE infrastructure so notifications arrive in real time without repeated requests.
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**per-repo-install-claude-agents-md**](todo/issues/per-repo-install-claude-agents-md.md) — The per-repo install writes instructions to `AGENTS.md`, but Claude Code only reads `CLAUDE.md`. Claude ignores `AGENTS.md` entirely, so repos installed with the current flow get no agent instructions picked up by Claude.
 - [**replace-filter-select-with-autocomplete-combobox**](todo/issues/replace-filter-select-with-autocomplete-combobox.md) — The FilterSelect component should be replaced with an autocomplete combobox.
 - [**tables-alignment-and-sorting**](todo/issues/tables-alignment-and-sorting.md) — Table columns are misaligned and tables don't support sorting.
+
+## Projects
+
+- [**import-workflows-during-onboarding**](todo/projects/import-workflows-during-onboarding/shaping/problem.md) — In shaping
 
 ## Ideas
 
