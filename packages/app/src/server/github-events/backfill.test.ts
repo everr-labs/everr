@@ -278,7 +278,6 @@ describe("backfillRepo", () => {
         return mockGitHubList("workflow_runs", runs);
       }
       if (url.includes("/actions/runs?")) {
-        // master/develop — empty
         return mockGitHubList("workflow_runs", []);
       }
       if (url.includes("/jobs")) {
@@ -337,25 +336,29 @@ describe("backfillRepo", () => {
     expect(result.runsReplayed).toBe(20);
   });
 
-  it("skips master/develop if quota filled on main", async () => {
-    // 25 runs with 5 jobs = 125, quota hit at 100 on main
-    const runs = Array.from({ length: 25 }, (_, i) =>
-      makeRun({ id: i + 1, run_number: i + 1 }),
-    );
-    const jobsPerRun = runs.map((r) =>
-      Array.from({ length: 5 }, (_, j) =>
-        makeJob({ id: r.id * 100 + j, run_id: r.id }),
-      ),
-    );
-    setupFetch(runs, jobsPerRun);
+  it("falls back to no branch filter when main and master have no runs", async () => {
+    const runs = [makeRun({ id: 1 })];
+    const jobs = [[makeJob({ id: 101, run_id: 1 })]];
 
-    await backfillRepo(999, 1, TEST_REPO);
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/access_tokens")) return mockTokenResponse();
+      // main and master return empty, unfiltered returns runs
+      if (url.includes("/actions/runs?") && url.includes("branch=")) {
+        return mockGitHubList("workflow_runs", []);
+      }
+      if (url.includes("/actions/runs?")) {
+        return mockGitHubList("workflow_runs", runs);
+      }
+      if (url.includes("/jobs")) {
+        return mockGitHubList("jobs", jobs[0]);
+      }
+      return mockGitHubList("workflow_runs", []);
+    });
 
-    // Should not have fetched master or develop branches
-    const fetchedUrls = mockFetch.mock.calls.map((c) => c[0] as string);
-    const branchUrls = fetchedUrls.filter((u) => u.includes("/actions/runs?"));
-    expect(branchUrls.some((u) => u.includes("branch=master"))).toBe(false);
-    expect(branchUrls.some((u) => u.includes("branch=develop"))).toBe(false);
+    const result = await backfillRepo(999, 1, TEST_REPO);
+
+    expect(result.runsReplayed).toBe(1);
+    expect(result.jobsReplayed).toBe(1);
   });
 
   it("handles repos with no workflow runs", async () => {
@@ -418,8 +421,8 @@ describe("backfillRepo", () => {
 
     expect(result.runsReplayed).toBe(3);
 
-    // At least: initial event per branch + one per run processed + final done
-    expect(progressEvents.length).toBeGreaterThanOrEqual(5);
+    // 1 initial + 3 per-run + 1 done = 5
+    expect(progressEvents.length).toBe(5);
 
     // First event should be "importing" with runsProcessed 0 and jobsQuota 100
     const first = progressEvents[0];
