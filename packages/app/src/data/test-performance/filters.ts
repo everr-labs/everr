@@ -5,10 +5,10 @@ import { leafTestFilter, testFullNameExpr } from "../sql-helpers";
 // Filter input for test performance
 export const TestPerformanceFilterSchema = z.object({
   timeRange: TimeRangeSchema,
-  repo: z.string().optional(),
+  repos: z.array(z.string()).optional(),
   pkg: z.string().optional(),
   testName: z.string().optional(),
-  branch: z.string().optional(),
+  branches: z.array(z.string()).optional(),
   path: z.string().optional(),
 });
 export type TestPerformanceFilterInput = z.infer<
@@ -46,11 +46,11 @@ export function buildFilterConditions(
   };
   const scopeConditions: string[] = [];
 
-  if (data.repo) {
+  if (data.repos?.length) {
     conditions.push(
-      "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+      "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
     );
-    params.repo = data.repo;
+    params.repos = data.repos;
   }
   if (data.pkg) {
     conditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
@@ -62,11 +62,11 @@ export function buildFilterConditions(
     );
     params.testName = `%${data.testName}%`;
   }
-  if (data.branch) {
+  if (data.branches?.length) {
     conditions.push(
-      "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+      "ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}",
     );
-    params.branch = data.branch;
+    params.branches = data.branches;
   }
 
   if (data.path) {
@@ -79,14 +79,14 @@ export function buildFilterConditions(
   } else {
     // Root level: show only leaf tests (exclude suites)
     const leafScopeConditions: string[] = [];
-    if (data.repo) {
+    if (data.repos?.length) {
       leafScopeConditions.push(
-        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+        "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
       );
     }
-    if (data.branch) {
+    if (data.branches?.length) {
       leafScopeConditions.push(
-        "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
+        "ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}",
       );
     }
     scopeConditions.push(

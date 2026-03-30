@@ -89,12 +89,12 @@ export function WorkflowsTable({ data, sparklines }: WorkflowsTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-muted-foreground">
-            <th className="pb-2 pr-4 font-medium">Workflow</th>
-            <th className="pb-2 pr-4 font-medium">Repository</th>
-            <th className="pb-2 pr-4 font-medium">Runs</th>
-            <th className="pb-2 pr-4 font-medium">Success Rate</th>
-            <th className="pb-2 pr-4 font-medium">Avg Duration</th>
-            <th className="pb-2 font-medium">Last Run</th>
+            <th className="pb-2 pl-3 pr-4">Workflow</th>
+            <th className="pb-2 pr-4">Repository</th>
+            <th className="pb-2 pr-4">Runs</th>
+            <th className="pb-2 pr-4">Success Rate</th>
+            <th className="pb-2 pr-4">Avg Duration</th>
+            <th className="pb-2 pr-3">Last Run</th>
           </tr>
         </thead>
         <tbody>
@@ -105,7 +105,7 @@ export function WorkflowsTable({ data, sparklines }: WorkflowsTableProps) {
                 key={`${wf.workflowName}:${wf.repo}`}
                 className="border-b last:border-0 hover:bg-muted/50"
               >
-                <td className="py-2 pr-4">
+                <td className="py-2 pl-3 pr-4">
                   <Link
                     to="/workflows/$repo/$workflowName"
                     params={{ repo: wf.repo, workflowName: wf.workflowName }}
@@ -160,7 +160,7 @@ export function WorkflowsTable({ data, sparklines }: WorkflowsTableProps) {
                     </div>
                   </SparklineCell>
                 </td>
-                <td className="py-2 text-xs text-muted-foreground">
+                <td className="py-2 pr-3 text-xs text-muted-foreground">
                   {wf.lastRunAt ? formatRelativeTime(wf.lastRunAt) : "—"}
                 </td>
               </tr>

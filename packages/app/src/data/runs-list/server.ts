@@ -1,11 +1,10 @@
+import { z } from "zod";
 import { pool } from "@/db/client";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { resolveTimeRange } from "@/lib/time-range";
+import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import { runSummarySubquery } from "../run-query-helpers";
 import type { FilterOptions, RunListItem, RunsListResult } from "./schemas";
 import { RunsListInputSchema, SearchRunsInputSchema } from "./schemas";
-
-const RECENT_COMPLETED_WINDOW_SQL = "INTERVAL '90 days'";
 
 type WorkflowRunRow = {
   traceId: string;
@@ -36,28 +35,24 @@ export const getRunsList = createAuthenticatedServerFn({
     ];
     const params: unknown[] = [session.tenantId, fromDate, toDate];
 
-    if (data.repo) {
-      params.push(data.repo);
-      clauses.push(`repository = $${params.length}`);
+    if (data.repos?.length) {
+      params.push(data.repos);
+      clauses.push(`repository = ANY($${params.length})`);
     }
 
-    if (data.branch) {
-      params.push(data.branch);
-      clauses.push(`ref = $${params.length}`);
+    if (data.branches?.length) {
+      params.push(data.branches);
+      clauses.push(`ref = ANY($${params.length})`);
     }
 
-    if (data.workflowName) {
-      params.push(data.workflowName);
-      clauses.push(`workflow_name = $${params.length}`);
+    if (data.workflowNames?.length) {
+      params.push(data.workflowNames);
+      clauses.push(`workflow_name = ANY($${params.length})`);
     }
 
-    // Only terminal conclusion values (success, failure, cancellation) are supported.
-    // In-progress runs have conclusion = NULL in the DB, so filtering by non-terminal
-    // statuses like "in_progress" would match nothing. If we add those filters later,
-    // we'll need to branch: use the `status` column for non-terminal states.
-    if (data.conclusion) {
-      params.push(denormalizeConclusion(data.conclusion));
-      clauses.push(`conclusion = $${params.length}`);
+    if (data.conclusions?.length) {
+      params.push(data.conclusions.map(denormalizeConclusion));
+      clauses.push(`conclusion = ANY($${params.length})`);
     }
 
     if (data.runId) {
@@ -107,45 +102,55 @@ export const getRunsList = createAuthenticatedServerFn({
     } satisfies RunsListResult;
   });
 
+const RunFilterOptionsInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+});
+
 export const getRunFilterOptions = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async ({ context: { session } }) => {
-  const result = await pool.query<{
-    repos: string[];
-    branches: string[];
-    workflowNames: string[];
-  }>(
-    `
+})
+  .inputValidator(RunFilterOptionsInputSchema)
+  .handler(async ({ data, context: { session } }) => {
+    const { fromDate, toDate } = resolveTimeRange(data.timeRange);
+    const result = await pool.query<{
+      repos: string[];
+      branches: string[];
+      workflowNames: string[];
+    }>(
+      `
       SELECT
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT repository AS v FROM workflow_runs
           WHERE tenant_id = $1 AND status = 'completed' AND repository != ''
-            AND COALESCE(run_completed_at, last_event_at) >= NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+            AND COALESCE(run_completed_at, last_event_at) >= $2
+            AND COALESCE(run_completed_at, last_event_at) <= $3
           LIMIT 100
         ) r) AS repos,
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT ref AS v FROM workflow_runs
           WHERE tenant_id = $1 AND status = 'completed' AND ref != ''
-            AND COALESCE(run_completed_at, last_event_at) >= NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+            AND COALESCE(run_completed_at, last_event_at) >= $2
+            AND COALESCE(run_completed_at, last_event_at) <= $3
           LIMIT 100
         ) b) AS branches,
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT workflow_name AS v FROM workflow_runs
           WHERE tenant_id = $1 AND status = 'completed' AND workflow_name != ''
-            AND COALESCE(run_completed_at, last_event_at) >= NOW() - ${RECENT_COMPLETED_WINDOW_SQL}
+            AND COALESCE(run_completed_at, last_event_at) >= $2
+            AND COALESCE(run_completed_at, last_event_at) <= $3
           LIMIT 100
         ) w) AS "workflowNames"
     `,
-    [session.tenantId],
-  );
+      [session.tenantId, fromDate, toDate],
+    );
 
-  const row = result.rows[0];
-  return {
-    repos: row?.repos ?? [],
-    branches: row?.branches ?? [],
-    workflowNames: row?.workflowNames ?? [],
-  } satisfies FilterOptions;
-});
+    const row = result.rows[0];
+    return {
+      repos: row?.repos ?? [],
+      branches: row?.branches ?? [],
+      workflowNames: row?.workflowNames ?? [],
+    } satisfies FilterOptions;
+  });
 
 export const searchRuns = createAuthenticatedServerFn({
   method: "GET",

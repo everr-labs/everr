@@ -12,14 +12,13 @@
   },
   "iconLibrary": "lucide",
   "rtl": false,
-  "aliases": {
-    "components": "@/components",
-    "lib": "@/lib",
-    "hooks": "@/hooks",
-    "ui": "@everr/ui/components",
-    "utils": "@everr/ui/lib/utils"
-  },
   "menuColor": "default",
   "menuAccent": "subtle",
-  "registries": {}
+  "aliases": {
+    "components": "@/components",
+    "utils": "@everr/ui/lib/utils",
+    "ui": "@everr/ui/components",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  }
 }

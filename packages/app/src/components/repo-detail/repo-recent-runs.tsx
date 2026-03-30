@@ -2,6 +2,7 @@ import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
+import { SenderCell } from "@/components/sender-cell";
 import type { RepoRecentRun } from "@/data/repo-detail/schemas";
 import { formatRelativeTime } from "@/lib/formatting";
 
@@ -32,7 +33,13 @@ export function RepoRecentRuns({ data }: RepoRecentRunsProps) {
             <div className="flex flex-col">
               <span className="text-sm font-medium">{run.workflowName}</span>
               <span className="text-muted-foreground text-xs">
-                {run.branch} {run.sender && `• ${run.sender}`}
+                {run.branch}
+                {run.sender && (
+                  <>
+                    {" • "}
+                    <SenderCell sender={run.sender} />
+                  </>
+                )}
               </span>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
 
 export interface Column<T> {
@@ -24,6 +25,9 @@ export function DataTable<T>({
     return <>{emptyState}</>;
   }
 
+  const isFirst = (i: number) => i === 0;
+  const isLast = (i: number) => i === columns.length - 1;
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -34,9 +38,12 @@ export function DataTable<T>({
                 key={i}
                 className={
                   col.className ??
-                  (i < columns.length - 1
-                    ? "pb-2 pr-4 font-medium"
-                    : "pb-2 font-medium")
+                  cn(
+                    "pb-2",
+                    !isLast(i) && "pr-4",
+                    isFirst(i) && "pl-3",
+                    isLast(i) && "pr-3",
+                  )
                 }
               >
                 {col.header}
@@ -55,7 +62,12 @@ export function DataTable<T>({
                   key={i}
                   className={
                     col.cellClassName ??
-                    (i < columns.length - 1 ? "py-2 pr-4" : "py-2")
+                    cn(
+                      "py-2",
+                      !isLast(i) && "pr-4",
+                      isFirst(i) && "pl-3",
+                      isLast(i) && "pr-3",
+                    )
                   }
                 >
                   {col.cell(row)}

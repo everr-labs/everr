@@ -49,11 +49,11 @@ export const getWorkflowsList = createAuthenticatedServerFn({
       offset,
     };
 
-    if (data.repo) {
+    if (data.repos?.length) {
       conditions.push(
-        "ResourceAttributes['vcs.repository.name'] = {repo:String}",
+        "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
       );
-      params.repo = data.repo;
+      params.repos = data.repos;
     }
     if (data.search) {
       conditions.push(

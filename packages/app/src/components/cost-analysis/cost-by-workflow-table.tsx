@@ -19,12 +19,12 @@ const columns: Column<CostByWorkflow>[] = [
   {
     header: "Jobs",
     cell: (row) => row.totalJobs.toLocaleString(),
-    className: "pb-2 pr-4 font-medium text-right",
+    className: "pb-2 pr-4 font-medium",
   },
   {
     header: "Minutes",
     cell: (row) => Math.round(row.totalMinutes).toLocaleString(),
-    className: "pb-2 pr-4 font-medium text-right",
+    className: "pb-2 pr-4 font-medium",
   },
   {
     header: "Est. Cost",
@@ -33,7 +33,7 @@ const columns: Column<CostByWorkflow>[] = [
         {formatCost(row.estimatedCost)}
       </span>
     ),
-    className: "pb-2 pr-4 font-medium text-right",
+    className: "pb-2 pr-4 font-medium",
   },
   {
     header: "Avg $/Run",
@@ -42,7 +42,7 @@ const columns: Column<CostByWorkflow>[] = [
         {formatCost(row.avgCostPerRun)}
       </span>
     ),
-    className: "pb-2 font-medium text-right",
+    className: "pb-2 font-medium",
   },
 ];
 

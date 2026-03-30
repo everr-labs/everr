@@ -87,7 +87,7 @@ export const WorkflowsListInputSchema = z.object({
   timeRange: TimeRangeSchema,
   page: z.coerce.number().int().min(1),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  repo: z.string().optional(),
+  repos: z.array(z.string()).optional(),
   search: z.string().optional(),
 });
 export type WorkflowsListInput = z.infer<typeof WorkflowsListInputSchema>;

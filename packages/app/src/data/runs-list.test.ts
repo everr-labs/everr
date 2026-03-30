@@ -48,7 +48,7 @@ describe("getRunsList", () => {
 
     const result = await getRunsList({
       data: {
-        repo: "everr-labs/everr",
+        repos: ["everr-labs/everr"],
         limit: 15,
         offset: 30,
         timeRange: {
@@ -65,7 +65,7 @@ describe("getRunsList", () => {
       42,
       expect.any(Date),
       expect.any(Date),
-      "everr-labs/everr",
+      ["everr-labs/everr"],
       15,
       30,
     ]);

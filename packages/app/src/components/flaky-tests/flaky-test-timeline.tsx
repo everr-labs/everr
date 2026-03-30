@@ -65,13 +65,13 @@ export function FlakyTestTimeline({ data }: FlakyTestTimelineProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-muted-foreground">
-            <th className="pb-2 pr-4 font-medium">Result</th>
-            <th className="pb-2 pr-4 font-medium">Run</th>
-            <th className="pb-2 pr-4 font-medium">Branch</th>
-            <th className="pb-2 pr-4 font-medium">SHA</th>
-            <th className="pb-2 pr-4 font-medium">Duration</th>
-            <th className="pb-2 pr-4 font-medium">Runner</th>
-            <th className="pb-2 font-medium">Timestamp</th>
+            <th className="pb-2 pr-4">Result</th>
+            <th className="pb-2 pr-4">Run</th>
+            <th className="pb-2 pr-4">Branch</th>
+            <th className="pb-2 pr-4">SHA</th>
+            <th className="pb-2 pr-4">Duration</th>
+            <th className="pb-2 pr-4">Runner</th>
+            <th className="pb-2">Timestamp</th>
           </tr>
         </thead>
         <tbody>

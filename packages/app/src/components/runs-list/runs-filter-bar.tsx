@@ -1,71 +1,97 @@
 import { Input } from "@everr/ui/components/input";
-import { FilterSelect } from "@/components/filter-select";
-import type { FilterOptions } from "@/data/runs-list/schemas";
+import { Label } from "@everr/ui/components/label";
+import { FilterCombobox } from "@/components/filter-combobox";
+import {
+  runBranchFilterOptions,
+  runRepoFilterOptions,
+  runWorkflowNameFilterOptions,
+} from "@/data/runs-list/options";
+import type { TimeRange } from "@/lib/time-range";
+
+const conclusionFilterOptions = {
+  queryKey: ["runs", "conclusions"] as const,
+  queryFn: () => ["success", "failure", "cancellation"],
+  select: (data: string[]) => data,
+};
 
 interface RunsFilterBarProps {
-  filterOptions: FilterOptions;
-  repo?: string;
-  branch?: string;
-  conclusion?: string;
-  workflowName?: string;
+  timeRange: TimeRange;
+  repos: string[];
+  branches: string[];
+  conclusions: string[];
+  workflowNames: string[];
   runId?: string;
-  onRepoChange: (value: string | undefined) => void;
-  onBranchChange: (value: string | undefined) => void;
-  onConclusionChange: (value: string | undefined) => void;
-  onWorkflowNameChange: (value: string | undefined) => void;
+  onReposChange: (values: string[]) => void;
+  onBranchesChange: (values: string[]) => void;
+  onConclusionsChange: (values: string[]) => void;
+  onWorkflowNamesChange: (values: string[]) => void;
   onRunIdChange: (value: string) => void;
 }
 
 export function RunsFilterBar({
-  filterOptions,
-  repo,
-  branch,
-  conclusion,
-  workflowName,
+  timeRange,
+  repos,
+  branches,
+  conclusions,
+  workflowNames,
   runId,
-  onRepoChange,
-  onBranchChange,
-  onConclusionChange,
-  onWorkflowNameChange,
+  onReposChange,
+  onBranchesChange,
+  onConclusionsChange,
+  onWorkflowNamesChange,
   onRunIdChange,
 }: RunsFilterBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <FilterSelect
-        value={repo ?? ""}
-        onChange={onRepoChange}
-        items={filterOptions.repos}
-        placeholder="All repos"
+      <FilterCombobox
+        label="Repo"
+        values={repos}
+        onChange={onReposChange}
+        options={runRepoFilterOptions({ timeRange })}
+        placeholder="All"
+        searchPlaceholder="Search repos..."
       />
 
-      <FilterSelect
-        value={branch ?? ""}
-        onChange={onBranchChange}
-        items={filterOptions.branches}
-        placeholder="All branches"
+      <FilterCombobox
+        label="Branch"
+        values={branches}
+        onChange={onBranchesChange}
+        options={runBranchFilterOptions({ timeRange })}
+        placeholder="All"
+        searchPlaceholder="Search branches..."
       />
 
-      <FilterSelect
-        value={conclusion ?? ""}
-        onChange={onConclusionChange}
-        items={["success", "failure", "cancellation"]}
-        placeholder="All statuses"
+      <FilterCombobox
+        label="Status"
+        values={conclusions}
+        onChange={onConclusionsChange}
+        options={conclusionFilterOptions}
+        placeholder="All"
+        searchPlaceholder="Search statuses..."
       />
 
-      <FilterSelect
-        value={workflowName ?? ""}
-        onChange={onWorkflowNameChange}
-        items={filterOptions.workflowNames}
-        placeholder="All workflows"
+      <FilterCombobox
+        label="Workflow"
+        values={workflowNames}
+        onChange={onWorkflowNamesChange}
+        options={runWorkflowNameFilterOptions({ timeRange })}
+        placeholder="All"
+        searchPlaceholder="Search workflows..."
       />
 
-      <Input
-        type="text"
-        placeholder="Search run ID..."
-        value={runId || ""}
-        onChange={(e) => onRunIdChange(e.target.value)}
-        className="w-45"
-      />
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="run-id" className="text-muted-foreground text-xs">
+          Run ID
+        </Label>
+        <Input
+          id="run-id"
+          type="text"
+          placeholder="Search run ID..."
+          value={runId || ""}
+          onChange={(e) => onRunIdChange(e.target.value)}
+          className="w-45 h-8"
+        />
+      </div>
     </div>
   );
 }
