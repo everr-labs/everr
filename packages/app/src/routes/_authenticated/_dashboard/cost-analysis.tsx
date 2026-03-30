@@ -6,7 +6,7 @@ import {
   CostByWorkflowTable,
   CostOverTimeChart,
 } from "@/components/cost-analysis";
-import { Panel } from "@/components/panel";
+import { TimeRangePanel } from "@/components/time-range-panel";
 import {
   costByRepoOptions,
   costByWorkflowOptions,
@@ -48,16 +48,16 @@ function CostAnalysisPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Panel
+        <TimeRangePanel
           title="Estimated Cost"
           queries={[costOverviewOptions]}
           variant="stat"
           icon={DollarSign}
         >
           {(overview) => formatCost(overview.summary.totalCost)}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Total Minutes"
           queries={[costOverviewOptions]}
           variant="stat"
@@ -66,18 +66,18 @@ function CostAnalysisPage() {
           {(overview) =>
             Math.round(overview.summary.totalMinutes).toLocaleString()
           }
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Billing Minutes"
           queries={[costOverviewOptions]}
           variant="stat"
           icon={Receipt}
         >
           {(overview) => overview.summary.totalBillingMinutes.toLocaleString()}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Self-Hosted Minutes"
           queries={[costOverviewOptions]}
           variant="stat"
@@ -86,42 +86,42 @@ function CostAnalysisPage() {
           {(overview) =>
             Math.round(overview.summary.selfHostedMinutes).toLocaleString()
           }
-        </Panel>
+        </TimeRangePanel>
       </div>
 
-      <Panel
+      <TimeRangePanel
         title="Cost Over Time"
         description="Daily estimated cost by operating system"
         queries={[costOverviewOptions]}
       >
         {(overview) => <CostOverTimeChart data={overview.overTime} />}
-      </Panel>
+      </TimeRangePanel>
 
-      <Panel
+      <TimeRangePanel
         title="Cost by Runner"
         description="Estimated cost per runner type"
         queries={[costOverviewOptions]}
       >
         {(overview) => <CostByRunnerChart data={overview.byRunner} />}
-      </Panel>
+      </TimeRangePanel>
 
-      <Panel
+      <TimeRangePanel
         title="Cost by Repository"
         description="Per-repository cost breakdown"
         queries={[costByRepoOptions]}
         inset="flush-content"
       >
         {(byRepo) => <CostByRepoTable data={byRepo} />}
-      </Panel>
+      </TimeRangePanel>
 
-      <Panel
+      <TimeRangePanel
         title="Cost by Workflow"
         description="Per-workflow cost breakdown"
         queries={[costByWorkflowOptions]}
         inset="flush-content"
       >
         {(byWorkflow) => <CostByWorkflowTable data={byWorkflow} />}
-      </Panel>
+      </TimeRangePanel>
     </div>
   );
 }

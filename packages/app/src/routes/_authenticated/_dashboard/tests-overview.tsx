@@ -11,7 +11,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CircleHelp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
-import { Panel } from "@/components/panel";
+import { PanelShell } from "@/components/panel-shell";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import {
   ChildrenTable,
@@ -205,230 +205,206 @@ function TestPerformancePage() {
       />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-muted-foreground text-sm">Total Tests</p>
-            <p className="text-3xl font-semibold tabular-nums">
-              {summary?.totalTests ?? "--"}
-            </p>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-muted-foreground text-sm">Pass</p>
-            <p className="text-3xl font-semibold tabular-nums text-green-600">
-              {summary?.passCount ?? "--"}
-            </p>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-muted-foreground text-sm">Fail</p>
-            <p className="text-3xl font-semibold tabular-nums text-red-600">
-              {summary?.failCount ?? "--"}
-            </p>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-muted-foreground text-sm">Pass Rate</p>
-            <p className="text-3xl font-semibold tabular-nums">
-              {summary ? `${summary.passRate}%` : "--"}
-            </p>
-          </CardHeader>
-        </Card>
+        <PanelShell title="Total Tests" variant="stat" status="success">
+          {summary?.totalTests ?? "--"}
+        </PanelShell>
+        <PanelShell title="Pass" variant="stat" status="success">
+          <span className="text-green-600">{summary?.passCount ?? "--"}</span>
+        </PanelShell>
+        <PanelShell title="Fail" variant="stat" status="success">
+          <span className="text-red-600">{summary?.failCount ?? "--"}</span>
+        </PanelShell>
+        <PanelShell title="Pass Rate" variant="stat" status="success">
+          {summary ? `${summary.passRate}%` : "--"}
+        </PanelShell>
       </div>
 
       {!isRootScope && (
         <div className="grid gap-4 md:grid-cols-2">
-          <Panel title="Execution Health" queries={[]}>
-            {() => (
-              <div className="space-y-2 pt-0">
-                <div className="relative overflow-hidden rounded border-b pb-2">
+          <PanelShell title="Execution Health" status="success">
+            <div className="space-y-2 pt-0">
+              <div className="relative overflow-hidden rounded border-b pb-2">
+                <Sparkline
+                  data={executionTotalSeries}
+                  className="pointer-events-none absolute inset-0 opacity-25"
+                  color="hsl(214, 84%, 56%)"
+                />
+                <div className="relative flex items-baseline justify-between gap-3">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Total Executions
+                  </p>
+                  <p className="text-2xl font-semibold tabular-nums leading-none">
+                    {stats?.totalExecutions ?? "--"}
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-1.5 grid-cols-3">
+                <div className="relative overflow-hidden rounded border px-2 py-1.5">
                   <Sparkline
-                    data={executionTotalSeries}
+                    data={executionFailureRateSeries}
                     className="pointer-events-none absolute inset-0 opacity-25"
-                    color="hsl(214, 84%, 56%)"
+                    color="hsl(10, 85%, 58%)"
+                    maxValue={100}
                   />
-                  <div className="relative flex items-baseline justify-between gap-3">
+                  <div className="relative">
                     <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Total Executions
+                      Failure Rate
                     </p>
-                    <p className="text-2xl font-semibold tabular-nums leading-none">
-                      {stats?.totalExecutions ?? "--"}
+                    <p className="font-mono text-xs">
+                      {stats ? `${stats.failureRate}%` : "--"}
                     </p>
                   </div>
                 </div>
-                <div className="grid gap-1.5 grid-cols-3">
-                  <div className="relative overflow-hidden rounded border px-2 py-1.5">
-                    <Sparkline
-                      data={executionFailureRateSeries}
-                      className="pointer-events-none absolute inset-0 opacity-25"
-                      color="hsl(10, 85%, 58%)"
-                      maxValue={100}
-                    />
-                    <div className="relative">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                        Failure Rate
-                      </p>
-                      <p className="font-mono text-xs">
-                        {stats ? `${stats.failureRate}%` : "--"}
-                      </p>
-                    </div>
+                <div className="relative overflow-hidden rounded border px-2 py-1.5">
+                  <Sparkline
+                    data={executionFailSeries}
+                    className="pointer-events-none absolute inset-0 opacity-25"
+                    color="hsl(20, 90%, 52%)"
+                  />
+                  <div className="relative">
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                      Failed Execs
+                    </p>
+                    <p className="font-mono text-xs">
+                      {stats?.failExecutions ?? "--"}
+                    </p>
                   </div>
-                  <div className="relative overflow-hidden rounded border px-2 py-1.5">
-                    <Sparkline
-                      data={executionFailSeries}
-                      className="pointer-events-none absolute inset-0 opacity-25"
-                      color="hsl(20, 90%, 52%)"
-                    />
-                    <div className="relative">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                        Failed Execs
-                      </p>
-                      <p className="font-mono text-xs">
-                        {stats?.failExecutions ?? "--"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="relative overflow-hidden rounded border px-2 py-1.5">
-                    <Sparkline
-                      data={executionUniqueFailSeries}
-                      className="pointer-events-none absolute inset-0 opacity-25"
-                      color="hsl(30, 88%, 50%)"
-                    />
-                    <div className="relative">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                        Unique Failures
-                      </p>
-                      <p className="font-mono text-xs">
-                        {stats?.uniqueFailingTests ?? "--"}
-                      </p>
-                    </div>
+                </div>
+                <div className="relative overflow-hidden rounded border px-2 py-1.5">
+                  <Sparkline
+                    data={executionUniqueFailSeries}
+                    className="pointer-events-none absolute inset-0 opacity-25"
+                    color="hsl(30, 88%, 50%)"
+                  />
+                  <div className="relative">
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                      Unique Failures
+                    </p>
+                    <p className="font-mono text-xs">
+                      {stats?.uniqueFailingTests ?? "--"}
+                    </p>
                   </div>
                 </div>
               </div>
-            )}
-          </Panel>
-          <Panel title="Duration Profile" queries={[]}>
-            {() => (
-              <div className="space-y-2 pt-0">
-                <div className="relative overflow-hidden rounded border-b pb-2">
+            </div>
+          </PanelShell>
+          <PanelShell title="Duration Profile" status="success">
+            <div className="space-y-2 pt-0">
+              <div className="relative overflow-hidden rounded border-b pb-2">
+                <Sparkline
+                  data={durationAvgSeries}
+                  className="pointer-events-none absolute inset-0 opacity-25"
+                  color="hsl(173, 80%, 36%)"
+                />
+                <div className="relative flex items-baseline justify-between gap-3">
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Average Duration
+                  </p>
+                  <p className="text-2xl font-semibold tabular-nums leading-none">
+                    {stats
+                      ? formatDurationCompact(stats.avgDuration, "s")
+                      : "--"}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                <div className="relative overflow-hidden rounded border px-1.5 py-1">
                   <Sparkline
-                    data={durationAvgSeries}
+                    data={durationMedianSeries}
                     className="pointer-events-none absolute inset-0 opacity-25"
-                    color="hsl(173, 80%, 36%)"
+                    color="hsl(179, 80%, 34%)"
                   />
-                  <div className="relative flex items-baseline justify-between gap-3">
+                  <div className="relative">
                     <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Average Duration
+                      Median
                     </p>
-                    <p className="text-2xl font-semibold tabular-nums leading-none">
+                    <p className="font-mono text-xs">
                       {stats
-                        ? formatDurationCompact(stats.avgDuration, "s")
+                        ? formatDurationCompact(stats.medianDuration, "s")
                         : "--"}
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
-                    <Sparkline
-                      data={durationMedianSeries}
-                      className="pointer-events-none absolute inset-0 opacity-25"
-                      color="hsl(179, 80%, 34%)"
-                    />
-                    <div className="relative">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                        Median
-                      </p>
-                      <p className="font-mono text-xs">
-                        {stats
-                          ? formatDurationCompact(stats.medianDuration, "s")
-                          : "--"}
-                      </p>
-                    </div>
+                <div className="relative overflow-hidden rounded border px-1.5 py-1">
+                  <Sparkline
+                    data={durationP95Series}
+                    className="pointer-events-none absolute inset-0 opacity-25"
+                    color="hsl(192, 82%, 36%)"
+                  />
+                  <div className="relative">
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                      P95
+                    </p>
+                    <p className="font-mono text-xs">
+                      {stats
+                        ? formatDurationCompact(stats.p95Duration, "s")
+                        : "--"}
+                    </p>
                   </div>
-                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
-                    <Sparkline
-                      data={durationP95Series}
-                      className="pointer-events-none absolute inset-0 opacity-25"
-                      color="hsl(192, 82%, 36%)"
-                    />
-                    <div className="relative">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                        P95
-                      </p>
-                      <p className="font-mono text-xs">
-                        {stats
-                          ? formatDurationCompact(stats.p95Duration, "s")
-                          : "--"}
-                      </p>
-                    </div>
+                </div>
+                <div className="relative overflow-hidden rounded border px-1.5 py-1">
+                  <Sparkline
+                    data={durationMaxSeries}
+                    className="pointer-events-none absolute inset-0 opacity-25"
+                    color="hsl(203, 84%, 40%)"
+                  />
+                  <div className="relative">
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                      Max
+                    </p>
+                    <p className="font-mono text-xs">
+                      {stats
+                        ? formatDurationCompact(stats.maxDuration, "s")
+                        : "--"}
+                    </p>
                   </div>
-                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
-                    <Sparkline
-                      data={durationMaxSeries}
-                      className="pointer-events-none absolute inset-0 opacity-25"
-                      color="hsl(203, 84%, 40%)"
-                    />
-                    <div className="relative">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                        Max
-                      </p>
-                      <p className="font-mono text-xs">
-                        {stats
-                          ? formatDurationCompact(stats.maxDuration, "s")
-                          : "--"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="relative overflow-hidden rounded border px-1.5 py-1">
-                    <Sparkline
-                      data={durationCvSeries}
-                      className="pointer-events-none absolute inset-0 opacity-25"
-                      color="hsl(221, 83%, 56%)"
-                    />
-                    <div className="relative">
-                      <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
-                        CV
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                className="text-muted-foreground hover:text-foreground"
-                                aria-label="What is CV?"
-                              />
-                            }
-                          >
-                            <CircleHelp className="size-3.5" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-64">
-                            Coefficient of variation (CV) = std dev / mean. It
-                            shows relative spread, so higher CV means test
-                            durations are less stable and less predictable.
-                          </TooltipContent>
-                        </Tooltip>
-                      </p>
-                      <p className="font-mono text-xs">
-                        {stats ? `${stats.coefficientOfVariation}%` : "--"}
-                      </p>
-                    </div>
+                </div>
+                <div className="relative overflow-hidden rounded border px-1.5 py-1">
+                  <Sparkline
+                    data={durationCvSeries}
+                    className="pointer-events-none absolute inset-0 opacity-25"
+                    color="hsl(221, 83%, 56%)"
+                  />
+                  <div className="relative">
+                    <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
+                      CV
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label="What is CV?"
+                            />
+                          }
+                        >
+                          <CircleHelp className="size-3.5" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-64">
+                          Coefficient of variation (CV) = std dev / mean. It
+                          shows relative spread, so higher CV means test
+                          durations are less stable and less predictable.
+                        </TooltipContent>
+                      </Tooltip>
+                    </p>
+                    <p className="font-mono text-xs">
+                      {stats ? `${stats.coefficientOfVariation}%` : "--"}
+                    </p>
                   </div>
                 </div>
               </div>
-            )}
-          </Panel>
+            </div>
+          </PanelShell>
         </div>
       )}
 
       {!isLeaf && hasChildren && (
-        <Panel
+        <PanelShell
           title="Execution Treemap"
           description={`Size = ${getTreemapMetricLabel(
             treemapSizeMetric,
           )}, color = failure rate, tag = package / suite / test. Click a block to drill down.`}
-          queries={[]}
+          status="success"
           inset="flush-content"
           action={
             <TestPerfTreemapMetricToggle
@@ -437,91 +413,85 @@ function TestPerformancePage() {
             />
           }
         >
-          {() => (
-            <TestPerfTreemap
-              data={children}
-              pkg={pkg}
-              sizeMetric={treemapSizeMetric}
-              onSelect={(name) => {
-                if (!pkg) {
-                  updateFilter({ pkg: name, path: undefined });
-                  return;
-                }
-                updateFilter({ pkg, path: name });
-              }}
-            />
-          )}
-        </Panel>
+          <TestPerfTreemap
+            data={children}
+            pkg={pkg}
+            sizeMetric={treemapSizeMetric}
+            onSelect={(name) => {
+              if (!pkg) {
+                updateFilter({ pkg: name, path: undefined });
+                return;
+              }
+              updateFilter({ pkg, path: name });
+            }}
+          />
+        </PanelShell>
       )}
 
       {!isLeaf && hasChildren && (
         <div className={`grid gap-6`}>
-          <Panel
+          <PanelShell
             title={!pkg ? "Packages" : "Suites & Tests"}
             description={
               !pkg
                 ? "Browse packages and drill into suites or individual tests"
                 : "Drill into suites/tests and compare failures and duration trends"
             }
-            queries={[]}
+            status="success"
             inset="flush-content"
           >
-            {() => (
-              <ChildrenTable
-                data={children}
-                pkg={pkg}
-                repos={repos}
-                branches={branches}
-                timeRange={timeRange}
-                fetchChildren={(scope) =>
-                  queryClient.fetchQuery(
-                    testPerfChildrenOptions({
-                      timeRange,
-                      repos,
-                      branches,
-                      pkg: scope.pkg,
-                      path: scope.path,
-                    }),
-                  )
-                }
-              />
-            )}
-          </Panel>
+            <ChildrenTable
+              data={children}
+              pkg={pkg}
+              repos={repos}
+              branches={branches}
+              timeRange={timeRange}
+              fetchChildren={(scope) =>
+                queryClient.fetchQuery(
+                  testPerfChildrenOptions({
+                    timeRange,
+                    repos,
+                    branches,
+                    pkg: scope.pkg,
+                    path: scope.path,
+                  }),
+                )
+              }
+            />
+          </PanelShell>
         </div>
       )}
 
       {!isRootScope && (
         <>
-          <Panel
+          <PanelShell
             title="Duration Trend"
             description="Average, P50, and P95 test duration over time"
-            queries={[]}
+            status="success"
           >
-            {() => <TestDurationTrendChart data={trend ?? []} />}
-          </Panel>
+            <TestDurationTrendChart data={trend ?? []} />
+          </PanelShell>
 
-          <Panel
+          <PanelShell
             title="Test Duration Distribution"
             description="Each dot is one test execution. Color = outcome, shape = branch type (circle = main, triangle = other). Click a dot to view the CI run."
-            queries={[]}
+            status="success"
           >
-            {() => (
-              <TestPerfScatterChart
-                data={scatter ?? []}
-                fromTimestamp={fromDate.getTime()}
-                toTimestamp={toDate.getTime()}
-              />
-            )}
-          </Panel>
+            <TestPerfScatterChart
+              data={scatter ?? []}
+              fromTimestamp={fromDate.getTime()}
+              toTimestamp={toDate.getTime()}
+            />
+          </PanelShell>
 
-          <Panel
+          <PanelShell
             title="Recent Failures"
             description="Most recent test failures with links to CI runs"
-            queries={[]}
+            status="success"
             inset="flush-content"
           >
-            {() => <TestPerfFailuresTable data={failures ?? []} />}
-          </Panel>
+            <TestPerfFailuresTable data={failures ?? []} />
+          </PanelShell>
         </>
       )}
     </div>

@@ -8,70 +8,28 @@ import {
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
-import type { UseQueryResult } from "@tanstack/react-query";
-import { useQueries } from "@tanstack/react-query";
-import { AlertCircle, type LucideIcon } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import type { ReactNode } from "react";
-import type { TimeRangeInput } from "@/data/analytics/schemas";
-import { useTimeRange } from "@/hooks/use-time-range";
+import type { PanelChromeProps } from "./panel-types";
 
-type ExtractQueryFn<T> = T extends { queryFn?: infer QF }
-  ? Extract<QF, (...args: never[]) => unknown>
-  : never;
-
-type ExtractQueryData<T> =
-  ExtractQueryFn<T> extends (...args: never[]) => infer R
-    ? Awaited<R>
-    : unknown;
-
-type InferFactoryData<T> = T extends (...args: never[]) => infer R
-  ? ExtractQueryData<R>
-  : unknown;
-
-type InferQueriesData<T extends readonly unknown[]> = {
-  [K in keyof T]: InferFactoryData<T[K]>;
-};
-
-type QueryFactory = (input: TimeRangeInput) => unknown;
-
-interface PanelProps<TQueries extends readonly QueryFactory[]> {
-  title: string;
-  description?: string;
-  queries: [...TQueries];
-  children: (...data: InferQueriesData<TQueries>) => ReactNode;
-  background?: (...data: InferQueriesData<TQueries>) => ReactNode;
-  variant?: "default" | "stat";
-  skeleton?: ReactNode;
-  icon?: LucideIcon;
-  action?: ReactNode;
-  inset?: "default" | "flush-content";
-  className?: string;
+export interface PanelShellProps extends PanelChromeProps {
+  status: "pending" | "error" | "success";
+  children?: ReactNode;
 }
 
-export function Panel<const TQueries extends readonly QueryFactory[]>({
+export function PanelShell({
   title,
   description,
-  queries: queryFactories,
-  children,
-  background,
+  status,
   variant = "default",
   skeleton,
   icon: Icon,
   action,
   inset = "default",
   className,
-}: PanelProps<TQueries>) {
-  const { timeRange } = useTimeRange();
-  const resolvedQueries = queryFactories.map((factory) =>
-    factory({ timeRange }),
-  );
-  // @ts-expect-error -- loose generic constraint preserves element types for inference; queries are valid UseQueryOptions at runtime
-  const results: UseQueryResult[] = useQueries({ queries: resolvedQueries });
-  const isPending = results.some((r) => r.isPending);
-  const error = results.find((r) => r.isError)?.error;
-  const allReady = results.every((r) => r.data !== undefined);
-
-  if (isPending) {
+  children,
+}: PanelShellProps) {
+  if (status === "pending") {
     if (variant === "stat") {
       return (
         <Card inset={inset} className={className}>
@@ -95,7 +53,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
     );
   }
 
-  if (error) {
+  if (status === "error") {
     if (variant === "stat") {
       return (
         <Card inset={inset} className={className}>
@@ -122,26 +80,15 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
     );
   }
 
-  if (!allReady) return null;
-
-  const data = results.map((r) => r.data) as InferQueriesData<TQueries>;
-
   if (variant === "stat") {
     return (
-      <Card inset={inset} className={cn(background && "relative", className)}>
-        {background && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 opacity-15">
-            {background(...data)}
-          </div>
-        )}
+      <Card inset={inset} className={cn(className)}>
         <CardHeader className="relative pb-2">
           <div className="flex items-center justify-between">
             <CardDescription>{title}</CardDescription>
             {Icon && <Icon className="text-muted-foreground size-4" />}
           </div>
-          <CardTitle className="text-3xl tabular-nums">
-            {children(...data)}
-          </CardTitle>
+          <CardTitle className="text-3xl tabular-nums">{children}</CardTitle>
         </CardHeader>
       </Card>
     );
@@ -154,7 +101,7 @@ export function Panel<const TQueries extends readonly QueryFactory[]>({
         {description && <CardDescription>{description}</CardDescription>}
         {action && <CardAction>{action}</CardAction>}
       </CardHeader>
-      <CardContent>{children(...data)}</CardContent>
+      <CardContent>{children}</CardContent>
     </Card>
   );
 }

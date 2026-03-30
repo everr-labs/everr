@@ -16,8 +16,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
 import { ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
-import { Panel } from "@/components/panel";
 import { RunsTable } from "@/components/runs-list";
+import { TimeRangePanel } from "@/components/time-range-panel";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
   workflowCostOptions,
@@ -116,7 +116,7 @@ function WorkflowDetailPage() {
 
       {/* KPI stat cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Panel
+        <TimeRangePanel
           title="Total Runs"
           queries={[wfStats, wfSuccessTrend]}
           variant="stat"
@@ -137,9 +137,9 @@ function WorkflowDetailPage() {
               />
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Success Rate"
           queries={[wfStats, wfSuccessTrend]}
           variant="stat"
@@ -171,9 +171,9 @@ function WorkflowDetailPage() {
               />
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Avg Duration"
           queries={[wfStats, wfDurationTrend]}
           variant="stat"
@@ -195,9 +195,9 @@ function WorkflowDetailPage() {
               />
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Est. Cost"
           queries={[wfCost]}
           variant="stat"
@@ -221,12 +221,12 @@ function WorkflowDetailPage() {
               </p>
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
       </div>
 
       {/* Trend charts */}
       <div className="grid gap-3 md:grid-cols-2">
-        <Panel
+        <TimeRangePanel
           title="Success Rate Trend"
           queries={[wfSuccessTrend]}
           skeleton={<div className="h-40" />}
@@ -238,9 +238,9 @@ function WorkflowDetailPage() {
               <ChartEmptyState message="No success rate data available" />
             )
           }
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Duration Trend"
           queries={[wfDurationTrend]}
           skeleton={<div className="h-40" />}
@@ -299,12 +299,12 @@ function WorkflowDetailPage() {
               <ChartEmptyState message="No duration data available" />
             )
           }
-        </Panel>
+        </TimeRangePanel>
       </div>
 
       {/* Detail panels */}
       <div className="grid gap-3 md:grid-cols-2">
-        <Panel title="Top Failing Jobs" queries={[wfFailingJobs]}>
+        <TimeRangePanel title="Top Failing Jobs" queries={[wfFailingJobs]}>
           {(jobs) =>
             jobs.length > 0 ? (
               <div className="space-y-3">
@@ -336,9 +336,9 @@ function WorkflowDetailPage() {
               </p>
             )
           }
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel title="Failure Reasons" queries={[wfFailureReasons]}>
+        <TimeRangePanel title="Failure Reasons" queries={[wfFailureReasons]}>
           {(reasons) =>
             reasons.length > 0 ? (
               <div className="space-y-3">
@@ -365,11 +365,11 @@ function WorkflowDetailPage() {
               </p>
             )
           }
-        </Panel>
+        </TimeRangePanel>
       </div>
 
       {/* Recent Runs */}
-      <Panel
+      <TimeRangePanel
         title="Recent Runs"
         queries={[wfRecentRuns]}
         inset="flush-content"
@@ -391,7 +391,7 @@ function WorkflowDetailPage() {
         }
       >
         {(runs) => <RunsTable data={runs} />}
-      </Panel>
+      </TimeRangePanel>
     </div>
   );
 }

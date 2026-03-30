@@ -12,8 +12,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
-import { Panel } from "@/components/panel";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
+import { TimeRangePanel } from "@/components/time-range-panel";
 import {
   durationTrendsOptions,
   successRateTrendsOptions,
@@ -58,7 +58,7 @@ function DashboardPage() {
 
       {/* Section 1: KPI stat cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Panel
+        <TimeRangePanel
           title="Total Runs"
           queries={[dashboardStatsOptions, successRateTrendsOptions]}
           variant="stat"
@@ -78,9 +78,9 @@ function DashboardPage() {
               </div>
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Success Rate"
           queries={[dashboardStatsOptions, successRateTrendsOptions]}
           variant="stat"
@@ -111,9 +111,9 @@ function DashboardPage() {
               </div>
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Avg Duration"
           queries={[dashboardDurationStatsOptions, durationTrendsOptions]}
           variant="stat"
@@ -133,9 +133,9 @@ function DashboardPage() {
               </div>
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Est. Cost"
           queries={[costOverviewOptions]}
           variant="stat"
@@ -155,21 +155,21 @@ function DashboardPage() {
               </div>
             </>
           )}
-        </Panel>
+        </TimeRangePanel>
       </div>
 
       {/* Section 2: Trend chart */}
-      <Panel
+      <TimeRangePanel
         title="Success Rate Trend"
         queries={[successRateTrendsOptions]}
         skeleton={<div className="h-40" />}
       >
         {(data) => <SuccessRateMiniChart data={data} />}
-      </Panel>
+      </TimeRangePanel>
 
       {/* Section 3: Detail lists */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        <Panel
+        <TimeRangePanel
           title="Repository Health"
           queries={[repositoriesOptions]}
           action={
@@ -215,9 +215,12 @@ function DashboardPage() {
               </div>
             )
           }
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel title="Top Failing Jobs" queries={[topFailingJobsOptions]}>
+        <TimeRangePanel
+          title="Top Failing Jobs"
+          queries={[topFailingJobsOptions]}
+        >
           {(jobs) =>
             jobs.length === 0 ? (
               <p className="text-muted-foreground text-sm">
@@ -244,9 +247,9 @@ function DashboardPage() {
               </div>
             )
           }
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Top Failing Workflows"
           queries={[topFailingWorkflowsOptions]}
         >
@@ -286,11 +289,11 @@ function DashboardPage() {
               </div>
             )
           }
-        </Panel>
+        </TimeRangePanel>
       </div>
 
       {/* Section 4: Recent Runs */}
-      <Panel
+      <TimeRangePanel
         title="Recent Runs"
         queries={[latestRunsOptions]}
         action={
@@ -358,7 +361,7 @@ function DashboardPage() {
             </div>
           )
         }
-      </Panel>
+      </TimeRangePanel>
     </div>
   );
 }
