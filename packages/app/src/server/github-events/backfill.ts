@@ -336,6 +336,14 @@ export interface BackfillResult {
   durationMs: number;
 }
 
+export interface BackfillProgress {
+  status: "importing" | "done";
+  jobsEnqueued: number;
+  runsProcessed: number;
+  runsTotal: number;
+  errors?: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Deduplication — check which traceIds already exist
 // ---------------------------------------------------------------------------
@@ -393,6 +401,7 @@ export async function backfillRepo(
   installationId: number,
   tenantId: number,
   repo: ApiRepo,
+  onProgress?: (update: BackfillProgress) => void,
 ): Promise<BackfillResult> {
   const started = Date.now();
 
@@ -410,6 +419,8 @@ export async function backfillRepo(
   };
 
   let jobCount = 0;
+  let totalRunsToProcess = 0;
+  let runsProcessed = 0;
 
   for (const branch of BRANCHES) {
     if (jobCount >= JOB_QUOTA_PER_REPO) break;
@@ -434,6 +445,17 @@ export async function backfillRepo(
         generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
       );
       const existing = await getExistingTraceIds(tenantId, traceIds);
+
+      const runsTotal = candidateRuns.filter(
+        (_, idx) => !existing.has(traceIds[idx]),
+      ).length;
+      totalRunsToProcess += runsTotal;
+      onProgress?.({
+        status: "importing",
+        jobsEnqueued: result.jobsReplayed,
+        runsProcessed,
+        runsTotal: totalRunsToProcess,
+      });
 
       for (let i = 0; i < candidateRuns.length; i++) {
         if (jobCount >= JOB_QUOTA_PER_REPO) break;
@@ -485,6 +507,13 @@ export async function backfillRepo(
             },
           );
           result.runsReplayed++;
+          runsProcessed++;
+          onProgress?.({
+            status: "importing",
+            jobsEnqueued: result.jobsReplayed,
+            runsProcessed,
+            runsTotal: totalRunsToProcess,
+          });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(`run ${run.id}: ${msg}`);
@@ -503,6 +532,14 @@ export async function backfillRepo(
   console.log(
     `[backfill] ${repo.full_name}: runs=${result.runsReplayed} skipped=${result.runsSkipped} jobs=${result.jobsReplayed} errors=${result.errors.length} duration=${result.durationMs}ms`,
   );
+
+  onProgress?.({
+    status: "done",
+    jobsEnqueued: result.jobsReplayed,
+    runsProcessed,
+    runsTotal: totalRunsToProcess,
+    errors: result.errors,
+  });
 
   return result;
 }

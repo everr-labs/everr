@@ -392,6 +392,59 @@ describe("backfillRepo", () => {
     expect(result.errors[0]).toContain("collector down");
   });
 
+  it("emits onProgress events during backfill", async () => {
+    const runs = [
+      makeRun({ id: 1, conclusion: "success" }),
+      makeRun({ id: 2, conclusion: "success" }),
+      makeRun({ id: 3, conclusion: "success" }),
+    ];
+    const jobs = [
+      [makeJob({ id: 101, run_id: 1 })],
+      [makeJob({ id: 201, run_id: 2 })],
+      [makeJob({ id: 301, run_id: 3 })],
+    ];
+    setupFetch(runs, jobs);
+
+    const progressEvents: Array<{
+      status: string;
+      jobsEnqueued: number;
+      runsProcessed: number;
+      runsTotal: number;
+      errors?: string[];
+    }> = [];
+    const onProgress = vi.fn((event) => progressEvents.push(event));
+
+    const result = await backfillRepo(999, 1, TEST_REPO, onProgress);
+
+    expect(result.runsReplayed).toBe(3);
+
+    // At least: initial event per branch + one per run processed + final done
+    expect(progressEvents.length).toBeGreaterThanOrEqual(5);
+
+    // First event should be "importing" with runsProcessed 0 and runsTotal known
+    const first = progressEvents[0];
+    expect(first.status).toBe("importing");
+    expect(first.runsProcessed).toBe(0);
+    expect(first.runsTotal).toBe(3);
+
+    // Last event should be "done"
+    const last = progressEvents[progressEvents.length - 1];
+    expect(last.status).toBe("done");
+    expect(last.runsProcessed).toBe(3);
+    expect(last.runsTotal).toBe(3);
+    expect(last.jobsEnqueued).toBe(3);
+
+    // Incremental events should show increasing runsProcessed
+    const importingEvents = progressEvents.filter(
+      (e) => e.status === "importing" && e.runsProcessed > 0,
+    );
+    for (let i = 1; i < importingEvents.length; i++) {
+      expect(importingEvents[i].runsProcessed).toBeGreaterThanOrEqual(
+        importingEvents[i - 1].runsProcessed,
+      );
+    }
+  });
+
   it("skips runs whose traceId already exists in the database", async () => {
     const runs = [
       makeRun({ id: 1, conclusion: "success" }),
