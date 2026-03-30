@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/data/tenants", () => ({
   ensureTenantForOrganizationId: vi.fn(),
+  getGithubInstallationsForTenant: vi.fn(),
+}));
+
+vi.mock("@/server/github-events/backfill", () => ({
+  backfillRepo: vi.fn(),
+  listInstallationRepos: vi.fn(),
 }));
 
 import {

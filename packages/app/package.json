@@ -43,6 +43,7 @@
     "motion": "catalog:",
     "pg": "^8.20.0",
     "pg-boss": "^12.14.0",
+    "quick-lru": "^7.3.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-virtuoso": "^4.18.3",

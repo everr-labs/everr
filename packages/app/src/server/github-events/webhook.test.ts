@@ -7,18 +7,20 @@ const { webhookSecret, webhookMocks } = vi.hoisted(() => {
   process.env.INGRESS_SOURCE = "github";
   process.env.INGRESS_COLLECTOR_URL = "http://localhost:8080/webhook/github";
   process.env.GITHUB_APP_WEBHOOK_SECRET = webhookSecret;
+  process.env.GITHUB_APP_ID = "12345";
+  process.env.GITHUB_APP_PRIVATE_KEY = "test-key";
 
   return {
     webhookSecret,
     webhookMocks: {
-      send: vi.fn(),
+      enqueueWebhookEvent: vi.fn(),
       setInstallationStatus: vi.fn(),
     },
   };
 });
 
 vi.mock("./runtime", () => ({
-  getBoss: () => ({ send: webhookMocks.send }),
+  enqueueWebhookEvent: webhookMocks.enqueueWebhookEvent,
 }));
 
 vi.mock("@/data/tenants", () => ({
@@ -32,7 +34,7 @@ function sign(payload: string, secret: string): string {
 }
 
 beforeEach(() => {
-  webhookMocks.send.mockReset().mockResolvedValue("job-id");
+  webhookMocks.enqueueWebhookEvent.mockReset().mockResolvedValue(undefined);
   webhookMocks.setInstallationStatus.mockReset();
 });
 
@@ -59,7 +61,7 @@ describe("handleGitHubWebhookRequest", () => {
     expect(response.status).toBe(401);
   });
 
-  it("enqueues workflow events to gh-collector and gh-status", async () => {
+  it("enqueues workflow events via enqueueWebhookEvent", async () => {
     const secret = webhookSecret;
     vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
     const payload = JSON.stringify({
@@ -86,16 +88,19 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(webhookMocks.send).toHaveBeenCalledTimes(2);
-    const queues = webhookMocks.send.mock.calls.map(
-      // biome-ignore lint/suspicious/noExplicitAny: ?
-      (c: any[]) => c[0] as string,
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledOnce();
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledWith(
+      "delivery-1",
+      {
+        headers: expect.objectContaining({
+          "x-github-event": ["workflow_run"],
+        }),
+        body: expect.any(String),
+      },
     );
-    expect(queues).toContain("gh-collector");
-    expect(queues).toContain("gh-status");
   });
 
-  it("uses the eventId as the deduplication id for each queue", async () => {
+  it("passes the eventId as deduplication id", async () => {
     const secret = webhookSecret;
     vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
     const payload = JSON.stringify({
@@ -116,63 +121,8 @@ describe("handleGitHubWebhookRequest", () => {
       }),
     );
 
-    const ids = webhookMocks.send.mock.calls.map(
-      // biome-ignore lint/suspicious/noExplicitAny: ?
-      (c: any[]) => (c[2] as { id: string }).id,
-    );
-    expect(ids).toEqual(["delivery-abc", "delivery-abc"]);
-  });
-
-  it("returns 200 when all sends return null (all deduplicated)", async () => {
-    const secret = webhookSecret;
-    vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
-    webhookMocks.send.mockResolvedValue(null);
-    const payload = JSON.stringify({
-      action: "requested",
-      installation: { id: 123 },
-      workflow_run: { id: 456, run_attempt: 1, name: "Tests" },
-    });
-
-    const response = await handleGitHubWebhookRequest(
-      new Request("http://localhost/webhook/github", {
-        method: "POST",
-        headers: {
-          "x-github-event": "workflow_run",
-          "x-github-delivery": "delivery-1",
-          "x-hub-signature-256": sign(payload, secret),
-        },
-        body: payload,
-      }),
-    );
-
-    expect(response.status).toBe(200);
-  });
-
-  it("returns 202 when at least one send is new (non-null)", async () => {
-    const secret = webhookSecret;
-    vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
-    webhookMocks.send
-      .mockResolvedValueOnce("job-id-1")
-      .mockResolvedValueOnce(null);
-    const payload = JSON.stringify({
-      action: "requested",
-      installation: { id: 123 },
-      workflow_run: { id: 456, run_attempt: 1, name: "Tests" },
-    });
-
-    const response = await handleGitHubWebhookRequest(
-      new Request("http://localhost/webhook/github", {
-        method: "POST",
-        headers: {
-          "x-github-event": "workflow_run",
-          "x-github-delivery": "delivery-1",
-          "x-hub-signature-256": sign(payload, secret),
-        },
-        body: payload,
-      }),
-    );
-
-    expect(response.status).toBe(202);
+    const eventId = webhookMocks.enqueueWebhookEvent.mock.calls[0][0];
+    expect(eventId).toBe("delivery-abc");
   });
 
   it("handles installation deleted events inline without enqueueing", async () => {
@@ -201,7 +151,7 @@ describe("handleGitHubWebhookRequest", () => {
       123,
       "uninstalled",
     );
-    expect(webhookMocks.send).not.toHaveBeenCalled();
+    expect(webhookMocks.enqueueWebhookEvent).not.toHaveBeenCalled();
   });
 
   it("handles installation suspended events inline", async () => {
@@ -230,7 +180,7 @@ describe("handleGitHubWebhookRequest", () => {
       456,
       "suspended",
     );
-    expect(webhookMocks.send).not.toHaveBeenCalled();
+    expect(webhookMocks.enqueueWebhookEvent).not.toHaveBeenCalled();
   });
 
   it("handles installation_repositories events inline as no-op", async () => {
@@ -256,7 +206,7 @@ describe("handleGitHubWebhookRequest", () => {
 
     expect(response.status).toBe(202);
     expect(webhookMocks.setInstallationStatus).not.toHaveBeenCalled();
-    expect(webhookMocks.send).not.toHaveBeenCalled();
+    expect(webhookMocks.enqueueWebhookEvent).not.toHaveBeenCalled();
   });
 
   it("accepts ignored events without enqueueing", async () => {
@@ -277,10 +227,10 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(webhookMocks.send).not.toHaveBeenCalled();
+    expect(webhookMocks.enqueueWebhookEvent).not.toHaveBeenCalled();
   });
 
-  it("enqueues workflow_job events to both queues", async () => {
+  it("enqueues workflow_job events", async () => {
     const secret = webhookSecret;
     vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
     const payload = JSON.stringify({
@@ -308,6 +258,6 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(webhookMocks.send).toHaveBeenCalledTimes(2);
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledOnce();
   });
 });

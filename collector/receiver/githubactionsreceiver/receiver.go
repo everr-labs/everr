@@ -44,6 +44,7 @@ type githubActionsReceiver struct {
 	obsrecv         *receiverhelper.ObsReport
 	ghClient        *github.Client
 	jobNames        *jobNameCache
+	stepTimings     *stepTimingCache
 }
 
 func newReceiver(
@@ -79,12 +80,13 @@ func newReceiver(
 	}
 
 	gar := &githubActionsReceiver{
-		config:   config,
-		settings: settings,
-		logger:   settings.Logger,
-		obsrecv:  obsrecv,
-		ghClient: ghClient,
-		jobNames: newJobNameCache(1024, 30*time.Minute),
+		config:      config,
+		settings:    settings,
+		logger:      settings.Logger,
+		obsrecv:     obsrecv,
+		ghClient:    ghClient,
+		jobNames:    newJobNameCache(1024, 30*time.Minute),
+		stepTimings: newStepTimingCache(1024, 30*time.Minute),
 	}
 
 	return gar, nil
@@ -241,18 +243,36 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		jobName := e.GetWorkflowJob().GetName()
+		key := runKey{
+			repoID:     e.GetRepo().GetID(),
+			runID:      e.GetWorkflowJob().GetRunID(),
+			runAttempt: int(e.GetWorkflowJob().GetRunAttempt()),
+		}
 		// Cache job names containing "/" (need resolution) and "_" (need to
 		// distinguish genuine underscores from sanitized slashes). If the cache
 		// has entries for a run, it's authoritative — a cache hit with no "/"
 		// match means the "_" was literal, avoiding a false-positive API call
 		// from the looksLikeSanitizedJobName heuristic.
 		if strings.Contains(jobName, "/") || strings.Contains(jobName, "_") {
-			key := runKey{
-				repoID:     e.GetRepo().GetID(),
-				runID:      e.GetWorkflowJob().GetRunID(),
-				runAttempt: int(e.GetWorkflowJob().GetRunAttempt()),
-			}
 			gar.jobNames.AddJobName(key, jobName)
+		}
+		// Cache step timing for combined-log splitting in eventToLogs.
+		if steps := e.GetWorkflowJob().Steps; len(steps) > 0 {
+			timings := make([]stepTiming, 0, len(steps))
+			for _, s := range steps {
+				if s.StartedAt == nil || s.CompletedAt == nil {
+					continue
+				}
+				timings = append(timings, stepTiming{
+					Number:      s.GetNumber(),
+					Name:        s.GetName(),
+					StartedAt:   s.GetStartedAt().Time,
+					CompletedAt: s.GetCompletedAt().Time,
+				})
+			}
+			if len(timings) > 0 {
+				gar.stepTimings.AddJob(key, jobName, timings)
+			}
 		}
 	case *github.WorkflowRunEvent:
 		if e.GetWorkflowRun().GetStatus() != "completed" {
@@ -349,7 +369,7 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		} else {
 			withTraceInfo := gar.tracesConsumer != nil && !traceErr
 
-			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo, gar.jobNames)
+			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo, gar.jobNames, gar.stepTimings)
 			if err != nil {
 				processingFailed = true
 				gar.logger.Error("Failed to process logs", zap.Error(err))
