@@ -7,7 +7,7 @@
  *
  * Scope constraints (from spec):
  * - User-selected repos (one or more)
- * - 50 jobs per repo (soft quota — a run that pushes past 50 is fully included)
+ * - 100 jobs per repo (soft quota — a run that pushes past 100 is fully included)
  * - Default branches only: main → master → develop (queried in order, stops early)
  * - Only runs with conclusion "success" or "failure"
  *
@@ -387,7 +387,7 @@ export async function listInstallationRepos(
  *
  * Queries branches in order (main → master → develop), fetches completed runs
  * with conclusion success/failure, replays them and their jobs through the
- * collector. Stops at 50 jobs per repo (soft quota).
+ * collector. Stops at 100 jobs per repo (soft quota).
  */
 export async function backfillRepo(
   installationId: number,

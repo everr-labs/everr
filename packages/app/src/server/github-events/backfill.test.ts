@@ -319,9 +319,9 @@ describe("backfillRepo", () => {
     expect(result.jobsReplayed).toBe(1);
   });
 
-  it("stops after 50 jobs per repo", async () => {
-    // 15 runs with 5 jobs each = 75 jobs, should stop at 50 (10 runs)
-    const runs = Array.from({ length: 15 }, (_, i) =>
+  it("stops after 100 jobs per repo", async () => {
+    // 25 runs with 5 jobs each = 125 jobs, should stop at 100 (20 runs)
+    const runs = Array.from({ length: 25 }, (_, i) =>
       makeRun({ id: i + 1, run_number: i + 1 }),
     );
     const jobsPerRun = runs.map((r) =>
@@ -333,13 +333,13 @@ describe("backfillRepo", () => {
 
     const result = await backfillRepo(999, 1, TEST_REPO);
 
-    expect(result.jobsReplayed).toBe(50);
-    expect(result.runsReplayed).toBe(10);
+    expect(result.jobsReplayed).toBe(100);
+    expect(result.runsReplayed).toBe(20);
   });
 
   it("skips master/develop if quota filled on main", async () => {
-    // 15 runs with 5 jobs = 75, quota hit at 50 on main
-    const runs = Array.from({ length: 15 }, (_, i) =>
+    // 25 runs with 5 jobs = 125, quota hit at 100 on main
+    const runs = Array.from({ length: 25 }, (_, i) =>
       makeRun({ id: i + 1, run_number: i + 1 }),
     );
     const jobsPerRun = runs.map((r) =>
