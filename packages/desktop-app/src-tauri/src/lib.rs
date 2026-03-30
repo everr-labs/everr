@@ -19,6 +19,7 @@ mod auth;
 mod auto_fix_prompt;
 mod cli;
 mod commands;
+mod crash_log;
 mod notifications;
 mod settings;
 mod startup;
@@ -246,6 +247,8 @@ impl NotificationQueue {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    crash_log::install_panic_hook();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {

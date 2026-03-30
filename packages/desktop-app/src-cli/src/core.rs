@@ -112,7 +112,11 @@ pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
 pub async fn runs_show(args: ShowRunArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
-    let payload = client.get_run_details(&args.trace_id).await?;
+    let mut query = vec![];
+    if args.failed {
+        query.push(("failed", "true".to_string()));
+    }
+    let payload = client.get_run_details(&args.trace_id, &query).await?;
     print_json(&payload)?;
     Ok(())
 }

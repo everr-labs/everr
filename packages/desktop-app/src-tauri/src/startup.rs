@@ -11,15 +11,15 @@ use crate::{should_check_for_updates, UPDATE_CHECK_INTERVAL_SECONDS};
 
 pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {
     if let Err(error) = sync_installed_cli(app) {
-        eprintln!("[everr-app] failed to sync installed CLI: {error}");
+        crate::crash_log::log_error("sync installed CLI", &error);
     }
 
     if let Err(error) = ensure_background_launch(app) {
-        eprintln!("[everr-app] failed to enable background launch: {error}");
+        crate::crash_log::log_error("enable background launch", &error);
     }
 
     if let Err(error) = assistant::refresh_existing_managed_prompts(build::command_name()) {
-        eprintln!("[everr-app] failed to refresh assistant instructions: {error}");
+        crate::crash_log::log_error("refresh assistant instructions", &error);
     }
 }
 
@@ -48,7 +48,7 @@ pub(crate) fn start_update_check_loop(app: AppHandle) {
                 let update_installed = match install_update_if_available(&app).await {
                     Ok(installed) => installed,
                     Err(error) => {
-                        eprintln!("[everr-app] update check failed: {error}");
+                        crate::crash_log::log_error("update check", &error);
                         false
                     }
                 };
