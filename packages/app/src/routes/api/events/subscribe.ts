@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { tenantChannel, traceChannel } from "@/db/notify";
-import { createSubscription } from "@/db/subscribe";
+import { subscribe, subscribeTenant } from "@/db/hub";
 import {
   getAccessTokenSessionFromRequest,
   getWorkOSAuthSession,
@@ -41,24 +40,19 @@ export const Route = createFileRoute("/api/events/subscribe")({
           );
         }
 
-        const channel =
-          parsed.data.scope === "tenant"
-            ? tenantChannel(session.tenantId)
-            : traceChannel(parsed.data.traceId);
-
         const sse = createSSEStream(request);
 
-        const cleanup = createSubscription(
-          channel,
-          () => sse.sendEvent({ type: "update" }),
-          () => {
-            sse.sendEvent({ type: "error", message: "subscription lost" });
-            sse.close();
-          },
-        );
+        const unsubscribe =
+          parsed.data.scope === "tenant"
+            ? subscribeTenant(session.tenantId, () =>
+                sse.sendEvent({ type: "update" }),
+              )
+            : subscribe("trace", session.tenantId, parsed.data.traceId, () =>
+                sse.sendEvent({ type: "update" }),
+              );
 
         request.signal.addEventListener("abort", () => {
-          cleanup();
+          unsubscribe();
         });
 
         return sse.response();

@@ -122,22 +122,22 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT repository AS v FROM workflow_runs
           WHERE tenant_id = $1 AND status = 'completed' AND repository != ''
-            AND COALESCE(run_completed_at, last_event_at) >= $2
-            AND COALESCE(run_completed_at, last_event_at) <= $3
+            AND last_event_at >= $2
+            AND last_event_at <= $3
           LIMIT 100
         ) r) AS repos,
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT ref AS v FROM workflow_runs
           WHERE tenant_id = $1 AND status = 'completed' AND ref != ''
-            AND COALESCE(run_completed_at, last_event_at) >= $2
-            AND COALESCE(run_completed_at, last_event_at) <= $3
+            AND last_event_at >= $2
+            AND last_event_at <= $3
           LIMIT 100
         ) b) AS branches,
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT workflow_name AS v FROM workflow_runs
           WHERE tenant_id = $1 AND status = 'completed' AND workflow_name != ''
-            AND COALESCE(run_completed_at, last_event_at) >= $2
-            AND COALESCE(run_completed_at, last_event_at) <= $3
+            AND last_event_at >= $2
+            AND last_event_at <= $3
           LIMIT 100
         ) w) AS "workflowNames"
     `,

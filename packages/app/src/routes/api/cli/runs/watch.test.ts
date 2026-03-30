@@ -10,15 +10,8 @@ vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
   },
 }));
 
-vi.mock("@/db/notify", () => ({
-  commitChannel: vi.fn(
-    (tenantId: number, sha: string) =>
-      `commit_${tenantId}_${sha.toLowerCase()}`,
-  ),
-}));
-
-vi.mock("@/db/subscribe", () => ({
-  createSubscription: vi.fn(() => vi.fn()),
+vi.mock("@/db/hub", () => ({
+  subscribe: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("@/lib/sse", () => ({
@@ -43,10 +36,10 @@ vi.mock("@/lib/sse", () => ({
 }));
 
 import { getWatchStatus } from "@/data/watch";
-import { createSubscription } from "@/db/subscribe";
+import { subscribe } from "@/db/hub";
 import { Route } from "./watch";
 
-const mockedCreateSubscription = vi.mocked(createSubscription);
+const mockedSubscribe = vi.mocked(subscribe);
 const mockedGetWatchStatus = vi.mocked(getWatchStatus);
 
 type GetHandler = (args: {
@@ -77,7 +70,7 @@ function getHandler(): GetHandler {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedCreateSubscription.mockReturnValue(vi.fn());
+  mockedSubscribe.mockReturnValue(vi.fn());
 });
 
 describe("/api/cli/runs/watch — SSE streaming", () => {
@@ -101,7 +94,7 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
 
     const response = await getHandler()({
       request: new Request(
-        "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&branch=main&commit=abc123def456abc123def456abc123def456abc1",
+        "http://localhost/api/cli/runs/watch?repo=org%2Frepo&branch=main&commit=abc123def456abc123def456abc123def456abc1",
       ),
       context: { session: { tenantId: 42 } },
     });
@@ -109,10 +102,10 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
     expect(mockedGetWatchStatus).toHaveBeenCalledOnce();
-    expect(mockedCreateSubscription).toHaveBeenCalledOnce();
+    expect(mockedSubscribe).toHaveBeenCalledOnce();
   });
 
-  it("subscribes to the commit channel for the given SHA", async () => {
+  it("subscribes to commit topic with tenantId:sha key", async () => {
     mockedGetWatchStatus.mockResolvedValue({
       state: "running",
       active: [],
@@ -121,18 +114,22 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
 
     await getHandler()({
       request: new Request(
-        "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&branch=main&commit=abc123def456abc123def456abc123def456abc1",
+        "http://localhost/api/cli/runs/watch?repo=org%2Frepo&branch=main&commit=abc123def456abc123def456abc123def456abc1",
       ),
       context: { session: { tenantId: 42 } },
     });
 
-    const [channel] = mockedCreateSubscription.mock.calls[0];
-    expect(channel).toBe("commit_42_abc123def456abc123def456abc123def456abc1");
+    expect(mockedSubscribe).toHaveBeenCalledWith(
+      "commit",
+      42,
+      "abc123def456abc123def456abc123def456abc1",
+      expect.any(Function),
+    );
   });
 
   it("disposes subscription when initial state is already completed", async () => {
     const unsubscribe = vi.fn();
-    mockedCreateSubscription.mockReturnValue(unsubscribe);
+    mockedSubscribe.mockReturnValue(unsubscribe);
 
     mockedGetWatchStatus.mockResolvedValue({
       state: "completed",
@@ -153,21 +150,21 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
 
     const response = await getHandler()({
       request: new Request(
-        "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&branch=main&commit=abc123def456abc123def456abc123def456abc1",
+        "http://localhost/api/cli/runs/watch?repo=org%2Frepo&branch=main&commit=abc123def456abc123def456abc123def456abc1",
       ),
       context: { session: { tenantId: 42 } },
     });
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(mockedCreateSubscription).toHaveBeenCalledOnce();
+    expect(mockedSubscribe).toHaveBeenCalledOnce();
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
   it("requires repo and commit", async () => {
     const response = await getHandler()({
       request: new Request(
-        "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr",
+        "http://localhost/api/cli/runs/watch?repo=org%2Frepo",
       ),
       context: {
         session: {
@@ -204,7 +201,7 @@ describe("/api/cli/runs/watch — SSE streaming", () => {
 
     const response = await getHandler()({
       request: new Request(
-        "http://localhost/api/cli/runs/watch?repo=everr-labs%2Feverr&commit=abc123def456abc123def456abc123def456abc1",
+        "http://localhost/api/cli/runs/watch?repo=org%2Frepo&commit=abc123def456abc123def456abc123def456abc1",
       ),
       context: { session: { tenantId: 42 } },
     });

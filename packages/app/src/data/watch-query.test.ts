@@ -119,7 +119,6 @@ describe("getWatchStatus", () => {
         rows: [
           { traceId: "trace-42", jobName: "lint", status: "queued" },
           { traceId: "trace-42", jobName: "test", status: "in_progress" },
-          { traceId: "trace-42", jobName: "build", status: "completed" },
         ],
       } as Awaited<ReturnType<typeof mockedQuery>>);
 
@@ -131,6 +130,8 @@ describe("getWatchStatus", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(3);
+    const jobsQuerySql = mockedQuery.mock.calls[2]?.[0] as string;
+    expect(jobsQuerySql).toContain("status != 'completed'");
     expect(result).toEqual({
       state: "running",
       active: [

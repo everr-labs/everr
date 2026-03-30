@@ -14,13 +14,12 @@ type MachineEvent =
   | "THROTTLE_EXPIRED"
   | "FETCH_SUCCESS"
   | "FETCH_ERROR"
-  | "SUBSCRIBE_ERROR"
   | "DISPOSE";
 
 export interface WatchMachineOpts {
   fetchStatus: () => Promise<WatchResponse>;
   sendEvent: (data: object) => void;
-  subscribe: (onNotify: () => void, onError: () => void) => () => void;
+  subscribe: (onNotify: () => void) => () => void;
   close: () => void;
   throttleMs?: number;
 }
@@ -35,10 +34,7 @@ export class WatchMachine {
 
   private readonly fetchStatus: () => Promise<WatchResponse>;
   private readonly sendEvent: (data: object) => void;
-  private readonly subscribeFn: (
-    onNotify: () => void,
-    onError: () => void,
-  ) => () => void;
+  private readonly subscribeFn: (onNotify: () => void) => () => void;
   private readonly closeFn: () => void;
   private readonly throttleMs: number;
 
@@ -68,23 +64,11 @@ export class WatchMachine {
       return;
     }
 
-    if (event === "SUBSCRIBE_ERROR") {
-      this.state = "disposed";
-      this.clearTimers();
-      this.sendEvent({ type: "error", message: "subscription lost" });
-      this.closeFn();
-      this.unsubscribe = null;
-      return;
-    }
-
     switch (this.state) {
       case "idle":
         if (event === "START") {
           this.state = "listening";
-          this.unsubscribe = this.subscribeFn(
-            () => this.transition("NOTIFY"),
-            () => this.transition("SUBSCRIBE_ERROR"),
-          );
+          this.unsubscribe = this.subscribeFn(() => this.transition("NOTIFY"));
         }
         break;
 

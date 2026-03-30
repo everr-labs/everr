@@ -129,7 +129,6 @@ export async function getWatchStatus({
             ${branchClause}
             AND status = 'completed'
             AND conclusion = 'success'
-            AND run_completed_at IS NOT NULL
             AND last_event_at >= NOW() - ${BASELINE_LOOKBACK_SQL}
           ORDER BY run_id ASC, attempts DESC, last_event_at DESC
           LIMIT 50
@@ -148,6 +147,7 @@ export async function getWatchStatus({
             FROM workflow_jobs
             WHERE tenant_id = $1
               AND trace_id = ANY($2::text[])
+              AND status != 'completed'
             ORDER BY trace_id ASC, job_name ASC
           `,
           [tenantId, activeTraceIds],
@@ -241,10 +241,6 @@ function groupActiveJobNames(rows: WorkflowJobRow[]): Map<string, string[]> {
   const namesByTraceId = new Map<string, string[]>();
 
   for (const row of rows) {
-    if (row.status === "completed") {
-      continue;
-    }
-
     const jobNames = namesByTraceId.get(row.traceId) ?? [];
     if (!jobNames.includes(row.jobName)) {
       jobNames.push(row.jobName);
