@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { Job, Step } from "@/data/runs/schemas";
 import { isFailureConclusion } from "@/data/runs/schemas";
 import { getAllJobsSteps, getRunDetails, getRunJobs } from "@/data/runs/server";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
