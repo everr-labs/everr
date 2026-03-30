@@ -21,18 +21,6 @@ beforeEach(() => {
   });
 });
 
-// Mock the summarizer hook — Chrome Summarizer API not available in jsdom
-vi.mock("@/hooks/use-log-summarizer", () => ({
-  useLogSummarizer: () => ({
-    isAvailable: false,
-    status: "idle" as const,
-    summary: "",
-    error: null,
-    summarize: vi.fn(),
-    reset: vi.fn(),
-  }),
-}));
-
 // Mock the chart — Recharts won't render in jsdom
 vi.mock("./log-volume-chart", () => ({
   LogVolumeChart: () => <div data-testid="log-volume-chart" />,
