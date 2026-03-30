@@ -485,7 +485,10 @@ function OrganizationStep({
                     className="text-xs text-destructive overflow-hidden"
                     role="alert"
                   >
-                    {JSON.stringify(field.state.meta.errors)}
+                    {field.state.meta.errors
+                      .map((error) => error?.message)
+                      .filter(Boolean)
+                      .join(", ")}
                   </p>
                 )}
               </div>

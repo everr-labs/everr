@@ -372,15 +372,16 @@ function WorkflowDetailPage() {
       <Panel
         title="Recent Runs"
         queries={[wfRecentRuns]}
+        inset="flush-content"
         action={
           <Link
             to="/runs"
             search={{
               page: 1,
-              workflowName,
-              repo,
-              branch: undefined,
-              conclusion: undefined,
+              workflowNames: [workflowName],
+              repos: [repo],
+              branches: [],
+              conclusions: [],
               runId: undefined,
             }}
             className="text-muted-foreground hover:text-foreground text-xs"

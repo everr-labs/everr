@@ -48,10 +48,14 @@ export const Route = createFileRoute("/api/cli/runs")({
             timeRange,
             limit: parsed.data.limit,
             offset: parsed.data.offset,
-            repo: parsed.data.repo,
-            branch: parsed.data.branch,
-            conclusion: parsed.data.conclusion,
-            workflowName: parsed.data.workflowName,
+            repos: parsed.data.repo ? [parsed.data.repo] : undefined,
+            branches: parsed.data.branch ? [parsed.data.branch] : undefined,
+            conclusions: parsed.data.conclusion
+              ? [parsed.data.conclusion]
+              : undefined,
+            workflowNames: parsed.data.workflowName
+              ? [parsed.data.workflowName]
+              : undefined,
             runId: parsed.data.runId,
           },
         });

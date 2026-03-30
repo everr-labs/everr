@@ -298,10 +298,10 @@ function DashboardPage() {
             to="/runs"
             search={{
               page: 1,
-              repo: undefined,
-              branch: undefined,
-              conclusion: undefined,
-              workflowName: undefined,
+              repos: [],
+              branches: [],
+              conclusions: [],
+              workflowNames: [],
               runId: undefined,
             }}
             className="text-muted-foreground hover:text-foreground text-xs"

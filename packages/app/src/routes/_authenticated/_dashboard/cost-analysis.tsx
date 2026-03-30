@@ -109,6 +109,7 @@ function CostAnalysisPage() {
         title="Cost by Repository"
         description="Per-repository cost breakdown"
         queries={[costByRepoOptions]}
+        inset="flush-content"
       >
         {(byRepo) => <CostByRepoTable data={byRepo} />}
       </Panel>
@@ -117,6 +118,7 @@ function CostAnalysisPage() {
         title="Cost by Workflow"
         description="Per-workflow cost breakdown"
         queries={[costByWorkflowOptions]}
+        inset="flush-content"
       >
         {(byWorkflow) => <CostByWorkflowTable data={byWorkflow} />}
       </Panel>

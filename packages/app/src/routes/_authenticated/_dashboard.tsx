@@ -13,9 +13,7 @@ import {
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
-import { SearchIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { flushSync } from "react-dom";
+
 import { z } from "zod";
 import { RefreshPicker, TimeRangePicker } from "@/components/analytics";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -59,18 +57,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
 });
 
 function RouteComponent() {
-  const [commandBarOpen, setCommandBarOpen] = useState(false);
   const search = Route.useSearch();
-
-  const toggleCommandBar = useCallback((open: boolean) => {
-    if (document.startViewTransition) {
-      document.startViewTransition(() => {
-        flushSync(() => setCommandBarOpen(open));
-      });
-    } else {
-      setCommandBarOpen(open);
-    }
-  }, []);
 
   const matches = useMatches();
   let hideTimeRangePicker = false;
@@ -79,17 +66,6 @@ function RouteComponent() {
       hideTimeRangePicker = match.staticData.hideTimeRangePicker;
     }
   }
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        toggleCommandBar(!commandBarOpen);
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [commandBarOpen, toggleCommandBar]);
 
   return (
     <SidebarProvider>
@@ -103,22 +79,8 @@ function RouteComponent() {
               <DashboardBreadcrumb />
             </div>
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => toggleCommandBar(true)}
-                style={{
-                  viewTransitionName: commandBarOpen
-                    ? undefined
-                    : "command-bar",
-                }}
-                className="flex h-7 w-52 items-center gap-2 rounded-md border border-input bg-input/30 px-2 text-xs text-muted-foreground transition-colors hover:bg-input/40"
-              >
-                <SearchIcon className="size-3.5 shrink-0" />
-                <span className="flex-1 text-left">Search...</span>
-                <kbd className="pointer-events-none flex h-4 items-center gap-0.5 rounded bg-muted-foreground/10 px-1 font-mono text-[0.625rem] text-muted-foreground">
-                  <span className="text-[0.75rem]">⌘</span>K
-                </kbd>
-              </button>
+              <CommandBar />
+
               {!hideTimeRangePicker && (
                 <>
                   <TimeRangePicker />
@@ -143,7 +105,6 @@ function RouteComponent() {
           <Outlet />
         </div>
       </SidebarInset>
-      <CommandBar open={commandBarOpen} onOpenChange={toggleCommandBar} />
     </SidebarProvider>
   );
 }

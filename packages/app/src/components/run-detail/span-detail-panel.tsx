@@ -2,6 +2,7 @@ import { buttonVariants } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Copy, ExternalLink, GitBranch } from "lucide-react";
+import { SenderCell } from "@/components/sender-cell";
 import { formatDuration } from "@/lib/formatting";
 import type { SpanNode } from "./trace-waterfall-utils";
 import { stringToColor } from "./trace-waterfall-utils";
@@ -159,7 +160,7 @@ export function SpanDetailPanel({
         {!span.stepNumber && span.sender && (
           <div className="flex gap-2">
             <span className="text-muted-foreground w-20">Triggered by</span>
-            <span className="font-medium">{span.sender}</span>
+            <SenderCell sender={span.sender} className="font-medium" />
           </div>
         )}
         {!span.stepNumber &&

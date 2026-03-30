@@ -1,35 +1,43 @@
-import type { TestPerfFilterOptions } from "@/data/test-performance/children";
-import { FilterSelect } from "../filter-select";
+import {
+  testPerfBranchFilterOptions,
+  testPerfRepoFilterOptions,
+} from "@/data/test-performance/children";
+import type { TimeRange } from "@/lib/time-range";
+import { FilterCombobox } from "../filter-combobox";
 
 interface TestPerfFilterBarProps {
-  filterOptions: TestPerfFilterOptions;
-  repo?: string;
-  branch?: string;
-  onRepoChange: (value: string | undefined) => void;
-  onBranchChange: (value: string | undefined) => void;
+  timeRange: TimeRange;
+  repos: string[];
+  branches: string[];
+  onReposChange: (values: string[]) => void;
+  onBranchesChange: (values: string[]) => void;
 }
 
 export function TestPerfFilterBar({
-  filterOptions,
-  repo,
-  branch,
-  onRepoChange,
-  onBranchChange,
+  timeRange,
+  repos,
+  branches,
+  onReposChange,
+  onBranchesChange,
 }: TestPerfFilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <FilterSelect
-        value={repo}
-        onChange={onRepoChange}
-        items={filterOptions.repos}
-        placeholder="All repos"
+    <div className="flex flex-wrap items-end gap-2">
+      <FilterCombobox
+        label="Repo"
+        values={repos}
+        onChange={onReposChange}
+        options={testPerfRepoFilterOptions({ timeRange })}
+        placeholder="All"
+        searchPlaceholder="Search repos..."
       />
 
-      <FilterSelect
-        value={branch}
-        onChange={onBranchChange}
-        items={filterOptions.branches}
-        placeholder="All branches"
+      <FilterCombobox
+        label="Branch"
+        values={branches}
+        onChange={onBranchesChange}
+        options={testPerfBranchFilterOptions({ timeRange })}
+        placeholder="All"
+        searchPlaceholder="Search branches..."
       />
     </div>
   );
