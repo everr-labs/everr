@@ -90,16 +90,16 @@ async fn on_sign_in_completed(app: &AppHandle, state: &RuntimeState) {
                 state,
                 build_tray_snapshot(&failures, repo.as_deref(), branch.as_deref()),
             ) {
-                eprintln!("[everr-app] failed to refresh tray after sign-in: {error}");
+                crate::crash_log::log_error("refresh tray after sign-in", &error);
             }
         }
         Ok(None) => {
             if let Err(error) = clear_tray_snapshot(app, state) {
-                eprintln!("[everr-app] failed to clear tray after sign-in: {error}");
+                crate::crash_log::log_error("clear tray after sign-in", &error);
             }
         }
         Err(error) => {
-            eprintln!("[everr-app] failed to refresh tray after sign-in: {error}");
+            crate::crash_log::log_error("refresh tray after sign-in", &error);
         }
     }
 

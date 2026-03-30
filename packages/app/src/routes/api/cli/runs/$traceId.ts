@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { isFailureConclusion } from "@/data/runs/schemas";
 import { getAllJobsSteps, getRunDetails, getRunJobs } from "@/data/runs/server";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 
@@ -6,7 +7,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId")({
   server: {
     middleware: [accessTokenAuthMiddleware],
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
         const traceId = params.traceId;
         if (!traceId) {
           return Response.json(
@@ -14,6 +15,9 @@ export const Route = createFileRoute("/api/cli/runs/$traceId")({
             { status: 400 },
           );
         }
+
+        const url = new URL(request.url);
+        const failedOnly = url.searchParams.get("failed") === "true";
 
         const [run, jobs] = await Promise.all([
           getRunDetails({ data: traceId }),
@@ -24,13 +28,33 @@ export const Route = createFileRoute("/api/cli/runs/$traceId")({
           return Response.json({ error: "Run not found" }, { status: 404 });
         }
 
-        const jobIds = jobs.map((j) => j.jobId);
+        const filteredJobs = failedOnly
+          ? jobs.filter((j) => isFailureConclusion(j.conclusion))
+          : jobs;
+
+        const jobIds = filteredJobs.map((j) => j.jobId);
         const steps =
           jobIds.length > 0
             ? await getAllJobsSteps({ data: { traceId, jobIds } })
             : {};
 
-        return Response.json({ run, jobs, steps });
+        const enrichedJobs = filteredJobs.map((job) => {
+          const jobSteps = (steps[job.jobId] ?? []).map((s) => ({
+            stepNumber: Number(s.stepNumber),
+            name: s.name,
+            conclusion: s.conclusion,
+            duration: s.duration,
+          }));
+
+          return {
+            ...job,
+            steps: failedOnly
+              ? jobSteps.filter((s) => isFailureConclusion(s.conclusion))
+              : jobSteps,
+          };
+        });
+
+        return Response.json({ run, jobs: enrichedJobs });
       },
     },
   },

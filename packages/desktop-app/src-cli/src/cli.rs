@@ -185,6 +185,10 @@ pub struct ListRunsArgs {
 pub struct ShowRunArgs {
     #[arg(long)]
     pub trace_id: String,
+
+    /// Show only failed jobs and their failed steps
+    #[arg(long)]
+    pub failed: bool,
 }
 
 #[derive(Args, Debug)]

@@ -27,7 +27,7 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
     tauri::async_runtime::spawn(async move {
         loop {
             if let Err(error) = poll_and_notify(&app, &state).await {
-                eprintln!("[everr-app] notifier poll failed: {error}");
+                crate::crash_log::log_error("notifier poll", &error);
             }
             tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
         }
@@ -251,10 +251,16 @@ fn show_notification_window(app: &AppHandle) -> Result<()> {
 }
 
 fn show_without_focus(window: &WebviewWindow) -> Result<()> {
-    let ns_window = window.ns_window().context("failed to get ns_window")?;
-    let ns_window: &NSWindow = unsafe { &*ns_window.cast() };
-    ns_window.orderFront(None);
-    Ok(())
+    let window_for_closure = window.clone();
+    window
+        .run_on_main_thread(move || {
+            let Ok(ns_window) = window_for_closure.ns_window() else {
+                return;
+            };
+            let ns_window: &NSWindow = unsafe { &*ns_window.cast() };
+            ns_window.orderFront(None);
+        })
+        .context("failed to show notification window without focus")
 }
 
 fn start_notification_hover_polling(app: &AppHandle) {

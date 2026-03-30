@@ -110,9 +110,13 @@ impl ApiClient {
         self.get("/workflows-list", query).await
     }
 
-    pub async fn get_run_details(&self, trace_id: &str) -> Result<Value> {
+    pub async fn get_run_details(
+        &self,
+        trace_id: &str,
+        query: &[(&str, String)],
+    ) -> Result<Value> {
         let path = format!("/runs/{trace_id}");
-        self.get_json(&path, &[]).await
+        self.get_json(&path, query).await
     }
 
     pub async fn get_step_logs(
