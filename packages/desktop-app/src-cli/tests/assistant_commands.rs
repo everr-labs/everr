@@ -119,7 +119,7 @@ fn setup_configures_assistants_when_detected() {
         .write_stdin("\n")
         .assert()
         .success()
-        .stdout(contains("Already logged in"));
+        .stderr(contains("Already logged in"));
 
     let claude_file = env.home_dir.join(".claude").join("CLAUDE.md");
     assert!(claude_file.exists(), "CLAUDE.md should be created");
@@ -137,7 +137,7 @@ fn setup_skips_login_when_already_authenticated() {
         .write_stdin("\n")
         .assert()
         .success()
-        .stdout(contains("Already logged in"));
+        .stderr(contains("Already logged in"));
 }
 
 fn write_file(path: &Path, content: &str) {

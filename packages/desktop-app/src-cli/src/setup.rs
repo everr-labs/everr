@@ -54,6 +54,7 @@ async fn step_authenticate() -> Result<()> {
 }
 
 fn step_configure_assistants() -> Result<()> {
+    let interactive = std::io::stdin().is_terminal();
     let statuses = core_assistant::assistant_statuses()?;
 
     let all_configured = statuses.iter().all(|s| !s.detected || s.configured);
@@ -69,6 +70,10 @@ fn step_configure_assistants() -> Result<()> {
             configured_list.join("\n")
         ))?;
 
+        if !interactive {
+            return Ok(());
+        }
+
         let reconfigure: bool = cliclack::confirm("Re-configure assistants?")
             .initial_value(false)
             .interact()?;
@@ -78,27 +83,35 @@ fn step_configure_assistants() -> Result<()> {
         }
     }
 
-    let mut prompt = cliclack::multiselect("Select assistants to configure");
-    for (i, s) in statuses.iter().enumerate() {
-        let label = display_name(s.assistant);
-        let hint = &s.path;
-        prompt = prompt.item(i, label, hint);
-    }
-    prompt = prompt.initial_values(
+    // In non-interactive mode, auto-select detected assistants
+    let selected_assistants: Vec<AssistantKind> = if interactive {
+        let mut prompt = cliclack::multiselect("Select assistants to configure");
+        for (i, s) in statuses.iter().enumerate() {
+            let label = display_name(s.assistant);
+            let hint = &s.path;
+            prompt = prompt.item(i, label, hint);
+        }
+        prompt = prompt.initial_values(
+            statuses
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| s.detected)
+                .map(|(i, _)| i)
+                .collect(),
+        );
+
+        let selected_indices: Vec<usize> = prompt.interact()?;
+        selected_indices
+            .iter()
+            .map(|&i| statuses[i].assistant)
+            .collect()
+    } else {
         statuses
             .iter()
-            .enumerate()
-            .filter(|(_, s)| s.detected)
-            .map(|(i, _)| i)
-            .collect(),
-    );
-
-    let selected_indices: Vec<usize> = prompt.interact()?;
-
-    let selected_assistants: Vec<AssistantKind> = selected_indices
-        .iter()
-        .map(|&i| statuses[i].assistant)
-        .collect();
+            .filter(|s| s.detected)
+            .map(|s| s.assistant)
+            .collect()
+    };
 
     if selected_assistants.is_empty() {
         cliclack::log::remark("No assistants selected.")?;
@@ -113,6 +126,7 @@ fn step_configure_assistants() -> Result<()> {
 }
 
 async fn step_install_desktop_app() -> Result<()> {
+    let interactive = std::io::stdin().is_terminal();
     let app_path = Path::new("/Applications/Everr.app");
     let already_installed = app_path.exists();
 
@@ -130,6 +144,11 @@ async fn step_install_desktop_app() -> Result<()> {
     if already_installed {
         let _ = ProcessCommand::new("open").args(["-a", "Everr"]).status();
         cliclack::log::success("Desktop app is now running in the menu bar.")?;
+        return Ok(());
+    }
+
+    if !interactive {
+        cliclack::log::remark("Install the desktop app from https://everr.dev")?;
         return Ok(());
     }
 
