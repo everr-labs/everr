@@ -22,5 +22,6 @@
 - [**multi-org-multi-account-login**](todo/ideas/multi-org-multi-account-login.md) — Let a single user be authenticated to multiple Everr accounts simultaneously, with automatic repo-to-account mapping so the right account is used based on context.
 - [**post-optimization-annotations**](todo/ideas/post-optimization-annotations.md) — Allow users to annotate jobs and tests after optimization with the date, model type, and a note.
 - [**queue-span-for-workflow-jobs**](todo/ideas/queue-span-for-workflow-jobs.md) — Emit a dedicated span representing the time a job spends queued (created → started) instead of computing queue time client-side from resource attributes.
+- [**show-failed-tests-in-everr-show**](todo/ideas/show-failed-tests-in-everr-show.md) — Add a `--tests` or `--failed-tests` flag to `everr show` that displays the list of failed tests for a run, including test name, module, and duration.
 - [**store-repository-id**](todo/ideas/store-repository-id.md) — Store the repositoryId to identify and associate data with specific repositories.
 
