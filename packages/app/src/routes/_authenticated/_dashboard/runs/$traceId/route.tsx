@@ -217,7 +217,7 @@ function RunDetailError({ error }: { error: Error }) {
   return (
     <div className="space-y-3">
       <Link
-        to="/"
+        to="/runs"
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
           "h-7 px-2",

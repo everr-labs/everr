@@ -13,6 +13,7 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { workOS } from "@/lib/workos";
 import {
   backfillRepo,
+  JOB_QUOTA_PER_REPO,
   listInstallationRepos,
 } from "@/server/github-events/backfill";
 
@@ -177,31 +178,69 @@ export const getInstallationRepos = createAuthenticatedServerFn({
   return repos.map((r) => ({ id: r.id, fullName: r.full_name }));
 });
 
-const ImportWorkflowsInputSchema = z.object({
-  repoFullName: z.string().min(1),
-});
-
-export const importWorkflows = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(ImportWorkflowsInputSchema)
-  .handler(async ({ data, context: { session } }) => {
+export const importRepos = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ repos: z.array(z.string().min(1)).min(1) }))
+  .handler(async function* ({ data, context: { session } }) {
     const tenantId = await ensureTenantForOrganizationId(
       session.organizationId,
     );
     const installations = await getGithubInstallationsForTenant(tenantId);
     const active = installations.find((i) => i.status === "active");
-
     if (!active) {
-      throw new Error("No active GitHub installation found.");
+      throw new Error("No active GitHub installation found");
     }
 
     const allRepos = await listInstallationRepos(active.installationId);
-    const repo = allRepos.find((r) => r.full_name === data.repoFullName);
+    const repos = data.repos
+      .map((name) => allRepos.find((r) => r.full_name === name))
+      .filter((r) => r != null);
 
-    if (!repo) {
-      throw new Error("Repository is not accessible.");
+    const totalQuota = repos.length * JOB_QUOTA_PER_REPO;
+    let totalJobs = 0;
+    let totalErrors = 0;
+    let runsOffset = 0;
+
+    for (let i = 0; i < repos.length; i++) {
+      const repo = repos[i];
+      yield {
+        type: "repo-start" as const,
+        repoFullName: repo.full_name,
+        repoIndex: i,
+        reposTotal: repos.length,
+      };
+
+      const jobsBase = i * JOB_QUOTA_PER_REPO;
+      const currentRunsOffset = runsOffset;
+
+      try {
+        for await (const update of backfillRepo(
+          active.installationId,
+          tenantId,
+          repo,
+        )) {
+          yield {
+            type: "progress" as const,
+            progress: {
+              jobsEnqueued: jobsBase + update.jobsEnqueued,
+              jobsQuota: totalQuota,
+              runsProcessed: currentRunsOffset + update.runsProcessed,
+            },
+          };
+          if (update.status === "done") {
+            runsOffset += update.runsProcessed;
+            totalJobs += update.jobsEnqueued;
+            totalErrors += update.errors?.length ?? 0;
+          }
+        }
+      } catch (err) {
+        console.error(`[import] failed to import ${repo.full_name}`, err);
+        totalErrors++;
+        yield {
+          type: "repo-error" as const,
+          repoFullName: repo.full_name,
+        };
+      }
     }
 
-    return backfillRepo(active.installationId, tenantId, repo);
+    yield { type: "done" as const, totalJobs, totalErrors };
   });

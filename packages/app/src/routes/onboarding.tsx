@@ -40,7 +40,7 @@ import {
   createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
   getInstallationRepos,
-  importWorkflows,
+  importRepos,
 } from "@/data/onboarding";
 import {
   PLATFORMS as DOWNLOAD_PLATFORMS,
@@ -733,7 +733,16 @@ function WorkflowsStep({
 }) {
   const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
   const [showSuccess, setShowSuccess] = useState(false);
-  const [importingRepo, setImportingRepo] = useState<string | null>(null);
+  const [importingRepo, setImportingRepo] = useState<{
+    name: string;
+    index: number;
+    total: number;
+  } | null>(null);
+  const [progress, setProgress] = useState<{
+    jobsEnqueued: number;
+    jobsQuota: number;
+    runsProcessed: number;
+  } | null>(null);
 
   const reposQuery = useQuery({
     queryKey: ["onboarding", "installation-repos"],
@@ -743,16 +752,34 @@ function WorkflowsStep({
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      const repos = Array.from(selectedRepos);
       let totalJobs = 0;
       let totalErrors = 0;
-      for (const repoFullName of repos) {
-        setImportingRepo(repoFullName);
-        const result = await importWorkflows({ data: { repoFullName } });
-        totalJobs += result.jobsReplayed;
-        totalErrors += result.errors.length;
+      const stream = await importRepos({
+        data: { repos: Array.from(selectedRepos) },
+      });
+      for await (const event of stream) {
+        switch (event.type) {
+          case "repo-start":
+            setImportingRepo({
+              name: event.repoFullName,
+              index: event.repoIndex,
+              total: event.reposTotal,
+            });
+            break;
+          case "progress":
+            setProgress(event.progress);
+            break;
+          case "repo-error":
+            console.error(`Import failed for ${event.repoFullName}`);
+            break;
+          case "done":
+            totalJobs = event.totalJobs;
+            totalErrors = event.totalErrors;
+            break;
+        }
       }
       setImportingRepo(null);
+      setProgress(null);
       return { totalJobs, totalErrors };
     },
     onSuccess: (result) => {
@@ -818,10 +845,33 @@ function WorkflowsStep({
           </div>
         ) : importMutation.isPending ? (
           <div className="flex flex-col items-center py-8">
-            <Loader2 className="size-8 animate-spin text-muted-foreground" />
-            <p className="mt-4 text-sm text-muted-foreground">
-              Importing runs from{importingRepo ? ` ${importingRepo}` : ""}
+            <p className="text-sm text-muted-foreground">
+              Importing runs from{importingRepo ? ` ${importingRepo.name}` : ""}
             </p>
+            <div className="mt-4 w-full max-w-xs">
+              <div className="h-2 w-full overflow-hidden bg-muted">
+                <div
+                  className={cn(
+                    "h-full bg-primary",
+                    progress
+                      ? "transition-all duration-300"
+                      : "animate-fake-progress",
+                  )}
+                  style={
+                    progress
+                      ? {
+                          width: `${10 + Math.min((progress.jobsEnqueued / progress.jobsQuota) * 90, 90)}%`,
+                        }
+                      : undefined
+                  }
+                />
+              </div>
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                {progress
+                  ? `${progress.runsProcessed} runs imported`
+                  : "Gathering the runs list"}
+              </p>
+            </div>
           </div>
         ) : (
           <>

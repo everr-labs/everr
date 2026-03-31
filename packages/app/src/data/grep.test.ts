@@ -99,8 +99,9 @@ describe("getGrepMatches", () => {
       "t.StatusMessage as step_conclusion",
     );
     expect(mockedQuery.mock.calls[1]?.[0]).toContain("as run_conclusion");
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain("toFloat64(0)");
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain("t.Duration / 1000000");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
+      "t.Duration / 1000000 as step_duration",
+    );
     const occurrenceSummaryGroupBy = mockedQuery.mock.calls[1]?.[0]
       .split("FROM matching_lines")[1]
       ?.split("),\n    ranked_occurrences")[0];

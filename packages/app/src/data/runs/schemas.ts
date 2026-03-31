@@ -62,6 +62,17 @@ export interface Span {
   isSuite?: boolean;
 }
 
+const IN_PROGRESS_CONCLUSIONS = new Set([
+  "in_progress",
+  "queued",
+  "waiting",
+  "requested",
+]);
+
+export function isInProgressConclusion(conclusion: string): boolean {
+  return !conclusion || IN_PROGRESS_CONCLUSIONS.has(conclusion);
+}
+
 export function isFailureConclusion(conclusion: string): boolean {
   const normalized = conclusion.trim().toLowerCase();
   return normalized === "failure" || normalized === "failed";

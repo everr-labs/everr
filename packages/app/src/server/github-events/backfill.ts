@@ -8,7 +8,7 @@
  * Scope constraints (from spec):
  * - User-selected repos (one or more)
  * - 100 jobs per repo (soft quota — a run that pushes past 100 is fully included)
- * - Default branches only: main → master → develop (queried in order, stops early)
+ * - Branch selection: main → master → no filter (picks first with runs)
  * - Only runs with conclusion "success" or "failure"
  *
  * All GitHub API calls (repos, runs, jobs) are made sequentially on purpose to
@@ -29,8 +29,9 @@ import { generateWorkflowTraceId } from "./trace-id";
 // Constants
 // ---------------------------------------------------------------------------
 
-const JOB_QUOTA_PER_REPO = 100;
-const BRANCHES = ["main", "master", "develop"] as const;
+export const JOB_QUOTA_PER_REPO = 100;
+/** Try main, then master, then no branch filter. Stop at the first with runs. */
+const BRANCH_CANDIDATES: (string | null)[] = ["main", "master", null];
 const VALID_CONCLUSIONS = new Set(["success", "failure"]);
 
 // ---------------------------------------------------------------------------
@@ -336,6 +337,14 @@ export interface BackfillResult {
   durationMs: number;
 }
 
+export interface BackfillProgress {
+  status: "importing" | "done";
+  jobsEnqueued: number;
+  jobsQuota: number;
+  runsProcessed: number;
+  errors?: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Deduplication — check which traceIds already exist
 // ---------------------------------------------------------------------------
@@ -385,15 +394,15 @@ export async function listInstallationRepos(
 /**
  * Backfills historical GitHub Actions data for a single repo.
  *
- * Queries branches in order (main → master → develop), fetches completed runs
- * with conclusion success/failure, replays them and their jobs through the
- * collector. Stops at 100 jobs per repo (soft quota).
+ * Tries main, then master, then no branch filter — stops at the first
+ * that returns runs. Replays completed runs and their jobs through the
+ * collector pipeline. Stops at 100 jobs per repo (soft quota).
  */
-export async function backfillRepo(
+export async function* backfillRepo(
   installationId: number,
   tenantId: number,
   repo: ApiRepo,
-): Promise<BackfillResult> {
+): AsyncGenerator<BackfillProgress> {
   const started = Date.now();
 
   console.log(
@@ -410,16 +419,18 @@ export async function backfillRepo(
   };
 
   let jobCount = 0;
+  let runsProcessed = 0;
 
-  for (const branch of BRANCHES) {
+  for (const branch of BRANCH_CANDIDATES) {
     if (jobCount >= JOB_QUOTA_PER_REPO) break;
 
-    const runsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs?status=completed&branch=${branch}&per_page=100`;
+    const branchParam = branch ? `&branch=${branch}` : "";
+    const runsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs?status=completed${branchParam}&per_page=100`;
 
     try {
       const token = await getInstallationToken(installationId);
 
-      // Collect all valid runs for this branch, then dedup in one query
+      // Collect all valid runs, then dedup in one query
       const candidateRuns: ApiWorkflowRun[] = [];
       for await (const run of paginate<ApiWorkflowRun>(
         token,
@@ -430,10 +441,19 @@ export async function backfillRepo(
         candidateRuns.push(run);
       }
 
+      if (candidateRuns.length === 0) continue;
+
       const traceIds = candidateRuns.map((run) =>
         generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
       );
       const existing = await getExistingTraceIds(tenantId, traceIds);
+
+      yield {
+        status: "importing",
+        jobsEnqueued: result.jobsReplayed,
+        jobsQuota: JOB_QUOTA_PER_REPO,
+        runsProcessed,
+      };
 
       for (let i = 0; i < candidateRuns.length; i++) {
         if (jobCount >= JOB_QUOTA_PER_REPO) break;
@@ -485,16 +505,26 @@ export async function backfillRepo(
             },
           );
           result.runsReplayed++;
+          runsProcessed++;
+          yield {
+            status: "importing",
+            jobsEnqueued: result.jobsReplayed,
+            jobsQuota: JOB_QUOTA_PER_REPO,
+            runsProcessed,
+          };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(`run ${run.id}: ${msg}`);
         }
       }
+
+      // Found runs on this branch — don't try the next candidate
+      break;
     } catch (err) {
-      // Branch may not exist (404) — skip silently
+      // Branch may not exist (404) — try next
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes("status=404")) {
-        result.errors.push(`branch ${branch}: ${msg}`);
+        result.errors.push(`branch ${branch ?? "all"}: ${msg}`);
       }
     }
   }
@@ -504,5 +534,11 @@ export async function backfillRepo(
     `[backfill] ${repo.full_name}: runs=${result.runsReplayed} skipped=${result.runsSkipped} jobs=${result.jobsReplayed} errors=${result.errors.length} duration=${result.durationMs}ms`,
   );
 
-  return result;
+  yield {
+    status: "done",
+    jobsEnqueued: result.jobsReplayed,
+    jobsQuota: JOB_QUOTA_PER_REPO,
+    runsProcessed,
+    errors: result.errors,
+  };
 }
