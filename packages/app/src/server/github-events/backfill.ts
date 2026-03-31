@@ -402,7 +402,7 @@ export async function* backfillRepo(
   installationId: number,
   tenantId: number,
   repo: ApiRepo,
-): AsyncGenerator<BackfillProgress, BackfillResult> {
+): AsyncGenerator<BackfillProgress> {
   const started = Date.now();
 
   console.log(
@@ -541,6 +541,4 @@ export async function* backfillRepo(
     runsProcessed,
     errors: result.errors,
   };
-
-  return result;
 }

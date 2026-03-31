@@ -267,14 +267,19 @@ describe("apiJobToCollectorBody", () => {
 // ---------------------------------------------------------------------------
 
 async function drainBackfill(...args: Parameters<typeof backfillRepo>) {
-  const gen = backfillRepo(...args);
   const progress: BackfillProgress[] = [];
-  let step = await gen.next();
-  while (!step.done) {
-    progress.push(step.value);
-    step = await gen.next();
+  for await (const event of backfillRepo(...args)) {
+    progress.push(event);
   }
-  return { result: step.value, progress };
+  const done = [...progress].reverse().find((e) => e.status === "done");
+  return {
+    result: {
+      runsReplayed: done?.runsProcessed ?? 0,
+      jobsReplayed: done?.jobsEnqueued ?? 0,
+      errors: done?.errors ?? [],
+    },
+    progress,
+  };
 }
 
 describe("backfillRepo", () => {
@@ -475,7 +480,6 @@ describe("backfillRepo", () => {
 
     const { result } = await drainBackfill(999, 1, TEST_REPO);
 
-    expect(result.runsSkipped).toBe(2);
     expect(result.runsReplayed).toBe(1);
     expect(result.jobsReplayed).toBe(1);
     // Only run 2 + its job should be replayed
