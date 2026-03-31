@@ -267,11 +267,7 @@ export const getRunJobs = createAuthenticatedServerFn({
             ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
             anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
             anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
-            if(
-              lowerUTF8(anyLast(ResourceAttributes['cicd.pipeline.task.run.result'])) = 'skip',
-              toFloat64(0),
-              max(Duration) / 1000000
-            ) as duration
+            max(Duration) / 1000000 as duration
           FROM traces
           WHERE TraceId = {traceId:String}
             AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
@@ -328,13 +324,9 @@ export const getJobSteps = createAuthenticatedServerFn({
 					SpanName as name,
 					SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
 					StatusMessage as conclusion,
-					if(
-						lowerUTF8(StatusMessage) = 'skip',
-						toFloat64(0),
-						Duration / 1000000
-					) as duration,
+					Duration / 1000000 as duration,
 					toUnixTimestamp64Milli(Timestamp) as startTime,
-					toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
+					toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime
 			FROM traces
 			WHERE TraceId = {traceId:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
@@ -379,13 +371,9 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
         SpanName as name,
         SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
         StatusMessage as conclusion,
-        if(
-          lowerUTF8(StatusMessage) = 'skip',
-          toFloat64(0),
-          Duration / 1000000
-        ) as duration,
+        Duration / 1000000 as duration,
         toUnixTimestamp64Milli(Timestamp) as startTime,
-        toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime
+        toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime
       FROM traces
       WHERE TraceId = {traceId:String}
         AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}

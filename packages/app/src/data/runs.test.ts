@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 
 describe("getRunJobs", () => {
-  it("uses a Float64 zero for skipped job durations", async () => {
+  it("queries job durations from max(Duration)", async () => {
     mockedQuery.mockResolvedValue([
       {
         jobId: "job-1",
@@ -33,7 +33,9 @@ describe("getRunJobs", () => {
     const result = await getRunJobs({ data: "trace-1" });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("toFloat64(0)");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "max(Duration) / 1000000 as duration",
+    );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "WHERE TraceId = {traceId:String}",
     );
