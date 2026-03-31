@@ -13,6 +13,12 @@ pub const DEFAULT_API_BASE_URL: &str = "http://localhost:5173";
 pub const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
 
 #[cfg(debug_assertions)]
+pub const DEFAULT_DOCS_BASE_URL: &str = "http://localhost:3000";
+
+#[cfg(not(debug_assertions))]
+pub const DEFAULT_DOCS_BASE_URL: &str = "https://everr.dev";
+
+#[cfg(debug_assertions)]
 pub const DEFAULT_SESSION_FILE_NAME: &str = "session-dev.json";
 
 #[cfg(not(debug_assertions))]
@@ -37,6 +43,10 @@ pub fn command_name() -> &'static str {
 
 pub const fn default_api_base_url() -> &'static str {
     DEFAULT_API_BASE_URL
+}
+
+pub const fn default_docs_base_url() -> &'static str {
+    DEFAULT_DOCS_BASE_URL
 }
 
 pub const fn default_session_file_name() -> &'static str {

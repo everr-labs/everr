@@ -11,6 +11,7 @@ path = "src/main.rs"
 anyhow = "1.0.98"
 chrono = "0.4"
 clap = { version = "4.5.38", features = ["derive"] }
+cliclack = "0.5.2"
 dialoguer = "0.11.0"
 dirs = "6.0.0"
 everr-core = { path = "../../../crates/everr-core" }
@@ -18,6 +19,7 @@ futures-util = "0.3"
 reqwest = { version = "0.12.15", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+tempfile = "3.18.0"
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
 webbrowser = "1.0.6"
 

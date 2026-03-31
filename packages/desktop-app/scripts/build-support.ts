@@ -114,6 +114,7 @@ export async function publishCliArtifact(sourceBin: string) {
   loadBuildEnvFile();
 
   const outputBin = path.join(docsPublicDir, "everr");
+  const outputBinDev = path.join(docsPublicDir, "everr.bin");
   const outputSha = path.join(docsPublicDir, "everr.sha256");
 
   await mkdir(docsPublicDir, { recursive: true });
@@ -127,8 +128,10 @@ export async function publishCliArtifact(sourceBin: string) {
     .digest("hex");
 
   await writeFile(outputSha, `${digest}  everr\n`);
+  await copyFile(outputBin, outputBinDev);
 
   console.log(`Wrote ${outputBin}`);
+  console.log(`Wrote ${outputBinDev}`);
   console.log(`Wrote ${outputSha}`);
 
   return { outputBin, outputSha };

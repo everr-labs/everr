@@ -3,6 +3,7 @@ mod assistant;
 mod auth;
 mod cli;
 mod core;
+mod setup;
 mod uninstall;
 
 use anyhow::Result;
@@ -17,7 +18,7 @@ async fn main() -> Result<()> {
         Commands::Uninstall => uninstall::run_uninstall()?,
         Commands::Login(login) => auth::login(login).await?,
         Commands::Logout => auth::logout()?,
-        Commands::SetupAssistant => assistant::init_repo_instructions()?,
+        Commands::SetupAssistant => assistant::print_repo_instructions(),
         Commands::AiInstructions => assistant::print_ai_instructions(),
         Commands::Status(args) => core::status(args).await?,
         Commands::Grep(args) => core::grep(args).await?,
@@ -29,6 +30,7 @@ async fn main() -> Result<()> {
         Commands::RunsShow(args) => core::runs_show(args).await?,
         Commands::RunsLogs(args) => core::runs_logs(args).await?,
         Commands::WorkflowsList(args) => core::workflows_list(args).await?,
+        Commands::Setup => setup::run().await?,
     }
 
     Ok(())

@@ -125,10 +125,7 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let paging = args.paging();
-    let mut query = vec![
-        ("jobName", args.job_name),
-        ("stepNumber", args.step_number),
-    ];
+    let mut query = vec![("jobName", args.job_name), ("stepNumber", args.step_number)];
 
     if let Some(paging) = paging {
         let paged_logs = get_paged_step_logs(&client, &args.trace_id, query, paging).await?;
@@ -245,15 +242,14 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     let branch = if explicit_commit {
         args.branch
     } else {
-        Some(args.branch.or(git.branch).ok_or_else(|| {
-            anyhow::anyhow!("failed to resolve branch; provide --branch")
-        })?)
+        Some(
+            args.branch
+                .or(git.branch)
+                .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?,
+        )
     };
 
-    let mut query = vec![
-        ("repo", repo.clone()),
-        ("commit", target_commit.clone()),
-    ];
+    let mut query = vec![("repo", repo.clone()), ("commit", target_commit.clone())];
     if let Some(ref b) = branch {
         query.push(("branch", b.clone()));
     }
@@ -284,7 +280,8 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                     return Ok(());
                 }
 
-                let status = format_watch_status(&target_commit, &payload.active, &payload.completed);
+                let status =
+                    format_watch_status(&target_commit, &payload.active, &payload.completed);
                 render_watch_status_block(&status, &mut watch_status_lines)?;
             }
             Some(Err(error)) => {
@@ -375,10 +372,7 @@ fn format_watch_status(
 ) -> String {
     let mut status = String::new();
     let short_commit = shorten_commit(target_commit);
-    let _ = writeln!(
-        status,
-        "Watching pipeline for commit {short_commit}"
-    );
+    let _ = writeln!(status, "Watching pipeline for commit {short_commit}");
     if active_runs.is_empty() {
         let _ = writeln!(status, "Active runs: none");
     } else {
@@ -398,7 +392,9 @@ fn format_watch_status(
             let _ = writeln!(
                 status,
                 "- {} [{}] ({})",
-                run.workflow_name, run.trace_id, details.join("; ")
+                run.workflow_name,
+                run.trace_id,
+                details.join("; ")
             );
         }
     }
@@ -647,9 +643,9 @@ mod tests {
             ],
         );
 
-        assert!(
-            status.contains("Completed runs: Build & Test Collector [trace-3] (failed), Build & Test App [trace-4]")
-        );
+        assert!(status.contains(
+            "Completed runs: Build & Test Collector [trace-3] (failed), Build & Test App [trace-4]"
+        ));
     }
 
     #[test]

@@ -1,6 +1,3 @@
-use std::io::{self, Write};
-use std::thread;
-
 use anyhow::{Result, anyhow};
 use everr_core::auth::{AuthConfig, login_with_prompt};
 use everr_core::build;
@@ -21,43 +18,23 @@ pub async fn login(_args: LoginArgs) -> Result<()> {
     Ok(())
 }
 
-fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
-    let visit_line = format!("Auth URL: {verification_url}");
-    let code_line = format!("Your code: {user_code}");
-    let lines = ["Let's get you signed in", "", &visit_line, &code_line];
-    let content_width = lines
-        .iter()
-        .map(|line| line.chars().count())
-        .max()
-        .unwrap_or(0);
-    let border = format!("+{}+", "-".repeat(content_width + 2));
+pub fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
+    let _ = cliclack::note(
+        "Sign in",
+        format!("Code: {user_code}\nURL:  {verification_url}"),
+    );
 
-    println!();
-    println!("{border}");
-    for line in lines {
-        println!("| {:<width$} |", line, width = content_width);
-    }
-    println!("{border}");
-    println!();
-    println!("Press <Enter> to open the verification URL in your browser...");
+    let open = cliclack::confirm("Open the verification URL in your browser?")
+        .initial_value(true)
+        .interact();
 
-    let _ = thread::spawn(move || {
-        let mut input = String::new();
-        if io::stdout().flush().is_err() {
-            return;
-        }
-        let Ok(bytes_read) = io::stdin().read_line(&mut input) else {
-            return;
-        };
-        if bytes_read == 0 {
-            return;
-        }
+    if let Ok(true) = open {
         if let Err(error) = webbrowser::open(&verification_url) {
-            eprintln!(
-                "Could not open browser automatically. Open this URL manually: {verification_url} ({error})"
-            );
+            let _ = cliclack::log::warning(format!(
+                "Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})"
+            ));
         }
-    });
+    }
 }
 
 fn trimmed_non_empty(value: &str) -> Option<&str> {
@@ -96,7 +73,7 @@ pub async fn require_session_with_refresh() -> Result<Session> {
     }
 }
 
-fn resolve_auth_config() -> Result<AuthConfig> {
+pub fn resolve_auth_config() -> Result<AuthConfig> {
     Ok(AuthConfig {
         api_base_url: current_api_base_url()?,
     })
@@ -117,7 +94,7 @@ fn command_name() -> String {
         .unwrap_or_else(|| "everr".to_string())
 }
 
-fn state_store() -> AppStateStore {
+pub fn state_store() -> AppStateStore {
     AppStateStore::for_namespace(build::session_namespace())
 }
 
