@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { Panel } from "@/components/panel";
 import {
   ActiveBranchesTable,
   RepoDurationTrendChart,
@@ -10,6 +9,7 @@ import {
   RepoSuccessRateChart,
   TopFailingJobsTable,
 } from "@/components/repo-detail";
+import { TimeRangePanel } from "@/components/time-range-panel";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
   activeBranchesOptions,
@@ -83,48 +83,48 @@ function RepoDetailPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Panel
+        <TimeRangePanel
           title="Success Rate"
           description="Build reliability over time"
           queries={[successRateTrend]}
         >
           {(data) => <RepoSuccessRateChart data={data} />}
-        </Panel>
+        </TimeRangePanel>
 
-        <Panel
+        <TimeRangePanel
           title="Duration Trends"
           description="Job duration P50 and P95"
           queries={[durationTrend]}
         >
           {(data) => <RepoDurationTrendChart data={data} />}
-        </Panel>
+        </TimeRangePanel>
       </div>
 
-      <Panel
+      <TimeRangePanel
         title="Top Failing Jobs"
         description="Jobs with the highest failure count"
         queries={[failingJobs]}
         inset="flush-content"
       >
         {(data) => <TopFailingJobsTable data={data} />}
-      </Panel>
+      </TimeRangePanel>
 
-      <Panel
+      <TimeRangePanel
         title="Active Branches"
         description="Branches with recent activity"
         queries={[branches]}
         inset="flush-content"
       >
         {(data) => <ActiveBranchesTable data={data} />}
-      </Panel>
+      </TimeRangePanel>
 
-      <Panel
+      <TimeRangePanel
         title="Recent Runs"
         description="Latest workflow runs for this repository"
         queries={[recentRuns]}
       >
         {(data) => <RepoRecentRuns data={data} />}
-      </Panel>
+      </TimeRangePanel>
     </div>
   );
 }
