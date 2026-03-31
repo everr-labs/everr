@@ -226,27 +226,30 @@ export const getRunDetails = createAuthenticatedServerFn({
     }
 
     // Fallback to Postgres when ClickHouse has no spans yet (fully in-progress run)
-    const effectiveConclusion =
-      pg!.status === "completed"
-        ? normalizeConclusion(pg!.conclusion)
-        : pg!.status;
+    // pg is guaranteed non-null: early return on !ch && !pg, and ch is falsy here
+    if (!pg) return null;
 
-    const pullRequestUrls = pg!.pullRequestNumbers?.length
-      ? pg!.pullRequestNumbers.map(
-          (n) => `https://github.com/${pg!.repo}/pull/${n}`,
+    const effectiveConclusion =
+      pg.status === "completed"
+        ? normalizeConclusion(pg.conclusion)
+        : pg.status;
+
+    const pullRequestUrls = pg.pullRequestNumbers?.length
+      ? pg.pullRequestNumbers.map(
+          (n) => `https://github.com/${pg.repo}/pull/${n}`,
         )
       : undefined;
 
     return {
       traceId,
-      runId: pg!.runId,
-      runAttempt: pg!.runAttempt,
-      repo: pg!.repo,
-      branch: pg!.branch,
+      runId: pg.runId,
+      runAttempt: pg.runAttempt,
+      repo: pg.repo,
+      branch: pg.branch,
       conclusion: effectiveConclusion,
-      workflowName: pg!.workflowName || "Workflow",
-      timestamp: pg!.startedAt ?? pg!.lastEventAt,
-      htmlUrl: pg!.htmlUrl ?? undefined,
+      workflowName: pg.workflowName || "Workflow",
+      timestamp: pg.startedAt ?? pg.lastEventAt,
+      htmlUrl: pg.htmlUrl ?? undefined,
       pullRequestUrls,
     } satisfies Run;
   });
