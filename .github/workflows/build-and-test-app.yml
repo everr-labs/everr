@@ -18,6 +18,7 @@ on:
       - package.json
       - packages/app/**
       - packages/datemath/**
+      - packages/ui/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - vitest.config.ts
@@ -31,6 +32,7 @@ on:
       - package.json
       - packages/app/**
       - packages/datemath/**
+      - packages/ui/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - vitest.config.ts
