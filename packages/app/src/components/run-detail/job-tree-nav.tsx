@@ -7,6 +7,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { Job, Step } from "@/data/runs/schemas";
+import { isInProgressConclusion } from "@/data/runs/schemas";
 import { formatDuration } from "@/lib/formatting";
 import { ConclusionIcon } from "./conclusion-icon";
 
@@ -44,9 +45,11 @@ export function JobTreeNav({
                 className="size-3.5 shrink-0"
               />
               <span className="truncate">{job.name}</span>
-              <span className="ml-auto shrink-0 opacity-60">
-                {formatDuration(job.duration, "ms")}
-              </span>
+              {isInProgressConclusion(job.conclusion) ? null : (
+                <span className="ml-auto shrink-0 opacity-60">
+                  {formatDuration(job.duration, "ms")}
+                </span>
+              )}
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="ml-3 space-y-px border-l pl-2">
@@ -77,9 +80,11 @@ export function JobTreeNav({
                         />
                         <span className="truncate">{step.name}</span>
                       </div>
-                      <span className="ml-2 shrink-0 opacity-60">
-                        {formatDuration(step.duration, "ms")}
-                      </span>
+                      {isInProgressConclusion(step.conclusion) ? null : (
+                        <span className="ml-2 shrink-0 opacity-60">
+                          {formatDuration(step.duration, "ms")}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
