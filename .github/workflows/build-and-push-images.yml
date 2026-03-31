@@ -8,6 +8,7 @@ on:
       - packages/app/**
       - packages/datemath/**
       - packages/docs/**
+      - packages/ui/**
       - collector/**
       - package.json
       - pnpm-lock.yaml
