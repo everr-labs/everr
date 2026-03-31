@@ -40,12 +40,12 @@ import {
   createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
   getInstallationRepos,
+  importRepos,
 } from "@/data/onboarding";
 import {
   PLATFORMS as DOWNLOAD_PLATFORMS,
   getDownloadUrl,
 } from "@/lib/app-download";
-import { type ImportProgress, importRepos } from "@/lib/import-stream";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -738,7 +738,11 @@ function WorkflowsStep({
     index: number;
     total: number;
   } | null>(null);
-  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [progress, setProgress] = useState<{
+    jobsEnqueued: number;
+    jobsQuota: number;
+    runsProcessed: number;
+  } | null>(null);
 
   const reposQuery = useQuery({
     queryKey: ["onboarding", "installation-repos"],
@@ -747,22 +751,37 @@ function WorkflowsStep({
   });
 
   const importMutation = useMutation({
-    mutationFn: () =>
-      importRepos({
-        repos: Array.from(selectedRepos),
-        onRepoStart: (repoFullName, repoIndex, reposTotal) => {
-          setImportingRepo({
-            name: repoFullName,
-            index: repoIndex,
-            total: reposTotal,
-          });
-        },
-        onProgress: setProgress,
-        onComplete: () => {
-          setImportingRepo(null);
-          setProgress(null);
-        },
-      }),
+    mutationFn: async () => {
+      let totalJobs = 0;
+      let totalErrors = 0;
+      const stream = await importRepos({
+        data: { repos: Array.from(selectedRepos) },
+      });
+      for await (const event of stream) {
+        switch (event.type) {
+          case "repo-start":
+            setImportingRepo({
+              name: event.repoFullName,
+              index: event.repoIndex,
+              total: event.reposTotal,
+            });
+            break;
+          case "progress":
+            setProgress(event.progress);
+            break;
+          case "repo-error":
+            console.error(`Import failed for ${event.repoFullName}`);
+            break;
+          case "done":
+            totalJobs = event.totalJobs;
+            totalErrors = event.totalErrors;
+            break;
+        }
+      }
+      setImportingRepo(null);
+      setProgress(null);
+      return { totalJobs, totalErrors };
+    },
     onSuccess: (result) => {
       if (result.totalJobs > 0 || result.totalErrors === 0) {
         setShowSuccess(true);

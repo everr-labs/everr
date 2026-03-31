@@ -60,6 +60,7 @@ import {
   type ApiRepo,
   apiJobToCollectorBody,
   apiRunToCollectorBody,
+  type BackfillProgress,
   backfillRepo,
 } from "./backfill";
 import { generateWorkflowTraceId } from "./trace-id";
@@ -265,6 +266,17 @@ describe("apiJobToCollectorBody", () => {
 // backfillRepo
 // ---------------------------------------------------------------------------
 
+async function drainBackfill(...args: Parameters<typeof backfillRepo>) {
+  const gen = backfillRepo(...args);
+  const progress: BackfillProgress[] = [];
+  let step = await gen.next();
+  while (!step.done) {
+    progress.push(step.value);
+    step = await gen.next();
+  }
+  return { result: step.value, progress };
+}
+
 describe("backfillRepo", () => {
   function setupFetch(
     runs: ReturnType<typeof makeRun>[],
@@ -294,7 +306,7 @@ describe("backfillRepo", () => {
     const jobs = [[makeJob({ id: 101, run_id: 1 })]];
     setupFetch(runs, jobs);
 
-    const result = await backfillRepo(999, 1, TEST_REPO);
+    const { result } = await drainBackfill(999, 1, TEST_REPO);
 
     expect(result.runsReplayed).toBe(1);
     expect(result.jobsReplayed).toBe(1);
@@ -312,7 +324,7 @@ describe("backfillRepo", () => {
     ];
     setupFetch(runs, jobs);
 
-    const result = await backfillRepo(999, 1, TEST_REPO);
+    const { result } = await drainBackfill(999, 1, TEST_REPO);
 
     expect(result.runsReplayed).toBe(1);
     expect(result.jobsReplayed).toBe(1);
@@ -330,7 +342,7 @@ describe("backfillRepo", () => {
     );
     setupFetch(runs, jobsPerRun);
 
-    const result = await backfillRepo(999, 1, TEST_REPO);
+    const { result } = await drainBackfill(999, 1, TEST_REPO);
 
     expect(result.jobsReplayed).toBe(100);
     expect(result.runsReplayed).toBe(20);
@@ -355,7 +367,7 @@ describe("backfillRepo", () => {
       return mockGitHubList("workflow_runs", []);
     });
 
-    const result = await backfillRepo(999, 1, TEST_REPO);
+    const { result } = await drainBackfill(999, 1, TEST_REPO);
 
     expect(result.runsReplayed).toBe(1);
     expect(result.jobsReplayed).toBe(1);
@@ -364,7 +376,7 @@ describe("backfillRepo", () => {
   it("handles repos with no workflow runs", async () => {
     setupFetch([], []);
 
-    const result = await backfillRepo(999, 1, TEST_REPO);
+    const { result } = await drainBackfill(999, 1, TEST_REPO);
 
     expect(result.runsReplayed).toBe(0);
     expect(result.jobsReplayed).toBe(0);
@@ -387,7 +399,7 @@ describe("backfillRepo", () => {
       .mockRejectedValueOnce(new Error("collector down")) // run 1's job fails
       .mockResolvedValue(undefined); // rest OK
 
-    const result = await backfillRepo(999, 1, TEST_REPO);
+    const { result } = await drainBackfill(999, 1, TEST_REPO);
 
     expect(result.runsReplayed).toBe(2);
     expect(result.jobsReplayed).toBe(1);
@@ -408,16 +420,11 @@ describe("backfillRepo", () => {
     ];
     setupFetch(runs, jobs);
 
-    const progressEvents: Array<{
-      status: string;
-      jobsEnqueued: number;
-      jobsQuota: number;
-      runsProcessed: number;
-      errors?: string[];
-    }> = [];
-    const onProgress = vi.fn((event) => progressEvents.push(event));
-
-    const result = await backfillRepo(999, 1, TEST_REPO, onProgress);
+    const { result, progress: progressEvents } = await drainBackfill(
+      999,
+      1,
+      TEST_REPO,
+    );
 
     expect(result.runsReplayed).toBe(3);
 
@@ -466,7 +473,7 @@ describe("backfillRepo", () => {
     const existingTraceId3 = generateWorkflowTraceId(TEST_REPO.id, 3, 1);
     setupDbMock([existingTraceId1, existingTraceId3]);
 
-    const result = await backfillRepo(999, 1, TEST_REPO);
+    const { result } = await drainBackfill(999, 1, TEST_REPO);
 
     expect(result.runsSkipped).toBe(2);
     expect(result.runsReplayed).toBe(1);

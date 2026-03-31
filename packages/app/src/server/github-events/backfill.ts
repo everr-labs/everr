@@ -29,7 +29,7 @@ import { generateWorkflowTraceId } from "./trace-id";
 // Constants
 // ---------------------------------------------------------------------------
 
-const JOB_QUOTA_PER_REPO = 100;
+export const JOB_QUOTA_PER_REPO = 100;
 /** Try main, then master, then no branch filter. Stop at the first with runs. */
 const BRANCH_CANDIDATES: (string | null)[] = ["main", "master", null];
 const VALID_CONCLUSIONS = new Set(["success", "failure"]);
@@ -398,12 +398,11 @@ export async function listInstallationRepos(
  * that returns runs. Replays completed runs and their jobs through the
  * collector pipeline. Stops at 100 jobs per repo (soft quota).
  */
-export async function backfillRepo(
+export async function* backfillRepo(
   installationId: number,
   tenantId: number,
   repo: ApiRepo,
-  onProgress?: (update: BackfillProgress) => void,
-): Promise<BackfillResult> {
+): AsyncGenerator<BackfillProgress, BackfillResult> {
   const started = Date.now();
 
   console.log(
@@ -449,12 +448,12 @@ export async function backfillRepo(
       );
       const existing = await getExistingTraceIds(tenantId, traceIds);
 
-      onProgress?.({
+      yield {
         status: "importing",
         jobsEnqueued: result.jobsReplayed,
         jobsQuota: JOB_QUOTA_PER_REPO,
         runsProcessed,
-      });
+      };
 
       for (let i = 0; i < candidateRuns.length; i++) {
         if (jobCount >= JOB_QUOTA_PER_REPO) break;
@@ -507,12 +506,12 @@ export async function backfillRepo(
           );
           result.runsReplayed++;
           runsProcessed++;
-          onProgress?.({
+          yield {
             status: "importing",
             jobsEnqueued: result.jobsReplayed,
             jobsQuota: JOB_QUOTA_PER_REPO,
             runsProcessed,
-          });
+          };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(`run ${run.id}: ${msg}`);
@@ -535,13 +534,13 @@ export async function backfillRepo(
     `[backfill] ${repo.full_name}: runs=${result.runsReplayed} skipped=${result.runsSkipped} jobs=${result.jobsReplayed} errors=${result.errors.length} duration=${result.durationMs}ms`,
   );
 
-  onProgress?.({
+  yield {
     status: "done",
     jobsEnqueued: result.jobsReplayed,
     jobsQuota: JOB_QUOTA_PER_REPO,
     runsProcessed,
     errors: result.errors,
-  });
+  };
 
   return result;
 }
