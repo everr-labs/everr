@@ -3,6 +3,7 @@
 @import "@workos-inc/widgets/styles.css";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
+@source not "../../.output";
 
 @keyframes fake-progress {
   0% {
