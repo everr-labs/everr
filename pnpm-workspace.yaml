@@ -9,9 +9,9 @@ onlyBuiltDependencies:
 catalog:
   '@icons-pack/react-simple-icons': ^13.13.0
   '@radix-ui/themes': ^3.3.0
-  '@t3-oss/env-core': ^0.13.10
+  '@t3-oss/env-core': ^0.13.11
   '@tailwindcss/vite': ^4.2.2
-  '@tanstack/react-query': ^5.90.21
+  '@tanstack/react-query': ^5.96.0
   '@types/react': ^19.2.14
   '@types/react-dom': ^19.2.3
   '@vitejs/plugin-react': ^6.0.1
@@ -19,10 +19,9 @@ catalog:
   motion: ^12.38.0
   nitro: 3.0.260311-beta
   recharts: "^2.15.4"
-  vite: ^8.0.2
+  vite: ^8.0.3
   zod: ^4.3.6
-
   react: ^19.2.4
   react-dom: ^19.2.4
   tailwindcss: ^4.2.2
-  typescript: ^5.9.3
+  typescript: ^6.0.2

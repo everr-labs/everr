@@ -17,19 +17,19 @@
     "class-variance-authority": "^0.7.1",
     "@icons-pack/react-simple-icons": "catalog:",
     "@t3-oss/env-core": "catalog:",
-    "@tanstack/react-router": "1.167.5",
-    "@tanstack/react-router-devtools": "1.166.9",
-    "@tanstack/react-start": "1.166.17",
-    "fumadocs-core": "16.6.17",
-    "fumadocs-mdx": "14.2.10",
-    "fumadocs-ui": "16.6.17",
+    "@tanstack/react-router": "1.168.10",
+    "@tanstack/react-router-devtools": "1.166.11",
+    "@tanstack/react-start": "1.167.16",
+    "fumadocs-core": "16.7.7",
+    "fumadocs-mdx": "14.2.11",
+    "fumadocs-ui": "16.7.7",
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "resend": "^6.9.4",
-    "shadcn": "^4.0.8",
-    "simple-icons": "^16.12.0",
+    "resend": "^6.10.0",
+    "shadcn": "^4.1.1",
+    "simple-icons": "^16.14.0",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -40,10 +40,10 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "nitro": "catalog:",
-    "srvx": "^0.11.12",
+    "srvx": "^0.11.13",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-svgr": "^4.5.0"
+    "vite-plugin-svgr": "^5.0.0"
   }
 }

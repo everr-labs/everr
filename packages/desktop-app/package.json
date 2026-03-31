@@ -23,7 +23,7 @@
     "@everr/ui": "workspace:*",
     "@radix-ui/themes": "catalog:",
     "@tanstack/react-query": "catalog:",
-    "@tauri-apps/api": "^2",
+    "@tauri-apps/api": "^2.10.1",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -31,18 +31,18 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
-    "@tauri-apps/cli": "^2",
+    "@tauri-apps/cli": "^2.10.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/semver": "^7.7.1",
     "@vitejs/plugin-react": "catalog:",
-    "jsdom": "^28.1.0",
+    "jsdom": "^29.0.1",
     "semver": "^7.7.4",
-    "smol-toml": "^1.6.0",
+    "smol-toml": "^1.6.1",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "zx": "^8.8.4"
+    "zx": "^8.8.5"
   }
 }
