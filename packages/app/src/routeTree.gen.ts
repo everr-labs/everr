@@ -16,7 +16,6 @@ import { Route as CliDeviceRouteImport } from './routes/cli/device'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
-import { Route as ApiOnboardingImportRouteImport } from './routes/api/onboarding/import'
 import { Route as ApiEventsSubscribeRouteImport } from './routes/api/events/subscribe'
 import { Route as ApiCliWorkflowsListRouteImport } from './routes/api/cli/workflows-list'
 import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
@@ -84,11 +83,6 @@ const AuthenticatedDashboardIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const ApiOnboardingImportRoute = ApiOnboardingImportRouteImport.update({
-  id: '/api/onboarding/import',
-  path: '/api/onboarding/import',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiEventsSubscribeRoute = ApiEventsSubscribeRouteImport.update({
   id: '/api/events/subscribe',
   path: '/api/events/subscribe',
@@ -285,7 +279,6 @@ export interface FileRoutesByFullPath {
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
-  '/api/onboarding/import': typeof ApiOnboardingImportRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -324,7 +317,6 @@ export interface FileRoutesByTo {
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
-  '/api/onboarding/import': typeof ApiOnboardingImportRoute
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -365,7 +357,6 @@ export interface FileRoutesById {
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
-  '/api/onboarding/import': typeof ApiOnboardingImportRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
@@ -408,7 +399,6 @@ export interface FileRouteTypes {
     | '/api/cli/test-history'
     | '/api/cli/workflows-list'
     | '/api/events/subscribe'
-    | '/api/onboarding/import'
     | '/runs/$traceId'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
@@ -447,7 +437,6 @@ export interface FileRouteTypes {
     | '/api/cli/test-history'
     | '/api/cli/workflows-list'
     | '/api/events/subscribe'
-    | '/api/onboarding/import'
     | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -487,7 +476,6 @@ export interface FileRouteTypes {
     | '/api/cli/test-history'
     | '/api/cli/workflows-list'
     | '/api/events/subscribe'
-    | '/api/onboarding/import'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
     | '/api/cli/notifier/failures'
@@ -523,7 +511,6 @@ export interface RootRouteChildren {
   ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
   ApiCliWorkflowsListRoute: typeof ApiCliWorkflowsListRoute
   ApiEventsSubscribeRoute: typeof ApiEventsSubscribeRoute
-  ApiOnboardingImportRoute: typeof ApiOnboardingImportRoute
   ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
@@ -582,13 +569,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
-    }
-    '/api/onboarding/import': {
-      id: '/api/onboarding/import'
-      path: '/api/onboarding/import'
-      fullPath: '/api/onboarding/import'
-      preLoaderRoute: typeof ApiOnboardingImportRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/events/subscribe': {
       id: '/api/events/subscribe'
@@ -947,7 +927,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
   ApiCliWorkflowsListRoute: ApiCliWorkflowsListRoute,
   ApiEventsSubscribeRoute: ApiEventsSubscribeRoute,
-  ApiOnboardingImportRoute: ApiOnboardingImportRoute,
   ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,

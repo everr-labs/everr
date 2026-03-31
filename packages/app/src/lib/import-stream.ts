@@ -1,6 +1,8 @@
 /**
- * Client-side NDJSON stream reader for the onboarding import endpoint.
+ * Client-side helpers for consuming the streaming import server function.
  */
+
+import { importRepoFn } from "@/data/onboarding";
 
 export interface ImportProgress {
   jobsEnqueued: number;
@@ -13,38 +15,28 @@ export interface ImportResult {
   totalErrors: number;
 }
 
-interface ImportRepoOptions {
-  repoFullName: string;
-  onProgress: (progress: ImportProgress) => void;
-  fetchFn?: typeof fetch;
-}
-
 /**
- * Imports a single repo by calling the streaming endpoint and reading
- * NDJSON progress events. Returns cumulative job/error counts.
+ * Imports a single repo by calling the streaming server function.
+ * Returns cumulative job/error counts.
  */
-export async function importRepo({
+async function importRepo({
   repoFullName,
   onProgress,
-  fetchFn = fetch,
-}: ImportRepoOptions): Promise<{
+}: {
+  repoFullName: string;
+  onProgress: (progress: ImportProgress) => void;
+}): Promise<{
   jobsEnqueued: number;
   runsProcessed: number;
   errors: number;
 }> {
-  const response = await fetchFn("/api/onboarding/import", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repoFullName }),
-  });
+  const stream = await importRepoFn({ data: { repoFullName } });
 
-  if (!response.ok || !response.body) {
+  if (!stream) {
     throw new Error("Import request failed");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  const reader = stream.getReader();
   let jobsEnqueued = 0;
   let runsProcessed = 0;
   let errors = 0;
@@ -52,24 +44,18 @@ export async function importRepo({
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
+    if (!value) continue;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+    onProgress({
+      jobsEnqueued: value.jobsEnqueued,
+      jobsQuota: value.jobsQuota,
+      runsProcessed: value.runsProcessed,
+    });
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const update = JSON.parse(line);
-      onProgress({
-        jobsEnqueued: update.jobsEnqueued,
-        jobsQuota: update.jobsQuota,
-        runsProcessed: update.runsProcessed,
-      });
-      if (update.status === "done") {
-        jobsEnqueued = update.jobsEnqueued;
-        runsProcessed = update.runsProcessed;
-        errors = update.errors?.length ?? 0;
-      }
+    if (value.status === "done") {
+      jobsEnqueued = value.jobsEnqueued;
+      runsProcessed = value.runsProcessed;
+      errors = value.errors?.length ?? 0;
     }
   }
 
@@ -85,7 +71,6 @@ export async function importRepos({
   onRepoStart,
   onProgress,
   onComplete,
-  fetchFn,
 }: {
   repos: string[];
   onRepoStart: (
@@ -95,7 +80,6 @@ export async function importRepos({
   ) => void;
   onProgress: (progress: ImportProgress) => void;
   onComplete: () => void;
-  fetchFn?: typeof fetch;
 }): Promise<ImportResult> {
   let totalJobs = 0;
   let totalErrors = 0;
@@ -117,7 +101,6 @@ export async function importRepos({
           jobsQuota: totalQuota,
           runsProcessed: currentRunsOffset + p.runsProcessed,
         }),
-      fetchFn,
     });
     runsOffset += result.runsProcessed;
     totalJobs += result.jobsEnqueued;

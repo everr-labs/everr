@@ -3,6 +3,7 @@ import {
   getAuth,
   switchToOrganization,
 } from "@workos/authkit-tanstack-react-start";
+import { z } from "zod";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import {
   ensureTenantForOrganizationId,
@@ -10,7 +11,11 @@ import {
 } from "@/data/tenants";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { workOS } from "@/lib/workos";
-import { listInstallationRepos } from "@/server/github-events/backfill";
+import {
+  type BackfillProgress,
+  backfillRepo,
+  listInstallationRepos,
+} from "@/server/github-events/backfill";
 
 export type OnboardingErrorCode =
   | "UNAUTHENTICATED"
@@ -172,3 +177,46 @@ export const getInstallationRepos = createAuthenticatedServerFn({
   const repos = await listInstallationRepos(active.installationId);
   return repos.map((r) => ({ id: r.id, fullName: r.full_name }));
 });
+
+export const importRepoFn = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ repoFullName: z.string().min(1) }))
+  .handler(async ({ data, context: { session } }) => {
+    const tenantId = await ensureTenantForOrganizationId(
+      session.organizationId,
+    );
+    const installations = await getGithubInstallationsForTenant(tenantId);
+    const active = installations.find((i) => i.status === "active");
+
+    if (!active) {
+      throw new Error("No active GitHub installation found");
+    }
+
+    const allRepos = await listInstallationRepos(active.installationId);
+    const repo = allRepos.find((r) => r.full_name === data.repoFullName);
+
+    if (!repo) {
+      throw new Error("Repository is not accessible");
+    }
+
+    return new ReadableStream<BackfillProgress>({
+      start(controller) {
+        backfillRepo(active.installationId, tenantId, repo, (update) => {
+          controller.enqueue(update);
+        })
+          .then(() => controller.close())
+          .catch((err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            controller.enqueue({
+              status: "done",
+              jobsEnqueued: 0,
+              jobsQuota: 100,
+              runsProcessed: 0,
+              errors: [msg],
+            });
+            controller.close();
+          });
+      },
+    });
+  });

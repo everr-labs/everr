@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { importRepo, importRepos } from "./import-stream";
+import type { BackfillProgress } from "@/server/github-events/backfill";
+import { importRepos } from "./import-stream";
 
-function makeNdjsonStream(events: object[]): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-  const chunks = events.map((e) => encoder.encode(JSON.stringify(e) + "\n"));
+function makeProgressStream(
+  events: BackfillProgress[],
+): ReadableStream<BackfillProgress> {
   let index = 0;
   return new ReadableStream({
     pull(controller) {
-      if (index < chunks.length) {
-        controller.enqueue(chunks[index++]);
+      if (index < events.length) {
+        controller.enqueue(events[index++]);
       } else {
         controller.close();
       }
@@ -16,16 +17,27 @@ function makeNdjsonStream(events: object[]): ReadableStream<Uint8Array> {
   });
 }
 
-function makeFetch(events: object[], status = 200): typeof fetch {
-  return vi.fn().mockResolvedValue({
-    ok: status >= 200 && status < 300,
-    body: status >= 200 && status < 300 ? makeNdjsonStream(events) : null,
-  }) as unknown as typeof fetch;
+vi.mock("@/data/onboarding", () => ({
+  importRepoFn: vi.fn(),
+}));
+
+async function mockImportRepoFn(
+  eventsByRepo: BackfillProgress[][],
+): Promise<void> {
+  const { importRepoFn } = await import("@/data/onboarding");
+  const mock = vi.mocked(importRepoFn);
+  let callCount = 0;
+  mock.mockImplementation(() => {
+    const events = eventsByRepo[callCount++] ?? [];
+    return Promise.resolve(makeProgressStream(events)) as ReturnType<
+      typeof importRepoFn
+    >;
+  });
 }
 
-describe("importRepo", () => {
-  it("reads NDJSON stream and calls onProgress for each event", async () => {
-    const events = [
+describe("importRepos", () => {
+  it("imports a single repo and calls onProgress for each event", async () => {
+    const events: BackfillProgress[] = [
       {
         status: "importing",
         jobsEnqueued: 0,
@@ -52,12 +64,18 @@ describe("importRepo", () => {
         errors: [],
       },
     ];
-    const onProgress = vi.fn();
 
-    const result = await importRepo({
-      repoFullName: "org/repo",
+    await mockImportRepoFn([events]);
+
+    const onRepoStart = vi.fn();
+    const onProgress = vi.fn();
+    const onComplete = vi.fn();
+
+    const result = await importRepos({
+      repos: ["org/repo"],
+      onRepoStart,
       onProgress,
-      fetchFn: makeFetch(events),
+      onComplete,
     });
 
     expect(onProgress).toHaveBeenCalledTimes(4);
@@ -71,11 +89,12 @@ describe("importRepo", () => {
       jobsQuota: 100,
       runsProcessed: 2,
     });
-    expect(result).toEqual({ jobsEnqueued: 7, runsProcessed: 2, errors: 0 });
+    expect(result).toEqual({ totalJobs: 7, totalErrors: 0 });
+    expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
   it("counts errors from the done event", async () => {
-    const events = [
+    const events: BackfillProgress[] = [
       {
         status: "importing",
         jobsEnqueued: 0,
@@ -90,68 +109,21 @@ describe("importRepo", () => {
         errors: ["err1", "err2"],
       },
     ];
-    const onProgress = vi.fn();
 
-    const result = await importRepo({
-      repoFullName: "org/repo",
-      onProgress,
-      fetchFn: makeFetch(events),
+    await mockImportRepoFn([events]);
+
+    const result = await importRepos({
+      repos: ["org/repo"],
+      onRepoStart: vi.fn(),
+      onProgress: vi.fn(),
+      onComplete: vi.fn(),
     });
 
-    expect(result).toEqual({ jobsEnqueued: 5, runsProcessed: 3, errors: 2 });
+    expect(result).toEqual({ totalJobs: 5, totalErrors: 2 });
   });
 
-  it("throws on non-ok response", async () => {
-    const onProgress = vi.fn();
-
-    await expect(
-      importRepo({
-        repoFullName: "org/repo",
-        onProgress,
-        fetchFn: makeFetch([], 401),
-      }),
-    ).rejects.toThrow("Import request failed");
-
-    expect(onProgress).not.toHaveBeenCalled();
-  });
-
-  it("handles multiple events in a single chunk", async () => {
-    const encoder = new TextEncoder();
-    const combined = encoder.encode(
-      '{"status":"importing","jobsEnqueued":0,"jobsQuota":100,"runsProcessed":0}\n' +
-        '{"status":"done","jobsEnqueued":3,"jobsQuota":100,"runsProcessed":1,"errors":[]}\n',
-    );
-    let sent = false;
-    const stream = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        if (!sent) {
-          controller.enqueue(combined);
-          sent = true;
-        } else {
-          controller.close();
-        }
-      },
-    });
-    const fetchFn = vi.fn().mockResolvedValue({
-      ok: true,
-      body: stream,
-    }) as unknown as typeof fetch;
-
-    const onProgress = vi.fn();
-    const result = await importRepo({
-      repoFullName: "org/repo",
-      onProgress,
-      fetchFn,
-    });
-
-    expect(onProgress).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({ jobsEnqueued: 3, runsProcessed: 1, errors: 0 });
-  });
-});
-
-describe("importRepos", () => {
   it("imports repos sequentially and aggregates results", async () => {
-    const events1 = [
+    const events1: BackfillProgress[] = [
       {
         status: "importing",
         jobsEnqueued: 0,
@@ -166,7 +138,7 @@ describe("importRepos", () => {
         errors: ["e1"],
       },
     ];
-    const events2 = [
+    const events2: BackfillProgress[] = [
       {
         status: "importing",
         jobsEnqueued: 0,
@@ -181,15 +153,8 @@ describe("importRepos", () => {
         errors: [],
       },
     ];
-    let callCount = 0;
-    const fetchFn = vi.fn().mockImplementation(() => {
-      const events = callCount === 0 ? events1 : events2;
-      callCount++;
-      return Promise.resolve({
-        ok: true,
-        body: makeNdjsonStream(events),
-      });
-    }) as unknown as typeof fetch;
+
+    await mockImportRepoFn([events1, events2]);
 
     const onRepoStart = vi.fn();
     const onProgress = vi.fn();
@@ -200,7 +165,6 @@ describe("importRepos", () => {
       onRepoStart,
       onProgress,
       onComplete,
-      fetchFn,
     });
 
     expect(onRepoStart).toHaveBeenCalledTimes(2);
@@ -210,8 +174,6 @@ describe("importRepos", () => {
     expect(result).toEqual({ totalJobs: 15, totalErrors: 1 });
 
     // Progress should accumulate across repos (total quota = 2 * 100 = 200)
-    // Repo A (index 0, base 0): importing(0), done(10)
-    // Repo B (index 1, base 100): importing(0), done(5) — runs offset 2
     expect(onProgress).toHaveBeenCalledTimes(4);
     expect(onProgress).toHaveBeenNthCalledWith(1, {
       jobsEnqueued: 0,
@@ -223,7 +185,6 @@ describe("importRepos", () => {
       jobsQuota: 200,
       runsProcessed: 2,
     });
-    // Repo B starts at base 100 (full quota for repo A)
     expect(onProgress).toHaveBeenNthCalledWith(3, {
       jobsEnqueued: 100,
       jobsQuota: 200,
