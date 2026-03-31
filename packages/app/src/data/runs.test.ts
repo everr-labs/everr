@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/db/client", () => ({
+  pool: {
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+  },
+}));
+
 vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
 }));
