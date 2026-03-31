@@ -48,6 +48,7 @@ jobs:
               - .github/workflows/build-and-push-images.yml
               - packages/app/**
               - packages/datemath/**
+              - packages/ui/**
               - package.json
               - pnpm-lock.yaml
               - pnpm-workspace.yaml
@@ -57,6 +58,7 @@ jobs:
             docs:
               - .github/workflows/build-and-push-images.yml
               - packages/docs/**
+              - packages/ui/**
               - package.json
               - pnpm-lock.yaml
               - pnpm-workspace.yaml
