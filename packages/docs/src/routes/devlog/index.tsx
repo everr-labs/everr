@@ -2,9 +2,31 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { ArrowRight } from "lucide-react";
 import { devlogposts } from "@/lib/source";
+import { getBaseUrl } from "@/lib/url";
+
+const DEVLOG_TITLE = "Devlog - Everr";
+const DEVLOG_DESCRIPTION =
+  "Weekly updates on what we're building, success stories, and use cases from the Everr team.";
 
 export const Route = createFileRoute("/devlog/")({
   component: DevlogIndex,
+  head: () => {
+    const base = getBaseUrl();
+    return {
+      meta: [
+        { title: DEVLOG_TITLE },
+        { name: "description", content: DEVLOG_DESCRIPTION },
+        { name: "og:title", content: DEVLOG_TITLE },
+        { name: "og:description", content: DEVLOG_DESCRIPTION },
+        { name: "og:type", content: "website" },
+        { name: "og:url", content: `${base}/devlog` },
+        { name: "twitter:card", content: "summary" },
+        { name: "twitter:url", content: `${base}/devlog` },
+        { name: "twitter:title", content: DEVLOG_TITLE },
+        { name: "twitter:description", content: DEVLOG_DESCRIPTION },
+      ],
+    };
+  },
   loader: async () => {
     return await loadDevlogPosts();
   },
@@ -13,14 +35,14 @@ export const Route = createFileRoute("/devlog/")({
 const loadDevlogPosts = createServerFn({ method: "GET" }).handler(async () => {
   return await devlogposts
     .getPages()
+    .filter((post) => !post.data.draft)
     .map((post) => ({
       slug: post.slugs.join("/"),
       title: post.data.title,
       description: post.data.description,
       date: post.data.date,
       author: post.data.author,
-    }))
-    .filter((post) => !post.draft);
+    }));
 });
 
 function DevlogIndex() {

@@ -18,6 +18,7 @@ import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
 import { Route as ApiWaitlistRouteImport } from './routes/api/waitlist'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiOgDevlogSlugDotwebpRouteImport } from './routes/api/og/devlog.$slug[.]webp'
 
 const WaitlistRoute = WaitlistRouteImport.update({
   id: '/waitlist',
@@ -64,6 +65,11 @@ const ApiSearchRoute = ApiSearchRouteImport.update({
   path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOgDevlogSlugDotwebpRoute = ApiOgDevlogSlugDotwebpRouteImport.update({
+  id: '/api/og/devlog/$slug.webp',
+  path: '/api/og/devlog/$slug.webp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/docs/$': typeof DocsSplatRoute
   '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
+  '/api/og/devlog/$slug.webp': typeof ApiOgDevlogSlugDotwebpRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByTo {
   '/docs/$': typeof DocsSplatRoute
   '/blog': typeof BlogIndexRoute
   '/devlog': typeof DevlogIndexRoute
+  '/api/og/devlog/$slug.webp': typeof ApiOgDevlogSlugDotwebpRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   '/docs/$': typeof DocsSplatRoute
   '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
+  '/api/og/devlog/$slug.webp': typeof ApiOgDevlogSlugDotwebpRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/docs/$'
     | '/blog/'
     | '/devlog/'
+    | '/api/og/devlog/$slug.webp'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/docs/$'
     | '/blog'
     | '/devlog'
+    | '/api/og/devlog/$slug.webp'
   id:
     | '__root__'
     | '/'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/docs/$'
     | '/blog/'
     | '/devlog/'
+    | '/api/og/devlog/$slug.webp'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +157,7 @@ export interface RootRouteChildren {
   DocsSplatRoute: typeof DocsSplatRoute
   BlogIndexRoute: typeof BlogIndexRoute
   DevlogIndexRoute: typeof DevlogIndexRoute
+  ApiOgDevlogSlugDotwebpRoute: typeof ApiOgDevlogSlugDotwebpRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -212,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/og/devlog/$slug.webp': {
+      id: '/api/og/devlog/$slug.webp'
+      path: '/api/og/devlog/$slug.webp'
+      fullPath: '/api/og/devlog/$slug.webp'
+      preLoaderRoute: typeof ApiOgDevlogSlugDotwebpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -225,6 +245,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsSplatRoute: DocsSplatRoute,
   BlogIndexRoute: BlogIndexRoute,
   DevlogIndexRoute: DevlogIndexRoute,
+  ApiOgDevlogSlugDotwebpRoute: ApiOgDevlogSlugDotwebpRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

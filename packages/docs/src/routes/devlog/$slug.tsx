@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Suspense } from "react";
 import { devlogposts } from "@/lib/source";
+import { getBaseUrl } from "@/lib/url";
 
 export const Route = createFileRoute("/devlog/$slug")({
   component: DevlogPost,
@@ -18,6 +19,31 @@ export const Route = createFileRoute("/devlog/$slug")({
     const data = await serverLoader({ data: slug });
     await clientLoader.preload(data.path);
     return data;
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) return {};
+    const title = `${loaderData.title} - Everr Devlog`;
+    const description = loaderData.description;
+    const base = getBaseUrl();
+    const url = `${base}/devlog/${loaderData.slug}`;
+    const image = `${base}/api/og/devlog/${loaderData.slug}.webp`;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { name: "og:title", content: title },
+        { name: "og:description", content: description },
+        { name: "og:type", content: "article" },
+        { name: "og:url", content: url },
+        { name: "og:image", content: image },
+        { name: "article:published_time", content: loaderData.date },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+        { name: "twitter:url", content: url },
+        { name: "twitter:image", content: image },
+      ],
+    };
   },
 });
 

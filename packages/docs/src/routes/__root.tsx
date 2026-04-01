@@ -1,9 +1,11 @@
+import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
   createRootRoute,
   HeadContent,
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
+import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type * as React from "react";
@@ -55,6 +57,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           }}
         >
           <HomeLayout {...baseOptions()}>{children}</HomeLayout>
+          <TanStackDevtools
+            config={{ position: "bottom-right" }}
+            plugins={[
+              {
+                name: "Tanstack Router",
+                render: <TanStackRouterDevtoolsPanel />,
+              },
+            ]}
+          />
         </RootProvider>
         <Scripts />
       </body>
