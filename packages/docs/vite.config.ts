@@ -9,7 +9,7 @@ import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
   ssr: {
-    external: ["@takumi-rs/core"],
+    external: ["@takumi-rs/image-response", "@takumi-rs/core"],
   },
   resolve: {
     tsconfigPaths: true,
@@ -28,9 +28,7 @@ export default defineConfig({
     react(),
     nitro({
       preset: "node-server",
-      rollupConfig: {
-        external: [/@takumi-rs\//],
-      },
+      traceDeps: ["@takumi-rs/image-response", "@takumi-rs/core"],
     }),
     svgr(),
   ],

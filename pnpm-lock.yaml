@@ -325,12 +325,24 @@ importers:
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui
+      '@fontsource-variable/inter':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource-variable/space-grotesk':
+        specifier: ^5.2.10
+        version: 5.2.10
       '@icons-pack/react-simple-icons':
         specifier: 'catalog:'
         version: 13.13.0(react@19.2.4)
       '@t3-oss/env-core':
         specifier: 'catalog:'
         version: 0.13.11(typescript@6.0.2)(zod@4.3.6)
+      '@takumi-rs/core':
+        specifier: ^0.73.1
+        version: 0.73.1
+      '@takumi-rs/image-response':
+        specifier: ^0.73.1
+        version: 0.73.1
       '@tanstack/react-devtools':
         specifier: ^0.10.0
         version: 0.10.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(csstype@3.2.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.11)
@@ -383,9 +395,6 @@ importers:
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.2.2(vite@8.0.3(@types/node@25.5.0)(esbuild@0.27.4)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))
-      '@takumi-rs/image-response':
-        specifier: ^0.73.1
-        version: 0.73.1
       '@tanstack/devtools-vite':
         specifier: ^0.6.0
         version: 0.6.0(vite@8.0.3(@types/node@25.5.0)(esbuild@0.27.4)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))

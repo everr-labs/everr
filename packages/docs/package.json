@@ -14,8 +14,12 @@
   "dependencies": {
     "@base-ui/react": "^1.3.0",
     "@everr/ui": "workspace:*",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/space-grotesk": "^5.2.10",
     "@icons-pack/react-simple-icons": "catalog:",
     "@t3-oss/env-core": "catalog:",
+    "@takumi-rs/core": "^0.73.1",
+    "@takumi-rs/image-response": "^0.73.1",
     "@tanstack/react-devtools": "^0.10.0",
     "@tanstack/react-router": "1.168.10",
     "@tanstack/react-router-devtools": "1.166.11",
@@ -35,7 +39,6 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
-    "@takumi-rs/image-response": "^0.73.1",
     "@tanstack/devtools-vite": "^0.6.0",
     "@types/mdx": "^2.0.13",
     "@types/node": "^25.5.0",
