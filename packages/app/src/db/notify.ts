@@ -6,6 +6,7 @@ export type NotifyPayload = {
   traceId: string;
   runId: string;
   sha: string;
+  authorEmail: string | null;
 };
 
 export async function notifyWorkflowUpdate(

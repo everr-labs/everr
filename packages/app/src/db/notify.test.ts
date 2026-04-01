@@ -25,6 +25,7 @@ describe("notifyWorkflowUpdate", () => {
       traceId: "abc123",
       runId: "999",
       sha: "deadbeef",
+      authorEmail: "dev@example.com",
     });
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
@@ -45,6 +46,7 @@ describe("notifyWorkflowUpdate", () => {
         traceId: "abc123",
         runId: "999",
         sha: "deadbeef",
+        authorEmail: "dev@example.com",
       }),
     ).resolves.not.toThrow();
   });
