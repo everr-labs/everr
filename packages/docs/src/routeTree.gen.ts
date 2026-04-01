@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
+import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
 import { Route as ApiWaitlistRouteImport } from './routes/api/waitlist'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
@@ -27,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevlogIndexRoute = DevlogIndexRouteImport.update({
+  id: '/devlog/',
+  path: '/devlog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
   id: '/blog/',
   path: '/blog/',
@@ -35,6 +42,11 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
 const DocsSplatRoute = DocsSplatRouteImport.update({
   id: '/docs/$',
   path: '/docs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevlogSlugRoute = DevlogSlugRouteImport.update({
+  id: '/devlog/$slug',
+  path: '/devlog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
@@ -59,8 +71,10 @@ export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
   '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/blog/': typeof BlogIndexRoute
+  '/devlog/': typeof DevlogIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -68,8 +82,10 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/blog': typeof BlogIndexRoute
+  '/devlog': typeof DevlogIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,8 +94,10 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/blog/': typeof BlogIndexRoute
+  '/devlog/': typeof DevlogIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -89,8 +107,10 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/waitlist'
     | '/blog/$slug'
+    | '/devlog/$slug'
     | '/docs/$'
     | '/blog/'
+    | '/devlog/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -98,8 +118,10 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/waitlist'
     | '/blog/$slug'
+    | '/devlog/$slug'
     | '/docs/$'
     | '/blog'
+    | '/devlog'
   id:
     | '__root__'
     | '/'
@@ -107,8 +129,10 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/waitlist'
     | '/blog/$slug'
+    | '/devlog/$slug'
     | '/docs/$'
     | '/blog/'
+    | '/devlog/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,8 +141,10 @@ export interface RootRouteChildren {
   ApiSearchRoute: typeof ApiSearchRoute
   ApiWaitlistRoute: typeof ApiWaitlistRoute
   BlogSlugRoute: typeof BlogSlugRoute
+  DevlogSlugRoute: typeof DevlogSlugRoute
   DocsSplatRoute: typeof DocsSplatRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  DevlogIndexRoute: typeof DevlogIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -137,6 +163,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/devlog/': {
+      id: '/devlog/'
+      path: '/devlog'
+      fullPath: '/devlog/'
+      preLoaderRoute: typeof DevlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/blog/': {
       id: '/blog/'
       path: '/blog'
@@ -149,6 +182,13 @@ declare module '@tanstack/react-router' {
       path: '/docs/$'
       fullPath: '/docs/$'
       preLoaderRoute: typeof DocsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devlog/$slug': {
+      id: '/devlog/$slug'
+      path: '/devlog/$slug'
+      fullPath: '/devlog/$slug'
+      preLoaderRoute: typeof DevlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/$slug': {
@@ -181,8 +221,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSearchRoute: ApiSearchRoute,
   ApiWaitlistRoute: ApiWaitlistRoute,
   BlogSlugRoute: BlogSlugRoute,
+  DevlogSlugRoute: DevlogSlugRoute,
   DocsSplatRoute: DocsSplatRoute,
   BlogIndexRoute: BlogIndexRoute,
+  DevlogIndexRoute: DevlogIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

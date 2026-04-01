@@ -27,6 +27,12 @@ export function baseOptions(): BaseLayoutProps {
       //   on: "nav",
       //   active: "nested-url",
       // },
+      {
+        text: "Devlog",
+        url: "/devlog",
+        on: "nav",
+        active: "nested-url",
+      },
     ],
   };
 }

@@ -74,6 +74,11 @@
   }
 }
 
+::view-transition-group(*) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -82,8 +87,4 @@
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
   }
-}
-
-button[data-search-full] {
-  border-radius: 0;
 }
