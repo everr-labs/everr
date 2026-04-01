@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
 use everr_core::api::{ApiClient, FailureNotification};
+use futures_util::StreamExt;
 use everr_core::git::resolve_git_context;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
@@ -14,7 +15,7 @@ use time::OffsetDateTime;
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::settings::current_app_state;
 use crate::tray::{
-    build_tray_snapshot, clear_tray_snapshot, tray_auto_fix_prompt, update_tray_snapshot,
+    build_tray_snapshot, tray_auto_fix_prompt, update_tray_snapshot,
 };
 use crate::{
     current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
@@ -25,11 +26,21 @@ use crate::{
 
 pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
     tauri::async_runtime::spawn(async move {
+        let mut backoff = Duration::from_secs(1);
+        let max_backoff = Duration::from_secs(30);
+
         loop {
-            if let Err(error) = poll_and_notify(&app, &state).await {
-                crate::crash_log::log_error("notifier poll", &error);
+            match run_sse_notifier(&app, &state).await {
+                Ok(()) => {
+                    // Stream ended cleanly (e.g., server closed) — reconnect immediately
+                    backoff = Duration::from_secs(1);
+                }
+                Err(error) => {
+                    crate::crash_log::log_error("notifier SSE", &error);
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(max_backoff);
+                }
             }
-            tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
         }
     });
 }
@@ -129,16 +140,53 @@ pub(crate) fn build_test_notification() -> Result<FailureNotification> {
     })
 }
 
-async fn poll_and_notify(app: &AppHandle, state: &RuntimeState) -> Result<()> {
-    let Some((failures, repo, branch)) = load_owned_failures_for_current_repo(state).await? else {
-        clear_tray_snapshot(app, state)?;
+async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    let Some(session) = current_app_state(state)?.session else {
+        // Not logged in — wait and retry
+        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
+        return Ok(());
+    };
+    if session.api_base_url.trim_end_matches('/') != current_base_url().trim_end_matches('/') {
+        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
+        return Ok(());
+    }
+
+    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
+    let git = resolve_git_context(&current_dir);
+    let Some(git_email) = git.email else {
+        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
         return Ok(());
     };
 
+    let client = ApiClient::from_session(&session)?;
+    let stream = client.failures_sse(&git_email).await?;
+
+    // Accumulate all failures received during this SSE session for tray snapshot
+    let mut all_failures: Vec<FailureNotification> = Vec::new();
+
+    tokio::pin!(stream);
+    while let Some(event) = stream.next().await {
+        let event = event?;
+        all_failures.extend(event.failures.iter().cloned());
+        handle_failure_event(app, state, &all_failures, event.failures, git.repo.as_deref(), git.branch.as_deref())?;
+    }
+
+    Ok(())
+}
+
+fn handle_failure_event(
+    app: &AppHandle,
+    state: &RuntimeState,
+    all_failures: &[FailureNotification],
+    new_failures: Vec<FailureNotification>,
+    repo: Option<&str>,
+    branch: Option<&str>,
+) -> Result<()> {
+    // Tray always shows the full accumulated set of failures
     update_tray_snapshot(
         app,
         state,
-        build_tray_snapshot(&failures, repo.as_deref(), branch.as_deref()),
+        build_tray_snapshot(all_failures, repo, branch),
     )?;
 
     let fresh = {
@@ -146,7 +194,7 @@ async fn poll_and_notify(app: &AppHandle, state: &RuntimeState) -> Result<()> {
             .notifier
             .lock()
             .map_err(|_| anyhow!("failed to lock notifier state"))?;
-        notifier.tracker.retain_new(failures)
+        notifier.tracker.retain_new(new_failures)
     };
 
     for failure in fresh {
