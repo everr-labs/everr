@@ -150,6 +150,7 @@ describe("upsertWorkflowRun", () => {
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
       sha: "abc123",
+      authorEmail: "dev@example.com",
     });
   });
 
@@ -302,6 +303,7 @@ describe("upsertWorkflowJob", () => {
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
       sha: "abc123",
+      authorEmail: null,
     });
   });
 

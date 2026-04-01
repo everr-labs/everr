@@ -188,6 +188,7 @@ export async function upsertWorkflowRun(
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
+      authorEmail: values.authorEmail,
     });
   }
 }
@@ -281,6 +282,7 @@ export async function upsertWorkflowJob(
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
+      authorEmail: null,
     });
   }
 }
