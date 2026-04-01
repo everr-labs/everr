@@ -1,6 +1,6 @@
 ---
 title: "Devlog #1: Faster logs, a leaner CLI, and the road to CD"
-description: "We shipped a shared UI package, virtual scrolling for logs, a redesigned CLI, streaming onboarding, and a lot of desktop app polish."
+description: "Virtual scrolling for logs, CLI improvements, repo import during onboarding, and a lot of polish across the web and desktop apps."
 date: "2026-04-01"
 author: Everr Team
 commits: 123
@@ -17,11 +17,11 @@ We use Everr on our own CI every day, and when something slows us down, it becom
 
 Here's what shipped.
 
-## Shared UI package
+## Consolidating the UI
 
-Our docs site, desktop app, and web app had each grown their own copies of the same components: buttons, panels, utility functions, Tailwind configs. Changing a color token meant updating three codebases. We'd inevitably miss one.
+Our docs site, desktop app, and web app had each grown their own copies of the same components and styles. Changing a color token meant updating three codebases. We'd inevitably miss one.
 
-We extracted everything into a shared `@everr/ui` package and consolidated dependencies through a pnpm catalog. No user-facing change, but every new component we build now exists in one place. For a small team shipping across three surfaces, that's a real multiplier.
+We unified everything into a shared package so the look and feel is consistent across all surfaces. No user-facing change, but it means the design language stays in sync as we ship.
 
 ## Virtual scrolling for logs
 
@@ -33,11 +33,9 @@ The CLI got a few additions this week. We added a `--attempt` flag to `watch` fo
 
 We also rewrote the auto-fix prompts, the structured instructions we provide to AI agents when they're diagnosing CI failures. The new version produces noticeably better suggestions, especially for agents calling the CLI programmatically during debugging sessions.
 
-## Streaming onboarding
+## Onboarding with repo import
 
-Importing a repository during onboarding previously showed a spinner with no progress indication. For an import that can take minutes depending on repo size, that's a poor first experience.
-
-The frontend now shows a real-time progress bar that fills proportionally as workflows and runs are imported. Onboarding is someone's first interaction with the product. It needs to feel responsive.
+We added the ability to import a repository's workflow runs during onboarding. When you connect a repo, Everr now pulls in your existing CI history so you have data to work with from the start. The import streams progress in real time with a progress bar that fills proportionally as workflows and runs come in.
 
 ## Desktop app polish
 
@@ -57,12 +55,16 @@ Clicking a branch badge now filters the run list to that branch instantly. And r
 
 **ClickHouse performance.** We added a `last_event_at` index for faster filter queries, removed a `skip-duration` workaround that was masking a deeper query issue, and simplified branch resolution from a multi-step fallback to a single pass.
 
-**Vitest support.** The test collector previously required Vitest's JSON reporter. It now parses the default reporter output as well, removing a configuration step for teams onboarding.
+**Vitest support.** The test collector previously required Vitest's verbose reporter. It now parses the default reporter output as well, removing a configuration step for teams onboarding.
 
 **Job name matching.** GitHub Actions sanitizes job names by replacing dots, slashes, and special characters with underscores. Our collector was matching on the original unsanitized name, which caused jobs like `build/api` or `test.integration` to silently fail ingestion. The logs existed — we just couldn't find them. Fixed by resolving sanitized names during the ingestion step.
 
 ## What's next
 
-Restyling the desktop app notifications to match the web app's look and feel, cost analysis, search within virtualized logs, and tighter AI agent integration. We want to make it easier for agents to query pipeline state, understand failures, and validate the code they write before it reaches production.
+A faster feedback loop is the main theme. Right now we import logs when a run completes, but we often want to look at them right after a job fails, especially in long, multi-job workflows. We're going to start pulling logs at job completion so they're available sooner.
 
-We're also starting to look beyond CI into real CD observability. First up: exploring integration with Vercel via their log drains, so deployment pipelines get the same visibility that build pipelines already have in Everr.
+Our failure notifications currently rely on 30-second polling, which adds unnecessary delay. We're migrating them to SSE so failures surface the moment they happen.
+
+On the onboarding side, we want to use the data we've already imported from a user's repos to generate personalized example prompts, so new users can see what Everr can do with their own CI data right away.
+
+Beyond that: restyling the desktop app notifications to match the web app, cost analysis, and tighter AI agent integration. We also want to start looking beyond CI into real CD observability. First up is exploring integration with Vercel via their log drains, so deployment pipelines get the same visibility that build pipelines already have in Everr.
