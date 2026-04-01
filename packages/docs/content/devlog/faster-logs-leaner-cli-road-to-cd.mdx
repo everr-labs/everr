@@ -49,7 +49,7 @@ The filters on the run and workflow lists now support multiple values, dynamical
 
 Clicking a branch badge now filters the run list to that branch instantly. And runs still in progress now display their current state in real time, rather than appearing identical to runs that failed silently.
 
-## Infrastructure
+## Under the hood
 
 **Connection management.** Each SSE client subscribing to live run updates was opening its own Postgres connection for LISTEN/NOTIFY. Ten browser tabs meant ten connections doing identical work. We replaced this with a single `NotificationHub` that multiplexes notifications across all connected clients, with proper reconnect handling.
 
