@@ -35,6 +35,15 @@ export function subscribe(
   return hub.subscribe(topic, `${tenantId}:${id}`, callback);
 }
 
+export function subscribeAuthor(
+  tenantId: number,
+  email: string,
+  callback: Callback,
+): () => void {
+  ensureStarted();
+  return hub.subscribe("author", `${tenantId}:${email}`, callback);
+}
+
 export function shutdownHub(): void {
   hub.shutdown();
   started = false;
