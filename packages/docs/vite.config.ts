@@ -8,6 +8,9 @@ import { defineConfig } from "vite";
 import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
+  ssr: {
+    external: ["@takumi-rs/core"],
+  },
   resolve: {
     tsconfigPaths: true,
     alias: {
@@ -25,6 +28,9 @@ export default defineConfig({
     react(),
     nitro({
       preset: "node-server",
+      rollupConfig: {
+        external: [/@takumi-rs\//],
+      },
     }),
     svgr(),
   ],
