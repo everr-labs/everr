@@ -10,92 +10,15 @@ const BLOCK_START: &str = "<!-- BEGIN everr -->";
 const BLOCK_END: &str = "<!-- END everr -->";
 
 #[test]
-fn setup_assistant_creates_repo_agents_file() {
+fn setup_assistant_prints_repo_instructions() {
     let env = CliTestEnv::new();
-    let repo_dir = env.home_dir.join("repo");
-    fs::create_dir_all(&repo_dir).expect("create repo dir");
 
     env.command()
-        .current_dir(&repo_dir)
         .arg("setup-assistant")
         .assert()
         .success()
-        .stdout(contains("Configured Everr instructions at"));
-
-    let agents_file = repo_dir.join("AGENTS.md");
-    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
-
-    assert!(content.contains(BLOCK_START));
-    assert!(content.contains(BLOCK_END));
-    assert!(content.contains("call `everr ai-instructions` for full usage."));
-    assert!(content.contains("`everr status`"));
-    assert!(!content.contains("`everr runs`"));
-}
-
-#[test]
-fn setup_assistant_is_idempotent_for_existing_managed_block() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.home_dir.join("repo");
-    fs::create_dir_all(&repo_dir).expect("create repo dir");
-
-    env.command()
-        .current_dir(&repo_dir)
-        .arg("setup-assistant")
-        .assert()
-        .success();
-
-    env.command()
-        .current_dir(&repo_dir)
-        .arg("setup-assistant")
-        .assert()
-        .success();
-
-    let agents_file = repo_dir.join("AGENTS.md");
-    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
-    assert_eq!(content.matches(BLOCK_START).count(), 1);
-}
-
-#[test]
-fn setup_assistant_preserves_existing_repo_content() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.home_dir.join("repo");
-    fs::create_dir_all(&repo_dir).expect("create repo dir");
-    let agents_file = repo_dir.join("AGENTS.md");
-    write_file(&agents_file, "# My custom instructions\n");
-
-    env.command()
-        .current_dir(&repo_dir)
-        .arg("setup-assistant")
-        .assert()
-        .success();
-
-    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
-    assert!(content.contains("# My custom instructions"));
-    assert!(content.contains(BLOCK_START));
-}
-
-#[test]
-fn setup_assistant_replaces_existing_managed_block() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.home_dir.join("repo");
-    fs::create_dir_all(&repo_dir).expect("create repo dir");
-    let agents_file = repo_dir.join("AGENTS.md");
-    write_file(
-        &agents_file,
-        "# Notes\n\n<!-- BEGIN everr -->\nold instructions\n<!-- END everr -->\n",
-    );
-
-    env.command()
-        .current_dir(&repo_dir)
-        .arg("setup-assistant")
-        .assert()
-        .success();
-
-    let content = fs::read_to_string(agents_file).expect("AGENTS.md should exist");
-    assert!(content.contains("# Notes"));
-    assert!(content.contains(BLOCK_START));
-    assert!(!content.contains("old instructions"));
-    assert_eq!(content.matches(BLOCK_START).count(), 1);
+        .stdout(contains("call `everr ai-instructions` for full usage."))
+        .stdout(contains("`everr status`"));
 }
 
 #[test]
@@ -181,6 +104,40 @@ fn uninstall_logs_out_and_removes_managed_blocks_for_all_assistants() {
     assert!(!claude_content.contains(BLOCK_END));
     assert!(!cursor_content.contains(BLOCK_END));
     assert!(!env.session_path().exists());
+}
+
+#[test]
+fn setup_configures_assistants_when_detected() {
+    let env = CliTestEnv::new();
+    let claude_dir = env.home_dir.join(".claude");
+    fs::create_dir_all(&claude_dir).expect("create .claude dir");
+
+    env.write_session("http://127.0.0.1:0", "token-123");
+
+    env.command_with_api_base_url("http://127.0.0.1:0")
+        .arg("setup")
+        .write_stdin("\n")
+        .assert()
+        .success()
+        .stderr(contains("Already logged in"));
+
+    let claude_file = env.home_dir.join(".claude").join("CLAUDE.md");
+    assert!(claude_file.exists(), "CLAUDE.md should be created");
+    let content = fs::read_to_string(claude_file).expect("read CLAUDE.md");
+    assert!(content.contains(BLOCK_START));
+}
+
+#[test]
+fn setup_skips_login_when_already_authenticated() {
+    let env = CliTestEnv::new();
+    env.write_session("http://127.0.0.1:0", "token-123");
+
+    env.command_with_api_base_url("http://127.0.0.1:0")
+        .arg("setup")
+        .write_stdin("\n")
+        .assert()
+        .success()
+        .stderr(contains("Already logged in"));
 }
 
 fn write_file(path: &Path, content: &str) {

@@ -2,7 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
-import { SiApple } from "@icons-pack/react-simple-icons";
+
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Bell,
   Check,
+  Copy,
   ExternalLink,
   Loader2,
   SparklesIcon,
@@ -42,10 +43,6 @@ import {
   getInstallationRepos,
   importRepos,
 } from "@/data/onboarding";
-import {
-  PLATFORMS as DOWNLOAD_PLATFORMS,
-  getDownloadUrl,
-} from "@/lib/app-download";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -58,13 +55,8 @@ const STEP_LABELS: Record<Step, string> = {
   organization: "Organization",
   github: "GitHub",
   workflows: "Import",
-  app: "Desktop App",
+  app: "Install",
 };
-
-const PLATFORMS = DOWNLOAD_PLATFORMS.map((p) => ({
-  ...p,
-  icon: SiApple,
-}));
 
 // ---------------------------------------------------------------------------
 // Motion variants
@@ -702,6 +694,11 @@ function GitHubStep({
   );
 }
 
+const INSTALL_URL = import.meta.env.DEV
+  ? "http://localhost:3000/install-dev.sh"
+  : "https://everr.dev/install.sh";
+const INSTALL_COMMAND = `curl -fsSL ${INSTALL_URL} | sh`;
+
 const APP_FEATURES = [
   {
     icon: Bell,
@@ -1000,8 +997,17 @@ function AppStep({
   onBack: () => void;
   onFinish: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(INSTALL_COMMAND).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   return (
-    <StepContainer title="Get the desktop app" index={4}>
+    <StepContainer title="Install Everr" index={4}>
       <motion.section
         variants={staggerItem}
         className="mt-8 border border-border bg-card p-6 sm:p-10"
@@ -1040,21 +1046,21 @@ function AppStep({
 
         <div className="mt-8 border-t border-border pt-6">
           <p className="text-xs font-medium tracking-wide text-muted-foreground">
-            Download for your platform
+            Run in your terminal
           </p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {PLATFORMS.map((platform) => (
-              <motion.a
-                key={`${platform.os}-${platform.arch}`}
-                href={getDownloadUrl(platform.os, platform.arch)}
-                className="inline-flex h-10 items-center gap-2 border border-primary bg-primary/10 px-5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <platform.icon className="size-3.5" />
-                {platform.label}
-              </motion.a>
-            ))}
+          <div className="mt-3 flex items-center gap-2 border border-border bg-muted/50 px-4 py-3 font-mono text-sm">
+            <code className="flex-1 truncate text-xs">{INSTALL_COMMAND}</code>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {copied ? (
+                <Check className="size-4 text-green-400" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+            </button>
           </div>
         </div>
 

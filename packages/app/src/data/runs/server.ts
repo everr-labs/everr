@@ -190,7 +190,7 @@ export const getRunDetails = createAuthenticatedServerFn({
            run_started_at::text AS "startedAt",
            last_event_at::text AS "lastEventAt",
            metadata->>'html_url' AS "htmlUrl",
-           ARRAY(SELECT jsonb_array_elements_text(metadata->'pull_requests')::int) AS "pullRequestNumbers"
+           ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata->'pull_requests', '[]'::jsonb))::int) AS "pullRequestNumbers"
          FROM workflow_runs
          WHERE tenant_id = $1 AND trace_id = $2`,
         [session.tenantId, traceId],

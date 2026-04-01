@@ -29,7 +29,7 @@ pub enum Commands {
     Login(LoginArgs),
     /// Log out and clear the local session
     Logout,
-    /// Add Everr instructions to AGENTS.md in the current repository
+    /// Print the repo-level AGENTS.md instructions for Everr
     SetupAssistant,
     /// Print the full AI instructions for Everr CLI usage
     AiInstructions,
@@ -57,6 +57,8 @@ pub enum Commands {
     /// List workflows and their jobs for a repository
     #[command(name = "workflows")]
     WorkflowsList(WorkflowsListArgs),
+    /// Run the guided onboarding wizard (login + assistant configuration)
+    Setup,
 }
 
 #[derive(Args, Debug, Default)]
@@ -249,8 +251,7 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        Cli, Commands, GrepArgs, SlowestJobsArgs, SlowestTestsArgs,
-        TestHistoryArgs, WatchArgs,
+        Cli, Commands, GrepArgs, SlowestJobsArgs, SlowestTestsArgs, TestHistoryArgs, WatchArgs,
     };
 
     #[test]
@@ -275,8 +276,8 @@ mod tests {
 
     #[test]
     fn validates_required_trace_id_for_runs_show() {
-        let err = Cli::try_parse_from(["everr", "show"])
-            .expect_err("show should require --trace-id");
+        let err =
+            Cli::try_parse_from(["everr", "show"]).expect_err("show should require --trace-id");
         let err_string = err.to_string();
         assert!(err_string.contains("--trace-id"));
     }
@@ -669,9 +670,8 @@ mod tests {
 
     #[test]
     fn runs_list_parses_limit_and_offset() {
-        let cli =
-            Cli::try_parse_from(["everr", "runs", "--limit", "15", "--offset", "30"])
-                .expect("runs command");
+        let cli = Cli::try_parse_from(["everr", "runs", "--limit", "15", "--offset", "30"])
+            .expect("runs command");
 
         let Commands::RunsList(args) = cli.command else {
             panic!("expected runs command");
@@ -691,5 +691,11 @@ mod tests {
 
         assert_eq!(args.limit, 20);
         assert_eq!(args.offset, 0);
+    }
+
+    #[test]
+    fn setup_parses_without_arguments() {
+        let cli = Cli::try_parse_from(["everr", "setup"]).expect("setup command");
+        assert!(matches!(cli.command, Commands::Setup));
     }
 }

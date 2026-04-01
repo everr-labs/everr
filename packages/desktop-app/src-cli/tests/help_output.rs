@@ -99,7 +99,7 @@ fn status_help_lists_commit_based_options() {
 }
 
 #[test]
-fn setup_assistant_help_lists_supported_assistants() {
+fn setup_assistant_help_describes_output() {
     let env = CliTestEnv::new();
 
     env.command()
@@ -107,9 +107,8 @@ fn setup_assistant_help_lists_supported_assistants() {
         .assert()
         .success()
         .stdout(contains(
-            "Add Everr instructions to AGENTS.md in the current repository",
-        ))
-        .stdout(predicates::str::contains("--assistant").not());
+            "Print the repo-level AGENTS.md instructions for Everr",
+        ));
 }
 
 #[test]

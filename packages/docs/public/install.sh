@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DOWNLOAD_BASE_URL="${EVERR_DOWNLOAD_BASE_URL:-https://everr.dev}"
+DOWNLOAD_BASE_URL="https://everr.dev"
 BINARY_NAME="everr"
 INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_PATH="${INSTALL_DIR}/everr"
@@ -28,32 +28,32 @@ trap cleanup EXIT
 binary_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}"
 checksum_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}.sha256"
 
-echo "Downloading Everr CLI from ${binary_url}..."
+echo "Downloading Everr CLI..."
 curl -fsSL "${binary_url}" -o "${tmp_dir}/${BINARY_NAME}"
 curl -fsSL "${checksum_url}" -o "${tmp_dir}/${BINARY_NAME}.sha256"
 
 (
   cd "${tmp_dir}"
-  shasum -a 256 -c "${BINARY_NAME}.sha256"
+  shasum -a 256 -c "${BINARY_NAME}.sha256" > /dev/null
 )
 
 mkdir -p "${INSTALL_DIR}"
 mv "${tmp_dir}/${BINARY_NAME}" "${INSTALL_PATH}"
 chmod +x "${INSTALL_PATH}"
 
-echo
-echo "Everr CLI installed to ${INSTALL_PATH}"
+echo "  Installed to ${INSTALL_PATH}"
 
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
     echo
-    echo "Add ${INSTALL_DIR} to your PATH:"
-    echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    echo "  Add ${INSTALL_DIR} to your PATH:"
+    echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
     ;;
 esac
 
-echo
-echo "Next steps:"
-echo "  Run 'everr setup-assistant' inside a repository to add managed Everr instructions to AGENTS.md."
-echo "  Use the Everr desktop app if you want global assistant integrations in your home directory."
+# --- Guided setup ---
+if [ -t 1 ]; then
+  echo
+  "${INSTALL_PATH}" setup </dev/tty
+fi
