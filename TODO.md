@@ -13,9 +13,11 @@
 ## Ideas
 
 - [**align-collector-with-upstream-receiver**](todo/ideas/align-collector-with-upstream-receiver.md) — Track the remaining differences between our `githubactionsreceiver` and the upstream `opentelemetry-collector-contrib/receiver/githubreceiver` and decide which to adopt.
+- [**announce-failed-jobs-on-webhook**](todo/ideas/announce-failed-jobs-on-webhook.md) — Reduce the feedback loop by announcing failed jobs as soon as the `workflow_job` completed webhook arrives, along with the failure logs for that job.
 - [**chdb-local-test-traces**](todo/ideas/chdb-local-test-traces.md) — Use [chdb-io](https://github.com/chdb-io/chdb) to store test traces locally for investigation and debugging.
 - [**e2e-tests-with-import-from-test-repo**](todo/ideas/e2e-tests-with-import-from-test-repo.md) — End-to-end tests that spin up a fresh Everr instance, run the onboarding import against a dedicated test repo, and verify the full pipeline (GitHub API fetch, collector ingestion, PG/CH writes, dashboard queries).
 - [**everr-doctor-command**](todo/ideas/everr-doctor-command.md) — A CLI command that inspects the current repo's Everr integration and suggests improvements — missing configuration, outdated agent instructions, suboptimal workflow setup, etc. Designed to be run by a local AI assistant to self-diagnose and fix integration issues.
+- [**everr-status-show-branch-and-failures**](todo/ideas/everr-status-show-branch-and-failures.md) — Enhance `everr status` output to include the branch name and, for failed runs, the names of the failing jobs and steps.
 - [**guided-onboarding**](todo/ideas/guided-onboarding.md) — An interactive onboarding flow that walks new users through integrating Everr into their workflow and helps them get their first concrete improvements — e.g. identifying a flaky test, finding the slowest job, or setting up failure notifications.
 - [**main-branches-metrics**](todo/ideas/main-branches-metrics.md) — Let users designate "main branches" so metrics (success rate, flakiness, slowest jobs/tests) focus on those instead of mixing in feature branch noise.
 - [**merge-notifications-by-commit**](todo/ideas/merge-notifications-by-commit.md) — Merge multiple notifications triggered by the same commit into a single commit-level notification instead of showing one notification per failing run or job.
