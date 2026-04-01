@@ -1,26 +1,24 @@
-import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { cn } from "@everr/ui/lib/utils";
+import interFontBase64 from "@fontsource-variable/inter/files/inter-latin-standard-normal.woff2?inline";
+import spaceGroteskFontBase64 from "@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2?inline";
 import { ImageResponse } from "@takumi-rs/image-response";
 import { createFileRoute } from "@tanstack/react-router";
 import { devlogposts } from "@/lib/source";
 import stylesheet from "@/styles/docs.css?inline";
 
-const require = createRequire(import.meta.url);
+// TODO: find a better way to do this. THis is the only way i could get it working right now but it's definitely off.
+function decodeInlineFont(dataUrl: string): ArrayBuffer {
+  const base64 = dataUrl.split(",")[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
 
-const interFont = () =>
-  readFile(
-    require.resolve(
-      "@fontsource-variable/inter/files/inter-latin-standard-normal.woff2",
-    ),
-  );
-
-const spaceGroteskFont = () =>
-  readFile(
-    require.resolve(
-      "@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2",
-    ),
-  );
+const interFontData = decodeInlineFont(interFontBase64);
+const spaceGroteskFontData = decodeInlineFont(spaceGroteskFontBase64);
 
 function StatItem({
   icon,
@@ -223,12 +221,12 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
             fonts: [
               {
                 name: "Inter",
-                data: await interFont(),
+                data: interFontData,
                 style: "normal" as const,
               },
               {
                 name: "Space Grotesk",
-                data: await spaceGroteskFont(),
+                data: spaceGroteskFontData,
                 style: "normal" as const,
               },
             ],
