@@ -11,11 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
+import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
 import { Route as ApiWaitlistRouteImport } from './routes/api/waitlist'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiOgDevlogSlugRouteImport } from './routes/api/og/devlog.$slug'
 
 const WaitlistRoute = WaitlistRouteImport.update({
   id: '/waitlist',
@@ -27,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevlogIndexRoute = DevlogIndexRouteImport.update({
+  id: '/devlog/',
+  path: '/devlog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
   id: '/blog/',
   path: '/blog/',
@@ -35,6 +43,11 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
 const DocsSplatRoute = DocsSplatRouteImport.update({
   id: '/docs/$',
   path: '/docs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevlogSlugRoute = DevlogSlugRouteImport.update({
+  id: '/devlog/$slug',
+  path: '/devlog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
@@ -52,6 +65,11 @@ const ApiSearchRoute = ApiSearchRouteImport.update({
   path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
+  id: '/api/og/devlog/$slug',
+  path: '/api/og/devlog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -59,8 +77,11 @@ export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
   '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/blog/': typeof BlogIndexRoute
+  '/devlog/': typeof DevlogIndexRoute
+  '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -68,8 +89,11 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/blog': typeof BlogIndexRoute
+  '/devlog': typeof DevlogIndexRoute
+  '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,8 +102,11 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/blog/': typeof BlogIndexRoute
+  '/devlog/': typeof DevlogIndexRoute
+  '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -89,8 +116,11 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/waitlist'
     | '/blog/$slug'
+    | '/devlog/$slug'
     | '/docs/$'
     | '/blog/'
+    | '/devlog/'
+    | '/api/og/devlog/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -98,8 +128,11 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/waitlist'
     | '/blog/$slug'
+    | '/devlog/$slug'
     | '/docs/$'
     | '/blog'
+    | '/devlog'
+    | '/api/og/devlog/$slug'
   id:
     | '__root__'
     | '/'
@@ -107,8 +140,11 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/waitlist'
     | '/blog/$slug'
+    | '/devlog/$slug'
     | '/docs/$'
     | '/blog/'
+    | '/devlog/'
+    | '/api/og/devlog/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,8 +153,11 @@ export interface RootRouteChildren {
   ApiSearchRoute: typeof ApiSearchRoute
   ApiWaitlistRoute: typeof ApiWaitlistRoute
   BlogSlugRoute: typeof BlogSlugRoute
+  DevlogSlugRoute: typeof DevlogSlugRoute
   DocsSplatRoute: typeof DocsSplatRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  DevlogIndexRoute: typeof DevlogIndexRoute
+  ApiOgDevlogSlugRoute: typeof ApiOgDevlogSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -137,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/devlog/': {
+      id: '/devlog/'
+      path: '/devlog'
+      fullPath: '/devlog/'
+      preLoaderRoute: typeof DevlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/blog/': {
       id: '/blog/'
       path: '/blog'
@@ -149,6 +195,13 @@ declare module '@tanstack/react-router' {
       path: '/docs/$'
       fullPath: '/docs/$'
       preLoaderRoute: typeof DocsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devlog/$slug': {
+      id: '/devlog/$slug'
+      path: '/devlog/$slug'
+      fullPath: '/devlog/$slug'
+      preLoaderRoute: typeof DevlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/$slug': {
@@ -172,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/og/devlog/$slug': {
+      id: '/api/og/devlog/$slug'
+      path: '/api/og/devlog/$slug'
+      fullPath: '/api/og/devlog/$slug'
+      preLoaderRoute: typeof ApiOgDevlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -181,8 +241,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSearchRoute: ApiSearchRoute,
   ApiWaitlistRoute: ApiWaitlistRoute,
   BlogSlugRoute: BlogSlugRoute,
+  DevlogSlugRoute: DevlogSlugRoute,
   DocsSplatRoute: DocsSplatRoute,
   BlogIndexRoute: BlogIndexRoute,
+  DevlogIndexRoute: DevlogIndexRoute,
+  ApiOgDevlogSlugRoute: ApiOgDevlogSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -17,7 +17,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@everr/ui/*": ["../ui/src/*"],
-      "fumadocs-mdx:collections/*": [".source/*"]
+      "fumadocs-mdx:collections/*": ["./.source/*"]
     },
     "noEmit": true
   }
