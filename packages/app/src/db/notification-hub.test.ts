@@ -229,6 +229,97 @@ describe("NotificationHub — pg.Client lifecycle", () => {
   });
 });
 
+describe("NotificationHub — author topic", () => {
+  let hub: NotificationHub;
+
+  beforeEach(() => {
+    hub = new NotificationHub();
+  });
+
+  it("dispatches to author topic when authorEmail is present", () => {
+    const callback = vi.fn();
+    hub.subscribe("author", "42:dev@example.com", callback);
+
+    const payload: NotifyPayload = {
+      tenantId: 42,
+      traceId: "t1",
+      runId: "r1",
+      sha: "abc",
+      authorEmail: "dev@example.com",
+    };
+    hub.dispatch(payload);
+
+    expect(callback).toHaveBeenCalledWith(payload);
+  });
+
+  it("does not dispatch to author topic when authorEmail is null", () => {
+    const callback = vi.fn();
+    hub.subscribe("author", "42:null", callback);
+
+    hub.dispatch({
+      tenantId: 42,
+      traceId: "t1",
+      runId: "r1",
+      sha: "abc",
+      authorEmail: null,
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch to unrelated author subscribers", () => {
+    const callback = vi.fn();
+    hub.subscribe("author", "42:other@example.com", callback);
+
+    hub.dispatch({
+      tenantId: 42,
+      traceId: "t1",
+      runId: "r1",
+      sha: "abc",
+      authorEmail: "dev@example.com",
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("still dispatches to tenant, trace, and commit topics", () => {
+    const tenantCb = vi.fn();
+    const traceCb = vi.fn();
+    const commitCb = vi.fn();
+    hub.subscribe("tenant", "42", tenantCb);
+    hub.subscribe("trace", "42:t1", traceCb);
+    hub.subscribe("commit", "42:abc", commitCb);
+
+    hub.dispatch({
+      tenantId: 42,
+      traceId: "t1",
+      runId: "r1",
+      sha: "abc",
+      authorEmail: "dev@example.com",
+    });
+
+    expect(tenantCb).toHaveBeenCalledOnce();
+    expect(traceCb).toHaveBeenCalledOnce();
+    expect(commitCb).toHaveBeenCalledOnce();
+  });
+
+  it("unsubscribe removes the callback", () => {
+    const callback = vi.fn();
+    const unsub = hub.subscribe("author", "42:dev@example.com", callback);
+    unsub();
+
+    hub.dispatch({
+      tenantId: 42,
+      traceId: "t1",
+      runId: "r1",
+      sha: "abc",
+      authorEmail: "dev@example.com",
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+});
+
 describe("NotificationHub — reconnect", () => {
   let hub: NotificationHub;
 
