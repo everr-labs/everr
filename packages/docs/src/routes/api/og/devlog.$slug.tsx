@@ -54,14 +54,11 @@ function StatItem({
   );
 }
 
-export const Route = createFileRoute("/api/og/devlog/$slug.webp")({
+export const Route = createFileRoute("/api/og/devlog/$slug")({
   server: {
     handlers: {
-      GET: async ({ params: { "slug.webp": slug } }) => {
-        if (!slug.endsWith(".webp")) {
-          return new Response(undefined, { status: 404 });
-        }
-        const page = devlogposts.getPage([slug.replace(".webp", "")]);
+      GET: async ({ params: { slug } }) => {
+        const page = devlogposts.getPage([slug]);
 
         if (!page) {
           return new Response(undefined, { status: 404 });

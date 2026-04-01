@@ -26,7 +26,7 @@ export const Route = createFileRoute("/devlog/$slug")({
     const description = loaderData.description;
     const base = getBaseUrl();
     const url = `${base}/devlog/${loaderData.slug}`;
-    const image = `${base}/api/og/devlog/${loaderData.slug}.webp`;
+    const image = `${base}/api/og/devlog/${loaderData.slug}`;
     return {
       meta: [
         { title },
