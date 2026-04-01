@@ -15,7 +15,7 @@ use time::OffsetDateTime;
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::settings::current_app_state;
 use crate::tray::{
-    build_tray_snapshot, tray_auto_fix_prompt, update_tray_snapshot,
+    build_tray_snapshot, clear_tray_snapshot, tray_auto_fix_prompt, update_tray_snapshot,
 };
 use crate::{
     current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
@@ -142,11 +142,13 @@ pub(crate) fn build_test_notification() -> Result<FailureNotification> {
 
 async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
     let Some(session) = current_app_state(state)?.session else {
-        // Not logged in — wait and retry
+        // Not logged in — clear stale tray and wait
+        clear_tray_snapshot(app, state)?;
         tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
         return Ok(());
     };
     if session.api_base_url.trim_end_matches('/') != current_base_url().trim_end_matches('/') {
+        clear_tray_snapshot(app, state)?;
         tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
         return Ok(());
     }
@@ -154,6 +156,7 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
     let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
     let git = resolve_git_context(&current_dir);
     let Some(git_email) = git.email else {
+        clear_tray_snapshot(app, state)?;
         tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
         return Ok(());
     };

@@ -52,10 +52,7 @@ export const Route = createFileRoute("/api/cli/notifier/failures/stream")({
 
         machine.start();
 
-        request.signal.addEventListener("abort", () => {
-          machine.dispose();
-          sse.close();
-        });
+        request.signal.addEventListener("abort", () => machine.dispose());
 
         return sse.response();
       },

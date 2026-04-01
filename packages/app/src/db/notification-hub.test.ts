@@ -38,6 +38,7 @@ function makePayload(overrides: Partial<NotifyPayload> = {}): NotifyPayload {
     traceId: "trace-1",
     runId: "run-1",
     sha: "abc123",
+    authorEmail: null,
     ...overrides,
   };
 }
@@ -88,7 +89,7 @@ describe("NotificationHub", () => {
       expect(cb2).toHaveBeenCalledOnce();
     });
 
-    it("dispatches across all three topics for one payload", () => {
+    it("dispatches across all topics for one payload", () => {
       const tenantCb = vi.fn();
       const traceCb = vi.fn();
       const commitCb = vi.fn();

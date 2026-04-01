@@ -5,7 +5,6 @@ type State = "idle" | "listening" | "throttling" | "fetching" | "disposed";
 type MachineEvent =
   | "START"
   | "NOTIFY"
-  | "THROTTLE_EXPIRED"
   | "FETCH_SUCCESS"
   | "FETCH_ERROR"
   | "DISPOSE";
@@ -122,6 +121,7 @@ export class FailureStreamMachine {
   }
 
   private trackAndSend(failures: FailureNotification[]): void {
+    if (this.state === "disposed") return;
     const fresh = failures.filter((f) => !this.sentKeys.has(f.dedupeKey));
     if (fresh.length === 0) return;
     for (const f of fresh) {
