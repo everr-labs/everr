@@ -16,3 +16,4 @@ small
 - Test results are already stored as spans in ClickHouse with test name, module, and result.
 - Could reuse or extend the existing test-related queries.
 - Consider grouping by job/step for clarity when multiple jobs have test failures.
+- Will need to change the test collector to handle failure logs — currently it doesn't capture them.
