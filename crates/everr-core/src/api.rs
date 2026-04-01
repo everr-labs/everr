@@ -145,6 +145,51 @@ impl ApiClient {
         self.get("/notifier/failures", &query).await
     }
 
+    pub async fn failures_sse(
+        &self,
+        git_email: &str,
+    ) -> Result<impl futures_util::Stream<Item = Result<FailureStreamEvent>>> {
+        let response = self
+            .http
+            .get(format!("{}/notifier/failures/stream", self.base_endpoint))
+            .query(&[("gitEmail", git_email)])
+            .send()
+            .await
+            .context("SSE connection failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            bail!("SSE connection failed with {status}: {text}");
+        }
+
+        let stream = response
+            .bytes_stream()
+            .eventsource()
+            .filter_map(|event| async {
+                match event {
+                    Ok(ev) if ev.event == "message" && !ev.data.is_empty() => {
+                        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&ev.data) {
+                            if obj.get("type").and_then(|t| t.as_str()) == Some("ping") {
+                                return None;
+                            }
+                        }
+                        match serde_json::from_str::<FailureStreamEvent>(&ev.data) {
+                            Ok(event) => Some(Ok(event)),
+                            Err(_) => None,
+                        }
+                    }
+                    Err(e) => Some(Err(anyhow::anyhow!("SSE stream error: {e}"))),
+                    _ => None,
+                }
+            });
+
+        Ok(stream)
+    }
+
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
         self.get(path, query).await
     }
@@ -233,4 +278,9 @@ pub struct FailureNotification {
     pub job_name: Option<String>,
     pub step_number: Option<String>,
     pub step_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct FailureStreamEvent {
+    pub failures: Vec<FailureNotification>,
 }
