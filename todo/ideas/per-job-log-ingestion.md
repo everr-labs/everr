@@ -1,4 +1,4 @@
-# Announce Failed Jobs On Webhook
+# Per-Job Log Ingestion
 
 ## What
 Reduce the feedback loop by announcing failed jobs as soon as the `workflow_job` completed webhook arrives, along with the failure logs for that job.
