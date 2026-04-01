@@ -41,6 +41,7 @@ import { Route as ApiCliNotifierFailuresRouteImport } from './routes/api/cli/not
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
+import { Route as ApiCliNotifierFailuresStreamRouteImport } from './routes/api/cli/notifier/failures/stream'
 import { Route as ApiCliAuthDeviceStartRouteImport } from './routes/api/cli/auth/device/start'
 import { Route as ApiCliAuthDevicePollRouteImport } from './routes/api/cli/auth/device/poll'
 import { Route as ApiCliAuthDeviceApproveRouteImport } from './routes/api/cli/auth/device/approve'
@@ -219,6 +220,12 @@ const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => ApiCliRunsTraceIdRoute,
 } as any)
+const ApiCliNotifierFailuresStreamRoute =
+  ApiCliNotifierFailuresStreamRouteImport.update({
+    id: '/stream',
+    path: '/stream',
+    getParentRoute: () => ApiCliNotifierFailuresRoute,
+  } as any)
 const ApiCliAuthDeviceStartRoute = ApiCliAuthDeviceStartRouteImport.update({
   id: '/api/cli/auth/device/start',
   path: '/api/cli/auth/device/start',
@@ -280,7 +287,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
-  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
+  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRouteWithChildren
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
   '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
   '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
+  '/api/cli/notifier/failures/stream': typeof ApiCliNotifierFailuresStreamRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
@@ -317,7 +325,7 @@ export interface FileRoutesByTo {
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
-  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
+  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRouteWithChildren
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
@@ -330,6 +338,7 @@ export interface FileRoutesByTo {
   '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
   '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
   '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
+  '/api/cli/notifier/failures/stream': typeof ApiCliNotifierFailuresStreamRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/runs/$traceId/jobs/$jobId': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
@@ -359,7 +368,7 @@ export interface FileRoutesById {
   '/api/events/subscribe': typeof ApiEventsSubscribeRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
-  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
+  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRouteWithChildren
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
@@ -372,6 +381,7 @@ export interface FileRoutesById {
   '/api/cli/auth/device/approve': typeof ApiCliAuthDeviceApproveRoute
   '/api/cli/auth/device/poll': typeof ApiCliAuthDevicePollRoute
   '/api/cli/auth/device/start': typeof ApiCliAuthDeviceStartRoute
+  '/api/cli/notifier/failures/stream': typeof ApiCliNotifierFailuresStreamRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
@@ -413,6 +423,7 @@ export interface FileRouteTypes {
     | '/api/cli/auth/device/approve'
     | '/api/cli/auth/device/poll'
     | '/api/cli/auth/device/start'
+    | '/api/cli/notifier/failures/stream'
     | '/api/cli/runs/$traceId/logs'
     | '/runs/$traceId/'
     | '/runs/$traceId/jobs/$jobId/'
@@ -450,6 +461,7 @@ export interface FileRouteTypes {
     | '/api/cli/auth/device/approve'
     | '/api/cli/auth/device/poll'
     | '/api/cli/auth/device/start'
+    | '/api/cli/notifier/failures/stream'
     | '/api/cli/runs/$traceId/logs'
     | '/runs/$traceId'
     | '/runs/$traceId/jobs/$jobId'
@@ -491,6 +503,7 @@ export interface FileRouteTypes {
     | '/api/cli/auth/device/approve'
     | '/api/cli/auth/device/poll'
     | '/api/cli/auth/device/start'
+    | '/api/cli/notifier/failures/stream'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/runs/$traceId/'
     | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
@@ -511,7 +524,7 @@ export interface RootRouteChildren {
   ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
   ApiCliWorkflowsListRoute: typeof ApiCliWorkflowsListRoute
   ApiEventsSubscribeRoute: typeof ApiEventsSubscribeRoute
-  ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRoute
+  ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRouteWithChildren
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
   ApiCliAuthDeviceApproveRoute: typeof ApiCliAuthDeviceApproveRoute
@@ -745,6 +758,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliRunsTraceIdLogsRouteImport
       parentRoute: typeof ApiCliRunsTraceIdRoute
     }
+    '/api/cli/notifier/failures/stream': {
+      id: '/api/cli/notifier/failures/stream'
+      path: '/stream'
+      fullPath: '/api/cli/notifier/failures/stream'
+      preLoaderRoute: typeof ApiCliNotifierFailuresStreamRouteImport
+      parentRoute: typeof ApiCliNotifierFailuresRoute
+    }
     '/api/cli/auth/device/start': {
       id: '/api/cli/auth/device/start'
       path: '/api/cli/auth/device/start'
@@ -913,6 +933,20 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
   ApiCliRunsRouteChildren,
 )
 
+interface ApiCliNotifierFailuresRouteChildren {
+  ApiCliNotifierFailuresStreamRoute: typeof ApiCliNotifierFailuresStreamRoute
+}
+
+const ApiCliNotifierFailuresRouteChildren: ApiCliNotifierFailuresRouteChildren =
+  {
+    ApiCliNotifierFailuresStreamRoute: ApiCliNotifierFailuresStreamRoute,
+  }
+
+const ApiCliNotifierFailuresRouteWithChildren =
+  ApiCliNotifierFailuresRoute._addFileChildren(
+    ApiCliNotifierFailuresRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
@@ -927,7 +961,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
   ApiCliWorkflowsListRoute: ApiCliWorkflowsListRoute,
   ApiEventsSubscribeRoute: ApiEventsSubscribeRoute,
-  ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRoute,
+  ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRouteWithChildren,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
   ApiCliAuthDeviceApproveRoute: ApiCliAuthDeviceApproveRoute,
