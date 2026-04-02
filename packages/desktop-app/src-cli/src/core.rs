@@ -345,9 +345,9 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
 
 fn format_watch_event_line(event: &NotifyPayload) -> String {
     if event.event_type == "job" {
-        format!("job: {} / {} | {}", event.workflow_name, event.name, event.status)
+        format!("{} / {}  {}", event.workflow_name, event.name, event.status)
     } else {
-        format!("run: {} | {}", event.name, event.status)
+        format!("{}  {}", event.name, event.status)
     }
 }
 
@@ -512,7 +512,7 @@ mod tests {
             conclusion: None,
             job_id: Some(1),
         };
-        assert_eq!(super::format_watch_event_line(&event), "job: CI / build | in_progress");
+        assert_eq!(super::format_watch_event_line(&event), "CI / build  in_progress");
     }
 
     #[test]

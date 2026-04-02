@@ -249,13 +249,7 @@ describe("NotificationHub — author topic", () => {
     const callback = vi.fn();
     hub.subscribe("author", "42:dev@example.com", callback);
 
-    const payload: NotifyPayload = {
-      tenantId: 42,
-      traceId: "t1",
-      runId: "r1",
-      sha: "abc",
-      authorEmail: "dev@example.com",
-    };
+    const payload = makePayload({ authorEmail: "dev@example.com" });
     hub.dispatch(payload);
 
     expect(callback).toHaveBeenCalledWith(payload);
@@ -265,13 +259,7 @@ describe("NotificationHub — author topic", () => {
     const callback = vi.fn();
     hub.subscribe("author", "42:null", callback);
 
-    hub.dispatch({
-      tenantId: 42,
-      traceId: "t1",
-      runId: "r1",
-      sha: "abc",
-      authorEmail: null,
-    });
+    hub.dispatch(makePayload({ authorEmail: null }));
 
     expect(callback).not.toHaveBeenCalled();
   });
@@ -280,13 +268,7 @@ describe("NotificationHub — author topic", () => {
     const callback = vi.fn();
     hub.subscribe("author", "42:other@example.com", callback);
 
-    hub.dispatch({
-      tenantId: 42,
-      traceId: "t1",
-      runId: "r1",
-      sha: "abc",
-      authorEmail: "dev@example.com",
-    });
+    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
 
     expect(callback).not.toHaveBeenCalled();
   });
@@ -296,16 +278,10 @@ describe("NotificationHub — author topic", () => {
     const traceCb = vi.fn();
     const commitCb = vi.fn();
     hub.subscribe("tenant", "42", tenantCb);
-    hub.subscribe("trace", "42:t1", traceCb);
-    hub.subscribe("commit", "42:abc", commitCb);
+    hub.subscribe("trace", "42:trace-1", traceCb);
+    hub.subscribe("commit", "42:abc123", commitCb);
 
-    hub.dispatch({
-      tenantId: 42,
-      traceId: "t1",
-      runId: "r1",
-      sha: "abc",
-      authorEmail: "dev@example.com",
-    });
+    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
 
     expect(tenantCb).toHaveBeenCalledOnce();
     expect(traceCb).toHaveBeenCalledOnce();
@@ -317,13 +293,7 @@ describe("NotificationHub — author topic", () => {
     const unsub = hub.subscribe("author", "42:dev@example.com", callback);
     unsub();
 
-    hub.dispatch({
-      tenantId: 42,
-      traceId: "t1",
-      runId: "r1",
-      sha: "abc",
-      authorEmail: "dev@example.com",
-    });
+    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
 
     expect(callback).not.toHaveBeenCalled();
   });
