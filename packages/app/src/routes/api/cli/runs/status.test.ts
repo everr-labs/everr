@@ -48,6 +48,9 @@ beforeEach(() => {
 describe("/api/cli/runs/status", () => {
   it("returns a pending status response", async () => {
     mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "pending",
       active: [],
       completed: [],
@@ -66,6 +69,9 @@ describe("/api/cli/runs/status", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "pending",
       active: [],
       completed: [],
@@ -74,6 +80,9 @@ describe("/api/cli/runs/status", () => {
 
   it("returns a running status response", async () => {
     mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "running",
       active: [
         {
@@ -116,6 +125,9 @@ describe("/api/cli/runs/status", () => {
 
   it("returns a completed status response", async () => {
     mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "completed",
       active: [],
       completed: [
@@ -159,6 +171,9 @@ describe("/api/cli/runs/status", () => {
 
   it("passes attempt through to getBranchStatus when provided", async () => {
     mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "pending",
       active: [],
       completed: [],
