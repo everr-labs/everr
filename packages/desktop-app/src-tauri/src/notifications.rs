@@ -235,7 +235,13 @@ async fn handle_notify_event(
             }
         }
         Some("success") => {
-            known_failures.remove(&event.trace_id);
+            // Remove the specific trace and any other failures for the same branch/workflow —
+            // a successful run supersedes prior failures on that workflow.
+            known_failures.retain(|_, f| {
+                !(f.repo == event.repo
+                    && f.branch == event.branch
+                    && f.workflow_name == event.workflow_name)
+            });
             update_tray_snapshot(
                 app,
                 state,

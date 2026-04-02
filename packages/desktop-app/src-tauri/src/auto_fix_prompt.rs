@@ -26,6 +26,39 @@ pub(crate) fn build_runs_logs_command(failure: &FailureNotification) -> Option<S
     ))
 }
 
+pub(crate) fn build_tray_auto_fix_prompt(failures: &[FailureNotification]) -> Option<String> {
+    if failures.is_empty() {
+        return None;
+    }
+
+    let failure_details = failures
+        .iter()
+        .map(format_notification_failure)
+        .collect::<Vec<_>>()
+        .join("\n- ");
+
+    let logs_instruction = {
+        let commands: Vec<String> = failures
+            .iter()
+            .filter_map(build_runs_logs_command)
+            .map(|cmd| format!("`{cmd}`"))
+            .collect();
+        if commands.is_empty() {
+            "Pull the relevant Everr logs for these failures before guessing.".to_string()
+        } else {
+            commands.join("\n  ")
+        }
+    };
+
+    Some(
+        TEMPLATE
+            .replace("{{failure_details}}", &failure_details)
+            .replace("{{logs_instruction}}", &logs_instruction)
+            .trim_end()
+            .to_string(),
+    )
+}
+
 fn format_notification_failure(failure: &FailureNotification) -> String {
     format!(
         "branch {} | workflow {} | trace {}{}",

@@ -6,7 +6,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
 use url::Url;
 
-use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
+use crate::auto_fix_prompt::build_tray_auto_fix_prompt;
 use crate::settings::open_settings_window;
 use crate::{
     current_app_name, current_base_url, RuntimeState, TrayMenu, TrayMenuModel, TraySnapshot,
@@ -203,14 +203,7 @@ pub(crate) fn tray_failed_runs_target(snapshot: &TraySnapshot) -> Option<&str> {
 }
 
 pub(crate) fn tray_auto_fix_prompt(snapshot: &TraySnapshot) -> Option<String> {
-    if snapshot.failed_count() == 0 {
-        return None;
-    }
-
-    snapshot
-        .failures
-        .first()
-        .map(build_notification_auto_fix_prompt)
+    build_tray_auto_fix_prompt(&snapshot.failures)
 }
 
 fn open_tray_failed_runs(app: &AppHandle) -> Result<()> {
