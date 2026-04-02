@@ -216,7 +216,7 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
           {
             width: 1200,
             height: 630,
-            format: "webp",
+            format: "png",
             stylesheets: [stylesheet],
             fonts: [
               {
