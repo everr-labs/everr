@@ -30,7 +30,7 @@ fn status_command_sends_commit_query_to_runs_endpoint() {
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
         ]))
         .with_status(200)
-        .with_body(r#"{"state":"completed","active":[],"completed":[]}"#)
+        .with_body(r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[]}"#)
         .create();
 
     env.command_with_api_base_url(&server.url())
@@ -65,7 +65,7 @@ fn status_uses_explicit_commit_when_provided() {
             Matcher::UrlEncoded("commit".into(), head_sha.clone()),
         ]))
         .with_status(200)
-        .with_body(r#"{"state":"completed","active":[],"completed":[]}"#)
+        .with_body(r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[]}"#)
         .create();
 
     env.command_with_api_base_url(&server.url())
@@ -808,7 +808,7 @@ fn watch_prints_job_and_run_event_lines_until_completion() {
 
     // Initial status: running. trace-1 is active with one job; trace-2 is already completed.
     let initial_body = format!(
-        r#"{{"state":"running","active":[{{"runId":"42","traceId":"trace-1","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":["lint"]}}],"completed":[{{"runId":"41","traceId":"trace-2","workflowName":"Lint","conclusion":"success","startedAt":"2026-03-06T09:58:00Z","durationSeconds":59,"activeJobs":[]}}]}}"#
+        r#"{{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{{"runId":"42","traceId":"trace-1","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":["lint"]}}],"completed":[{{"runId":"41","traceId":"trace-2","workflowName":"Lint","conclusion":"success","startedAt":"2026-03-06T09:58:00Z","durationSeconds":59,"activeJobs":[]}}]}}"#
     );
 
     let status_mock = server
@@ -843,7 +843,7 @@ fn watch_prints_job_and_run_event_lines_until_completion() {
         .expect(1)
         .create();
 
-    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"42","traceId":"trace-1","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":72,"activeJobs":[]},{"runId":"41","traceId":"trace-2","workflowName":"Lint","conclusion":"success","startedAt":"2026-03-06T09:58:00Z","durationSeconds":59,"activeJobs":[]}]}"#;
+    let final_status_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"42","traceId":"trace-1","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":72,"activeJobs":[]},{"runId":"41","traceId":"trace-2","workflowName":"Lint","conclusion":"success","startedAt":"2026-03-06T09:58:00Z","durationSeconds":59,"activeJobs":[]}]}"#;
     let final_status_mock = server
         .mock("GET", "/api/cli/runs/status")
         .match_header("authorization", "Bearer token-abc")
@@ -885,7 +885,7 @@ fn watch_exits_immediately_when_already_completed() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"52","traceId":"trace-3","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":61,"activeJobs":[]}]}"#;
+    let status_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"52","traceId":"trace-3","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":61,"activeJobs":[]}]}"#;
 
     let mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -922,8 +922,8 @@ fn watch_polls_status_on_stream_close_to_handle_race() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let initial_body = r#"{"state":"running","active":[{"runId":"62","traceId":"trace-4","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
-    let final_body = r#"{"state":"completed","active":[],"completed":[{"runId":"62","traceId":"trace-4","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":46,"activeJobs":[]}]}"#;
+    let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"62","traceId":"trace-4","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
+    let final_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"62","traceId":"trace-4","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":46,"activeJobs":[]}]}"#;
 
     let initial_mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -985,7 +985,7 @@ fn watch_uses_explicit_commit_when_provided() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let initial_body = r#"{"state":"running","active":[{"runId":"77","traceId":"trace-5","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
+    let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"77","traceId":"trace-5","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
     let status_mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -1016,7 +1016,7 @@ fn watch_uses_explicit_commit_when_provided() {
         .expect(1)
         .create();
 
-    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"77","traceId":"trace-5","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":65,"activeJobs":[]}]}"#;
+    let final_status_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"77","traceId":"trace-5","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":65,"activeJobs":[]}]}"#;
     let final_status_mock = server
         .mock("GET", "/api/cli/runs/status")
         .match_header("authorization", "Bearer token-abc")
@@ -1055,7 +1055,7 @@ fn watch_resolves_short_commit_sha_to_full() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let initial_body = r#"{"state":"running","active":[{"runId":"88","traceId":"trace-6","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
+    let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"88","traceId":"trace-6","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
     let status_mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -1085,7 +1085,7 @@ fn watch_resolves_short_commit_sha_to_full() {
         .expect(1)
         .create();
 
-    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"88","traceId":"trace-6","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":53,"activeJobs":[]}]}"#;
+    let final_status_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"88","traceId":"trace-6","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":53,"activeJobs":[]}]}"#;
     let final_status_mock = server
         .mock("GET", "/api/cli/runs/status")
         .match_query(Matcher::AllOf(vec![
@@ -1122,7 +1122,7 @@ fn watch_exits_non_zero_when_run_fails() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let initial_body = r#"{"state":"running","active":[{"runId":"99","traceId":"trace-7","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
+    let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"99","traceId":"trace-7","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
     let status_mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -1154,7 +1154,7 @@ fn watch_exits_non_zero_when_run_fails() {
         .expect(1)
         .create();
 
-    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"99","traceId":"trace-7","workflowName":"CI","conclusion":"failure","startedAt":"2026-03-06T10:00:00Z","durationSeconds":47,"activeJobs":[]}]}"#;
+    let final_status_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"99","traceId":"trace-7","workflowName":"CI","conclusion":"failure","startedAt":"2026-03-06T10:00:00Z","durationSeconds":47,"activeJobs":[]}]}"#;
     let final_status_mock = server
         .mock("GET", "/api/cli/runs/status")
         .match_header("authorization", "Bearer token-abc")
@@ -1195,7 +1195,7 @@ fn watch_fail_fast_exits_immediately_on_first_failed_run() {
     env.write_session(&server.url(), "token-abc");
 
     // Two active runs — fail-fast should exit after the first failure without waiting for the second
-    let initial_body = r#"{"state":"running","active":[{"runId":"11","traceId":"trace-a","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]},{"runId":"12","traceId":"trace-b","workflowName":"Deploy","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
+    let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"11","traceId":"trace-a","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]},{"runId":"12","traceId":"trace-b","workflowName":"Deploy","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
     let status_mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -1253,7 +1253,7 @@ fn watch_fails_on_sse_connection_error() {
 
     env.write_session(&server.url(), "token-abc");
 
-    let initial_body = r#"{"state":"running","active":[],"completed":[]}"#;
+    let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[],"completed":[]}"#;
 
     let status_mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -1304,7 +1304,7 @@ fn watch_waits_for_first_run_when_initial_state_is_pending() {
     env.write_session(&server.url(), "token-abc");
 
     // Initial status: pending — no runs yet
-    let initial_body = r#"{"state":"pending","active":[],"completed":[]}"#;
+    let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"pending","active":[],"completed":[]}"#;
 
     let status_mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -1338,7 +1338,7 @@ fn watch_waits_for_first_run_when_initial_state_is_pending() {
         .expect(1)
         .create();
 
-    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"100","traceId":"trace-pending","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":80,"activeJobs":[]}]}"#;
+    let final_status_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"100","traceId":"trace-pending","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":80,"activeJobs":[]}]}"#;
     let final_status_mock = server
         .mock("GET", "/api/cli/runs/status")
         .match_header("authorization", "Bearer token-abc")
