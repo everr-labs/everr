@@ -7,9 +7,10 @@ vi.mock("@/db/hub", () => ({
   subscribeAuthor: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("@/lib/auth", () => ({
-  getAccessTokenSessionFromRequest: vi.fn().mockResolvedValue(null),
-  getWorkOSAuthSession: vi.fn().mockResolvedValue(null),
+vi.mock("@/lib/anyAuthMiddleware", () => ({
+  anyAuthMiddleware: {
+    options: {},
+  },
 }));
 
 vi.mock("@/lib/sse", () => ({
@@ -30,17 +31,11 @@ vi.mock("@/lib/sse", () => ({
 }));
 
 import { subscribe, subscribeAuthor, subscribeTenant } from "@/db/hub";
-import {
-  getAccessTokenSessionFromRequest,
-  getWorkOSAuthSession,
-} from "@/lib/auth";
 import { Route } from "./stream";
 
 const mockedSubscribe = vi.mocked(subscribe);
 const mockedSubscribeAuthor = vi.mocked(subscribeAuthor);
 const mockedSubscribeTenant = vi.mocked(subscribeTenant);
-const mockedGetAccessToken = vi.mocked(getAccessTokenSessionFromRequest);
-const mockedGetWorkOS = vi.mocked(getWorkOSAuthSession);
 
 const mockSession = {
   tenantId: 42,
@@ -49,7 +44,10 @@ const mockSession = {
   sessionId: undefined,
 };
 
-type GetHandler = (args: { request: Request }) => Promise<Response>;
+type GetHandler = (args: {
+  request: Request;
+  context: { session: typeof mockSession };
+}) => Promise<Response>;
 
 function getHandler(): GetHandler {
   const routeOptions = Route.options as unknown as {
@@ -68,60 +66,46 @@ beforeEach(() => {
 });
 
 describe("GET /api/events/stream", () => {
-  it("returns 401 when not authenticated", async () => {
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/events/stream?scope=tenant"),
-    });
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "Unauthorized" });
-  });
-
   it("returns 400 for invalid scope", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=invalid"),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(400);
   });
 
   it("returns 400 when scope=trace but key is missing", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=trace"),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(400);
   });
 
   it("returns 400 when scope=commit but key is missing", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=commit"),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(400);
   });
 
   it("returns 400 when scope=author but key is missing", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=author"),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(400);
   });
 
   it("subscribes to tenant topic for scope=tenant", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=tenant"),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(200);
@@ -133,12 +117,11 @@ describe("GET /api/events/stream", () => {
   });
 
   it("subscribes to trace topic for scope=trace", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request(
         "http://localhost/api/events/stream?scope=trace&key=abc123",
       ),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(200);
@@ -151,12 +134,11 @@ describe("GET /api/events/stream", () => {
   });
 
   it("subscribes to commit topic for scope=commit", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request(
         "http://localhost/api/events/stream?scope=commit&key=deadbeef",
       ),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(200);
@@ -169,12 +151,11 @@ describe("GET /api/events/stream", () => {
   });
 
   it("subscribes to author topic for scope=author", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
-
     const response = await getHandler()({
       request: new Request(
         "http://localhost/api/events/stream?scope=author&key=dev%40example.com",
       ),
+      context: { session: mockSession },
     });
 
     expect(response.status).toBe(200);
@@ -185,20 +166,7 @@ describe("GET /api/events/stream", () => {
     );
   });
 
-  it("falls back to WorkOS session when no Bearer token", async () => {
-    mockedGetAccessToken.mockResolvedValue(null);
-    mockedGetWorkOS.mockResolvedValue(mockSession);
-
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/events/stream?scope=tenant"),
-    });
-
-    expect(response.status).toBe(200);
-    expect(mockedGetWorkOS).toHaveBeenCalled();
-  });
-
   it("forwards the payload directly to the SSE stream when a notification arrives", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
     const { createSSEStream } = await import("@/lib/sse");
     const mockSendEvent = vi.fn();
     vi.mocked(createSSEStream).mockReturnValueOnce({
@@ -215,9 +183,10 @@ describe("GET /api/events/stream", () => {
 
     await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=tenant"),
+      context: { session: mockSession },
     });
 
-    const mockPayload = {
+    const mockPayload: NotifyPayload = {
       tenantId: 42,
       traceId: "t1",
       runId: "r1",
@@ -227,7 +196,7 @@ describe("GET /api/events/stream", () => {
       authorEmail: null,
       workflowName: "CI",
       name: "CI",
-      type: "run" as const,
+      type: "run",
       status: "completed",
       conclusion: "success",
       jobId: null,
@@ -238,7 +207,6 @@ describe("GET /api/events/stream", () => {
   });
 
   it("forwards the payload for a keyed scope (scope=commit)", async () => {
-    mockedGetAccessToken.mockResolvedValue(mockSession);
     const { createSSEStream } = await import("@/lib/sse");
     const mockSendEvent = vi.fn();
     vi.mocked(createSSEStream).mockReturnValueOnce({
@@ -257,9 +225,10 @@ describe("GET /api/events/stream", () => {
       request: new Request(
         "http://localhost/api/events/stream?scope=commit&key=deadbeef",
       ),
+      context: { session: mockSession },
     });
 
-    const mockPayload = {
+    const mockPayload: NotifyPayload = {
       tenantId: 42,
       traceId: "t1",
       runId: "r1",
@@ -269,7 +238,7 @@ describe("GET /api/events/stream", () => {
       authorEmail: null,
       workflowName: "CI",
       name: "CI",
-      type: "run" as const,
+      type: "run",
       status: "completed",
       conclusion: "success",
       jobId: null,

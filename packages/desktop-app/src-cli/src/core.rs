@@ -277,11 +277,11 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     // Print backfill lines for already-known state
     for run in &initial.active {
         for job in &run.active_jobs {
-            println!("job: {} / {} | in_progress", run.workflow_name, job);
+            println!("{} / {}  in_progress", run.workflow_name, job);
         }
     }
     for run in &initial.completed {
-        println!("run: {} | completed", run.workflow_name);
+        println!("{}  completed", run.workflow_name);
     }
 
     // Track run states
