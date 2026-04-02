@@ -75,6 +75,16 @@ const workflowJobSchema = z.object({
       runner_name: z.string().nullish(),
       runner_labels: z.array(z.string()).nullish(),
       runner_group_name: z.string().nullish(),
+      steps: z
+        .array(
+          z.object({
+            number: z.number().int(),
+            name: z.string(),
+            status: z.string(),
+            conclusion: z.string().nullish(),
+          }),
+        )
+        .nullish(),
     })
     .optional(),
   repository: repositorySchema,

@@ -106,6 +106,7 @@ describe("getBranchStatus", () => {
           startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: null,
           activeJobs: ["lint", "test"],
+          failingJobs: [],
         },
       ],
       completed: [
@@ -117,6 +118,7 @@ describe("getBranchStatus", () => {
           startedAt: "2026-03-06T09:58:01.000Z",
           durationSeconds: 59,
           activeJobs: [],
+          failingJobs: [],
         },
       ],
     });
@@ -194,6 +196,7 @@ describe("getBranchStatus", () => {
           startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: 61,
           activeJobs: [],
+          failingJobs: [],
         },
       ],
     });

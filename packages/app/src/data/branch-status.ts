@@ -1,4 +1,16 @@
 import { pool } from "@/db/client";
+import type { WorkflowJobStep } from "@/db/schema";
+
+export type FirstFailingStep = {
+  stepNumber: number;
+  stepName: string;
+};
+
+export type FailingJob = {
+  id: string;
+  name: string;
+  firstFailingStep: FirstFailingStep | null;
+};
 
 export type BranchStatusRun = {
   traceId: string;
@@ -8,6 +20,7 @@ export type BranchStatusRun = {
   startedAt: string;
   durationSeconds: number | null;
   activeJobs: string[];
+  failingJobs: FailingJob[];
 };
 
 export type BranchStatusResponse = {
@@ -40,6 +53,13 @@ type WorkflowJobRow = {
   traceId: string;
   jobName: string;
   status: string;
+};
+
+type FailedJobRow = {
+  traceId: string;
+  jobId: string;
+  jobName: string;
+  steps: WorkflowJobStep[] | null;
 };
 
 const WATCH_LOOKBACK_SQL = "INTERVAL '14 days'";
@@ -120,6 +140,31 @@ export async function getBranchStatus({
 
   const activeJobNamesByTraceId = groupActiveJobNames(jobs.rows);
 
+  const failedTraceIds = runs
+    .filter((run) => run.status === "completed" && run.conclusion === "failure")
+    .map((run) => run.traceId);
+
+  const failedJobs =
+    failedTraceIds.length === 0
+      ? { rows: [] as FailedJobRow[] }
+      : await pool.query<FailedJobRow>(
+          `
+            SELECT
+              trace_id AS "traceId",
+              job_id AS "jobId",
+              job_name AS "jobName",
+              metadata->'steps' AS "steps"
+            FROM workflow_jobs
+            WHERE tenant_id = $1
+              AND trace_id = ANY($2::text[])
+              AND conclusion = 'failure'
+            ORDER BY trace_id ASC, started_at ASC
+          `,
+          [tenantId, failedTraceIds],
+        );
+
+  const failingJobsByTraceId = buildFailingJobsByTraceId(failedJobs.rows);
+
   const active: BranchStatusRun[] = [];
   const completed: BranchStatusRun[] = [];
 
@@ -135,6 +180,7 @@ export async function getBranchStatus({
         : new Date(run.lastEventAt).toISOString(),
       durationSeconds: isCompleted ? computeDurationSeconds(run) : null,
       activeJobs: activeJobNamesByTraceId.get(run.traceId) ?? [],
+      failingJobs: failingJobsByTraceId.get(run.traceId) ?? [],
     };
 
     if (run.status === "completed") {
@@ -166,6 +212,28 @@ function latestRunAttempts<
     (left, right) =>
       toTimestampMs(right.lastEventAt) - toTimestampMs(left.lastEventAt),
   );
+}
+
+function buildFailingJobsByTraceId(
+  rows: FailedJobRow[],
+): Map<string, FailingJob[]> {
+  const result = new Map<string, FailingJob[]>();
+  for (const row of rows) {
+    const failingStep = (row.steps ?? [])
+      .filter((s) => s.conclusion === "failure" || s.conclusion === "cancelled")
+      .sort((a, b) => a.number - b.number)[0];
+    const job: FailingJob = {
+      id: String(row.jobId),
+      name: row.jobName,
+      firstFailingStep: failingStep
+        ? { stepNumber: failingStep.number, stepName: failingStep.name }
+        : null,
+    };
+    const existing = result.get(row.traceId) ?? [];
+    existing.push(job);
+    result.set(row.traceId, existing);
+  }
+  return result;
 }
 
 function groupActiveJobNames(rows: WorkflowJobRow[]): Map<string, string[]> {

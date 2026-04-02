@@ -210,6 +210,21 @@ pub enum WatchState {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct FirstFailingStep {
+    pub step_number: u32,
+    pub step_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FailingJob {
+    pub id: String,
+    pub name: String,
+    pub first_failing_step: Option<FirstFailingStep>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct WatchRun {
     pub trace_id: String,
     pub run_id: String,
@@ -218,6 +233,7 @@ pub struct WatchRun {
     pub started_at: String,
     pub duration_seconds: Option<u64>,
     pub active_jobs: Vec<String>,
+    pub failing_jobs: Vec<FailingJob>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

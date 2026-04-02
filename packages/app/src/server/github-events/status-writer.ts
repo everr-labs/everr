@@ -232,6 +232,13 @@ export async function upsertWorkflowJob(
     runner_labels: workflowJob.runner_labels ?? undefined,
     runner_group_name: workflowJob.runner_group_name ?? undefined,
     html_url: workflowJob.html_url ?? undefined,
+    steps:
+      workflowJob.steps?.map((s) => ({
+        number: s.number,
+        name: s.name,
+        status: s.status,
+        conclusion: s.conclusion ?? null,
+      })) ?? undefined,
   };
 
   const values = {

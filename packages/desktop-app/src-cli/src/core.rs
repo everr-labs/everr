@@ -324,13 +324,8 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                         terminal.insert(event.trace_id.clone());
                     }
                     if !known.is_empty() && terminal.is_superset(&known) {
-                        let any_failed = conclusions
-                            .values()
-                            .any(|c| is_non_success_conclusion(c.as_deref()));
-                        if any_failed {
-                            bail!("pipeline finished with failed runs");
-                        }
-                        return Ok(());
+                        let final_status = client.get_status(&query).await?;
+                        return check_run_conclusions(&final_status.completed);
                     }
                 }
                 _ => {}
@@ -360,7 +355,57 @@ fn is_non_success_conclusion(conclusion: Option<&str>) -> bool {
     matches!(conclusion, Some(c) if !c.eq_ignore_ascii_case("success"))
 }
 
+fn print_watch_summary(completed: &[WatchRun]) {
+    println!();
+    let name_width = completed
+        .iter()
+        .map(|r| r.workflow_name.len())
+        .max()
+        .unwrap_or(0)
+        .max(4);
+
+    for run in completed {
+        let conclusion = run.conclusion.as_deref().unwrap_or("unknown");
+        let duration = run
+            .duration_seconds
+            .map(|s| {
+                if s >= 60 {
+                    format!("{}m {:02}s", s / 60, s % 60)
+                } else {
+                    format!("{}s", s)
+                }
+            })
+            .unwrap_or_default();
+        println!(
+            "{:<width$}  {:<10}  {}",
+            run.workflow_name,
+            conclusion,
+            duration,
+            width = name_width,
+        );
+        for job in &run.failing_jobs {
+            if let Some(step) = &job.first_failing_step {
+                println!(
+                    "  {} / step {}: {}",
+                    job.name, step.step_number, step.step_name
+                );
+                println!(
+                    "  everr logs --trace-id {} --job-name {:?} --step-number {}",
+                    run.trace_id, job.name, step.step_number
+                );
+            } else {
+                println!("  {}", job.name);
+                println!(
+                    "  everr logs --trace-id {} --job-name {:?}",
+                    run.trace_id, job.name
+                );
+            }
+        }
+    }
+}
+
 fn check_run_conclusions(completed: &[WatchRun]) -> Result<()> {
+    print_watch_summary(completed);
     if completed
         .iter()
         .any(|r| is_non_success_conclusion(r.conclusion.as_deref()))
