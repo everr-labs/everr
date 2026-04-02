@@ -67,7 +67,7 @@ describe("useRealtimeSubscription — trace scope", () => {
 
     const url = MockEventSource.instances[0]?.url ?? "";
     expect(url).toContain("scope=trace");
-    expect(url).toContain("traceId=abc123");
+    expect(url).toContain("key=abc123");
   });
 
   it("closes EventSource on unmount", () => {
