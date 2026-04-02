@@ -44,6 +44,9 @@ describe("getBranchStatus", () => {
       "feature/watch-short-commit",
     ]);
     expect(result).toEqual({
+      repo: "everr-labs/everr",
+      branch: "feature/watch-short-commit",
+      commit: "7f14b13",
       state: "pending",
       active: [],
       completed: [],
@@ -96,6 +99,9 @@ describe("getBranchStatus", () => {
     const jobsQuerySql = mockedQuery.mock.calls[1]?.[0] as string;
     expect(jobsQuerySql).toContain("status != 'completed'");
     expect(result).toEqual({
+      repo: "everr-labs/everr",
+      branch: "feature/watch-short-commit",
+      commit: "7f14b13",
       state: "running",
       active: [
         {
@@ -185,6 +191,9 @@ describe("getBranchStatus", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "completed",
       active: [],
       completed: [

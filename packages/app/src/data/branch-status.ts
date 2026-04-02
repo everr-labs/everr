@@ -24,6 +24,9 @@ export type BranchStatusRun = {
 };
 
 export type BranchStatusResponse = {
+  repo: string;
+  branch: string | null;
+  commit: string;
   state: "pending" | "running" | "completed";
   active: BranchStatusRun[];
   completed: BranchStatusRun[];
@@ -110,6 +113,9 @@ export async function getBranchStatus({
   const runs = latestRunAttempts(matchingRuns.rows);
   if (runs.length === 0) {
     return {
+      repo,
+      branch: branch ?? null,
+      commit,
       state: "pending",
       active: [],
       completed: [],
@@ -193,6 +199,9 @@ export async function getBranchStatus({
   }
 
   return {
+    repo,
+    branch: branch ?? null,
+    commit,
     state: active.length > 0 ? "running" : "completed",
     active,
     completed,

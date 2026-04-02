@@ -240,6 +240,9 @@ pub struct WatchRun {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchResponse {
+    pub repo: String,
+    pub branch: Option<String>,
+    pub commit: String,
     pub state: WatchState,
     pub active: Vec<WatchRun>,
     pub completed: Vec<WatchRun>,
