@@ -6,7 +6,6 @@
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](todo/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.
 - [**everr-logs-grep-option**](todo/issues/everr-logs-grep-option.md) — `everr logs` should support a `--grep <pattern>` option to filter log output by a text pattern, similar to how `everr grep` works but scoped to a single trace/job/step.
 - [**everr-logs-strip-ansi-by-default**](todo/issues/everr-logs-strip-ansi-by-default.md) — `everr logs` should strip ANSI escape codes from log output by default. Currently raw ANSI sequences are returned, which breaks grep and makes output harder to read in non-terminal contexts.
-- [**everr-status-show-branch-and-failures**](todo/issues/everr-status-show-branch-and-failures.md) — `everr status` output doesn't include the branch name or, for failed runs, the names of the failing jobs and steps.
 - [**failure-notifications-polling-to-sse**](todo/issues/failure-notifications-polling-to-sse.md) — The CLI failure notifications endpoint is polled on an interval. It should use the existing SSE infrastructure so notifications arrive in real time without repeated requests.
 - [**getauth-returns-undefined-on-runs-list**](todo/issues/getauth-returns-undefined-on-runs-list.md) — Production error: "can't access property 'user', e is undefined" on `/runs/list` for an authenticated user.
 - [**notification-data-from-postgres-with-steps**](todo/issues/notification-data-from-postgres-with-steps.md) — —

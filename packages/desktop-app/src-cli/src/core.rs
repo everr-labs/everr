@@ -50,8 +50,13 @@ pub async fn status(args: StatusArgs) -> Result<()> {
         .or(git.branch)
         .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
 
-    let query = vec![("repo", repo), ("branch", branch), ("commit", commit)];
+    let query = vec![
+        ("repo", repo.clone()),
+        ("branch", branch.clone()),
+        ("commit", commit),
+    ];
     let payload = client.get_status(&query).await?;
+    println!("{}  {}", repo, branch);
     print_json(&payload)?;
     Ok(())
 }
