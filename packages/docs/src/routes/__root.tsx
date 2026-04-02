@@ -1,3 +1,4 @@
+import { PostHogProvider } from "@posthog/react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
   createRootRoute,
@@ -10,6 +11,7 @@ import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type * as React from "react";
 import { baseOptions } from "@/lib/layout.shared";
+import { posthog } from "@/lib/posthog";
 import docsCss from "@/styles/docs.css?url";
 
 export const Route = createRootRoute({
@@ -49,24 +51,26 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="flex flex-col min-h-screen">
-        <RootProvider
-          theme={{
-            enableColorScheme: false,
-            forcedTheme: "dark",
-            enabled: false,
-          }}
-        >
-          <HomeLayout {...baseOptions()}>{children}</HomeLayout>
-          <TanStackDevtools
-            config={{ position: "bottom-right" }}
-            plugins={[
-              {
-                name: "Tanstack Router",
-                render: <TanStackRouterDevtoolsPanel />,
-              },
-            ]}
-          />
-        </RootProvider>
+        <PostHogProvider client={posthog}>
+          <RootProvider
+            theme={{
+              enableColorScheme: false,
+              forcedTheme: "dark",
+              enabled: false,
+            }}
+          >
+            <HomeLayout {...baseOptions()}>{children}</HomeLayout>
+            <TanStackDevtools
+              config={{ position: "bottom-right" }}
+              plugins={[
+                {
+                  name: "Tanstack Router",
+                  render: <TanStackRouterDevtoolsPanel />,
+                },
+              ]}
+            />
+          </RootProvider>
+        </PostHogProvider>
         <Scripts />
       </body>
     </html>

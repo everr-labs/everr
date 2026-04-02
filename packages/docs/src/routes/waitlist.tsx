@@ -1,3 +1,4 @@
+import { usePostHog } from "@posthog/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Footer } from "@/components/footer";
@@ -32,6 +33,7 @@ function WaitlistHero() {
     "idle" | "submitting" | "success" | "error"
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const posthog = usePostHog();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,12 +54,17 @@ function WaitlistHero() {
         throw new Error(data.error || "Something went wrong");
       }
 
+      posthog.capture("waitlist_joined", { email: email.trim() });
       setState("success");
     } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Something went wrong";
+      posthog.capture("waitlist_join_error", {
+        email: email.trim(),
+        error: message,
+      });
       setState("error");
-      setErrorMessage(
-        err instanceof Error ? err.message : "Something went wrong",
-      );
+      setErrorMessage(message);
     }
   }
 
