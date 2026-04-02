@@ -174,7 +174,7 @@ export const getRunDetails = createAuthenticatedServerFn({
         branch: string;
         status: string;
         conclusion: string | null;
-        startedAt: string | null;
+        completedAt: string | null;
         lastEventAt: string;
         htmlUrl: string | null;
         pullRequestNumbers: number[] | null;
@@ -187,7 +187,7 @@ export const getRunDetails = createAuthenticatedServerFn({
            ref AS branch,
            status,
            conclusion,
-           run_started_at::text AS "startedAt",
+           run_completed_at::text AS "completedAt",
            last_event_at::text AS "lastEventAt",
            metadata->>'html_url' AS "htmlUrl",
            ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata->'pull_requests', '[]'::jsonb))::int) AS "pullRequestNumbers"
@@ -217,7 +217,7 @@ export const getRunDetails = createAuthenticatedServerFn({
         branch: ch.branch,
         conclusion: pgConclusion ?? ch.conclusion,
         workflowName: ch.workflowName || "Workflow",
-        timestamp: ch.timestamp,
+        timestamp: pg?.completedAt ?? ch.timestamp,
         htmlUrl: `https://github.com/${ch.repo}/actions/runs/${ch.run_id}`,
         pullRequestUrls: ch.pullRequestsUrl
           ? ch.pullRequestsUrl.split(";")
@@ -248,7 +248,7 @@ export const getRunDetails = createAuthenticatedServerFn({
       branch: pg.branch,
       conclusion: effectiveConclusion,
       workflowName: pg.workflowName || "Workflow",
-      timestamp: pg.startedAt ?? pg.lastEventAt,
+      timestamp: pg.completedAt ?? pg.lastEventAt,
       htmlUrl: pg.htmlUrl ?? undefined,
       pullRequestUrls,
     } satisfies Run;
@@ -265,12 +265,18 @@ export const getRunJobs = createAuthenticatedServerFn({
         name: string;
         conclusion: string;
         duration: string;
+        firstFailingStep: string;
       }>(
         `SELECT
             ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
             anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
             anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
-            max(Duration) / 1000000 as duration
+            max(Duration) / 1000000 as duration,
+            minIf(
+              toUInt32OrZero(SpanAttributes['everr.github.workflow_job_step.number']),
+              SpanAttributes['everr.github.workflow_job_step.number'] != ''
+                AND lowerUTF8(StatusMessage) IN ('failure', 'failed')
+            ) as firstFailingStep
           FROM traces
           WHERE TraceId = {traceId:String}
             AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
@@ -297,6 +303,10 @@ export const getRunJobs = createAuthenticatedServerFn({
       name: row.name,
       conclusion: row.conclusion,
       duration: Number(row.duration),
+      firstFailingStep:
+        Number(row.firstFailingStep) > 0
+          ? Number(row.firstFailingStep)
+          : undefined,
     }));
 
     // Append jobs from Postgres that aren't yet in ClickHouse

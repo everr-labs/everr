@@ -188,7 +188,15 @@ export async function upsertWorkflowRun(
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
+      repo: values.repository,
+      branch: values.ref,
       authorEmail: values.authorEmail,
+      workflowName: values.workflowName,
+      name: (workflowRun.name ?? "").slice(0, 255),
+      type: "run",
+      status: values.status,
+      conclusion: values.conclusion,
+      jobId: null,
     });
   }
 }
@@ -282,7 +290,15 @@ export async function upsertWorkflowJob(
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
+      repo: values.repository,
+      branch: values.ref,
       authorEmail: null,
+      workflowName: workflowJob.workflow_name ?? "",
+      name: (workflowJob.name ?? "").slice(0, 255),
+      type: "job",
+      status: values.status,
+      conclusion: values.conclusion,
+      jobId: values.jobId,
     });
   }
 }

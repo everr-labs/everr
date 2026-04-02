@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getWatchStatus } from "@/data/watch";
+import { z } from "zod";
+import { getBranchStatus } from "@/data/branch-status";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
-import { WatchQuerySchema } from "./watch";
+
+const WatchQuerySchema = z.object({
+  repo: z.string().min(1),
+  branch: z.string().min(1).optional(),
+  commit: z.string().min(1),
+  attempt: z.coerce.number().int().min(1).optional(),
+});
 
 export const Route = createFileRoute("/api/cli/runs/status")({
   server: {
@@ -13,6 +20,7 @@ export const Route = createFileRoute("/api/cli/runs/status")({
           repo: url.searchParams.get("repo") ?? undefined,
           branch: url.searchParams.get("branch") ?? undefined,
           commit: url.searchParams.get("commit") ?? undefined,
+          attempt: url.searchParams.get("attempt") ?? undefined,
         });
 
         if (!parsed.success) {
@@ -25,7 +33,7 @@ export const Route = createFileRoute("/api/cli/runs/status")({
           );
         }
 
-        const result = await getWatchStatus({
+        const result = await getBranchStatus({
           tenantId: context.session.tenantId,
           ...parsed.data,
         });

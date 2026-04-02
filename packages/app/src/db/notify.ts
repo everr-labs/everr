@@ -6,7 +6,15 @@ export type NotifyPayload = {
   traceId: string;
   runId: string;
   sha: string;
+  repo: string;
+  branch: string;
   authorEmail: string | null;
+  workflowName: string;
+  name: string;
+  type: "run" | "job";
+  status: string;
+  conclusion: string | null;
+  jobId: number | null;
 };
 
 export async function notifyWorkflowUpdate(

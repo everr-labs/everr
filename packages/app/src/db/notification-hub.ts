@@ -71,7 +71,7 @@ export class NotificationHub {
     if (payload.authorEmail) {
       this.dispatchTopic(
         "author",
-        `${payload.tenantId}:${payload.authorEmail}`,
+        `${payload.tenantId}:${payload.authorEmail.toLowerCase()}`,
         payload,
       );
     }

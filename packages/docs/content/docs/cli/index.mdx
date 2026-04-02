@@ -15,37 +15,35 @@ Install the latest Everr CLI build:
 curl -fsSL https://everr.dev/install.sh | sh
 ```
 
-The installer places `everr` in `~/.local/bin`.
+The installer places `everr` in `~/.local/bin` and automatically runs the guided setup wizard to log in and configure your repository.
 
-To add Everr instructions to the current repository, run:
-
-```bash
-everr setup-assistant
-```
-
-This writes a short `AGENTS.md` hint that points agents to:
+To add Everr to your AI assistant context, run:
 
 ```bash
-everr ai-instructions
+everr setup-assistant > AGENTS.md
+# or
+everr setup-assistant > CLAUDE.md
 ```
 
-Use the desktop app if you also want Everr to manage global assistant integrations in your home directory.
+This writes a short hint that points agents to `everr ai-instructions` for the full CLI usage reference.
 
 ## Commands
 
-- `everr status`
-- `everr grep --job-name <job> --step-number <n> --pattern <text>`
-- `everr setup-assistant`
-- `everr ai-instructions`
-- `everr slowest-tests` (repo-wide for non-suite tests by default; use `--branch <name>` to scope it)
-- `everr slowest-jobs` (repo-wide by default; use `--branch <name>` to scope it)
-- `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit; exits non-zero if any completed run finishes with `failure`)
-- `everr runs` (list recent runs; use `--branch`, `--conclusion`, `--workflow-name` to filter)
-- `everr show --trace-id <trace_id>`
-- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>` (prints the last 1000 lines by default; use `--tail <n>` to change, or `--limit <n>` and `--offset <n>` for raw paging)
+- `everr setup` (guided onboarding wizard: login + assistant configuration)
+- `everr login` / `everr logout`
+- `everr status` (add `--commit <sha>` to target a specific commit, `--branch <name>` and `--repo <repo>` to override context)
+- `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit, `--attempt <n>` to target a specific retry attempt; exits non-zero if any completed run finishes with `failure`)
+- `everr runs` (list recent runs; use `--branch <name>` or `--current-branch` to filter by branch, `--conclusion <success|failure|cancellation>` by outcome, `--workflow-name <name>` by workflow, `--run-id <id>` for a specific run)
+- `everr show --trace-id <trace_id>` (add `--failed` to show only failed jobs and their failed steps)
+- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>` (prints the last 1000 lines by default; use `--tail <n>` to change, `--offset <n>` to skip lines, or `--limit <n>` and `--offset <n>` for raw paging)
+- `everr grep --pattern <text>` (add `--job-name <job> --step-number <n>` to target a specific step, `--branch <name>` to scope to a branch)
 - `everr workflows` (list workflows and their jobs; use `--repo` and `--branch` to filter)
 - `everr test-history --test-name <name>` (show historical executions for a specific test; use `--module` to disambiguate)
-- `everr login` / `everr logout`
+- `everr slowest-tests` (repo-wide for non-suite tests by default; use `--branch <name>` to scope it)
+- `everr slowest-jobs` (repo-wide by default; use `--branch <name>` to scope it)
+- `everr setup-assistant` (prints the `AGENTS.md` snippet; redirect with `> AGENTS.md` to write it)
+- `everr ai-instructions`
+- `everr uninstall`
 
 `everr status` returns the current watch payload for the target commit, including `state`, `active`, and `completed`.
 

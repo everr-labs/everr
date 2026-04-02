@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+use tokio::sync::Notify;
+
 use everr_core::api::FailureNotification;
 use everr_core::assistant::AssistantStatus;
 use everr_core::auth::{AuthConfig, DeviceAuthorization};
@@ -36,10 +38,9 @@ use commands::{
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
-use startup::{run_local_startup_maintenance, start_update_check_loop};
+use startup::{run_local_startup_maintenance, start_session_poll_loop, start_update_check_loop};
 use tray::{build_tray, sync_tray_ui};
 
-const POLL_INTERVAL_SECONDS: u64 = 30;
 const UPDATE_CHECK_INTERVAL_SECONDS: u64 = 15 * 60;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
@@ -81,6 +82,7 @@ struct RuntimeState {
     notifier: Arc<Mutex<NotifierState>>,
     tray: Arc<Mutex<TrayState>>,
     pending_auth: Arc<Mutex<Option<PendingAuthState>>>,
+    session_changed: Arc<Notify>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -276,7 +278,6 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-
             let mut autostart = tauri_plugin_autostart::Builder::new().app_name(current_app_name());
             #[cfg(target_os = "macos")]
             {
@@ -297,6 +298,7 @@ pub fn run() {
                 notifier: Arc::new(Mutex::new(NotifierState::default())),
                 tray: Arc::new(Mutex::new(TrayState::default())),
                 pending_auth: Arc::new(Mutex::new(None)),
+                session_changed: Arc::new(Notify::new()),
             };
 
             app.manage(runtime.clone());
@@ -312,7 +314,8 @@ pub fn run() {
             if wizard_incomplete(&runtime)? {
                 open_settings_window(app.handle())?;
             }
-            start_notifier_loop(app.handle().clone(), runtime);
+            start_notifier_loop(app.handle().clone(), runtime.clone());
+            start_session_poll_loop(runtime);
             start_update_check_loop(app.handle().clone());
             Ok(())
         })

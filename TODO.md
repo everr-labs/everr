@@ -8,7 +8,10 @@
 - [**everr-logs-strip-ansi-by-default**](todo/issues/everr-logs-strip-ansi-by-default.md) — `everr logs` should strip ANSI escape codes from log output by default. Currently raw ANSI sequences are returned, which breaks grep and makes output harder to read in non-terminal contexts.
 - [**everr-status-show-branch-and-failures**](todo/issues/everr-status-show-branch-and-failures.md) — `everr status` output doesn't include the branch name or, for failed runs, the names of the failing jobs and steps.
 - [**failure-notifications-polling-to-sse**](todo/issues/failure-notifications-polling-to-sse.md) — The CLI failure notifications endpoint is polled on an interval. It should use the existing SSE infrastructure so notifications arrive in real time without repeated requests.
+- [**getauth-returns-undefined-on-runs-list**](todo/issues/getauth-returns-undefined-on-runs-list.md) — Production error: "can't access property 'user', e is undefined" on `/runs/list` for an authenticated user.
+- [**notification-data-from-postgres-with-steps**](todo/issues/notification-data-from-postgres-with-steps.md) — —
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
+- [**notifier-no-git-email-fallback**](todo/issues/notifier-no-git-email-fallback.md) — —
 - [**show-logged-in-user-info-desktop**](todo/issues/show-logged-in-user-info-desktop.md) — Display the logged-in user's name and email somewhere in the desktop app UI.
 
 ## Ideas

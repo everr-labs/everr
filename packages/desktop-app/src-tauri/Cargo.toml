@@ -1,6 +1,6 @@
 [package]
 name = "everr-app"
-version = "0.1.14"
+version = "0.1.15"
 description = "Everr app"
 authors = [ "Everr" ]
 edition = "2021"
@@ -42,7 +42,7 @@ features = [ "formatting" ]
 
 [dependencies.tokio]
 version = "1.44.2"
-features = [ "time" ]
+features = [ "time", "sync", "macros" ]
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2-app-kit = "0.3.2"

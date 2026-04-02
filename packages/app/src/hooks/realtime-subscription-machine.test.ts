@@ -25,7 +25,7 @@ function createMachine(
   > = {},
 ) {
   return new RealtimeSubscriptionMachine({
-    url: "/api/events/subscribe?scope=tenant",
+    url: "/api/events/stream?scope=tenant",
     onInvalidate: vi.fn(),
     EventSourceCtor: MockEventSource as unknown as typeof EventSource,
     ...overrides,

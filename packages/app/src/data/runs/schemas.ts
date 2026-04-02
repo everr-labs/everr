@@ -16,6 +16,7 @@ export interface Job {
   name: string;
   conclusion: string;
   duration: number; // ms
+  firstFailingStep?: number;
 }
 
 export interface Step {

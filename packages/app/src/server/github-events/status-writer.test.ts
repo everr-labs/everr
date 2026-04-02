@@ -150,7 +150,15 @@ describe("upsertWorkflowRun", () => {
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
       sha: "abc123",
+      repo: "acme/repo",
+      branch: "main",
       authorEmail: "dev@example.com",
+      workflowName: "Tests",
+      name: "Tests",
+      type: "run",
+      status: "requested",
+      conclusion: null,
+      jobId: null,
     });
   });
 
@@ -303,7 +311,15 @@ describe("upsertWorkflowJob", () => {
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
       sha: "abc123",
+      repo: "acme/repo",
+      branch: "main",
       authorEmail: null,
+      workflowName: "Tests",
+      name: "test",
+      type: "job",
+      status: "queued",
+      conclusion: null,
+      jobId: 789,
     });
   });
 

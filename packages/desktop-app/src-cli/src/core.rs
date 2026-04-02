@@ -1,4 +1,3 @@
-use std::fmt::Write as _;
 use std::io::{self, Write};
 
 use anyhow::{Context, Result, bail};
@@ -8,7 +7,7 @@ use tokio::pin;
 
 use futures_util::StreamExt;
 
-use crate::api::{ApiClient, StepLogEntry, WatchRun, WatchState};
+use crate::api::{ApiClient, NotifyPayload, StepLogEntry, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
@@ -230,6 +229,8 @@ pub async fn workflows_list(args: WorkflowsListArgs) -> Result<()> {
 }
 
 pub async fn watch(args: WatchArgs) -> Result<()> {
+    use std::collections::{HashMap, HashSet};
+
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
@@ -257,43 +258,116 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         query.push(("attempt", attempt.to_string()));
     }
 
-    let sse_stream = client.watch_sse(&query).await?;
-    pin!(sse_stream);
+    let initial = client.get_status(&query).await?;
 
-    let mut watch_status_lines = 0usize;
+    if matches!(initial.state, WatchState::Completed) {
+        return check_run_conclusions(&initial.completed);
+    }
+
+    if args.fail_fast {
+        if let Some(run) = initial
+            .completed
+            .iter()
+            .find(|r| is_non_success_conclusion(r.conclusion.as_deref()))
+        {
+            bail!("run failed: {}", run.workflow_name);
+        }
+    }
+
+    // Print backfill lines for already-known state
+    for run in &initial.active {
+        for job in &run.active_jobs {
+            println!("{} / {}  in_progress", run.workflow_name, job);
+        }
+    }
+    for run in &initial.completed {
+        println!("{}  completed", run.workflow_name);
+    }
+
+    // Track run states
+    let mut known: HashSet<String> = initial
+        .active
+        .iter()
+        .chain(initial.completed.iter())
+        .map(|r| r.trace_id.clone())
+        .collect();
+    let mut terminal: HashSet<String> = initial
+        .completed
+        .iter()
+        .map(|r| r.trace_id.clone())
+        .collect();
+    let mut conclusions: HashMap<String, Option<String>> = initial
+        .completed
+        .iter()
+        .map(|r| (r.trace_id.clone(), r.conclusion.clone()))
+        .collect();
+
+    let event_stream = client.events_stream("commit", Some(&target_commit)).await?;
+    pin!(event_stream);
 
     loop {
-        match sse_stream.next().await {
-            Some(Ok(payload)) => {
-                let watch_complete = matches!(payload.state, WatchState::Completed);
-
-                if watch_complete {
-                    finish_watch_status_block(watch_status_lines)?;
-                    print_json(&payload)?;
-                    let failed_runs = failed_watch_run_names(&payload.completed);
-                    if !failed_runs.is_empty() {
-                        bail!(
-                            "pipeline finished with failed run(s): {}",
-                            failed_runs.join(", ")
-                        );
-                    }
-                    return Ok(());
+        match event_stream.next().await {
+            Some(Ok(event)) => match event.event_type.as_str() {
+                "job" => {
+                    println!("{}", format_watch_event_line(&event));
                 }
-
-                let status =
-                    format_watch_status(&target_commit, &payload.active, &payload.completed);
-                render_watch_status_block(&status, &mut watch_status_lines)?;
-            }
-            Some(Err(error)) => {
-                finish_watch_status_block(watch_status_lines)?;
-                return Err(error);
-            }
+                "run" => {
+                    known.insert(event.trace_id.clone());
+                    println!("{}", format_watch_event_line(&event));
+                    if event.status == "completed" {
+                        if args.fail_fast
+                            && is_non_success_conclusion(event.conclusion.as_deref())
+                        {
+                            bail!("run failed: {}", event.name);
+                        }
+                        conclusions.insert(event.trace_id.clone(), event.conclusion.clone());
+                        terminal.insert(event.trace_id.clone());
+                    }
+                    if !known.is_empty() && terminal.is_superset(&known) {
+                        let any_failed = conclusions
+                            .values()
+                            .any(|c| is_non_success_conclusion(c.as_deref()));
+                        if any_failed {
+                            bail!("pipeline finished with failed runs");
+                        }
+                        return Ok(());
+                    }
+                }
+                _ => {}
+            },
+            Some(Err(e)) => return Err(e),
             None => {
-                finish_watch_status_block(watch_status_lines)?;
+                // Stream closed — final poll to handle the race between initial status and stream open
+                let final_status = client.get_status(&query).await?;
+                if matches!(final_status.state, WatchState::Completed) {
+                    return check_run_conclusions(&final_status.completed);
+                }
                 bail!("SSE connection closed unexpectedly");
             }
         }
     }
+}
+
+fn format_watch_event_line(event: &NotifyPayload) -> String {
+    if event.event_type == "job" {
+        format!("{} / {}  {}", event.workflow_name, event.name, event.status)
+    } else {
+        format!("{}  {}", event.name, event.status)
+    }
+}
+
+fn is_non_success_conclusion(conclusion: Option<&str>) -> bool {
+    matches!(conclusion, Some(c) if !c.eq_ignore_ascii_case("success"))
+}
+
+fn check_run_conclusions(completed: &[WatchRun]) -> Result<()> {
+    if completed
+        .iter()
+        .any(|r| is_non_success_conclusion(r.conclusion.as_deref()))
+    {
+        bail!("pipeline finished with failed runs");
+    }
+    Ok(())
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<()> {
@@ -365,144 +439,6 @@ struct PagedStepLogs {
     next_offset: u32,
 }
 
-fn format_watch_status(
-    target_commit: &str,
-    active_runs: &[WatchRun],
-    completed_runs: &[WatchRun],
-) -> String {
-    let mut status = String::new();
-    let short_commit = shorten_commit(target_commit);
-    let _ = writeln!(status, "Watching pipeline for commit {short_commit}");
-    if active_runs.is_empty() {
-        let _ = writeln!(status, "Active runs: none");
-    } else {
-        let _ = writeln!(status, "Active runs:");
-        for run in active_runs {
-            let mut details = vec![format!("started at: {}", &run.started_at)];
-            if let Some(expected_duration_seconds) = run.expected_duration_seconds {
-                details.push(format!(
-                    "expected duration: {}",
-                    format_elapsed_duration(expected_duration_seconds)
-                ));
-            }
-            details.push(format!(
-                "active jobs: {}",
-                format_name_list(&run.active_jobs)
-            ));
-            let _ = writeln!(
-                status,
-                "- {} [{}] ({})",
-                run.workflow_name,
-                run.trace_id,
-                details.join("; ")
-            );
-        }
-    }
-    let _ = writeln!(
-        status,
-        "Completed runs: {}",
-        format_completed_run_list(completed_runs)
-    );
-    status
-}
-
-fn render_watch_status_block(message: &str, last_lines: &mut usize) -> Result<()> {
-    let display = message.trim_end_matches('\n');
-    clear_watch_status_block(*last_lines);
-    io::stderr()
-        .flush()
-        .context("failed to flush watch status block")?;
-
-    eprint!("{display}");
-    io::stderr()
-        .flush()
-        .context("failed to flush watch status block")?;
-    *last_lines = display.lines().count();
-    Ok(())
-}
-
-fn finish_watch_status_block(last_lines: usize) -> Result<()> {
-    if last_lines == 0 {
-        return Ok(());
-    }
-
-    eprintln!();
-    io::stderr()
-        .flush()
-        .context("failed to flush watch trailing newline")
-}
-
-fn clear_watch_status_block(line_count: usize) {
-    for index in 0..line_count {
-        eprint!("\r\x1b[2K");
-        if index + 1 < line_count {
-            eprint!("\x1b[1A");
-        }
-    }
-    if line_count > 0 {
-        eprint!("\r");
-    }
-}
-
-fn format_name_list(names: &[String]) -> String {
-    if names.is_empty() {
-        "none".to_string()
-    } else {
-        names.join(", ")
-    }
-}
-
-fn format_completed_run_list(runs: &[WatchRun]) -> String {
-    if runs.is_empty() {
-        return "none".to_string();
-    }
-
-    let mut formatted = String::new();
-    for (index, run) in runs.iter().enumerate() {
-        if index > 0 {
-            formatted.push_str(", ");
-        }
-        formatted.push_str(&run.workflow_name);
-        formatted.push_str(&format!(" [{}]", run.trace_id));
-        if is_failure_conclusion(run.conclusion.as_deref().unwrap_or_default()) {
-            formatted.push_str(" (failed)");
-        }
-    }
-
-    formatted
-}
-
-fn failed_watch_run_names<'a>(runs: &'a [WatchRun]) -> Vec<&'a str> {
-    runs.iter()
-        .filter(|run| is_failure_conclusion(run.conclusion.as_deref().unwrap_or_default()))
-        .map(|run| run.workflow_name.as_str())
-        .collect()
-}
-
-fn is_failure_conclusion(conclusion: &str) -> bool {
-    let normalized = conclusion.trim();
-    normalized.eq_ignore_ascii_case("failure") || normalized.eq_ignore_ascii_case("failed")
-}
-
-fn shorten_commit(commit: &str) -> &str {
-    let max_len = 12;
-    if commit.len() <= max_len {
-        commit
-    } else {
-        &commit[..max_len]
-    }
-}
-
-fn format_elapsed_duration(total_seconds: u64) -> String {
-    if total_seconds < 60 {
-        return format!("{total_seconds}s");
-    }
-
-    let minutes = total_seconds / 60;
-    let seconds = total_seconds % 60;
-    format!("{minutes}m {seconds}s")
-}
-
 fn push_opt(query: &mut Vec<(&str, String)>, key: &'static str, value: Option<String>) {
     if let Some(v) = value {
         query.push((key, v));
@@ -520,8 +456,62 @@ mod tests {
 
     use crate::api::StepLogEntry;
 
-    use super::{LogPagingArgs, format_watch_status, push_opt, push_pagination};
-    use crate::api::WatchRun;
+    use super::{LogPagingArgs, push_opt, push_pagination};
+
+    #[test]
+    fn format_watch_event_line_formats_job_event() {
+        use crate::api::NotifyPayload;
+        let event = NotifyPayload {
+            tenant_id: 1,
+            trace_id: "t1".to_string(),
+            run_id: "42".to_string(),
+            sha: "abc".to_string(),
+            repo: "org/repo".to_string(),
+            branch: "main".to_string(),
+            author_email: None,
+            workflow_name: "CI".to_string(),
+            name: "build".to_string(),
+            event_type: "job".to_string(),
+            status: "in_progress".to_string(),
+            conclusion: None,
+            job_id: Some(1),
+        };
+        assert_eq!(super::format_watch_event_line(&event), "CI / build  in_progress");
+    }
+
+    #[test]
+    fn format_watch_event_line_formats_run_event() {
+        use crate::api::NotifyPayload;
+        let event = NotifyPayload {
+            tenant_id: 1,
+            trace_id: "t1".to_string(),
+            run_id: "42".to_string(),
+            sha: "abc".to_string(),
+            repo: "org/repo".to_string(),
+            branch: "main".to_string(),
+            author_email: None,
+            workflow_name: "CI".to_string(),
+            name: "CI".to_string(),
+            event_type: "run".to_string(),
+            status: "completed".to_string(),
+            conclusion: Some("success".to_string()),
+            job_id: None,
+        };
+        assert_eq!(super::format_watch_event_line(&event), "CI  completed");
+    }
+
+    #[test]
+    fn is_non_success_conclusion_returns_true_for_failure() {
+        assert!(super::is_non_success_conclusion(Some("failure")));
+        assert!(super::is_non_success_conclusion(Some("cancelled")));
+        assert!(super::is_non_success_conclusion(Some("timed_out")));
+    }
+
+    #[test]
+    fn is_non_success_conclusion_returns_false_for_success() {
+        assert!(!super::is_non_success_conclusion(Some("success")));
+        assert!(!super::is_non_success_conclusion(None));
+    }
 
     #[test]
     fn print_step_logs_terminates_lines_without_trailing_newlines() {
@@ -582,91 +572,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn watch_status_output_has_no_trailing_blank_line() {
-        let status = format_watch_status(
-            "df0c52b63dfa0123456789",
-            &[WatchRun {
-                run_id: "42".to_string(),
-                trace_id: "trace-1".to_string(),
-                workflow_name: "Build & Test Collector".to_string(),
-                conclusion: None,
-                started_at: "2026-03-06T10:00:00Z".to_string(),
-                duration_seconds: Some(139),
-                expected_duration_seconds: None,
-                active_jobs: vec!["Lint".to_string(), "Build".to_string()],
-            }],
-            &[WatchRun {
-                run_id: "41".to_string(),
-                trace_id: "trace-2".to_string(),
-                workflow_name: "Build & Test Ingress".to_string(),
-                conclusion: Some("success".to_string()),
-                started_at: "2026-03-06T09:58:00Z".to_string(),
-                duration_seconds: Some(0),
-                expected_duration_seconds: None,
-                active_jobs: Vec::new(),
-            }],
-        );
-
-        assert!(status.ends_with('\n'));
-        let display = status.trim_end_matches('\n');
-        assert!(!display.ends_with('\n'));
-        assert_eq!(display.lines().count(), 4);
-    }
-
-    #[test]
-    fn watch_status_output_marks_failed_completed_runs() {
-        let status = format_watch_status(
-            "df0c52b63dfa0123456789",
-            &[],
-            &[
-                WatchRun {
-                    run_id: "42".to_string(),
-                    trace_id: "trace-3".to_string(),
-                    workflow_name: "Build & Test Collector".to_string(),
-                    conclusion: Some("failure".to_string()),
-                    started_at: "2026-03-06T10:00:00Z".to_string(),
-                    duration_seconds: Some(0),
-                    expected_duration_seconds: None,
-                    active_jobs: Vec::new(),
-                },
-                WatchRun {
-                    run_id: "41".to_string(),
-                    trace_id: "trace-4".to_string(),
-                    workflow_name: "Build & Test App".to_string(),
-                    conclusion: Some("success".to_string()),
-                    started_at: "2026-03-06T10:00:00Z".to_string(),
-                    duration_seconds: Some(0),
-                    expected_duration_seconds: None,
-                    active_jobs: Vec::new(),
-                },
-            ],
-        );
-
-        assert!(status.contains(
-            "Completed runs: Build & Test Collector [trace-3] (failed), Build & Test App [trace-4]"
-        ));
-    }
-
-    #[test]
-    fn watch_status_output_includes_usual_duration_when_available() {
-        let status = format_watch_status(
-            "df0c52b63dfa0123456789",
-            &[WatchRun {
-                run_id: "99".to_string(),
-                trace_id: "trace-5".to_string(),
-                workflow_name: "CI".to_string(),
-                conclusion: None,
-                started_at: "2026-03-06T10:00:00Z".to_string(),
-                duration_seconds: Some(125),
-                expected_duration_seconds: Some(118),
-                active_jobs: vec!["test".to_string()],
-            }],
-            &[],
-        );
-
-        assert!(
-            status.contains("CI [trace-5] (started at: 2026-03-06T10:00:00Z; expected duration: 1m 58s; active jobs: test)")
-        );
-    }
 }

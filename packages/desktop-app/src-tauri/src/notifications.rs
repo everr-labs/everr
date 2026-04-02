@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
-use everr_core::api::{ApiClient, FailureNotification};
-use futures_util::StreamExt;
+use everr_core::api::{ApiClient, FailureNotification, NotifyPayload};
 use everr_core::git::resolve_git_context;
+use futures_util::StreamExt;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 use tauri::Emitter;
@@ -21,8 +21,15 @@ use crate::{
     current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
     NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT, NOTIFICATION_WINDOW_INSET,
     NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN, NOTIFICATION_WINDOW_WIDTH,
-    POLL_INTERVAL_SECONDS,
 };
+
+macro_rules! dbg_notifier {
+    ($($arg:tt)*) => {
+        if cfg!(debug_assertions) {
+            eprintln!("[notifier] {}", format_args!($($arg)*));
+        }
+    };
+}
 
 pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
     tauri::async_runtime::spawn(async move {
@@ -32,7 +39,8 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
         loop {
             match run_sse_notifier(&app, &state).await {
                 Ok(()) => {
-                    // Stream ended cleanly (e.g., server closed) — reconnect immediately
+                    // Stream ended cleanly (e.g., server closed) — brief pause before reconnect
+                    tokio::time::sleep(Duration::from_secs(1)).await;
                     backoff = Duration::from_secs(1);
                 }
                 Err(error) => {
@@ -79,30 +87,6 @@ pub(crate) fn copy_notification_auto_fix_prompt_inner(state: &RuntimeState) -> R
     Ok(())
 }
 
-pub(crate) async fn load_owned_failures_for_current_repo(
-    state: &RuntimeState,
-) -> Result<Option<(Vec<FailureNotification>, Option<String>, Option<String>)>> {
-    let Some(session) = current_app_state(state)?.session else {
-        return Ok(None);
-    };
-    if session.api_base_url.trim_end_matches('/') != current_base_url().trim_end_matches('/') {
-        return Ok(None);
-    }
-
-    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
-    let git = resolve_git_context(&current_dir);
-    let Some(git_email) = git.email.as_deref() else {
-        return Ok(None);
-    };
-
-    let client = ApiClient::from_session(&session)?;
-    let failures = client
-        .get_owned_failures(git_email, git.repo.as_deref(), git.branch.as_deref())
-        .await?;
-
-    Ok(Some((failures, git.repo, git.branch)))
-}
-
 pub(crate) fn build_test_notification() -> Result<FailureNotification> {
     let now = OffsetDateTime::now_utc();
     let timestamp = now
@@ -142,14 +126,13 @@ pub(crate) fn build_test_notification() -> Result<FailureNotification> {
 
 async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
     let Some(session) = current_app_state(state)?.session else {
-        // Not logged in — clear stale tray and wait
         clear_tray_snapshot(app, state)?;
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
+        state.session_changed.notified().await;
         return Ok(());
     };
     if session.api_base_url.trim_end_matches('/') != current_base_url().trim_end_matches('/') {
         clear_tray_snapshot(app, state)?;
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
+        state.session_changed.notified().await;
         return Ok(());
     }
 
@@ -157,56 +140,119 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
     let git = resolve_git_context(&current_dir);
     let Some(git_email) = git.email else {
         clear_tray_snapshot(app, state)?;
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECONDS)).await;
+        state.session_changed.notified().await;
         return Ok(());
     };
 
     let client = ApiClient::from_session(&session)?;
-    let stream = client.failures_sse(&git_email).await?;
+    let stream = client.events_stream("author", Some(&git_email)).await?;
 
-    // Accumulate all failures received during this SSE session for tray snapshot
-    let mut all_failures: Vec<FailureNotification> = Vec::new();
+    // Known failures accumulated this session, keyed by traceId
+    let mut known_failures: std::collections::HashMap<String, FailureNotification> =
+        std::collections::HashMap::new();
 
     tokio::pin!(stream);
-    while let Some(event) = stream.next().await {
-        let event = event?;
-        all_failures.extend(event.failures.iter().cloned());
-        handle_failure_event(app, state, &all_failures, event.failures, git.repo.as_deref(), git.branch.as_deref())?;
+    loop {
+        tokio::select! {
+            event = stream.next() => {
+                match event {
+                    Some(Ok(payload)) => {
+                        handle_notify_event(
+                            app,
+                            state,
+                            &client,
+                            &mut known_failures,
+                            payload,
+                            git.repo.as_deref(),
+                            git.branch.as_deref(),
+                        ).await?;
+                    }
+                    Some(Err(e)) => return Err(e),
+                    None => break,
+                }
+            }
+            _ = state.session_changed.notified() => {
+                dbg_notifier!("session changed — restarting SSE loop");
+                break;
+            }
+        }
     }
 
     Ok(())
 }
 
-fn handle_failure_event(
+async fn handle_notify_event(
     app: &AppHandle,
     state: &RuntimeState,
-    all_failures: &[FailureNotification],
-    new_failures: Vec<FailureNotification>,
+    client: &ApiClient,
+    known_failures: &mut std::collections::HashMap<String, FailureNotification>,
+    event: NotifyPayload,
     repo: Option<&str>,
     branch: Option<&str>,
 ) -> Result<()> {
-    // Tray always shows the full accumulated set of failures
-    update_tray_snapshot(
-        app,
-        state,
-        build_tray_snapshot(all_failures, repo, branch),
-    )?;
+    dbg_notifier!(
+        "event: type={} status={} conclusion={:?} trace={} branch={} workflow={}",
+        event.event_type,
+        event.status,
+        event.conclusion,
+        event.trace_id,
+        event.branch,
+        event.workflow_name,
+    );
 
-    let fresh = {
-        let mut notifier = state
-            .notifier
-            .lock()
-            .map_err(|_| anyhow!("failed to lock notifier state"))?;
-        notifier.tracker.retain_new(new_failures)
-    };
+    if event.event_type != "run" {
+        return Ok(());
+    }
 
-    for failure in fresh {
-        enqueue_notification(app, state, failure)?;
+    match event.conclusion.as_deref() {
+        Some("failure") | Some("timed_out") | Some("startup_failure") | Some("action_required") => {
+            if known_failures.contains_key(&event.trace_id) {
+                return Ok(());
+            }
+            let Some(failure) = client.get_notification_for_trace(&event.trace_id).await? else {
+                dbg_notifier!("failure not found in ClickHouse after all retries, dropping event");
+                return Ok(());
+            };
+            let fresh = {
+                let mut notifier = state
+                    .notifier
+                    .lock()
+                    .map_err(|_| anyhow!("failed to lock notifier state"))?;
+                notifier.tracker.retain_new(vec![failure.clone()])
+            };
+            known_failures.insert(event.trace_id.clone(), failure);
+            update_tray_snapshot(
+                app,
+                state,
+                build_tray_snapshot(
+                    &known_failures.values().cloned().collect::<Vec<_>>(),
+                    repo,
+                    branch,
+                ),
+            )?;
+            for f in fresh {
+                enqueue_notification(app, state, f)?;
+            }
+        }
+        Some("success") => {
+            known_failures.remove(&event.trace_id);
+            update_tray_snapshot(
+                app,
+                state,
+                build_tray_snapshot(
+                    &known_failures.values().cloned().collect::<Vec<_>>(),
+                    repo,
+                    branch,
+                ),
+            )?;
+        }
+        _ => {}
     }
 
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("everr://notifier-checked", ());
     }
+
     Ok(())
 }
 
@@ -302,15 +348,8 @@ fn show_notification_window(app: &AppHandle) -> Result<()> {
 }
 
 fn show_without_focus(window: &WebviewWindow) -> Result<()> {
-    let window_for_closure = window.clone();
     window
-        .run_on_main_thread(move || {
-            let Ok(ns_window) = window_for_closure.ns_window() else {
-                return;
-            };
-            let ns_window: &NSWindow = unsafe { &*ns_window.cast() };
-            ns_window.orderFront(None);
-        })
+        .show()
         .context("failed to show notification window without focus")
 }
 
@@ -393,6 +432,7 @@ fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
     .closable(false)
     .visible(false)
     .focused(false)
+    .focusable(false)
     .decorations(false)
     .transparent(true)
     .always_on_top(true)

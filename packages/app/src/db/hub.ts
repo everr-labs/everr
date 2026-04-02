@@ -41,7 +41,11 @@ export function subscribeAuthor(
   callback: Callback,
 ): () => void {
   ensureStarted();
-  return hub.subscribe("author", `${tenantId}:${email}`, callback);
+  return hub.subscribe(
+    "author",
+    `${tenantId}:${email.toLowerCase()}`,
+    callback,
+  );
 }
 
 export function shutdownHub(): void {

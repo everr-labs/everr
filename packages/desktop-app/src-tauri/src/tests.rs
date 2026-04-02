@@ -68,6 +68,22 @@ fn tray_snapshot_with_failures() -> TraySnapshot {
 }
 
 #[test]
+fn success_event_should_only_clear_matching_trace() {
+    let mut known_failures = std::collections::HashMap::new();
+    let first = failure("one");
+    let mut second = failure("two");
+    second.branch = "feature".to_string();
+
+    known_failures.insert(first.trace_id.clone(), first.clone());
+    known_failures.insert(second.trace_id.clone(), second.clone());
+
+    known_failures.remove(&first.trace_id);
+
+    assert!(!known_failures.contains_key(&first.trace_id));
+    assert_eq!(known_failures.get(&second.trace_id), Some(&second));
+}
+
+#[test]
 fn advance_promotes_next_notification() {
     let mut queue = NotificationQueue::default();
     queue.enqueue(failure("one"));
@@ -137,9 +153,7 @@ fn notification_prompt_builder_formats_single_failure_with_exact_logs_command() 
     assert!(prompt.contains("Investigate and fix this CI pipeline failure."));
     assert!(prompt.contains("Failure details:"));
     assert!(prompt.contains("workflow CI | trace trace-one | step test #2 (Run suite)"));
-    assert!(
-        prompt.contains("everr logs --trace-id trace-one --job-name \"test\" --step-number 2")
-    );
+    assert!(prompt.contains("everr logs --trace-id trace-one --job-name \"test\" --step-number 2"));
     assert!(prompt.contains("Step 2"));
     assert!(prompt.contains("Step 3"));
 }

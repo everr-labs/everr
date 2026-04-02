@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use std::time::Duration;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
@@ -10,6 +11,7 @@ use crate::state::Session;
 
 pub struct ApiClient {
     http: reqwest::Client,
+    base_url: String,
     base_endpoint: String,
 }
 
@@ -27,10 +29,12 @@ impl ApiClient {
             .default_headers(headers)
             .build()
             .context("failed to build HTTP client")?;
-        let base_endpoint = format!("{}/api/cli", session.api_base_url.trim_end_matches('/'));
+        let base_url = session.api_base_url.trim_end_matches('/').to_string();
+        let base_endpoint = format!("{}/api/cli", base_url);
 
         Ok(Self {
             http,
+            base_url,
             base_endpoint,
         })
     }
@@ -47,53 +51,6 @@ impl ApiClient {
         self.get("/runs/status", query).await
     }
 
-    pub async fn watch_sse(
-        &self,
-        query: &[(&str, String)],
-    ) -> Result<impl futures_util::Stream<Item = Result<WatchResponse>>> {
-        let response = self
-            .http
-            .get(format!("{}/runs/watch", self.base_endpoint))
-            .query(query)
-            .send()
-            .await
-            .context("SSE connection failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            bail!("SSE connection failed with {status}: {text}");
-        }
-
-        let stream = response
-            .bytes_stream()
-            .eventsource()
-            .filter_map(|event| async {
-                match event {
-                    Ok(ev) if ev.event == "message" && !ev.data.is_empty() => {
-                        // Check for server-side error events before deserializing
-                        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&ev.data) {
-                            if obj.get("type").and_then(|t| t.as_str()) == Some("error") {
-                                let msg = obj.get("message").and_then(|m| m.as_str()).unwrap_or("unknown error");
-                                return Some(Err(anyhow::anyhow!("server error: {msg}")));
-                            }
-                        }
-                        match serde_json::from_str::<WatchResponse>(&ev.data) {
-                            Ok(response) => Some(Ok(response)),
-                            Err(_) => None,
-                        }
-                    }
-                    Err(e) => Some(Err(anyhow::anyhow!("SSE stream error: {e}"))),
-                    _ => None,
-                }
-            });
-
-        Ok(stream)
-    }
-
     pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
         self.get_json("/test-history", query).await
     }
@@ -106,15 +63,14 @@ impl ApiClient {
         self.get_json("/slowest-jobs", query).await
     }
 
-    pub async fn get_workflows_list(&self, query: &[(&str, String)]) -> Result<WorkflowsListResponse> {
+    pub async fn get_workflows_list(
+        &self,
+        query: &[(&str, String)],
+    ) -> Result<WorkflowsListResponse> {
         self.get("/workflows-list", query).await
     }
 
-    pub async fn get_run_details(
-        &self,
-        trace_id: &str,
-        query: &[(&str, String)],
-    ) -> Result<Value> {
+    pub async fn get_run_details(&self, trace_id: &str, query: &[(&str, String)]) -> Result<Value> {
         let path = format!("/runs/{trace_id}");
         self.get_json(&path, query).await
     }
@@ -128,31 +84,42 @@ impl ApiClient {
         self.get(&path, query).await
     }
 
-    pub async fn get_owned_failures(
+    pub async fn get_notification_for_trace(
         &self,
-        git_email: &str,
-        repo: Option<&str>,
-        branch: Option<&str>,
-    ) -> Result<Vec<FailureNotification>> {
-        let mut query = vec![("gitEmail", git_email.to_string())];
-        if let Some(value) = repo {
-            query.push(("repo", value.to_string()));
+        trace_id: &str,
+    ) -> Result<Option<FailureNotification>> {
+        // TODO: remove retry once notification data is served from Postgres instead of ClickHouse.
+        // See: todo/issues/notification-data-from-postgres-with-steps.md
+        // The SSE event may arrive before the trace is ingested into ClickHouse,
+        // so retry with exponential backoff to give ingestion time to catch up.
+        let query = [("traceId", trace_id.to_string())];
+        for attempt in 0..4u32 {
+            if attempt > 0 {
+                let delay = 2u64.pow(attempt - 1);
+                tokio::time::sleep(Duration::from_secs(delay)).await;
+            }
+            let results: Vec<FailureNotification> = self.get("/notification", &query).await?;
+            if let Some(f) = results.into_iter().next() {
+                return Ok(Some(f));
+            }
         }
-        if let Some(value) = branch {
-            query.push(("branch", value.to_string()));
-        }
-
-        self.get("/notifier/failures", &query).await
+        Ok(None)
     }
 
-    pub async fn failures_sse(
+    pub async fn events_stream(
         &self,
-        git_email: &str,
-    ) -> Result<impl futures_util::Stream<Item = Result<FailureStreamEvent>>> {
+        scope: &str,
+        key: Option<&str>,
+    ) -> Result<impl futures_util::Stream<Item = Result<NotifyPayload>>> {
+        let mut params: Vec<(&str, &str)> = vec![("scope", scope)];
+        if let Some(k) = key {
+            params.push(("key", k));
+        }
+
         let response = self
             .http
-            .get(format!("{}/notifier/failures/stream", self.base_endpoint))
-            .query(&[("gitEmail", git_email)])
+            .get(format!("{}/api/events/stream", self.base_url))
+            .query(&params)
             .send()
             .await
             .context("SSE connection failed")?;
@@ -172,13 +139,21 @@ impl ApiClient {
             .filter_map(|event| async {
                 match event {
                     Ok(ev) if ev.event == "message" && !ev.data.is_empty() => {
-                        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&ev.data) {
-                            if obj.get("type").and_then(|t| t.as_str()) == Some("ping") {
-                                return None;
-                            }
-                        }
-                        match serde_json::from_str::<FailureStreamEvent>(&ev.data) {
-                            Ok(event) => Some(Ok(event)),
+                        match serde_json::from_str::<serde_json::Value>(&ev.data) {
+                            Ok(obj) => match obj.get("type").and_then(|t| t.as_str()) {
+                                Some("ping") => None,
+                                Some("error") => {
+                                    let msg = obj
+                                        .get("message")
+                                        .and_then(|m| m.as_str())
+                                        .unwrap_or("unknown error");
+                                    Some(Err(anyhow::anyhow!("server error: {msg}")))
+                                }
+                                _ => match serde_json::from_value::<NotifyPayload>(obj) {
+                                    Ok(payload) => Some(Ok(payload)),
+                                    Err(_) => None,
+                                },
+                            },
                             Err(_) => None,
                         }
                     }
@@ -242,7 +217,6 @@ pub struct WatchRun {
     pub conclusion: Option<String>,
     pub started_at: String,
     pub duration_seconds: Option<u64>,
-    pub expected_duration_seconds: Option<u64>,
     pub active_jobs: Vec<String>,
 }
 
@@ -281,6 +255,20 @@ pub struct FailureNotification {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct FailureStreamEvent {
-    pub failures: Vec<FailureNotification>,
+#[serde(rename_all = "camelCase")]
+pub struct NotifyPayload {
+    pub tenant_id: i64,
+    pub trace_id: String,
+    pub run_id: String,
+    pub sha: String,
+    pub repo: String,
+    pub branch: String,
+    pub author_email: Option<String>,
+    pub workflow_name: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub job_id: Option<i64>,
 }
