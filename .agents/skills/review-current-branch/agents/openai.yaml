@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Current Branch"
+  short_description: "Reviews the current branch against its base and surfaces validated findings."
+  default_prompt: "Use $review-current-branch to review my current branch against its base and surface validated findings with file:line references."

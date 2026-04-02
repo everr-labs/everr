@@ -1,156 +1,233 @@
 ---
 name: review-current-branch
-description: Review the current branch's diff vs main for simplicity, performance, and bugs. Spawns 3 parallel agents.
+description: Review the current branch diff against its intended base branch (default branch if unspecified) for correctness, regressions, performance issues, risky coverage gaps, and unnecessary complexity. Use when the user asks for a code review, PR review, or branch review. Spawns 3 parallel reviewer agents, then validates and synthesizes only defensible findings.
 ---
 
 # Review Current Branch
 
-Reviews the current branch's diff vs main by spawning 3 parallel agents: **simplicity**, **performance**, and **bug hunter**.
+Use this skill when the user wants a review of the current branch or checked-out PR. The output must be a code review, not an implementation plan or patch.
 
-## Workflow
+## Review Standard
 
-### Step 1: Get the diff
+- Findings first, ordered by severity.
+- Every finding needs a concrete `file:line` reference in changed code.
+- `critical`: likely merge blocker, security issue, or high-confidence regression.
+- `warning`: real issue worth fixing before merge.
+- `nitpick`: lower-risk but still defensible issue. Do not use it for style-only commentary.
+- Prefer merge blockers, behavioral regressions, security issues, real performance issues, and complexity that materially increases maintenance risk.
+- Missing tests are findings only when the diff introduces a risky behavior change and the lack of coverage materially increases regression risk.
+- If nothing survives validation, say `No findings.` and mention any residual risk or testing gaps.
 
-Run `git diff main...HEAD` to get the full branch diff. If the diff is empty, tell the user there's nothing to review and stop.
+## Step 0: Lock the Review Scope
 
-Also collect the list of changed files with `git diff main...HEAD --name-only` — agents will need this to read surrounding context.
+- If the user specifies a base branch, PR target, file subset, or review focus, honor it and pass it through to reviewers.
+- By default, review the committed branch diff `base...HEAD`. Do not include unstaged or staged working-tree changes unless the user explicitly asks for them.
+- Ignore purely generated artifacts, lockfiles, snapshots, or vendored code unless they imply a real issue in handwritten code or release behavior.
 
-### Step 2: Spawn agents
+## Step 1: Pick the Base Branch
 
-Launch all 3 agents **in parallel** using the Agent tool. Each agent receives:
-- The full diff
-- The list of changed files (so they can read surrounding context with the Read tool)
+Resolve the review base in this order:
 
-Each agent MUST format its output as:
+1. The user-specified base, if any
+2. The branch pointed to by `origin/HEAD`
+3. `origin/main`
+4. `origin/master`
+5. `main`
+6. `master`
 
+Verify each candidate exists before selecting it. If none exist, ask the user which base to compare against.
+
+Use triple-dot diffs against that base. Collect:
+
+- `git diff --name-only <base>...HEAD`
+- `git diff --stat <base>...HEAD`
+- `git diff --shortstat <base>...HEAD`
+- `git diff --unified=80 <base>...HEAD` only when the diff is small enough to pass around comfortably
+
+If the changed file list is empty, report that there is nothing to review and stop.
+
+## Step 2: Load Repo-Specific Review Context When Needed
+
+Inspect the changed files before spawning reviewers.
+
+- If the diff touches ClickHouse SQL, schemas, or configs, read `.agents/skills/clickhouse-best-practices/SKILL.md` and the relevant rule files before reviewing those findings.
+- If you surface a ClickHouse finding in the final review, cite the relevant rule number or title when it materially supports the claim.
+- If the diff touches `src-tauri`, `tauri.conf*`, capabilities, or Rust IPC code, read `.agents/skills/tauri-v2/SKILL.md`.
+- Pull in other repo-local skills only when the changed files clearly match them.
+
+Keep only the relevant constraints. Do not dump entire skill files into every reviewer prompt.
+
+## Step 3: Spawn Reviewers in Parallel
+
+Use `spawn_agent` with `agent_type: "explorer"` for 3 reviewers in parallel. Give each reviewer:
+
+- The chosen base ref
+- The changed file list
+- The diff stat
+- The user's explicit review scope or focus, if any
+- Any relevant repo-specific constraints from Step 2
+- Instructions to inspect files directly with git commands instead of relying only on pasted diff
+- Instructions to verify line numbers with `nl -ba <path>` or equivalent before returning findings
+- A limit of at most 5 high-confidence findings
+
+Do not ask reviewers to edit files.
+
+If the diff is small, you may include it directly. If it is large, tell reviewers to fetch targeted patches with `git diff <base>...HEAD -- <path>` and surrounding file context as needed. Prefer passing explicit task context over dumping the full conversation.
+
+Each reviewer must return only concrete findings in this format:
+
+```markdown
+## {Reviewer Name}
+
+1. [critical|warning|nitpick] `path/to/file:line` - explanation
+2. ...
 ```
-## {Agent Name} Review
 
-{numbered list of findings, each as:}
-{n}. [{severity}] `file/path:line` — {description}
-```
+If there are no defensible findings, they must return `No findings.`
 
-Where `{severity}` is one of: `critical`, `warning`, `nitpick`.
+### Reviewer 1: Simplicity
 
-#### Agent 1: Simplicity
+Use this prompt:
 
-```
-You are a simplicity reviewer. Your job is to flag over-engineering and unnecessary complexity in a code diff.
+```text
+You are a simplicity reviewer. Review this branch diff for unnecessary complexity.
 
-Review this branch diff against main. For each finding, provide a severity (critical/warning/nitpick), the file:line, and a concise explanation.
-
-Flag:
+Focus on:
 - Unnecessary abstractions or indirection
-- Premature generalization (built for hypothetical future needs)
-- Code that could be written more simply
-- Unnecessary new files or modules when existing ones could be extended
-- Patterns that don't match the rest of the codebase
-- Dead code or unused exports introduced in the diff
+- Premature generalization for hypothetical future needs
+- Code that could be expressed more simply without losing clarity
+- New files or modules that are not justified by the change
+- Patterns that materially diverge from the local codebase without a clear reason
+- Dead code or unused exports introduced by the diff
+- Refactors that increase moving parts without a matching payoff
 
-Do NOT flag:
-- Style preferences (formatting, naming conventions) unless they hurt readability
-- Things that are genuinely needed for the task
+Do not flag:
+- Formatting or naming preferences
+- Pure style disagreements
+- Complexity that is clearly required by the problem
+- Broad rewrites when a small local change would address the issue
 
-Read the changed files for context when needed. Use the Read tool.
+Inspect the changed files directly and read surrounding context before making claims.
+Return at most 5 findings, and only when they are high confidence.
 
-Output format:
+Return only:
 ## Simplicity Review
-
-1. [severity] `file:line` — description
+1. [critical|warning|nitpick] `path:line` - explanation
 ...
 
+If nothing is defensible, return `No findings.`
 ```
 
-#### Agent 2: Performance
+### Reviewer 2: Performance
 
-```
-You are a performance reviewer for a SaaS application. The main bottlenecks are database queries (PostgreSQL via Drizzle ORM and ClickHouse) and the number of API/DB calls made per request.
+Use this prompt:
 
-Review this branch diff against main. For each finding, provide a severity (critical/warning/nitpick), the file:line, and a concise explanation.
+```text
+You are a performance reviewer for an application where the main bottlenecks are database queries, network calls, and request-time data processing.
 
-Flag:
-- N+1 query patterns (queries inside loops or repeated calls)
-- Missing WHERE clauses or unbounded SELECT queries
-- Queries that could be consolidated into a single query or join
-- Missing indexes on columns used in WHERE/JOIN conditions
-- Unnecessary API or DB calls that could be avoided
-- Large data fetches when only a subset is needed
-- Queries that don't filter by tenant or have inefficient tenant filtering
+Focus on:
+- N+1 query patterns
+- Repeated API or DB calls that could be consolidated
+- Unbounded reads or missing filters on hot paths
+- Fetching materially more data than needed
+- Regressions in request-time serialization or aggregation work
+- Missing indexes or obviously inefficient access patterns when the diff introduces them
 
-Do NOT flag:
-- Micro-optimizations that don't involve DB or network calls
-- Performance issues in code paths that run rarely (migrations, scripts, etc.)
+Do not flag:
+- Micro-optimizations
+- Rarely used scripts, one-off migrations, or admin-only paths unless the impact is substantial
+- ClickHouse `PREWHERE` suggestions unless the evidence is strong
+- Missing tenant filters when repo policy already covers them
+- Speculative index advice when the diff does not introduce a new hot query shape
 
-Read the changed files and their surrounding DB schema/query context when needed. Use the Read tool.
+Inspect the changed files directly and read surrounding query/schema context before making claims.
+Return at most 5 findings, and only when they are high confidence.
 
-Output format:
+Return only:
 ## Performance Review
-
-1. [severity] `file:line` — description
+1. [critical|warning|nitpick] `path:line` - explanation
 ...
+
+If nothing is defensible, return `No findings.`
 ```
 
-#### Agent 3: Bug Hunter
+### Reviewer 3: Bug Hunter
 
-```
+Use this prompt:
+
+```text
 You are a bug hunter reviewing a code diff for correctness issues.
 
-Review this branch diff against main. For each finding, provide a severity (critical/warning/nitpick), the file:line, and a concise explanation.
-
-Flag:
-- Logic errors and off-by-one mistakes
-- Race conditions or concurrency issues
-- Unhandled edge cases (null, undefined, empty arrays, etc.)
-- Security vulnerabilities (SQL injection, XSS, command injection, etc.)
-- Broken error handling (swallowed errors, wrong error types)
-- Type mismatches or incorrect type assertions
+Focus on:
+- Logic errors and incorrect branching
+- Off-by-one mistakes
+- Missing null/undefined/empty-state handling
+- Broken error handling
+- Type mismatches or incorrect assertions
 - Missing validation at system boundaries
+- Security issues such as injection, XSS, auth bypass, or unsafe command execution
+- Concurrency, ordering, or race-condition regressions when the changed code is stateful or async
+- Risky behavior changes that lack any meaningful test coverage near the modified path
 
-Do NOT flag:
-- Hypothetical issues that require unlikely conditions
-- Style or readability issues (that's the simplicity agent's job)
+Do not flag:
+- Hypothetical issues that depend on unlikely conditions
+- Style or readability comments
+- Generic requests for more tests when the risk is low or already covered elsewhere
 
-Read the changed files for full context when needed. Use the Read tool.
+Inspect the changed files directly and read surrounding context before making claims.
+Return at most 5 findings, and only when they are high confidence.
 
-Output format:
+Return only:
 ## Bug Hunter Review
-
-1. [severity] `file:line` — description
+1. [critical|warning|nitpick] `path:line` - explanation
 ...
 
+If nothing is defensible, return `No findings.`
 ```
 
-### Step 3: Filter the false positives
+## Step 4: Validate Every Candidate Finding Yourself
 
-Spawn a sub-agent and double-check every reported item.
+Do the validation in the main agent unless a separate verifier materially reduces risk without blocking progress.
 
-Filter out every false-positive.
+For each candidate finding:
 
-### Step 4: Final summary
+- Reopen the relevant diff hunk and surrounding file context
+- Confirm the issue is caused by changed code or is a direct regression risk from it
+- Verify the cited line number against the checked-out file with `nl -ba` or equivalent
+- Discard duplicates, style notes, and speculative claims
+- Discard findings in untouched files unless the diff clearly triggers the issue
+- Discard noise from generated files unless it exposes a real handwritten-code problem
+- Discard generic "needs more tests" comments unless they are tied to a concrete risky behavior change
+- Downgrade severity when the impact is limited or the failure mode is narrow
+- Run quick targeted commands or tests only when they materially confirm or refute the finding
+- Merge overlapping findings into the single clearest statement
 
-After all sub-agents complete, synthesize their findings into a final report with the following sections:
+Do not blindly merge reviewer lists.
 
+## Step 5: Write the Final Review
+
+Final response shape:
+
+1. Findings: numbered, ordered `critical` then `warning` then `nitpick`
+2. Open questions or assumptions: only when needed
+3. Summary: 1-3 sentences, only after the findings
+
+Each finding should follow this form:
+
+```markdown
+1. [warning] `path/to/file:line` - concise explanation of the issue and why it matters.
 ```
-### Critical / Must Fix
-(bugs or security issues that must be addressed before merge)
 
-### Recommended Changes
-(simplicity, performance, coverage gaps worth fixing now)
-
-### Low Priority / FYI
-(micro-opts and minor notes that can be deferred)
-
-### Summary
-(2–4 sentence overall assessment)
-```
-
-Deduplicate overlapping findings across agents. Prefer concrete file:line references over vague statements.
+If no findings survive validation, say `No findings.` and mention any residual risk or tests you did not run.
 
 ## Rules
 
-1. Always run all 3 agents in parallel — never sequentially
-2. If the diff is empty, stop immediately
-3. Agents must read changed files for context — don't review the diff blindly
-4. Findings must include `file:line` references
-5. Every finding must have a severity level
-6. Don't flag things outside the diff unless they're directly affected by the changes
+1. Always run the 3 reviewers in parallel.
+2. Review changed code first; only look outside the diff for necessary context.
+3. Preserve the user's explicit scope and focus areas.
+4. Prefer precise, defensible findings over exhaustive commentary.
+5. Never report an unvalidated reviewer claim.
+6. Do not turn style preferences, speculative index suggestions, or generic testing wishes into findings.
+7. Keep prompts and outputs lean; large diffs should be inspected in the workspace, not pasted wholesale.
+8. Default to the committed diff; include working-tree changes only on request.
+9. Do not block on full test runs unless a finding genuinely depends on them.

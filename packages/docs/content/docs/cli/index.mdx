@@ -32,7 +32,7 @@ This writes a short hint that points agents to `everr ai-instructions` for the f
 - `everr setup` (guided onboarding wizard: login + assistant configuration)
 - `everr login` / `everr logout`
 - `everr status` (add `--commit <sha>` to target a specific commit, `--branch <name>` and `--repo <repo>` to override context)
-- `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit, `--attempt <n>` to target a specific retry attempt; exits non-zero if any completed run finishes with `failure`)
+- `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit, `--attempt <n>` to target a specific retry attempt, `--fail-fast` to exit immediately when any run fails without waiting for the rest; exits non-zero if any completed run finishes with `failure`)
 - `everr runs` (list recent runs; use `--branch <name>` or `--current-branch` to filter by branch, `--conclusion <success|failure|cancellation>` by outcome, `--workflow-name <name>` by workflow, `--run-id <id>` for a specific run)
 - `everr show --trace-id <trace_id>` (add `--failed` to show only failed jobs and their failed steps)
 - `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>` (prints the last 1000 lines by default; use `--tail <n>` to change, `--offset <n>` to skip lines, or `--limit <n>` and `--offset <n>` for raw paging)
