@@ -179,7 +179,9 @@ export async function getBranchStatus({
         ? new Date(run.startedAt).toISOString()
         : new Date(run.lastEventAt).toISOString(),
       durationSeconds: isCompleted ? computeDurationSeconds(run) : null,
-      activeJobs: activeJobNamesByTraceId.get(run.traceId) ?? [],
+      activeJobs: isCompleted
+        ? []
+        : (activeJobNamesByTraceId.get(run.traceId) ?? []),
       failingJobs: failingJobsByTraceId.get(run.traceId) ?? [],
     };
 
