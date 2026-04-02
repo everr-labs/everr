@@ -277,11 +277,11 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     // Print backfill lines for already-known state
     for run in &initial.active {
         for job in &run.active_jobs {
-            println!("{} / {}  in_progress", run.workflow_name, job);
+            println!("job: {} / {} | in_progress", run.workflow_name, job);
         }
     }
     for run in &initial.completed {
-        println!("{}  completed", run.workflow_name);
+        println!("run: {} | completed", run.workflow_name);
     }
 
     // Track run states
@@ -345,9 +345,9 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
 
 fn format_watch_event_line(event: &NotifyPayload) -> String {
     if event.event_type == "job" {
-        format!("{} / {}  {}", event.workflow_name, event.name, event.status)
+        format!("job: {} / {} | {}", event.workflow_name, event.name, event.status)
     } else {
-        format!("{}  {}", event.name, event.status)
+        format!("run: {} | {}", event.name, event.status)
     }
 }
 
@@ -356,14 +356,7 @@ fn is_non_success_conclusion(conclusion: Option<&str>) -> bool {
 }
 
 fn print_watch_summary(completed: &[WatchRun]) {
-    println!();
-    let name_width = completed
-        .iter()
-        .map(|r| r.workflow_name.len())
-        .max()
-        .unwrap_or(0)
-        .max(4);
-
+    println!("--");
     for run in completed {
         let conclusion = run.conclusion.as_deref().unwrap_or("unknown");
         let duration = run
@@ -376,13 +369,11 @@ fn print_watch_summary(completed: &[WatchRun]) {
                 }
             })
             .unwrap_or_default();
-        println!(
-            "{:<width$}  {:<10}  {}",
-            run.workflow_name,
-            conclusion,
-            duration,
-            width = name_width,
-        );
+        if duration.is_empty() {
+            println!("{} | {}", run.workflow_name, conclusion);
+        } else {
+            println!("{} | {} | {}", run.workflow_name, conclusion, duration);
+        }
         for job in &run.failing_jobs {
             if let Some(step) = &job.first_failing_step {
                 println!(
@@ -521,7 +512,7 @@ mod tests {
             conclusion: None,
             job_id: Some(1),
         };
-        assert_eq!(super::format_watch_event_line(&event), "CI / build  in_progress");
+        assert_eq!(super::format_watch_event_line(&event), "job: CI / build | in_progress");
     }
 
     #[test]

@@ -38,7 +38,15 @@ function makePayload(overrides: Partial<NotifyPayload> = {}): NotifyPayload {
     traceId: "trace-1",
     runId: "run-1",
     sha: "abc123",
+    repo: "org/repo",
+    branch: "main",
     authorEmail: null,
+    workflowName: "CI",
+    name: "CI",
+    type: "run",
+    status: "completed",
+    conclusion: "success",
+    jobId: null,
     ...overrides,
   };
 }

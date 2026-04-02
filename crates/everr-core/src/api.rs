@@ -233,6 +233,7 @@ pub struct WatchRun {
     pub started_at: String,
     pub duration_seconds: Option<u64>,
     pub active_jobs: Vec<String>,
+    #[serde(default)]
     pub failing_jobs: Vec<FailingJob>,
 }
 

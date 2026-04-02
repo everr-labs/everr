@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NotifyPayload } from "@/db/notify";
 
 vi.mock("@/db/hub", () => ({
   subscribe: vi.fn(() => vi.fn()),
@@ -206,7 +207,7 @@ describe("GET /api/events/stream", () => {
       response: vi.fn(() => new Response(null)),
     });
 
-    let capturedCallback: ((payload: object) => void) | undefined;
+    let capturedCallback: ((payload: NotifyPayload) => void) | undefined;
     mockedSubscribeTenant.mockImplementationOnce((_tenantId, cb) => {
       capturedCallback = cb;
       return vi.fn();
@@ -225,6 +226,7 @@ describe("GET /api/events/stream", () => {
       branch: "main",
       authorEmail: null,
       workflowName: "CI",
+      name: "CI",
       type: "run",
       status: "completed",
       conclusion: "success",
@@ -245,7 +247,7 @@ describe("GET /api/events/stream", () => {
       response: vi.fn(() => new Response(null)),
     });
 
-    let capturedCallback: ((payload: object) => void) | undefined;
+    let capturedCallback: ((payload: NotifyPayload) => void) | undefined;
     mockedSubscribe.mockImplementationOnce((_scope, _tenantId, _key, cb) => {
       capturedCallback = cb;
       return vi.fn();
@@ -266,6 +268,7 @@ describe("GET /api/events/stream", () => {
       branch: "main",
       authorEmail: null,
       workflowName: "CI",
+      name: "CI",
       type: "run",
       status: "completed",
       conclusion: "success",

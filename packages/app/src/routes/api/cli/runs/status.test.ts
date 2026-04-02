@@ -84,6 +84,7 @@ describe("/api/cli/runs/status", () => {
           startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: null,
           activeJobs: ["test"],
+          failingJobs: [],
         },
       ],
       completed: [],
@@ -126,6 +127,7 @@ describe("/api/cli/runs/status", () => {
           startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: 61,
           activeJobs: [],
+          failingJobs: [],
         },
       ],
     });

@@ -843,6 +843,20 @@ fn watch_prints_job_and_run_event_lines_until_completion() {
         .expect(1)
         .create();
 
+    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"42","traceId":"trace-1","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":72,"activeJobs":[]},{"runId":"41","traceId":"trace-2","workflowName":"Lint","conclusion":"success","startedAt":"2026-03-06T09:58:00Z","durationSeconds":59,"activeJobs":[]}]}"#;
+    let final_status_mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/watch-events".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+        ]))
+        .with_status(200)
+        .with_body(final_status_body)
+        .expect(1)
+        .create();
+
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args(["watch"])
@@ -855,6 +869,7 @@ fn watch_prints_job_and_run_event_lines_until_completion() {
 
     status_mock.assert();
     stream_mock.assert();
+    final_status_mock.assert();
 }
 
 #[test]
@@ -1001,6 +1016,19 @@ fn watch_uses_explicit_commit_when_provided() {
         .expect(1)
         .create();
 
+    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"77","traceId":"trace-5","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":65,"activeJobs":[]}]}"#;
+    let final_status_mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+        ]))
+        .with_status(200)
+        .with_body(final_status_body)
+        .expect(1)
+        .create();
+
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args(["watch", "--commit", &head_sha])
@@ -1010,6 +1038,7 @@ fn watch_uses_explicit_commit_when_provided() {
 
     status_mock.assert();
     stream_mock.assert();
+    final_status_mock.assert();
 }
 
 #[test]
@@ -1056,6 +1085,18 @@ fn watch_resolves_short_commit_sha_to_full() {
         .expect(1)
         .create();
 
+    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"88","traceId":"trace-6","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":53,"activeJobs":[]}]}"#;
+    let final_status_mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+        ]))
+        .with_status(200)
+        .with_body(final_status_body)
+        .expect(1)
+        .create();
+
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args(["watch", "--commit", short_sha])
@@ -1065,6 +1106,7 @@ fn watch_resolves_short_commit_sha_to_full() {
 
     status_mock.assert();
     stream_mock.assert();
+    final_status_mock.assert();
 }
 
 #[test]
@@ -1112,6 +1154,20 @@ fn watch_exits_non_zero_when_run_fails() {
         .expect(1)
         .create();
 
+    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"99","traceId":"trace-7","workflowName":"CI","conclusion":"failure","startedAt":"2026-03-06T10:00:00Z","durationSeconds":47,"activeJobs":[]}]}"#;
+    let final_status_mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/watch-failure".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+        ]))
+        .with_status(200)
+        .with_body(final_status_body)
+        .expect(1)
+        .create();
+
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args(["watch"])
@@ -1122,6 +1178,7 @@ fn watch_exits_non_zero_when_run_fails() {
 
     status_mock.assert();
     stream_mock.assert();
+    final_status_mock.assert();
 }
 
 #[test]
@@ -1281,6 +1338,20 @@ fn watch_waits_for_first_run_when_initial_state_is_pending() {
         .expect(1)
         .create();
 
+    let final_status_body = r#"{"state":"completed","active":[],"completed":[{"runId":"100","traceId":"trace-pending","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":80,"activeJobs":[]}]}"#;
+    let final_status_mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
+            Matcher::UrlEncoded("branch".into(), "feature/watch-pending".into()),
+            Matcher::UrlEncoded("commit".into(), head_sha.clone()),
+        ]))
+        .with_status(200)
+        .with_body(final_status_body)
+        .expect(1)
+        .create();
+
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args(["watch"])
@@ -1290,6 +1361,7 @@ fn watch_waits_for_first_run_when_initial_state_is_pending() {
 
     status_mock.assert();
     stream_mock.assert();
+    final_status_mock.assert();
 }
 
 fn git_head_sha(repo_dir: &Path) -> String {
