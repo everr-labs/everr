@@ -61,7 +61,7 @@ const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
-const TRAY_FAILURES_WINDOW_MINUTES: u64 = 5;
+const TRAY_FAILURES_WINDOW_MINUTES: u64 = 30;
 
 type CommandResult<T> = std::result::Result<T, String>;
 

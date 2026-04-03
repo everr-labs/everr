@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/clickhouse", () => ({
-  query: vi.fn(),
-}));
-
 vi.mock("@/db/client", () => ({
   pool: {
     query: vi.fn(),
@@ -16,16 +12,16 @@ vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
   },
 }));
 
-import { query } from "@/lib/clickhouse";
+import { pool } from "@/db/client";
 import { Route } from "./notification";
 
-const mockedQuery = vi.mocked(query);
+const mockedQuery = vi.mocked(pool.query);
 
 type GetHandler = (args: {
   request: Request;
   context: {
     session: { userId: string; tenantId: number };
-    clickhouse: { query: typeof mockedQuery };
+    clickhouse: { query: ReturnType<typeof vi.fn> };
   };
 }) => Promise<Response>;
 
@@ -38,6 +34,11 @@ function getHandler(): GetHandler {
   return handler;
 }
 
+const context = {
+  session: { userId: "user_1", tenantId: 42 },
+  clickhouse: { query: vi.fn() },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -46,10 +47,7 @@ describe("/api/cli/notification", () => {
   it("returns 400 when traceId is missing", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/notification"),
-      context: {
-        session: { userId: "user_1", tenantId: 42 },
-        clickhouse: { query: mockedQuery },
-      },
+      context,
     });
 
     expect(response.status).toBe(400);
@@ -59,28 +57,28 @@ describe("/api/cli/notification", () => {
     expect(mockedQuery).not.toHaveBeenCalled();
   });
 
-  it("returns the failure notification for the given traceId", async () => {
-    mockedQuery.mockResolvedValueOnce([
-      {
-        traceId: "trace-abc",
-        runId: "run-abc",
-        repo: "org/repo",
-        branch: "main",
-        workflowName: "CI",
-        failureTime: "2026-04-02T10:00:00Z",
-      },
-    ]);
-    mockedQuery.mockResolvedValueOnce([]);
-    mockedQuery.mockResolvedValueOnce([]);
+  it("returns failure notification for the given traceId", async () => {
+    mockedQuery
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            traceId: "trace-abc",
+            repo: "org/repo",
+            branch: "main",
+            workflowName: "CI",
+            failureTime: new Date("2026-04-02T10:00:00Z"),
+          },
+        ],
+      } as Awaited<ReturnType<typeof mockedQuery>>)
+      .mockResolvedValueOnce({ rows: [] } as Awaited<
+        ReturnType<typeof mockedQuery>
+      >);
 
     const response = await getHandler()({
       request: new Request(
         "http://localhost/api/cli/notification?traceId=trace-abc",
       ),
-      context: {
-        session: { userId: "user_1", tenantId: 42 },
-        clickhouse: { query: mockedQuery },
-      },
+      context,
     });
 
     expect(response.status).toBe(200);
@@ -91,20 +89,20 @@ describe("/api/cli/notification", () => {
       repo: "org/repo",
       branch: "main",
       workflowName: "CI",
+      failedAt: "2026-04-02T10:00:00.000Z",
     });
   });
 
   it("returns empty array when no failure found for traceId", async () => {
-    mockedQuery.mockResolvedValueOnce([]);
+    mockedQuery.mockResolvedValueOnce({ rows: [] } as Awaited<
+      ReturnType<typeof mockedQuery>
+    >);
 
     const response = await getHandler()({
       request: new Request(
         "http://localhost/api/cli/notification?traceId=trace-xyz",
       ),
-      context: {
-        session: { userId: "user_1", tenantId: 42 },
-        clickhouse: { query: mockedQuery },
-      },
+      context,
     });
 
     expect(response.status).toBe(200);

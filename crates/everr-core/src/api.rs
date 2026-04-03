@@ -1,5 +1,4 @@
 use anyhow::{Context, Result, bail};
-use std::time::Duration;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
@@ -88,22 +87,9 @@ impl ApiClient {
         &self,
         trace_id: &str,
     ) -> Result<Option<FailureNotification>> {
-        // TODO: remove retry once notification data is served from Postgres instead of ClickHouse.
-        // See: todo/issues/notification-data-from-postgres-with-steps.md
-        // The SSE event may arrive before the trace is ingested into ClickHouse,
-        // so retry with exponential backoff to give ingestion time to catch up.
         let query = [("traceId", trace_id.to_string())];
-        for attempt in 0..4u32 {
-            if attempt > 0 {
-                let delay = 2u64.pow(attempt - 1);
-                tokio::time::sleep(Duration::from_secs(delay)).await;
-            }
-            let results: Vec<FailureNotification> = self.get("/notification", &query).await?;
-            if let Some(f) = results.into_iter().next() {
-                return Ok(Some(f));
-            }
-        }
-        Ok(None)
+        let results: Vec<FailureNotification> = self.get("/notification", &query).await?;
+        Ok(results.into_iter().next())
     }
 
     pub async fn events_stream(

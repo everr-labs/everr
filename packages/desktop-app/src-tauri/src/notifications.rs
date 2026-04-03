@@ -21,6 +21,7 @@ use crate::{
     current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
     NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT, NOTIFICATION_WINDOW_INSET,
     NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN, NOTIFICATION_WINDOW_WIDTH,
+    TRAY_FAILURES_WINDOW_MINUTES,
 };
 
 macro_rules! dbg_notifier {
@@ -221,6 +222,7 @@ async fn handle_notify_event(
                 notifier.tracker.retain_new(vec![failure.clone()])
             };
             known_failures.insert(event.trace_id.clone(), failure);
+            expire_old_failures(known_failures);
             update_tray_snapshot(
                 app,
                 state,
@@ -242,6 +244,7 @@ async fn handle_notify_event(
                     && f.branch == event.branch
                     && f.workflow_name == event.workflow_name)
             });
+            expire_old_failures(known_failures);
             update_tray_snapshot(
                 app,
                 state,
@@ -260,6 +263,18 @@ async fn handle_notify_event(
     }
 
     Ok(())
+}
+
+fn expire_old_failures(
+    known_failures: &mut std::collections::HashMap<String, FailureNotification>,
+) {
+    let cutoff = OffsetDateTime::now_utc()
+        - time::Duration::minutes(TRAY_FAILURES_WINDOW_MINUTES as i64);
+    known_failures.retain(|_, f| {
+        OffsetDateTime::parse(&f.failed_at, &Rfc3339)
+            .map(|t| t > cutoff)
+            .unwrap_or(true)
+    });
 }
 
 fn enqueue_notification(

@@ -1,12 +1,6 @@
-import { isFailureConclusion } from "@/data/runs/schemas";
+import { pool } from "@/db/client";
+import type { WorkflowJobStep } from "@/db/schema";
 import type { AuthContext } from "@/lib/auth-context";
-
-const FAILURE_RESULT_CONDITION = `
-  (
-    lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) IN ('failure', 'failed')
-    OR lowerUTF8(ResourceAttributes['cicd.pipeline.result']) IN ('failure', 'failed')
-  )
-`;
 
 type FirstFailingStep = {
   jobId: string;
@@ -20,7 +14,14 @@ type FailureRunRow = {
   repo: string;
   branch: string;
   workflowName: string;
-  failureTime: string;
+  failureTime: Date;
+};
+
+type FailedJobRow = {
+  traceId: string;
+  jobId: string;
+  jobName: string;
+  steps: WorkflowJobStep[] | null;
 };
 
 export type FailureNotification = {
@@ -47,27 +48,32 @@ export async function getFailureNotifications({
   origin,
   traceId,
 }: FailureNotificationsOptions): Promise<FailureNotification[]> {
-  const failures = await loadFailureRunByTraceId(context, traceId);
+  const tenantId = context.session.tenantId;
+  const failures = await loadFailureRunByTraceId(tenantId, traceId);
   if (failures.length === 0) {
     return [];
   }
 
   const firstFailingStepByTraceId = await loadFirstFailingSteps(
-    context,
+    tenantId,
     failures.map((row) => row.traceId),
   );
 
   return failures.map((row) => {
     const failingStep = firstFailingStepByTraceId.get(row.traceId);
     const detailsUrl = buildFailureDetailsUrl(origin, row.traceId, failingStep);
+    const failedAt =
+      row.failureTime instanceof Date
+        ? row.failureTime.toISOString()
+        : String(row.failureTime);
 
     return {
-      dedupeKey: `${row.traceId}:${row.failureTime}`,
+      dedupeKey: `${row.traceId}:${failedAt}`,
       traceId: row.traceId,
       repo: row.repo,
       branch: row.branch,
       workflowName: row.workflowName || "Workflow",
-      failedAt: row.failureTime,
+      failedAt,
       detailsUrl,
       jobName: failingStep?.jobName,
       stepNumber: failingStep?.stepNumber,
@@ -77,196 +83,121 @@ export async function getFailureNotifications({
 }
 
 async function loadFailureRunByTraceId(
-  context: AuthContext,
+  tenantId: number,
   traceId: string,
 ): Promise<FailureRunRow[]> {
-  return context.clickhouse.query<FailureRunRow>(
+  const result = await pool.query<FailureRunRow>(
     `
       SELECT
-        TraceId as traceId,
-        anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-        anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-        anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-        max(Timestamp) as failureTime
-      FROM traces
-      WHERE ${FAILURE_RESULT_CONDITION}
-        AND TraceId = {traceId:String}
-      GROUP BY TraceId
+        trace_id      AS "traceId",
+        repository    AS "repo",
+        ref           AS "branch",
+        workflow_name AS "workflowName",
+        last_event_at AS "failureTime"
+      FROM workflow_runs
+      WHERE tenant_id = $1
+        AND trace_id = $2
+        AND conclusion = 'failure'
       LIMIT 1
     `,
-    { traceId },
+    [tenantId, traceId],
   );
+  return result.rows;
 }
 
 async function loadFirstFailingSteps(
-  context: AuthContext,
+  tenantId: number,
   traceIds: string[],
 ): Promise<Map<string, FirstFailingStep>> {
-  const clickhouse = context.clickhouse;
   if (traceIds.length === 0) {
     return new Map();
   }
 
-  const [failedJobsResult, stepsResult] = await Promise.all([
-    clickhouse.query<{
-      trace_id: string;
-      jobId: string;
-    }>(
-      `
-        SELECT
-          TraceId as trace_id,
-          ResourceAttributes['cicd.pipeline.task.run.id'] as jobId
-        FROM traces
-        WHERE TraceId IN {traceIds:Array(String)}
-          AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-        GROUP BY trace_id, jobId
-        HAVING lowerUTF8(
-          anyLast(ResourceAttributes['cicd.pipeline.task.run.result'])
-        ) IN ('failure', 'failed')
-      `,
-      {
-        traceIds,
-      },
-    ),
-    clickhouse.query<{
-      trace_id: string;
-      jobId: string;
-      jobName: string;
-      stepName: string;
-      stepNumber: string;
-      conclusion: string;
-    }>(
-      `
-        SELECT
-          TraceId as trace_id,
-          ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-          ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-          SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
-          anyLast(SpanName) as stepName,
-          anyLast(StatusMessage) as conclusion
-        FROM traces
-        WHERE TraceId IN {traceIds:Array(String)}
-          AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-          AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
-        GROUP BY trace_id, jobId, jobName, stepNumber
-      `,
-      {
-        traceIds,
-      },
-    ),
-  ]);
+  const result = await pool.query<FailedJobRow>(
+    `
+      SELECT
+        trace_id          AS "traceId",
+        job_id::text      AS "jobId",
+        job_name          AS "jobName",
+        metadata->'steps' AS "steps"
+      FROM workflow_jobs
+      WHERE tenant_id = $1
+        AND trace_id = ANY($2::text[])
+        AND conclusion = 'failure'
+      ORDER BY trace_id ASC, started_at ASC NULLS LAST
+    `,
+    [tenantId, traceIds],
+  );
 
-  const failedJobIdsByTraceId = new Map<string, Set<string>>();
-  for (const row of failedJobsResult) {
-    const current = failedJobIdsByTraceId.get(row.trace_id);
-    if (current) {
-      current.add(row.jobId);
-      continue;
-    }
-    failedJobIdsByTraceId.set(row.trace_id, new Set([row.jobId]));
+  return buildFirstFailingStepByTraceId(result.rows);
+}
+
+function buildFirstFailingStepByTraceId(
+  rows: FailedJobRow[],
+): Map<string, FirstFailingStep> {
+  const jobsByTrace = new Map<string, FailedJobRow[]>();
+  for (const row of rows) {
+    const jobs = jobsByTrace.get(row.traceId) ?? [];
+    jobs.push(row);
+    jobsByTrace.set(row.traceId, jobs);
   }
 
-  type StepCandidate = FirstFailingStep & {
-    conclusion: string;
+  const result = new Map<string, FirstFailingStep>();
+  for (const [traceId, jobs] of jobsByTrace) {
+    const step = findFirstFailingStep(jobs);
+    if (step) {
+      result.set(traceId, step);
+    }
+  }
+  return result;
+}
+
+function findFirstFailingStep(
+  jobs: FailedJobRow[],
+): FirstFailingStep | undefined {
+  // Tier 1: first step with a failure or cancelled conclusion
+  for (const job of jobs) {
+    const step = (job.steps ?? [])
+      // Treat cancelled steps as failures — consistent with branch-status.ts
+      .filter((s) => s.conclusion === "failure" || s.conclusion === "cancelled")
+      .sort((a, b) => a.number - b.number)[0];
+    if (step) {
+      return toFirstFailingStep(job, step);
+    }
+  }
+
+  // Tier 2: last non-skipped step of the first failed job
+  for (const job of jobs) {
+    const step = (job.steps ?? [])
+      // GitHub webhook steps use "skipped" (not "skip" which was a ClickHouse span artifact)
+      .filter((s) => s.conclusion !== "skipped")
+      .sort((a, b) => b.number - a.number)[0];
+    if (step) {
+      return toFirstFailingStep(job, step);
+    }
+  }
+
+  // Tier 3: last step of the first failed job
+  for (const job of jobs) {
+    const step = (job.steps ?? []).sort((a, b) => b.number - a.number)[0];
+    if (step) {
+      return toFirstFailingStep(job, step);
+    }
+  }
+
+  return undefined;
+}
+
+function toFirstFailingStep(
+  job: FailedJobRow,
+  step: WorkflowJobStep,
+): FirstFailingStep {
+  return {
+    jobId: job.jobId,
+    jobName: job.jobName,
+    stepName: step.name,
+    stepNumber: String(step.number),
   };
-
-  const failingByTraceId = new Map<string, StepCandidate>();
-  const failedJobFallbackByTraceId = new Map<string, StepCandidate>();
-  const anyStepFallbackByTraceId = new Map<string, StepCandidate>();
-
-  for (const row of stepsResult) {
-    const candidate: StepCandidate = {
-      jobId: row.jobId,
-      jobName: row.jobName,
-      stepName: row.stepName,
-      stepNumber: row.stepNumber,
-      conclusion: row.conclusion,
-    };
-
-    if (isFailureConclusion(row.conclusion)) {
-      updateBestStepCandidate(
-        failingByTraceId,
-        row.trace_id,
-        candidate,
-        compareFailingSteps,
-      );
-    }
-
-    updateBestStepCandidate(
-      anyStepFallbackByTraceId,
-      row.trace_id,
-      candidate,
-      compareFallbackStepCandidates,
-    );
-
-    if (failedJobIdsByTraceId.get(row.trace_id)?.has(row.jobId)) {
-      updateBestStepCandidate(
-        failedJobFallbackByTraceId,
-        row.trace_id,
-        candidate,
-        compareFallbackStepCandidates,
-      );
-    }
-  }
-
-  const firstFailingStepByTraceId = new Map<string, FirstFailingStep>();
-  for (const traceId of traceIds) {
-    const bestCandidate =
-      failingByTraceId.get(traceId) ??
-      failedJobFallbackByTraceId.get(traceId) ??
-      anyStepFallbackByTraceId.get(traceId);
-    if (!bestCandidate) {
-      continue;
-    }
-    firstFailingStepByTraceId.set(traceId, {
-      jobId: bestCandidate.jobId,
-      jobName: bestCandidate.jobName,
-      stepName: bestCandidate.stepName,
-      stepNumber: bestCandidate.stepNumber,
-    });
-  }
-
-  return firstFailingStepByTraceId;
-}
-
-function compareFailingSteps(a: FirstFailingStep, b: FirstFailingStep): number {
-  const jobComparison = a.jobId.localeCompare(b.jobId);
-  if (jobComparison !== 0) {
-    return jobComparison;
-  }
-
-  return parseStepNumber(a.stepNumber) - parseStepNumber(b.stepNumber);
-}
-
-function compareFallbackStepCandidates(
-  a: FirstFailingStep & { conclusion: string },
-  b: FirstFailingStep & { conclusion: string },
-): number {
-  const jobComparison = a.jobId.localeCompare(b.jobId);
-  if (jobComparison !== 0) {
-    return jobComparison;
-  }
-
-  const skipComparison =
-    Number(isSkippedConclusion(a.conclusion)) -
-    Number(isSkippedConclusion(b.conclusion));
-  if (skipComparison !== 0) {
-    return skipComparison;
-  }
-
-  return parseStepNumber(b.stepNumber) - parseStepNumber(a.stepNumber);
-}
-
-function updateBestStepCandidate<T>(
-  map: Map<string, T>,
-  traceId: string,
-  candidate: T,
-  compare: (a: T, b: T) => number,
-): void {
-  const current = map.get(traceId);
-  if (!current || compare(candidate, current) < 0) {
-    map.set(traceId, candidate);
-  }
 }
 
 function buildFailureDetailsUrl(
@@ -285,13 +216,4 @@ function buildFailureDetailsUrl(
     )}/steps/${encodeURIComponent(failingStep.stepNumber)}`,
     origin,
   ).toString();
-}
-
-function parseStepNumber(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
-}
-
-function isSkippedConclusion(value: string): boolean {
-  return value.trim().toLowerCase() === "skip";
 }

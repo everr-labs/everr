@@ -125,7 +125,7 @@ fn tray_title_and_tooltip_include_failed_count_only() {
     assert_eq!(format_tray_title(&snapshot), "F2");
     assert_eq!(
         format_tray_tooltip(&snapshot),
-        format!("{} | Recent failed pipelines (5m): 2", current_app_name())
+        format!("{} | Recent failed pipelines (30m): 2", current_app_name())
     );
     assert_eq!(format_tray_title(&TraySnapshot::default()), "");
 }
@@ -134,7 +134,7 @@ fn tray_title_and_tooltip_include_failed_count_only() {
 fn tray_snapshot_builds_recent_failures_dashboard_url_for_current_scope() {
     let snapshot = tray_snapshot_with_failures();
     let expected = format!(
-        "{}/runs?conclusion=failure&from=now-5m&to=now&repo=everr-labs%2Feverr&branch=main",
+        "{}/runs?conclusion=failure&from=now-30m&to=now&repo=everr-labs%2Feverr&branch=main",
         current_base_url().trim_end_matches('/')
     );
 
@@ -143,7 +143,7 @@ fn tray_snapshot_builds_recent_failures_dashboard_url_for_current_scope() {
         build_tray_failed_runs_url(Some("everr-labs/everr"), Some("main")).as_deref(),
         snapshot.dashboard_url.as_deref()
     );
-    assert_eq!(TRAY_FAILURES_WINDOW_MINUTES, 5);
+    assert_eq!(TRAY_FAILURES_WINDOW_MINUTES, 30);
 }
 
 #[test]
@@ -243,7 +243,7 @@ fn tray_menu_model_shows_failed_actions_when_failures_exist() {
     let snapshot = tray_snapshot_with_failures();
     let model = build_tray_menu_model(&snapshot);
 
-    assert_eq!(model.failed_status_label, "Recent failed pipelines (5m): 2");
+    assert_eq!(model.failed_status_label, "Recent failed pipelines (30m): 2");
     assert!(model.show_failed_actions);
 }
 
@@ -251,7 +251,7 @@ fn tray_menu_model_shows_failed_actions_when_failures_exist() {
 fn tray_menu_model_hides_failed_actions_when_failures_are_empty() {
     let model = build_tray_menu_model(&TraySnapshot::default());
 
-    assert_eq!(model.failed_status_label, "Recent failed pipelines (5m): 0");
+    assert_eq!(model.failed_status_label, "Recent failed pipelines (30m): 0");
     assert!(!model.show_failed_actions);
 }
 
