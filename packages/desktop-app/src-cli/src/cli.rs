@@ -218,6 +218,9 @@ pub struct GetLogsArgs {
         help = "Skip this many lines before printing; works with both --tail (from bottom) and --limit (from top)"
     )]
     pub offset: Option<u32>,
+    /// Preserve ANSI color codes (stripped by default)
+    #[arg(long)]
+    pub color: bool,
 }
 
 #[derive(Args, Debug, Default)]

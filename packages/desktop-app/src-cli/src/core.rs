@@ -128,7 +128,7 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
 
     if let Some(paging) = paging {
         let paged_logs = get_paged_step_logs(&client, &args.trace_id, query, paging).await?;
-        print_step_logs(&paged_logs.logs)?;
+        print_step_logs(&paged_logs.logs, args.color)?;
         if paged_logs.has_more {
             print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
         }
@@ -142,7 +142,7 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     }
 
     let logs = client.get_step_logs(&args.trace_id, &query).await?;
-    print_step_logs(&logs)?;
+    print_step_logs(&logs, args.color)?;
     Ok(())
 }
 
@@ -264,6 +264,10 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         return check_run_conclusions(&initial.completed);
     }
 
+    if initial.active.is_empty() && initial.completed.is_empty() {
+        println!("no runs found for this commit yet, waiting...");
+    }
+
     if args.fail_fast {
         if let Some(run) = initial
             .completed
@@ -277,11 +281,12 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     // Print backfill lines for already-known state
     for run in &initial.active {
         for job in &run.active_jobs {
-            println!("{} / {}  in_progress", run.workflow_name, job);
+            println!("{} → {}  in_progress", run.workflow_name, job);
         }
     }
     for run in &initial.completed {
-        println!("{}  completed", run.workflow_name);
+        let conclusion = run.conclusion.as_deref().unwrap_or("completed");
+        println!("{}  {}", run.workflow_name, conclusion);
     }
 
     // Track run states
@@ -301,6 +306,12 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         .iter()
         .map(|r| (r.trace_id.clone(), r.conclusion.clone()))
         .collect();
+    let mut run_names: HashMap<String, String> = initial
+        .active
+        .iter()
+        .chain(initial.completed.iter())
+        .map(|r| (r.trace_id.clone(), r.workflow_name.clone()))
+        .collect();
 
     let event_stream = client.events_stream("commit", Some(&target_commit)).await?;
     pin!(event_stream);
@@ -313,8 +324,9 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                 }
                 "run" => {
                     known.insert(event.trace_id.clone());
-                    println!("{}", format_watch_event_line(&event));
+                    run_names.insert(event.trace_id.clone(), event.workflow_name.clone());
                     if event.status == "completed" {
+                        println!("{}", format_watch_event_line(&event));
                         if args.fail_fast
                             && is_non_success_conclusion(event.conclusion.as_deref())
                         {
@@ -322,6 +334,14 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                         }
                         conclusions.insert(event.trace_id.clone(), event.conclusion.clone());
                         terminal.insert(event.trace_id.clone());
+                        let pending: Vec<&str> = known
+                            .iter()
+                            .filter(|id| !terminal.contains(*id))
+                            .filter_map(|id| run_names.get(id).map(|s| s.as_str()))
+                            .collect();
+                        if !pending.is_empty() {
+                            println!("  waiting for: {}", pending.join(", "));
+                        }
                     }
                     if !known.is_empty() && terminal.is_superset(&known) {
                         let final_status = client.get_status(&query).await?;
@@ -344,10 +364,19 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
 }
 
 fn format_watch_event_line(event: &NotifyPayload) -> String {
-    if event.event_type == "job" {
-        format!("{} / {}  {}", event.workflow_name, event.name, event.status)
+    let status = if event.status == "completed" {
+        event
+            .conclusion
+            .as_deref()
+            .unwrap_or("completed")
+            .to_string()
     } else {
-        format!("{}  {}", event.name, event.status)
+        event.status.clone()
+    };
+    if event.event_type == "job" {
+        format!("{} → {}  {}", event.workflow_name, event.name, status)
+    } else {
+        format!("Run completed: {}  {}", event.name, status)
     }
 }
 
@@ -377,7 +406,7 @@ fn print_watch_summary(completed: &[WatchRun]) {
         for job in &run.failing_jobs {
             if let Some(step) = &job.first_failing_step {
                 println!(
-                    "  {} / step {}: {}",
+                    "  {} → step {}: {}",
                     job.name, step.step_number, step.step_name
                 );
                 println!(
@@ -411,19 +440,54 @@ fn print_json<T: Serialize>(value: &T) -> Result<()> {
     Ok(())
 }
 
-fn print_step_logs(logs: &[StepLogEntry]) -> Result<()> {
+fn print_step_logs(logs: &[StepLogEntry], color: bool) -> Result<()> {
     let stdout = io::stdout();
     let mut handle = stdout.lock();
-    write_step_logs(&mut handle, logs)?;
+    write_step_logs(&mut handle, logs, color)?;
     handle.flush().context("failed to flush step log output")
 }
 
-fn write_step_logs(mut writer: impl Write, logs: &[StepLogEntry]) -> Result<()> {
+fn strip_ansi_codes(s: &str) -> std::borrow::Cow<'_, str> {
+    if !s.contains('\x1b') {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            match chars.next() {
+                Some('[') => {
+                    // CSI sequence: consume until final byte (0x40–0x7E)
+                    for inner in chars.by_ref() {
+                        if ('\x40'..='\x7e').contains(&inner) {
+                            break;
+                        }
+                    }
+                }
+                Some(c) if ('\x40'..='\x7e').contains(&c) => {
+                    // Fe two-character escape — skip
+                }
+                Some(c) => result.push(c),
+                None => {}
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    std::borrow::Cow::Owned(result)
+}
+
+fn write_step_logs(mut writer: impl Write, logs: &[StepLogEntry], color: bool) -> Result<()> {
     for log in logs {
+        let body: std::borrow::Cow<'_, str> = if color {
+            std::borrow::Cow::Borrowed(&log.body)
+        } else {
+            strip_ansi_codes(&log.body)
+        };
         writer
-            .write_all(log.body.as_bytes())
+            .write_all(body.as_bytes())
             .context("failed to write step log body")?;
-        if !log.body.ends_with('\n') {
+        if !body.ends_with('\n') {
             writer
                 .write_all(b"\n")
                 .context("failed to terminate step log line")?;
@@ -563,9 +627,38 @@ mod tests {
         ];
 
         let mut output = Vec::new();
-        super::write_step_logs(&mut output, &logs).expect("write step logs");
+        super::write_step_logs(&mut output, &logs, false).expect("write step logs");
 
         assert_eq!(String::from_utf8(output).expect("utf8"), "first\nsecond\n");
+    }
+
+    #[test]
+    fn write_step_logs_strips_ansi_codes_by_default() {
+        let logs = vec![StepLogEntry {
+            timestamp: "2026-03-10T10:00:00.000Z".to_string(),
+            body: "\x1b[32mgreen text\x1b[0m".to_string(),
+        }];
+
+        let mut output = Vec::new();
+        super::write_step_logs(&mut output, &logs, false).expect("write step logs");
+
+        assert_eq!(String::from_utf8(output).expect("utf8"), "green text\n");
+    }
+
+    #[test]
+    fn write_step_logs_preserves_ansi_codes_when_color_enabled() {
+        let logs = vec![StepLogEntry {
+            timestamp: "2026-03-10T10:00:00.000Z".to_string(),
+            body: "\x1b[32mgreen text\x1b[0m".to_string(),
+        }];
+
+        let mut output = Vec::new();
+        super::write_step_logs(&mut output, &logs, true).expect("write step logs");
+
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "\x1b[32mgreen text\x1b[0m\n"
+        );
     }
 
     #[test]
