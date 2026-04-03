@@ -7,7 +7,7 @@ use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::cli::sync_installed_cli;
-use crate::{should_check_for_updates, UPDATE_CHECK_INTERVAL_SECONDS};
+use crate::{should_check_for_updates, RuntimeState, UPDATE_CHECK_INTERVAL_SECONDS};
 
 pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {
     if let Err(error) = sync_installed_cli(app) {
@@ -34,6 +34,34 @@ fn ensure_background_launch(app: &AppHandle) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub(crate) fn start_session_poll_loop(state: RuntimeState) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+
+            let Ok(file_state) = state.store.load_state() else {
+                continue;
+            };
+
+            let changed = {
+                let Ok(mut persisted) = state.persisted.lock() else {
+                    continue;
+                };
+                if file_state.session == persisted.session {
+                    false
+                } else {
+                    *persisted = file_state;
+                    true
+                }
+            };
+
+            if changed {
+                state.session_changed.notify_one();
+            }
+        }
+    });
 }
 
 pub(crate) fn start_update_check_loop(app: AppHandle) {

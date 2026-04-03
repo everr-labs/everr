@@ -6,7 +6,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
 use url::Url;
 
-use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
+use crate::auto_fix_prompt::build_tray_auto_fix_prompt;
 use crate::settings::open_settings_window;
 use crate::{
     current_app_name, current_base_url, RuntimeState, TrayMenu, TrayMenuModel, TraySnapshot,
@@ -56,7 +56,7 @@ fn build_tray_menu(app: &AppHandle) -> Result<TrayMenu> {
     let failed_status = MenuItem::with_id(
         app,
         TRAY_MENU_FAILED_STATUS_ID,
-        "Recent failed pipelines (5m): 0",
+        "Recent failed pipelines (30m): 0",
         false,
         None::<&str>,
     )?;
@@ -173,7 +173,7 @@ fn sync_tray_menu(menu: &TrayMenu, model: &TrayMenuModel) -> Result<()> {
 
 pub(crate) fn build_tray_menu_model(snapshot: &TraySnapshot) -> TrayMenuModel {
     TrayMenuModel {
-        failed_status_label: format!("Recent failed pipelines (5m): {}", snapshot.failed_count()),
+        failed_status_label: format!("Recent failed pipelines (30m): {}", snapshot.failed_count()),
         show_failed_actions: snapshot.failed_count() > 0,
     }
 }
@@ -188,7 +188,7 @@ pub(crate) fn format_tray_title(snapshot: &TraySnapshot) -> String {
 
 pub(crate) fn format_tray_tooltip(snapshot: &TraySnapshot) -> String {
     format!(
-        "{} | Recent failed pipelines (5m): {}",
+        "{} | Recent failed pipelines (30m): {}",
         current_app_name(),
         snapshot.failed_count()
     )
@@ -203,14 +203,7 @@ pub(crate) fn tray_failed_runs_target(snapshot: &TraySnapshot) -> Option<&str> {
 }
 
 pub(crate) fn tray_auto_fix_prompt(snapshot: &TraySnapshot) -> Option<String> {
-    if snapshot.failed_count() == 0 {
-        return None;
-    }
-
-    snapshot
-        .failures
-        .first()
-        .map(build_notification_auto_fix_prompt)
+    build_tray_auto_fix_prompt(&snapshot.failures)
 }
 
 fn open_tray_failed_runs(app: &AppHandle) -> Result<()> {

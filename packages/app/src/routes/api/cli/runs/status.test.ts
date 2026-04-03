@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/data/watch", () => ({
-  getWatchStatus: vi.fn(),
+vi.mock("@/data/branch-status", () => ({
+  getBranchStatus: vi.fn(),
 }));
 
 vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
@@ -10,10 +10,10 @@ vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
   },
 }));
 
-import { getWatchStatus } from "@/data/watch";
+import { getBranchStatus } from "@/data/branch-status";
 import { Route } from "./status";
 
-const mockedGetWatchStatus = vi.mocked(getWatchStatus);
+const mockedGetBranchStatus = vi.mocked(getBranchStatus);
 
 type GetHandler = (args: {
   request: Request;
@@ -47,7 +47,10 @@ beforeEach(() => {
 
 describe("/api/cli/runs/status", () => {
   it("returns a pending status response", async () => {
-    mockedGetWatchStatus.mockResolvedValue({
+    mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "pending",
       active: [],
       completed: [],
@@ -66,6 +69,9 @@ describe("/api/cli/runs/status", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "pending",
       active: [],
       completed: [],
@@ -73,7 +79,10 @@ describe("/api/cli/runs/status", () => {
   });
 
   it("returns a running status response", async () => {
-    mockedGetWatchStatus.mockResolvedValue({
+    mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "running",
       active: [
         {
@@ -83,8 +92,8 @@ describe("/api/cli/runs/status", () => {
           conclusion: null,
           startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: null,
-          expectedDurationSeconds: 118,
           activeJobs: ["test"],
+          failingJobs: [],
         },
       ],
       completed: [],
@@ -115,7 +124,10 @@ describe("/api/cli/runs/status", () => {
   });
 
   it("returns a completed status response", async () => {
-    mockedGetWatchStatus.mockResolvedValue({
+    mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
       state: "completed",
       active: [],
       completed: [
@@ -126,8 +138,8 @@ describe("/api/cli/runs/status", () => {
           conclusion: "success",
           startedAt: "2026-03-06T10:00:00.000Z",
           durationSeconds: 61,
-          expectedDurationSeconds: 58,
           activeJobs: [],
+          failingJobs: [],
         },
       ],
     });
@@ -157,6 +169,37 @@ describe("/api/cli/runs/status", () => {
     });
   });
 
+  it("passes attempt through to getBranchStatus when provided", async () => {
+    mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
+      state: "pending",
+      active: [],
+      completed: [],
+    });
+
+    const response = await getHandler()({
+      request: new Request(
+        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123&attempt=3",
+      ),
+      context: {
+        session: {
+          tenantId: 42,
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockedGetBranchStatus).toHaveBeenCalledWith({
+      tenantId: 42,
+      repo: "everr-labs/everr",
+      branch: "main",
+      commit: "abc123",
+      attempt: 3,
+    });
+  });
+
   it("requires repo, branch, and commit", async () => {
     const response = await getHandler()({
       request: new Request(
@@ -174,6 +217,6 @@ describe("/api/cli/runs/status", () => {
       error:
         "Invalid query parameters for status. Required: repo, branch, commit.",
     });
-    expect(mockedGetWatchStatus).not.toHaveBeenCalled();
+    expect(mockedGetBranchStatus).not.toHaveBeenCalled();
   });
 });

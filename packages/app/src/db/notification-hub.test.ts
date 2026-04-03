@@ -38,6 +38,15 @@ function makePayload(overrides: Partial<NotifyPayload> = {}): NotifyPayload {
     traceId: "trace-1",
     runId: "run-1",
     sha: "abc123",
+    repo: "org/repo",
+    branch: "main",
+    authorEmail: null,
+    workflowName: "CI",
+    name: "CI",
+    type: "run",
+    status: "completed",
+    conclusion: "success",
+    jobId: null,
     ...overrides,
   };
 }
@@ -88,7 +97,7 @@ describe("NotificationHub", () => {
       expect(cb2).toHaveBeenCalledOnce();
     });
 
-    it("dispatches across all three topics for one payload", () => {
+    it("dispatches across all topics for one payload", () => {
       const tenantCb = vi.fn();
       const traceCb = vi.fn();
       const commitCb = vi.fn();
@@ -226,6 +235,67 @@ describe("NotificationHub — pg.Client lifecycle", () => {
     await hub.start();
     await hub.shutdown();
     expect(mockEnd).toHaveBeenCalled();
+  });
+});
+
+describe("NotificationHub — author topic", () => {
+  let hub: NotificationHub;
+
+  beforeEach(() => {
+    hub = new NotificationHub();
+  });
+
+  it("dispatches to author topic when authorEmail is present", () => {
+    const callback = vi.fn();
+    hub.subscribe("author", "42:dev@example.com", callback);
+
+    const payload = makePayload({ authorEmail: "dev@example.com" });
+    hub.dispatch(payload);
+
+    expect(callback).toHaveBeenCalledWith(payload);
+  });
+
+  it("does not dispatch to author topic when authorEmail is null", () => {
+    const callback = vi.fn();
+    hub.subscribe("author", "42:null", callback);
+
+    hub.dispatch(makePayload({ authorEmail: null }));
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch to unrelated author subscribers", () => {
+    const callback = vi.fn();
+    hub.subscribe("author", "42:other@example.com", callback);
+
+    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("still dispatches to tenant, trace, and commit topics", () => {
+    const tenantCb = vi.fn();
+    const traceCb = vi.fn();
+    const commitCb = vi.fn();
+    hub.subscribe("tenant", "42", tenantCb);
+    hub.subscribe("trace", "42:trace-1", traceCb);
+    hub.subscribe("commit", "42:abc123", commitCb);
+
+    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
+
+    expect(tenantCb).toHaveBeenCalledOnce();
+    expect(traceCb).toHaveBeenCalledOnce();
+    expect(commitCb).toHaveBeenCalledOnce();
+  });
+
+  it("unsubscribe removes the callback", () => {
+    const callback = vi.fn();
+    const unsub = hub.subscribe("author", "42:dev@example.com", callback);
+    unsub();
+
+    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
+
+    expect(callback).not.toHaveBeenCalled();
   });
 });
 

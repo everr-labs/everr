@@ -94,8 +94,8 @@ export class RealtimeSubscriptionMachine {
     this.eventSource.onopen = () => this.transition("OPEN");
     this.eventSource.onmessage = (event: MessageEvent) => {
       try {
-        const data = JSON.parse(String(event.data)) as { type: string };
-        if (data.type === "update") {
+        const data = JSON.parse(String(event.data)) as { type?: string };
+        if (data.type !== "ping") {
           this.transition("MESSAGE");
         }
       } catch {

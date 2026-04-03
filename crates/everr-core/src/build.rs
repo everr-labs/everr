@@ -59,7 +59,9 @@ pub const fn session_namespace() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_type_label, default_api_base_url, default_session_file_name, session_namespace};
+    use super::{
+        build_type_label, default_api_base_url, default_session_file_name, session_namespace,
+    };
 
     #[test]
     fn debug_builds_use_local_defaults() {

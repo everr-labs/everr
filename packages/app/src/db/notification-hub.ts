@@ -2,7 +2,7 @@ import { Client } from "pg";
 import { dbEnv } from "@/env/db";
 import type { NotifyPayload } from "./notify";
 
-export type Topic = "tenant" | "trace" | "commit";
+export type Topic = "tenant" | "trace" | "commit" | "author";
 
 type Callback = (payload: NotifyPayload) => void;
 
@@ -28,6 +28,7 @@ export class NotificationHub {
     tenant: new Map(),
     trace: new Map(),
     commit: new Map(),
+    author: new Map(),
   };
 
   private client: Client | null = null;
@@ -67,6 +68,13 @@ export class NotificationHub {
       payload,
     );
     this.dispatchTopic("commit", `${payload.tenantId}:${payload.sha}`, payload);
+    if (payload.authorEmail) {
+      this.dispatchTopic(
+        "author",
+        `${payload.tenantId}:${payload.authorEmail.toLowerCase()}`,
+        payload,
+      );
+    }
   }
 
   async start(): Promise<void> {

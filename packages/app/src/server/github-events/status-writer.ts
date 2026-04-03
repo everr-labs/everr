@@ -188,6 +188,15 @@ export async function upsertWorkflowRun(
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
+      repo: values.repository,
+      branch: values.ref,
+      authorEmail: values.authorEmail,
+      workflowName: values.workflowName,
+      name: (workflowRun.name ?? "").slice(0, 255),
+      type: "run",
+      status: values.status,
+      conclusion: values.conclusion,
+      jobId: null,
     });
   }
 }
@@ -223,6 +232,13 @@ export async function upsertWorkflowJob(
     runner_labels: workflowJob.runner_labels ?? undefined,
     runner_group_name: workflowJob.runner_group_name ?? undefined,
     html_url: workflowJob.html_url ?? undefined,
+    steps:
+      workflowJob.steps?.map((s) => ({
+        number: s.number,
+        name: s.name,
+        status: s.status,
+        conclusion: s.conclusion ?? null,
+      })) ?? undefined,
   };
 
   const values = {
@@ -281,6 +297,15 @@ export async function upsertWorkflowJob(
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
+      repo: values.repository,
+      branch: values.ref,
+      authorEmail: null,
+      workflowName: workflowJob.workflow_name ?? "",
+      name: (workflowJob.name ?? "").slice(0, 255),
+      type: "job",
+      status: values.status,
+      conclusion: values.conclusion,
+      jobId: values.jobId,
     });
   }
 }

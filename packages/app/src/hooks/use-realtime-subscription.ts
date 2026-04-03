@@ -12,12 +12,12 @@ export function useRealtimeSubscription(opts: SubscriptionOpts) {
 
   useEffect(() => {
     const params = new URLSearchParams({ scope: opts.scope });
-    if (traceId) {
-      params.set("traceId", traceId);
+    if (opts.scope === "trace") {
+      params.set("key", opts.traceId);
     }
 
     const machine = new RealtimeSubscriptionMachine({
-      url: `/api/events/subscribe?${params.toString()}`,
+      url: `/api/events/stream?${params.toString()}`,
       onInvalidate: () => {
         if (opts.scope === "tenant") {
           void queryClient.invalidateQueries({ queryKey: ["runs"] });

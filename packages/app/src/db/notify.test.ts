@@ -25,6 +25,15 @@ describe("notifyWorkflowUpdate", () => {
       traceId: "abc123",
       runId: "999",
       sha: "deadbeef",
+      repo: "org/repo",
+      branch: "main",
+      authorEmail: "dev@example.com",
+      workflowName: "CI",
+      name: "CI",
+      type: "run",
+      status: "completed",
+      conclusion: "success",
+      jobId: null,
     });
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
@@ -45,7 +54,36 @@ describe("notifyWorkflowUpdate", () => {
         traceId: "abc123",
         runId: "999",
         sha: "deadbeef",
+        repo: "org/repo",
+        branch: "main",
+        authorEmail: "dev@example.com",
+        workflowName: "CI",
+        name: "CI",
+        type: "run",
+        status: "completed",
+        conclusion: "failure",
+        jobId: null,
       }),
     ).resolves.not.toThrow();
+  });
+
+  it("accepts job type with jobId", async () => {
+    await notifyWorkflowUpdate(mockDb, {
+      tenantId: 42,
+      traceId: "abc123",
+      runId: "999",
+      sha: "deadbeef",
+      repo: "org/repo",
+      branch: "main",
+      authorEmail: null,
+      workflowName: "CI",
+      name: "build",
+      type: "job",
+      status: "completed",
+      conclusion: "failure",
+      jobId: 12345,
+    });
+
+    expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 });

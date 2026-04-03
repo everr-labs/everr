@@ -16,12 +16,13 @@ import { Route as CliDeviceRouteImport } from './routes/cli/device'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
-import { Route as ApiEventsSubscribeRouteImport } from './routes/api/events/subscribe'
+import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiCliWorkflowsListRouteImport } from './routes/api/cli/workflows-list'
 import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
 import { Route as ApiCliSlowestTestsRouteImport } from './routes/api/cli/slowest-tests'
 import { Route as ApiCliSlowestJobsRouteImport } from './routes/api/cli/slowest-jobs'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
+import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
 import { Route as ApiCliGrepRouteImport } from './routes/api/cli/grep'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './routes/_authenticated/_dashboard/users-management'
@@ -34,10 +35,8 @@ import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './rout
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
-import { Route as ApiCliRunsWatchRouteImport } from './routes/api/cli/runs/watch'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
-import { Route as ApiCliNotifierFailuresRouteImport } from './routes/api/cli/notifier/failures'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
@@ -83,9 +82,9 @@ const AuthenticatedDashboardIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const ApiEventsSubscribeRoute = ApiEventsSubscribeRouteImport.update({
-  id: '/api/events/subscribe',
-  path: '/api/events/subscribe',
+const ApiEventsStreamRoute = ApiEventsStreamRouteImport.update({
+  id: '/api/events/stream',
+  path: '/api/events/stream',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCliWorkflowsListRoute = ApiCliWorkflowsListRouteImport.update({
@@ -111,6 +110,11 @@ const ApiCliSlowestJobsRoute = ApiCliSlowestJobsRouteImport.update({
 const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
   id: '/api/cli/runs',
   path: '/api/cli/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliNotificationRoute = ApiCliNotificationRouteImport.update({
+  id: '/api/cli/notification',
+  path: '/api/cli/notification',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCliGrepRoute = ApiCliGrepRouteImport.update({
@@ -182,11 +186,6 @@ const ApiGithubInstallCallbackRoute =
     path: '/api/github/install/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiCliRunsWatchRoute = ApiCliRunsWatchRouteImport.update({
-  id: '/watch',
-  path: '/watch',
-  getParentRoute: () => ApiCliRunsRoute,
-} as any)
 const ApiCliRunsStatusRoute = ApiCliRunsStatusRouteImport.update({
   id: '/status',
   path: '/status',
@@ -196,11 +195,6 @@ const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
   getParentRoute: () => ApiCliRunsRoute,
-} as any)
-const ApiCliNotifierFailuresRoute = ApiCliNotifierFailuresRouteImport.update({
-  id: '/api/cli/notifier/failures',
-  path: '/api/cli/notifier/failures',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDashboardRunsTraceIdRouteRoute =
   AuthenticatedDashboardRunsTraceIdRouteRouteImport.update({
@@ -273,17 +267,16 @@ export interface FileRoutesByFullPath {
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
+  '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
-  '/api/events/subscribe': typeof ApiEventsSubscribeRoute
+  '/api/events/stream': typeof ApiEventsStreamRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
-  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
-  '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
@@ -311,16 +304,15 @@ export interface FileRoutesByTo {
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
+  '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
-  '/api/events/subscribe': typeof ApiEventsSubscribeRoute
-  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
+  '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
-  '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
@@ -351,18 +343,17 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
+  '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
   '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
-  '/api/events/subscribe': typeof ApiEventsSubscribeRoute
+  '/api/events/stream': typeof ApiEventsStreamRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
-  '/api/cli/notifier/failures': typeof ApiCliNotifierFailuresRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
-  '/api/cli/runs/watch': typeof ApiCliRunsWatchRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
@@ -393,17 +384,16 @@ export interface FileRouteTypes {
     | '/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
+    | '/api/cli/notification'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
     | '/api/cli/workflows-list'
-    | '/api/events/subscribe'
+    | '/api/events/stream'
     | '/runs/$traceId'
-    | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
-    | '/api/cli/runs/watch'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/runs/'
@@ -431,16 +421,15 @@ export interface FileRouteTypes {
     | '/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
+    | '/api/cli/notification'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
     | '/api/cli/workflows-list'
-    | '/api/events/subscribe'
-    | '/api/cli/notifier/failures'
+    | '/api/events/stream'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
-    | '/api/cli/runs/watch'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/runs'
@@ -470,18 +459,17 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
+    | '/api/cli/notification'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
     | '/api/cli/slowest-tests'
     | '/api/cli/test-history'
     | '/api/cli/workflows-list'
-    | '/api/events/subscribe'
+    | '/api/events/stream'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
-    | '/api/cli/notifier/failures'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
-    | '/api/cli/runs/watch'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/_authenticated/_dashboard/runs/'
@@ -505,13 +493,13 @@ export interface RootRouteChildren {
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliGrepRoute: typeof ApiCliGrepRoute
+  ApiCliNotificationRoute: typeof ApiCliNotificationRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSlowestJobsRoute: typeof ApiCliSlowestJobsRoute
   ApiCliSlowestTestsRoute: typeof ApiCliSlowestTestsRoute
   ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
   ApiCliWorkflowsListRoute: typeof ApiCliWorkflowsListRoute
-  ApiEventsSubscribeRoute: typeof ApiEventsSubscribeRoute
-  ApiCliNotifierFailuresRoute: typeof ApiCliNotifierFailuresRoute
+  ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
   ApiCliAuthDeviceApproveRoute: typeof ApiCliAuthDeviceApproveRoute
@@ -570,11 +558,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/api/events/subscribe': {
-      id: '/api/events/subscribe'
-      path: '/api/events/subscribe'
-      fullPath: '/api/events/subscribe'
-      preLoaderRoute: typeof ApiEventsSubscribeRouteImport
+    '/api/events/stream': {
+      id: '/api/events/stream'
+      path: '/api/events/stream'
+      fullPath: '/api/events/stream'
+      preLoaderRoute: typeof ApiEventsStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cli/workflows-list': {
@@ -610,6 +598,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cli/runs'
       fullPath: '/api/cli/runs'
       preLoaderRoute: typeof ApiCliRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/notification': {
+      id: '/api/cli/notification'
+      path: '/api/cli/notification'
+      fullPath: '/api/cli/notification'
+      preLoaderRoute: typeof ApiCliNotificationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cli/grep': {
@@ -696,13 +691,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubInstallCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cli/runs/watch': {
-      id: '/api/cli/runs/watch'
-      path: '/watch'
-      fullPath: '/api/cli/runs/watch'
-      preLoaderRoute: typeof ApiCliRunsWatchRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
     '/api/cli/runs/status': {
       id: '/api/cli/runs/status'
       path: '/status'
@@ -716,13 +704,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/runs/$traceId'
       preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
       parentRoute: typeof ApiCliRunsRoute
-    }
-    '/api/cli/notifier/failures': {
-      id: '/api/cli/notifier/failures'
-      path: '/api/cli/notifier/failures'
-      fullPath: '/api/cli/notifier/failures'
-      preLoaderRoute: typeof ApiCliNotifierFailuresRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/_dashboard/runs/$traceId': {
       id: '/_authenticated/_dashboard/runs/$traceId'
@@ -900,13 +881,11 @@ const ApiCliRunsTraceIdRouteWithChildren =
 interface ApiCliRunsRouteChildren {
   ApiCliRunsTraceIdRoute: typeof ApiCliRunsTraceIdRouteWithChildren
   ApiCliRunsStatusRoute: typeof ApiCliRunsStatusRoute
-  ApiCliRunsWatchRoute: typeof ApiCliRunsWatchRoute
 }
 
 const ApiCliRunsRouteChildren: ApiCliRunsRouteChildren = {
   ApiCliRunsTraceIdRoute: ApiCliRunsTraceIdRouteWithChildren,
   ApiCliRunsStatusRoute: ApiCliRunsStatusRoute,
-  ApiCliRunsWatchRoute: ApiCliRunsWatchRoute,
 }
 
 const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
@@ -921,13 +900,13 @@ const rootRouteChildren: RootRouteChildren = {
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliGrepRoute: ApiCliGrepRoute,
+  ApiCliNotificationRoute: ApiCliNotificationRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSlowestJobsRoute: ApiCliSlowestJobsRoute,
   ApiCliSlowestTestsRoute: ApiCliSlowestTestsRoute,
   ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
   ApiCliWorkflowsListRoute: ApiCliWorkflowsListRoute,
-  ApiEventsSubscribeRoute: ApiEventsSubscribeRoute,
-  ApiCliNotifierFailuresRoute: ApiCliNotifierFailuresRoute,
+  ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
   ApiCliAuthDeviceApproveRoute: ApiCliAuthDeviceApproveRoute,

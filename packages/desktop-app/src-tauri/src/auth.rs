@@ -7,11 +7,9 @@ use tauri::AppHandle;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use crate::notifications::load_owned_failures_for_current_repo;
 use crate::settings::{
     emit_auth_changed, has_active_session_for_current_base_url, update_persisted_state,
 };
-use crate::tray::{build_tray_snapshot, clear_tray_snapshot, update_tray_snapshot};
 use crate::{
     current_auth_config, AuthStatusResponse, PendingAuthResponse, PendingAuthState, RuntimeState,
     SignInResponse,
@@ -61,7 +59,7 @@ pub(crate) async fn poll_sign_in_inner(
                 persisted.session = Some(session);
             })?;
             clear_pending_auth(&state)?;
-            on_sign_in_completed(&app, &state).await;
+            on_sign_in_completed(&app);
             Ok(SignInResponse::SignedIn {
                 session_path: state.store.session_file_path()?.display().to_string(),
             })
@@ -82,27 +80,7 @@ pub(crate) async fn poll_sign_in_inner(
     }
 }
 
-async fn on_sign_in_completed(app: &AppHandle, state: &RuntimeState) {
-    match load_owned_failures_for_current_repo(state).await {
-        Ok(Some((failures, repo, branch))) => {
-            if let Err(error) = update_tray_snapshot(
-                app,
-                state,
-                build_tray_snapshot(&failures, repo.as_deref(), branch.as_deref()),
-            ) {
-                crate::crash_log::log_error("refresh tray after sign-in", &error);
-            }
-        }
-        Ok(None) => {
-            if let Err(error) = clear_tray_snapshot(app, state) {
-                crate::crash_log::log_error("clear tray after sign-in", &error);
-            }
-        }
-        Err(error) => {
-            crate::crash_log::log_error("refresh tray after sign-in", &error);
-        }
-    }
-
+fn on_sign_in_completed(app: &AppHandle) {
     emit_auth_changed(app);
 }
 

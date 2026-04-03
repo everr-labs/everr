@@ -36,7 +36,11 @@ fn install_cli_from_path(source_path: &Path, install_path: &Path) -> Result<()> 
 }
 
 pub(crate) fn sync_installed_cli(app: &AppHandle) -> Result<bool> {
-    let bin_name = if tauri::is_dev() { "everr-dev" } else { "everr" };
+    let bin_name = if tauri::is_dev() {
+        "everr-dev"
+    } else {
+        "everr"
+    };
     let install_path = cli_install_path(bin_name)?;
     if !install_path.exists() {
         return Ok(false);

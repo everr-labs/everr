@@ -106,6 +106,8 @@ pub struct WatchArgs {
     pub commit: Option<String>,
     #[arg(long)]
     pub attempt: Option<u32>,
+    #[arg(long)]
+    pub fail_fast: bool,
 }
 
 #[derive(Args, Debug)]
@@ -502,6 +504,7 @@ mod tests {
             branch,
             commit,
             attempt: _,
+            fail_fast: _,
         }) = cli.command
         else {
             panic!("expected watch command");
@@ -697,5 +700,27 @@ mod tests {
     fn setup_parses_without_arguments() {
         let cli = Cli::try_parse_from(["everr", "setup"]).expect("setup command");
         assert!(matches!(cli.command, Commands::Setup));
+    }
+
+    #[test]
+    fn watch_parses_fail_fast_flag() {
+        let cli = Cli::try_parse_from(["everr", "watch", "--fail-fast"]).expect("watch command");
+
+        let Commands::Watch(WatchArgs { fail_fast, .. }) = cli.command else {
+            panic!("expected watch command");
+        };
+
+        assert!(fail_fast);
+    }
+
+    #[test]
+    fn watch_fail_fast_defaults_to_false() {
+        let cli = Cli::try_parse_from(["everr", "watch"]).expect("watch command");
+
+        let Commands::Watch(WatchArgs { fail_fast, .. }) = cli.command else {
+            panic!("expected watch command");
+        };
+
+        assert!(!fail_fast);
     }
 }

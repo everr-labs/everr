@@ -10,6 +10,7 @@ use crate::state::Session;
 
 pub struct ApiClient {
     http: reqwest::Client,
+    base_url: String,
     base_endpoint: String,
 }
 
@@ -27,10 +28,12 @@ impl ApiClient {
             .default_headers(headers)
             .build()
             .context("failed to build HTTP client")?;
-        let base_endpoint = format!("{}/api/cli", session.api_base_url.trim_end_matches('/'));
+        let base_url = session.api_base_url.trim_end_matches('/').to_string();
+        let base_endpoint = format!("{}/api/cli", base_url);
 
         Ok(Self {
             http,
+            base_url,
             base_endpoint,
         })
     }
@@ -47,14 +50,62 @@ impl ApiClient {
         self.get("/runs/status", query).await
     }
 
-    pub async fn watch_sse(
+    pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/test-history", query).await
+    }
+
+    pub async fn get_slowest_tests(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/slowest-tests", query).await
+    }
+
+    pub async fn get_slowest_jobs(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/slowest-jobs", query).await
+    }
+
+    pub async fn get_workflows_list(
         &self,
         query: &[(&str, String)],
-    ) -> Result<impl futures_util::Stream<Item = Result<WatchResponse>>> {
+    ) -> Result<WorkflowsListResponse> {
+        self.get("/workflows-list", query).await
+    }
+
+    pub async fn get_run_details(&self, trace_id: &str, query: &[(&str, String)]) -> Result<Value> {
+        let path = format!("/runs/{trace_id}");
+        self.get_json(&path, query).await
+    }
+
+    pub async fn get_step_logs(
+        &self,
+        trace_id: &str,
+        query: &[(&str, String)],
+    ) -> Result<Vec<StepLogEntry>> {
+        let path = format!("/runs/{trace_id}/logs");
+        self.get(&path, query).await
+    }
+
+    pub async fn get_notification_for_trace(
+        &self,
+        trace_id: &str,
+    ) -> Result<Option<FailureNotification>> {
+        let query = [("traceId", trace_id.to_string())];
+        let results: Vec<FailureNotification> = self.get("/notification", &query).await?;
+        Ok(results.into_iter().next())
+    }
+
+    pub async fn events_stream(
+        &self,
+        scope: &str,
+        key: Option<&str>,
+    ) -> Result<impl futures_util::Stream<Item = Result<NotifyPayload>>> {
+        let mut params: Vec<(&str, &str)> = vec![("scope", scope)];
+        if let Some(k) = key {
+            params.push(("key", k));
+        }
+
         let response = self
             .http
-            .get(format!("{}/runs/watch", self.base_endpoint))
-            .query(query)
+            .get(format!("{}/api/events/stream", self.base_url))
+            .query(&params)
             .send()
             .await
             .context("SSE connection failed")?;
@@ -74,15 +125,21 @@ impl ApiClient {
             .filter_map(|event| async {
                 match event {
                     Ok(ev) if ev.event == "message" && !ev.data.is_empty() => {
-                        // Check for server-side error events before deserializing
-                        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&ev.data) {
-                            if obj.get("type").and_then(|t| t.as_str()) == Some("error") {
-                                let msg = obj.get("message").and_then(|m| m.as_str()).unwrap_or("unknown error");
-                                return Some(Err(anyhow::anyhow!("server error: {msg}")));
-                            }
-                        }
-                        match serde_json::from_str::<WatchResponse>(&ev.data) {
-                            Ok(response) => Some(Ok(response)),
+                        match serde_json::from_str::<serde_json::Value>(&ev.data) {
+                            Ok(obj) => match obj.get("type").and_then(|t| t.as_str()) {
+                                Some("ping") => None,
+                                Some("error") => {
+                                    let msg = obj
+                                        .get("message")
+                                        .and_then(|m| m.as_str())
+                                        .unwrap_or("unknown error");
+                                    Some(Err(anyhow::anyhow!("server error: {msg}")))
+                                }
+                                _ => match serde_json::from_value::<NotifyPayload>(obj) {
+                                    Ok(payload) => Some(Ok(payload)),
+                                    Err(_) => None,
+                                },
+                            },
                             Err(_) => None,
                         }
                     }
@@ -92,57 +149,6 @@ impl ApiClient {
             });
 
         Ok(stream)
-    }
-
-    pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/test-history", query).await
-    }
-
-    pub async fn get_slowest_tests(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/slowest-tests", query).await
-    }
-
-    pub async fn get_slowest_jobs(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/slowest-jobs", query).await
-    }
-
-    pub async fn get_workflows_list(&self, query: &[(&str, String)]) -> Result<WorkflowsListResponse> {
-        self.get("/workflows-list", query).await
-    }
-
-    pub async fn get_run_details(
-        &self,
-        trace_id: &str,
-        query: &[(&str, String)],
-    ) -> Result<Value> {
-        let path = format!("/runs/{trace_id}");
-        self.get_json(&path, query).await
-    }
-
-    pub async fn get_step_logs(
-        &self,
-        trace_id: &str,
-        query: &[(&str, String)],
-    ) -> Result<Vec<StepLogEntry>> {
-        let path = format!("/runs/{trace_id}/logs");
-        self.get(&path, query).await
-    }
-
-    pub async fn get_owned_failures(
-        &self,
-        git_email: &str,
-        repo: Option<&str>,
-        branch: Option<&str>,
-    ) -> Result<Vec<FailureNotification>> {
-        let mut query = vec![("gitEmail", git_email.to_string())];
-        if let Some(value) = repo {
-            query.push(("repo", value.to_string()));
-        }
-        if let Some(value) = branch {
-            query.push(("branch", value.to_string()));
-        }
-
-        self.get("/notifier/failures", &query).await
     }
 
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
@@ -190,6 +196,21 @@ pub enum WatchState {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct FirstFailingStep {
+    pub step_number: u32,
+    pub step_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FailingJob {
+    pub id: String,
+    pub name: String,
+    pub first_failing_step: Option<FirstFailingStep>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct WatchRun {
     pub trace_id: String,
     pub run_id: String,
@@ -197,13 +218,20 @@ pub struct WatchRun {
     pub conclusion: Option<String>,
     pub started_at: String,
     pub duration_seconds: Option<u64>,
-    pub expected_duration_seconds: Option<u64>,
     pub active_jobs: Vec<String>,
+    #[serde(default)]
+    pub failing_jobs: Vec<FailingJob>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchResponse {
+    #[serde(default)]
+    pub repo: String,
+    #[serde(default)]
+    pub branch: Option<String>,
+    #[serde(default)]
+    pub commit: String,
     pub state: WatchState,
     pub active: Vec<WatchRun>,
     pub completed: Vec<WatchRun>,
@@ -233,4 +261,23 @@ pub struct FailureNotification {
     pub job_name: Option<String>,
     pub step_number: Option<String>,
     pub step_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NotifyPayload {
+    pub tenant_id: i64,
+    pub trace_id: String,
+    pub run_id: String,
+    pub sha: String,
+    pub repo: String,
+    pub branch: String,
+    pub author_email: Option<String>,
+    pub workflow_name: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub job_id: Option<i64>,
 }

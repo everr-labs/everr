@@ -224,12 +224,20 @@ export const workflowRuns = pgTable(
   ],
 );
 
+export type WorkflowJobStep = {
+  number: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+};
+
 export type WorkflowJobMetadata = {
   runner_name?: string;
   runner_labels?: string[];
   runner_group_name?: string;
   workflow_name?: string;
   html_url?: string;
+  steps?: WorkflowJobStep[];
 };
 
 export const workflowJobs = pgTable(

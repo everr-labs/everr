@@ -13,7 +13,9 @@ static LOG_DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 fn log_dir() -> Option<&'static PathBuf> {
     LOG_DIR
-        .get_or_init(|| dirs::config_dir().map(|dir| dir.join(everr_core::build::session_namespace())))
+        .get_or_init(|| {
+            dirs::config_dir().map(|dir| dir.join(everr_core::build::session_namespace()))
+        })
         .as_ref()
 }
 

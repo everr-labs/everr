@@ -985,12 +985,13 @@ dependencies = [
 
 [[package]]
 name = "everr-app"
-version = "0.1.14"
+version = "0.1.15"
 dependencies = [
  "anyhow",
  "arboard",
  "dirs 6.0.0",
  "everr-core",
+ "futures-util",
  "objc2-app-kit",
  "serde",
  "serde_json",
