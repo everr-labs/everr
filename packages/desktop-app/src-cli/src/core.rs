@@ -576,7 +576,7 @@ mod tests {
             conclusion: None,
             job_id: Some(1),
         };
-        assert_eq!(super::format_watch_event_line(&event), "CI / build  in_progress");
+        assert_eq!(super::format_watch_event_line(&event), "CI → build  in_progress");
     }
 
     #[test]
@@ -597,7 +597,7 @@ mod tests {
             conclusion: Some("success".to_string()),
             job_id: None,
         };
-        assert_eq!(super::format_watch_event_line(&event), "CI  completed");
+        assert_eq!(super::format_watch_event_line(&event), "Run completed: CI  success");
     }
 
     #[test]

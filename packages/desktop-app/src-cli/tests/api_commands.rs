@@ -862,10 +862,10 @@ fn watch_prints_job_and_run_event_lines_until_completion() {
         .args(["watch"])
         .assert()
         .success()
-        .stdout(contains("CI / lint  in_progress"))
-        .stdout(contains("Lint  completed"))
-        .stdout(contains("CI / build  in_progress"))
-        .stdout(contains("CI  completed"));
+        .stdout(contains("CI → lint  in_progress"))
+        .stdout(contains("Lint  success"))
+        .stdout(contains("CI → build  in_progress"))
+        .stdout(contains("Run completed: CI  success"));
 
     status_mock.assert();
     stream_mock.assert();
@@ -1034,7 +1034,7 @@ fn watch_uses_explicit_commit_when_provided() {
         .args(["watch", "--commit", &head_sha])
         .assert()
         .success()
-        .stdout(contains("CI  completed"));
+        .stdout(contains("Run completed: CI  success"));
 
     status_mock.assert();
     stream_mock.assert();
@@ -1102,7 +1102,7 @@ fn watch_resolves_short_commit_sha_to_full() {
         .args(["watch", "--commit", short_sha])
         .assert()
         .success()
-        .stdout(contains("CI  completed"));
+        .stdout(contains("Run completed: CI  success"));
 
     status_mock.assert();
     stream_mock.assert();
@@ -1173,7 +1173,7 @@ fn watch_exits_non_zero_when_run_fails() {
         .args(["watch"])
         .assert()
         .failure()
-        .stdout(contains("CI  completed"))
+        .stdout(contains("Run completed: CI  failure"))
         .stderr(contains("pipeline finished with failed runs"));
 
     status_mock.assert();
@@ -1233,7 +1233,7 @@ fn watch_fail_fast_exits_immediately_on_first_failed_run() {
         .args(["watch", "--fail-fast"])
         .assert()
         .failure()
-        .stdout(contains("CI  completed"))
+        .stdout(contains("Run completed: CI  failure"))
         .stderr(contains("run failed: CI"));
 
     status_mock.assert();
@@ -1357,7 +1357,7 @@ fn watch_waits_for_first_run_when_initial_state_is_pending() {
         .args(["watch"])
         .assert()
         .success()
-        .stdout(contains("CI  completed"));
+        .stdout(contains("Run completed: CI  success"));
 
     status_mock.assert();
     stream_mock.assert();
