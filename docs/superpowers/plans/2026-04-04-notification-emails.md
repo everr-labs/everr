@@ -473,42 +473,9 @@ git commit -m "feat: add notification email configuration step to everr setup"
 **Files:**
 - Modify: `packages/desktop-app/src-tauri/src/notifications.rs`
 
-- [ ] **Step 1: Add `backfill_notification_emails` helper**
+- [ ] **Step 1: Rewrite `run_sse_notifier` to use tenant scope**
 
-In `notifications.rs`, add this async function. It's called when `notification_emails` is empty at startup. Place it before `run_sse_notifier`:
-
-```rust
-async fn backfill_notification_emails(state: &RuntimeState) -> Result<()> {
-    let session = current_app_state(state)?.session.ok_or_else(|| anyhow::anyhow!("no session"))?;
-    let client = ApiClient::from_session(&session)?;
-    let me = client.get_me().await?;
-
-    let mut emails = vec![me.email.clone()];
-    if let Ok(cwd) = std::env::current_dir() {
-        let git = resolve_git_context(&cwd);
-        if let Some(git_email) = git.email {
-            if git_email != me.email {
-                emails.push(git_email);
-            }
-        }
-    }
-
-    update_settings(state, |settings| {
-        settings.notification_emails = emails;
-        settings.user_profile = Some(everr_core::state::UserProfile {
-            email: me.email,
-            name: me.name,
-            profile_url: me.profile_url,
-        });
-    })?;
-
-    Ok(())
-}
-```
-
-- [ ] **Step 2: Rewrite `run_sse_notifier` to use tenant scope**
-
-Replace the `run_sse_notifier` function. The key changes are: remove git_email dependency for subscription, backfill if empty, subscribe to `"tenant"` scope, filter client-side:
+Replace the `run_sse_notifier` function. Key changes: remove git_email dependency for subscription, build email set from `notification_emails` with `user_profile.email` as fallback, subscribe to `"tenant"` scope, filter client-side:
 
 ```rust
 async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
@@ -523,20 +490,20 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         return Ok(());
     }
 
-    // Backfill notification emails if not yet configured
-    let notification_emails = {
-        let emails = current_app_state(state)?.settings.notification_emails;
-        if emails.is_empty() {
-            if let Err(e) = backfill_notification_emails(state).await {
-                dbg_notifier!("backfill failed: {e}");
-            }
-            current_app_state(state)?.settings.notification_emails
+    // Build email filter set: configured list, falling back to cached profile email
+    let email_set: std::collections::HashSet<String> = {
+        let settings = current_app_state(state)?.settings;
+        if !settings.notification_emails.is_empty() {
+            settings.notification_emails.into_iter().collect()
+        } else if let Some(profile) = settings.user_profile {
+            std::iter::once(profile.email).collect()
         } else {
-            emails
+            // No emails configured and no profile cached — wait for session change
+            clear_tray_snapshot(app, state)?;
+            state.session_changed.notified().await;
+            return Ok(());
         }
     };
-
-    let email_set: std::collections::HashSet<String> = notification_emails.into_iter().collect();
 
     // Resolve git context for repo/branch scoping (still used by handle_notify_event)
     let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
@@ -585,15 +552,15 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
 }
 ```
 
-- [ ] **Step 3: Build to verify it compiles**
+- [ ] **Step 2: Build to verify it compiles**
 
 ```bash
 cargo build --manifest-path packages/desktop-app/src-tauri/Cargo.toml
 ```
 
-Expected: compiles. If `update_settings` or `current_app_state` is not in scope here, check their import path in `notifications.rs` (they may be in `crate::settings` or `crate::state`).
+Expected: compiles. If `current_app_state` is not in scope, check its import path in `notifications.rs`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add packages/desktop-app/src-tauri/src/notifications.rs
@@ -674,9 +641,9 @@ pub(crate) async fn get_user_profile(
 }
 ```
 
-- [ ] **Step 4: Update `complete_setup_wizard` to backfill notification emails**
+- [ ] **Step 4: Update `complete_setup_wizard` to cache user profile**
 
-Replace the existing `complete_setup_wizard` function:
+Replace the existing `complete_setup_wizard` function. It now silently fetches and caches the user profile (so the settings UI can show name/avatar), but does **not** touch `notification_emails`:
 
 ```rust
 #[tauri::command]
@@ -686,9 +653,31 @@ pub(crate) async fn complete_setup_wizard(
 ) -> CommandResult<WizardStatusResponse> {
     let runtime = state.inner().clone();
 
-    // Silently backfill notification emails for the desktop wizard path
-    let runtime_for_backfill = runtime.clone();
-    let _ = crate::notifications::backfill_notification_emails_if_empty(&runtime_for_backfill).await;
+    // Silently cache user profile for the desktop app settings UI
+    if let Ok(current) = current_app_state(&runtime) {
+        if current.settings.user_profile.is_none() {
+            if let Some(session) = current.session {
+                if let Ok(client) = ApiClient::from_session(&session) {
+                    if let Ok(me) = client.get_me().await {
+                        let _ = run_blocking_command({
+                            let runtime = runtime.clone();
+                            move || {
+                                update_settings(&runtime, |settings| {
+                                    settings.user_profile =
+                                        Some(everr_core::state::UserProfile {
+                                            email: me.email,
+                                            name: me.name,
+                                            profile_url: me.profile_url,
+                                        });
+                                })
+                            }
+                        })
+                        .await;
+                    }
+                }
+            }
+        }
+    }
 
     let response = run_blocking_command(move || {
         if !has_active_session_for_current_base_url(&runtime)? {
@@ -706,19 +695,7 @@ pub(crate) async fn complete_setup_wizard(
 }
 ```
 
-This requires `backfill_notification_emails_if_empty` to be `pub(crate)` in `notifications.rs`. Go back to `notifications.rs` and rename `backfill_notification_emails` to `backfill_notification_emails_if_empty` and make it `pub(crate)`. The function already checks for empty — but to be explicit, update the function:
-
-```rust
-pub(crate) async fn backfill_notification_emails_if_empty(state: &RuntimeState) -> Result<()> {
-    let emails = current_app_state(state)?.settings.notification_emails;
-    if !emails.is_empty() {
-        return Ok(());
-    }
-    // ... rest of the existing backfill logic
-}
-```
-
-Also update the call inside `run_sse_notifier` to use the new name.
+Note: `ApiClient` must be imported in `commands.rs`. Check the existing imports — if it's not there, add `use everr_core::api::ApiClient;`.
 
 - [ ] **Step 5: Register new commands in `lib.rs`**
 
@@ -760,7 +737,7 @@ Expected: compiles without errors.
 
 ```bash
 git add packages/desktop-app/src-tauri/src/commands.rs packages/desktop-app/src-tauri/src/notifications.rs packages/desktop-app/src-tauri/src/lib.rs
-git commit -m "feat: add Tauri commands for notification email management and wizard backfill"
+git commit -m "feat: add Tauri commands for notification email management and profile caching"
 ```
 
 ---
