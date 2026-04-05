@@ -4,6 +4,7 @@ import { APP_DISPLAY_NAME } from "@/lib/app-name";
 import { toErrorMessageText } from "@/lib/tauri";
 import { AssistantsSection } from "../assistants/assistants";
 import { AccountHeaderAction, AuthSettingsSection } from "../auth/auth";
+import { NotificationEmailsSection } from "../notifications/notification-emails-section";
 import { DeveloperNotificationSection } from "../notifications/notification-window";
 import {
   SetupWizard,
@@ -56,6 +57,7 @@ function SettingsScreen() {
         <AuthSettingsSection />
       </div>
       <AssistantsSection />
+      <NotificationEmailsSection />
       {import.meta.env.DEV && (
         <>
           <Separator className="bg-[var(--settings-border-soft)]" />

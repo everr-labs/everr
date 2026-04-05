@@ -23,6 +23,7 @@ import { Route as ApiCliSlowestTestsRouteImport } from './routes/api/cli/slowest
 import { Route as ApiCliSlowestJobsRouteImport } from './routes/api/cli/slowest-jobs'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
+import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliGrepRouteImport } from './routes/api/cli/grep'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './routes/_authenticated/_dashboard/users-management'
@@ -115,6 +116,11 @@ const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
 const ApiCliNotificationRoute = ApiCliNotificationRouteImport.update({
   id: '/api/cli/notification',
   path: '/api/cli/notification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliMeRoute = ApiCliMeRouteImport.update({
+  id: '/api/cli/me',
+  path: '/api/cli/me',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCliGrepRoute = ApiCliGrepRouteImport.update({
@@ -267,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
+  '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
@@ -304,6 +311,7 @@ export interface FileRoutesByTo {
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
+  '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
@@ -343,6 +351,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/cli/grep': typeof ApiCliGrepRoute
+  '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
@@ -384,6 +393,7 @@ export interface FileRouteTypes {
     | '/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
+    | '/api/cli/me'
     | '/api/cli/notification'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
@@ -421,6 +431,7 @@ export interface FileRouteTypes {
     | '/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
+    | '/api/cli/me'
     | '/api/cli/notification'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
@@ -459,6 +470,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/users-management'
     | '/api/auth/callback'
     | '/api/cli/grep'
+    | '/api/cli/me'
     | '/api/cli/notification'
     | '/api/cli/runs'
     | '/api/cli/slowest-jobs'
@@ -493,6 +505,7 @@ export interface RootRouteChildren {
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiCliGrepRoute: typeof ApiCliGrepRoute
+  ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliNotificationRoute: typeof ApiCliNotificationRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSlowestJobsRoute: typeof ApiCliSlowestJobsRoute
@@ -605,6 +618,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cli/notification'
       fullPath: '/api/cli/notification'
       preLoaderRoute: typeof ApiCliNotificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/me': {
+      id: '/api/cli/me'
+      path: '/api/cli/me'
+      fullPath: '/api/cli/me'
+      preLoaderRoute: typeof ApiCliMeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cli/grep': {
@@ -900,6 +920,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiCliGrepRoute: ApiCliGrepRoute,
+  ApiCliMeRoute: ApiCliMeRoute,
   ApiCliNotificationRoute: ApiCliNotificationRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSlowestJobsRoute: ApiCliSlowestJobsRoute,

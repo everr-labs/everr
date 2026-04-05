@@ -1,6 +1,11 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -15,6 +20,10 @@ import {
   SettingsSection,
   WizardStepSection,
 } from "../desktop-shell/ui";
+import {
+  notificationEmailsQueryKey,
+  userProfileQueryKey,
+} from "../notifications/query-keys";
 
 export type AuthStatus = {
   status: "signed_in" | "signed_out";
@@ -98,8 +107,14 @@ function useNow(tickMs = 1_000) {
   return now;
 }
 
+function clearNotificationSettingsCache(queryClient: QueryClient) {
+  queryClient.removeQueries({ queryKey: notificationEmailsQueryKey });
+  queryClient.removeQueries({ queryKey: userProfileQueryKey });
+}
+
 export function useAuthStatusQuery() {
   useInvalidateOnTauriEvent(AUTH_CHANGED_EVENT, (queryClient) => {
+    clearNotificationSettingsCache(queryClient);
     void queryClient.invalidateQueries({ queryKey: authStatusQueryKey });
   });
 
@@ -129,6 +144,7 @@ export function useSignInMutation() {
       }
 
       if (data.status === "signed_in") {
+        clearNotificationSettingsCache(queryClient);
         queryClient.setQueryData(authStatusQueryKey, data);
         queryClient.setQueryData(pendingSignInQueryKey, null);
         toast.success("Signed in.");
@@ -163,6 +179,7 @@ export function useSignOutMutation() {
   return useMutation({
     mutationFn: signOut,
     onSuccess(data) {
+      clearNotificationSettingsCache(queryClient);
       queryClient.setQueryData(authStatusQueryKey, data);
       queryClient.setQueryData(pendingSignInQueryKey, null);
       toast.success("Logged out.");
@@ -239,6 +256,7 @@ function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
     }
 
     if (pollQuery.data.status === "signed_in") {
+      clearNotificationSettingsCache(queryClient);
       queryClient.setQueryData(authStatusQueryKey, pollQuery.data);
       queryClient.setQueryData(pendingSignInQueryKey, null);
       toast.success("Signed in.");

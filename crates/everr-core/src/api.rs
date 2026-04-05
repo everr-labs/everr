@@ -50,6 +50,10 @@ impl ApiClient {
         self.get("/runs/status", query).await
     }
 
+    pub async fn get_me(&self) -> Result<MeResponse> {
+        self.get("/me", &[]).await
+    }
+
     pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
         self.get_json("/test-history", query).await
     }
@@ -235,6 +239,14 @@ pub struct WatchResponse {
     pub state: WatchState,
     pub active: Vec<WatchRun>,
     pub completed: Vec<WatchRun>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeResponse {
+    pub email: String,
+    pub name: String,
+    pub profile_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

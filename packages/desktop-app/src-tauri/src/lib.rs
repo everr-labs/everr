@@ -33,8 +33,9 @@ mod tests;
 use commands::{
     complete_setup_wizard, configure_assistants, copy_notification_auto_fix_prompt,
     dismiss_active_notification, get_active_notification, get_assistant_setup, get_auth_status,
-    get_pending_sign_in, get_wizard_status, open_notification_target, open_sign_in_browser,
-    poll_sign_in, reset_dev_onboarding, sign_out, start_sign_in, trigger_test_notification,
+    get_notification_emails, get_pending_sign_in, get_user_profile, get_wizard_status,
+    open_notification_target, open_sign_in_browser, poll_sign_in, reset_dev_onboarding,
+    set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -83,6 +84,7 @@ struct RuntimeState {
     tray: Arc<Mutex<TrayState>>,
     pending_auth: Arc<Mutex<Option<PendingAuthState>>>,
     session_changed: Arc<Notify>,
+    emails_changed: Arc<Notify>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -299,6 +301,7 @@ pub fn run() {
                 tray: Arc::new(Mutex::new(TrayState::default())),
                 pending_auth: Arc::new(Mutex::new(None)),
                 session_changed: Arc::new(Notify::new()),
+                emails_changed: Arc::new(Notify::new()),
             };
 
             app.manage(runtime.clone());
@@ -315,7 +318,7 @@ pub fn run() {
                 open_settings_window(app.handle())?;
             }
             start_notifier_loop(app.handle().clone(), runtime.clone());
-            start_session_poll_loop(runtime);
+            start_session_poll_loop(app.handle().clone(), runtime);
             start_update_check_loop(app.handle().clone());
             Ok(())
         })
@@ -335,7 +338,10 @@ pub fn run() {
             dismiss_active_notification,
             open_notification_target,
             copy_notification_auto_fix_prompt,
-            trigger_test_notification
+            trigger_test_notification,
+            get_notification_emails,
+            set_notification_emails,
+            get_user_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

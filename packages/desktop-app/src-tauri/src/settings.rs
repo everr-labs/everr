@@ -57,9 +57,13 @@ where
     mutate(&mut next);
     state.store.save_state(&next)?;
     let session_changed = next.session != persisted.session;
+    let emails_changed = next.settings.notification_emails != persisted.settings.notification_emails;
     *persisted = next;
     if session_changed {
         state.session_changed.notify_one();
+    }
+    if emails_changed {
+        state.emails_changed.notify_one();
     }
     Ok(())
 }
@@ -78,9 +82,13 @@ pub(crate) fn replace_persisted_state(state: &RuntimeState, next: AppState) -> R
         .map_err(|_| anyhow!("failed to lock persisted app state"))?;
     state.store.save_state(&next)?;
     let session_changed = next.session != persisted.session;
+    let emails_changed = next.settings.notification_emails != persisted.settings.notification_emails;
     *persisted = next;
     if session_changed {
         state.session_changed.notify_one();
+    }
+    if emails_changed {
+        state.emails_changed.notify_one();
     }
     Ok(())
 }

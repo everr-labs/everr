@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use everr_core::api::FailureNotification;
 use everr_core::assistant::{self, AssistantKind};
 use everr_core::build;
+use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::auth::{
@@ -13,7 +14,7 @@ use crate::notifications::{
     dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
 };
 use crate::settings::{
-    assistant_setup_response, emit_auth_changed, emit_settings_changed,
+    assistant_setup_response, current_app_state, emit_auth_changed, emit_settings_changed,
     has_active_session_for_current_base_url, reset_dev_onboarding_inner, update_persisted_state,
     update_settings, wizard_status_response,
 };
@@ -146,16 +147,94 @@ pub(crate) async fn configure_assistants(
     Ok(response)
 }
 #[tauri::command]
+pub(crate) async fn get_notification_emails(
+    state: State<'_, RuntimeState>,
+) -> CommandResult<Vec<String>> {
+    let state = state.inner().clone();
+    run_blocking_command(move || {
+        Ok(current_app_state(&state)?.settings.notification_emails)
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn set_notification_emails(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+    emails: Vec<String>,
+) -> CommandResult<()> {
+    let runtime = state.inner().clone();
+    run_blocking_command(move || {
+        update_settings(&runtime, |settings| {
+            settings.notification_emails = emails;
+        })
+    })
+    .await?;
+    emit_settings_changed(&app);
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct UserProfileResponse {
+    pub email: String,
+    pub name: String,
+    pub profile_url: Option<String>,
+}
+
+#[tauri::command]
+pub(crate) async fn get_user_profile(
+    state: State<'_, RuntimeState>,
+) -> CommandResult<Option<UserProfileResponse>> {
+    let state = state.inner().clone();
+    run_blocking_command(move || {
+        let profile = current_app_state(&state)?.settings.user_profile;
+        Ok(profile.map(|p| UserProfileResponse {
+            email: p.email,
+            name: p.name,
+            profile_url: p.profile_url,
+        }))
+    })
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn complete_setup_wizard(
     app: AppHandle,
     state: State<'_, RuntimeState>,
 ) -> CommandResult<WizardStatusResponse> {
     let runtime = state.inner().clone();
+
+    // Silently cache user profile for the desktop app settings UI
+    if let Ok(current) = current_app_state(&runtime) {
+        if current.settings.user_profile.is_none() {
+            if let Some(session) = current.session {
+                if let Ok(client) = everr_core::api::ApiClient::from_session(&session) {
+                    if let Ok(me) = client.get_me().await {
+                        let _ = run_blocking_command({
+                            let runtime = runtime.clone();
+                            move || {
+                                update_settings(&runtime, |settings| {
+                                    settings.user_profile =
+                                        Some(everr_core::state::UserProfile {
+                                            email: me.email,
+                                            name: me.name,
+                                            profile_url: me.profile_url,
+                                        });
+                                })
+                            }
+                        })
+                        .await;
+                    }
+                }
+            }
+        }
+    }
+
     let response = run_blocking_command(move || {
         if !has_active_session_for_current_base_url(&runtime)? {
             return Err(anyhow!("Sign in before finishing setup."));
         }
-
         update_settings(&runtime, |settings| {
             settings.mark_setup_complete(build::default_api_base_url());
         })?;
@@ -164,7 +243,6 @@ pub(crate) async fn complete_setup_wizard(
     .await?;
 
     emit_settings_changed(&app);
-
     Ok(response)
 }
 

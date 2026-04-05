@@ -82,6 +82,8 @@ type MainCommand =
   | "open_sign_in_browser"
   | "sign_out"
   | "get_assistant_setup"
+  | "get_notification_emails"
+  | "set_notification_emails"
   | "configure_assistants"
   | "complete_setup_wizard"
   | "reset_dev_onboarding"
@@ -90,6 +92,7 @@ type MainCommand =
 type RenderMainOptions = {
   signedIn?: boolean;
   wizardCompleted?: boolean;
+  notificationEmails?: string[];
   configuredAssistants?: AssistantKind[];
   assistantStatuses?: AssistantStatus[];
   testNotification?: TestNotificationResponse;
@@ -188,6 +191,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
       options.assistantStatuses ??
       defaultAssistantStatuses(options.configuredAssistants ?? []),
   });
+  let notificationEmails = options.notificationEmails ?? ["user@example.com"];
   let wizardStatus: WizardStatus = {
     wizard_completed: options.wizardCompleted ?? true,
   };
@@ -217,6 +221,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
       const payload = (args ?? {}) as {
         assistants?: AssistantKind[];
         enabled?: boolean;
+        emails?: string[];
       };
 
       const override = options.commandOverrides?.[cmd as MainCommand];
@@ -257,6 +262,11 @@ function renderMainApp(options: RenderMainOptions = {}) {
           return authStatus;
         case "get_assistant_setup":
           return assistantSetup;
+        case "get_notification_emails":
+          return notificationEmails;
+        case "set_notification_emails":
+          notificationEmails = payload.emails ?? [];
+          return null;
         case "configure_assistants": {
           const selected = payload.assistants ?? [];
           assistantSetup = {
@@ -441,6 +451,7 @@ describe("desktop window", () => {
     expect(
       await screen.findByRole("button", { name: "Logout" }),
     ).toBeInTheDocument();
+    expect(await screen.findByText("Notifications")).toBeInTheDocument();
     expect(
       screen.getByText("Loading assistant integrations..."),
     ).toBeInTheDocument();
@@ -663,6 +674,23 @@ describe("desktop window", () => {
       await screen.findByText(
         "Test notification queued behind the active notification.",
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides notification emails after logout", async () => {
+    renderMainApp({
+      notificationEmails: ["user@example.com", "git@example.com"],
+    });
+
+    expect(await screen.findByText("Notifications")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Notifications")).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("Authenticate your Everr account"),
     ).toBeInTheDocument();
   });
 

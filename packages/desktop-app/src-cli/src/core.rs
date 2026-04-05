@@ -451,30 +451,10 @@ fn strip_ansi_codes(s: &str) -> std::borrow::Cow<'_, str> {
     if !s.contains('\x1b') {
         return std::borrow::Cow::Borrowed(s);
     }
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            match chars.next() {
-                Some('[') => {
-                    // CSI sequence: consume until final byte (0x40–0x7E)
-                    for inner in chars.by_ref() {
-                        if ('\x40'..='\x7e').contains(&inner) {
-                            break;
-                        }
-                    }
-                }
-                Some(c) if ('\x40'..='\x7e').contains(&c) => {
-                    // Fe two-character escape — skip
-                }
-                Some(c) => result.push(c),
-                None => {}
-            }
-        } else {
-            result.push(c);
-        }
+    match strip_ansi_escapes::strip_str(s) {
+        stripped if stripped == s => std::borrow::Cow::Borrowed(s),
+        stripped => std::borrow::Cow::Owned(stripped),
     }
-    std::borrow::Cow::Owned(result)
 }
 
 fn write_step_logs(mut writer: impl Write, logs: &[StepLogEntry], color: bool) -> Result<()> {

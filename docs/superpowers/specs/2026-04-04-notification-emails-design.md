@@ -35,7 +35,7 @@ New `step_configure_notification_emails()` inserted after `step_authenticate()` 
 1. Fetch `GET /me` → Everr account email
 2. Read git config email via existing `resolve_git_context`
 3. Deduplicate, pre-populate the list
-4. Show an editable multi-value prompt with the note: *"These emails are used locally to filter notifications — they're never sent to our servers."*
+4. Show an editable multi-value prompt with the note: *"These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally."*
 5. Save to `AppSettings`
 
 If either source fails, fall back gracefully to whatever is available.
@@ -56,7 +56,7 @@ New "Notifications" section in the desktop app settings UI:
 
 - Logged-in user's name and profile picture (from `GET /me`, cached in `AppSettings`)
 - Configurable email list (add/remove)
-- Privacy note: *"These emails are used locally to filter notifications — they're never sent to our servers."*
+- Privacy note: *"These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally."*
 
 ### Notifier
 

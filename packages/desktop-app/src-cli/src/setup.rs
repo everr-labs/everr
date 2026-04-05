@@ -29,10 +29,100 @@ pub async fn run() -> Result<()> {
     cliclack::intro("Setup")?;
 
     step_authenticate().await?;
+    step_configure_notification_emails().await?;
     step_configure_assistants()?;
     step_install_desktop_app().await?;
 
     cliclack::outro("Everr is ready.")?;
+    Ok(())
+}
+
+const ADD_EMAIL_SENTINEL: &str = "__add_email__";
+
+async fn step_configure_notification_emails() -> Result<()> {
+    let store = auth::state_store();
+    let saved: Vec<String> = store
+        .load_state()
+        .map(|s| s.settings.notification_emails)
+        .unwrap_or_default();
+    let mut detected: Vec<String> = Vec::new();
+
+    // Fetch Everr account email from /me
+    if let Ok(session) = store.load_session() {
+        if let Ok(client) = everr_core::api::ApiClient::from_session(&session) {
+            if let Ok(me) = client.get_me().await {
+                detected.push(me.email.clone());
+                // Cache user profile while we have it
+                store.update_state(|state| {
+                    state.settings.user_profile = Some(everr_core::state::UserProfile {
+                        email: me.email,
+                        name: me.name,
+                        profile_url: me.profile_url,
+                    });
+                })?;
+            }
+        }
+    }
+
+    // Add git config email if different
+    if let Ok(cwd) = std::env::current_dir() {
+        let git = everr_core::git::resolve_git_context(&cwd);
+        if let Some(git_email) = git.email {
+            if !detected.contains(&git_email) {
+                detected.push(git_email);
+            }
+        }
+    }
+
+    // Union of saved + detected, preserving saved order first
+    let mut all_emails = saved.clone();
+    for email in &detected {
+        if !all_emails.contains(email) {
+            all_emails.push(email.clone());
+        }
+    }
+
+    // Pre-select: current saved selection (or all detected if first run)
+    let initial: Vec<String> = if saved.is_empty() {
+        detected.clone()
+    } else {
+        saved.clone()
+    };
+
+    cliclack::note(
+        "Notification emails",
+        "These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally.",
+    )?;
+
+    // Build multiselect with union of all known emails + "Add email…" sentinel
+    let mut prompt = cliclack::multiselect("Select notification emails");
+    for email in &all_emails {
+        prompt = prompt.item(email.clone(), email.clone(), "");
+    }
+    prompt = prompt.item(ADD_EMAIL_SENTINEL.to_string(), "Add email…", "");
+
+    let mut selected: Vec<String> = prompt.initial_values(initial).interact()?;
+
+    // If the sentinel was selected, prompt for a custom email
+    let add_requested = selected.contains(&ADD_EMAIL_SENTINEL.to_string());
+    selected.retain(|e| e != ADD_EMAIL_SENTINEL);
+
+    if add_requested {
+        let custom: String = cliclack::input("Email address").interact()?;
+        let custom = custom.trim().to_string();
+        if !custom.is_empty() && !selected.contains(&custom) {
+            selected.push(custom);
+        }
+    }
+
+    // Fall back to detected list if user deselected everything
+    let notification_emails = if selected.is_empty() { detected } else { selected };
+
+    store.update_state(|state| {
+        state.settings.notification_emails = notification_emails;
+    })?;
+
+    cliclack::log::success("Notification emails configured")?;
     Ok(())
 }
 
