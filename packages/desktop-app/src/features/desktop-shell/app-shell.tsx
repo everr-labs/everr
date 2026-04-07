@@ -1,7 +1,13 @@
 import { Card, CardContent } from "@everr/ui/components/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@everr/ui/components/dropdown-menu";
 import { Link, Outlet } from "@tanstack/react-router";
-import { Bell, CircleUser, Settings } from "lucide-react";
-import { useAuthStatusQuery } from "../auth/auth";
+import { Bell, CircleUser, LogOut, Settings } from "lucide-react";
+import { useAuthStatusQuery, useSignOutMutation } from "../auth/auth";
 
 export function AppShell() {
   return (
@@ -49,17 +55,35 @@ function SidebarLink({
 
 function AuthStatusIndicator() {
   const authStatusQuery = useAuthStatusQuery();
+  const signOutMutation = useSignOutMutation();
   const signedIn = authStatusQuery.data?.status === "signed_in";
 
   return (
-    <div
-      className="relative flex size-9 items-center justify-center"
-      title={signedIn ? "Connected" : "Not connected"}
-    >
-      <CircleUser className="size-[18px] text-[var(--settings-text-muted)]" />
-      <span
-        className={`absolute bottom-1.5 right-1.5 size-2 rounded-full ring-1 ring-[var(--settings-panel)] ${signedIn ? "bg-emerald-500" : "bg-red-400"}`}
-      />
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="relative flex size-9 cursor-pointer items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)]"
+        aria-label="Account"
+      >
+        <CircleUser className="size-[18px]" />
+        <span
+          className={`absolute bottom-1.5 right-1.5 size-2 rounded-full ring-1 ring-[var(--settings-panel)] ${signedIn ? "bg-emerald-500" : "bg-red-400"}`}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="end" sideOffset={8}>
+        {signedIn ? (
+          <DropdownMenuItem
+            disabled={signOutMutation.isPending}
+            onSelect={() => void signOutMutation.mutateAsync()}
+          >
+            <LogOut className="mr-2 size-4" />
+            {signOutMutation.isPending ? "Signing out..." : "Sign out"}
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem disabled className="text-muted-foreground">
+            Not connected
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
