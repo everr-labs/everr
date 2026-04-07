@@ -293,7 +293,7 @@ export function NotificationCard({
         </button>
         {/** biome-ignore lint/a11y/noStaticElementInteractions: we need to track mouse enter and leave events */}
         <section
-          className="notificationCard group flex h-full flex-col overflow-hidden bg-card"
+          className="group flex h-full flex-col overflow-hidden bg-card rounded-xl"
           onMouseEnter={pauseAutoDismiss}
           onMouseLeave={resumeAutoDismiss}
         >
@@ -380,7 +380,7 @@ function NotificationLoadingState() {
 function NotificationErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <main className="h-screen bg-card">
-      <section className="notificationCard grid h-full items-center bg-card px-[18px] py-4">
+      <section className="grid h-full items-center bg-card px-[18px] py-4 rounded-xl">
         <div className="grid min-w-0 gap-3">
           <div className="grid min-w-0 gap-1">
             <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
