@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
 import { SettingsPage } from "./features/desktop-shell/settings-page";
+import { DeveloperPage } from "./features/developer/developer-page";
 import { NotificationsPage } from "./features/notifications/notifications-page";
 
 const rootRoute = createRootRoute({
@@ -23,7 +24,17 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const routeTree = rootRoute.addChildren([notificationsRoute, settingsRoute]);
+const developerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/developer",
+  component: DeveloperPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  notificationsRoute,
+  settingsRoute,
+  developerRoute,
+]);
 
 export const router = createRouter({ routeTree });
 

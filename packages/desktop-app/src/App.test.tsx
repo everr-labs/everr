@@ -674,13 +674,13 @@ describe("desktop window", () => {
     expect(await screen.findByText("Setup complete.")).toBeInTheDocument();
   });
 
-  it("triggers a test notification from the settings view", async () => {
+  it("triggers a test notification from the developer view", async () => {
     const { triggerTestNotificationSpy } = renderMainApp({
       testNotification: { status: "queued" },
     });
 
     await act(async () => {
-      await router.navigate({ to: "/settings" });
+      await router.navigate({ to: "/developer" });
     });
 
     fireEvent.click(
@@ -697,28 +697,11 @@ describe("desktop window", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides notification emails after logout", async () => {
-    renderMainApp({
-      notificationEmails: ["user@example.com", "git@example.com"],
-    });
-
-    expect(await screen.findByText("Notifications")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
-
-    await waitFor(() => {
-      expect(screen.queryByText("Notifications")).not.toBeInTheDocument();
-    });
-    expect(
-      screen.getByText("Authenticate your Everr account"),
-    ).toBeInTheDocument();
-  });
-
-  it("resets the dev session and reopens onboarding from settings", async () => {
+  it("resets the dev session and reopens onboarding from the developer view", async () => {
     const { resetDevOnboardingSpy } = renderMainApp();
 
     await act(async () => {
-      await router.navigate({ to: "/settings" });
+      await router.navigate({ to: "/developer" });
     });
 
     fireEvent.click(

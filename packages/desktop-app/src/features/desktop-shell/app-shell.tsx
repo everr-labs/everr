@@ -6,7 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
 import { Link, Outlet } from "@tanstack/react-router";
-import { Bell, CircleUser, LogOut, Settings } from "lucide-react";
+import { Bell, CircleUser, Code, LogOut, Settings } from "lucide-react";
 import { useAuthStatusQuery, useSignOutMutation } from "../auth/auth";
 
 export function AppShell() {
@@ -21,6 +21,11 @@ export function AppShell() {
           <SidebarLink to="/settings" label="Settings">
             <Settings className="size-[18px]" />
           </SidebarLink>
+          {import.meta.env.DEV && (
+            <SidebarLink to="/developer" label="Developer">
+              <Code className="size-[18px]" />
+            </SidebarLink>
+          )}
           <div className="mt-auto">
             <AuthStatusIndicator />
           </div>
