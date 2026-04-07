@@ -6,6 +6,7 @@
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](todo/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.
 - [**everr-logs-grep-option**](todo/issues/everr-logs-grep-option.md) — `everr logs` should support a `--grep <pattern>` option to filter log output by a text pattern, similar to how `everr grep` works but scoped to a single trace/job/step.
 - [**getauth-returns-undefined-on-runs-list**](todo/issues/getauth-returns-undefined-on-runs-list.md) — Production error: "can't access property 'user', e is undefined" on `/runs/list` for an authenticated user.
+- [**logs-unavailable-for-in-progress-runs**](todo/issues/logs-unavailable-for-in-progress-runs.md) — —
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**notifier-no-git-email-fallback**](todo/issues/notifier-no-git-email-fallback.md) — —
 - [**show-logged-in-user-info-desktop**](todo/issues/show-logged-in-user-info-desktop.md) — Display the logged-in user's name and email somewhere in the desktop app UI.
