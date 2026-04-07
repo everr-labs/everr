@@ -1,6 +1,12 @@
 import { Button } from "@everr/ui/components/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ClipboardCopy, ExternalLink } from "lucide-react";
+import { Check, Clipboard, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { invokeCommand, NOTIFICATION_HISTORY_CHANGED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
@@ -165,28 +171,39 @@ function NotificationRow({ entry }: { entry: HistoryEntry }) {
         {relativeTime}
       </td>
       <td className="py-2 pl-2 pr-5">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
-            title={copied ? "Copied!" : "Copy auto-fix prompt"}
-            disabled={copyMutation.isPending}
-            onClick={() => void copyMutation.mutateAsync()}
-          >
-            <ClipboardCopy
-              className={`size-3.5 ${copied ? "text-emerald-400" : ""}`}
-            />
-          </button>
-          <button
-            type="button"
-            className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
-            title="Open in browser"
-            disabled={openMutation.isPending}
-            onClick={() => void openMutation.mutateAsync()}
-          >
-            <ExternalLink className="size-3.5" />
-          </button>
-        </div>
+        <TooltipProvider>
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger
+                className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
+                disabled={copyMutation.isPending}
+                onClick={() => void copyMutation.mutateAsync()}
+              >
+                <span className="relative grid size-3.5 place-items-center">
+                  <Clipboard
+                    className={`col-start-1 row-start-1 size-3.5 transition-all duration-200 ${copied ? "scale-0 opacity-0" : "scale-100 opacity-100"}`}
+                  />
+                  <Check
+                    className={`col-start-1 row-start-1 size-3.5 text-emerald-400 transition-all duration-200 ${copied ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
+                  />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {copied ? "Copied!" : "Copy auto-fix prompt"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
+                disabled={openMutation.isPending}
+                onClick={() => void openMutation.mutateAsync()}
+              >
+                <ExternalLink className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Open in browser</TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </td>
     </tr>
   );
