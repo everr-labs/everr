@@ -1,15 +1,12 @@
 import { Button } from "@everr/ui/components/button";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
-import { ArrowRight, Check, ExternalLink, Loader2 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { GithubInstallStep } from "@/components/github-install-step";
 import { OnboardingLayout } from "@/components/onboarding-layout";
-import {
-  ensureOrganizationForDevice,
-  getGithubAppInstallStatus,
-} from "@/data/onboarding";
+import { ensureOrganizationForDevice } from "@/data/onboarding";
 
 export const Route = createFileRoute("/cli/device")({
   validateSearch: z.object({
@@ -52,7 +49,6 @@ type NewUserStep = "setup" | "github" | "approving" | "done" | "error";
 
 function NewUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
   const [step, setStep] = useState<NewUserStep>("setup");
-  const [githubTabOpened, setGithubTabOpened] = useState(false);
   const [githubInstalled, setGithubInstalled] = useState(false);
 
   useEffect(() => {
@@ -61,27 +57,6 @@ function NewUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
       .then(() => setStep("github"))
       .catch(() => setStep("error"));
   }, [step]);
-
-  useEffect(() => {
-    if (step !== "github" || !githubTabOpened || githubInstalled) return;
-
-    const id = setInterval(async () => {
-      try {
-        const status = await getGithubAppInstallStatus();
-        const isInstalled = Array.isArray(status)
-          ? status.some((i) => i.status === "active")
-          : false;
-        if (isInstalled) {
-          setGithubInstalled(true);
-          clearInterval(id);
-        }
-      } catch {
-        // keep polling
-      }
-    }, 3000);
-
-    return () => clearInterval(id);
-  }, [step, githubTabOpened, githubInstalled]);
 
   async function handleGithubDone() {
     setStep("approving");
@@ -109,96 +84,12 @@ function NewUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
       )}
 
       {step === "github" && (
-        <>
-          {githubInstalled ? (
-            <>
-              <div className="flex flex-col items-center py-4">
-                <motion.div
-                  className="flex size-12 items-center justify-center text-green-400"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 400,
-                    damping: 15,
-                  }}
-                >
-                  <Check className="size-8" strokeWidth={2.5} />
-                </motion.div>
-                <h2 className="mt-4 text-lg font-semibold">GitHub connected</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  The Everr GitHub App is installed and syncing your
-                  repositories.
-                </p>
-              </div>
-
-              <div className="mt-6 flex items-center justify-end border-t border-border pt-6">
-                <Button size="lg" onClick={() => void handleGithubDone()}>
-                  Continue
-                  <ArrowRight className="ml-2 size-3.5" />
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="text-lg font-semibold">
-                Install the Everr GitHub App
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Sync workflow runs and logs from your repositories. You can skip
-                this and do it later with{" "}
-                <code className="font-mono">everr init</code>.
-              </p>
-
-              <div className="mt-8 space-y-4">
-                <AnimatePresence>
-                  {githubTabOpened && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="flex items-center gap-3 border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-300">
-                        <Loader2 className="size-4 shrink-0 animate-spin" />
-                        <span>
-                          Waiting for GitHub installation to complete&hellip;
-                        </span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    window.open(
-                      "/api/github/install/start",
-                      "_blank",
-                      "noopener",
-                    );
-                    setGithubTabOpened(true);
-                  }}
-                >
-                  <ExternalLink className="mr-2 size-3.5" />
-                  Install GitHub App
-                </Button>
-              </div>
-
-              <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
-                <Button
-                  variant="ghost"
-                  size="lg"
-                  onClick={() => void handleGithubDone()}
-                  className="text-muted-foreground"
-                >
-                  Skip for now
-                  <ArrowRight className="ml-2 size-3.5" />
-                </Button>
-              </div>
-            </>
-          )}
-        </>
+        <GithubInstallStep
+          installed={githubInstalled}
+          onInstalled={() => setGithubInstalled(true)}
+          onContinue={() => void handleGithubDone()}
+          onSkip={() => void handleGithubDone()}
+        />
       )}
 
       {step === "approving" && (
