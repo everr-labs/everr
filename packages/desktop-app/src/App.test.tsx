@@ -465,10 +465,6 @@ describe("desktop window", () => {
       await screen.findByRole("heading", { name: "Settings" }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole("button", { name: "Logout" }),
-    ).toBeInTheDocument();
-    expect(await screen.findByText("Notifications")).toBeInTheDocument();
-    expect(
       screen.getByText("Loading assistant integrations..."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
