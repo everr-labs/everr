@@ -47,7 +47,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/org", () => {
   it("returns org name and isOnlyAdmin true when user is sole admin", async () => {
-    mockedGetOrg.mockResolvedValueOnce({ name: "Acme Inc." } as Awaited<
+    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
       ReturnType<typeof mockedGetOrg>
     >);
     mockedListMemberships.mockResolvedValueOnce({
@@ -61,17 +61,18 @@ describe("/api/cli/org", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      name: "Acme Inc.",
+      name: "Test Org",
       isOnlyAdmin: true,
     });
     expect(mockedGetOrg).toHaveBeenCalledWith("org_xyz");
     expect(mockedListMemberships).toHaveBeenCalledWith({
       organizationId: "org_xyz",
+      limit: 100,
     });
   });
 
   it("returns isOnlyAdmin false when another admin exists", async () => {
-    mockedGetOrg.mockResolvedValueOnce({ name: "Acme Inc." } as Awaited<
+    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
       ReturnType<typeof mockedGetOrg>
     >);
     mockedListMemberships.mockResolvedValueOnce({
@@ -91,7 +92,7 @@ describe("/api/cli/org", () => {
   });
 
   it("returns isOnlyAdmin false when current user is not an admin", async () => {
-    mockedGetOrg.mockResolvedValueOnce({ name: "Acme Inc." } as Awaited<
+    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
       ReturnType<typeof mockedGetOrg>
     >);
     mockedListMemberships.mockResolvedValueOnce({

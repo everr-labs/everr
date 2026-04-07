@@ -11,7 +11,10 @@ export const Route = createFileRoute("/api/cli/org")({
 
         const [org, memberships] = await Promise.all([
           workOS.organizations.getOrganization(organizationId),
-          workOS.userManagement.listOrganizationMemberships({ organizationId }),
+          workOS.userManagement.listOrganizationMemberships({
+            organizationId,
+            limit: 100,
+          }),
         ]);
 
         const adminMembers = memberships.data.filter(
