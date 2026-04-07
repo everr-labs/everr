@@ -22,10 +22,22 @@ pub struct WizardState {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub struct UserProfile {
+    pub email: String,
+    pub name: String,
+    pub profile_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct AppSettings {
     pub completed_base_url: Option<String>,
     #[serde(flatten)]
     pub wizard_state: WizardState,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notification_emails: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_profile: Option<UserProfile>,
 }
 
 impl AppSettings {
@@ -225,7 +237,7 @@ mod tests {
     use serde_json::json;
     use tempfile::tempdir;
 
-    use super::{AppSettings, AppState, AppStateStore, Session, WizardState};
+    use super::{AppSettings, AppState, AppStateStore, Session, UserProfile, WizardState};
     use crate::build;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -262,6 +274,12 @@ mod tests {
                     wizard_state: WizardState {
                         wizard_completed: true,
                     },
+                    notification_emails: vec!["user@example.com".to_string()],
+                    user_profile: Some(UserProfile {
+                        email: "user@example.com".to_string(),
+                        name: "Test User".to_string(),
+                        profile_url: None,
+                    }),
                 },
             };
 
@@ -282,6 +300,7 @@ mod tests {
                         wizard_state: WizardState {
                             wizard_completed: true,
                         },
+                        ..AppSettings::default()
                     },
                 })
                 .expect("save state");
@@ -344,6 +363,7 @@ mod tests {
                         wizard_state: WizardState {
                             wizard_completed: true,
                         },
+                        ..AppSettings::default()
                     },
                 })
                 .expect("save state");
@@ -374,6 +394,7 @@ mod tests {
                         wizard_state: WizardState {
                             wizard_completed: true,
                         },
+                        ..AppSettings::default()
                     },
                 })
                 .expect("save state");
@@ -453,6 +474,32 @@ mod tests {
                     }
                 })
             );
+        });
+    }
+
+    #[test]
+    fn settings_without_notification_emails_loads_with_empty_defaults() {
+        with_temp_config_home(|store| {
+            let path = store.session_file_path().expect("state path");
+            let parent = path.parent().expect("state parent");
+            std::fs::create_dir_all(parent).expect("create state dir");
+            std::fs::write(
+                &path,
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "session": null,
+                    "settings": {
+                        "completed_base_url": "https://app.everr.dev",
+                        "wizard_completed": true
+                    }
+                }))
+                .expect("serialize"),
+            )
+            .expect("write");
+
+            let state = store.load_state().expect("load state");
+            assert!(state.settings.notification_emails.is_empty());
+            assert!(state.settings.user_profile.is_none());
+            assert!(state.settings.wizard_state.wizard_completed);
         });
     }
 

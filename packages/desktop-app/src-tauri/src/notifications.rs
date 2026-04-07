@@ -137,16 +137,27 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         return Ok(());
     }
 
-    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
-    let git = resolve_git_context(&current_dir);
-    let Some(git_email) = git.email else {
-        clear_tray_snapshot(app, state)?;
-        state.session_changed.notified().await;
-        return Ok(());
+    // Build email filter set: configured list, falling back to cached profile email
+    let email_set: std::collections::HashSet<String> = {
+        let settings = current_app_state(state)?.settings;
+        if !settings.notification_emails.is_empty() {
+            settings.notification_emails.into_iter().collect()
+        } else if let Some(profile) = settings.user_profile {
+            std::iter::once(profile.email).collect()
+        } else {
+            // No emails configured and no profile cached — wait for session change
+            clear_tray_snapshot(app, state)?;
+            state.session_changed.notified().await;
+            return Ok(());
+        }
     };
 
+    // Resolve git context for repo/branch scoping (still used by handle_notify_event)
+    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
+    let git = resolve_git_context(&current_dir);
+
     let client = ApiClient::from_session(&session)?;
-    let stream = client.events_stream("author", Some(&git_email)).await?;
+    let stream = client.events_stream("tenant", None).await?;
 
     // Known failures accumulated this session, keyed by traceId
     let mut known_failures: std::collections::HashMap<String, FailureNotification> =
@@ -158,6 +169,12 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
             event = stream.next() => {
                 match event {
                     Some(Ok(payload)) => {
+                        // Filter client-side by configured emails
+                        if let Some(ref author_email) = payload.author_email {
+                            if !email_set.contains(author_email) {
+                                continue;
+                            }
+                        }
                         handle_notify_event(
                             app,
                             state,
@@ -174,6 +191,10 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
             }
             _ = state.session_changed.notified() => {
                 dbg_notifier!("session changed — restarting SSE loop");
+                break;
+            }
+            _ = state.emails_changed.notified() => {
+                dbg_notifier!("notification emails changed — restarting SSE loop");
                 break;
             }
         }

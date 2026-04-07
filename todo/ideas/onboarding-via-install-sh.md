@@ -15,3 +15,5 @@ unknown
 ## Notes
 - Covers: user registration, org creation, CLI installation, runs import.
 - Goal: limited browser interactions required for the initial onboarding.
+- Per-repo init command (`everr init`) to configure a repo after the CLI is installed.
+- Support both `npx everr init` and a bash install path so users can onboard without a prior global install.

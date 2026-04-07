@@ -13,9 +13,10 @@
 ## Ideas
 
 - [**align-collector-with-upstream-receiver**](todo/ideas/align-collector-with-upstream-receiver.md) — Track the remaining differences between our `githubactionsreceiver` and the upstream `opentelemetry-collector-contrib/receiver/githubreceiver` and decide which to adopt.
-- [**chdb-local-test-traces**](todo/ideas/chdb-local-test-traces.md) — Use [chdb-io](https://github.com/chdb-io/chdb) to store test traces locally for investigation and debugging.
+- [**ci-debug-optimize-skills**](todo/ideas/ci-debug-optimize-skills.md) — A set of Claude Code skills for debugging CI failures and optimizing CI performance, powered by the Everr CLI.
 - [**e2e-tests-with-import-from-test-repo**](todo/ideas/e2e-tests-with-import-from-test-repo.md) — End-to-end tests that spin up a fresh Everr instance, run the onboarding import against a dedicated test repo, and verify the full pipeline (GitHub API fetch, collector ingestion, PG/CH writes, dashboard queries).
 - [**everr-doctor-command**](todo/ideas/everr-doctor-command.md) — A CLI command that inspects the current repo's Everr integration and suggests improvements — missing configuration, outdated agent instructions, suboptimal workflow setup, etc. Designed to be run by a local AI assistant to self-diagnose and fix integration issues.
+- [**local-diagnostic-collector**](todo/ideas/local-diagnostic-collector.md) — A local collector exposed on HTTP that captures events from browser and server (logs, analytics, errors) for offline investigation and debugging — no cloud backend required.
 - [**main-branches-metrics**](todo/ideas/main-branches-metrics.md) — Let users designate "main branches" so metrics (success rate, flakiness, slowest jobs/tests) focus on those instead of mixing in feature branch noise.
 - [**multi-org-multi-account-login**](todo/ideas/multi-org-multi-account-login.md) — Let a single user be authenticated to multiple Everr accounts simultaneously, with automatic repo-to-account mapping so the right account is used based on context.
 - [**onboarding-configure-email**](todo/ideas/onboarding-configure-email.md) — —

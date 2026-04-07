@@ -7,6 +7,7 @@ use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::cli::sync_installed_cli;
+use crate::settings::{emit_auth_changed, emit_settings_changed};
 use crate::{should_check_for_updates, RuntimeState, UPDATE_CHECK_INTERVAL_SECONDS};
 
 pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {
@@ -36,7 +37,7 @@ fn ensure_background_launch(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn start_session_poll_loop(state: RuntimeState) {
+pub(crate) fn start_session_poll_loop(app: AppHandle, state: RuntimeState) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(30)).await;
@@ -45,20 +46,30 @@ pub(crate) fn start_session_poll_loop(state: RuntimeState) {
                 continue;
             };
 
-            let changed = {
+            let (session_changed, emails_changed) = {
                 let Ok(mut persisted) = state.persisted.lock() else {
                     continue;
                 };
-                if file_state.session == persisted.session {
-                    false
-                } else {
+
+                let session_changed = file_state.session != persisted.session;
+                let emails_changed = file_state.settings.notification_emails
+                    != persisted.settings.notification_emails;
+
+                if session_changed || emails_changed {
                     *persisted = file_state;
-                    true
                 }
+
+                (session_changed, emails_changed)
             };
 
-            if changed {
+            if session_changed {
                 state.session_changed.notify_one();
+                emit_auth_changed(&app);
+            }
+
+            if emails_changed {
+                state.emails_changed.notify_one();
+                emit_settings_changed(&app);
             }
         }
     });

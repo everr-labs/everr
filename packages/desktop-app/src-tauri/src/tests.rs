@@ -298,6 +298,7 @@ fn mismatched_completed_base_url_reopens_the_wizard() {
         wizard_state: WizardState {
             wizard_completed: true,
         },
+        ..AppSettings::default()
     };
 
     settings.apply_runtime_base_url(current_base_url());
