@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { invokeCommand, NOTIFICATION_HISTORY_CHANGED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { formatNotificationRelativeTime } from "../../notification-time";
@@ -96,44 +97,84 @@ export function NotificationsPage() {
   );
 }
 
+function copyHistoryAutoFixPrompt(dedupeKey: string) {
+  return invokeCommand<void>("copy_history_auto_fix_prompt", {
+    dedupeKey,
+  });
+}
+
+function openHistoryNotification(dedupeKey: string) {
+  return invokeCommand<void>("open_history_notification", {
+    dedupeKey,
+  });
+}
+
 function NotificationHistoryItem({ entry }: { entry: HistoryEntry }) {
   const { notification, seen } = entry;
   const relativeTime = formatNotificationRelativeTime(notification.failedAt);
   const failureScope = formatFailureScope(notification);
+  const [copied, setCopied] = useState(false);
 
-  function handleClick() {
-    window.open(notification.detailsUrl, "_blank");
-  }
+  const copyMutation = useMutation({
+    mutationFn: () => copyHistoryAutoFixPrompt(notification.dedupeKey),
+    onSuccess() {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    },
+  });
+
+  const openMutation = useMutation({
+    mutationFn: () => openHistoryNotification(notification.dedupeKey),
+  });
+
+  const busy = copyMutation.isPending || openMutation.isPending;
 
   return (
-    <li>
-      <button
-        type="button"
-        className="flex w-full cursor-pointer items-start gap-3 border-b border-white/[0.04] px-6 py-3 text-left transition-colors hover:bg-white/[0.03]"
-        onClick={handleClick}
-      >
-        {!seen && (
-          <span className="mt-1.5 block size-2 shrink-0 rounded-full bg-primary" />
+    <li className="flex items-center gap-2 border-b border-white/[0.04] px-6 py-3 transition-colors hover:bg-white/[0.03]">
+      {!seen && (
+        <span className="mt-0.5 block size-2 shrink-0 self-start rounded-full bg-primary" />
+      )}
+      <div className={`min-w-0 flex-1 grid gap-0.5 ${seen ? "pl-5" : ""}`}>
+        <p className="m-0 text-[0.85rem] font-semibold leading-tight text-[var(--settings-text)]">
+          {notification.workflowName}
+        </p>
+        <p className="m-0 flex min-w-0 items-center gap-1 text-[0.78rem] leading-tight text-[var(--settings-text-muted)]">
+          <span className="truncate">{notification.repo}</span>
+          <span className="text-white/20">&middot;</span>
+          <span>{notification.branch}</span>
+        </p>
+        {failureScope && (
+          <p className="m-0 text-[0.75rem] leading-tight text-[var(--settings-text-muted)]">
+            {failureScope}
+          </p>
         )}
-        <div className={`min-w-0 flex-1 grid gap-0.5 ${seen ? "pl-5" : ""}`}>
-          <p className="m-0 text-[0.85rem] font-semibold leading-tight text-[var(--settings-text)]">
-            {notification.workflowName}
-          </p>
-          <p className="m-0 flex min-w-0 items-center gap-1 text-[0.78rem] leading-tight text-[var(--settings-text-muted)]">
-            <span className="truncate">{notification.repo}</span>
-            <span className="text-white/20">&middot;</span>
-            <span>{notification.branch}</span>
-          </p>
-          {failureScope && (
-            <p className="m-0 text-[0.75rem] leading-tight text-[var(--settings-text-muted)]">
-              {failureScope}
-            </p>
-          )}
-        </div>
-        <span className="shrink-0 pt-0.5 text-[0.72rem] text-[var(--settings-text-muted)]">
+        <p className="m-0 text-[0.72rem] text-[var(--settings-text-muted)]">
           {relativeTime}
-        </span>
-      </button>
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-stretch gap-1.5">
+        <Button
+          size="sm"
+          className="min-w-[120px] text-[0.72rem]"
+          disabled={busy}
+          onClick={() => void copyMutation.mutateAsync()}
+        >
+          {copyMutation.isPending
+            ? "Copying..."
+            : copied
+              ? "Copied"
+              : "Auto-fix prompt"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="min-w-[120px] text-[0.72rem]"
+          disabled={busy}
+          onClick={() => void openMutation.mutateAsync()}
+        >
+          {openMutation.isPending ? "Opening..." : "Open"}
+        </Button>
+      </div>
     </li>
   );
 }

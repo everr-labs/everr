@@ -33,12 +33,13 @@ mod tray;
 mod tests;
 
 use commands::{
-    complete_setup_wizard, configure_assistants, copy_notification_auto_fix_prompt,
-    dismiss_active_notification, get_active_notification, get_assistant_setup, get_auth_status,
-    get_notification_emails, get_notification_history, get_pending_sign_in, get_user_profile,
-    get_wizard_status, mark_all_notifications_read, open_notification_target,
-    open_sign_in_browser, poll_sign_in, reset_dev_onboarding, set_notification_emails, sign_out,
-    start_sign_in, trigger_test_notification,
+    complete_setup_wizard, configure_assistants, copy_history_auto_fix_prompt,
+    copy_notification_auto_fix_prompt, dismiss_active_notification, get_active_notification,
+    get_assistant_setup, get_auth_status, get_notification_emails, get_notification_history,
+    get_pending_sign_in, get_user_profile, get_wizard_status, mark_all_notifications_read,
+    open_history_notification, open_notification_target, open_sign_in_browser, poll_sign_in,
+    reset_dev_onboarding, set_notification_emails, sign_out, start_sign_in,
+    trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -357,7 +358,9 @@ pub fn run() {
             set_notification_emails,
             get_user_profile,
             get_notification_history,
-            mark_all_notifications_read
+            mark_all_notifications_read,
+            copy_history_auto_fix_prompt,
+            open_history_notification
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

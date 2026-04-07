@@ -9,6 +9,7 @@ use crate::auth::{
     auth_status_response, clear_pending_auth, open_sign_in_browser_inner, pending_auth_response,
     poll_sign_in_inner, start_sign_in_inner,
 };
+use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::notifications::{
     build_test_notification, copy_notification_auto_fix_prompt_inner,
     dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
@@ -302,6 +303,40 @@ pub(crate) fn get_notification_history(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<Vec<HistoryEntry>> {
     state.history.get_all().into_command_result()
+}
+
+#[tauri::command]
+pub(crate) fn copy_history_auto_fix_prompt(
+    state: State<'_, RuntimeState>,
+    dedupe_key: String,
+) -> CommandResult<()> {
+    let entries = state.history.get_all().into_command_result()?;
+    let entry = entries
+        .iter()
+        .find(|e| e.notification.dedupe_key == dedupe_key)
+        .ok_or_else(|| "notification not found".to_string())?;
+    let prompt = build_notification_auto_fix_prompt(&entry.notification);
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|e| format!("failed to access clipboard: {e}"))?;
+    clipboard
+        .set_text(prompt)
+        .map_err(|e| format!("failed to copy to clipboard: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn open_history_notification(
+    state: State<'_, RuntimeState>,
+    dedupe_key: String,
+) -> CommandResult<()> {
+    let entries = state.history.get_all().into_command_result()?;
+    let entry = entries
+        .iter()
+        .find(|e| e.notification.dedupe_key == dedupe_key)
+        .ok_or_else(|| "notification not found".to_string())?;
+    webbrowser::open(&entry.notification.details_url)
+        .map_err(|e| format!("failed to open browser: {e}"))?;
+    Ok(())
 }
 
 #[tauri::command]
