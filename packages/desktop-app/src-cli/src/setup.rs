@@ -89,6 +89,18 @@ async fn step_configure_notification_emails() -> Result<()> {
         saved.clone()
     };
 
+    let interactive = std::io::stdin().is_terminal();
+
+    if !interactive {
+        // Non-interactive: silently save the union of saved + detected without prompting
+        if !all_emails.is_empty() {
+            store.update_state(|state| {
+                state.settings.notification_emails = all_emails;
+            })?;
+        }
+        return Ok(());
+    }
+
     cliclack::note(
         "Notification emails",
         "These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally.",
