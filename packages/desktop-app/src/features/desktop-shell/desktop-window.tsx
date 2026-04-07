@@ -1,15 +1,11 @@
-import { Separator } from "@everr/ui/components/separator";
 import { Toaster } from "@everr/ui/components/sonner";
 import { APP_DISPLAY_NAME } from "@/lib/app-name";
 import { toErrorMessageText } from "@/lib/tauri";
-import { AssistantsSection } from "../assistants/assistants";
-import { AccountHeaderAction, AuthSettingsSection } from "../auth/auth";
-import { NotificationEmailsSection } from "../notifications/notification-emails-section";
-import { DeveloperNotificationSection } from "../notifications/notification-window";
 import {
   SetupWizard,
   useWizardStatusQuery,
 } from "../setup-wizard/setup-wizard";
+import { AppShell } from "./app-shell";
 import { DesktopFrame, DesktopLoadingState } from "./ui";
 
 export function DesktopWindow() {
@@ -32,38 +28,29 @@ export function DesktopWindow() {
 
   const showingWizard = !wizardStatus.wizard_completed;
 
+  if (showingWizard) {
+    return (
+      <>
+        <Toaster
+          closeButton
+          position="top-right"
+          richColors
+          visibleToasts={1}
+        />
+        <DesktopFrame
+          title="Installation wizard"
+          description="Authenticate and choose assistant integrations."
+        >
+          <SetupWizard />
+        </DesktopFrame>
+      </>
+    );
+  }
+
   return (
     <>
       <Toaster closeButton position="top-right" richColors visibleToasts={1} />
-      <DesktopFrame
-        title={showingWizard ? "Installation wizard" : "Settings"}
-        description={
-          showingWizard
-            ? "Authenticate and choose assistant integrations."
-            : "Manage your desktop connection and assistant integrations from one panel."
-        }
-        headerAction={!showingWizard ? <AccountHeaderAction /> : undefined}
-      >
-        {showingWizard ? <SetupWizard /> : <SettingsScreen />}
-      </DesktopFrame>
+      <AppShell />
     </>
-  );
-}
-
-function SettingsScreen() {
-  return (
-    <div className="grid divide-y divide-white/[0.06]">
-      <div className="pt-0">
-        <AuthSettingsSection />
-      </div>
-      <AssistantsSection />
-      <NotificationEmailsSection />
-      {import.meta.env.DEV && (
-        <>
-          <Separator className="bg-[var(--settings-border-soft)]" />
-          <DeveloperNotificationSection />
-        </>
-      )}
-    </div>
   );
 }
