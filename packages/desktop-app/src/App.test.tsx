@@ -709,6 +709,13 @@ describe("notification window", () => {
     await waitFor(() => {
       expect(dismissSpy).toHaveBeenCalledTimes(1);
     });
+
+    // Backend emits the changed event after the slide-out animation completes
+    await act(async () => {
+      await emit(NOTIFICATION_CHANGED_EVENT);
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
       expect(screen.queryByText("CI")).not.toBeInTheDocument();
     });
@@ -723,6 +730,13 @@ describe("notification window", () => {
     await waitFor(() => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
+
+    // Backend emits the changed event after the slide-out animation completes
+    await act(async () => {
+      await emit(NOTIFICATION_CHANGED_EVENT);
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
       expect(screen.queryByText("CI")).not.toBeInTheDocument();
     });

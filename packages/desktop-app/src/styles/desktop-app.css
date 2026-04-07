@@ -36,3 +36,7 @@
 .notification-progress[data-paused] {
   animation-play-state: paused;
 }
+
+.notificationCard {
+  border-radius: 14px;
+}
