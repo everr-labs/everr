@@ -15,7 +15,6 @@ import {
   Bell,
   Check,
   Copy,
-  ExternalLink,
   Loader2,
   SparklesIcon,
   Terminal,
@@ -32,6 +31,7 @@ import {
   CreateOrganizationInputSchema,
   OrganizationNameSchema,
 } from "@/common/organization-name";
+import { GithubInstallStep } from "@/components/github-install-step";
 import {
   activeOrganizationOptions,
   markOnboardingComplete,
@@ -555,140 +555,19 @@ function GitHubStep({
   onComplete: () => void;
   onSkip: () => void;
 }) {
-  const [tabOpened, setTabOpened] = useState(false);
-
-  useEffect(() => {
-    if (!tabOpened || installed) return;
-
-    const id = setInterval(async () => {
-      try {
-        const status = await getGithubAppInstallStatus();
-        const isInstalled = Array.isArray(status)
-          ? status.some((i) => i.status === "active")
-          : Boolean(
-              (status as { installed?: boolean } | null | undefined)?.installed,
-            );
-        if (isInstalled) {
-          onInstalled();
-          clearInterval(id);
-        }
-      } catch {
-        // keep polling
-      }
-    }, 3000);
-
-    return () => clearInterval(id);
-  }, [tabOpened, installed, onInstalled]);
-
-  function handleOpenInstall() {
-    window.open("/api/github/install/start", "_blank", "noopener");
-    setTabOpened(true);
-  }
-
   return (
     <StepContainer title="Connect your repos" index={2}>
       <motion.section
         variants={staggerItem}
         className="mt-8 border border-border bg-card p-6 sm:p-10"
       >
-        {installed ? (
-          <>
-            <div className="flex flex-col items-center py-4">
-              <motion.div
-                className="flex size-12 items-center justify-center text-green-400"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 400,
-                  damping: 15,
-                }}
-              >
-                <Check className="size-8" strokeWidth={2.5} />
-              </motion.div>
-              <h2 className="mt-4 text-lg font-semibold">GitHub connected</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                The Everr GitHub App is installed and syncing your repositories.
-              </p>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between border-t border-border pt-6">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={onBack}
-              >
-                <ArrowLeft className="mr-2 size-3.5" />
-                Back
-              </Button>
-              <Button type="button" size="lg" onClick={onComplete}>
-                Continue
-                <ArrowRight className="ml-2 size-3.5" />
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <h2 className="text-lg font-semibold">
-              Install the Everr GitHub App
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Sync workflow runs and logs from your repositories.
-            </p>
-
-            <div className="mt-8 space-y-4">
-              <AnimatePresence>
-                {tabOpened && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="flex items-center gap-3 border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-300">
-                      <Loader2 className="size-4 shrink-0 animate-spin" />
-                      <span>
-                        Waiting for GitHub installation to complete&hellip;
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <Button
-                type="button"
-                size="lg"
-                onClick={handleOpenInstall}
-                className="w-full sm:w-auto"
-              >
-                <ExternalLink className="mr-2 size-3.5" />
-                Install GitHub App
-              </Button>
-            </div>
-
-            <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={onBack}
-              >
-                <ArrowLeft className="mr-2 size-3.5" />
-                Back
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                onClick={onSkip}
-                className="text-muted-foreground"
-              >
-                Skip for now
-                <ArrowRight className="ml-2 size-3.5" />
-              </Button>
-            </div>
-          </>
-        )}
+        <GithubInstallStep
+          installed={installed}
+          onInstalled={onInstalled}
+          onContinue={onComplete}
+          onSkip={onSkip}
+          onBack={onBack}
+        />
       </motion.section>
     </StepContainer>
   );
