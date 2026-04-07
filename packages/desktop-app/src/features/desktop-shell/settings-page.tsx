@@ -1,5 +1,6 @@
 import { AssistantsSection } from "../assistants/assistants";
 import { AuthSettingsSection } from "../auth/auth";
+import { NotificationEmailsSection } from "../notifications/notification-emails-section";
 
 export function SettingsPage() {
   return (
@@ -19,6 +20,7 @@ export function SettingsPage() {
           <AuthSettingsSection />
         </div>
         <AssistantsSection />
+        <NotificationEmailsSection />
       </div>
     </div>
   );
