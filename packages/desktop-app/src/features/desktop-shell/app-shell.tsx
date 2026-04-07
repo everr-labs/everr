@@ -5,8 +5,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
+import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "@tanstack/react-router";
 import { Bell, CircleUser, Code, LogOut, Settings } from "lucide-react";
+import { invokeCommand, NOTIFICATION_HISTORY_CHANGED_EVENT } from "@/lib/tauri";
+import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { useAuthStatusQuery, useSignOutMutation } from "../auth/auth";
 
 export function AppShell() {
@@ -15,9 +18,7 @@ export function AppShell() {
       <div data-tauri-drag-region className="fixed inset-x-0 top-0 h-9" />
       <Card className="flex flex-row h-screen w-full overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)] py-0">
         <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-12 pb-3">
-          <SidebarLink to="/" label="Notifications">
-            <Bell className="size-[18px]" />
-          </SidebarLink>
+          <NotificationsLink />
           <SidebarLink to="/settings" label="Settings">
             <Settings className="size-[18px]" />
           </SidebarLink>
@@ -54,6 +55,48 @@ function SidebarLink({
       className="flex size-9 items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)] [&.active]:bg-white/[0.08] [&.active]:text-[var(--settings-text)]"
     >
       {children}
+    </Link>
+  );
+}
+
+type HistoryEntry = {
+  seen: boolean;
+};
+
+const notificationHistoryQueryKey = [
+  "desktop-app",
+  "notification-history",
+] as const;
+
+function NotificationsLink() {
+  useInvalidateOnTauriEvent(
+    NOTIFICATION_HISTORY_CHANGED_EVENT,
+    (queryClient) => {
+      void queryClient.invalidateQueries({
+        queryKey: notificationHistoryQueryKey,
+      });
+    },
+  );
+
+  const historyQuery = useQuery({
+    queryKey: notificationHistoryQueryKey,
+    queryFn: () => invokeCommand<HistoryEntry[]>("get_notification_history"),
+  });
+
+  const unreadCount = (historyQuery.data ?? []).filter((e) => !e.seen).length;
+
+  return (
+    <Link
+      to="/"
+      aria-label="Notifications"
+      className="relative flex size-9 items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)] [&.active]:bg-white/[0.08] [&.active]:text-[var(--settings-text)]"
+    >
+      <Bell className="size-[18px]" />
+      {unreadCount > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[0.6rem] font-semibold leading-none text-primary-foreground">
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
+      )}
     </Link>
   );
 }
