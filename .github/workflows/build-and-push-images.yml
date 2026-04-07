@@ -164,6 +164,9 @@ jobs:
           context: .
           file: packages/docs/Dockerfile
           push: true
+          build-args: |
+            VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=${{ secrets.POSTHOG_PROJECT_TOKEN }}
+            VITE_PUBLIC_POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCS_ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCS_ECR_REPOSITORY }}:latest
