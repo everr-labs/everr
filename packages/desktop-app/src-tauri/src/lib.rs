@@ -22,6 +22,7 @@ mod auto_fix_prompt;
 mod cli;
 mod commands;
 mod crash_log;
+mod history;
 mod notifications;
 mod settings;
 mod startup;
