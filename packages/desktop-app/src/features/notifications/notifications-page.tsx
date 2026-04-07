@@ -7,7 +7,7 @@ import {
 } from "@everr/ui/components/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Clipboard, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { invokeCommand, NOTIFICATION_HISTORY_CHANGED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { formatNotificationRelativeTime } from "../../notification-time";
@@ -134,12 +134,14 @@ function NotificationRow({ entry }: { entry: HistoryEntry }) {
   const { notification, seen } = entry;
   const relativeTime = formatNotificationRelativeTime(notification.failedAt);
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const copyMutation = useMutation({
     mutationFn: () => copyHistoryAutoFixPrompt(notification.dedupeKey),
     onSuccess() {
+      clearTimeout(copyTimerRef.current);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     },
   });
 
