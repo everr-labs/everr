@@ -155,6 +155,67 @@ impl ApiClient {
         Ok(stream)
     }
 
+    pub async fn get_org(&self) -> Result<OrgResponse> {
+        self.get("/org", &[]).await
+    }
+
+    pub async fn patch_org_name(&self, name: &str) -> Result<()> {
+        let response = self
+            .http
+            .patch(format!("{}/org/name", self.base_endpoint))
+            .json(&serde_json::json!({ "name": name }))
+            .send()
+            .await
+            .context("PATCH org name request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            bail!("PATCH org name failed with {status}: {text}");
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_repos(&self) -> Result<Vec<RepoEntry>> {
+        self.get("/repos", &[]).await
+    }
+
+    /// Calls POST /api/cli/import and collects all NDJSON events.
+    pub async fn import_repos(&self, repos: &[String]) -> Result<Vec<ImportEvent>> {
+        let response = self
+            .http
+            .post(format!("{}/import", self.base_endpoint))
+            .json(&serde_json::json!({ "repos": repos }))
+            .send()
+            .await
+            .context("import request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            bail!("import request failed with {status}: {text}");
+        }
+
+        let body = response.text().await.context("failed to read import body")?;
+        let events = body
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| {
+                serde_json::from_str::<ImportEvent>(line)
+                    .with_context(|| format!("failed to parse import event: {line}"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(events)
+    }
+
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
         self.get(path, query).await
     }
@@ -277,6 +338,52 @@ pub struct FailureNotification {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct OrgResponse {
+    pub name: String,
+    pub is_only_admin: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoEntry {
+    pub id: i64,
+    pub full_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+pub enum ImportEvent {
+    #[serde(rename_all = "camelCase")]
+    RepoStart {
+        repo_full_name: String,
+        repo_index: u32,
+        repos_total: u32,
+    },
+    #[serde(rename_all = "camelCase")]
+    Progress {
+        progress: ImportProgress,
+    },
+    #[serde(rename_all = "camelCase")]
+    RepoError {
+        repo_full_name: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Done {
+        total_jobs: u32,
+        total_errors: u32,
+    },
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportProgress {
+    pub jobs_enqueued: u32,
+    pub jobs_quota: u32,
+    pub runs_processed: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct NotifyPayload {
     pub tenant_id: i64,
     pub trace_id: String,
@@ -292,4 +399,100 @@ pub struct NotifyPayload {
     pub status: String,
     pub conclusion: Option<String>,
     pub job_id: Option<i64>,
+}
+
+#[cfg(test)]
+mod api_client_tests {
+    use super::*;
+
+    fn make_session(base_url: &str) -> crate::state::Session {
+        crate::state::Session {
+            api_base_url: base_url.to_string(),
+            token: "test-token".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn get_org_parses_response() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/org")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"name":"Test Org","isOnlyAdmin":true}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let org = client.get_org().await.unwrap();
+
+        assert_eq!(org.name, "Test Org");
+        assert!(org.is_only_admin);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn patch_org_name_sends_correct_body() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("PATCH", "/api/cli/org/name")
+            .match_body(r#"{"name":"New Name"}"#)
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"ok":true}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        client.patch_org_name("New Name").await.unwrap();
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn get_repos_parses_response() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/repos")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"[{"id":1,"fullName":"org/repo-a"},{"id":2,"fullName":"org/repo-b"}]"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let repos = client.get_repos().await.unwrap();
+
+        assert_eq!(repos.len(), 2);
+        assert_eq!(repos[0].full_name, "org/repo-a");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn import_repos_parses_ndjson_stream() {
+        let ndjson = concat!(
+            r#"{"type":"repo-start","repoFullName":"org/repo-a","repoIndex":0,"reposTotal":1}"#, "\n",
+            r#"{"type":"done","totalJobs":5,"totalErrors":0}"#, "\n",
+        );
+
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/cli/import")
+            .with_status(200)
+            .with_header("content-type", "application/x-ndjson")
+            .with_body(ndjson)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let events = client
+            .import_repos(&["org/repo-a".to_string()])
+            .await
+            .unwrap();
+
+        assert_eq!(events.len(), 2);
+        assert!(matches!(events[0], ImportEvent::RepoStart { .. }));
+        assert!(matches!(events[1], ImportEvent::Done { total_jobs: 5, total_errors: 0 }));
+        mock.assert_async().await;
+    }
 }
