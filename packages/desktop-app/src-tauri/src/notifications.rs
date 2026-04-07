@@ -19,6 +19,7 @@ use crate::tray::{
 };
 use crate::{
     current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
+    NOTIFICATION_HISTORY_CHANGED_EVENT,
     NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT, NOTIFICATION_WINDOW_INSET,
     NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN, NOTIFICATION_WINDOW_WIDTH,
     TRAY_FAILURES_WINDOW_MINUTES,
@@ -303,6 +304,9 @@ fn enqueue_notification(
     state: &RuntimeState,
     notification: FailureNotification,
 ) -> Result<()> {
+    state.history.append(notification.clone())?;
+    let _ = app.emit(NOTIFICATION_HISTORY_CHANGED_EVENT, ());
+
     let active_changed = {
         let mut notifier = state
             .notifier
@@ -322,6 +326,19 @@ pub(crate) fn dismiss_active_notification_inner(
     app: &AppHandle,
     state: &RuntimeState,
 ) -> Result<()> {
+    let dismissed_key = {
+        let notifier = state
+            .notifier
+            .lock()
+            .map_err(|_| anyhow!("failed to lock notifier state"))?;
+        notifier.queue.active().map(|n| n.dedupe_key.clone())
+    };
+
+    if let Some(key) = &dismissed_key {
+        let _ = state.history.mark_seen(key);
+        let _ = app.emit(NOTIFICATION_HISTORY_CHANGED_EVENT, ());
+    }
+
     let active_changed = {
         let mut notifier = state
             .notifier

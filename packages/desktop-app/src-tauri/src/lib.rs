@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
 
 use everr_core::api::FailureNotification;
+use history::NotificationHistoryStore;
 use everr_core::assistant::AssistantStatus;
 use everr_core::auth::{AuthConfig, DeviceAuthorization};
 use everr_core::build;
@@ -34,9 +35,10 @@ mod tests;
 use commands::{
     complete_setup_wizard, configure_assistants, copy_notification_auto_fix_prompt,
     dismiss_active_notification, get_active_notification, get_assistant_setup, get_auth_status,
-    get_notification_emails, get_pending_sign_in, get_user_profile, get_wizard_status,
-    open_notification_target, open_sign_in_browser, poll_sign_in, reset_dev_onboarding,
-    set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
+    get_notification_emails, get_notification_history, get_pending_sign_in, get_user_profile,
+    get_wizard_status, mark_all_notifications_read, open_notification_target,
+    open_sign_in_browser, poll_sign_in, reset_dev_onboarding, set_notification_emails, sign_out,
+    start_sign_in, trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -48,6 +50,7 @@ const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_HOVER_EVENT: &str = "everr://notification-hover";
+const NOTIFICATION_HISTORY_CHANGED_EVENT: &str = "everr://notification-history-changed";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 124.0;
@@ -86,6 +89,7 @@ struct RuntimeState {
     pending_auth: Arc<Mutex<Option<PendingAuthState>>>,
     session_changed: Arc<Notify>,
     emails_changed: Arc<Notify>,
+    history: NotificationHistoryStore,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -294,6 +298,14 @@ pub fn run() {
             persisted
                 .settings
                 .apply_runtime_base_url(build::default_api_base_url());
+            let history_path = {
+                let session_path = store.session_file_path()?;
+                session_path
+                    .parent()
+                    .expect("session file has parent")
+                    .join("notification-history.json")
+            };
+            let history = NotificationHistoryStore::load(history_path)?;
             run_local_startup_maintenance(app.handle());
             let runtime = RuntimeState {
                 store,
@@ -303,6 +315,7 @@ pub fn run() {
                 pending_auth: Arc::new(Mutex::new(None)),
                 session_changed: Arc::new(Notify::new()),
                 emails_changed: Arc::new(Notify::new()),
+                history,
             };
 
             app.manage(runtime.clone());
@@ -343,6 +356,8 @@ pub fn run() {
             get_notification_emails,
             set_notification_emails,
             get_user_profile,
+            get_notification_history,
+            mark_all_notifications_read
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

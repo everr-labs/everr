@@ -3,7 +3,7 @@ use everr_core::api::FailureNotification;
 use everr_core::assistant::{self, AssistantKind};
 use everr_core::build;
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::auth::{
     auth_status_response, clear_pending_auth, open_sign_in_browser_inner, pending_auth_response,
@@ -19,10 +19,11 @@ use crate::settings::{
     update_settings, wizard_status_response,
 };
 use crate::tray::clear_tray_snapshot;
+use crate::history::HistoryEntry;
 use crate::{
     AssistantSetupResponse, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
     PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
-    WizardStatusResponse,
+    WizardStatusResponse, NOTIFICATION_HISTORY_CHANGED_EVENT,
 };
 
 #[tauri::command]
@@ -275,6 +276,10 @@ pub(crate) fn trigger_test_notification(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<TestNotificationResponse> {
     let notification = build_test_notification().into_command_result()?;
+
+    state.history.append(notification.clone()).into_command_result()?;
+    let _ = app.emit(NOTIFICATION_HISTORY_CHANGED_EVENT, ());
+
     let shown = {
         let mut notifier = state
             .notifier
@@ -290,6 +295,23 @@ pub(crate) fn trigger_test_notification(
     Ok(TestNotificationResponse {
         status: if shown { "shown" } else { "queued" },
     })
+}
+
+#[tauri::command]
+pub(crate) fn get_notification_history(
+    state: State<'_, RuntimeState>,
+) -> CommandResult<Vec<HistoryEntry>> {
+    state.history.get_all().into_command_result()
+}
+
+#[tauri::command]
+pub(crate) fn mark_all_notifications_read(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<()> {
+    state.history.mark_all_seen().into_command_result()?;
+    let _ = app.emit(NOTIFICATION_HISTORY_CHANGED_EVENT, ());
+    Ok(())
 }
 
 async fn run_blocking_command<T, F>(operation: F) -> CommandResult<T>

@@ -24,6 +24,7 @@ struct HistoryFile {
     entries: Vec<HistoryEntry>,
 }
 
+#[derive(Clone)]
 pub struct NotificationHistoryStore {
     path: PathBuf,
     state: Arc<Mutex<VecDeque<HistoryEntry>>>,
