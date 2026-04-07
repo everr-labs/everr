@@ -1,4 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "@tanstack/react-router";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import {
@@ -9,13 +10,15 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import {
   activeNotificationQueryKey,
   NotificationCard,
+  NotificationWindow,
 } from "./features/notifications/notification-window";
 import { createQueryClient } from "./lib/query-client";
+import { router } from "./router";
 
 const SETTINGS_CHANGED_EVENT = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
@@ -87,7 +90,9 @@ type MainCommand =
   | "configure_assistants"
   | "complete_setup_wizard"
   | "reset_dev_onboarding"
-  | "trigger_test_notification";
+  | "trigger_test_notification"
+  | "get_notification_history"
+  | "mark_all_notifications_read";
 
 type RenderMainOptions = {
   signedIn?: boolean;
@@ -287,6 +292,10 @@ function renderMainApp(options: RenderMainOptions = {}) {
           return resetDevOnboardingSpy();
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
+        case "get_notification_history":
+          return [];
+        case "mark_all_notifications_read":
+          return null;
         default:
           throw new Error(`Unexpected IPC command: ${cmd}`);
       }
@@ -294,7 +303,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
     { shouldMockEvents: true },
   );
 
-  renderWithProviders(<App />);
+  renderWithProviders(<RouterProvider router={router} />);
 
   return {
     closeWindowSpy,
@@ -352,7 +361,7 @@ async function renderNotificationApp(
   }
 
   await act(async () => {
-    renderWithProviders(<App />, queryClient);
+    renderWithProviders(<NotificationWindow />, queryClient);
     await Promise.resolve();
     await Promise.resolve();
     if (vi.isFakeTimers()) {
@@ -423,12 +432,16 @@ async function flushNotificationRender() {
   });
 }
 
+afterEach(async () => {
+  await router.navigate({ to: "/" });
+});
+
 describe("desktop window", () => {
-  it("renders the settings view for completed users", async () => {
+  it("renders the notifications view as the default for completed users", async () => {
     renderMainApp();
 
     expect(
-      await screen.findByRole("heading", { name: "Settings" }),
+      await screen.findByRole("heading", { name: "Notifications" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Authenticate your Everr account"),
@@ -443,6 +456,10 @@ describe("desktop window", () => {
       commandOverrides: {
         get_assistant_setup: () => assistantSetupDeferred.promise,
       },
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
     });
 
     expect(
@@ -607,6 +624,10 @@ describe("desktop window", () => {
       assistantStatuses: defaultAssistantStatuses(["codex"]),
     });
 
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
     const claudeCheckbox = await screen.findByRole("checkbox", {
       name: /claude/i,
     });
@@ -663,6 +684,10 @@ describe("desktop window", () => {
       testNotification: { status: "queued" },
     });
 
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
     fireEvent.click(
       await screen.findByRole("button", { name: "Test notification" }),
     );
@@ -696,6 +721,10 @@ describe("desktop window", () => {
 
   it("resets the dev session and reopens onboarding from settings", async () => {
     const { resetDevOnboardingSpy } = renderMainApp();
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Reset onboarding" }),
