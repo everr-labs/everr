@@ -91,28 +91,14 @@ function useActiveNotificationQuery() {
 }
 
 function useDismissActiveNotificationMutation() {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: dismissActiveNotification,
-    onSuccess() {
-      void queryClient.invalidateQueries({
-        queryKey: activeNotificationQueryKey,
-      });
-    },
   });
 }
 
 function useOpenNotificationTargetMutation() {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: openNotificationTarget,
-    onSuccess() {
-      void queryClient.invalidateQueries({
-        queryKey: activeNotificationQueryKey,
-      });
-    },
   });
 }
 
@@ -228,7 +214,6 @@ export function NotificationCard({
     copyMutation.isPending;
 
   useEffect(() => {
-    setHovered(false);
     setCopiedAutoFixPrompt(false);
     setRemainingMs(AUTO_DISMISS_MS);
     setDeadlineAt(Date.now() + AUTO_DISMISS_MS);
@@ -285,12 +270,7 @@ export function NotificationCard({
 
   return (
     <main className="h-screen pt-3 pl-3">
-      {/** biome-ignore lint/a11y/noStaticElementInteractions: we need to track mouse enter and leave events */}
-      <section
-        className="notificationCard group relative flex h-full flex-col bg-card"
-        onMouseEnter={pauseAutoDismiss}
-        onMouseLeave={resumeAutoDismiss}
-      >
+      <div className="relative h-full">
         <button
           type="button"
           className={`cursor-pointer absolute -left-[11px] -top-[11px] z-10 flex size-[22px] items-center justify-center rounded-full transition-opacity duration-150 bg-accent text-accent-foreground disabled:pointer-events-none ${hovered ? "opacity-100" : "opacity-0"}`}
@@ -311,78 +291,84 @@ export function NotificationCard({
             <path d="M10 2 2 10" />
           </svg>
         </button>
-
-        <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
-          <div className="grid min-w-0 flex-1 gap-[3px]">
-            <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-              Everr - Failed run
-            </p>
-            <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-card-foreground">
-              {notification.workflowName}
-            </h1>
-            <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-muted-foreground">
-              <span className="truncate">{notification.repo}</span>
-              <span className="text-border">•</span>
-              <span>{notification.branch}</span>
-            </p>
-            {failureScope ? (
-              <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">
-                {failureScope}
+        {/** biome-ignore lint/a11y/noStaticElementInteractions: we need to track mouse enter and leave events */}
+        <section
+          className="group flex h-full flex-col overflow-hidden bg-card rounded-xl"
+          onMouseEnter={pauseAutoDismiss}
+          onMouseLeave={resumeAutoDismiss}
+        >
+          <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
+            <div className="grid min-w-0 flex-1 gap-[3px]">
+              <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                Everr - Failed run
               </p>
-            ) : null}
-            <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-muted-foreground/70">
-              <span>{absoluteTime}</span>
-              <span className="text-border">·</span>
-              <span>{relativeTime}</span>
-            </p>
+              <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-card-foreground">
+                {notification.workflowName}
+              </h1>
+              <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-muted-foreground">
+                <span className="truncate">{notification.repo}</span>
+                <span className="text-border">•</span>
+                <span>{notification.branch}</span>
+              </p>
+              {failureScope ? (
+                <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">
+                  {failureScope}
+                </p>
+              ) : null}
+              <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-muted-foreground/70">
+                <span>{absoluteTime}</span>
+                <span className="text-border">·</span>
+                <span>{relativeTime}</span>
+              </p>
+            </div>
+
+            <div className="flex min-w-0 shrink-0 flex-col items-stretch gap-2">
+              <Button
+                size="lg"
+                className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
+                disabled={busy}
+                onClick={() =>
+                  void copyMutation.mutateAsync(undefined, {
+                    onSuccess() {
+                      setCopiedAutoFixPrompt(true);
+                    },
+                  })
+                }
+              >
+                <span className="grid">
+                  <span
+                    aria-hidden="true"
+                    className="invisible col-start-1 row-start-1"
+                  >
+                    Auto-fix prompt
+                  </span>
+                  <span className="col-start-1 row-start-1">
+                    {copyAutoFixPromptLabel}
+                  </span>
+                </span>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
+                disabled={busy}
+                onClick={() => void openMutation.mutateAsync()}
+              >
+                {openMutation.isPending ? "Opening..." : "Open"}
+              </Button>
+            </div>
           </div>
 
-          <div className="flex min-w-0 shrink-0 flex-col items-stretch gap-2">
-            <Button
-              size="lg"
-              className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
-              disabled={busy}
-              onClick={() =>
-                void copyMutation.mutateAsync(undefined, {
-                  onSuccess() {
-                    setCopiedAutoFixPrompt(true);
-                  },
-                })
-              }
-            >
-              <span className="grid">
-                <span
-                  aria-hidden="true"
-                  className="invisible col-start-1 row-start-1"
-                >
-                  Auto-fix prompt
-                </span>
-                <span className="col-start-1 row-start-1">
-                  {copyAutoFixPromptLabel}
-                </span>
-              </span>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
-              disabled={busy}
-              onClick={() => void openMutation.mutateAsync()}
-            >
-              {openMutation.isPending ? "Opening..." : "Open"}
-            </Button>
+          <div className="h-[3px] w-full shrink-0 bg-muted">
+            <div
+              key={notification.dedupeKey}
+              className="notification-progress h-full bg-primary origin-left"
+              style={{ animationDuration: `${AUTO_DISMISS_MS}ms` }}
+              data-paused={hovered || undefined}
+            />
           </div>
-        </div>
-
-        <div className="h-[3px] w-full shrink-0 bg-muted">
-          <div
-            key={notification.dedupeKey}
-            className="notification-progress h-full bg-primary origin-left"
-            style={{ animationDuration: `${AUTO_DISMISS_MS}ms` }}
-            data-paused={hovered || undefined}
-          />
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
@@ -394,7 +380,7 @@ function NotificationLoadingState() {
 function NotificationErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <main className="h-screen bg-card">
-      <section className="notificationCard grid h-full items-center bg-card px-[18px] py-4">
+      <section className="grid h-full items-center bg-card px-[18px] py-4 rounded-xl">
         <div className="grid min-w-0 gap-3">
           <div className="grid min-w-0 gap-1">
             <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">

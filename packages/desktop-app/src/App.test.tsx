@@ -737,6 +737,13 @@ describe("notification window", () => {
     await waitFor(() => {
       expect(dismissSpy).toHaveBeenCalledTimes(1);
     });
+
+    // Backend emits the changed event after the slide-out animation completes
+    await act(async () => {
+      await emit(NOTIFICATION_CHANGED_EVENT);
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
       expect(screen.queryByText("CI")).not.toBeInTheDocument();
     });
@@ -751,6 +758,13 @@ describe("notification window", () => {
     await waitFor(() => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
+
+    // Backend emits the changed event after the slide-out animation completes
+    await act(async () => {
+      await emit(NOTIFICATION_CHANGED_EVENT);
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
       expect(screen.queryByText("CI")).not.toBeInTheDocument();
     });
@@ -798,13 +812,13 @@ describe("notification window", () => {
     vi.useFakeTimers();
 
     const { dismissSpy } = await renderNotificationCard();
-    const card = screen.getByText("CI");
+    const section = screen.getByText("CI").closest("section");
 
-    fireEvent.mouseEnter(card.closest(".notificationCard") as HTMLElement);
+    fireEvent.mouseEnter(section as HTMLElement);
     await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS);
     expect(dismissSpy).not.toHaveBeenCalled();
 
-    fireEvent.mouseLeave(card.closest(".notificationCard") as HTMLElement);
+    fireEvent.mouseLeave(section as HTMLElement);
     await vi.advanceTimersByTimeAsync(NOTIFICATION_AUTO_DISMISS_MS);
     await flushNotificationRender();
 
