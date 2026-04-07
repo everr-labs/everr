@@ -381,7 +381,10 @@ fn format_watch_event_line(event: &NotifyPayload) -> String {
 }
 
 fn is_non_success_conclusion(conclusion: Option<&str>) -> bool {
-    matches!(conclusion, Some(c) if !c.eq_ignore_ascii_case("success"))
+    matches!(
+        conclusion,
+        Some("failure") | Some("timed_out") | Some("startup_failure") | Some("action_required")
+    )
 }
 
 fn print_watch_summary(completed: &[WatchRun]) {
@@ -583,13 +586,16 @@ mod tests {
     #[test]
     fn is_non_success_conclusion_returns_true_for_failure() {
         assert!(super::is_non_success_conclusion(Some("failure")));
-        assert!(super::is_non_success_conclusion(Some("cancelled")));
         assert!(super::is_non_success_conclusion(Some("timed_out")));
+        assert!(super::is_non_success_conclusion(Some("startup_failure")));
+        assert!(super::is_non_success_conclusion(Some("action_required")));
     }
 
     #[test]
     fn is_non_success_conclusion_returns_false_for_success() {
         assert!(!super::is_non_success_conclusion(Some("success")));
+        assert!(!super::is_non_success_conclusion(Some("skipped")));
+        assert!(!super::is_non_success_conclusion(Some("cancelled")));
         assert!(!super::is_non_success_conclusion(None));
     }
 
