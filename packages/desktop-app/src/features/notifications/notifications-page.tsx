@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ClipboardCopy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { invokeCommand, NOTIFICATION_HISTORY_CHANGED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
@@ -23,6 +24,18 @@ function getNotificationHistory() {
 
 function markAllNotificationsRead() {
   return invokeCommand<void>("mark_all_notifications_read");
+}
+
+function copyHistoryAutoFixPrompt(dedupeKey: string) {
+  return invokeCommand<void>("copy_history_auto_fix_prompt", {
+    dedupeKey,
+  });
+}
+
+function openHistoryNotification(dedupeKey: string) {
+  return invokeCommand<void>("open_history_notification", {
+    dedupeKey,
+  });
 }
 
 export function NotificationsPage() {
@@ -49,7 +62,7 @@ export function NotificationsPage() {
 
   return (
     <div className="pt-8">
-      <div className="flex items-start justify-between gap-4 px-6 pb-4">
+      <div className="flex items-start justify-between gap-4 px-5 pb-4">
         <div className="grid gap-1.5">
           <h1 className="m-0 text-[clamp(1.4rem,3vw,1.8rem)] font-medium leading-none tracking-[-0.04em]">
             Notifications
@@ -72,47 +85,48 @@ export function NotificationsPage() {
       </div>
 
       {historyQuery.isPending ? (
-        <div className="px-6 py-4">
+        <div className="px-5 py-4">
           <p className="m-0 text-sm text-[var(--settings-text-muted)]">
             Loading notifications...
           </p>
         </div>
       ) : entries.length === 0 ? (
-        <div className="px-6 py-12 text-center">
+        <div className="px-5 py-12 text-center">
           <p className="m-0 text-sm text-[var(--settings-text-muted)]">
             No notifications yet. Failed CI runs will appear here.
           </p>
         </div>
       ) : (
-        <ul className="m-0 list-none p-0">
-          {entries.map((entry) => (
-            <NotificationHistoryItem
-              key={entry.notification.dedupeKey + entry.receivedAt}
-              entry={entry}
-            />
-          ))}
-        </ul>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-[0.78rem]">
+            <thead>
+              <tr className="border-b border-white/[0.06] text-[0.7rem] font-medium uppercase tracking-wider text-[var(--settings-text-muted)]">
+                <th className="w-8 py-2 pl-5 pr-1 font-medium" />
+                <th className="py-2 px-2 font-medium">Workflow</th>
+                <th className="py-2 px-2 font-medium">Repository</th>
+                <th className="py-2 px-2 font-medium">Branch</th>
+                <th className="py-2 px-2 font-medium">When</th>
+                <th className="w-16 py-2 pl-2 pr-5 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <NotificationRow
+                  key={entry.notification.dedupeKey + entry.receivedAt}
+                  entry={entry}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
 }
 
-function copyHistoryAutoFixPrompt(dedupeKey: string) {
-  return invokeCommand<void>("copy_history_auto_fix_prompt", {
-    dedupeKey,
-  });
-}
-
-function openHistoryNotification(dedupeKey: string) {
-  return invokeCommand<void>("open_history_notification", {
-    dedupeKey,
-  });
-}
-
-function NotificationHistoryItem({ entry }: { entry: HistoryEntry }) {
+function NotificationRow({ entry }: { entry: HistoryEntry }) {
   const { notification, seen } = entry;
   const relativeTime = formatNotificationRelativeTime(notification.failedAt);
-  const failureScope = formatFailureScope(notification);
   const [copied, setCopied] = useState(false);
 
   const copyMutation = useMutation({
@@ -127,74 +141,53 @@ function NotificationHistoryItem({ entry }: { entry: HistoryEntry }) {
     mutationFn: () => openHistoryNotification(notification.dedupeKey),
   });
 
-  const busy = copyMutation.isPending || openMutation.isPending;
-
   return (
-    <li className="flex items-center gap-2 border-b border-white/[0.04] px-6 py-3 transition-colors hover:bg-white/[0.03]">
-      {!seen && (
-        <span className="mt-0.5 block size-2 shrink-0 self-start rounded-full bg-primary" />
-      )}
-      <div className={`min-w-0 flex-1 grid gap-0.5 ${seen ? "pl-5" : ""}`}>
-        <p className="m-0 text-[0.85rem] font-semibold leading-tight text-[var(--settings-text)]">
-          {notification.workflowName}
-        </p>
-        <p className="m-0 flex min-w-0 items-center gap-1 text-[0.78rem] leading-tight text-[var(--settings-text-muted)]">
-          <span className="truncate">{notification.repo}</span>
-          <span className="text-white/20">&middot;</span>
-          <span>{notification.branch}</span>
-        </p>
-        {failureScope && (
-          <p className="m-0 text-[0.75rem] leading-tight text-[var(--settings-text-muted)]">
-            {failureScope}
-          </p>
+    <tr className="border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]">
+      <td className="py-2 pl-5 pr-1">
+        {!seen ? (
+          <span className="block size-2 rounded-full bg-red-500" />
+        ) : (
+          <span className="block size-2" />
         )}
-        <p className="m-0 text-[0.72rem] text-[var(--settings-text-muted)]">
-          {relativeTime}
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-col items-stretch gap-1.5">
-        <Button
-          size="sm"
-          className="min-w-[120px] text-[0.72rem]"
-          disabled={busy}
-          onClick={() => void copyMutation.mutateAsync()}
-        >
-          {copyMutation.isPending
-            ? "Copying..."
-            : copied
-              ? "Copied"
-              : "Auto-fix prompt"}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="min-w-[120px] text-[0.72rem]"
-          disabled={busy}
-          onClick={() => void openMutation.mutateAsync()}
-        >
-          {openMutation.isPending ? "Opening..." : "Open"}
-        </Button>
-      </div>
-    </li>
+      </td>
+      <td className="py-2 px-2 font-medium text-[var(--settings-text)]">
+        {notification.workflowName}
+      </td>
+      <td className="py-2 px-2 text-[var(--settings-text-muted)]">
+        {notification.repo}
+      </td>
+      <td className="py-2 px-2">
+        <span className="inline-block rounded bg-white/[0.06] px-1.5 py-0.5 text-[0.72rem] text-[var(--settings-text-muted)]">
+          {notification.branch}
+        </span>
+      </td>
+      <td className="py-2 px-2 text-[var(--settings-text-muted)]">
+        {relativeTime}
+      </td>
+      <td className="py-2 pl-2 pr-5">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
+            title={copied ? "Copied!" : "Copy auto-fix prompt"}
+            disabled={copyMutation.isPending}
+            onClick={() => void copyMutation.mutateAsync()}
+          >
+            <ClipboardCopy
+              className={`size-3.5 ${copied ? "text-emerald-400" : ""}`}
+            />
+          </button>
+          <button
+            type="button"
+            className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
+            title="Open in browser"
+            disabled={openMutation.isPending}
+            onClick={() => void openMutation.mutateAsync()}
+          >
+            <ExternalLink className="size-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
   );
-}
-
-function formatFailureScope(notification: FailureNotification): string | null {
-  if (
-    notification.jobName &&
-    notification.stepNumber &&
-    notification.stepName
-  ) {
-    return `${notification.jobName} \u00b7 Step ${notification.stepNumber}: ${notification.stepName}`;
-  }
-  if (notification.jobName && notification.stepName) {
-    return `${notification.jobName} \u00b7 ${notification.stepName}`;
-  }
-  if (notification.jobName && notification.stepNumber) {
-    return `${notification.jobName} \u00b7 Step ${notification.stepNumber}`;
-  }
-  if (notification.jobName) {
-    return `Job: ${notification.jobName}`;
-  }
-  return null;
 }
