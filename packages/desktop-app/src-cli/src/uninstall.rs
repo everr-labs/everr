@@ -14,7 +14,7 @@ pub fn run_uninstall() -> Result<()> {
     wait_for_enter()?;
 
     assistant::remove_managed_prompts()?;
-    auth::logout()?;
+    auth::state_store().wipe()?;
 
     println!();
     println!("To remove the CLI binary, run:");
@@ -26,7 +26,7 @@ pub fn run_uninstall() -> Result<()> {
 fn print_uninstall_effects(cli_path: &Path) {
     println!("The uninstall command will:");
     println!("- Removes Everr-managed assistant instructions from Codex/Claude/Cursor files.");
-    println!("- Logs out and removes the local Everr session.");
+    println!("- Removes all local Everr state (session, settings, notification emails).");
     println!(
         "- Does not remove the CLI binary automatically: {}",
         cli_path.display()

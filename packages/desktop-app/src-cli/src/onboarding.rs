@@ -35,9 +35,9 @@ pub async fn run() -> Result<()> {
     step_import_repos(&session).await?;
     step_configure_notification_emails(&session).await?;
     let assistants_configured = step_configure_assistants()?;
-    step_install_desktop_app().await?;
+    let desktop_installed = step_install_desktop_app().await?;
 
-    cliclack::outro(outro_message(assistants_configured))?;
+    cliclack::outro(outro_message(assistants_configured, desktop_installed))?;
     Ok(())
 }
 
@@ -114,7 +114,7 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
     const MAX_REPOS: usize = 3;
 
-    let mut prompt = cliclack::multiselect("Select repositories to import (up to 3)");
+    let mut prompt = cliclack::multiselect("Select repositories to import (up to 3)").required(false);
     for repo in &repos {
         prompt = prompt.item(repo.full_name.clone(), repo.full_name.clone(), "");
     }
@@ -313,6 +313,13 @@ fn step_configure_assistants() -> Result<bool> {
         }
     }
 
+    if interactive {
+        cliclack::note(
+            "Agent integrations",
+            "Each selected assistant gets a small instruction block (under 300 bytes) added to its global context file.",
+        )?;
+    }
+
     let selected_assistants: Vec<AssistantKind> = if interactive {
         let mut prompt = cliclack::multiselect("Select assistants to configure");
         for (i, s) in statuses.iter().enumerate() {
@@ -354,7 +361,7 @@ fn step_configure_assistants() -> Result<bool> {
     Ok(true)
 }
 
-async fn step_install_desktop_app() -> Result<()> {
+async fn step_install_desktop_app() -> Result<bool> {
     let interactive = std::io::stdin().is_terminal();
     let app_path = Path::new("/Applications/Everr.app");
     let already_installed = app_path.exists();
@@ -367,18 +374,18 @@ async fn step_install_desktop_app() -> Result<()> {
 
     if running {
         cliclack::log::success("Desktop app is already running in the menu bar.")?;
-        return Ok(());
+        return Ok(true);
     }
 
     if already_installed {
         let _ = ProcessCommand::new("open").args(["-a", "Everr"]).status();
         cliclack::log::success("Desktop app is now running in the menu bar.")?;
-        return Ok(());
+        return Ok(true);
     }
 
     if !interactive {
         cliclack::log::remark("Install the desktop app from https://everr.dev")?;
-        return Ok(());
+        return Ok(false);
     }
 
     let install: bool = cliclack::confirm("Do you want to install the Everr desktop app?\n\nThe desktop app runs in the menu bar and notifies you\nwhen your CI/CD pipelines fail or need attention.")
@@ -387,7 +394,7 @@ async fn step_install_desktop_app() -> Result<()> {
 
     if !install {
         cliclack::log::remark("You can install it later from https://everr.dev")?;
-        return Ok(());
+        return Ok(false);
     }
 
     {
@@ -447,12 +454,14 @@ async fn step_install_desktop_app() -> Result<()> {
     let _ = ProcessCommand::new("open").args(["-a", "Everr"]).status();
     cliclack::log::success("Desktop app is now running in the menu bar.")?;
 
-    Ok(())
+    Ok(true)
 }
 
-fn outro_message(assistants_configured: bool) -> &'static str {
-    if assistants_configured {
-        "Your AI assistant is now aware of Everr — ask it about CI pipelines, failing jobs, or workflow logs."
+fn outro_message(assistants_configured: bool, desktop_installed: bool) -> &'static str {
+    if assistants_configured && desktop_installed {
+        "Your AI assistant is set up for Everr — ask it about CI pipelines, failing jobs, or workflow logs.\nOr break something in CI — Everr will notify you with a ready-to-use fix prompt."
+    } else if assistants_configured {
+        "Your AI assistant is set up for Everr — ask it about CI pipelines, failing jobs, or workflow logs."
     } else {
         "Run `everr init` in a repo to setup the agents instructions."
     }
@@ -570,12 +579,21 @@ mod tests {
     }
 
     #[test]
-    fn outro_message_with_assistants_configured() {
-        assert!(super::outro_message(true).contains("AI assistant"));
+    fn outro_message_with_assistants_and_desktop() {
+        let msg = super::outro_message(true, true);
+        assert!(msg.contains("AI assistant"));
+        assert!(msg.contains("break something in CI"));
+    }
+
+    #[test]
+    fn outro_message_with_assistants_no_desktop() {
+        let msg = super::outro_message(true, false);
+        assert!(msg.contains("AI assistant"));
+        assert!(!msg.contains("break something in CI"));
     }
 
     #[test]
     fn outro_message_without_assistants_configured() {
-        assert!(super::outro_message(false).contains("everr init"));
+        assert!(super::outro_message(false, false).contains("everr init"));
     }
 }

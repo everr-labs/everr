@@ -687,6 +687,20 @@ mod tests {
         assert!(claude.contains("<!-- BEGIN everr -->"));
     }
 
+    // The onboarding UI tells users the instruction block is "under 300 bytes" —
+    // this test ensures that claim stays true if the discovery instructions change.
+    #[test]
+    fn discovery_content_for_claude_and_codex_stays_under_300_bytes() {
+        for assistant in [AssistantKind::Claude, AssistantKind::Codex] {
+            let content = super::content_for_assistant_discovery(assistant, "everr");
+            assert!(
+                content.len() < 300,
+                "discovery content for {assistant:?} is {} bytes, must stay under 300",
+                content.len()
+            );
+        }
+    }
+
     fn sync_assistants_for_home(
         home: &Path,
         assistants: &[AssistantKind],

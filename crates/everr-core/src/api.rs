@@ -186,6 +186,22 @@ impl ApiClient {
 
     /// Calls POST /api/cli/import and collects all NDJSON events.
     pub async fn import_repos(&self, repos: &[String]) -> Result<Vec<ImportEvent>> {
+        let mut events = Vec::new();
+        self.import_repos_streaming(repos, |e| events.push(e)).await?;
+        Ok(events)
+    }
+
+    /// Calls POST /api/cli/import and streams NDJSON events, calling `on_event` for each one.
+    pub async fn import_repos_streaming<F>(
+        &self,
+        repos: &[String],
+        mut on_event: F,
+    ) -> Result<()>
+    where
+        F: FnMut(ImportEvent),
+    {
+        use futures_util::StreamExt;
+
         let response = self
             .http
             .post(format!("{}/import", self.base_endpoint))
@@ -203,17 +219,28 @@ impl ApiClient {
             bail!("import request failed with {status}: {text}");
         }
 
-        let body = response.text().await.context("failed to read import body")?;
-        let events = body
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| {
-                serde_json::from_str::<ImportEvent>(line)
-                    .with_context(|| format!("failed to parse import event: {line}"))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
 
-        Ok(events)
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.context("failed to read import stream chunk")?;
+            let chunk_str =
+                std::str::from_utf8(&chunk).context("non-UTF8 data in import stream")?;
+            buffer.push_str(chunk_str);
+
+            while let Some(pos) = buffer.find('\n') {
+                let line = buffer[..pos].trim().to_string();
+                buffer = buffer[pos + 1..].to_string();
+                if line.is_empty() {
+                    continue;
+                }
+                if let Ok(event) = serde_json::from_str::<ImportEvent>(&line) {
+                    on_event(event);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
@@ -340,7 +367,7 @@ pub struct FailureNotification {
 #[serde(rename_all = "camelCase")]
 pub struct OrgResponse {
     pub name: String,
-    pub is_only_admin: bool,
+    pub is_only_member: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -419,7 +446,7 @@ mod api_client_tests {
             .mock("GET", "/api/cli/org")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"{"name":"Test Org","isOnlyAdmin":true}"#)
+            .with_body(r#"{"name":"Test Org","isOnlyMember":true}"#)
             .create_async()
             .await;
 
@@ -427,7 +454,7 @@ mod api_client_tests {
         let org = client.get_org().await.unwrap();
 
         assert_eq!(org.name, "Test Org");
-        assert!(org.is_only_admin);
+        assert!(org.is_only_member);
         mock.assert_async().await;
     }
 

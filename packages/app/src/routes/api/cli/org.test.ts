@@ -46,7 +46,7 @@ const context = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/org", () => {
-  it("returns org name and isOnlyAdmin true when user is sole admin", async () => {
+  it("returns org name and isOnlyMember true when user is the only member", async () => {
     mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
       ReturnType<typeof mockedGetOrg>
     >);
@@ -62,7 +62,7 @@ describe("/api/cli/org", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       name: "Test Org",
-      isOnlyAdmin: true,
+      isOnlyMember: true,
     });
     expect(mockedGetOrg).toHaveBeenCalledWith("org_xyz");
     expect(mockedListMemberships).toHaveBeenCalledWith({
@@ -71,7 +71,27 @@ describe("/api/cli/org", () => {
     });
   });
 
-  it("returns isOnlyAdmin false when another admin exists", async () => {
+  it("returns isOnlyMember false when another member exists", async () => {
+    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
+      ReturnType<typeof mockedGetOrg>
+    >);
+    mockedListMemberships.mockResolvedValueOnce({
+      data: [
+        { userId: "user_abc", role: { slug: "admin" } },
+        { userId: "user_def", role: { slug: "member" } },
+      ],
+    } as Awaited<ReturnType<typeof mockedListMemberships>>);
+
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/org"),
+      context,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ isOnlyMember: false });
+  });
+
+  it("returns isOnlyMember false when the user is not the only member", async () => {
     mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
       ReturnType<typeof mockedGetOrg>
     >);
@@ -87,23 +107,6 @@ describe("/api/cli/org", () => {
       context,
     });
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ isOnlyAdmin: false });
-  });
-
-  it("returns isOnlyAdmin false when current user is not an admin", async () => {
-    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
-      ReturnType<typeof mockedGetOrg>
-    >);
-    mockedListMemberships.mockResolvedValueOnce({
-      data: [{ userId: "user_abc", role: { slug: "member" } }],
-    } as Awaited<ReturnType<typeof mockedListMemberships>>);
-
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/org"),
-      context,
-    });
-
-    expect(await response.json()).toMatchObject({ isOnlyAdmin: false });
+    expect(await response.json()).toMatchObject({ isOnlyMember: false });
   });
 });

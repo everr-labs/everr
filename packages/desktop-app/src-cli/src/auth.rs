@@ -20,7 +20,7 @@ pub async fn login(_args: LoginArgs) -> Result<()> {
 
 pub fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
     let _ = cliclack::note(
-        "Sign in",
+        "Authenticate",
         format!("Code: {user_code}\nURL:  {verification_url}"),
     );
 

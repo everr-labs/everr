@@ -198,6 +198,16 @@ impl AppStateStore {
         bail!(NO_ACTIVE_SESSION);
     }
 
+    /// Deletes the state file entirely, removing all session and settings data.
+    pub fn wipe(&self) -> Result<()> {
+        let path = self.session_file_path()?;
+        if path.exists() {
+            fs::remove_file(&path)
+                .with_context(|| format!("failed to remove {}", path.display()))?;
+        }
+        Ok(())
+    }
+
     pub fn has_active_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<bool> {
         match self.load_session_for_api_base_url(expected_api_base_url) {
             Ok(_) => Ok(true),

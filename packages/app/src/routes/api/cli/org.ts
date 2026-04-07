@@ -17,13 +17,11 @@ export const Route = createFileRoute("/api/cli/org")({
           }),
         ]);
 
-        const adminMembers = memberships.data.filter(
-          (m) => m.role?.slug === "admin",
-        );
-        const isOnlyAdmin =
-          adminMembers.length === 1 && adminMembers[0].userId === userId;
+        const isOnlyMember =
+          memberships.data.length === 1 &&
+          memberships.data[0].userId === userId;
 
-        return Response.json({ name: org.name, isOnlyAdmin });
+        return Response.json({ name: org.name, isOnlyMember });
       },
     },
   },
