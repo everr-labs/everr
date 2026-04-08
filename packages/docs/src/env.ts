@@ -10,16 +10,15 @@ export const env = createEnv({
   clientPrefix: "VITE_",
 
   client: {
-    VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: z.string(),
-    VITE_PUBLIC_POSTHOG_HOST: z.string().default("https://eu.i.posthog.com"),
+    VITE_POSTHOG_PROJECT_TOKEN: z.string(),
+    VITE_POSTHOG_HOST: z.string().default("https://eu.i.posthog.com"),
   },
 
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
-    VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: import.meta.env
-      .VITE_PUBLIC_POSTHOG_PROJECT_TOKEN,
-    VITE_PUBLIC_POSTHOG_HOST: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+    VITE_POSTHOG_PROJECT_TOKEN: import.meta.env.VITE_POSTHOG_PROJECT_TOKEN,
+    VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST,
   },
 
   emptyStringAsUndefined: true,

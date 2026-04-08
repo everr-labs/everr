@@ -12,7 +12,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 
 # Stage 2: build
 FROM deps AS build
-ARG VITE_PUBLIC_POSTHOG_PROJECT_TOKEN
+ARG VITE_POSTHOG_PROJECT_TOKEN
 ARG VITE_PUBLIC_POSTHOG_HOST
 COPY . .
 COPY packages/ui ./packages/ui
