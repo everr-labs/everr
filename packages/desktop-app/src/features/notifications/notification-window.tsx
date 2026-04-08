@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   invokeCommand,
   NOTIFICATION_CHANGED_EVENT,
+  NOTIFICATION_EXIT_EVENT,
   NOTIFICATION_HOVER_EVENT,
 } from "@/lib/tauri";
 import {
@@ -205,6 +206,7 @@ export function NotificationCard({
   const openMutation = useOpenNotificationTargetMutation();
   const copyMutation = useCopyAutoFixPromptMutation();
   const [copiedAutoFixPrompt, setCopiedAutoFixPrompt] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [remainingMs, setRemainingMs] = useState(AUTO_DISMISS_MS);
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
@@ -214,6 +216,7 @@ export function NotificationCard({
     copyMutation.isPending;
 
   useEffect(() => {
+    setExiting(false);
     setCopiedAutoFixPrompt(false);
     setRemainingMs(AUTO_DISMISS_MS);
     setDeadlineAt(Date.now() + AUTO_DISMISS_MS);
@@ -259,6 +262,12 @@ export function NotificationCard({
 
   useTauriEvent(NOTIFICATION_HOVER_EVENT, handleHoverEvent);
 
+  const handleExitEvent = useEffectEvent(() => {
+    setExiting(true);
+  });
+
+  useTauriEvent(NOTIFICATION_EXIT_EVENT, handleExitEvent);
+
   const absoluteTime = formatNotificationAbsoluteTime(notification.failedAt);
   const relativeTime = formatNotificationRelativeTime(notification.failedAt);
   const failureScope = formatFailureScope(notification);
@@ -269,8 +278,10 @@ export function NotificationCard({
       : "Auto-fix prompt";
 
   return (
-    <main className="h-screen pt-3 pl-3">
-      <div className="relative h-full">
+    <main className="h-screen pl-3 pr-14 pt-3">
+      <div
+        className={`relative h-full ${exiting ? "notification-exit" : "notification-enter"}`}
+      >
         <button
           type="button"
           className={`cursor-pointer absolute -left-[11px] -top-[11px] z-10 flex size-[22px] items-center justify-center rounded-full transition-opacity duration-150 bg-accent text-accent-foreground disabled:pointer-events-none ${hovered ? "opacity-100" : "opacity-0"}`}

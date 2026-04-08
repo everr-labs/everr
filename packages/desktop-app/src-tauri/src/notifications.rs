@@ -19,7 +19,7 @@ use crate::tray::{
 };
 use crate::{
     current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
-    NOTIFICATION_HISTORY_CHANGED_EVENT,
+    NOTIFICATION_EXIT_EVENT, NOTIFICATION_HISTORY_CHANGED_EVENT,
     NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT, NOTIFICATION_WINDOW_INSET,
     NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN, NOTIFICATION_WINDOW_WIDTH,
     TRAY_FAILURES_WINDOW_MINUTES,
@@ -401,14 +401,8 @@ fn show_notification_window(app: &AppHandle) -> Result<()> {
     configure_notification_window_for_fullscreen(&window)?;
 
     if !was_visible {
-        // Start off-screen to the right, then animate to final position
-        let (final_x, final_y) = notification_window_position(app)?;
-        let off_screen_x = final_x + NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + 24.0;
-        window
-            .set_position(LogicalPosition::new(off_screen_x, final_y))
-            .context("failed to set initial off-screen position")?;
+        position_notification_window(app, &window)?;
         show_without_focus(&window)?;
-        animate_window_slide(app, final_x, final_y, false);
         start_notification_hover_polling(app);
     } else {
         position_notification_window(app, &window)?;
@@ -466,12 +460,17 @@ fn cursor_is_over_notification_window(app: &AppHandle, window: &WebviewWindow) -
 fn hide_notification_window(app: &AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) {
         if window.is_visible().unwrap_or(false) {
-            if let Ok((final_x, final_y)) = notification_window_position(app) {
-                let off_screen_x =
-                    final_x + NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + 24.0;
-                animate_window_slide(app, off_screen_x, final_y, true);
-                return Ok(());
-            }
+            // Tell the frontend to play the CSS exit animation, then hide after it completes.
+            let _ = window.emit(NOTIFICATION_EXIT_EVENT, ());
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                if let Some(w) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) {
+                    let _ = w.hide();
+                }
+                let _ = app.emit(NOTIFICATION_CHANGED_EVENT, ());
+            });
+            return Ok(());
         }
         window
             .hide()
@@ -479,52 +478,6 @@ fn hide_notification_window(app: &AppHandle) -> Result<()> {
     }
     app.emit(NOTIFICATION_CHANGED_EVENT, ())
         .context("failed to emit notification update")
-}
-
-/// Smoothly slides the notification window to `(target_x, target_y)`.
-/// When `hide_after` is true the window is hidden once the animation completes.
-fn animate_window_slide(app: &AppHandle, target_x: f64, target_y: f64, hide_after: bool) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        const DURATION_MS: u64 = 200;
-        const FRAME_MS: u64 = 6;
-        let steps = DURATION_MS / FRAME_MS;
-
-        let Some(window) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) else {
-            return;
-        };
-        let Ok(start_pos) = window.outer_position() else {
-            return;
-        };
-        let scale = app
-            .cursor_position()
-            .ok()
-            .and_then(|c| app.monitor_from_point(c.x, c.y).ok().flatten())
-            .or_else(|| app.primary_monitor().ok().flatten())
-            .map(|m| m.scale_factor())
-            .unwrap_or(1.0);
-        let start_x = start_pos.x as f64 / scale;
-        let start_y = start_pos.y as f64 / scale;
-
-        for i in 1..=steps {
-            let t = i as f64 / steps as f64;
-            // ease-out cubic for slide-in, ease-in cubic for slide-out
-            let eased = if hide_after {
-                t * t * t
-            } else {
-                1.0 - (1.0 - t).powi(3)
-            };
-            let x = start_x + (target_x - start_x) * eased;
-            let y = start_y + (target_y - start_y) * eased;
-            let _ = window.set_position(LogicalPosition::new(x, y));
-            tokio::time::sleep(Duration::from_millis(FRAME_MS)).await;
-        }
-
-        if hide_after {
-            let _ = app.emit(NOTIFICATION_CHANGED_EVENT, ());
-            let _ = window.hide();
-        }
-    });
 }
 
 fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
@@ -539,15 +492,15 @@ fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
     )
     .title("Everr Notification")
     .inner_size(
-        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET,
+        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN,
         NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET,
     )
     .min_inner_size(
-        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET,
+        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN,
         NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET,
     )
     .max_inner_size(
-        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET,
+        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN,
         NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET,
     )
     .prevent_overflow()
@@ -619,11 +572,16 @@ fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
         .ok_or_else(|| anyhow!("failed to resolve notification monitor"))?;
     let work_area = monitor.work_area();
     let scale_factor = monitor.scale_factor();
-    let width =
-        ((NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET) * scale_factor).round() as i32;
+    let full_width = ((NOTIFICATION_WINDOW_WIDTH
+        + NOTIFICATION_WINDOW_INSET
+        + NOTIFICATION_WINDOW_MARGIN)
+        * scale_factor)
+        .round() as i32;
     let inset = (NOTIFICATION_WINDOW_INSET * scale_factor).round() as i32;
     let margin = (NOTIFICATION_WINDOW_MARGIN * scale_factor).round() as i32;
-    let x = work_area.position.x + work_area.size.width as i32 - width - margin / 2;
+    // Window right edge is flush with the work-area edge.
+    // The margin between the card and screen edge is handled by CSS padding-right.
+    let x = work_area.position.x + work_area.size.width as i32 - full_width;
     let y = work_area.position.y + margin - inset;
 
     Ok((x as f64 / scale_factor, y as f64 / scale_factor))

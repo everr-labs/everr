@@ -52,6 +52,7 @@ const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_HOVER_EVENT: &str = "everr://notification-hover";
 const NOTIFICATION_HISTORY_CHANGED_EVENT: &str = "everr://notification-history-changed";
+const NOTIFICATION_EXIT_EVENT: &str = "everr://notification-exit";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 124.0;

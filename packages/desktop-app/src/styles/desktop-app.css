@@ -20,6 +20,37 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+@keyframes notification-slide-in {
+  from {
+    transform: translateX(56px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes notification-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(56px);
+    opacity: 0;
+  }
+}
+
+.notification-enter {
+  animation: notification-slide-in 200ms cubic-bezier(0.33, 1, 0.68, 1) forwards;
+}
+
+.notification-exit {
+  animation: notification-slide-out 200ms cubic-bezier(0.32, 0, 0.67, 0)
+    forwards;
+}
+
 @keyframes notification-progress-shrink {
   from {
     transform: scaleX(1);
