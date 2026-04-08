@@ -28,7 +28,7 @@ pub async fn run() -> Result<()> {
     println!();
     print_banner();
 
-    cliclack::intro("Onboarding")?;
+    cliclack::intro("Setup")?;
 
     let session = step_authenticate().await?;
     step_rename_org(&session).await?;
@@ -127,68 +127,12 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
     let to_import: Vec<String> = selected.into_iter().take(MAX_REPOS).collect();
 
-    let pb = cliclack::progress_bar(100);
-    pb.start("Importing workflow history…");
-
-    let mut done_result: Option<(u32, u32)> = None;
-    let mut current_repo_index = 0u32;
-    let mut current_repos_total = 1u32;
-
-    let result = client
-        .import_repos_streaming(&to_import, |event| match event {
-            everr_core::api::ImportEvent::RepoStart {
-                repo_full_name,
-                repo_index,
-                repos_total,
-            } => {
-                current_repo_index = repo_index;
-                current_repos_total = repos_total;
-                if repos_total > 1 {
-                    pb.set_message(format!(
-                        "Importing {repo_full_name} ({repo_index}/{repos_total})…"
-                    ));
-                } else {
-                    pb.set_message(format!("Importing {repo_full_name}…"));
-                }
-            }
-            everr_core::api::ImportEvent::Progress { progress } => {
-                if progress.jobs_quota > 0 {
-                    pb.set_position(import_progress_position(
-                        current_repo_index,
-                        current_repos_total,
-                        progress.jobs_enqueued,
-                        progress.jobs_quota,
-                    ));
-                }
-                if progress.runs_processed > 0 {
-                    pb.set_message(format!("{} runs imported…", progress.runs_processed));
-                }
-            }
-            everr_core::api::ImportEvent::Done {
-                total_jobs,
-                total_errors,
-            } => {
-                done_result = Some((total_jobs, total_errors));
-            }
-            everr_core::api::ImportEvent::RepoError { .. } => {}
-        })
-        .await;
-
-    if result.is_err() {
-        pb.stop("Import skipped (API error).");
-        return Ok(());
+    match client.start_import_repos(&to_import).await {
+        Ok(_) => cliclack::log::remark(
+            "Import started — your data will appear gradually on the CLI results.",
+        )?,
+        Err(_) => cliclack::log::warning("Could not start import, skipping.")?,
     }
-
-    match done_result {
-        Some((jobs, 0)) => pb.stop(format!("Imported {jobs} workflow runs.")),
-        Some((jobs, errors)) => pb.stop(format!(
-            "Imported {jobs} runs ({errors} errors — some repos may be incomplete)."
-        )),
-        None => pb.stop("Import complete."),
-    }
-    cliclack::log::remark(
-        "Your data is being processed and will appear gradually on the CLI results.",
-    )?;
 
     Ok(())
 }
@@ -509,65 +453,8 @@ fn should_use_color() -> bool {
             .unwrap_or(true)
 }
 
-/// Maps per-repo import progress onto a single 0–100 bar covering all repos.
-/// `repo_index` is 0-based; `repos_total` is the total number of repos.
-fn import_progress_position(
-    repo_index: u32,
-    repos_total: u32,
-    jobs_enqueued: u32,
-    jobs_quota: u32,
-) -> u64 {
-    if repos_total == 0 || jobs_quota == 0 {
-        return 0;
-    }
-    let repo_fraction = (jobs_enqueued as f64 / jobs_quota as f64).min(1.0);
-    let overall = (repo_index as f64 + repo_fraction) / repos_total as f64;
-    (overall * 100.0) as u64
-}
-
 #[cfg(test)]
 mod tests {
-    use super::import_progress_position;
-
-    #[test]
-    fn import_progress_does_not_panic_before_repo_start() {
-        // repo_index=0 (default before any RepoStart), quota>0 must not panic
-        assert_eq!(import_progress_position(0, 2, 0, 10), 0);
-    }
-
-    #[test]
-    fn import_progress_first_repo_half_done() {
-        // repo 0 of 2, 5/10 → 25%
-        assert_eq!(import_progress_position(0, 2, 5, 10), 25);
-    }
-
-    #[test]
-    fn import_progress_second_repo_fully_done() {
-        // repo 1 of 2, 10/10 → 100%
-        assert_eq!(import_progress_position(1, 2, 10, 10), 100);
-    }
-
-    #[test]
-    fn import_progress_single_repo_half_done() {
-        assert_eq!(import_progress_position(0, 1, 5, 10), 50);
-    }
-
-    #[test]
-    fn import_progress_clamps_enqueued_above_quota() {
-        // jobs_enqueued > jobs_quota should not exceed the repo's slice
-        assert_eq!(import_progress_position(0, 1, 20, 10), 100);
-    }
-
-    #[test]
-    fn import_progress_zero_repos_total_returns_zero() {
-        assert_eq!(import_progress_position(0, 0, 5, 10), 0);
-    }
-
-    #[test]
-    fn import_progress_zero_quota_returns_zero() {
-        assert_eq!(import_progress_position(0, 2, 0, 0), 0);
-    }
-
     #[test]
     fn clean_org_name_trims_whitespace() {
         assert_eq!(super::clean_org_name("  Acme Inc.  "), "Acme Inc.");

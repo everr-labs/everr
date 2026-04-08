@@ -91,7 +91,7 @@ export function GithubInstallStep({
       <h2 className="text-lg font-semibold">Install the Everr GitHub App</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Sync workflow runs and logs from your repositories. You can skip this
-        and do it later with <code className="font-mono">everr init</code>.
+        and do it later from your settings.
       </p>
 
       <div className="mt-8 space-y-4">

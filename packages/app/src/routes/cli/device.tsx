@@ -116,7 +116,7 @@ function NewUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
             Something went wrong
           </p>
           <p className="mt-3 text-base text-muted-foreground">
-            Restart <code className="font-mono">everr onboarding</code> and try
+            Restart <code className="font-mono">everr setup</code> and try
             again.
           </p>
         </div>
@@ -193,7 +193,7 @@ function ExistingUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
               {status === "error" ? (
                 <p className="mt-4 text-center text-sm text-red-400">
                   Invalid or expired code. Restart{" "}
-                  <code className="font-mono">everr onboarding</code> from your
+                  <code className="font-mono">everr setup</code> from your
                   terminal.
                 </p>
               ) : null}

@@ -40,14 +40,6 @@ function getHandler(): PostHandler {
 
 const context = { session: { tenantId: 42 } };
 
-async function readNdjson(response: Response): Promise<unknown[]> {
-  const text = await response.text();
-  return text
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-}
-
 beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/import", () => {
@@ -79,7 +71,7 @@ describe("/api/cli/import", () => {
     expect(response.status).toBe(400);
   });
 
-  it("streams NDJSON progress and a done event", async () => {
+  it("returns ok immediately and starts backfill in background", async () => {
     mockedGetInstallations.mockResolvedValueOnce([
       { status: "active", installationId: 99 } as Awaited<
         ReturnType<typeof mockedGetInstallations>
@@ -92,12 +84,6 @@ describe("/api/cli/import", () => {
     ]);
 
     async function* fakeBackfill() {
-      yield {
-        status: "importing" as const,
-        jobsEnqueued: 5,
-        jobsQuota: 100,
-        runsProcessed: 2,
-      };
       yield {
         status: "done" as const,
         jobsEnqueued: 5,
@@ -118,15 +104,6 @@ describe("/api/cli/import", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain(
-      "application/x-ndjson",
-    );
-
-    const events = await readNdjson(response);
-    expect(events[0]).toMatchObject({
-      type: "repo-start",
-      repoFullName: "org/repo-a",
-    });
-    expect(events).toContainEqual(expect.objectContaining({ type: "done" }));
+    expect(await response.json()).toEqual({ ok: true });
   });
 });

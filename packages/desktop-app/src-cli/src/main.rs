@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
         Commands::RunsShow(args) => core::runs_show(args).await?,
         Commands::RunsLogs(args) => core::runs_logs(args).await?,
         Commands::WorkflowsList(args) => core::workflows_list(args).await?,
-        Commands::Onboarding => onboarding::run().await?,
+        Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,
     }
 

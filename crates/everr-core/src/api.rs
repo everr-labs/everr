@@ -184,24 +184,8 @@ impl ApiClient {
         self.get("/repos", &[]).await
     }
 
-    /// Calls POST /api/cli/import and collects all NDJSON events.
-    pub async fn import_repos(&self, repos: &[String]) -> Result<Vec<ImportEvent>> {
-        let mut events = Vec::new();
-        self.import_repos_streaming(repos, |e| events.push(e)).await?;
-        Ok(events)
-    }
-
-    /// Calls POST /api/cli/import and streams NDJSON events, calling `on_event` for each one.
-    pub async fn import_repos_streaming<F>(
-        &self,
-        repos: &[String],
-        mut on_event: F,
-    ) -> Result<()>
-    where
-        F: FnMut(ImportEvent),
-    {
-        use futures_util::StreamExt;
-
+    /// Calls POST /api/cli/import and returns once the server acknowledges the import has started.
+    pub async fn start_import_repos(&self, repos: &[String]) -> Result<()> {
         let response = self
             .http
             .post(format!("{}/import", self.base_endpoint))
@@ -217,27 +201,6 @@ impl ApiClient {
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
             bail!("import request failed with {status}: {text}");
-        }
-
-        let mut stream = response.bytes_stream();
-        let mut buffer = String::new();
-
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.context("failed to read import stream chunk")?;
-            let chunk_str =
-                std::str::from_utf8(&chunk).context("non-UTF8 data in import stream")?;
-            buffer.push_str(chunk_str);
-
-            while let Some(pos) = buffer.find('\n') {
-                let line = buffer[..pos].trim().to_string();
-                buffer = buffer[pos + 1..].to_string();
-                if line.is_empty() {
-                    continue;
-                }
-                if let Ok(event) = serde_json::from_str::<ImportEvent>(&line) {
-                    on_event(event);
-                }
-            }
         }
 
         Ok(())
@@ -377,37 +340,6 @@ pub struct RepoEntry {
     pub full_name: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "kebab-case")]
-pub enum ImportEvent {
-    #[serde(rename_all = "camelCase")]
-    RepoStart {
-        repo_full_name: String,
-        repo_index: u32,
-        repos_total: u32,
-    },
-    #[serde(rename_all = "camelCase")]
-    Progress {
-        progress: ImportProgress,
-    },
-    #[serde(rename_all = "camelCase")]
-    RepoError {
-        repo_full_name: String,
-    },
-    #[serde(rename_all = "camelCase")]
-    Done {
-        total_jobs: u32,
-        total_errors: u32,
-    },
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportProgress {
-    pub jobs_enqueued: u32,
-    pub jobs_quota: u32,
-    pub runs_processed: u32,
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -496,30 +428,22 @@ mod api_client_tests {
     }
 
     #[tokio::test]
-    async fn import_repos_parses_ndjson_stream() {
-        let ndjson = concat!(
-            r#"{"type":"repo-start","repoFullName":"org/repo-a","repoIndex":0,"reposTotal":1}"#, "\n",
-            r#"{"type":"done","totalJobs":5,"totalErrors":0}"#, "\n",
-        );
-
+    async fn start_import_repos_returns_ok() {
         let mut server = mockito::Server::new_async().await;
         let mock = server
             .mock("POST", "/api/cli/import")
             .with_status(200)
-            .with_header("content-type", "application/x-ndjson")
-            .with_body(ndjson)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"ok":true}"#)
             .create_async()
             .await;
 
         let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        let events = client
-            .import_repos(&["org/repo-a".to_string()])
+        client
+            .start_import_repos(&["org/repo-a".to_string()])
             .await
             .unwrap();
 
-        assert_eq!(events.len(), 2);
-        assert!(matches!(events[0], ImportEvent::RepoStart { .. }));
-        assert!(matches!(events[1], ImportEvent::Done { total_jobs: 5, total_errors: 0 }));
         mock.assert_async().await;
     }
 }

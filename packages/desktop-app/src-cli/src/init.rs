@@ -41,46 +41,11 @@ pub async fn run() -> Result<()> {
             .interact()?;
 
             if import {
-                let pb = cliclack::progress_bar(100);
-                pb.start(format!("Importing workflow history for {repo_full_name}…"));
-
-                let mut done_result: Option<(u32, u32)> = None;
-
-                let result = client
-                    .import_repos_streaming(&[repo_full_name.clone()], |event| match event {
-                        everr_core::api::ImportEvent::Progress { progress } => {
-                            if progress.jobs_quota > 0 {
-                                pb.set_length(progress.jobs_quota as u64);
-                                pb.set_position(progress.jobs_enqueued as u64);
-                            }
-                            if progress.runs_processed > 0 {
-                                pb.set_message(format!("{} runs imported…", progress.runs_processed));
-                            }
-                        }
-                        everr_core::api::ImportEvent::Done {
-                            total_jobs,
-                            total_errors,
-                        } => {
-                            done_result = Some((total_jobs, total_errors));
-                        }
-                        _ => {}
-                    })
-                    .await;
-
-                match result {
-                    Err(e) => pb.stop(format!("Import failed: {e}")),
-                    Ok(_) => {
-                        match done_result {
-                            Some((jobs, 0)) => pb.stop(format!("Imported {jobs} workflow runs.")),
-                            Some((jobs, errors)) => {
-                                pb.stop(format!("Imported {jobs} runs ({errors} errors)."))
-                            }
-                            None => pb.stop("Import complete."),
-                        }
-                        cliclack::log::remark(
-                            "Your data is being processed and will appear gradually on the CLI results.",
-                        )?;
-                    }
+                match client.start_import_repos(&[repo_full_name.clone()]).await {
+                    Ok(_) => cliclack::log::remark(
+                        "Import started — your data will appear gradually on the CLI results.",
+                    )?,
+                    Err(e) => cliclack::log::warning(format!("Could not start import: {e}"))?,
                 }
             } else {
                 cliclack::log::remark("Skipping import.")?;

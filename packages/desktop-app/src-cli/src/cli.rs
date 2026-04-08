@@ -57,9 +57,9 @@ pub enum Commands {
     /// List workflows and their jobs for a repository
     #[command(name = "workflows")]
     WorkflowsList(WorkflowsListArgs),
-    /// Run the full onboarding wizard (login + org + import + assistant configuration)
-    #[command(alias = "setup")]
-    Onboarding,
+    /// Run the full setup wizard (login + org + import + assistant configuration)
+    #[command(name = "setup")]
+    Setup,
     /// Initialize the current repository (import runs + write assistant instructions)
     Init,
 }
@@ -703,15 +703,9 @@ mod tests {
     }
 
     #[test]
-    fn onboarding_parses_without_arguments() {
-        let cli = Cli::try_parse_from(["everr", "onboarding"]).expect("onboarding command");
-        assert!(matches!(cli.command, Commands::Onboarding));
-    }
-
-    #[test]
-    fn setup_alias_resolves_to_onboarding() {
-        let cli = Cli::try_parse_from(["everr", "setup"]).expect("setup alias");
-        assert!(matches!(cli.command, Commands::Onboarding));
+    fn setup_parses_without_arguments() {
+        let cli = Cli::try_parse_from(["everr", "setup"]).expect("setup command");
+        assert!(matches!(cli.command, Commands::Setup));
     }
 
     #[test]

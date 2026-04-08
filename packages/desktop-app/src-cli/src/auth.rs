@@ -24,16 +24,14 @@ pub fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
         format!("Code: {user_code}\nURL:  {verification_url}"),
     );
 
-    let open = cliclack::confirm("Open the verification URL in your browser?")
-        .initial_value(true)
+    let _: Result<String, _> = cliclack::input("Press Enter to open in your browser")
+        .default_input("")
         .interact();
 
-    if let Ok(true) = open {
-        if let Err(error) = webbrowser::open(&verification_url) {
-            let _ = cliclack::log::warning(format!(
-                "Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})"
-            ));
-        }
+    if let Err(error) = webbrowser::open(&verification_url) {
+        let _ = cliclack::log::warning(format!(
+            "Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})"
+        ));
     }
 }
 
