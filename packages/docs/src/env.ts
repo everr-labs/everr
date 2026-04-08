@@ -11,7 +11,7 @@ export const env = createEnv({
 
   client: {
     VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: z.string(),
-    VITE_PUBLIC_POSTHOG_HOST: z.string(),
+    VITE_PUBLIC_POSTHOG_HOST: z.string().default("https://eu.i.posthog.com"),
   },
 
   runtimeEnv: {
