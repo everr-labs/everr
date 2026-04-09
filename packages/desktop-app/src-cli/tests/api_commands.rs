@@ -331,7 +331,7 @@ fn runs_show_calls_trace_id_endpoint() {
 }
 
 #[test]
-fn runs_logs_prints_plain_text_with_line_numbers() {
+fn runs_logs_prints_plain_text() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
@@ -360,7 +360,7 @@ fn runs_logs_prints_plain_text_with_line_numbers() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::diff("1  Starting build\n2  Compiling\n"))
+        .stdout(predicate::str::diff("Starting build\nCompiling\n"))
         .stderr(predicate::str::is_empty());
 
     mock.assert();
@@ -396,7 +396,7 @@ fn runs_logs_offset_without_limit_uses_tail_mode() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::diff("1001  paged line\n"))
+        .stdout(predicate::str::diff("paged line\n"))
         .stderr(predicate::str::is_empty());
 
     mock.assert();
@@ -434,7 +434,7 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::diff("1  line 1\n2  line 2\n"))
+        .stdout(predicate::str::diff("line 1\nline 2\n"))
         .stderr(contains(
             "More logs available. Rerun with --limit 2 --offset 2 to continue.",
         ));
@@ -471,7 +471,7 @@ fn runs_logs_egrep_passes_pattern_as_query_param() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::diff("6  Error: timeout\n"))
+        .stdout(predicate::str::diff("Error: timeout\n"))
         .stderr(predicate::str::is_empty());
 
     mock.assert();
