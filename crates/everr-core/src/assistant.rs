@@ -60,6 +60,34 @@ pub fn init_repo_instructions(cwd: &Path, command_name: &str) -> Result<PathBuf>
     Ok(path)
 }
 
+/// Writes Everr discovery instructions to repo-level assistant files.
+///
+/// - If AGENTS.md or CLAUDE.md is present: writes/updates whichever exist.
+/// - If neither is present: creates AGENTS.md.
+/// - Returns the paths of all files written.
+pub fn init_repo_instructions_auto(cwd: &Path, command_name: &str) -> Result<Vec<PathBuf>> {
+    let agents_path = cwd.join("AGENTS.md");
+    let claude_path = cwd.join("CLAUDE.md");
+
+    let agents_exists = agents_path.exists();
+    let claude_exists = claude_path.exists();
+
+    let mut written = Vec::new();
+    let content = repo_content(command_name);
+
+    if agents_exists || !claude_exists {
+        write_generic_managed_block(&agents_path, &content)?;
+        written.push(agents_path);
+    }
+
+    if claude_exists {
+        write_generic_managed_block(&claude_path, &content)?;
+        written.push(claude_path);
+    }
+
+    Ok(written)
+}
+
 pub fn sync_assistants(assistants: &[AssistantKind], command_name: &str) -> Result<()> {
     for assistant in AssistantKind::ALL {
         let path = path_for_assistant(assistant)?;
@@ -607,6 +635,70 @@ mod tests {
         assert!(next.contains("new"));
         assert!(!next.contains("\nold\n"));
         assert!(next.contains("# notes"));
+    }
+
+    #[test]
+    fn init_repo_instructions_auto_creates_agents_when_neither_file_exists() {
+        let repo = tempdir().expect("tempdir");
+        let written = super::init_repo_instructions_auto(repo.path(), "everr")
+            .expect("init repo instructions");
+        assert_eq!(written, vec![repo.path().join("AGENTS.md")]);
+        let content = fs::read_to_string(repo.path().join("AGENTS.md")).expect("read");
+        assert!(content.contains("<!-- BEGIN everr -->"));
+    }
+
+    #[test]
+    fn init_repo_instructions_auto_writes_agents_when_agents_exists() {
+        let repo = tempdir().expect("tempdir");
+        fs::write(repo.path().join("AGENTS.md"), "# existing\n").expect("seed");
+        let written = super::init_repo_instructions_auto(repo.path(), "everr")
+            .expect("init repo instructions");
+        assert_eq!(written.len(), 1);
+        assert!(written[0].ends_with("AGENTS.md"));
+        let content = fs::read_to_string(repo.path().join("AGENTS.md")).expect("read");
+        assert!(content.contains("# existing"));
+        assert!(content.contains("<!-- BEGIN everr -->"));
+    }
+
+    #[test]
+    fn init_repo_instructions_auto_writes_claude_when_claude_exists() {
+        let repo = tempdir().expect("tempdir");
+        fs::write(repo.path().join("CLAUDE.md"), "# existing claude\n").expect("seed");
+        let written = super::init_repo_instructions_auto(repo.path(), "everr")
+            .expect("init repo instructions");
+        assert_eq!(written.len(), 1);
+        assert!(written[0].ends_with("CLAUDE.md"));
+        let content = fs::read_to_string(repo.path().join("CLAUDE.md")).expect("read");
+        assert!(content.contains("<!-- BEGIN everr -->"));
+        assert!(!repo.path().join("AGENTS.md").exists());
+    }
+
+    #[test]
+    fn init_repo_instructions_auto_writes_both_when_both_exist() {
+        let repo = tempdir().expect("tempdir");
+        fs::write(repo.path().join("AGENTS.md"), "# agents\n").expect("seed agents");
+        fs::write(repo.path().join("CLAUDE.md"), "# claude\n").expect("seed claude");
+        let written = super::init_repo_instructions_auto(repo.path(), "everr")
+            .expect("init repo instructions");
+        assert_eq!(written.len(), 2);
+        let agents = fs::read_to_string(repo.path().join("AGENTS.md")).expect("read agents");
+        let claude = fs::read_to_string(repo.path().join("CLAUDE.md")).expect("read claude");
+        assert!(agents.contains("<!-- BEGIN everr -->"));
+        assert!(claude.contains("<!-- BEGIN everr -->"));
+    }
+
+    // The onboarding UI tells users the instruction block is "under 300 bytes" —
+    // this test ensures that claim stays true if the discovery instructions change.
+    #[test]
+    fn discovery_content_for_claude_and_codex_stays_under_300_bytes() {
+        for assistant in [AssistantKind::Claude, AssistantKind::Codex] {
+            let content = super::content_for_assistant_discovery(assistant, "everr");
+            assert!(
+                content.len() < 300,
+                "discovery content for {assistant:?} is {} bytes, must stay under 300",
+                content.len()
+            );
+        }
     }
 
     fn sync_assistants_for_home(

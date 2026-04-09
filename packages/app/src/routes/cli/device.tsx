@@ -1,8 +1,12 @@
 import { Button } from "@everr/ui/components/button";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
-import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
+import { GithubInstallStep } from "@/components/github-install-step";
+import { OnboardingLayout } from "@/components/onboarding-layout";
+import { ensureOrganizationForDevice } from "@/data/onboarding";
 
 export const Route = createFileRoute("/cli/device")({
   validateSearch: z.object({
@@ -21,6 +25,7 @@ export const Route = createFileRoute("/cli/device")({
 
     return {
       deviceCode: deps.code?.toUpperCase() ?? "",
+      hasOrg: !!auth.user && !!auth.organizationId,
     };
   },
   component: CliDeviceApprovalPage,
@@ -31,7 +36,96 @@ function formatCodeForDisplay(code: string): string {
 }
 
 function CliDeviceApprovalPage() {
-  const { deviceCode } = Route.useLoaderData();
+  const { deviceCode, hasOrg } = Route.useLoaderData();
+
+  if (!hasOrg) {
+    return <NewUserDeviceFlow deviceCode={deviceCode} />;
+  }
+
+  return <ExistingUserDeviceFlow deviceCode={deviceCode} />;
+}
+
+type NewUserStep = "setup" | "github" | "approving" | "done" | "error";
+
+function NewUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
+  const [step, setStep] = useState<NewUserStep>("setup");
+  const [githubInstalled, setGithubInstalled] = useState(false);
+
+  useEffect(() => {
+    if (step !== "setup") return;
+    ensureOrganizationForDevice()
+      .then(() => setStep("github"))
+      .catch(() => setStep("error"));
+  }, [step]);
+
+  async function handleGithubDone() {
+    setStep("approving");
+    try {
+      const res = await fetch("/api/cli/auth/device/approve", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_code: deviceCode, action: "approve" }),
+      });
+      setStep(res.ok ? "done" : "error");
+    } catch {
+      setStep("error");
+    }
+  }
+
+  return (
+    <OnboardingLayout title="Setting up Everr" label="Setting up">
+      {step === "setup" && (
+        <div className="flex flex-col items-center gap-4 py-8">
+          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          <p className="text-center text-sm text-muted-foreground">
+            Setting up your workspace&hellip;
+          </p>
+        </div>
+      )}
+
+      {step === "github" && (
+        <GithubInstallStep
+          installed={githubInstalled}
+          onInstalled={() => setGithubInstalled(true)}
+          onContinue={() => void handleGithubDone()}
+          onSkip={() => void handleGithubDone()}
+        />
+      )}
+
+      {step === "approving" && (
+        <div className="flex flex-col items-center gap-4 py-8">
+          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          <p className="text-center text-sm text-muted-foreground">
+            Activating CLI access&hellip;
+          </p>
+        </div>
+      )}
+
+      {step === "done" && (
+        <div className="py-12 text-center">
+          <p className="text-2xl font-semibold">You're all set</p>
+          <p className="mt-3 text-base text-muted-foreground">
+            Return to your terminal to continue.
+          </p>
+        </div>
+      )}
+
+      {step === "error" && (
+        <div className="py-12 text-center">
+          <p className="text-2xl font-semibold text-destructive">
+            Something went wrong
+          </p>
+          <p className="mt-3 text-base text-muted-foreground">
+            Restart <code className="font-mono">everr setup</code> and try
+            again.
+          </p>
+        </div>
+      )}
+    </OnboardingLayout>
+  );
+}
+
+function ExistingUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
   const [status, setStatus] = useState<
     "idle" | "approved" | "denied" | "error"
   >("idle");
@@ -47,10 +141,7 @@ function CliDeviceApprovalPage() {
     const response = await fetch("/api/cli/auth/device/approve", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        user_code: deviceCode,
-        action,
-      }),
+      body: JSON.stringify({ user_code: deviceCode, action }),
     });
     setIsSubmitting(false);
 
@@ -86,14 +177,14 @@ function CliDeviceApprovalPage() {
                   variant="outline"
                   size="lg"
                   disabled={isSubmitting}
-                  onClick={() => submit("deny")}
+                  onClick={() => void submit("deny")}
                 >
                   Deny
                 </Button>
                 <Button
                   size="lg"
                   disabled={isSubmitting}
-                  onClick={() => submit("approve")}
+                  onClick={() => void submit("approve")}
                 >
                   Confirm
                 </Button>
@@ -101,7 +192,8 @@ function CliDeviceApprovalPage() {
 
               {status === "error" ? (
                 <p className="mt-4 text-center text-sm text-red-400">
-                  Invalid or expired code. Restart `everr login` from your
+                  Invalid or expired code. Restart{" "}
+                  <code className="font-mono">everr setup</code> from your
                   terminal.
                 </p>
               ) : null}

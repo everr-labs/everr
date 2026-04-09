@@ -3,7 +3,8 @@ mod assistant;
 mod auth;
 mod cli;
 mod core;
-mod setup;
+mod init;
+mod onboarding;
 mod uninstall;
 
 use anyhow::Result;
@@ -30,7 +31,8 @@ async fn main() -> Result<()> {
         Commands::RunsShow(args) => core::runs_show(args).await?,
         Commands::RunsLogs(args) => core::runs_logs(args).await?,
         Commands::WorkflowsList(args) => core::workflows_list(args).await?,
-        Commands::Setup => setup::run().await?,
+        Commands::Setup => onboarding::run().await?,
+        Commands::Init => init::run().await?,
     }
 
     Ok(())

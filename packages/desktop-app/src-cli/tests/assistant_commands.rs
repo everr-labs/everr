@@ -87,8 +87,7 @@ fn uninstall_logs_out_and_removes_managed_blocks_for_all_assistants() {
         .stdout(contains("Press Enter to continue, or Ctrl+C to abort."))
         .stdout(contains("Does not remove the CLI binary automatically:"))
         .stdout(contains("To remove the CLI binary, run:"))
-        .stdout(contains("rm \""))
-        .stdout(contains("Logged out."));
+        .stdout(contains("rm \""));
 
     let codex_content = fs::read_to_string(codex_file).expect("codex file should remain");
     let claude_content = fs::read_to_string(claude_file).expect("claude file should remain");

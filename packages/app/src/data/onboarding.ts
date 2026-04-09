@@ -244,3 +244,54 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
 
     yield { type: "done" as const, totalJobs, totalErrors };
   });
+
+export const ensureOrganizationForDevice = createServerFn({
+  method: "POST",
+}).handler(async () => {
+  const auth = await getAuth();
+  if (!auth.user) {
+    throw new Error("unauthenticated");
+  }
+
+  if (auth.organizationId) {
+    // Already has org in session — nothing to do.
+    return { isNewOrg: false };
+  }
+
+  // Check if the user is already a member of any org.
+  const memberships = await workOS.userManagement.listOrganizationMemberships({
+    userId: auth.user.id,
+  });
+
+  if (memberships.data.length > 0) {
+    // Switch to the most recently created org.
+    const sorted = [...memberships.data].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
+    await switchToOrganization({
+      data: { organizationId: sorted[0].organizationId },
+    });
+    return { isNewOrg: false };
+  }
+
+  // No orgs — create a placeholder.
+  const user = await workOS.userManagement.getUser(auth.user.id);
+  const firstName = user.firstName ?? user.email.split("@")[0];
+  const orgName = `${firstName}'s workspace`;
+
+  const organization = await workOS.organizations.createOrganization({
+    name: orgName,
+    metadata: { onboardingCompleted: "false" },
+  });
+
+  await workOS.userManagement.createOrganizationMembership({
+    organizationId: organization.id,
+    userId: auth.user.id,
+    roleSlug: "admin",
+  });
+
+  await switchToOrganization({ data: { organizationId: organization.id } });
+  await ensureTenantForOrganizationId(organization.id);
+
+  return { isNewOrg: true };
+});
