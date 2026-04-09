@@ -25,6 +25,7 @@ mod commands;
 mod crash_log;
 mod history;
 mod notifications;
+mod seen_runs;
 mod settings;
 mod startup;
 mod tray;
