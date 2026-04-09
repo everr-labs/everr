@@ -15,6 +15,7 @@ const RunsListQuerySchema = z
     conclusion: z.enum(["success", "failure", "cancellation"]).optional(),
     workflowName: z.string().optional(),
     runId: z.string().optional(),
+    authorEmail: z.string().optional(),
   })
   .strict();
 
@@ -57,6 +58,7 @@ export const Route = createFileRoute("/api/cli/runs")({
               ? [parsed.data.workflowName]
               : undefined,
             runId: parsed.data.runId,
+            authorEmail: parsed.data.authorEmail,
           },
         });
 
@@ -70,6 +72,7 @@ export const Route = createFileRoute("/api/cli/runs")({
             conclusion: parsed.data.conclusion ?? undefined,
             workflowName: parsed.data.workflowName ?? undefined,
             runId: parsed.data.runId ?? undefined,
+            authorEmail: parsed.data.authorEmail ?? undefined,
             limit: parsed.data.limit ?? 20,
             offset: parsed.data.offset ?? 0,
           },

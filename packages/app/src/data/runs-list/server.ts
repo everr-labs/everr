@@ -60,6 +60,11 @@ export const getRunsList = createAuthenticatedServerFn({
       clauses.push(`run_id::text = $${params.length}`);
     }
 
+    if (data.authorEmail) {
+      params.push(data.authorEmail);
+      clauses.push(`author_email = $${params.length}`);
+    }
+
     const whereClause = clauses.join("\n          AND ");
 
     const [rowsResult, countResult] = await Promise.all([
