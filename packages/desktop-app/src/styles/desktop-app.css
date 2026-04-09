@@ -4,9 +4,11 @@
 @source "../../../ui/src/**/*.{ts,tsx}";
 
 @layer base {
+  html,
   body {
     /* This override is necessary to ensure the notifications window background is transparent */
     background: transparent;
+    overscroll-behavior: none;
   }
 }
 

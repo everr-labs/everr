@@ -43,6 +43,7 @@ export function NotificationEmailsSection() {
   const authStatusQuery = useAuthStatusQuery();
   const queryClient = useQueryClient();
   const [newEmail, setNewEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const signedIn = authStatusQuery.data?.status === "signed_in";
 
   useInvalidateOnTauriEvent(SETTINGS_CHANGED_EVENT, (qc) => {
@@ -73,7 +74,7 @@ export function NotificationEmailsSection() {
     return (
       <SettingsSection
         title="Notification emails"
-        description="Emails used to match CI events to you. Matched locally — never sent to our servers."
+        description="Emails used to match CI events to you."
       >
         <FeatureLoadingText text="Loading notification settings..." />
       </SettingsSection>
@@ -84,7 +85,7 @@ export function NotificationEmailsSection() {
     return (
       <SettingsSection
         title="Notification emails"
-        description="Emails used to match CI events to you. Matched locally — never sent to our servers."
+        description="Emails used to match CI events to you."
       >
         <FeatureErrorText message="Failed to load notification settings." />
       </SettingsSection>
@@ -93,9 +94,20 @@ export function NotificationEmailsSection() {
 
   const emails = emailsQuery.data ?? [];
 
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   function addEmail() {
     const trimmed = newEmail.trim();
-    if (!trimmed || emails.includes(trimmed)) return;
+    if (!trimmed) return;
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    if (emails.includes(trimmed)) {
+      setEmailError("This email is already added.");
+      return;
+    }
+    setEmailError("");
     mutation.mutate([...emails, trimmed]);
     setNewEmail("");
   }
@@ -135,24 +147,32 @@ export function NotificationEmailsSection() {
         </TooltipProvider>
       )}
 
-      <div className="flex gap-2">
-        <Input
-          type="email"
-          value={newEmail}
-          onChange={(e) => setNewEmail(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addEmail()}
-          placeholder="Add email address"
-          disabled={mutation.isPending}
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!newEmail.trim() || mutation.isPending}
-          onClick={addEmail}
-        >
-          <Plus className="size-3.5" />
-          Add
-        </Button>
+      <div className="grid gap-1.5">
+        <div className="flex gap-2">
+          <Input
+            type="email"
+            value={newEmail}
+            onChange={(e) => {
+              setNewEmail(e.target.value);
+              setEmailError("");
+            }}
+            onKeyDown={(e) => e.key === "Enter" && addEmail()}
+            placeholder="Add email address"
+            disabled={mutation.isPending}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!newEmail.trim() || mutation.isPending}
+            onClick={addEmail}
+          >
+            <Plus className="size-3.5" />
+            Add
+          </Button>
+        </div>
+        {emailError && (
+          <p className="text-[0.78rem] text-red-400">{emailError}</p>
+        )}
       </div>
     </SettingsSection>
   );
