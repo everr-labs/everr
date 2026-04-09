@@ -125,12 +125,16 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let paging = args.paging();
     let mut query = vec![("jobName", args.job_name), ("stepNumber", args.step_number)];
+    push_opt(&mut query, "egrep", args.egrep.clone());
 
     if let Some(paging) = paging {
         let paged_logs = get_paged_step_logs(&client, &args.trace_id, query, paging).await?;
-        print_step_logs(&paged_logs.logs, args.color)?;
+        print_step_logs(&paged_logs.logs, args.color, paged_logs.start_line)?;
         if paged_logs.has_more {
             print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
+        }
+        if args.egrep.is_some() && paged_logs.logs.is_empty() {
+            std::process::exit(1);
         }
         return Ok(());
     }
@@ -141,8 +145,11 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
         query.push(("offset", offset.to_string()));
     }
 
-    let logs = client.get_step_logs(&args.trace_id, &query).await?;
-    print_step_logs(&logs, args.color)?;
+    let response = client.get_step_logs(&args.trace_id, &query).await?;
+    print_step_logs(&response.logs, args.color, response.offset + 1)?;
+    if args.egrep.is_some() && response.logs.is_empty() {
+        std::process::exit(1);
+    }
     Ok(())
 }
 
@@ -443,10 +450,10 @@ fn print_json<T: Serialize>(value: &T) -> Result<()> {
     Ok(())
 }
 
-fn print_step_logs(logs: &[StepLogEntry], color: bool) -> Result<()> {
+fn print_step_logs(logs: &[StepLogEntry], color: bool, start_line: u32) -> Result<()> {
     let stdout = io::stdout();
     let mut handle = stdout.lock();
-    write_step_logs(&mut handle, logs, color)?;
+    write_step_logs(&mut handle, logs, color, start_line)?;
     handle.flush().context("failed to flush step log output")
 }
 
@@ -460,13 +467,19 @@ fn strip_ansi_codes(s: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
-fn write_step_logs(mut writer: impl Write, logs: &[StepLogEntry], color: bool) -> Result<()> {
-    for log in logs {
+fn write_step_logs(mut writer: impl Write, logs: &[StepLogEntry], color: bool, start_line: u32) -> Result<()> {
+    let last_line = start_line.saturating_add(logs.len().saturating_sub(1) as u32);
+    let width = last_line.to_string().len();
+
+    for (i, log) in logs.iter().enumerate() {
+        let line_number = start_line + i as u32;
         let body: std::borrow::Cow<'_, str> = if color {
             std::borrow::Cow::Borrowed(&log.body)
         } else {
             strip_ansi_codes(&log.body)
         };
+        write!(writer, "{:>width$}  ", line_number, width = width)
+            .context("failed to write line number")?;
         writer
             .write_all(body.as_bytes())
             .context("failed to write step log body")?;
@@ -501,7 +514,8 @@ async fn get_paged_step_logs(
     query.push(("limit", paging.limit.saturating_add(1).to_string()));
     query.push(("offset", paging.offset.to_string()));
 
-    let mut logs = client.get_step_logs(trace_id, &query).await?;
+    let response = client.get_step_logs(trace_id, &query).await?;
+    let mut logs = response.logs;
     let has_more = logs.len() > paging.limit as usize;
     if has_more {
         logs.truncate(paging.limit as usize);
@@ -512,6 +526,7 @@ async fn get_paged_step_logs(
         has_more,
         page_size: paging.limit,
         next_offset: paging.offset.saturating_add(paging.limit),
+        start_line: paging.offset + 1,
     })
 }
 
@@ -520,6 +535,7 @@ struct PagedStepLogs {
     has_more: bool,
     page_size: u32,
     next_offset: u32,
+    start_line: u32,
 }
 
 fn push_opt(query: &mut Vec<(&str, String)>, key: &'static str, value: Option<String>) {
@@ -613,9 +629,9 @@ mod tests {
         ];
 
         let mut output = Vec::new();
-        super::write_step_logs(&mut output, &logs, false).expect("write step logs");
+        super::write_step_logs(&mut output, &logs, false, 1).expect("write step logs");
 
-        assert_eq!(String::from_utf8(output).expect("utf8"), "first\nsecond\n");
+        assert_eq!(String::from_utf8(output).expect("utf8"), "1  first\n2  second\n");
     }
 
     #[test]
@@ -626,9 +642,9 @@ mod tests {
         }];
 
         let mut output = Vec::new();
-        super::write_step_logs(&mut output, &logs, false).expect("write step logs");
+        super::write_step_logs(&mut output, &logs, false, 1).expect("write step logs");
 
-        assert_eq!(String::from_utf8(output).expect("utf8"), "green text\n");
+        assert_eq!(String::from_utf8(output).expect("utf8"), "1  green text\n");
     }
 
     #[test]
@@ -639,12 +655,30 @@ mod tests {
         }];
 
         let mut output = Vec::new();
-        super::write_step_logs(&mut output, &logs, true).expect("write step logs");
+        super::write_step_logs(&mut output, &logs, true, 1).expect("write step logs");
 
         assert_eq!(
             String::from_utf8(output).expect("utf8"),
-            "\x1b[32mgreen text\x1b[0m\n"
+            "1  \x1b[32mgreen text\x1b[0m\n"
         );
+    }
+
+    #[test]
+    fn write_step_logs_prefixes_with_right_justified_line_numbers() {
+        let logs: Vec<StepLogEntry> = (1u32..=10)
+            .map(|i| StepLogEntry {
+                timestamp: "2026-03-10T10:00:00.000Z".to_string(),
+                body: format!("line {i}"),
+            })
+            .collect();
+
+        let mut output = Vec::new();
+        super::write_step_logs(&mut output, &logs, false, 991).expect("write step logs");
+
+        let text = String::from_utf8(output).expect("utf8");
+        // lines 991–1000: last line is 4 digits, all padded to width 4
+        assert!(text.starts_with(" 991  line 1\n"));
+        assert!(text.contains("1000  line 10\n"));
     }
 
     #[test]

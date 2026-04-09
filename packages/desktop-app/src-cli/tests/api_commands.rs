@@ -331,7 +331,7 @@ fn runs_show_calls_trace_id_endpoint() {
 }
 
 #[test]
-fn runs_logs_prints_plain_text_by_default() {
+fn runs_logs_prints_plain_text_with_line_numbers() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
@@ -347,23 +347,20 @@ fn runs_logs_prints_plain_text_by_default() {
         ]))
         .with_status(200)
         .with_body(
-            r#"[{"timestamp":"2026-03-10T10:00:00.000Z","body":"Starting build"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"Compiling"}]"#,
+            r#"{"logs":[{"timestamp":"2026-03-10T10:00:00.000Z","body":"Starting build"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"Compiling"}],"offset":0}"#,
         )
         .create();
 
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id",
-            "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
+            "--trace-id", "trace-123",
+            "--job-name", "build",
+            "--step-number", "2",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::diff("Starting build\nCompiling\n"))
+        .stdout(predicate::str::diff("1  Starting build\n2  Compiling\n"))
         .stderr(predicate::str::is_empty());
 
     mock.assert();
@@ -386,24 +383,20 @@ fn runs_logs_offset_without_limit_uses_tail_mode() {
             Matcher::UrlEncoded("offset".into(), "1000".into()),
         ]))
         .with_status(200)
-        .with_body(r#"[{"timestamp":"2026-03-10T10:16:40.000Z","body":"paged line"}]"#)
+        .with_body(r#"{"logs":[{"timestamp":"2026-03-10T10:16:40.000Z","body":"paged line"}],"offset":1000}"#)
         .create();
 
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id",
-            "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--offset",
-            "1000",
+            "--trace-id", "trace-123",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--offset", "1000",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::diff("paged line\n"))
+        .stdout(predicate::str::diff("1001  paged line\n"))
         .stderr(predicate::str::is_empty());
 
     mock.assert();
@@ -427,30 +420,88 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
         ]))
         .with_status(200)
         .with_body(
-            r#"[{"timestamp":"2026-03-10T10:00:00.000Z","body":"line 1"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"line 2"},{"timestamp":"2026-03-10T10:00:02.000Z","body":"line 3"}]"#,
+            r#"{"logs":[{"timestamp":"2026-03-10T10:00:00.000Z","body":"line 1"},{"timestamp":"2026-03-10T10:00:01.000Z","body":"line 2"},{"timestamp":"2026-03-10T10:00:02.000Z","body":"line 3"}],"offset":0}"#,
         )
         .create();
 
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id",
-            "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--limit",
-            "2",
+            "--trace-id", "trace-123",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--limit", "2",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::diff("line 1\nline 2\n"))
+        .stdout(predicate::str::diff("1  line 1\n2  line 2\n"))
         .stderr(contains(
             "More logs available. Rerun with --limit 2 --offset 2 to continue.",
         ));
 
     mock.assert();
+}
+
+#[test]
+fn runs_logs_egrep_passes_pattern_as_query_param() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs/trace-123/logs")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("jobName".into(), "build".into()),
+            Matcher::UrlEncoded("stepNumber".into(), "2".into()),
+            Matcher::UrlEncoded("tail".into(), "1000".into()),
+            Matcher::UrlEncoded("egrep".into(), "Error.*timeout".into()),
+        ]))
+        .with_status(200)
+        .with_body(r#"{"logs":[{"timestamp":"2026-03-10T10:00:00.000Z","body":"Error: timeout"}],"offset":5}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "logs",
+            "--trace-id", "trace-123",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--egrep", "Error.*timeout",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::diff("6  Error: timeout\n"))
+        .stderr(predicate::str::is_empty());
+
+    mock.assert();
+}
+
+#[test]
+fn runs_logs_egrep_exits_one_when_no_lines_match() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    server
+        .mock("GET", "/api/cli/runs/trace-123/logs")
+        .with_status(200)
+        .with_body(r#"{"logs":[],"offset":0}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "logs",
+            "--trace-id", "trace-123",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--egrep", "nonexistent",
+        ])
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(predicate::str::is_empty());
 }
 
 #[test]
