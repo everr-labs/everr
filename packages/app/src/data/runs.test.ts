@@ -270,4 +270,48 @@ describe("getStepLogs", () => {
       offsetLines: 2000,
     });
   });
+
+  it("adds match(Body) clause to both count and fetch queries when egrep is set", async () => {
+    mockedQuery
+      .mockResolvedValueOnce([{ cnt: "3" }])
+      .mockResolvedValueOnce([
+        { timestamp: "2026-03-09 12:00:00", body: "Error: timeout" },
+      ]);
+
+    const result = await getStepLogs({
+      data: {
+        traceId: "trace-1",
+        jobName: "build",
+        stepNumber: "2",
+        egrep: "Error",
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "match(Body, {egrep:String})",
+    );
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
+      "match(Body, {egrep:String})",
+    );
+    expect(mockedQuery.mock.calls[0]?.[1]).toMatchObject({ egrep: "Error" });
+    expect(mockedQuery.mock.calls[1]?.[1]).toMatchObject({ egrep: "Error" });
+    expect(result.logs).toHaveLength(1);
+    expect(result.logs[0]?.body).toBe("Error: timeout");
+  });
+
+  it("omits match(Body) clause when egrep is not set", async () => {
+    mockedQuery
+      .mockResolvedValueOnce([{ cnt: "1" }])
+      .mockResolvedValueOnce([
+        { timestamp: "2026-03-09 12:00:00", body: "ok" },
+      ]);
+
+    await getStepLogs({
+      data: { traceId: "trace-1", jobName: "build", stepNumber: "2" },
+    });
+
+    expect(mockedQuery.mock.calls[0]?.[0]).not.toContain("match(Body");
+    expect(mockedQuery.mock.calls[1]?.[0]).not.toContain("match(Body");
+  });
 });
