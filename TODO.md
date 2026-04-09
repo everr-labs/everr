@@ -10,6 +10,7 @@
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**notifier-no-git-email-fallback**](todo/issues/notifier-no-git-email-fallback.md) — —
 - [**show-logged-in-user-info-desktop**](todo/issues/show-logged-in-user-info-desktop.md) — Display the logged-in user's name and email somewhere in the desktop app UI.
+- [**store-installation-repo-list-in-db**](todo/issues/store-installation-repo-list-in-db.md) — Store the list of installation repositories in the database.
 
 ## Ideas
 
