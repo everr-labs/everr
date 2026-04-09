@@ -14,15 +14,11 @@ use time::OffsetDateTime;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::settings::current_app_state;
-use crate::tray::{
-    build_tray_snapshot, clear_tray_snapshot, tray_auto_fix_prompt, update_tray_snapshot,
-};
 use crate::{
     current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
-    NOTIFICATION_EXIT_EVENT, NOTIFICATION_HISTORY_CHANGED_EVENT,
-    NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT, NOTIFICATION_WINDOW_INSET,
-    NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN, NOTIFICATION_WINDOW_WIDTH,
-    TRAY_FAILURES_WINDOW_MINUTES,
+    NOTIFICATION_EXIT_EVENT, NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT,
+    NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN,
+    NOTIFICATION_WINDOW_WIDTH, SEEN_RUNS_CHANGED_EVENT,
 };
 
 macro_rules! dbg_notifier {
@@ -60,22 +56,12 @@ pub(crate) fn active_notification_auto_fix_prompt(queue: &NotificationQueue) -> 
 }
 
 pub(crate) fn copy_notification_auto_fix_prompt_inner(state: &RuntimeState) -> Result<()> {
-    let notification_prompt = {
+    let prompt = {
         let notifier = state
             .notifier
             .lock()
             .map_err(|_| anyhow!("failed to lock notifier state"))?;
         active_notification_auto_fix_prompt(&notifier.queue)
-    };
-
-    let prompt = if let Some(prompt) = notification_prompt {
-        Some(prompt)
-    } else {
-        let tray = state
-            .tray
-            .lock()
-            .map_err(|_| anyhow!("failed to lock tray state"))?;
-        tray_auto_fix_prompt(&tray.snapshot)
     };
 
     let Some(prompt) = prompt else {
@@ -128,12 +114,10 @@ pub(crate) fn build_test_notification() -> Result<FailureNotification> {
 
 async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
     let Some(session) = current_app_state(state)?.session else {
-        clear_tray_snapshot(app, state)?;
         state.session_changed.notified().await;
         return Ok(());
     };
     if session.api_base_url.trim_end_matches('/') != current_base_url().trim_end_matches('/') {
-        clear_tray_snapshot(app, state)?;
         state.session_changed.notified().await;
         return Ok(());
     }
@@ -147,22 +131,13 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
             std::iter::once(profile.email).collect()
         } else {
             // No emails configured and no profile cached — wait for session change
-            clear_tray_snapshot(app, state)?;
             state.session_changed.notified().await;
             return Ok(());
         }
     };
 
-    // Resolve git context for repo/branch scoping (still used by handle_notify_event)
-    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
-    let git = resolve_git_context(&current_dir);
-
     let client = ApiClient::from_session(&session)?;
     let stream = client.events_stream("tenant", None).await?;
-
-    // Known failures accumulated this session, keyed by traceId
-    let mut known_failures: std::collections::HashMap<String, FailureNotification> =
-        std::collections::HashMap::new();
 
     tokio::pin!(stream);
     loop {
@@ -180,10 +155,7 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
                             app,
                             state,
                             &client,
-                            &mut known_failures,
                             payload,
-                            git.repo.as_deref(),
-                            git.branch.as_deref(),
                         ).await?;
                     }
                     Some(Err(e)) => return Err(e),
@@ -208,10 +180,7 @@ async fn handle_notify_event(
     app: &AppHandle,
     state: &RuntimeState,
     client: &ApiClient,
-    known_failures: &mut std::collections::HashMap<String, FailureNotification>,
     event: NotifyPayload,
-    repo: Option<&str>,
-    branch: Option<&str>,
 ) -> Result<()> {
     dbg_notifier!(
         "event: type={} status={} conclusion={:?} trace={} branch={} workflow={}",
@@ -229,9 +198,6 @@ async fn handle_notify_event(
 
     match event.conclusion.as_deref() {
         Some("failure") | Some("timed_out") | Some("startup_failure") | Some("action_required") => {
-            if known_failures.contains_key(&event.trace_id) {
-                return Ok(());
-            }
             let Some(failure) = client.get_notification_for_trace(&event.trace_id).await? else {
                 dbg_notifier!("failure not found in ClickHouse after all retries, dropping event");
                 return Ok(());
@@ -243,39 +209,9 @@ async fn handle_notify_event(
                     .map_err(|_| anyhow!("failed to lock notifier state"))?;
                 notifier.tracker.retain_new(vec![failure.clone()])
             };
-            known_failures.insert(event.trace_id.clone(), failure);
-            expire_old_failures(known_failures);
-            update_tray_snapshot(
-                app,
-                state,
-                build_tray_snapshot(
-                    &known_failures.values().cloned().collect::<Vec<_>>(),
-                    repo,
-                    branch,
-                ),
-            )?;
             for f in fresh {
                 enqueue_notification(app, state, f)?;
             }
-        }
-        Some("success") => {
-            // Remove the specific trace and any other failures for the same branch/workflow —
-            // a successful run supersedes prior failures on that workflow.
-            known_failures.retain(|_, f| {
-                !(f.repo == event.repo
-                    && f.branch == event.branch
-                    && f.workflow_name == event.workflow_name)
-            });
-            expire_old_failures(known_failures);
-            update_tray_snapshot(
-                app,
-                state,
-                build_tray_snapshot(
-                    &known_failures.values().cloned().collect::<Vec<_>>(),
-                    repo,
-                    branch,
-                ),
-            )?;
         }
         _ => {}
     }
@@ -287,25 +223,13 @@ async fn handle_notify_event(
     Ok(())
 }
 
-fn expire_old_failures(
-    known_failures: &mut std::collections::HashMap<String, FailureNotification>,
-) {
-    let cutoff = OffsetDateTime::now_utc()
-        - time::Duration::minutes(TRAY_FAILURES_WINDOW_MINUTES as i64);
-    known_failures.retain(|_, f| {
-        OffsetDateTime::parse(&f.failed_at, &Rfc3339)
-            .map(|t| t > cutoff)
-            .unwrap_or(true)
-    });
-}
-
 fn enqueue_notification(
     app: &AppHandle,
     state: &RuntimeState,
     notification: FailureNotification,
 ) -> Result<()> {
-    state.history.append(notification.clone())?;
-    let _ = app.emit(NOTIFICATION_HISTORY_CHANGED_EVENT, ());
+    state.seen_runs.add(&notification.trace_id)?;
+    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
 
     let active_changed = {
         let mut notifier = state
@@ -326,17 +250,17 @@ pub(crate) fn dismiss_active_notification_inner(
     app: &AppHandle,
     state: &RuntimeState,
 ) -> Result<()> {
-    let dismissed_key = {
+    let dismissed_trace_id = {
         let notifier = state
             .notifier
             .lock()
             .map_err(|_| anyhow!("failed to lock notifier state"))?;
-        notifier.queue.active().map(|n| n.dedupe_key.clone())
+        notifier.queue.active().map(|n| n.trace_id.clone())
     };
 
-    if let Some(key) = &dismissed_key {
-        let _ = state.history.mark_seen(key);
-        let _ = app.emit(NOTIFICATION_HISTORY_CHANGED_EVENT, ());
+    if let Some(trace_id) = &dismissed_trace_id {
+        let _ = state.seen_runs.mark_seen(trace_id);
+        let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     }
 
     let active_changed = {
