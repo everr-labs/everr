@@ -6,7 +6,7 @@ Quick commands:
 - `everr grep --job-name <job> --step-number <n> --pattern <text>`: searches failing step logs on other branches by default (7 days of history unless `--from/--to` are passed)
 - `everr runs`: the list of runs across all branches; add `--current-branch` to scope to the current git branch, `--branch <BRANCH_NAME>` to specify a different branch, `--conclusion <success|failure|cancellation>` to filter by outcome, `--workflow-name <name>` to filter by workflow, or `--run-id <id>` to find a specific run
 - `everr show --trace-id <trace_id>`: shows run details with jobs and steps; add `--failed` to show only failed jobs and their failed steps
-- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>`: prints native-style step logs; add `--tail <n>` for the last N lines (default: 1000), `--offset <n>` to skip lines (works with both `--tail` and `--limit`), or `--limit <n>` for oldest-first paging
+- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>`: prints step logs with line numbers; add `--tail <n>` for the last N lines (default: 1000), `--offset <n>` to skip lines (works with both `--tail` and `--limit`), `--limit <n>` for oldest-first paging, or `--egrep <pattern>` to filter to lines matching a re2 regex (exits 1 if no lines match)
 - `everr workflows`: lists available workflows with their jobs; add `--branch <name>` to scope it
 - `everr test-history --module <module> --test-name <name>`
 - `everr slowest-tests`: shows repo-wide aggregates for non-suite tests by default; add `--branch <name>` to scope it
