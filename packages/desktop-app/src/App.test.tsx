@@ -90,8 +90,9 @@ type MainCommand =
   | "complete_setup_wizard"
   | "reset_dev_onboarding"
   | "trigger_test_notification"
-  | "get_notification_history"
-  | "mark_all_notifications_read";
+  | "get_runs_list"
+  | "get_unseen_trace_ids"
+  | "mark_all_runs_seen";
 
 type RenderMainOptions = {
   signedIn?: boolean;
@@ -291,9 +292,11 @@ function renderMainApp(options: RenderMainOptions = {}) {
           return resetDevOnboardingSpy();
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
-        case "get_notification_history":
+        case "get_runs_list":
           return [];
-        case "mark_all_notifications_read":
+        case "get_unseen_trace_ids":
+          return [];
+        case "mark_all_runs_seen":
           return null;
         default:
           throw new Error(`Unexpected IPC command: ${cmd}`);
@@ -440,7 +443,7 @@ describe("desktop window", () => {
     renderMainApp();
 
     expect(
-      await screen.findByRole("heading", { name: "Notifications" }),
+      await screen.findByRole("heading", { name: "Runs" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Authenticate your Everr account"),
