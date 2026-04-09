@@ -82,7 +82,7 @@ impl ApiClient {
         &self,
         trace_id: &str,
         query: &[(&str, String)],
-    ) -> Result<Vec<StepLogEntry>> {
+    ) -> Result<StepLogsResponse> {
         let path = format!("/runs/{trace_id}/logs");
         self.get(&path, query).await
     }
@@ -239,6 +239,12 @@ impl ApiClient {
 pub struct StepLogEntry {
     pub timestamp: String,
     pub body: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct StepLogsResponse {
+    pub logs: Vec<StepLogEntry>,
+    pub offset: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

@@ -125,12 +125,16 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let paging = args.paging();
     let mut query = vec![("jobName", args.job_name), ("stepNumber", args.step_number)];
+    push_opt(&mut query, "egrep", args.egrep.clone());
 
     if let Some(paging) = paging {
         let paged_logs = get_paged_step_logs(&client, &args.trace_id, query, paging).await?;
         print_step_logs(&paged_logs.logs, args.color)?;
         if paged_logs.has_more {
             print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
+        }
+        if args.egrep.is_some() && paged_logs.logs.is_empty() {
+            std::process::exit(1);
         }
         return Ok(());
     }
@@ -141,8 +145,11 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
         query.push(("offset", offset.to_string()));
     }
 
-    let logs = client.get_step_logs(&args.trace_id, &query).await?;
-    print_step_logs(&logs, args.color)?;
+    let response = client.get_step_logs(&args.trace_id, &query).await?;
+    print_step_logs(&response.logs, args.color)?;
+    if args.egrep.is_some() && response.logs.is_empty() {
+        std::process::exit(1);
+    }
     Ok(())
 }
 
@@ -501,7 +508,8 @@ async fn get_paged_step_logs(
     query.push(("limit", paging.limit.saturating_add(1).to_string()));
     query.push(("offset", paging.offset.to_string()));
 
-    let mut logs = client.get_step_logs(trace_id, &query).await?;
+    let response = client.get_step_logs(trace_id, &query).await?;
+    let mut logs = response.logs;
     let has_more = logs.len() > paging.limit as usize;
     if has_more {
         logs.truncate(paging.limit as usize);

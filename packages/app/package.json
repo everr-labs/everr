@@ -44,6 +44,7 @@
     "pg": "^8.20.0",
     "pg-boss": "^12.15.0",
     "quick-lru": "^7.3.0",
+    "re2-wasm": "^1.0.2",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-virtuoso": "^4.18.3",

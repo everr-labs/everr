@@ -31,16 +31,40 @@ function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
 
 async function countStepLogs(
   context: AuthContext,
-  params: { traceId: string; jobName: string; stepNumber: string },
+  params: {
+    traceId: string;
+    jobName: string;
+    stepNumber: string;
+    egrep?: string;
+  },
 ): Promise<number> {
+  const egrepClause = params.egrep
+    ? "\n      AND match(Body, {egrep:String})"
+    : "";
   const sql = `
     SELECT count() as cnt
     FROM logs
     WHERE TraceId = {traceId:String}
       AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
-      AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
+      AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
   `;
-  const result = await context.clickhouse.query<{ cnt: string }>(sql, params);
+  const queryParams: {
+    traceId: string;
+    jobName: string;
+    stepNumber: string;
+    egrep?: string;
+  } = {
+    traceId: params.traceId,
+    jobName: params.jobName,
+    stepNumber: params.stepNumber,
+  };
+  if (params.egrep) {
+    queryParams.egrep = params.egrep;
+  }
+  const result = await context.clickhouse.query<{ cnt: string }>(
+    sql,
+    queryParams,
+  );
   return result.length > 0 ? Number(result[0].cnt) : 0;
 }
 
@@ -53,6 +77,7 @@ async function getRawStepLogs(
     maxLines?: number;
     offsetLines?: number;
     useTail?: boolean;
+    egrep?: string;
   },
 ): Promise<LogEntry[]> {
   const clickhouse = context.clickhouse;
@@ -61,6 +86,9 @@ async function getRawStepLogs(
     typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
   const offsetClause =
     typeof params.offsetLines === "number" ? "OFFSET {offsetLines:UInt32}" : "";
+  const egrepClause = params.egrep
+    ? "\n\t\t\tAND match(Body, {egrep:String})"
+    : "";
   const sql = `
 		SELECT
 			Timestamp as timestamp,
@@ -68,7 +96,7 @@ async function getRawStepLogs(
 		FROM logs
 		WHERE TraceId = {traceId:String}
 			AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
-			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}
+			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
 		ORDER BY Timestamp ${order}
 		${limitClause}
 		${offsetClause}
@@ -83,6 +111,7 @@ async function getRawStepLogs(
     stepNumber: params.stepNumber,
     maxLines: params.maxLines,
     offsetLines: params.offsetLines,
+    egrep: params.egrep,
   });
 
   const logs = result.map(mapLogRow);
@@ -431,6 +460,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       tail: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
       limit: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
       offset: z.number().int().min(0).optional(),
+      egrep: z.string().min(1).optional(),
     }),
   )
   .handler(async ({ data, context }) => {
@@ -438,6 +468,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       traceId: data.traceId,
       jobName: data.jobName,
       stepNumber: data.stepNumber,
+      egrep: data.egrep,
     });
 
     if (
@@ -452,6 +483,7 @@ export const getStepLogs = createAuthenticatedServerFn({
         maxLines,
         offsetLines: data.offset,
         useTail: true,
+        egrep: data.egrep,
       });
       const startOffset = Math.max(0, totalCount - maxLines);
       return { logs, totalCount, offset: startOffset };
@@ -464,6 +496,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       stepNumber: data.stepNumber,
       maxLines: data.limit ?? DEFAULT_LOG_PAGE_SIZE,
       offsetLines: offset,
+      egrep: data.egrep,
     });
     return { logs, totalCount, offset };
   });

@@ -80,7 +80,8 @@ fn runs_logs_help_lists_paging_flags_and_default_page_size() {
         .stdout(contains("--tail"))
         .stdout(contains("--limit <LIMIT>"))
         .stdout(contains("--offset <OFFSET>"))
-        .stdout(contains("default: 1000"));
+        .stdout(contains("default: 1000"))
+        .stdout(contains("--egrep"));
 }
 
 #[test]

@@ -224,6 +224,9 @@ pub struct GetLogsArgs {
     /// Preserve ANSI color codes (stripped by default)
     #[arg(long)]
     pub color: bool,
+    /// Filter output to lines matching a re2 regex pattern; exits 1 if no lines match
+    #[arg(long)]
+    pub egrep: Option<String>,
 }
 
 #[derive(Args, Debug, Default)]
@@ -734,5 +737,40 @@ mod tests {
         };
 
         assert!(!fail_fast);
+    }
+
+    #[test]
+    fn runs_logs_accepts_egrep_pattern() {
+        let cli = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--egrep", "Error.*timeout",
+        ])
+        .expect("valid logs command with egrep");
+
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
+        };
+
+        assert_eq!(args.egrep.as_deref(), Some("Error.*timeout"));
+    }
+
+    #[test]
+    fn runs_logs_egrep_defaults_to_none() {
+        let cli = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--job-name", "build",
+            "--step-number", "2",
+        ])
+        .expect("valid logs command");
+
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
+        };
+
+        assert!(args.egrep.is_none());
     }
 }
