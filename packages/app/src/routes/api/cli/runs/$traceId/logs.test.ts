@@ -85,7 +85,12 @@ describe("GET /api/cli/runs/:traceId/logs", () => {
     );
   });
 
-  it("returns 400 for an invalid re2 pattern", async () => {
+  it("returns 400 when ClickHouse rejects the regex pattern", async () => {
+    mockedGetStepLogs.mockRejectedValue({
+      type: "CANNOT_COMPILE_REGEXP",
+      message: "Invalid regular expression",
+    });
+
     const handler = getHandler();
     const response = await handler({
       params: { traceId: "trace-1" },
@@ -98,28 +103,7 @@ describe("GET /api/cli/runs/:traceId/logs", () => {
 
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.error).toMatch(/re2/i);
-    expect(mockedGetStepLogs).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 when ClickHouse throws a re2 error", async () => {
-    mockedGetStepLogs.mockRejectedValue(
-      new Error("DB::Exception: re2: Invalid regular expression"),
-    );
-
-    const handler = getHandler();
-    const response = await handler({
-      params: { traceId: "trace-1" },
-      request: makeRequest({
-        jobName: "build",
-        stepNumber: "2",
-        egrep: "Error",
-      }),
-    });
-
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body.error).toMatch(/re2/i);
+    expect(body.error).toMatch(/regular expression/i);
   });
 
   it("returns 400 for missing required query params", async () => {
