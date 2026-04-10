@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { GithubInstallStep } from "@/components/github-install-step";
 import { OnboardingLayout } from "@/components/onboarding-layout";
+import { getActiveOrganization } from "@/data/auth";
 import { ensureOrganizationForDevice } from "@/data/onboarding";
-import { workOS } from "@/lib/workos";
 
 export const Route = createFileRoute("/cli/device")({
   validateSearch: z.object({
@@ -26,10 +26,9 @@ export const Route = createFileRoute("/cli/device")({
 
     const hasOrg = !!auth.organizationId;
 
-    const orgName = auth.organizationId
-      ? await workOS.organizations
-          .getOrganization(auth.organizationId)
-          .then((org) => org.name)
+    const orgName = hasOrg
+      ? await getActiveOrganization()
+          .then((org) => org?.name ?? null)
           .catch(() => null)
       : null;
 
