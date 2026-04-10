@@ -170,9 +170,6 @@ importers:
       quick-lru:
         specifier: ^7.3.0
         version: 7.3.0
-      re2-wasm:
-        specifier: ^1.0.2
-        version: 1.0.2
       react:
         specifier: 'catalog:'
         version: 19.2.4
@@ -5688,10 +5685,6 @@ packages:
   raw-body@3.0.2:
     resolution: {integrity: sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==}
     engines: {node: '>= 0.10'}
-
-  re2-wasm@1.0.2:
-    resolution: {integrity: sha512-VXUdgSiUrE/WZXn6gUIVVIsg0+Hp6VPZPOaHCay+OuFKy6u/8ktmeNEf+U5qSA8jzGGFsg8jrDNu1BeHpz2pJA==}
-    engines: {node: '>=10'}
 
   react-dom@19.2.4:
     resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
@@ -12069,8 +12062,6 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.2
       unpipe: 1.0.0
-
-  re2-wasm@1.0.2: {}
 
   react-dom@19.2.4(react@19.2.4):
     dependencies:
