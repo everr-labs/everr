@@ -1055,7 +1055,3 @@ describe("notification emails", () => {
     ).toBeInTheDocument();
   });
 });
-
-describe("broken test", () => {
-  expect(true).toBe(false);
-});
