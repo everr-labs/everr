@@ -7,6 +7,7 @@ import { z } from "zod";
 import { GithubInstallStep } from "@/components/github-install-step";
 import { OnboardingLayout } from "@/components/onboarding-layout";
 import { ensureOrganizationForDevice } from "@/data/onboarding";
+import { workOS } from "@/lib/workos";
 
 export const Route = createFileRoute("/cli/device")({
   validateSearch: z.object({
@@ -23,9 +24,24 @@ export const Route = createFileRoute("/cli/device")({
       throw redirect({ href: signInUrl });
     }
 
+    const hasOrg = !!auth.organizationId;
+
+    const [orgName] = await Promise.all([
+      hasOrg
+        ? workOS.organizations
+            .getOrganization(auth.organizationId!)
+            .then((org) => org.name)
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    const firstName = auth.user.firstName ?? auth.user.email.split("@")[0];
+
     return {
       deviceCode: deps.code?.toUpperCase() ?? "",
-      hasOrg: !!auth.user && !!auth.organizationId,
+      hasOrg,
+      userName: firstName,
+      orgName,
     };
   },
   component: CliDeviceApprovalPage,
@@ -36,13 +52,19 @@ function formatCodeForDisplay(code: string): string {
 }
 
 function CliDeviceApprovalPage() {
-  const { deviceCode, hasOrg } = Route.useLoaderData();
+  const { deviceCode, hasOrg, userName, orgName } = Route.useLoaderData();
 
   if (!hasOrg) {
     return <NewUserDeviceFlow deviceCode={deviceCode} />;
   }
 
-  return <ExistingUserDeviceFlow deviceCode={deviceCode} />;
+  return (
+    <ExistingUserDeviceFlow
+      deviceCode={deviceCode}
+      userName={userName}
+      orgName={orgName}
+    />
+  );
 }
 
 type NewUserStep = "setup" | "github" | "approving" | "done" | "error";
@@ -125,7 +147,15 @@ function NewUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
   );
 }
 
-function ExistingUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
+function ExistingUserDeviceFlow({
+  deviceCode,
+  userName,
+  orgName,
+}: {
+  deviceCode: string;
+  userName: string;
+  orgName: string | null;
+}) {
   const [status, setStatus] = useState<
     "idle" | "approved" | "denied" | "error"
   >("idle");
@@ -159,6 +189,9 @@ function ExistingUserDeviceFlow({ deviceCode }: { deviceCode: string }) {
         <h1 className="text-center text-4xl font-semibold tracking-tight">
           Device activation
         </h1>
+        <p className="text-muted-foreground mt-3 text-center text-base">
+          {orgName ? `${userName} · ${orgName}` : userName}
+        </p>
 
         <section className="bg-background mt-10 rounded-2xl border px-6 py-10 sm:px-12">
           {status === "idle" || status === "error" ? (
