@@ -272,7 +272,11 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     }
 
     if initial.active.is_empty() && initial.completed.is_empty() {
-        println!("no runs found for this commit yet, waiting...");
+        let branch_part = branch
+            .as_deref()
+            .map(|b| format!("  branch: {b}"))
+            .unwrap_or_default();
+        println!("no runs found yet, waiting...  [repo: {repo}  commit: {target_commit}{branch_part}]");
     }
 
     if args.fail_fast {
