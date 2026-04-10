@@ -47,7 +47,7 @@ describe("getBranchStatus", () => {
       repo: "everr-labs/everr",
       branch: "feature/watch-short-commit",
       commit: "7f14b13",
-      state: "completed",
+      state: "pending",
       active: [],
       completed: [],
     });
