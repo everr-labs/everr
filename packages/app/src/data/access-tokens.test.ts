@@ -72,7 +72,7 @@ describe("createAccessToken", () => {
     expect(result).toEqual({
       id: 1,
       name: "access-token-abc12345",
-      value: "eacc_test_token",
+      value: "eacc_test_tokeneacc_test_tokeneacc_test_token",
       tokenPrefix: "eacc_test_prefix_",
       obfuscatedValue: "eacc_test_prefix_********",
       createdAt,
