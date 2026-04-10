@@ -1,12 +1,33 @@
+import { resolve } from "@everr/datemath";
 import { Button } from "@everr/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@everr/ui/components/empty";
+import {
+  getRefreshIntervalMs,
+  RefreshPicker,
+} from "@everr/ui/components/refresh-picker";
+import {
+  type TimeRange,
+  TimeRangePicker,
+} from "@everr/ui/components/time-range-picker";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Clipboard, ExternalLink, RefreshCw } from "lucide-react";
+import {
+  useIsFetching,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Check, Clipboard, Workflow } from "lucide-react";
 import { useRef, useState } from "react";
 import { invokeCommand, SEEN_RUNS_CHANGED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
@@ -28,8 +49,15 @@ type RunListItem = {
 const runsListQueryKey = ["desktop-app", "runs-list"] as const;
 const unseenTraceIdsQueryKey = ["desktop-app", "unseen-trace-ids"] as const;
 
-function getRunsList() {
-  return invokeCommand<RunListItem[]>("get_runs_list");
+function resolveToISO(expr: string, roundUp: boolean): string {
+  return resolve(expr, { roundUp }).toISOString();
+}
+
+function getRunsList(timeRange: TimeRange) {
+  return invokeCommand<RunListItem[]>("get_runs_list", {
+    from: resolveToISO(timeRange.from, false),
+    to: resolveToISO(timeRange.to, true),
+  });
 }
 
 function getUnseenTraceIds() {
@@ -41,20 +69,34 @@ function markAllRunsSeen() {
 }
 
 export function NotificationsPage() {
-  useInvalidateOnTauriEvent(SEEN_RUNS_CHANGED_EVENT, (queryClient) => {
-    void queryClient.invalidateQueries({ queryKey: unseenTraceIdsQueryKey });
+  const [timeRange, setTimeRange] = useState<TimeRange>({
+    from: "now-1h",
+    to: "now",
+  });
+  const [refreshInterval, setRefreshInterval] = useState("");
+  const queryClient = useQueryClient();
+  const isFetching = useIsFetching();
+
+  const refetchIntervalMs = getRefreshIntervalMs(refreshInterval) ?? undefined;
+
+  useInvalidateOnTauriEvent(SEEN_RUNS_CHANGED_EVENT, (qc) => {
+    void qc.invalidateQueries({ queryKey: unseenTraceIdsQueryKey });
   });
 
   const runsQuery = useQuery({
-    queryKey: runsListQueryKey,
-    queryFn: getRunsList,
+    queryKey: [...runsListQueryKey, timeRange.from, timeRange.to],
+    queryFn: () => getRunsList(timeRange),
     refetchOnWindowFocus: true,
+    refetchInterval: refetchIntervalMs,
+    refetchIntervalInBackground: false,
   });
 
   const unseenQuery = useQuery({
     queryKey: unseenTraceIdsQueryKey,
     queryFn: getUnseenTraceIds,
     refetchOnWindowFocus: true,
+    refetchInterval: refetchIntervalMs,
+    refetchIntervalInBackground: false,
   });
 
   const markAllReadMutation = useMutation({
@@ -80,24 +122,20 @@ export function NotificationsPage() {
           {hasUnread && (
             <Button
               variant="outline"
-              size="sm"
+              size="lg"
               disabled={markAllReadMutation.isPending}
               onClick={() => void markAllReadMutation.mutateAsync()}
             >
               Mark all as read
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={runsQuery.isFetching}
-            onClick={() => void runsQuery.refetch()}
-          >
-            <RefreshCw
-              className={`size-3.5 ${runsQuery.isFetching ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
+          <TimeRangePicker value={timeRange} onChange={setTimeRange} />
+          <RefreshPicker
+            value={refreshInterval}
+            onChange={setRefreshInterval}
+            onRefresh={() => void queryClient.invalidateQueries()}
+            isFetching={isFetching > 0}
+          />
         </div>
       </div>
 
@@ -108,14 +146,23 @@ export function NotificationsPage() {
           </p>
         </div>
       ) : runs.length === 0 ? (
-        <div className="px-5 py-12 text-center">
-          <p className="m-0 text-sm text-[var(--settings-text-muted)]">
-            No runs yet. CI pipeline runs will appear here.
-          </p>
+        <div className="px-5 py-12">
+          <Empty className="border-none">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Workflow />
+              </EmptyMedia>
+              <EmptyTitle>No runs found</EmptyTitle>
+              <EmptyDescription>
+                No CI pipeline runs match the selected time range. Try expanding
+                the range or check back later.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-[0.78rem]">
+          <table className="w-full text-left text-[0.78rem] table-fixed">
             <thead>
               <tr className="border-b border-white/[0.06] text-[0.7rem] font-medium uppercase tracking-wider text-[var(--settings-text-muted)]">
                 <th className="w-8 py-2 pl-5 pr-1 font-medium" />
@@ -124,7 +171,7 @@ export function NotificationsPage() {
                 <th className="py-2 px-2 font-medium">Branch</th>
                 <th className="py-2 px-2 font-medium">Result</th>
                 <th className="py-2 px-2 font-medium">When</th>
-                <th className="w-16 py-2 pl-2 pr-5 font-medium" />
+                <th className="w-10 py-2 pl-2 pr-5 font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -195,63 +242,58 @@ function RunRow({ run, unseen }: { run: RunListItem; unseen: boolean }) {
           <span className="block size-2" />
         )}
       </td>
-      <td className="py-2 px-2 font-medium text-[var(--settings-text)]">
-        {run.workflowName}
+      <td className="py-2 px-2 font-medium truncate">
+        <button
+          type="button"
+          className="cursor-pointer truncate max-w-full text-left text-[var(--settings-text)] hover:underline disabled:opacity-50 disabled:no-underline"
+          disabled={openMutation.isPending}
+          onClick={() => void openMutation.mutateAsync()}
+        >
+          {run.workflowName}
+        </button>
       </td>
-      <td className="py-2 px-2 text-[var(--settings-text-muted)]">
+      <td className="py-2 px-2 text-[var(--settings-text-muted)] truncate">
         {run.repo}
       </td>
-      <td className="py-2 px-2">
-        <span className="inline-block rounded bg-white/[0.06] px-1.5 py-0.5 text-[0.72rem] text-[var(--settings-text-muted)]">
+      <td className="py-2 px-2 truncate">
+        <span className="inline-block max-w-full truncate rounded bg-white/[0.06] px-1.5 py-0.5 text-[0.72rem] text-[var(--settings-text-muted)]">
           {run.branch}
         </span>
       </td>
-      <td className="py-2 px-2">
+      <td className="py-2 px-2 whitespace-nowrap">
         <span
           className={`inline-block rounded px-1.5 py-0.5 text-[0.72rem] font-medium capitalize ${conclusionBadgeClass(run.conclusion)}`}
         >
           {run.conclusion}
         </span>
       </td>
-      <td className="py-2 px-2 text-[var(--settings-text-muted)]">
+      <td className="py-2 px-2 whitespace-nowrap text-[var(--settings-text-muted)]">
         {relativeTime}
       </td>
       <td className="py-2 pl-2 pr-5">
-        <TooltipProvider>
-          <div className="flex items-center gap-1">
-            {run.conclusion === "failure" && (
-              <Tooltip>
-                <TooltipTrigger
-                  className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
-                  disabled={copyMutation.isPending}
-                  onClick={() => void copyMutation.mutateAsync()}
-                >
-                  <span className="relative grid size-3.5 place-items-center">
-                    <Clipboard
-                      className={`col-start-1 row-start-1 size-3.5 transition-all duration-200 ${copied ? "scale-0 opacity-0" : "scale-100 opacity-100"}`}
-                    />
-                    <Check
-                      className={`col-start-1 row-start-1 size-3.5 text-emerald-400 transition-all duration-200 ${copied ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
-                    />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {copied ? "Copied!" : "Copy auto-fix prompt"}
-                </TooltipContent>
-              </Tooltip>
-            )}
+        {run.conclusion === "failure" && (
+          <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
-                className="flex size-7 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
-                disabled={openMutation.isPending}
-                onClick={() => void openMutation.mutateAsync()}
+                className="flex size-6 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
+                disabled={copyMutation.isPending}
+                onClick={() => void copyMutation.mutateAsync()}
               >
-                <ExternalLink className="size-3.5" />
+                <span className="relative grid size-3.5 place-items-center">
+                  <Clipboard
+                    className={`col-start-1 row-start-1 size-3.5 transition-all duration-200 ${copied ? "scale-0 opacity-0" : "scale-100 opacity-100"}`}
+                  />
+                  <Check
+                    className={`col-start-1 row-start-1 size-3.5 text-emerald-400 transition-all duration-200 ${copied ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
+                  />
+                </span>
               </TooltipTrigger>
-              <TooltipContent side="top">Open in browser</TooltipContent>
+              <TooltipContent side="top">
+                {copied ? "Copied!" : "Copy auto-fix prompt"}
+              </TooltipContent>
             </Tooltip>
-          </div>
-        </TooltipProvider>
+          </TooltipProvider>
+        )}
       </td>
     </tr>
   );

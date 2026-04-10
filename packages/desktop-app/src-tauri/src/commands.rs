@@ -323,6 +323,8 @@ struct RunsListApiResponse {
 #[tauri::command]
 pub(crate) async fn get_runs_list(
     state: State<'_, RuntimeState>,
+    from: String,
+    to: String,
 ) -> CommandResult<Vec<RunListItem>> {
     let state = state.inner().clone();
     let app_state = current_app_state(&state).into_command_result()?;
@@ -347,7 +349,13 @@ pub(crate) async fn get_runs_list(
         std::collections::HashSet::new();
 
     for email in &emails {
-        let query = vec![("authorEmail".to_string(), email.clone())];
+        let mut query = vec![
+            ("authorEmail".to_string(), email.clone()),
+            ("from".to_string(), from.clone()),
+        ];
+        if !to.is_empty() {
+            query.push(("to".to_string(), to.clone()));
+        }
         let query_refs: Vec<(&str, String)> = query
             .iter()
             .map(|(k, v)| (k.as_str(), v.clone()))

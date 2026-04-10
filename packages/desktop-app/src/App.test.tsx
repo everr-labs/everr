@@ -935,11 +935,7 @@ describe("runs list", () => {
   it("shows an empty state when there are no runs", async () => {
     renderMainApp({ runs: [] });
 
-    expect(
-      await screen.findByText(
-        "No runs yet. CI pipeline runs will appear here.",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("No runs found")).toBeInTheDocument();
   });
 
   it("renders runs in a table with workflow, repo, branch, and conclusion", async () => {

@@ -2,6 +2,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  redirect,
 } from "@tanstack/react-router";
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
 import { SettingsPage } from "./features/desktop-shell/settings-page";
@@ -27,6 +28,13 @@ const settingsRoute = createRoute({
 const developerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/developer",
+  ...(!import.meta.env.DEV
+    ? {
+        beforeLoad: () => {
+          throw redirect({ to: "/" });
+        },
+      }
+    : {}),
   component: DeveloperPage,
 });
 

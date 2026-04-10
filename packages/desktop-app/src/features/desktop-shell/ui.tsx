@@ -64,19 +64,20 @@ export function DesktopLoadingState({ text }: { text: string }) {
   );
 }
 
+interface SettingsSectionProps {
+  title: string;
+  description: string;
+  action?: ReactNode;
+  children?: ReactNode;
+  compact?: boolean;
+}
 export function SettingsSection({
   title,
   description,
   action,
   children,
   compact = false,
-}: {
-  title: string;
-  description: string;
-  action?: ReactNode;
-  children?: ReactNode;
-  compact?: boolean;
-}) {
+}: SettingsSectionProps) {
   return (
     <section
       className={cn(

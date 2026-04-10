@@ -20,6 +20,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@everr/datemath": "workspace:*",
     "@everr/ui": "workspace:*",
     "@radix-ui/themes": "catalog:",
     "@tanstack/react-query": "catalog:",

@@ -278,7 +278,7 @@ export function NotificationCard({
       : "Auto-fix prompt";
 
   return (
-    <main className="h-screen pl-3 pr-14 pt-3">
+    <main className="h-screen pl-3 pr-4 pt-3">
       <div
         className={`relative h-full ${exiting ? "notification-exit" : "notification-enter"}`}
       >

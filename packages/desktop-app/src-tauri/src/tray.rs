@@ -46,6 +46,9 @@ pub(crate) fn build_tray(app: &AppHandle) -> Result<()> {
 
 fn open_main_window(app: &AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+
         window.show().context("failed to show main window")?;
         window.set_focus().context("failed to focus main window")?;
     } else {

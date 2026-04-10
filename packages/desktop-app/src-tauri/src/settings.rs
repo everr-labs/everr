@@ -130,10 +130,11 @@ pub(crate) fn open_settings_window(app: &AppHandle) -> Result<()> {
         .get_webview_window("main")
         .ok_or_else(|| anyhow!("settings window not found"))?;
 
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+
     window.show()?;
     window.set_focus()?;
-
-    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
     Ok(())
 }

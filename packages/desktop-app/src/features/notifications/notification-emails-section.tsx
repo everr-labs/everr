@@ -119,7 +119,7 @@ export function NotificationEmailsSection() {
   return (
     <SettingsSection
       title="Notification emails"
-      description="Emails used to match CI events to you. Matched locally — never sent to our servers."
+      description="Emails used to match CI events to you."
     >
       {emails.length > 0 && (
         <TooltipProvider>
