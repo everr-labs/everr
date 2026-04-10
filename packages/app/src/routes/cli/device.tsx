@@ -26,14 +26,12 @@ export const Route = createFileRoute("/cli/device")({
 
     const hasOrg = !!auth.organizationId;
 
-    const [orgName] = await Promise.all([
-      hasOrg
-        ? workOS.organizations
-            .getOrganization(auth.organizationId!)
-            .then((org) => org.name)
-            .catch(() => null)
-        : Promise.resolve(null),
-    ]);
+    const orgName = auth.organizationId
+      ? await workOS.organizations
+          .getOrganization(auth.organizationId)
+          .then((org) => org.name)
+          .catch(() => null)
+      : null;
 
     const firstName = auth.user.firstName ?? auth.user.email.split("@")[0];
 
