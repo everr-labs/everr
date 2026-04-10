@@ -75,6 +75,19 @@ type TestNotificationResponse = {
   status: "shown" | "queued";
 };
 
+type RunListItem = {
+  traceId: string;
+  runId: string;
+  runAttempt: number;
+  workflowName: string;
+  repo: string;
+  branch: string;
+  conclusion: string;
+  duration: number;
+  timestamp: string;
+  sender: string;
+};
+
 type MainCommand =
   | "get_wizard_status"
   | "get_auth_status"
@@ -92,7 +105,10 @@ type MainCommand =
   | "trigger_test_notification"
   | "get_runs_list"
   | "get_unseen_trace_ids"
-  | "mark_all_runs_seen";
+  | "mark_all_runs_seen"
+  | "mark_run_seen"
+  | "open_run_in_browser"
+  | "copy_run_auto_fix_prompt";
 
 type RenderMainOptions = {
   signedIn?: boolean;
@@ -102,6 +118,8 @@ type RenderMainOptions = {
   assistantStatuses?: AssistantStatus[];
   testNotification?: TestNotificationResponse;
   pendingSignIn?: PendingSignIn | null;
+  runs?: RunListItem[];
+  unseenTraceIds?: string[];
   commandOverrides?: Partial<Record<MainCommand, (args: unknown) => unknown>>;
 };
 
@@ -144,6 +162,22 @@ function createNotification(
     jobName: "test",
     stepNumber: "3",
     stepName: "Run suite",
+    ...overrides,
+  };
+}
+
+function createRun(overrides: Partial<RunListItem> = {}): RunListItem {
+  return {
+    traceId: "trace-run-1",
+    runId: "run-1",
+    runAttempt: 1,
+    workflowName: "CI",
+    repo: "everr-labs/everr",
+    branch: "main",
+    conclusion: "failure",
+    duration: 120,
+    timestamp: "2026-03-07T13:32:00Z",
+    sender: "user@example.com",
     ...overrides,
   };
 }
@@ -219,6 +253,16 @@ function renderMainApp(options: RenderMainOptions = {}) {
   const triggerTestNotificationSpy = vi.fn(
     () => options.testNotification ?? { status: "shown" },
   );
+  let runs = options.runs ?? [];
+  let unseenTraceIds = options.unseenTraceIds ?? [];
+  const markRunSeenSpy = vi.fn((payload: { traceId?: string }) => {
+    unseenTraceIds = unseenTraceIds.filter((id) => id !== payload.traceId);
+    return null;
+  });
+  const markAllRunsSeenSpy = vi.fn(() => {
+    unseenTraceIds = [];
+    return null;
+  });
 
   mockWindows("main");
   mockIPC(
@@ -293,10 +337,16 @@ function renderMainApp(options: RenderMainOptions = {}) {
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
         case "get_runs_list":
-          return [];
+          return runs;
         case "get_unseen_trace_ids":
-          return [];
+          return unseenTraceIds;
         case "mark_all_runs_seen":
+          return markAllRunsSeenSpy();
+        case "mark_run_seen":
+          return markRunSeenSpy(payload as { traceId?: string });
+        case "open_run_in_browser":
+          return null;
+        case "copy_run_auto_fix_prompt":
           return null;
         default:
           throw new Error(`Unexpected IPC command: ${cmd}`);
@@ -312,11 +362,19 @@ function renderMainApp(options: RenderMainOptions = {}) {
     openSignInBrowserSpy,
     resetDevOnboardingSpy,
     triggerTestNotificationSpy,
+    markAllRunsSeenSpy,
+    markRunSeenSpy,
     setAssistantSetup(next: AssistantSetup) {
       assistantSetup = next;
     },
     setWizardStatus(next: WizardStatus) {
       wizardStatus = next;
+    },
+    setRuns(next: RunListItem[]) {
+      runs = next;
+    },
+    setUnseenTraceIds(next: string[]) {
+      unseenTraceIds = next;
     },
   };
 }
@@ -870,5 +928,130 @@ describe("notification window", () => {
     });
 
     expect(await screen.findByText("CI")).toBeInTheDocument();
+  });
+});
+
+describe("runs list", () => {
+  it("shows an empty state when there are no runs", async () => {
+    renderMainApp({ runs: [] });
+
+    expect(
+      await screen.findByText(
+        "No runs yet. CI pipeline runs will appear here.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders runs in a table with workflow, repo, branch, and conclusion", async () => {
+    renderMainApp({
+      runs: [
+        createRun({
+          traceId: "trace-a",
+          workflowName: "Build",
+          repo: "everr-labs/everr",
+          branch: "main",
+          conclusion: "failure",
+        }),
+        createRun({
+          traceId: "trace-b",
+          workflowName: "Deploy",
+          repo: "everr-labs/api",
+          branch: "release/v2",
+          conclusion: "success",
+        }),
+      ],
+    });
+
+    expect(await screen.findByText("Build")).toBeInTheDocument();
+    expect(screen.getByText("Deploy")).toBeInTheDocument();
+    expect(screen.getByText("everr-labs/everr")).toBeInTheDocument();
+    expect(screen.getByText("everr-labs/api")).toBeInTheDocument();
+    expect(screen.getByText("main")).toBeInTheDocument();
+    expect(screen.getByText("release/v2")).toBeInTheDocument();
+    expect(screen.getByText("failure")).toBeInTheDocument();
+    expect(screen.getByText("success")).toBeInTheDocument();
+  });
+
+  it("shows 'Mark all as read' button when there are unseen runs", async () => {
+    const run = createRun({ traceId: "trace-unseen" });
+    const harness = renderMainApp({
+      runs: [run],
+      unseenTraceIds: ["trace-unseen"],
+    });
+
+    const markAllButton = await screen.findByRole("button", {
+      name: "Mark all as read",
+    });
+    expect(markAllButton).toBeInTheDocument();
+
+    fireEvent.click(markAllButton);
+
+    await waitFor(() => {
+      expect(harness.markAllRunsSeenSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not show 'Mark all as read' when all runs are seen", async () => {
+    renderMainApp({
+      runs: [createRun()],
+      unseenTraceIds: [],
+    });
+
+    await screen.findByText("CI");
+    expect(
+      screen.queryByRole("button", { name: "Mark all as read" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("notification emails", () => {
+  it("shows existing emails in the settings page", async () => {
+    renderMainApp({
+      notificationEmails: ["alice@example.com", "bob@example.com"],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    expect(await screen.findByText("alice@example.com")).toBeInTheDocument();
+    expect(screen.getByText("bob@example.com")).toBeInTheDocument();
+  });
+
+  it("validates email format before adding", async () => {
+    renderMainApp({
+      notificationEmails: [],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    const input = await screen.findByPlaceholderText("Add email address");
+    fireEvent.change(input, { target: { value: "not-an-email" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(
+      await screen.findByText("Please enter a valid email address."),
+    ).toBeInTheDocument();
+  });
+
+  it("prevents adding a duplicate email", async () => {
+    renderMainApp({
+      notificationEmails: ["alice@example.com"],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    await screen.findByText("alice@example.com");
+    const input = screen.getByPlaceholderText("Add email address");
+    fireEvent.change(input, { target: { value: "alice@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(
+      await screen.findByText("This email is already added."),
+    ).toBeInTheDocument();
   });
 });
