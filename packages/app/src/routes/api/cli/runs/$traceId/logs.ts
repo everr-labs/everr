@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getStepLogs, InvalidRE2PatternError } from "@/data/runs/server";
+import { getStepLogs } from "@/data/runs/server";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 
 const StepLogsQuerySchema = z
