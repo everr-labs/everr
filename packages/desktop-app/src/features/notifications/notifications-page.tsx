@@ -32,6 +32,7 @@ import { useRef, useState } from "react";
 import { invokeCommand, SEEN_RUNS_CHANGED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { formatNotificationRelativeTime } from "../../notification-time";
+import { runsListQueryKey, unseenTraceIdsQueryKey } from "./query-keys";
 
 type RunListItem = {
   traceId: string;
@@ -45,9 +46,6 @@ type RunListItem = {
   timestamp: string;
   sender: string;
 };
-
-const runsListQueryKey = ["desktop-app", "runs-list"] as const;
-const unseenTraceIdsQueryKey = ["desktop-app", "unseen-trace-ids"] as const;
 
 function resolveToISO(expr: string, roundUp: boolean): string {
   return resolve(expr, { roundUp }).toISOString();

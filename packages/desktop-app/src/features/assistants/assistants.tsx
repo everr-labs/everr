@@ -13,7 +13,6 @@ import {
   FeatureErrorText,
   FeatureLoadingText,
   SettingsSection,
-  WizardStepSection,
 } from "../desktop-shell/ui";
 
 export type AssistantKind = "codex" | "claude" | "cursor";
@@ -153,33 +152,6 @@ function LoadedAssistantsSection({
         </Button>
       </div>
     </SettingsSection>
-  );
-}
-
-export function AssistantsWizardStep({
-  assistantSetup,
-  selection,
-  disabled,
-  onToggle,
-}: {
-  assistantSetup: AssistantSetup;
-  selection: AssistantKind[];
-  disabled: boolean;
-  onToggle: (assistant: AssistantKind) => void;
-}) {
-  return (
-    <WizardStepSection
-      title="Select assistants to integrate"
-      description="Add instructions to your assistants on how to use Everr. These selections are optional and can be changed later."
-      badge={null}
-    >
-      <AssistantChecklist
-        selection={selection}
-        statuses={assistantSetup.assistant_statuses}
-        disabled={disabled}
-        onToggle={onToggle}
-      />
-    </WizardStepSection>
   );
 }
 

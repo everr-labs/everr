@@ -106,19 +106,19 @@ function AuthStatusIndicator() {
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" sideOffset={8}>
-        {signedIn ? (
-          <DropdownMenuItem
-            disabled={signOutMutation.isPending}
-            onSelect={() => void signOutMutation.mutateAsync()}
-          >
-            <LogOut className="mr-2 size-4" />
-            {signOutMutation.isPending ? "Signing out..." : "Sign out"}
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem disabled className="text-muted-foreground">
-            Not connected
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem
+          disabled={signOutMutation.isPending}
+          render={
+            <button
+              type="button"
+              className="w-full"
+              onClick={() => void signOutMutation.mutateAsync()}
+            >
+              <LogOut className="mr-2 size-4" />
+              Sign out
+            </button>
+          }
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

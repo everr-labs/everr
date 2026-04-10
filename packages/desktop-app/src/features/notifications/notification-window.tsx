@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -18,7 +19,6 @@ import {
 } from "../../notification-time";
 import { authStatusQueryKey } from "../auth/auth";
 import { SettingsSection } from "../desktop-shell/ui";
-import { wizardStatusQueryKey } from "../setup-wizard/setup-wizard";
 
 const AUTO_DISMISS_MS = 40_000;
 
@@ -43,9 +43,6 @@ type DevResetResponse = {
   auth_status: {
     status: "signed_in" | "signed_out";
     session_path: string;
-  };
-  wizard_status: {
-    wizard_completed: boolean;
   };
 };
 
@@ -117,13 +114,14 @@ function useTriggerTestNotificationMutation() {
 
 function useResetDevOnboardingMutation() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   return useMutation({
     mutationFn: resetDevOnboarding,
     onSuccess(data) {
       queryClient.setQueryData(authStatusQueryKey, data.auth_status);
-      queryClient.setQueryData(wizardStatusQueryKey, data.wizard_status);
       toast.success("Developer session reset.");
+      void navigate({ to: "/onboarding" });
     },
   });
 }
