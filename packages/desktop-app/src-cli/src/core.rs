@@ -268,7 +268,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     let initial = client.get_status(&query).await?;
 
     if matches!(initial.state, WatchState::Completed) {
-        return check_run_conclusions(&client, &initial.completed).await;
+        return check_run_conclusions(&initial.completed);
     }
 
     if initial.active.is_empty() && initial.completed.is_empty() {
@@ -365,7 +365,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                     }
                     if !known.is_empty() && terminal.is_superset(&known) {
                         let final_status = client.get_status(&query).await?;
-                        return check_run_conclusions(&client, &final_status.completed).await;
+                        return check_run_conclusions(&final_status.completed);
                     }
                 }
                 _ => {}
@@ -375,7 +375,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                 // Stream closed — final poll to handle the race between initial status and stream open
                 let final_status = client.get_status(&query).await?;
                 if matches!(final_status.state, WatchState::Completed) {
-                    return check_run_conclusions(&client, &final_status.completed).await;
+                    return check_run_conclusions(&final_status.completed);
                 }
                 bail!("SSE connection closed unexpectedly");
             }
@@ -407,7 +407,7 @@ fn is_non_success_conclusion(conclusion: Option<&str>) -> bool {
     )
 }
 
-async fn print_watch_summary(client: &ApiClient, completed: &[WatchRun]) -> Result<()> {
+fn print_watch_summary(completed: &[WatchRun]) {
     println!("--");
     for run in completed {
         let conclusion = run.conclusion.as_deref().unwrap_or("unknown");
@@ -436,19 +436,6 @@ async fn print_watch_summary(client: &ApiClient, completed: &[WatchRun]) -> Resu
                     "  everr logs --trace-id {} --job-name {:?} --step-number {}",
                     run.trace_id, job.name, step.step_number
                 );
-                let log_query = vec![
-                    ("jobName", job.name.clone()),
-                    ("stepNumber", step.step_number.to_string()),
-                    ("tail", 100.to_string()),
-                ];
-                match client.get_step_logs(&run.trace_id, &log_query).await {
-                    Ok(response) => {
-                        print_step_logs(&response.logs, false)?;
-                    }
-                    Err(e) => {
-                        println!("  (failed to fetch logs: {e})");
-                    }
-                }
             } else {
                 println!("  {}", job.name);
                 println!(
@@ -458,11 +445,10 @@ async fn print_watch_summary(client: &ApiClient, completed: &[WatchRun]) -> Resu
             }
         }
     }
-    Ok(())
 }
 
-async fn check_run_conclusions(client: &ApiClient, completed: &[WatchRun]) -> Result<()> {
-    print_watch_summary(client, completed).await?;
+fn check_run_conclusions(completed: &[WatchRun]) -> Result<()> {
+    print_watch_summary(completed);
     if completed
         .iter()
         .any(|r| is_non_success_conclusion(r.conclusion.as_deref()))
