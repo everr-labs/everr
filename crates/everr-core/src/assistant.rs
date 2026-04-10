@@ -234,11 +234,11 @@ fn resolve_home_dir() -> Result<PathBuf> {
 }
 
 fn content_for_assistant(assistant: AssistantKind, _command_name: &str) -> String {
-    make_assistant_block(assistant, render_assistant_instructions())
+    make_assistant_block(assistant, render_discovery_instructions())
 }
 
 fn content_for_assistant_discovery(assistant: AssistantKind, _command_name: &str) -> String {
-    make_assistant_block(assistant, render_discovery_instructions())
+    content_for_assistant(assistant, _command_name)
 }
 
 fn make_assistant_block(assistant: AssistantKind, instructions: &str) -> String {
@@ -504,7 +504,7 @@ mod tests {
 
         assert!(updated.starts_with("---\n"));
         assert!(updated.contains("alwaysApply: false"));
-        assert!(updated.contains("`everr slowest-tests`"));
+        assert!(updated.contains("call `everr ai-instructions` for full usage."));
         assert!(updated.trim_end().ends_with("# custom note"));
     }
 
@@ -554,7 +554,9 @@ mod tests {
         let codex = fs::read_to_string(&codex_path).expect("read codex");
         let cursor = fs::read_to_string(&cursor_path).expect("read cursor");
 
-        assert!(codex.contains("everr status"));
+        assert!(codex.contains("call `everr ai-instructions` for full usage."));
+        assert!(codex.contains("`everr status`"));
+        assert!(!codex.contains("`everr runs`"));
         assert_eq!(cursor, "custom");
     }
 
@@ -600,15 +602,34 @@ mod tests {
             refresh_existing_managed_prompts_in(home.path(), "everr").expect("refresh prompts");
 
         assert_eq!(refreshed, vec![AssistantKind::Codex]);
-        assert!(
-            fs::read_to_string(&codex_path)
-                .expect("read codex")
-                .contains("`everr status`")
-        );
+        let codex = fs::read_to_string(&codex_path).expect("read codex");
+        assert!(codex.contains("call `everr ai-instructions` for full usage."));
+        assert!(codex.contains("`everr status`"));
+        assert!(!codex.contains("`everr runs`"));
         assert_eq!(
             fs::read_to_string(&claude_path).expect("read claude"),
             "# unmanaged note\n"
         );
+    }
+
+    #[test]
+    fn refresh_existing_managed_prompts_rewrites_full_global_instructions_to_discovery() {
+        let home = tempdir().expect("tempdir");
+        let codex_path = path_for_assistant_in(home.path(), AssistantKind::Codex);
+        let legacy_full_global_instructions =
+            super::make_assistant_block(AssistantKind::Codex, render_assistant_instructions());
+
+        fs::create_dir_all(codex_path.parent().expect("codex parent")).expect("codex dir");
+        fs::write(&codex_path, legacy_full_global_instructions).expect("seed managed codex file");
+
+        let refreshed =
+            refresh_existing_managed_prompts_in(home.path(), "everr").expect("refresh prompts");
+
+        assert_eq!(refreshed, vec![AssistantKind::Codex]);
+        let codex = fs::read_to_string(&codex_path).expect("read codex");
+        assert!(codex.contains("call `everr ai-instructions` for full usage."));
+        assert!(codex.contains("`everr status`"));
+        assert!(!codex.contains("`everr runs`"));
     }
 
     #[test]

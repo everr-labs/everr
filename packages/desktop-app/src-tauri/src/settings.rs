@@ -34,11 +34,7 @@ pub(crate) fn build_wizard_status_response(wizard_state: WizardState) -> WizardS
 }
 
 pub(crate) fn current_app_state(state: &RuntimeState) -> Result<AppState> {
-    state
-        .persisted
-        .lock()
-        .map_err(|_| anyhow!("failed to lock persisted app state"))
-        .map(|persisted| persisted.clone())
+    Ok(state.watcher.cached_state())
 }
 
 pub(crate) fn current_settings(state: &RuntimeState) -> Result<AppSettings> {
@@ -49,22 +45,7 @@ pub(crate) fn update_persisted_state<F>(state: &RuntimeState, mutate: F) -> Resu
 where
     F: FnOnce(&mut AppState),
 {
-    let mut persisted = state
-        .persisted
-        .lock()
-        .map_err(|_| anyhow!("failed to lock persisted app state"))?;
-    let mut next = persisted.clone();
-    mutate(&mut next);
-    state.store.save_state(&next)?;
-    let session_changed = next.session != persisted.session;
-    let emails_changed = next.settings.notification_emails != persisted.settings.notification_emails;
-    *persisted = next;
-    if session_changed {
-        state.session_changed.notify_one();
-    }
-    if emails_changed {
-        state.emails_changed.notify_one();
-    }
+    state.store.update_state(mutate)?;
     Ok(())
 }
 
@@ -76,20 +57,7 @@ where
 }
 
 pub(crate) fn replace_persisted_state(state: &RuntimeState, next: AppState) -> Result<()> {
-    let mut persisted = state
-        .persisted
-        .lock()
-        .map_err(|_| anyhow!("failed to lock persisted app state"))?;
     state.store.save_state(&next)?;
-    let session_changed = next.session != persisted.session;
-    let emails_changed = next.settings.notification_emails != persisted.settings.notification_emails;
-    *persisted = next;
-    if session_changed {
-        state.session_changed.notify_one();
-    }
-    if emails_changed {
-        state.emails_changed.notify_one();
-    }
     Ok(())
 }
 

@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow, bail};
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
 use crate::build;
@@ -106,6 +107,11 @@ impl AppStateStore {
     }
 
     pub fn load_state(&self) -> Result<AppState> {
+        let _lock = self.lock_shared()?;
+        self.load_state_unlocked()
+    }
+
+    fn load_state_unlocked(&self) -> Result<AppState> {
         let path = self.session_file_path()?;
         if !path.exists() {
             return Ok(AppState::default());
@@ -147,8 +153,11 @@ impl AppStateStore {
 
         let serialized =
             serde_json::to_string_pretty(state).context("failed to serialize app state")?;
-        fs::write(&path, serialized)
-            .with_context(|| format!("failed to write {}", path.display()))?;
+        let tmp = path.with_extension("tmp");
+        fs::write(&tmp, serialized)
+            .with_context(|| format!("failed to write {}", tmp.display()))?;
+        fs::rename(&tmp, &path)
+            .with_context(|| format!("failed to rename {} to {}", tmp.display(), path.display()))?;
         Ok(())
     }
 
@@ -156,7 +165,8 @@ impl AppStateStore {
     where
         F: FnOnce(&mut AppState) -> T,
     {
-        let mut state = self.load_state()?;
+        let _lock = self.lock_exclusive()?;
+        let mut state = self.load_state_unlocked()?;
         let result = mutate(&mut state);
         self.save_state(&state)?;
         Ok(result)
@@ -174,7 +184,8 @@ impl AppStateStore {
     }
 
     pub fn clear_session(&self) -> Result<bool> {
-        let mut state = self.load_state()?;
+        let _lock = self.lock_exclusive()?;
+        let mut state = self.load_state_unlocked()?;
         if state.session.is_none() {
             return Ok(false);
         }
@@ -217,7 +228,8 @@ impl AppStateStore {
     }
 
     pub fn clear_mismatched_session(&self, expected_api_base_url: &str) -> Result<bool> {
-        let mut state = self.load_state()?;
+        let _lock = self.lock_exclusive()?;
+        let mut state = self.load_state_unlocked()?;
         let Some(session) = &state.session else {
             return Ok(false);
         };
@@ -229,6 +241,31 @@ impl AppStateStore {
         state.session = None;
         self.save_state(&state)?;
         Ok(true)
+    }
+
+    fn lock_exclusive(&self) -> Result<fs::File> {
+        self.acquire_lock(true)
+    }
+
+    fn lock_shared(&self) -> Result<fs::File> {
+        self.acquire_lock(false)
+    }
+
+    fn acquire_lock(&self, exclusive: bool) -> Result<fs::File> {
+        let lock_path = self.session_file_path()?.with_extension("lock");
+        if let Some(parent) = lock_path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+        let lock_file = fs::File::create(&lock_path)
+            .with_context(|| format!("failed to create lock file {}", lock_path.display()))?;
+        if exclusive {
+            lock_file.lock_exclusive()
+        } else {
+            lock_file.lock_shared()
+        }
+        .with_context(|| format!("failed to acquire lock on {}", lock_path.display()))?;
+        Ok(lock_file)
     }
 }
 
@@ -510,6 +547,52 @@ mod tests {
             assert!(state.settings.notification_emails.is_empty());
             assert!(state.settings.user_profile.is_none());
             assert!(state.settings.wizard_state.wizard_completed);
+        });
+    }
+
+    #[test]
+    fn save_state_does_not_leave_tmp_file_on_success() {
+        with_temp_config_home(|store| {
+            let state = AppState {
+                session: Some(Session {
+                    api_base_url: "https://app.example.com".to_string(),
+                    token: "token-123".to_string(),
+                }),
+                settings: AppSettings::default(),
+            };
+
+            store.save_state(&state).expect("save state");
+
+            let tmp_path = store.session_file_path().expect("path").with_extension("tmp");
+            assert!(!tmp_path.exists(), "tmp file should be cleaned up after atomic rename");
+            assert_eq!(store.load_state().expect("load state"), state);
+        });
+    }
+
+    #[test]
+    fn update_state_creates_lock_file() {
+        with_temp_config_home(|store| {
+            store
+                .save_state(&AppState {
+                    session: None,
+                    settings: AppSettings::default(),
+                })
+                .expect("initial save");
+
+            store
+                .update_state(|state| {
+                    state.settings.completed_base_url = Some("https://app.example.com".to_string());
+                })
+                .expect("update state");
+
+            let lock_path = store.session_file_path().expect("path").with_extension("lock");
+            assert!(lock_path.exists(), "lock file should exist after update_state");
+
+            let state = store.load_state().expect("load state");
+            assert_eq!(
+                state.settings.completed_base_url.as_deref(),
+                Some("https://app.example.com")
+            );
         });
     }
 

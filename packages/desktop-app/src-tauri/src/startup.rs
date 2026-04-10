@@ -1,12 +1,15 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use everr_core::state_watcher::StateChange;
 use everr_core::{assistant, build};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_updater::UpdaterExt;
+use tokio::sync::broadcast;
 
 use crate::cli::sync_installed_cli;
+use crate::notifications::reset_notification_state;
 use crate::settings::{emit_auth_changed, emit_settings_changed};
 use crate::{should_check_for_updates, RuntimeState, UPDATE_CHECK_INTERVAL_SECONDS};
 
@@ -37,42 +40,43 @@ fn ensure_background_launch(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn start_session_poll_loop(app: AppHandle, state: RuntimeState) {
+pub(crate) fn start_state_change_loop(app: AppHandle, state: RuntimeState) {
     tauri::async_runtime::spawn(async move {
+        let mut rx = state.watcher.subscribe();
         loop {
-            tokio::time::sleep(Duration::from_secs(30)).await;
-
-            let Ok(file_state) = state.store.load_state() else {
-                continue;
-            };
-
-            let (session_changed, emails_changed) = {
-                let Ok(mut persisted) = state.persisted.lock() else {
-                    continue;
-                };
-
-                let session_changed = file_state.session != persisted.session;
-                let emails_changed = file_state.settings.notification_emails
-                    != persisted.settings.notification_emails;
-
-                if session_changed || emails_changed {
-                    *persisted = file_state;
+            match rx.recv().await {
+                Ok(change) => {
+                    handle_state_change(&app, &state, change);
                 }
-
-                (session_changed, emails_changed)
-            };
-
-            if session_changed {
-                state.session_changed.notify_one();
-                emit_auth_changed(&app);
-            }
-
-            if emails_changed {
-                state.emails_changed.notify_one();
-                emit_settings_changed(&app);
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    crate::crash_log::log_error(
+                        "state change loop",
+                        &anyhow::anyhow!("lagged {n} events, re-syncing"),
+                    );
+                    handle_state_change(&app, &state, StateChange::SessionChanged);
+                    handle_state_change(&app, &state, StateChange::SettingsChanged);
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
             }
         }
     });
+}
+
+fn handle_state_change(app: &AppHandle, state: &RuntimeState, change: StateChange) {
+    match change {
+        StateChange::SessionChanged => {
+            if let Err(error) = reset_notification_state(app, state) {
+                crate::crash_log::log_error("reset notification state", &error);
+            }
+            emit_auth_changed(app);
+        }
+        StateChange::SettingsChanged => {
+            emit_settings_changed(app);
+        }
+        StateChange::EmailsChanged => {
+            // Handled by notifier loop's own subscriber
+        }
+    }
 }
 
 pub(crate) fn start_update_check_loop(app: AppHandle) {

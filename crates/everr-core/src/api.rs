@@ -1,12 +1,36 @@
-use anyhow::{Context, Result, bail};
+use std::fmt;
+
+use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::build;
+use crate::state::AppStateStore;
 use crate::state::Session;
+
+#[derive(Debug)]
+struct ReauthenticationRequired;
+
+impl fmt::Display for ReauthenticationRequired {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Session expired. Run `{} login` to re-authenticate.",
+            build::command_name()
+        )
+    }
+}
+
+impl std::error::Error for ReauthenticationRequired {}
+
+pub fn is_reauthentication_required(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<ReauthenticationRequired>().is_some()
+}
 
 pub struct ApiClient {
     http: reqwest::Client,
@@ -120,7 +144,7 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            bail!("SSE connection failed with {status}: {text}");
+            return Err(http_status_error(status, text, "SSE connection"));
         }
 
         let stream = response
@@ -174,7 +198,7 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            bail!("PATCH org name failed with {status}: {text}");
+            return Err(http_status_error(status, text, "PATCH org name"));
         }
 
         Ok(())
@@ -200,7 +224,7 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            bail!("import request failed with {status}: {text}");
+            return Err(http_status_error(status, text, "import request"));
         }
 
         Ok(())
@@ -225,7 +249,7 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            bail!("CLI API request failed with {status}: {text}");
+            return Err(http_status_error(status, text, "CLI API request"));
         }
 
         response
@@ -233,6 +257,19 @@ impl ApiClient {
             .await
             .context("failed to decode CLI API response as JSON")
     }
+}
+
+fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {
+    if status == StatusCode::UNAUTHORIZED {
+        clear_shared_session_on_auth_failure();
+        return anyhow::Error::new(ReauthenticationRequired);
+    }
+
+    anyhow::anyhow!("{context} failed with {status}: {text}")
+}
+
+fn clear_shared_session_on_auth_failure() {
+    let _ = AppStateStore::for_namespace(build::session_namespace()).clear_session();
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -450,6 +487,55 @@ mod api_client_tests {
             .await
             .unwrap();
 
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn get_repos_unauthorized_requires_reauthentication() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/repos")
+            .with_status(401)
+            .with_body(r#"{"error":"expired"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let error = client.get_repos().await.unwrap_err();
+
+        assert!(is_reauthentication_required(&error));
+        assert_eq!(
+            error.to_string(),
+            "Session expired. Run `everr login` to re-authenticate."
+        );
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn events_stream_unauthorized_requires_reauthentication() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/events/stream")
+            .match_query(mockito::Matcher::UrlEncoded(
+                "scope".to_string(),
+                "tenant".to_string(),
+            ))
+            .with_status(401)
+            .with_body("expired")
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let error = match client.events_stream("tenant", None).await {
+            Ok(_) => panic!("expected unauthorized SSE error"),
+            Err(error) => error,
+        };
+
+        assert!(is_reauthentication_required(&error));
+        assert_eq!(
+            error.to_string(),
+            "Session expired. Run `everr login` to re-authenticate."
+        );
         mock.assert_async().await;
     }
 }

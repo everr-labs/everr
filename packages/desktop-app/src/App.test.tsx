@@ -658,6 +658,31 @@ describe("desktop window", () => {
     expect(await screen.findByText("Setup complete.")).toBeInTheDocument();
   });
 
+  it("leaves the wizard when onboarding completes from an external settings update", async () => {
+    const harness = renderMainApp({
+      signedIn: true,
+      wizardCompleted: false,
+    });
+
+    await screen.findByRole("heading", { name: "Installation wizard" });
+
+    harness.setWizardStatus({ wizard_completed: true });
+    await act(async () => {
+      await emit(SETTINGS_CHANGED_EVENT);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Settings" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("heading", { name: "Installation wizard" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("triggers a test notification from the settings view", async () => {
     const { triggerTestNotificationSpy } = renderMainApp({
       testNotification: { status: "queued" },
