@@ -37,15 +37,19 @@ pub fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
 
 pub fn open_browser_immediately(verification_url: String, user_code: &str) {
     if let Err(error) = webbrowser::open(&verification_url) {
-        let _ = cliclack::log::warning(format!(
-            "Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})"
-        ));
+        eprintln!("Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})");
     }
 
-    let _ = cliclack::note(
-        "Authenticate",
-        format!("Code: {user_code}\nURL:  {verification_url}"),
-    );
+    let code_line = format!("  Code: {user_code}");
+    let url_line = format!("  URL:  {verification_url}");
+    let width = code_line.len().max(url_line.len()) + 2;
+    let bar = "─".repeat(width);
+    println!("┌{bar}┐");
+    println!("│{:width$}│", "  Authenticate", width = width);
+    println!("│{:width$}│", "", width = width);
+    println!("│{code_line:<width$}│", width = width);
+    println!("│{url_line:<width$}│", width = width);
+    println!("└{bar}┘");
 }
 
 fn trimmed_non_empty(value: &str) -> Option<&str> {

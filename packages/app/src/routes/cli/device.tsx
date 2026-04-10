@@ -184,7 +184,7 @@ function ExistingUserDeviceFlow({
     <main className="bg-muted/20 flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
         <h1 className="text-center text-4xl font-semibold tracking-tight">
-          Device activation
+          Authenticate Device
         </h1>
         <p className="text-muted-foreground mt-3 text-center text-base">
           {orgName ? `${userName} · ${orgName}` : userName}
