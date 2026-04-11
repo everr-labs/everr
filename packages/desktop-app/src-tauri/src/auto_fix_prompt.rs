@@ -21,7 +21,7 @@ pub(crate) fn build_runs_logs_command(failure: &FailureNotification) -> Option<S
     let escaped_job_name = serde_json::to_string(job_name).ok()?;
 
     Some(format!(
-        "everr logs --trace-id {} --job-name {} --step-number {}",
+        "everr logs {} --job-name {} --step-number {}",
         failure.trace_id, escaped_job_name, step_number
     ))
 }
