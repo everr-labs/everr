@@ -246,7 +246,7 @@ export const getRunDetails = createAuthenticatedServerFn({
         branch: ch.branch,
         conclusion: pgConclusion ?? ch.conclusion,
         workflowName: ch.workflowName || "Workflow",
-        timestamp: pg?.completedAt ?? ch.timestamp,
+        timestamp: new Date(pg?.completedAt ?? ch.timestamp).toISOString(),
         htmlUrl: `https://github.com/${ch.repo}/actions/runs/${ch.run_id}`,
         pullRequestUrls: ch.pullRequestsUrl
           ? ch.pullRequestsUrl.split(";")
@@ -277,7 +277,7 @@ export const getRunDetails = createAuthenticatedServerFn({
       branch: pg.branch,
       conclusion: effectiveConclusion,
       workflowName: pg.workflowName || "Workflow",
-      timestamp: pg.completedAt ?? pg.lastEventAt,
+      timestamp: new Date(pg.completedAt ?? pg.lastEventAt).toISOString(),
       htmlUrl: pg.htmlUrl ?? undefined,
       pullRequestUrls,
     } satisfies Run;
