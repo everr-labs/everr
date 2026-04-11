@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use everr_core::api::{ApiClient, FailureNotification};
 use everr_core::assistant::{self, AssistantKind};
 use everr_core::build;
@@ -18,8 +18,7 @@ use crate::notifications::{
 use crate::seen_runs;
 use crate::settings::{
     assistant_setup_response, current_app_state, emit_auth_changed, emit_settings_changed,
-    has_active_session_for_current_base_url, reset_dev_onboarding_inner, update_persisted_state,
-    update_settings, wizard_status_response,
+    reset_dev_onboarding_inner, update_persisted_state, update_settings, wizard_status_response,
 };
 use crate::{
     current_base_url, AssistantSetupResponse, AuthStatusResponse, CommandResult, DevResetResponse,
@@ -200,53 +199,6 @@ pub(crate) async fn get_user_profile(
     .await
 }
 
-#[tauri::command]
-pub(crate) async fn complete_setup_wizard(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-) -> CommandResult<WizardStatusResponse> {
-    let runtime = state.inner().clone();
-
-    // Silently cache user profile for the desktop app settings UI
-    if let Ok(current) = current_app_state(&runtime) {
-        if current.settings.user_profile.is_none() {
-            if let Some(session) = current.session {
-                if let Ok(client) = everr_core::api::ApiClient::from_session(&session) {
-                    if let Ok(me) = client.get_me().await {
-                        let _ = run_blocking_command({
-                            let runtime = runtime.clone();
-                            move || {
-                                update_settings(&runtime, |settings| {
-                                    settings.user_profile =
-                                        Some(everr_core::state::UserProfile {
-                                            email: me.email,
-                                            name: me.name,
-                                            profile_url: me.profile_url,
-                                        });
-                                })
-                            }
-                        })
-                        .await;
-                    }
-                }
-            }
-        }
-    }
-
-    let response = run_blocking_command(move || {
-        if !has_active_session_for_current_base_url(&runtime)? {
-            return Err(anyhow!("Sign in before finishing setup."));
-        }
-        update_settings(&runtime, |settings| {
-            settings.mark_setup_complete(build::default_api_base_url());
-        })?;
-        wizard_status_response(&runtime)
-    })
-    .await?;
-
-    emit_settings_changed(&app);
-    Ok(response)
-}
 
 #[tauri::command]
 pub(crate) fn dismiss_active_notification(
@@ -311,6 +263,8 @@ pub(crate) struct RunListItem {
     pub duration: u64,
     pub timestamp: String,
     pub sender: String,
+    pub display_title: Option<String>,
+    pub head_sha: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -397,7 +351,7 @@ pub(crate) async fn open_run_in_browser(
     trace_id: String,
 ) -> CommandResult<()> {
     let base_url = current_base_url().trim_end_matches('/');
-    let url = format!("{}/trace/{}", base_url, trace_id);
+    let url = format!("{}/runs/{}", base_url, trace_id);
     webbrowser::open(&url).map_err(|e| format!("failed to open browser: {e}"))?;
 
     seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;

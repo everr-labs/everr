@@ -10,7 +10,7 @@ use tokio::sync::broadcast;
 
 use crate::cli::sync_installed_cli;
 use crate::notifications::reset_notification_state;
-use crate::settings::{emit_auth_changed, emit_settings_changed};
+use crate::settings::{current_app_state, emit_auth_changed, emit_settings_changed, update_settings};
 use crate::{should_check_for_updates, RuntimeState, UPDATE_CHECK_INTERVAL_SECONDS};
 
 pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {
@@ -42,10 +42,15 @@ fn ensure_background_launch(app: &AppHandle) -> Result<()> {
 
 pub(crate) fn start_state_change_loop(app: AppHandle, state: RuntimeState) {
     tauri::async_runtime::spawn(async move {
+        cache_user_profile_if_needed(&state).await;
+
         let mut rx = state.watcher.subscribe();
         loop {
             match rx.recv().await {
                 Ok(change) => {
+                    if matches!(change, StateChange::SessionChanged) {
+                        cache_user_profile_if_needed(&state).await;
+                    }
                     handle_state_change(&app, &state, change);
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -53,12 +58,38 @@ pub(crate) fn start_state_change_loop(app: AppHandle, state: RuntimeState) {
                         "state change loop",
                         &anyhow::anyhow!("lagged {n} events, re-syncing"),
                     );
+                    cache_user_profile_if_needed(&state).await;
                     handle_state_change(&app, &state, StateChange::SessionChanged);
                     handle_state_change(&app, &state, StateChange::SettingsChanged);
                 }
                 Err(broadcast::error::RecvError::Closed) => break,
             }
         }
+    });
+}
+
+async fn cache_user_profile_if_needed(state: &RuntimeState) {
+    let Ok(current) = current_app_state(state) else {
+        return;
+    };
+    if current.settings.user_profile.is_some() {
+        return;
+    }
+    let Some(session) = current.session else {
+        return;
+    };
+    let Ok(client) = everr_core::api::ApiClient::from_session(&session) else {
+        return;
+    };
+    let Ok(me) = client.get_me().await else {
+        return;
+    };
+    let _ = update_settings(state, |settings| {
+        settings.user_profile = Some(everr_core::state::UserProfile {
+            email: me.email,
+            name: me.name,
+            profile_url: me.profile_url,
+        });
     });
 }
 

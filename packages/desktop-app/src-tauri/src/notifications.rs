@@ -311,6 +311,12 @@ fn enqueue_notification(
     state: &RuntimeState,
     notification: FailureNotification,
 ) -> Result<()> {
+    dbg_notifier!(
+        "notification fired: trace={} repo={} workflow={}",
+        notification.trace_id,
+        notification.repo,
+        notification.workflow_name,
+    );
     crate::seen_runs::add_seen_run(state, &notification.trace_id)?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
 

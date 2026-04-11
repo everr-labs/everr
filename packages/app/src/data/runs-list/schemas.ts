@@ -12,6 +12,7 @@ export interface RunListItem {
   duration: number;
   timestamp: string;
   sender: string;
+  displayTitle?: string | null;
   headSha?: string;
   jobCount?: number;
 }

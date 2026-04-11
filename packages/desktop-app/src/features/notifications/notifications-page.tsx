@@ -8,10 +8,6 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import {
-  getRefreshIntervalMs,
-  RefreshPicker,
-} from "@everr/ui/components/refresh-picker";
-import {
   type TimeRange,
   TimeRangePicker,
 } from "@everr/ui/components/time-range-picker";
@@ -21,15 +17,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import {
-  useIsFetching,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Clipboard, Workflow } from "lucide-react";
 import { useRef, useState } from "react";
-import { invokeCommand, SEEN_RUNS_CHANGED_EVENT } from "@/lib/tauri";
+import {
+  invokeCommand,
+  NOTIFIER_CHECKED_EVENT,
+  SEEN_RUNS_CHANGED_EVENT,
+} from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { formatNotificationRelativeTime } from "../../notification-time";
 import { runsListQueryKey, unseenTraceIdsQueryKey } from "./query-keys";
@@ -45,6 +40,8 @@ type RunListItem = {
   duration: number;
   timestamp: string;
   sender: string;
+  displayTitle?: string | null;
+  headSha?: string | null;
 };
 
 function resolveToISO(expr: string, roundUp: boolean): string {
@@ -71,11 +68,9 @@ export function NotificationsPage() {
     from: "now-1h",
     to: "now",
   });
-  const [refreshInterval, setRefreshInterval] = useState("");
-  const queryClient = useQueryClient();
-  const isFetching = useIsFetching();
-
-  const refetchIntervalMs = getRefreshIntervalMs(refreshInterval) ?? undefined;
+  useInvalidateOnTauriEvent(NOTIFIER_CHECKED_EVENT, (qc) => {
+    void qc.invalidateQueries({ queryKey: runsListQueryKey });
+  });
 
   useInvalidateOnTauriEvent(SEEN_RUNS_CHANGED_EVENT, (qc) => {
     void qc.invalidateQueries({ queryKey: unseenTraceIdsQueryKey });
@@ -85,16 +80,12 @@ export function NotificationsPage() {
     queryKey: [...runsListQueryKey, timeRange.from, timeRange.to],
     queryFn: () => getRunsList(timeRange),
     refetchOnWindowFocus: true,
-    refetchInterval: refetchIntervalMs,
-    refetchIntervalInBackground: false,
   });
 
   const unseenQuery = useQuery({
     queryKey: unseenTraceIdsQueryKey,
     queryFn: getUnseenTraceIds,
     refetchOnWindowFocus: true,
-    refetchInterval: refetchIntervalMs,
-    refetchIntervalInBackground: false,
   });
 
   const markAllReadMutation = useMutation({
@@ -128,12 +119,6 @@ export function NotificationsPage() {
             </Button>
           )}
           <TimeRangePicker value={timeRange} onChange={setTimeRange} />
-          <RefreshPicker
-            value={refreshInterval}
-            onChange={setRefreshInterval}
-            onRefresh={() => void queryClient.invalidateQueries()}
-            isFetching={isFetching > 0}
-          />
         </div>
       </div>
 
@@ -167,6 +152,7 @@ export function NotificationsPage() {
                 <th className="py-2 px-2 font-medium">Workflow</th>
                 <th className="py-2 px-2 font-medium">Repository</th>
                 <th className="py-2 px-2 font-medium">Branch</th>
+                <th className="py-2 px-2 font-medium">Commit</th>
                 <th className="py-2 px-2 font-medium">Result</th>
                 <th className="py-2 px-2 font-medium">When</th>
                 <th className="w-10 py-2 pl-2 pr-5 font-medium" />
@@ -257,6 +243,20 @@ function RunRow({ run, unseen }: { run: RunListItem; unseen: boolean }) {
         <span className="inline-block max-w-full truncate rounded bg-white/[0.06] px-1.5 py-0.5 text-[0.72rem] text-[var(--settings-text-muted)]">
           {run.branch}
         </span>
+      </td>
+      <td className="py-2 px-2">
+        {run.headSha && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="inline-block rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[0.72rem] text-[var(--settings-text-muted)]">
+                {run.headSha.slice(0, 7)}
+              </TooltipTrigger>
+              {run.displayTitle && (
+                <TooltipContent side="top">{run.displayTitle}</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </td>
       <td className="py-2 px-2 whitespace-nowrap">
         <span

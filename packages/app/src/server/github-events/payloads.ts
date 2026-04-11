@@ -24,6 +24,7 @@ const workflowRunSchema = z.object({
       html_url: z.string().nullish(),
       head_commit: z
         .object({
+          message: z.string().nullish(),
           author: z
             .object({
               email: z.string().nullish(),

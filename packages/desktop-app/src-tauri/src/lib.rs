@@ -30,11 +30,11 @@ mod tray;
 mod tests;
 
 use commands::{
-    complete_setup_wizard, configure_assistants, copy_notification_auto_fix_prompt,
-    copy_run_auto_fix_prompt, dismiss_active_notification, get_active_notification,
-    get_assistant_setup, get_auth_status, get_notification_emails, get_pending_sign_in,
-    get_runs_list, get_unseen_trace_ids, get_user_profile, get_wizard_status, mark_all_runs_seen,
-    mark_run_seen, open_notification_target, open_run_in_browser, open_sign_in_browser, poll_sign_in,
+    configure_assistants, copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt,
+    dismiss_active_notification, get_active_notification, get_assistant_setup, get_auth_status,
+    get_notification_emails, get_pending_sign_in, get_runs_list, get_unseen_trace_ids,
+    get_user_profile, get_wizard_status, mark_all_runs_seen, mark_run_seen,
+    open_notification_target, open_run_in_browser, open_sign_in_browser, poll_sign_in,
     reset_dev_onboarding, set_notification_emails, sign_out, start_sign_in,
     trigger_test_notification,
 };
@@ -268,7 +268,6 @@ pub fn run() {
             sign_out,
             reset_dev_onboarding,
             configure_assistants,
-            complete_setup_wizard,
             dismiss_active_notification,
             open_notification_target,
             copy_notification_auto_fix_prompt,
