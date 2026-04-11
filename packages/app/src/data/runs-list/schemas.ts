@@ -32,7 +32,7 @@ export const RunsListInputSchema = z.object({
     .optional(),
   workflowNames: z.array(z.string()).optional(),
   runId: z.string().optional(),
-  authorEmail: z.string().optional(),
+  authorEmails: z.array(z.string()).optional(),
 });
 export type RunsListInput = z.infer<typeof RunsListInputSchema>;
 

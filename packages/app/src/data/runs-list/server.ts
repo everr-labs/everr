@@ -60,9 +60,9 @@ export const getRunsList = createAuthenticatedServerFn({
       clauses.push(`run_id::text = $${params.length}`);
     }
 
-    if (data.authorEmail) {
-      params.push(data.authorEmail);
-      clauses.push(`author_email = $${params.length}`);
+    if (data.authorEmails?.length) {
+      params.push(data.authorEmails);
+      clauses.push(`author_email = ANY($${params.length})`);
     }
 
     const whereClause = clauses.join("\n          AND ");

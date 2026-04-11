@@ -82,7 +82,6 @@ struct RuntimeState {
     pending_auth: Arc<Mutex<Option<PendingAuthState>>>,
     session_changed: Arc<Notify>,
     emails_changed: Arc<Notify>,
-    seen_runs: Arc<seen_runs::SeenRunsStore>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -241,14 +240,6 @@ pub fn run() {
             persisted
                 .settings
                 .apply_runtime_base_url(build::default_api_base_url());
-            let seen_runs_path = {
-                let session_path = store.session_file_path()?;
-                session_path
-                    .parent()
-                    .expect("session file has parent")
-                    .join("seen-runs.json")
-            };
-            let seen_runs = Arc::new(seen_runs::SeenRunsStore::load(seen_runs_path)?);
             run_local_startup_maintenance(app.handle());
             let runtime = RuntimeState {
                 store,
@@ -257,7 +248,6 @@ pub fn run() {
                 pending_auth: Arc::new(Mutex::new(None)),
                 session_changed: Arc::new(Notify::new()),
                 emails_changed: Arc::new(Notify::new()),
-                seen_runs,
             };
 
             app.manage(runtime.clone());

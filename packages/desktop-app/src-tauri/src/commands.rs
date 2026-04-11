@@ -14,6 +14,7 @@ use crate::notifications::{
     build_test_notification, copy_notification_auto_fix_prompt_inner,
     dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
 };
+use crate::seen_runs;
 use crate::settings::{
     assistant_setup_response, current_app_state, emit_auth_changed, emit_settings_changed,
     has_active_session_for_current_base_url, reset_dev_onboarding_inner, update_persisted_state,
@@ -274,10 +275,7 @@ pub(crate) fn trigger_test_notification(
 ) -> CommandResult<TestNotificationResponse> {
     let notification = build_test_notification().into_command_result()?;
 
-    state
-        .seen_runs
-        .add(&notification.trace_id)
-        .into_command_result()?;
+    seen_runs::add_seen_run(state.inner(), &notification.trace_id).into_command_result()?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
 
     let shown = {
@@ -344,44 +342,28 @@ pub(crate) async fn get_runs_list(
         }
     };
 
-    let mut all_runs: Vec<RunListItem> = Vec::new();
-    let mut seen_trace_ids: std::collections::HashSet<String> =
-        std::collections::HashSet::new();
-
-    for email in &emails {
-        let mut query = vec![
-            ("authorEmail".to_string(), email.clone()),
-            ("from".to_string(), from.clone()),
-        ];
-        if !to.is_empty() {
-            query.push(("to".to_string(), to.clone()));
-        }
-        let query_refs: Vec<(&str, String)> = query
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.clone()))
-            .collect();
-        let value = client.get_runs_list(&query_refs).await.into_command_result()?;
-        let response: RunsListApiResponse = serde_json::from_value(value)
-            .context("failed to parse runs list response")
-            .into_command_result()?;
-        for run in response.runs {
-            if seen_trace_ids.insert(run.trace_id.clone()) {
-                all_runs.push(run);
-            }
-        }
+    let mut query: Vec<(&str, String)> = emails
+        .iter()
+        .map(|email| ("authorEmails", email.clone()))
+        .collect();
+    query.push(("from", from));
+    if !to.is_empty() {
+        query.push(("to", to));
     }
 
-    // Sort by timestamp descending
-    all_runs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    let value = client.get_runs_list(&query).await.into_command_result()?;
+    let response: RunsListApiResponse = serde_json::from_value(value)
+        .context("failed to parse runs list response")
+        .into_command_result()?;
 
-    Ok(all_runs)
+    Ok(response.runs)
 }
 
 #[tauri::command]
 pub(crate) fn get_unseen_trace_ids(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<Vec<String>> {
-    state.seen_runs.unseen_trace_ids().into_command_result()
+    seen_runs::unseen_trace_ids(state.inner()).into_command_result()
 }
 
 #[tauri::command]
@@ -390,10 +372,7 @@ pub(crate) fn mark_run_seen(
     state: State<'_, RuntimeState>,
     trace_id: String,
 ) -> CommandResult<()> {
-    state
-        .seen_runs
-        .mark_seen(&trace_id)
-        .into_command_result()?;
+    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     Ok(())
 }
@@ -403,7 +382,7 @@ pub(crate) fn mark_all_runs_seen(
     app: AppHandle,
     state: State<'_, RuntimeState>,
 ) -> CommandResult<()> {
-    state.seen_runs.mark_all_seen().into_command_result()?;
+    seen_runs::mark_all_seen(state.inner()).into_command_result()?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     Ok(())
 }
@@ -418,10 +397,7 @@ pub(crate) async fn open_run_in_browser(
     let url = format!("{}/trace/{}", base_url, trace_id);
     webbrowser::open(&url).map_err(|e| format!("failed to open browser: {e}"))?;
 
-    state
-        .seen_runs
-        .mark_seen(&trace_id)
-        .into_command_result()?;
+    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     Ok(())
 }
@@ -452,10 +428,7 @@ pub(crate) async fn copy_run_auto_fix_prompt(
         .set_text(prompt)
         .map_err(|e| format!("failed to copy to clipboard: {e}"))?;
 
-    state
-        .seen_runs
-        .mark_seen(&trace_id)
-        .into_command_result()?;
+    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     Ok(())
 }

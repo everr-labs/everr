@@ -228,7 +228,7 @@ fn enqueue_notification(
     state: &RuntimeState,
     notification: FailureNotification,
 ) -> Result<()> {
-    state.seen_runs.add(&notification.trace_id)?;
+    crate::seen_runs::add_seen_run(state, &notification.trace_id)?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
 
     let active_changed = {
@@ -259,7 +259,7 @@ pub(crate) fn dismiss_active_notification_inner(
     };
 
     if let Some(trace_id) = &dismissed_trace_id {
-        let _ = state.seen_runs.mark_seen(trace_id);
+        let _ = crate::seen_runs::mark_seen(state, trace_id);
         let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     }
 
