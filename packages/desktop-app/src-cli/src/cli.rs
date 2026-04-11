@@ -202,10 +202,15 @@ pub struct ShowRunArgs {
 pub struct GetLogsArgs {
     #[arg(long)]
     pub trace_id: String,
-    #[arg(long)]
-    pub job_name: String,
-    #[arg(long)]
-    pub step_number: String,
+    #[arg(long, required_unless_present = "job_id", conflicts_with = "job_id")]
+    pub job_name: Option<String>,
+    #[arg(long, required_unless_present = "job_name", conflicts_with = "job_name")]
+    pub job_id: Option<String>,
+    #[arg(long, required_unless_present = "log_failed", conflicts_with = "log_failed")]
+    pub step_number: Option<String>,
+    /// Automatically resolve and show the first failing step for the given job
+    #[arg(long, conflicts_with = "step_number")]
+    pub log_failed: bool,
     /// Show the last N lines of the log (default: 1000); combine with --offset to skip lines from the bottom
     #[arg(long, conflicts_with_all = ["limit"])]
     pub tail: Option<u32>,
@@ -326,8 +331,114 @@ mod tests {
             "--job-name",
             "build",
         ])
-        .expect_err("logs should require --step-number");
-        assert!(err.to_string().contains("--step-number"));
+        .expect_err("logs should require --step-number or --log-failed");
+        let err_string = err.to_string();
+        assert!(
+            err_string.contains("step-number") || err_string.contains("log-failed"),
+            "expected error to mention --step-number or --log-failed, got: {err_string}"
+        );
+    }
+
+    #[test]
+    fn logs_accepts_log_failed_without_step_number() {
+        let cli = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--job-name", "build",
+            "--log-failed",
+        ])
+        .expect("valid logs command with --log-failed");
+
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
+        };
+
+        assert_eq!(args.job_name.as_deref(), Some("build"));
+        assert!(args.step_number.is_none());
+        assert!(args.log_failed);
+    }
+
+    #[test]
+    fn logs_accepts_job_id_with_log_failed() {
+        let cli = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--job-id", "42",
+            "--log-failed",
+        ])
+        .expect("valid logs command with --job-id and --log-failed");
+
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
+        };
+
+        assert_eq!(args.job_id.as_deref(), Some("42"));
+        assert!(args.job_name.is_none());
+        assert!(args.log_failed);
+    }
+
+    #[test]
+    fn logs_accepts_job_id_with_step_number() {
+        let cli = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--job-id", "42",
+            "--step-number", "3",
+        ])
+        .expect("valid logs command with --job-id and --step-number");
+
+        let Commands::RunsLogs(args) = cli.command else {
+            panic!("expected logs command");
+        };
+
+        assert_eq!(args.job_id.as_deref(), Some("42"));
+        assert_eq!(args.step_number.as_deref(), Some("3"));
+        assert!(!args.log_failed);
+    }
+
+    #[test]
+    fn logs_rejects_both_job_name_and_job_id() {
+        let err = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--job-name", "build",
+            "--job-id", "42",
+            "--step-number", "1",
+        ])
+        .expect_err("logs should reject both --job-name and --job-id");
+        assert!(err.to_string().contains("job"));
+    }
+
+    #[test]
+    fn logs_rejects_both_step_number_and_log_failed() {
+        let err = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--job-name", "build",
+            "--step-number", "1",
+            "--log-failed",
+        ])
+        .expect_err("logs should reject both --step-number and --log-failed");
+        let err_string = err.to_string();
+        assert!(
+            err_string.contains("step-number") || err_string.contains("log-failed"),
+            "expected conflict error, got: {err_string}"
+        );
+    }
+
+    #[test]
+    fn logs_requires_job_identifier() {
+        let err = Cli::try_parse_from([
+            "everr", "logs",
+            "--trace-id", "trace-1",
+            "--step-number", "1",
+        ])
+        .expect_err("logs should require --job-name or --job-id");
+        let err_string = err.to_string();
+        assert!(
+            err_string.contains("job-name") || err_string.contains("job-id"),
+            "expected error to mention --job-name or --job-id, got: {err_string}"
+        );
     }
 
     #[test]

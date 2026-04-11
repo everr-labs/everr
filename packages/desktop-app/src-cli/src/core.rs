@@ -7,7 +7,7 @@ use tokio::pin;
 
 use futures_util::StreamExt;
 
-use crate::api::{ApiClient, NotifyPayload, StepLogEntry, WatchRun, WatchState};
+use crate::api::{ApiClient, FailingJob, NotifyPayload, StepLogEntry, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
@@ -124,7 +124,8 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let paging = args.paging();
-    let mut query = vec![("jobName", args.job_name), ("stepNumber", args.step_number)];
+    let (job_name, step_number) = resolve_logs_job(&client, &args).await?;
+    let mut query = vec![("jobName", job_name), ("stepNumber", step_number)];
     push_opt(&mut query, "egrep", args.egrep.clone());
 
     if let Some(paging) = paging {
@@ -456,6 +457,50 @@ fn check_run_conclusions(completed: &[WatchRun]) -> Result<()> {
         bail!("pipeline finished with failed runs");
     }
     Ok(())
+}
+
+async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(String, String)> {
+    // Fast path: job name and step number are both provided directly
+    if let (Some(name), Some(step)) = (args.job_name.as_deref(), args.step_number.as_deref()) {
+        return Ok((name.to_string(), step.to_string()));
+    }
+
+    // Need run details to resolve job name via --job-id or step number via --log-failed
+    let details_query = vec![("failed", "true".to_string())];
+    let details = client.get_run_details(&args.trace_id, &details_query).await?;
+    let failing_jobs = parse_failing_jobs(&details)?;
+
+    let job = match (args.job_name.as_deref(), args.job_id.as_deref()) {
+        (Some(name), _) => failing_jobs
+            .iter()
+            .find(|j| j.name == name)
+            .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", name))?,
+        (_, Some(id)) => failing_jobs
+            .iter()
+            .find(|j| j.id == id)
+            .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", id))?,
+        _ => unreachable!("clap ensures job_name or job_id is always present"),
+    };
+
+    let step = if args.log_failed {
+        let s = job.first_failing_step.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("no failing step found for job {:?}", job.name)
+        })?;
+        s.step_number.to_string()
+    } else {
+        args.step_number
+            .clone()
+            .expect("step_number is required when not using --log-failed")
+    };
+
+    Ok((job.name.clone(), step))
+}
+
+fn parse_failing_jobs(details: &serde_json::Value) -> Result<Vec<FailingJob>> {
+    match details.get("failingJobs") {
+        Some(v) => serde_json::from_value(v.clone()).context("failed to parse failing jobs"),
+        None => Ok(vec![]),
+    }
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<()> {

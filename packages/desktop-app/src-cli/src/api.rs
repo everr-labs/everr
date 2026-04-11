@@ -1,1 +1,1 @@
-pub use everr_core::api::{ApiClient, NotifyPayload, StepLogEntry, WatchRun, WatchState};
+pub use everr_core::api::{ApiClient, FailingJob, NotifyPayload, StepLogEntry, WatchRun, WatchState};
