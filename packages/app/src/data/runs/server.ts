@@ -170,92 +170,38 @@ export const getRunDetails = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(async ({ data: traceId, context: { clickhouse, session } }) => {
-    const [chResult, pgResult] = await Promise.all([
-      clickhouse.query<{
-        run_id: string;
-        run_attempt: string;
-        repo: string;
-        branch: string;
-        conclusion: string;
-        workflowName: string;
-        timestamp: string;
-        pullRequestsUrl: string;
-      }>(
-        `SELECT
-            anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-            anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
-            anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-            anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-            coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
-            anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-            max(Timestamp) as timestamp,
-            anyLast(ResourceAttributes['everr.git.pull_requests.url']) as pullRequestsUrl
-          FROM traces
-          WHERE TraceId = {traceId:String}`,
-        { traceId },
-      ),
-      pool.query<{
-        runId: string;
-        runAttempt: number;
-        workflowName: string;
-        repo: string;
-        branch: string;
-        status: string;
-        conclusion: string | null;
-        completedAt: string | null;
-        lastEventAt: string;
-        htmlUrl: string | null;
-        pullRequestNumbers: number[] | null;
-      }>(
-        `SELECT
-           run_id::text AS "runId",
-           attempts AS "runAttempt",
-           workflow_name AS "workflowName",
-           repository AS repo,
-           ref AS branch,
-           status,
-           conclusion,
-           run_completed_at::text AS "completedAt",
-           last_event_at::text AS "lastEventAt",
-           metadata->>'html_url' AS "htmlUrl",
-           ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata->'pull_requests', '[]'::jsonb))::int) AS "pullRequestNumbers"
-         FROM workflow_runs
-         WHERE tenant_id = $1 AND trace_id = $2`,
-        [session.tenantId, traceId],
-      ),
-    ]);
+  .handler(async ({ data: traceId, context: { session } }) => {
+    const pgResult = await pool.query<{
+      runId: string;
+      runAttempt: number;
+      workflowName: string;
+      repo: string;
+      branch: string;
+      status: string;
+      conclusion: string | null;
+      completedAt: string | null;
+      lastEventAt: string;
+      htmlUrl: string | null;
+      pullRequestNumbers: number[] | null;
+    }>(
+      `SELECT
+         run_id::text AS "runId",
+         attempts AS "runAttempt",
+         workflow_name AS "workflowName",
+         repository AS repo,
+         ref AS branch,
+         status,
+         conclusion,
+         run_completed_at::text AS "completedAt",
+         last_event_at::text AS "lastEventAt",
+         metadata->>'html_url' AS "htmlUrl",
+         ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata->'pull_requests', '[]'::jsonb))::int) AS "pullRequestNumbers"
+       FROM workflow_runs
+       WHERE tenant_id = $1 AND trace_id = $2`,
+      [session.tenantId, traceId],
+    );
 
-    const ch = chResult.length > 0 && chResult[0].run_id ? chResult[0] : null;
-    const pg = pgResult.rows[0] ?? null;
-
-    if (!ch && !pg) return null;
-
-    // Prefer ClickHouse for telemetry data, Postgres for live status
-    if (ch) {
-      const pgConclusion =
-        pg && pg.status === "completed"
-          ? normalizeConclusion(pg.conclusion)
-          : pg?.status;
-
-      return {
-        traceId,
-        runId: ch.run_id,
-        runAttempt: Number(ch.run_attempt),
-        repo: ch.repo,
-        branch: ch.branch,
-        conclusion: pgConclusion ?? ch.conclusion,
-        workflowName: ch.workflowName || "Workflow",
-        timestamp: pg?.completedAt ?? ch.timestamp,
-        htmlUrl: `https://github.com/${ch.repo}/actions/runs/${ch.run_id}`,
-        pullRequestUrls: ch.pullRequestsUrl
-          ? ch.pullRequestsUrl.split(";")
-          : undefined,
-      } satisfies Run;
-    }
-
-    // Fallback to Postgres when ClickHouse has no spans yet (fully in-progress run)
-    // pg is guaranteed non-null: early return on !ch && !pg, and ch is falsy here
+    const pg = pgResult.rows[0];
     if (!pg) return null;
 
     const effectiveConclusion =
