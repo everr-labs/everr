@@ -1,16 +1,26 @@
 Use Everr CLI guidance when the task involves CI, GitHub Actions workflows, pipelines, CI failures, workflow logs, or CI test performance from the current project directory.
 
-Quick commands:
-- `everr status`: returns the status of the runs on the current commit; add `--commit <sha>` to target a specific commit
-- `everr watch`: waits for the pipeline related to the last commit on the current branch to complete; add `--commit <sha>` to target a specific commit, `--attempt <n>` to target a specific retry attempt, `--fail-fast` to exit immediately when any run fails without waiting for the rest
-- `everr grep --job-name <job> --step-number <n> --pattern <text>`: searches failing step logs on other branches by default (7 days of history unless `--from/--to` are passed)
-- `everr runs`: the list of runs across all branches; add `--current-branch` to scope to the current git branch, `--branch <BRANCH_NAME>` to specify a different branch, `--conclusion <success|failure|cancellation>` to filter by outcome, `--workflow-name <name>` to filter by workflow, or `--run-id <id>` to find a specific run
-- `everr show --trace-id <trace_id>`: shows run details with jobs and steps; add `--failed` to show only failed jobs and their failed steps
-- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>`: prints step logs with line numbers; add `--tail <n>` for the last N lines (default: 1000), `--offset <n>` to skip lines (works with both `--tail` and `--limit`), `--limit <n>` for oldest-first paging, or `--egrep <pattern>` to filter to lines matching a re2 regex (exits 1 if no lines match)
-- `everr workflows`: lists available workflows with their jobs; add `--branch <name>` to scope it
-- `everr test-history --module <module> --test-name <name>`
-- `everr slowest-tests`: shows repo-wide aggregates for non-suite tests by default; add `--branch <name>` to scope it
-- `everr slowest-jobs`: shows repo-wide aggregates by default; add `--branch <name>` to scope it
+Commands:
+- `everr status`: pipeline state for the current commit; `--commit <sha>` to target a specific commit
+- `everr watch`: wait for the current commit's pipeline to complete
+  - `--fail-fast`: exit on first failure without waiting for other runs
+  - `--commit <sha>` / `--attempt <n>`: target a specific commit or retry attempt
+- `everr runs`: recent runs across all branches
+  - `--current-branch` / `--branch <name>`: scope to a branch
+  - `--conclusion <success|failure|cancellation>`, `--workflow-name <name>`, `--run-id <id>`: filter
+- `everr show --trace-id <trace_id>`: jobs and steps for a run; `--failed` to show only failed
+- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>`: step logs
+  - `--log-failed`: use instead of `--step-number` — auto-resolves the first failing step for the job
+  - `--job-id <id>`: use instead of `--job-name` when the job id is known
+  - `--egrep <pattern>`: filter to lines matching a re2 regex; exits 1 if no lines match
+  - `--tail <n>` (default 1000), `--limit <n>` (oldest-first paging), `--offset <n>`: paging options
+- `everr grep --pattern <text>`: search failing step logs across branches (last 7 days by default)
+  - `--job-name <job> --step-number <n>`: scope to a specific step
+  - `--branch <name>` / `--from` / `--to`: scope by branch or time range
+- `everr workflows`: available workflows and their jobs; `--branch <name>` to scope
+- `everr test-history --module <module> --test-name <name>`: execution history for a specific test
+- `everr slowest-tests`: repo-wide slowest tests; `--branch <name>` to scope
+- `everr slowest-jobs`: repo-wide slowest jobs; `--branch <name>` to scope
 
 Collection-style commands support `--limit <n>` and `--offset <n>` for pagination.
 
