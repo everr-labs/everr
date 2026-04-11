@@ -24,7 +24,7 @@ export function RunsTable({ data }: RunsTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-muted-foreground">
-            <th className="pb-2 pl-3 pr-4">Status</th>
+            <th className="w-0"></th>
             <th className="pb-2 pr-4">Run ID</th>
             <th className="pb-2 pr-4">Workflow</th>
             <th className="pb-2 pr-4">Repository</th>
@@ -40,11 +40,8 @@ export function RunsTable({ data }: RunsTableProps) {
               key={run.traceId}
               className="border-b last:border-0 hover:bg-muted/50"
             >
-              <td className="py-2 pl-3 pr-4">
-                <ConclusionIcon
-                  conclusion={run.conclusion}
-                  className="size-4"
-                />
+              <td className="px-2">
+                <ConclusionIcon conclusion={run.conclusion} />
               </td>
               <td className="py-2 pr-4">
                 <Link
@@ -60,7 +57,7 @@ export function RunsTable({ data }: RunsTableProps) {
                   )}
                 </Link>
               </td>
-              <td className="py-2 pr-4 ">{run.workflowName}</td>
+              <td className="py-2 pr-4 text-sm">{run.workflowName}</td>
               <td className="py-2 pr-4">
                 <Link
                   to="/repos"
