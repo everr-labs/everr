@@ -307,6 +307,22 @@ pub struct FailingJob {
     pub first_failing_step: Option<FirstFailingStep>,
 }
 
+/// Job entry as returned by `GET /runs/{trace_id}?failed=true`.
+/// The shape differs from [`FailingJob`] which comes from the status/watch endpoint.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ShowJob {
+    pub name: String,
+    pub job_id: Option<String>,
+    /// Step number of the first failing step, if any.
+    pub first_failing_step: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct ShowRunDetails {
+    pub jobs: Vec<ShowJob>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchRun {

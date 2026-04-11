@@ -29,15 +29,39 @@ function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
   };
 }
 
+type StepLogsJobFilter =
+  | { jobName: string; jobId?: never }
+  | { jobId: string; jobName?: never };
+
+type StepLogsParams = StepLogsJobFilter & {
+  traceId: string;
+  stepNumber: string;
+  egrep?: string;
+};
+
+function buildJobFilterClause(params: StepLogsJobFilter): {
+  clause: string;
+  queryParam: Record<string, string>;
+} {
+  if (params.jobId !== undefined) {
+    return {
+      clause:
+        "AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}",
+      queryParam: { jobId: params.jobId },
+    };
+  }
+  return {
+    clause: "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
+    queryParam: { jobName: params.jobName! },
+  };
+}
+
 async function countStepLogs(
   context: AuthContext,
-  params: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
-    egrep?: string;
-  },
+  params: StepLogsParams,
 ): Promise<number> {
+  const { clause: jobClause, queryParam: jobParam } =
+    buildJobFilterClause(params);
   const egrepClause = params.egrep
     ? "\n      AND match(Body, {egrep:String})"
     : "";
@@ -45,18 +69,13 @@ async function countStepLogs(
     SELECT count() as cnt
     FROM logs
     WHERE TraceId = {traceId:String}
-      AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+      ${jobClause}
       AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
   `;
-  const queryParams: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
-    egrep?: string;
-  } = {
+  const queryParams: Record<string, string> = {
     traceId: params.traceId,
-    jobName: params.jobName,
     stepNumber: params.stepNumber,
+    ...jobParam,
   };
   if (params.egrep) {
     queryParams.egrep = params.egrep;
@@ -70,17 +89,15 @@ async function countStepLogs(
 
 async function getRawStepLogs(
   context: AuthContext,
-  params: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
+  params: StepLogsParams & {
     maxLines?: number;
     offsetLines?: number;
     useTail?: boolean;
-    egrep?: string;
   },
 ): Promise<LogEntry[]> {
   const clickhouse = context.clickhouse;
+  const { clause: jobClause, queryParam: jobParam } =
+    buildJobFilterClause(params);
   const order = params.useTail ? "DESC" : "ASC";
   const limitClause =
     typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
@@ -95,7 +112,7 @@ async function getRawStepLogs(
 			Body as body
 		FROM logs
 		WHERE TraceId = {traceId:String}
-			AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+			${jobClause}
 			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
 		ORDER BY Timestamp ${order}
 		${limitClause}
@@ -107,8 +124,8 @@ async function getRawStepLogs(
     body: string;
   }>(sql, {
     traceId: params.traceId,
-    jobName: params.jobName,
     stepNumber: params.stepNumber,
+    ...jobParam,
     maxLines: params.maxLines,
     offsetLines: params.offsetLines,
     egrep: params.egrep,
@@ -170,92 +187,38 @@ export const getRunDetails = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.string())
-  .handler(async ({ data: traceId, context: { clickhouse, session } }) => {
-    const [chResult, pgResult] = await Promise.all([
-      clickhouse.query<{
-        run_id: string;
-        run_attempt: string;
-        repo: string;
-        branch: string;
-        conclusion: string;
-        workflowName: string;
-        timestamp: string;
-        pullRequestsUrl: string;
-      }>(
-        `SELECT
-            anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-            anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
-            anyLast(ResourceAttributes['vcs.repository.name']) as repo,
-            anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-            coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != '')) as conclusion,
-            anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-            max(Timestamp) as timestamp,
-            anyLast(ResourceAttributes['everr.git.pull_requests.url']) as pullRequestsUrl
-          FROM traces
-          WHERE TraceId = {traceId:String}`,
-        { traceId },
-      ),
-      pool.query<{
-        runId: string;
-        runAttempt: number;
-        workflowName: string;
-        repo: string;
-        branch: string;
-        status: string;
-        conclusion: string | null;
-        completedAt: string | null;
-        lastEventAt: string;
-        htmlUrl: string | null;
-        pullRequestNumbers: number[] | null;
-      }>(
-        `SELECT
-           run_id::text AS "runId",
-           attempts AS "runAttempt",
-           workflow_name AS "workflowName",
-           repository AS repo,
-           ref AS branch,
-           status,
-           conclusion,
-           run_completed_at::text AS "completedAt",
-           last_event_at::text AS "lastEventAt",
-           metadata->>'html_url' AS "htmlUrl",
-           ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata->'pull_requests', '[]'::jsonb))::int) AS "pullRequestNumbers"
-         FROM workflow_runs
-         WHERE tenant_id = $1 AND trace_id = $2`,
-        [session.tenantId, traceId],
-      ),
-    ]);
+  .handler(async ({ data: traceId, context: { session } }) => {
+    const pgResult = await pool.query<{
+      runId: string;
+      runAttempt: number;
+      workflowName: string;
+      repo: string;
+      branch: string;
+      status: string;
+      conclusion: string | null;
+      completedAt: string | null;
+      lastEventAt: string;
+      htmlUrl: string | null;
+      pullRequestNumbers: number[] | null;
+    }>(
+      `SELECT
+         run_id::text AS "runId",
+         attempts AS "runAttempt",
+         workflow_name AS "workflowName",
+         repository AS repo,
+         ref AS branch,
+         status,
+         conclusion,
+         run_completed_at::text AS "completedAt",
+         last_event_at::text AS "lastEventAt",
+         metadata->>'html_url' AS "htmlUrl",
+         ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata->'pull_requests', '[]'::jsonb))::int) AS "pullRequestNumbers"
+       FROM workflow_runs
+       WHERE tenant_id = $1 AND trace_id = $2`,
+      [session.tenantId, traceId],
+    );
 
-    const ch = chResult.length > 0 && chResult[0].run_id ? chResult[0] : null;
-    const pg = pgResult.rows[0] ?? null;
-
-    if (!ch && !pg) return null;
-
-    // Prefer ClickHouse for telemetry data, Postgres for live status
-    if (ch) {
-      const pgConclusion =
-        pg && pg.status === "completed"
-          ? normalizeConclusion(pg.conclusion)
-          : pg?.status;
-
-      return {
-        traceId,
-        runId: ch.run_id,
-        runAttempt: Number(ch.run_attempt),
-        repo: ch.repo,
-        branch: ch.branch,
-        conclusion: pgConclusion ?? ch.conclusion,
-        workflowName: ch.workflowName || "Workflow",
-        timestamp: pg?.completedAt ?? ch.timestamp,
-        htmlUrl: `https://github.com/${ch.repo}/actions/runs/${ch.run_id}`,
-        pullRequestUrls: ch.pullRequestsUrl
-          ? ch.pullRequestsUrl.split(";")
-          : undefined,
-      } satisfies Run;
-    }
-
-    // Fallback to Postgres when ClickHouse has no spans yet (fully in-progress run)
-    // pg is guaranteed non-null: early return on !ch && !pg, and ch is falsy here
+    const pg = pgResult.rows[0];
     if (!pg) return null;
 
     const effectiveConclusion =
@@ -455,7 +418,8 @@ export const getStepLogs = createAuthenticatedServerFn({
   .inputValidator(
     z.object({
       traceId: z.string(),
-      jobName: z.string(),
+      jobName: z.string().min(1).optional(),
+      jobId: z.string().min(1).optional(),
       stepNumber: z.string(),
       tail: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
       limit: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
@@ -464,9 +428,14 @@ export const getStepLogs = createAuthenticatedServerFn({
     }),
   )
   .handler(async ({ data, context }) => {
+    const jobFilter: StepLogsJobFilter =
+      data.jobId !== undefined
+        ? { jobId: data.jobId }
+        : { jobName: data.jobName! };
+
     const totalCount = await countStepLogs(context, {
       traceId: data.traceId,
-      jobName: data.jobName,
+      ...jobFilter,
       stepNumber: data.stepNumber,
       egrep: data.egrep,
     });
@@ -478,7 +447,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       const maxLines = data.tail ?? DEFAULT_LOG_PAGE_SIZE;
       const logs = await getRawStepLogs(context, {
         traceId: data.traceId,
-        jobName: data.jobName,
+        ...jobFilter,
         stepNumber: data.stepNumber,
         maxLines,
         offsetLines: data.offset,
@@ -492,7 +461,7 @@ export const getStepLogs = createAuthenticatedServerFn({
     const offset = data.offset ?? 0;
     const logs = await getRawStepLogs(context, {
       traceId: data.traceId,
-      jobName: data.jobName,
+      ...jobFilter,
       stepNumber: data.stepNumber,
       maxLines: data.limit ?? DEFAULT_LOG_PAGE_SIZE,
       offsetLines: offset,

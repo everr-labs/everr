@@ -580,7 +580,7 @@ mod tests {
         let rendered = render_assistant_instructions();
         assert!(rendered.contains("`everr status`"));
         assert!(rendered.contains("Use Everr CLI guidance when the task involves CI"));
-        assert!(rendered.contains("`everr show --trace-id <trace_id>`"));
+        assert!(rendered.contains("`everr show <trace_id>`"));
     }
 
     #[test]
