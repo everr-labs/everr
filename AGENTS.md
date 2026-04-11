@@ -29,6 +29,10 @@ For raw feature thoughts not ready for shaping. Template sections: `What`, `Why`
 
 For bugs and focused problems. Template sections: `What`, `Where`, `Steps to reproduce`, `Expected`, `Actual`, `Priority` (critical/high/medium/low/unknown), `Notes`. Only `What` is required — use `unknown`/`N/A` for the rest. Do not investigate or fix — capture only. If it sounds like a feature, route to Idea or `/project` instead.
 
+## Everr CLI Guidelines
+
+When adding or modifying CLI commands, follow the rules in [`docs/cli-guidelines.md`](docs/cli-guidelines.md).
+
 ## Everr CLI
 
 <!-- BEGIN everr -->

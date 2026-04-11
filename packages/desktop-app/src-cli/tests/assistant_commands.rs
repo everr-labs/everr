@@ -29,9 +29,11 @@ fn ai_instructions_prints_full_guidance() {
         .arg("ai-instructions")
         .assert()
         .success()
-        .stdout(contains("Quick commands:"))
+        .stdout(contains("Commands:"))
         .stdout(contains("`everr status`"))
-        .stdout(contains("`everr runs`"));
+        .stdout(contains("`everr runs`"))
+        .stdout(contains("--egrep"))
+        .stdout(contains("--log-failed"));
 }
 
 #[test]

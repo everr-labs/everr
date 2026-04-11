@@ -7,7 +7,7 @@ use tokio::pin;
 
 use futures_util::StreamExt;
 
-use crate::api::{ApiClient, NotifyPayload, StepLogEntry, WatchRun, WatchState};
+use crate::api::{ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
@@ -124,7 +124,12 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let paging = args.paging();
-    let mut query = vec![("jobName", args.job_name), ("stepNumber", args.step_number)];
+    let (job_filter, step_number) = resolve_logs_job(&client, &args).await?;
+    let mut query: Vec<(&str, String)> = vec![("stepNumber", step_number)];
+    match job_filter {
+        LogsJobFilter::ByName(name) => query.push(("jobName", name)),
+        LogsJobFilter::ById(id) => query.push(("jobId", id)),
+    }
     push_opt(&mut query, "egrep", args.egrep.clone());
 
     if let Some(paging) = paging {
@@ -433,13 +438,13 @@ fn print_watch_summary(completed: &[WatchRun]) {
                     job.name, step.step_number, step.step_name
                 );
                 println!(
-                    "  everr logs --trace-id {} --job-name {:?} --step-number {}",
+                    "  everr logs {} --job-name {:?} --step-number {}",
                     run.trace_id, job.name, step.step_number
                 );
             } else {
                 println!("  {}", job.name);
                 println!(
-                    "  everr logs --trace-id {} --job-name {:?}",
+                    "  everr logs {} --job-name {:?}",
                     run.trace_id, job.name
                 );
             }
@@ -456,6 +461,59 @@ fn check_run_conclusions(completed: &[WatchRun]) -> Result<()> {
         bail!("pipeline finished with failed runs");
     }
     Ok(())
+}
+
+enum LogsJobFilter {
+    ByName(String),
+    ById(String),
+}
+
+async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(LogsJobFilter, String)> {
+    // Fast paths: both identifier and step number are known — no API call needed
+    if let (Some(name), Some(step)) = (args.job_name.as_deref(), args.step_number.as_deref()) {
+        return Ok((LogsJobFilter::ByName(name.to_string()), step.to_string()));
+    }
+    if let (Some(id), Some(step)) = (args.job_id.as_deref(), args.step_number.as_deref()) {
+        return Ok((LogsJobFilter::ById(id.to_string()), step.to_string()));
+    }
+
+    // Need run details to resolve the failing step via --log-failed.
+    // Only pass ?failed=true when --log-failed is set; otherwise all jobs are visible.
+    let details_query: Vec<(&str, String)> = if args.log_failed {
+        vec![("failed", "true".to_string())]
+    } else {
+        vec![]
+    };
+    let details = client.get_run_details(&args.trace_id, &details_query).await?;
+    let show: ShowRunDetails =
+        serde_json::from_value(details).context("failed to parse run details")?;
+
+    let job: &ShowJob = match (args.job_name.as_deref(), args.job_id.as_deref()) {
+        (Some(name), _) => show
+            .jobs
+            .iter()
+            .find(|j| j.name == name)
+            .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", name))?,
+        (_, Some(id)) => show
+            .jobs
+            .iter()
+            .find(|j| j.job_id.as_deref() == Some(id))
+            .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", id))?,
+        _ => unreachable!("clap ensures job_name or job_id is always present"),
+    };
+
+    let step = job
+        .first_failing_step
+        .ok_or_else(|| anyhow::anyhow!("no failing step found for job {:?}", job.name))?
+        .to_string();
+
+    // Prefer job_id when it was provided — avoids duplicate display-name issues
+    let filter = match args.job_id.as_deref() {
+        Some(id) => LogsJobFilter::ById(id.to_string()),
+        None => LogsJobFilter::ByName(job.name.clone()),
+    };
+
+    Ok((filter, step))
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<()> {
