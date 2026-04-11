@@ -13,6 +13,7 @@ use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::notifications::{
     build_test_notification, copy_notification_auto_fix_prompt_inner,
     dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
+    reset_notification_state,
 };
 use crate::seen_runs;
 use crate::settings::{
@@ -105,6 +106,7 @@ pub(crate) async fn sign_out(
 
     clear_pending_auth(&runtime).into_command_result()?;
 
+    reset_notification_state(&app, state.inner()).into_command_result()?;
     emit_auth_changed(&app);
 
     Ok(response)
@@ -122,6 +124,7 @@ pub(crate) async fn reset_dev_onboarding(
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || reset_dev_onboarding_inner(&runtime)).await?;
 
+    reset_notification_state(&app, state.inner()).into_command_result()?;
     emit_auth_changed(&app);
     emit_settings_changed(&app);
 

@@ -1,14 +1,13 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use tokio::sync::Notify;
-
 use everr_core::api::FailureNotification;
 use everr_core::assistant::AssistantStatus;
 use everr_core::auth::{AuthConfig, DeviceAuthorization};
 use everr_core::build;
 use everr_core::notifier::FailureTracker;
-use everr_core::state::{AppState, AppStateStore};
+use everr_core::state::AppStateStore;
+use everr_core::state_watcher::StateWatcher;
 use serde::Serialize;
 use tauri::{Manager, WindowEvent};
 use time::OffsetDateTime;
@@ -41,7 +40,7 @@ use commands::{
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
-use startup::{run_local_startup_maintenance, start_session_poll_loop, start_update_check_loop};
+use startup::{run_local_startup_maintenance, start_state_change_loop, start_update_check_loop};
 use tray::build_tray;
 
 const UPDATE_CHECK_INTERVAL_SECONDS: u64 = 15 * 60;
@@ -77,11 +76,9 @@ impl<T> IntoCommandResult<T> for anyhow::Result<T> {
 #[derive(Clone)]
 struct RuntimeState {
     store: AppStateStore,
-    persisted: Arc<Mutex<AppState>>,
+    watcher: Arc<StateWatcher>,
     notifier: Arc<Mutex<NotifierState>>,
     pending_auth: Arc<Mutex<Option<PendingAuthState>>>,
-    session_changed: Arc<Notify>,
-    emails_changed: Arc<Notify>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -236,18 +233,17 @@ pub fn run() {
 
             let store = current_state_store();
             let _ = store.clear_mismatched_session(build::default_api_base_url())?;
-            let mut persisted = store.load_state()?;
-            persisted
-                .settings
-                .apply_runtime_base_url(build::default_api_base_url());
+            store.update_state(|state| {
+                state.settings.apply_runtime_base_url(build::default_api_base_url());
+            })?;
             run_local_startup_maintenance(app.handle());
+            let watcher = StateWatcher::start(store.clone())
+                .expect("failed to start state watcher");
             let runtime = RuntimeState {
                 store,
-                persisted: Arc::new(Mutex::new(persisted)),
+                watcher: Arc::new(watcher),
                 notifier: Arc::new(Mutex::new(NotifierState::default())),
                 pending_auth: Arc::new(Mutex::new(None)),
-                session_changed: Arc::new(Notify::new()),
-                emails_changed: Arc::new(Notify::new()),
             };
 
             app.manage(runtime.clone());
@@ -256,7 +252,7 @@ pub fn run() {
                 open_settings_window(app.handle())?;
             }
             start_notifier_loop(app.handle().clone(), runtime.clone());
-            start_session_poll_loop(app.handle().clone(), runtime);
+            start_state_change_loop(app.handle().clone(), runtime);
             start_update_check_loop(app.handle().clone());
             Ok(())
         })

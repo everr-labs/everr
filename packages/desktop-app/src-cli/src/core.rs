@@ -272,7 +272,11 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     }
 
     if initial.active.is_empty() && initial.completed.is_empty() {
-        println!("no runs found for this commit yet, waiting...");
+        let branch_part = branch
+            .as_deref()
+            .map(|b| format!("  branch: {b}"))
+            .unwrap_or_default();
+        println!("no runs found yet, waiting...  [repo: {repo}  commit: {target_commit}{branch_part}]");
     }
 
     if args.fail_fast {
@@ -293,7 +297,16 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     }
     for run in &initial.completed {
         let conclusion = run.conclusion.as_deref().unwrap_or("completed");
-        println!("{}  {}", run.workflow_name, conclusion);
+        println!("Run completed: {}  {}", run.workflow_name, conclusion);
+    }
+
+    if !initial.active.is_empty() {
+        let names: Vec<&str> = initial
+            .active
+            .iter()
+            .map(|r| r.workflow_name.as_str())
+            .collect();
+        println!("  waiting for: {}", names.join(", "));
     }
 
     // Track run states

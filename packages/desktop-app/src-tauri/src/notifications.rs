@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
-use everr_core::api::{ApiClient, FailureNotification, NotifyPayload};
+use everr_core::api::{
+    ApiClient, FailureNotification, NotifyPayload, is_reauthentication_required,
+};
 use everr_core::git::resolve_git_context;
 use futures_util::StreamExt;
 #[cfg(target_os = "macos")]
@@ -13,9 +15,9 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
-use crate::settings::current_app_state;
+use crate::settings::{current_app_state, emit_auth_changed, update_persisted_state};
 use crate::{
-    current_base_url, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
+    current_base_url, NotifierState, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
     NOTIFICATION_EXIT_EVENT, NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT,
     NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN,
     NOTIFICATION_WINDOW_WIDTH, SEEN_RUNS_CHANGED_EVENT,
@@ -42,6 +44,18 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
                     backoff = Duration::from_secs(1);
                 }
                 Err(error) => {
+                    if is_reauthentication_required(&error) {
+                        crate::crash_log::log_error("notifier SSE auth", &error);
+                        if let Err(reset_error) = handle_notifier_auth_failure(&app, &state) {
+                            crate::crash_log::log_error(
+                                "notifier auth reset",
+                                &reset_error,
+                            );
+                        }
+                        backoff = Duration::from_secs(1);
+                        continue;
+                    }
+
                     crate::crash_log::log_error("notifier SSE", &error);
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(max_backoff);
@@ -112,13 +126,47 @@ pub(crate) fn build_test_notification() -> Result<FailureNotification> {
     })
 }
 
+pub(crate) fn reset_notifier_runtime_state(notifier: &mut NotifierState) {
+    *notifier = NotifierState::default();
+}
+
+pub(crate) fn reset_notification_state(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    let needs_reset = {
+        let notifier = state
+            .notifier
+            .lock()
+            .map_err(|_| anyhow!("failed to lock notifier state"))?;
+        notifier.queue.active().is_some() || !notifier.queue.pending.is_empty()
+    };
+
+    if !needs_reset {
+        return Ok(());
+    }
+
+    {
+        let mut notifier = state
+            .notifier
+            .lock()
+            .map_err(|_| anyhow!("failed to lock notifier state"))?;
+        reset_notifier_runtime_state(&mut notifier);
+    }
+
+    sync_notification_window(app, state)
+}
+
 async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    use everr_core::state_watcher::StateChange;
+
+    let mut rx = state.watcher.subscribe();
+
     let Some(session) = current_app_state(state)?.session else {
-        state.session_changed.notified().await;
+        reset_notification_state(app, state)?;
+        wait_for_change(&mut rx, &[StateChange::SessionChanged]).await;
         return Ok(());
     };
     if session.api_base_url.trim_end_matches('/') != current_base_url().trim_end_matches('/') {
-        state.session_changed.notified().await;
+        reset_notification_state(app, state)?;
+        wait_for_change(&mut rx, &[StateChange::SessionChanged]).await;
         return Ok(());
     }
 
@@ -130,8 +178,9 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         } else if let Some(profile) = settings.user_profile {
             std::iter::once(profile.email).collect()
         } else {
-            // No emails configured and no profile cached — wait for session change
-            state.session_changed.notified().await;
+            // No emails configured and no profile cached — wait for session or filter changes.
+            reset_notification_state(app, state)?;
+            wait_for_change(&mut rx, &[StateChange::SessionChanged, StateChange::EmailsChanged]).await;
             return Ok(());
         }
     };
@@ -162,17 +211,51 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
                     None => break,
                 }
             }
-            _ = state.session_changed.notified() => {
-                dbg_notifier!("session changed — restarting SSE loop");
-                break;
-            }
-            _ = state.emails_changed.notified() => {
-                dbg_notifier!("notification emails changed — restarting SSE loop");
-                break;
+            change = rx.recv() => {
+                match change {
+                    Ok(StateChange::SessionChanged) | Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        dbg_notifier!("session changed — restarting SSE loop");
+                        break;
+                    }
+                    Ok(StateChange::EmailsChanged) => {
+                        dbg_notifier!("notification emails changed — restarting SSE loop");
+                        break;
+                    }
+                    Ok(StateChange::SettingsChanged) => {
+                        // Settings changes without email changes don't require SSE restart
+                        continue;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        dbg_notifier!("lagged state changes — restarting SSE loop");
+                        break;
+                    }
+                }
             }
         }
     }
 
+    Ok(())
+}
+
+async fn wait_for_change(
+    rx: &mut tokio::sync::broadcast::Receiver<everr_core::state_watcher::StateChange>,
+    expected: &[everr_core::state_watcher::StateChange],
+) {
+    loop {
+        match rx.recv().await {
+            Ok(change) if expected.contains(&change) => return,
+            Ok(_) => continue,
+            Err(_) => return,
+        }
+    }
+}
+
+fn handle_notifier_auth_failure(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    update_persisted_state(state, |persisted| {
+        persisted.session = None;
+    })?;
+    reset_notification_state(app, state)?;
+    emit_auth_changed(app);
     Ok(())
 }
 

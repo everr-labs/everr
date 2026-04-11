@@ -2,13 +2,13 @@ use std::sync::{Arc, Mutex};
 
 use everr_core::api::FailureNotification;
 use everr_core::assistant::{AssistantKind, AssistantStatus};
-use everr_core::state::{AppSettings, AppState, AppStateStore, WizardState};
+use everr_core::state::{AppSettings, AppStateStore, WizardState};
+use everr_core::state_watcher::StateWatcher;
 use tempfile::tempdir;
-use tokio::sync::Notify;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::cli::sync_installed_cli_from_paths;
-use crate::notifications::active_notification_auto_fix_prompt;
+use crate::notifications::{active_notification_auto_fix_prompt, reset_notifier_runtime_state};
 use crate::settings::{build_assistant_setup_response, build_wizard_status_response};
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
@@ -21,15 +21,14 @@ pub(crate) fn test_runtime_state() -> RuntimeState {
         temp.path().to_str().unwrap(),
         "test-session.json",
     );
+    let watcher = StateWatcher::start(store.clone()).expect("state watcher");
     // Keep tempdir alive by leaking it — tests are short-lived
     let _ = Box::leak(Box::new(temp));
     RuntimeState {
         store,
-        persisted: Arc::new(Mutex::new(AppState::default())),
+        watcher: Arc::new(watcher),
         notifier: Arc::new(Mutex::new(NotifierState::default())),
         pending_auth: Arc::new(Mutex::new(None)),
-        session_changed: Arc::new(Notify::new()),
-        emails_changed: Arc::new(Notify::new()),
     }
 }
 
@@ -218,6 +217,24 @@ fn active_notification_prompt_prefers_the_active_queue_item() {
 }
 
 #[test]
+fn resetting_notifier_runtime_state_clears_queue_and_dedupe_tracker() {
+    let mut notifier = crate::NotifierState::default();
+    let first = failure("one");
+
+    assert_eq!(notifier.tracker.retain_new(vec![first.clone()]).len(), 1);
+    assert!(notifier.tracker.retain_new(vec![first.clone()]).is_empty());
+
+    notifier.queue.enqueue(first.clone());
+    notifier.queue.enqueue(failure("two"));
+
+    reset_notifier_runtime_state(&mut notifier);
+
+    assert!(notifier.queue.active().is_none());
+    assert!(notifier.queue.pending.is_empty());
+    assert_eq!(notifier.tracker.retain_new(vec![first]).len(), 1);
+}
+
+#[test]
 fn mismatched_completed_base_url_reopens_the_wizard() {
     let mut settings = AppSettings {
         completed_base_url: Some("https://app.everr.dev".to_string()),
@@ -230,6 +247,7 @@ fn mismatched_completed_base_url_reopens_the_wizard() {
     settings.apply_runtime_base_url(current_base_url());
     assert!(!settings.wizard_state.wizard_completed);
 }
+
 
 #[test]
 fn sync_installed_cli_installs_missing_binary() {

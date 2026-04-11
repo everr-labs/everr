@@ -5,3 +5,4 @@ pub mod build;
 pub mod git;
 pub mod notifier;
 pub mod state;
+pub mod state_watcher;

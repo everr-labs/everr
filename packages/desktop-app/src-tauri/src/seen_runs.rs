@@ -65,10 +65,7 @@ pub(crate) fn mark_all_seen(state: &RuntimeState) -> Result<()> {
 }
 
 pub(crate) fn unseen_trace_ids(state: &RuntimeState) -> Result<Vec<String>> {
-    let persisted = state
-        .persisted
-        .lock()
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let persisted = state.watcher.cached_state();
     Ok(persisted
         .settings
         .seen_runs
@@ -132,14 +129,14 @@ mod tests {
         let state = test_runtime_state();
 
         // Inject an already-expired entry directly into persisted state
-        {
-            let mut persisted = state.persisted.lock().unwrap();
+        crate::settings::update_persisted_state(&state, |persisted| {
             persisted.settings.seen_runs.push(SeenRunEntry {
                 trace_id: "expired".to_string(),
                 added_at: "2000-01-01T00:00:00Z".to_string(),
                 seen_at: None,
             });
-        }
+        })
+        .unwrap();
 
         // The expired entry should not appear in unseen
         let ids = unseen_trace_ids(&state).unwrap();
@@ -147,7 +144,7 @@ mod tests {
 
         // Adding a new entry should prune the expired one from storage
         add_seen_run(&state, "fresh").unwrap();
-        let persisted = state.persisted.lock().unwrap();
+        let persisted = state.watcher.cached_state();
         assert_eq!(persisted.settings.seen_runs.len(), 1);
         assert_eq!(persisted.settings.seen_runs[0].trace_id, "fresh");
     }

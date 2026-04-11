@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { RE2 } from "re2-wasm";
 import { z } from "zod";
 import { getStepLogs } from "@/data/runs/server";
 import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
@@ -17,10 +16,6 @@ const StepLogsQuerySchema = z
     message: "Provide either tail or limit, not both.",
     path: ["tail"],
   });
-
-function isRe2Error(e: unknown): boolean {
-  return e instanceof Error && e.message.toLowerCase().includes("re2");
-}
 
 export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
   server: {
@@ -55,17 +50,6 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
           );
         }
 
-        if (parsed.data.egrep !== undefined) {
-          try {
-            new RE2(parsed.data.egrep, "u");
-          } catch {
-            return Response.json(
-              { error: "Invalid re2 pattern." },
-              { status: 400 },
-            );
-          }
-        }
-
         try {
           const { logs, offset } = await getStepLogs({
             data: {
@@ -80,14 +64,22 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
           });
 
           return Response.json({ logs, offset });
-        } catch (e) {
-          if (isRe2Error(e)) {
+        } catch (err) {
+          if (
+            typeof err === "object" &&
+            err !== null &&
+            "type" in err &&
+            err.type === "CANNOT_COMPILE_REGEXP"
+          ) {
             return Response.json(
-              { error: "Invalid re2 pattern." },
+              {
+                error:
+                  "Invalid regular expression pattern. Look at https://github.com/google/re2/wiki/Syntax for reference.",
+              },
               { status: 400 },
             );
           }
-          throw e;
+          throw err;
         }
       },
     },
