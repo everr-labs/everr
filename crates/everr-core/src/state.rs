@@ -29,6 +29,15 @@ pub struct UserProfile {
     pub profile_url: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub struct SeenRunEntry {
+    pub trace_id: String,
+    pub added_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seen_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct AppSettings {
@@ -39,6 +48,8 @@ pub struct AppSettings {
     pub notification_emails: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_profile: Option<UserProfile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub seen_runs: Vec<SeenRunEntry>,
 }
 
 impl AppSettings {
@@ -327,6 +338,7 @@ mod tests {
                         name: "Test User".to_string(),
                         profile_url: None,
                     }),
+                    ..AppSettings::default()
                 },
             };
 

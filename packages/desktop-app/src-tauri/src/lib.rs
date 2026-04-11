@@ -9,7 +9,6 @@ use everr_core::notifier::FailureTracker;
 use everr_core::state::AppStateStore;
 use everr_core::state_watcher::StateWatcher;
 use serde::Serialize;
-use tauri::menu::{Menu, MenuItem};
 use tauri::{Manager, WindowEvent};
 use time::OffsetDateTime;
 
@@ -22,6 +21,7 @@ mod cli;
 mod commands;
 mod crash_log;
 mod notifications;
+mod seen_runs;
 mod settings;
 mod startup;
 mod tray;
@@ -30,38 +30,36 @@ mod tray;
 mod tests;
 
 use commands::{
-    complete_setup_wizard, configure_assistants, copy_notification_auto_fix_prompt,
+    configure_assistants, copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt,
     dismiss_active_notification, get_active_notification, get_assistant_setup, get_auth_status,
-    get_notification_emails, get_pending_sign_in, get_user_profile, get_wizard_status,
-    open_notification_target, open_sign_in_browser, poll_sign_in, reset_dev_onboarding,
-    set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
+    get_notification_emails, get_pending_sign_in, get_runs_list, get_unseen_trace_ids,
+    get_user_profile, get_wizard_status, mark_all_runs_seen, mark_run_seen,
+    open_notification_target, open_run_in_browser, open_sign_in_browser, poll_sign_in,
+    reset_dev_onboarding, set_notification_emails, sign_out, start_sign_in,
+    trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
 use startup::{run_local_startup_maintenance, start_state_change_loop, start_update_check_loop};
-use tray::{build_tray, sync_tray_ui};
+use tray::build_tray;
 
 const UPDATE_CHECK_INTERVAL_SECONDS: u64 = 15 * 60;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_HOVER_EVENT: &str = "everr://notification-hover";
+const SEEN_RUNS_CHANGED_EVENT: &str = "everr://seen-runs-changed";
+const NOTIFICATION_EXIT_EVENT: &str = "everr://notification-exit";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 124.0;
-const NOTIFICATION_WINDOW_MARGIN: f64 = 56.0;
+const NOTIFICATION_WINDOW_MARGIN: f64 = 16.0;
 const NOTIFICATION_WINDOW_INSET: f64 = 12.0;
 const TRAY_ICON_ID: &str = "everr-app";
-const TRAY_MENU_FAILED_STATUS_ID: &str = "tray_failed_status";
-const TRAY_MENU_OPEN_FAILED_RUNS_ID: &str = "tray_open_failed_runs";
-const TRAY_MENU_COPY_AUTO_FIX_PROMPT_ID: &str = "tray_copy_auto_fix_prompt";
-const TRAY_MENU_DEV_ID: &str = "tray_dev";
-const TRAY_MENU_INSERTION_INDEX: usize = 1;
 const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
-const TRAY_FAILURES_WINDOW_MINUTES: u64 = 30;
 
 type CommandResult<T> = std::result::Result<T, String>;
 
@@ -80,7 +78,6 @@ struct RuntimeState {
     store: AppStateStore,
     watcher: Arc<StateWatcher>,
     notifier: Arc<Mutex<NotifierState>>,
-    tray: Arc<Mutex<TrayState>>,
     pending_auth: Arc<Mutex<Option<PendingAuthState>>>,
 }
 
@@ -165,56 +162,6 @@ struct NotifierState {
     queue: NotificationQueue,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct TraySnapshot {
-    failures: Vec<FailureNotification>,
-    dashboard_url: Option<String>,
-}
-
-impl TraySnapshot {
-    fn failed_count(&self) -> usize {
-        self.failures.len()
-    }
-}
-
-struct TrayState {
-    snapshot: TraySnapshot,
-    menu: Option<TrayMenu>,
-}
-
-impl Default for TrayState {
-    fn default() -> Self {
-        Self {
-            snapshot: TraySnapshot::default(),
-            menu: None,
-        }
-    }
-}
-
-impl TrayState {
-    fn replace_snapshot(&mut self, snapshot: TraySnapshot) {
-        self.snapshot = snapshot;
-    }
-
-    fn clear_snapshot(&mut self) {
-        self.snapshot = TraySnapshot::default();
-    }
-}
-
-#[derive(Clone)]
-struct TrayMenu {
-    menu: Menu<tauri::Wry>,
-    failed_status: MenuItem<tauri::Wry>,
-    open_failed_runs: MenuItem<tauri::Wry>,
-    copy_auto_fix_prompt: MenuItem<tauri::Wry>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct TrayMenuModel {
-    failed_status_label: String,
-    show_failed_actions: bool,
-}
-
 #[derive(Debug, Default)]
 struct NotificationQueue {
     active: Option<FailureNotification>,
@@ -296,20 +243,11 @@ pub fn run() {
                 store,
                 watcher: Arc::new(watcher),
                 notifier: Arc::new(Mutex::new(NotifierState::default())),
-                tray: Arc::new(Mutex::new(TrayState::default())),
                 pending_auth: Arc::new(Mutex::new(None)),
             };
 
             app.manage(runtime.clone());
-            let tray_menu = build_tray(app.handle())?;
-            {
-                let mut tray = runtime
-                    .tray
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("failed to lock tray state"))?;
-                tray.menu = Some(tray_menu);
-            }
-            sync_tray_ui(app.handle(), &runtime)?;
+            build_tray(app.handle())?;
             if wizard_incomplete(&runtime)? {
                 open_settings_window(app.handle())?;
             }
@@ -330,7 +268,6 @@ pub fn run() {
             sign_out,
             reset_dev_onboarding,
             configure_assistants,
-            complete_setup_wizard,
             dismiss_active_notification,
             open_notification_target,
             copy_notification_auto_fix_prompt,
@@ -338,6 +275,12 @@ pub fn run() {
             get_notification_emails,
             set_notification_emails,
             get_user_profile,
+            get_runs_list,
+            get_unseen_trace_ids,
+            mark_run_seen,
+            mark_all_runs_seen,
+            open_run_in_browser,
+            copy_run_auto_fix_prompt
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

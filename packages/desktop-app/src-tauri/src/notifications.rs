@@ -16,14 +16,11 @@ use time::OffsetDateTime;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::settings::{current_app_state, emit_auth_changed, update_persisted_state};
-use crate::tray::{
-    build_tray_snapshot, clear_tray_snapshot, tray_auto_fix_prompt, update_tray_snapshot,
-};
 use crate::{
-    NotifierState, NotificationQueue, RuntimeState, TRAY_FAILURES_WINDOW_MINUTES,
-    NOTIFICATION_CHANGED_EVENT, NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT,
+    current_base_url, NotifierState, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
+    NOTIFICATION_EXIT_EVENT, NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT,
     NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN,
-    NOTIFICATION_WINDOW_WIDTH, current_base_url,
+    NOTIFICATION_WINDOW_WIDTH, SEEN_RUNS_CHANGED_EVENT,
 };
 
 macro_rules! dbg_notifier {
@@ -73,22 +70,12 @@ pub(crate) fn active_notification_auto_fix_prompt(queue: &NotificationQueue) -> 
 }
 
 pub(crate) fn copy_notification_auto_fix_prompt_inner(state: &RuntimeState) -> Result<()> {
-    let notification_prompt = {
+    let prompt = {
         let notifier = state
             .notifier
             .lock()
             .map_err(|_| anyhow!("failed to lock notifier state"))?;
         active_notification_auto_fix_prompt(&notifier.queue)
-    };
-
-    let prompt = if let Some(prompt) = notification_prompt {
-        Some(prompt)
-    } else {
-        let tray = state
-            .tray
-            .lock()
-            .map_err(|_| anyhow!("failed to lock tray state"))?;
-        tray_auto_fix_prompt(&tray.snapshot)
     };
 
     let Some(prompt) = prompt else {
@@ -152,15 +139,7 @@ pub(crate) fn reset_notification_state(app: &AppHandle, state: &RuntimeState) ->
         notifier.queue.active().is_some() || !notifier.queue.pending.is_empty()
     };
 
-    let tray_has_data = {
-        let tray = state
-            .tray
-            .lock()
-            .map_err(|_| anyhow!("failed to lock tray state"))?;
-        !tray.snapshot.failures.is_empty()
-    };
-
-    if !needs_reset && !tray_has_data {
+    if !needs_reset {
         return Ok(());
     }
 
@@ -172,7 +151,6 @@ pub(crate) fn reset_notification_state(app: &AppHandle, state: &RuntimeState) ->
         reset_notifier_runtime_state(&mut notifier);
     }
 
-    clear_tray_snapshot(app, state)?;
     sync_notification_window(app, state)
 }
 
@@ -207,16 +185,8 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         }
     };
 
-    // Resolve git context for repo/branch scoping (still used by handle_notify_event)
-    let current_dir = std::env::current_dir().context("failed to resolve cwd")?;
-    let git = resolve_git_context(&current_dir);
-
     let client = ApiClient::from_session(&session)?;
     let stream = client.events_stream("tenant", None).await?;
-
-    // Known failures accumulated this session, keyed by traceId
-    let mut known_failures: std::collections::HashMap<String, FailureNotification> =
-        std::collections::HashMap::new();
 
     tokio::pin!(stream);
     loop {
@@ -234,10 +204,7 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
                             app,
                             state,
                             &client,
-                            &mut known_failures,
                             payload,
-                            git.repo.as_deref(),
-                            git.branch.as_deref(),
                         ).await?;
                     }
                     Some(Err(e)) => return Err(e),
@@ -296,10 +263,7 @@ async fn handle_notify_event(
     app: &AppHandle,
     state: &RuntimeState,
     client: &ApiClient,
-    known_failures: &mut std::collections::HashMap<String, FailureNotification>,
     event: NotifyPayload,
-    repo: Option<&str>,
-    branch: Option<&str>,
 ) -> Result<()> {
     dbg_notifier!(
         "event: type={} status={} conclusion={:?} trace={} branch={} workflow={}",
@@ -317,9 +281,6 @@ async fn handle_notify_event(
 
     match event.conclusion.as_deref() {
         Some("failure") | Some("timed_out") | Some("startup_failure") | Some("action_required") => {
-            if known_failures.contains_key(&event.trace_id) {
-                return Ok(());
-            }
             let Some(failure) = client.get_notification_for_trace(&event.trace_id).await? else {
                 dbg_notifier!("failure not found in ClickHouse after all retries, dropping event");
                 return Ok(());
@@ -331,39 +292,9 @@ async fn handle_notify_event(
                     .map_err(|_| anyhow!("failed to lock notifier state"))?;
                 notifier.tracker.retain_new(vec![failure.clone()])
             };
-            known_failures.insert(event.trace_id.clone(), failure);
-            expire_old_failures(known_failures);
-            update_tray_snapshot(
-                app,
-                state,
-                build_tray_snapshot(
-                    &known_failures.values().cloned().collect::<Vec<_>>(),
-                    repo,
-                    branch,
-                ),
-            )?;
             for f in fresh {
                 enqueue_notification(app, state, f)?;
             }
-        }
-        Some("success") => {
-            // Remove the specific trace and any other failures for the same branch/workflow —
-            // a successful run supersedes prior failures on that workflow.
-            known_failures.retain(|_, f| {
-                !(f.repo == event.repo
-                    && f.branch == event.branch
-                    && f.workflow_name == event.workflow_name)
-            });
-            expire_old_failures(known_failures);
-            update_tray_snapshot(
-                app,
-                state,
-                build_tray_snapshot(
-                    &known_failures.values().cloned().collect::<Vec<_>>(),
-                    repo,
-                    branch,
-                ),
-            )?;
         }
         _ => {}
     }
@@ -375,23 +306,20 @@ async fn handle_notify_event(
     Ok(())
 }
 
-fn expire_old_failures(
-    known_failures: &mut std::collections::HashMap<String, FailureNotification>,
-) {
-    let cutoff = OffsetDateTime::now_utc()
-        - time::Duration::minutes(TRAY_FAILURES_WINDOW_MINUTES as i64);
-    known_failures.retain(|_, f| {
-        OffsetDateTime::parse(&f.failed_at, &Rfc3339)
-            .map(|t| t > cutoff)
-            .unwrap_or(true)
-    });
-}
-
 fn enqueue_notification(
     app: &AppHandle,
     state: &RuntimeState,
     notification: FailureNotification,
 ) -> Result<()> {
+    dbg_notifier!(
+        "notification fired: trace={} repo={} workflow={}",
+        notification.trace_id,
+        notification.repo,
+        notification.workflow_name,
+    );
+    crate::seen_runs::add_seen_run(state, &notification.trace_id)?;
+    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
+
     let active_changed = {
         let mut notifier = state
             .notifier
@@ -411,6 +339,19 @@ pub(crate) fn dismiss_active_notification_inner(
     app: &AppHandle,
     state: &RuntimeState,
 ) -> Result<()> {
+    let dismissed_trace_id = {
+        let notifier = state
+            .notifier
+            .lock()
+            .map_err(|_| anyhow!("failed to lock notifier state"))?;
+        notifier.queue.active().map(|n| n.trace_id.clone())
+    };
+
+    if let Some(trace_id) = &dismissed_trace_id {
+        let _ = crate::seen_runs::mark_seen(state, trace_id);
+        let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
+    }
+
     let active_changed = {
         let mut notifier = state
             .notifier
@@ -473,14 +414,8 @@ fn show_notification_window(app: &AppHandle) -> Result<()> {
     configure_notification_window_for_fullscreen(&window)?;
 
     if !was_visible {
-        // Start off-screen to the right, then animate to final position
-        let (final_x, final_y) = notification_window_position(app)?;
-        let off_screen_x = final_x + NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + 24.0;
-        window
-            .set_position(LogicalPosition::new(off_screen_x, final_y))
-            .context("failed to set initial off-screen position")?;
+        position_notification_window(app, &window)?;
         show_without_focus(&window)?;
-        animate_window_slide(app, final_x, final_y, false);
         start_notification_hover_polling(app);
     } else {
         position_notification_window(app, &window)?;
@@ -538,12 +473,17 @@ fn cursor_is_over_notification_window(app: &AppHandle, window: &WebviewWindow) -
 fn hide_notification_window(app: &AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) {
         if window.is_visible().unwrap_or(false) {
-            if let Ok((final_x, final_y)) = notification_window_position(app) {
-                let off_screen_x =
-                    final_x + NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + 24.0;
-                animate_window_slide(app, off_screen_x, final_y, true);
-                return Ok(());
-            }
+            // Tell the frontend to play the CSS exit animation, then hide after it completes.
+            let _ = window.emit(NOTIFICATION_EXIT_EVENT, ());
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                if let Some(w) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) {
+                    let _ = w.hide();
+                }
+                let _ = app.emit(NOTIFICATION_CHANGED_EVENT, ());
+            });
+            return Ok(());
         }
         window
             .hide()
@@ -551,52 +491,6 @@ fn hide_notification_window(app: &AppHandle) -> Result<()> {
     }
     app.emit(NOTIFICATION_CHANGED_EVENT, ())
         .context("failed to emit notification update")
-}
-
-/// Smoothly slides the notification window to `(target_x, target_y)`.
-/// When `hide_after` is true the window is hidden once the animation completes.
-fn animate_window_slide(app: &AppHandle, target_x: f64, target_y: f64, hide_after: bool) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        const DURATION_MS: u64 = 200;
-        const FRAME_MS: u64 = 6;
-        let steps = DURATION_MS / FRAME_MS;
-
-        let Some(window) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) else {
-            return;
-        };
-        let Ok(start_pos) = window.outer_position() else {
-            return;
-        };
-        let scale = app
-            .cursor_position()
-            .ok()
-            .and_then(|c| app.monitor_from_point(c.x, c.y).ok().flatten())
-            .or_else(|| app.primary_monitor().ok().flatten())
-            .map(|m| m.scale_factor())
-            .unwrap_or(1.0);
-        let start_x = start_pos.x as f64 / scale;
-        let start_y = start_pos.y as f64 / scale;
-
-        for i in 1..=steps {
-            let t = i as f64 / steps as f64;
-            // ease-out cubic for slide-in, ease-in cubic for slide-out
-            let eased = if hide_after {
-                t * t * t
-            } else {
-                1.0 - (1.0 - t).powi(3)
-            };
-            let x = start_x + (target_x - start_x) * eased;
-            let y = start_y + (target_y - start_y) * eased;
-            let _ = window.set_position(LogicalPosition::new(x, y));
-            tokio::time::sleep(Duration::from_millis(FRAME_MS)).await;
-        }
-
-        if hide_after {
-            let _ = app.emit(NOTIFICATION_CHANGED_EVENT, ());
-            let _ = window.hide();
-        }
-    });
 }
 
 fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
@@ -611,15 +505,15 @@ fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
     )
     .title("Everr Notification")
     .inner_size(
-        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET,
+        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN,
         NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET,
     )
     .min_inner_size(
-        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET,
+        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN,
         NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET,
     )
     .max_inner_size(
-        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET,
+        NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN,
         NOTIFICATION_WINDOW_HEIGHT + NOTIFICATION_WINDOW_INSET,
     )
     .prevent_overflow()
@@ -691,11 +585,16 @@ fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
         .ok_or_else(|| anyhow!("failed to resolve notification monitor"))?;
     let work_area = monitor.work_area();
     let scale_factor = monitor.scale_factor();
-    let width =
-        ((NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET) * scale_factor).round() as i32;
+    let full_width = ((NOTIFICATION_WINDOW_WIDTH
+        + NOTIFICATION_WINDOW_INSET
+        + NOTIFICATION_WINDOW_MARGIN)
+        * scale_factor)
+        .round() as i32;
     let inset = (NOTIFICATION_WINDOW_INSET * scale_factor).round() as i32;
     let margin = (NOTIFICATION_WINDOW_MARGIN * scale_factor).round() as i32;
-    let x = work_area.position.x + work_area.size.width as i32 - width - margin / 2;
+    // Window right edge is flush with the work-area edge.
+    // The margin between the card and screen edge is handled by CSS padding-right.
+    let x = work_area.position.x + work_area.size.width as i32 - full_width;
     let y = work_area.position.y + margin - inset;
 
     Ok((x as f64 / scale_factor, y as f64 / scale_factor))

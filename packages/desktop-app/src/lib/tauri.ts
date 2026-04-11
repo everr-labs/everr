@@ -5,6 +5,9 @@ export const AUTH_CHANGED_EVENT = "everr://auth-changed";
 export const SETTINGS_CHANGED_EVENT = "everr://settings-changed";
 export const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
 export const NOTIFICATION_HOVER_EVENT = "everr://notification-hover";
+export const SEEN_RUNS_CHANGED_EVENT = "everr://seen-runs-changed";
+export const NOTIFICATION_EXIT_EVENT = "everr://notification-exit";
+export const NOTIFIER_CHECKED_EVENT = "everr://notifier-checked";
 export const NOTIFICATION_WINDOW_LABEL = "notification";
 
 export function invokeCommand<TResult>(

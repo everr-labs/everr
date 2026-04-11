@@ -6,6 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -18,10 +19,11 @@ import {
   FeatureErrorText,
   FeatureLoadingText,
   SettingsSection,
-  WizardStepSection,
 } from "../desktop-shell/ui";
 import {
   notificationEmailsQueryKey,
+  runsListQueryKey,
+  unseenTraceIdsQueryKey,
   userProfileQueryKey,
 } from "../notifications/query-keys";
 
@@ -110,6 +112,8 @@ function useNow(tickMs = 1_000) {
 function clearNotificationSettingsCache(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: notificationEmailsQueryKey });
   queryClient.removeQueries({ queryKey: userProfileQueryKey });
+  queryClient.removeQueries({ queryKey: runsListQueryKey });
+  queryClient.removeQueries({ queryKey: unseenTraceIdsQueryKey });
 }
 
 export function useAuthStatusQuery() {
@@ -175,6 +179,7 @@ function useOpenSignInBrowserMutation() {
 
 export function useSignOutMutation() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   return useMutation({
     mutationFn: signOut,
@@ -183,6 +188,7 @@ export function useSignOutMutation() {
       queryClient.setQueryData(authStatusQueryKey, data);
       queryClient.setQueryData(pendingSignInQueryKey, null);
       toast.success("Logged out.");
+      void navigate({ to: "/onboarding" });
     },
     onError(error) {
       toast.error(toErrorMessageText(error));
@@ -215,7 +221,7 @@ export function AccountHeaderAction() {
   );
 }
 
-function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
+function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
   const queryClient = useQueryClient();
   const authStatusQuery = useAuthStatusQuery();
   const signInMutation = useSignInMutation();
@@ -275,18 +281,10 @@ function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
   const pendingError = pendingQuery.error ?? pollQuery.error;
   const title = "Authenticate your Everr account";
   const description =
-    layout === "wizard"
-      ? "Generate a device code here, then open the verification page when you’re ready to finish linking this tray app."
-      : "Reconnect this desktop app or complete a pending sign-in without leaving Settings.";
-  const badge = (
-    <Badge variant="outline">
-      {signedIn ? "Connected" : pendingSignIn ? "In progress" : "Required"}
-    </Badge>
-  );
+    "Reconnect this desktop app or complete a pending sign-in without leaving Settings.";
   const showAction = signedIn || !pendingSignIn || isExpired;
   const action = showAction ? (
     <Button
-      className={layout === "wizard" ? "min-w-[132px]" : undefined}
       disabled={
         authStatusQuery.isPending ||
         signInMutation.isPending ||
@@ -386,28 +384,30 @@ function AuthContent({ layout }: { layout: "wizard" | "settings" }) {
     </p>
   );
 
-  if (layout === "settings") {
+  if (layout === "standalone") {
     return (
-      <SettingsSection title={title} description={description} action={action}>
+      <div className="grid gap-5">
+        <div className="grid gap-1.5 text-center">
+          <h2 className="m-0 text-lg font-medium tracking-tight">{title}</h2>
+          <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
+            {description}
+          </p>
+        </div>
         {content}
-      </SettingsSection>
+        {action ? <div className="flex justify-center">{action}</div> : null}
+      </div>
     );
   }
 
   return (
-    <WizardStepSection
-      title={title}
-      description={description}
-      badge={badge}
-      action={action}
-    >
+    <SettingsSection title={title} description={description} action={action}>
       {content}
-    </WizardStepSection>
+    </SettingsSection>
   );
 }
 
-export function AuthWizardStep() {
-  return <AuthContent layout="wizard" />;
+export function AuthStandalone() {
+  return <AuthContent layout="standalone" />;
 }
 
 export function AuthSettingsSection() {

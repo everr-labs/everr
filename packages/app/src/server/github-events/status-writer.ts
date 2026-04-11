@@ -124,6 +124,7 @@ export async function upsertWorkflowRun(
     event: workflowRun.event ?? undefined,
     workflow_id: workflowRun.workflow_id ?? undefined,
     display_title: workflowRun.display_title ?? undefined,
+    head_commit_message: workflowRun.head_commit?.message ?? undefined,
     run_number: workflowRun.run_number ?? undefined,
     path: workflowRun.path ?? undefined,
     actor: workflowRun.actor?.login ?? undefined,

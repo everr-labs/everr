@@ -1,4 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "@tanstack/react-router";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import {
@@ -9,13 +10,14 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import App from "./App";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   activeNotificationQueryKey,
   NotificationCard,
+  NotificationWindow,
 } from "./features/notifications/notification-window";
 import { createQueryClient } from "./lib/query-client";
+import { router } from "./router";
 
 const SETTINGS_CHANGED_EVENT = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
@@ -52,10 +54,6 @@ type AssistantSetup = {
   assistant_statuses: AssistantStatus[];
 };
 
-type WizardStatus = {
-  wizard_completed: boolean;
-};
-
 type FailureNotification = {
   dedupeKey: string;
   traceId: string;
@@ -73,8 +71,20 @@ type TestNotificationResponse = {
   status: "shown" | "queued";
 };
 
+type RunListItem = {
+  traceId: string;
+  runId: string;
+  runAttempt: number;
+  workflowName: string;
+  repo: string;
+  branch: string;
+  conclusion: string;
+  duration: number;
+  timestamp: string;
+  sender: string;
+};
+
 type MainCommand =
-  | "get_wizard_status"
   | "get_auth_status"
   | "get_pending_sign_in"
   | "start_sign_in"
@@ -85,18 +95,24 @@ type MainCommand =
   | "get_notification_emails"
   | "set_notification_emails"
   | "configure_assistants"
-  | "complete_setup_wizard"
   | "reset_dev_onboarding"
-  | "trigger_test_notification";
+  | "trigger_test_notification"
+  | "get_runs_list"
+  | "get_unseen_trace_ids"
+  | "mark_all_runs_seen"
+  | "mark_run_seen"
+  | "open_run_in_browser"
+  | "copy_run_auto_fix_prompt";
 
 type RenderMainOptions = {
   signedIn?: boolean;
-  wizardCompleted?: boolean;
   notificationEmails?: string[];
   configuredAssistants?: AssistantKind[];
   assistantStatuses?: AssistantStatus[];
   testNotification?: TestNotificationResponse;
   pendingSignIn?: PendingSignIn | null;
+  runs?: RunListItem[];
+  unseenTraceIds?: string[];
   commandOverrides?: Partial<Record<MainCommand, (args: unknown) => unknown>>;
 };
 
@@ -139,6 +155,22 @@ function createNotification(
     jobName: "test",
     stepNumber: "3",
     stepName: "Run suite",
+    ...overrides,
+  };
+}
+
+function createRun(overrides: Partial<RunListItem> = {}): RunListItem {
+  return {
+    traceId: "trace-run-1",
+    runId: "run-1",
+    runAttempt: 1,
+    workflowName: "CI",
+    repo: "everr-labs/everr",
+    branch: "main",
+    conclusion: "failure",
+    duration: 120,
+    timestamp: "2026-03-07T13:32:00Z",
+    sender: "user@example.com",
     ...overrides,
   };
 }
@@ -192,28 +224,30 @@ function renderMainApp(options: RenderMainOptions = {}) {
       defaultAssistantStatuses(options.configuredAssistants ?? []),
   });
   let notificationEmails = options.notificationEmails ?? ["user@example.com"];
-  let wizardStatus: WizardStatus = {
-    wizard_completed: options.wizardCompleted ?? true,
-  };
   let pendingSignIn: PendingSignIn | null = options.pendingSignIn ?? null;
   const openSignInBrowserSpy = vi.fn(() => null);
-  const closeWindowSpy = vi.fn(() => null);
   const resetDevOnboardingSpy = vi.fn(() => {
     authStatus = {
       ...authStatus,
       status: "signed_out",
     };
-    wizardStatus = {
-      wizard_completed: false,
-    };
     return {
       auth_status: authStatus,
-      wizard_status: wizardStatus,
     };
   });
   const triggerTestNotificationSpy = vi.fn(
     () => options.testNotification ?? { status: "shown" },
   );
+  let runs = options.runs ?? [];
+  let unseenTraceIds = options.unseenTraceIds ?? [];
+  const markRunSeenSpy = vi.fn((payload: { traceId?: string }) => {
+    unseenTraceIds = unseenTraceIds.filter((id) => id !== payload.traceId);
+    return null;
+  });
+  const markAllRunsSeenSpy = vi.fn(() => {
+    unseenTraceIds = [];
+    return null;
+  });
 
   mockWindows("main");
   mockIPC(
@@ -231,9 +265,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
 
       switch (cmd) {
         case "plugin:window|close":
-          return closeWindowSpy();
-        case "get_wizard_status":
-          return wizardStatus;
         case "get_auth_status":
           return authStatus;
         case "get_pending_sign_in":
@@ -280,13 +311,22 @@ function renderMainApp(options: RenderMainOptions = {}) {
           };
           return assistantSetup;
         }
-        case "complete_setup_wizard":
-          wizardStatus = { wizard_completed: true };
-          return wizardStatus;
         case "reset_dev_onboarding":
           return resetDevOnboardingSpy();
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
+        case "get_runs_list":
+          return runs;
+        case "get_unseen_trace_ids":
+          return unseenTraceIds;
+        case "mark_all_runs_seen":
+          return markAllRunsSeenSpy();
+        case "mark_run_seen":
+          return markRunSeenSpy(payload as { traceId?: string });
+        case "open_run_in_browser":
+          return null;
+        case "copy_run_auto_fix_prompt":
+          return null;
         default:
           throw new Error(`Unexpected IPC command: ${cmd}`);
       }
@@ -294,18 +334,22 @@ function renderMainApp(options: RenderMainOptions = {}) {
     { shouldMockEvents: true },
   );
 
-  renderWithProviders(<App />);
+  renderWithProviders(<RouterProvider router={router} />);
 
   return {
-    closeWindowSpy,
     openSignInBrowserSpy,
     resetDevOnboardingSpy,
     triggerTestNotificationSpy,
+    markAllRunsSeenSpy,
+    markRunSeenSpy,
     setAssistantSetup(next: AssistantSetup) {
       assistantSetup = next;
     },
-    setWizardStatus(next: WizardStatus) {
-      wizardStatus = next;
+    setRuns(next: RunListItem[]) {
+      runs = next;
+    },
+    setUnseenTraceIds(next: string[]) {
+      unseenTraceIds = next;
     },
   };
 }
@@ -352,7 +396,7 @@ async function renderNotificationApp(
   }
 
   await act(async () => {
-    renderWithProviders(<App />, queryClient);
+    renderWithProviders(<NotificationWindow />, queryClient);
     await Promise.resolve();
     await Promise.resolve();
     if (vi.isFakeTimers()) {
@@ -423,12 +467,16 @@ async function flushNotificationRender() {
   });
 }
 
+afterEach(async () => {
+  await router.navigate({ to: "/" });
+});
+
 describe("desktop window", () => {
-  it("renders the settings view for completed users", async () => {
+  it("renders the notifications view as the default for completed users", async () => {
     renderMainApp();
 
     expect(
-      await screen.findByRole("heading", { name: "Settings" }),
+      await screen.findByRole("heading", { name: "Runs" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Authenticate your Everr account"),
@@ -445,13 +493,13 @@ describe("desktop window", () => {
       },
     });
 
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
     expect(
       await screen.findByRole("heading", { name: "Settings" }),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByRole("button", { name: "Logout" }),
-    ).toBeInTheDocument();
-    expect(await screen.findByText("Notifications")).toBeInTheDocument();
     expect(
       screen.getByText("Loading assistant integrations..."),
     ).toBeInTheDocument();
@@ -461,150 +509,29 @@ describe("desktop window", () => {
     await screen.findByRole("button", { name: "Save integrations" });
   });
 
-  it("renders the first-run wizard for incomplete setup", async () => {
+  it("renders the sign-in screen when not authenticated", async () => {
     renderMainApp({
       signedIn: false,
-      wizardCompleted: false,
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/onboarding" });
     });
 
     expect(
-      await screen.findByRole("heading", { name: "Installation wizard" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Authenticate your Everr account"),
+      await screen.findByText("Authenticate your Everr account"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-  });
-
-  it("does not preselect assistants on the assistant step", async () => {
-    renderMainApp({
-      signedIn: true,
-      wizardCompleted: false,
-      assistantStatuses: defaultAssistantStatuses(),
-    });
-
-    expect(
-      await screen.findByText("Select assistants to integrate"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: /codex/i })).not.toBeChecked();
-    expect(screen.getByRole("checkbox", { name: /cursor/i })).not.toBeChecked();
-    expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
-  });
-
-  it("does not advance when toggling an assistant in the wizard", async () => {
-    renderMainApp({
-      signedIn: true,
-      wizardCompleted: false,
-      assistantStatuses: defaultAssistantStatuses(),
-    });
-
-    await screen.findByText("Select assistants to integrate");
-    fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
-
-    expect(
-      screen.getByText("Select assistants to integrate"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Settings" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("advances from authentication to assistant selection after sign in", async () => {
-    renderMainApp({
-      signedIn: false,
-      wizardCompleted: false,
-      commandOverrides: {
-        poll_sign_in: () => ({
-          status: "signed_in",
-          session_path: "/tmp/everr/session.json",
-        }),
-      },
-    });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
-
-    expect(
-      await screen.findByText("Select assistants to integrate"),
-    ).toBeInTheDocument();
-  });
-
-  it("shows the device code before opening the browser", async () => {
-    const harness = renderMainApp({
-      signedIn: false,
-      wizardCompleted: false,
-    });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
-
-    expect(await screen.findByText("A B C D - E F G H")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Open browser" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Refresh code" }),
-    ).not.toBeInTheDocument();
-    expect(harness.openSignInBrowserSpy).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Open browser" }));
-
-    await waitFor(() => {
-      expect(harness.openSignInBrowserSpy).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("marks the code as expired and disables browser open until refresh", async () => {
-    renderMainApp({
-      signedIn: false,
-      wizardCompleted: false,
-      pendingSignIn: {
-        status: "pending",
-        user_code: "WXYZ-1234",
-        verification_url: "https://app.everr.dev/cli/device?code=WXYZ-1234",
-        expires_at: new Date(Date.now() + 200).toISOString(),
-        poll_interval_seconds: 5,
-      },
-    });
-
-    expect(await screen.findByText("W X Y Z - 1 2 3 4")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open browser" })).toBeEnabled();
-    expect(
-      screen.queryByRole("button", { name: "Refresh code" }),
-    ).not.toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "This code expired before it was approved. Refresh it to generate a new one.",
-        ),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Open browser" }),
-      ).toBeDisabled();
-      expect(
-        screen.getAllByRole("button", { name: "Refresh code" }).length,
-      ).toBeGreaterThan(0);
-    });
-  });
-
-  it("saves assistant choices and finishes setup from the final wizard step", async () => {
-    const { closeWindowSpy } = renderMainApp({
-      signedIn: true,
-      wizardCompleted: false,
-    });
-
-    await screen.findByText("Select assistants to integrate");
-    fireEvent.click(screen.getByRole("checkbox", { name: /claude/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
-
-    await waitFor(() => {
-      expect(closeWindowSpy).toHaveBeenCalledTimes(1);
-    });
   });
 
   it("preserves assistant draft across invalidation and resets after save", async () => {
     const harness = renderMainApp({
       configuredAssistants: ["codex"],
       assistantStatuses: defaultAssistantStatuses(["codex"]),
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
     });
 
     const claudeCheckbox = await screen.findByRole("checkbox", {
@@ -643,49 +570,13 @@ describe("desktop window", () => {
     expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
   });
 
-  it("finishes the wizard when assistants are already configured", async () => {
-    const { closeWindowSpy } = renderMainApp({
-      signedIn: true,
-      wizardCompleted: false,
-    });
-
-    await screen.findByText("Select assistants to integrate");
-    fireEvent.click(await screen.findByRole("button", { name: "Finish" }));
-
-    await waitFor(() => {
-      expect(closeWindowSpy).toHaveBeenCalledTimes(1);
-    });
-    expect(await screen.findByText("Setup complete.")).toBeInTheDocument();
-  });
-
-  it("leaves the wizard when onboarding completes from an external settings update", async () => {
-    const harness = renderMainApp({
-      signedIn: true,
-      wizardCompleted: false,
-    });
-
-    await screen.findByRole("heading", { name: "Installation wizard" });
-
-    harness.setWizardStatus({ wizard_completed: true });
-    await act(async () => {
-      await emit(SETTINGS_CHANGED_EVENT);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Settings" }),
-      ).toBeInTheDocument();
-    });
-    expect(
-      screen.queryByRole("heading", { name: "Installation wizard" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("triggers a test notification from the settings view", async () => {
     const { triggerTestNotificationSpy } = renderMainApp({
       testNotification: { status: "queued" },
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/developer" });
     });
 
     fireEvent.click(
@@ -702,25 +593,12 @@ describe("desktop window", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides notification emails after logout", async () => {
-    renderMainApp({
-      notificationEmails: ["user@example.com", "git@example.com"],
-    });
-
-    expect(await screen.findByText("Notifications")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
-
-    await waitFor(() => {
-      expect(screen.queryByText("Notifications")).not.toBeInTheDocument();
-    });
-    expect(
-      screen.getByText("Authenticate your Everr account"),
-    ).toBeInTheDocument();
-  });
-
-  it("resets the dev session and reopens onboarding from settings", async () => {
+  it("resets the dev session and reopens onboarding from the developer view", async () => {
     const { resetDevOnboardingSpy } = renderMainApp();
+
+    await act(async () => {
+      await router.navigate({ to: "/developer" });
+    });
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Reset onboarding" }),
@@ -730,11 +608,9 @@ describe("desktop window", () => {
       expect(resetDevOnboardingSpy).toHaveBeenCalledTimes(1);
     });
     expect(
-      await screen.findByRole("heading", { name: "Installation wizard" }),
+      await screen.findByText("Authenticate your Everr account"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Authenticate your Everr account"),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 });
 
@@ -885,5 +761,126 @@ describe("notification window", () => {
     });
 
     expect(await screen.findByText("CI")).toBeInTheDocument();
+  });
+});
+
+describe("runs list", () => {
+  it("shows an empty state when there are no runs", async () => {
+    renderMainApp({ runs: [] });
+
+    expect(await screen.findByText("No runs found")).toBeInTheDocument();
+  });
+
+  it("renders runs in a table with workflow, repo, branch, and conclusion", async () => {
+    renderMainApp({
+      runs: [
+        createRun({
+          traceId: "trace-a",
+          workflowName: "Build",
+          repo: "everr-labs/everr",
+          branch: "main",
+          conclusion: "failure",
+        }),
+        createRun({
+          traceId: "trace-b",
+          workflowName: "Deploy",
+          repo: "everr-labs/api",
+          branch: "release/v2",
+          conclusion: "success",
+        }),
+      ],
+    });
+
+    expect(await screen.findByText("Build")).toBeInTheDocument();
+    expect(screen.getByText("Deploy")).toBeInTheDocument();
+    expect(screen.getByText("everr-labs/everr")).toBeInTheDocument();
+    expect(screen.getByText("everr-labs/api")).toBeInTheDocument();
+    expect(screen.getByText("main")).toBeInTheDocument();
+    expect(screen.getByText("release/v2")).toBeInTheDocument();
+    expect(screen.getByText("failure")).toBeInTheDocument();
+    expect(screen.getByText("success")).toBeInTheDocument();
+  });
+
+  it("shows 'Mark all as read' button when there are unseen runs", async () => {
+    const run = createRun({ traceId: "trace-unseen" });
+    const harness = renderMainApp({
+      runs: [run],
+      unseenTraceIds: ["trace-unseen"],
+    });
+
+    const markAllButton = await screen.findByRole("button", {
+      name: "Mark all as read",
+    });
+    expect(markAllButton).toBeInTheDocument();
+
+    fireEvent.click(markAllButton);
+
+    await waitFor(() => {
+      expect(harness.markAllRunsSeenSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not show 'Mark all as read' when all runs are seen", async () => {
+    renderMainApp({
+      runs: [createRun()],
+      unseenTraceIds: [],
+    });
+
+    await screen.findByText("CI");
+    expect(
+      screen.queryByRole("button", { name: "Mark all as read" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("notification emails", () => {
+  it("shows existing emails in the settings page", async () => {
+    renderMainApp({
+      notificationEmails: ["alice@example.com", "bob@example.com"],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    expect(await screen.findByText("alice@example.com")).toBeInTheDocument();
+    expect(screen.getByText("bob@example.com")).toBeInTheDocument();
+  });
+
+  it("validates email format before adding", async () => {
+    renderMainApp({
+      notificationEmails: [],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    const input = await screen.findByPlaceholderText("Add email address");
+    fireEvent.change(input, { target: { value: "not-an-email" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(
+      await screen.findByText("Please enter a valid email address."),
+    ).toBeInTheDocument();
+  });
+
+  it("prevents adding a duplicate email", async () => {
+    renderMainApp({
+      notificationEmails: ["alice@example.com"],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    await screen.findByText("alice@example.com");
+    const input = screen.getByPlaceholderText("Add email address");
+    fireEvent.change(input, { target: { value: "alice@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(
+      await screen.findByText("This email is already added."),
+    ).toBeInTheDocument();
   });
 });

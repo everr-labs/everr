@@ -161,6 +161,7 @@ export type WorkflowRunMetadata = {
   event?: string;
   workflow_id?: number;
   display_title?: string;
+  head_commit_message?: string;
   run_number?: number;
   path?: string;
   actor?: string;

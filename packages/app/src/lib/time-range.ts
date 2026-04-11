@@ -1,15 +1,31 @@
 import { isValid, resolve } from "@everr/datemath";
+import {
+  DEFAULT_TIME_RANGE,
+  formatTimeRangeDisplay,
+  QUICK_RANGE_GROUPS,
+  QUICK_RANGES,
+  type QuickRange,
+  type QuickRangeGroup,
+  type TimeRange,
+} from "@everr/ui/components/time-range-picker";
 import { z } from "zod";
 
-const datemath = z.string().refine(isValid);
+export {
+  DEFAULT_TIME_RANGE,
+  formatTimeRangeDisplay,
+  QUICK_RANGE_GROUPS,
+  QUICK_RANGES,
+  type QuickRange,
+  type QuickRangeGroup,
+  type TimeRange,
+};
 
-export const DEFAULT_TIME_RANGE = { from: "now-7d", to: "now" } as const;
+const datemath = z.string().refine(isValid);
 
 export const TimeRangeSchema = z.object({
   from: datemath.catch(DEFAULT_TIME_RANGE.from),
   to: datemath.catch(DEFAULT_TIME_RANGE.to),
 });
-export type TimeRange = z.infer<typeof TimeRangeSchema>;
 
 export function toClickHouseDateTime(date: Date) {
   return date.toISOString().replace("T", " ").replace("Z", "");
@@ -26,21 +42,12 @@ export function resolveTimeRange(range: TimeRange) {
   };
 }
 
-export const REFRESH_INTERVALS = [
-  { label: "Off", value: "" },
-  { label: "5s", value: "5s", ms: 5_000 },
-  { label: "10s", value: "10s", ms: 10_000 },
-  { label: "30s", value: "30s", ms: 30_000 },
-  { label: "1m", value: "1m", ms: 60_000 },
-  { label: "5m", value: "5m", ms: 300_000 },
-] as const;
+export {
+  getRefreshIntervalMs,
+  REFRESH_INTERVALS,
+} from "@everr/ui/components/refresh-picker";
 
-export type RefreshInterval = (typeof REFRESH_INTERVALS)[number]["value"];
-
-export function getRefreshIntervalMs(value: string): number | null {
-  const interval = REFRESH_INTERVALS.find((i) => i.value === value);
-  return interval && "ms" in interval ? interval.ms : null;
-}
+export type RefreshInterval = string;
 
 export const TimeRangeSearchSchema = z.object({
   from: z.string().optional(),
@@ -62,58 +69,6 @@ export function withTimeRange<T extends { from?: string; to?: string }>(
   const from = search.from ?? DEFAULT_TIME_RANGE.from;
   const to = search.to ?? DEFAULT_TIME_RANGE.to;
   return { ...search, from, to, timeRange: { from, to } };
-}
-
-export interface QuickRange {
-  label: string;
-  from: string;
-  to: string;
-}
-
-export interface QuickRangeGroup {
-  label: string;
-  ranges: QuickRange[];
-}
-
-export const QUICK_RANGE_GROUPS: QuickRangeGroup[] = [
-  {
-    label: "Relative",
-    ranges: [
-      { label: "Last 5 minutes", from: "now-5m", to: "now" },
-      { label: "Last 15 minutes", from: "now-15m", to: "now" },
-      { label: "Last 1 hour", from: "now-1h", to: "now" },
-      { label: "Last 6 hours", from: "now-6h", to: "now" },
-      { label: "Last 12 hours", from: "now-12h", to: "now" },
-      { label: "Last 24 hours", from: "now-24h", to: "now" },
-      { label: "Last 2 days", from: "now-2d", to: "now" },
-      { label: "Last 7 days", from: "now-7d", to: "now" },
-      { label: "Last 14 days", from: "now-14d", to: "now" },
-      { label: "Last 30 days", from: "now-30d", to: "now" },
-      { label: "Last 90 days", from: "now-90d", to: "now" },
-      { label: "Last 1 year", from: "now-1y", to: "now" },
-    ],
-  },
-  {
-    label: "Calendar",
-    ranges: [
-      { label: "Today", from: "now/d", to: "now/d" },
-      { label: "Yesterday", from: "now-1d/d", to: "now-1d/d" },
-      { label: "This week", from: "now/w", to: "now/w" },
-      { label: "This month", from: "now/M", to: "now/M" },
-    ],
-  },
-];
-
-export const QUICK_RANGES: QuickRange[] = QUICK_RANGE_GROUPS.flatMap(
-  (g) => g.ranges,
-);
-
-export function formatTimeRangeDisplay(range: TimeRange): string {
-  const preset = QUICK_RANGES.find(
-    (q) => q.from === range.from && q.to === range.to,
-  );
-  if (preset) return preset.label;
-  return `${range.from} to ${range.to}`;
 }
 
 export { isValid as isValidDatemath };

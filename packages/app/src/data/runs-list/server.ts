@@ -19,6 +19,8 @@ type WorkflowRunRow = {
   completedAt: string | Date | null;
   lastEventAt: string | Date;
   sender: string | null;
+  displayTitle: string | null;
+  headSha: string;
 };
 
 export const getRunsList = createAuthenticatedServerFn({
@@ -60,6 +62,11 @@ export const getRunsList = createAuthenticatedServerFn({
       clauses.push(`run_id::text = $${params.length}`);
     }
 
+    if (data.authorEmails?.length) {
+      params.push(data.authorEmails);
+      clauses.push(`author_email = ANY($${params.length})`);
+    }
+
     const whereClause = clauses.join("\n          AND ");
 
     const [rowsResult, countResult] = await Promise.all([
@@ -77,7 +84,9 @@ export const getRunsList = createAuthenticatedServerFn({
             run_started_at AS "startedAt",
             run_completed_at AS "completedAt",
             last_event_at AS "lastEventAt",
-            COALESCE(metadata->>'triggering_actor', metadata->>'actor') AS sender
+            COALESCE(metadata->>'triggering_actor', metadata->>'actor') AS sender,
+            COALESCE(metadata->>'head_commit_message', metadata->>'display_title') AS "displayTitle",
+            sha AS "headSha"
           FROM workflow_runs
           WHERE ${whereClause}
           ORDER BY ${timestampExpr} DESC
@@ -220,6 +229,8 @@ function mapWorkflowRunRow(row: WorkflowRunRow): RunListItem {
         : Math.max(0, endedAt.getTime() - startedAt.getTime()),
     timestamp: endedAt.toISOString(),
     sender: row.sender ?? "",
+    displayTitle: row.displayTitle ?? null,
+    headSha: row.headSha,
   };
 }
 

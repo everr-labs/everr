@@ -1,28 +1,29 @@
-use anyhow::{anyhow, Result};
-use everr_core::api::FailureNotification;
+use anyhow::{Context, Result};
+use everr_core::api::{ApiClient, FailureNotification};
 use everr_core::assistant::{self, AssistantKind};
 use everr_core::build;
-use serde::Serialize;
-use tauri::{AppHandle, State};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::auth::{
     auth_status_response, clear_pending_auth, open_sign_in_browser_inner, pending_auth_response,
     poll_sign_in_inner, start_sign_in_inner,
 };
+use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::notifications::{
     build_test_notification, copy_notification_auto_fix_prompt_inner,
     dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
     reset_notification_state,
 };
+use crate::seen_runs;
 use crate::settings::{
     assistant_setup_response, current_app_state, emit_auth_changed, emit_settings_changed,
-    has_active_session_for_current_base_url, reset_dev_onboarding_inner, update_persisted_state,
-    update_settings, wizard_status_response,
+    reset_dev_onboarding_inner, update_persisted_state, update_settings, wizard_status_response,
 };
 use crate::{
-    AssistantSetupResponse, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
-    PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
-    WizardStatusResponse,
+    current_base_url, AssistantSetupResponse, AuthStatusResponse, CommandResult, DevResetResponse,
+    IntoCommandResult, PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
+    WizardStatusResponse, SEEN_RUNS_CHANGED_EVENT,
 };
 
 #[tauri::command]
@@ -198,53 +199,6 @@ pub(crate) async fn get_user_profile(
     .await
 }
 
-#[tauri::command]
-pub(crate) async fn complete_setup_wizard(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-) -> CommandResult<WizardStatusResponse> {
-    let runtime = state.inner().clone();
-
-    // Silently cache user profile for the desktop app settings UI
-    if let Ok(current) = current_app_state(&runtime) {
-        if current.settings.user_profile.is_none() {
-            if let Some(session) = current.session {
-                if let Ok(client) = everr_core::api::ApiClient::from_session(&session) {
-                    if let Ok(me) = client.get_me().await {
-                        let _ = run_blocking_command({
-                            let runtime = runtime.clone();
-                            move || {
-                                update_settings(&runtime, |settings| {
-                                    settings.user_profile =
-                                        Some(everr_core::state::UserProfile {
-                                            email: me.email,
-                                            name: me.name,
-                                            profile_url: me.profile_url,
-                                        });
-                                })
-                            }
-                        })
-                        .await;
-                    }
-                }
-            }
-        }
-    }
-
-    let response = run_blocking_command(move || {
-        if !has_active_session_for_current_base_url(&runtime)? {
-            return Err(anyhow!("Sign in before finishing setup."));
-        }
-        update_settings(&runtime, |settings| {
-            settings.mark_setup_complete(build::default_api_base_url());
-        })?;
-        wizard_status_response(&runtime)
-    })
-    .await?;
-
-    emit_settings_changed(&app);
-    Ok(response)
-}
 
 #[tauri::command]
 pub(crate) fn dismiss_active_notification(
@@ -275,6 +229,10 @@ pub(crate) fn trigger_test_notification(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<TestNotificationResponse> {
     let notification = build_test_notification().into_command_result()?;
+
+    seen_runs::add_seen_run(state.inner(), &notification.trace_id).into_command_result()?;
+    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
+
     let shown = {
         let mut notifier = state
             .notifier
@@ -290,6 +248,146 @@ pub(crate) fn trigger_test_notification(
     Ok(TestNotificationResponse {
         status: if shown { "shown" } else { "queued" },
     })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunListItem {
+    pub trace_id: String,
+    pub run_id: String,
+    pub run_attempt: u32,
+    pub workflow_name: String,
+    pub repo: String,
+    pub branch: String,
+    pub conclusion: String,
+    pub duration: u64,
+    pub timestamp: String,
+    pub sender: String,
+    pub display_title: Option<String>,
+    pub head_sha: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RunsListApiResponse {
+    runs: Vec<RunListItem>,
+    #[allow(dead_code)]
+    total_count: u64,
+}
+
+#[tauri::command]
+pub(crate) async fn get_runs_list(
+    state: State<'_, RuntimeState>,
+    from: String,
+    to: String,
+) -> CommandResult<Vec<RunListItem>> {
+    let state = state.inner().clone();
+    let app_state = current_app_state(&state).into_command_result()?;
+    let session = app_state
+        .session
+        .ok_or_else(|| "not signed in".to_string())?;
+    let client = ApiClient::from_session(&session).into_command_result()?;
+
+    let emails: Vec<String> = {
+        let settings = app_state.settings;
+        if !settings.notification_emails.is_empty() {
+            settings.notification_emails
+        } else if let Some(profile) = settings.user_profile {
+            vec![profile.email]
+        } else {
+            vec![]
+        }
+    };
+
+    let mut query: Vec<(&str, String)> = emails
+        .iter()
+        .map(|email| ("authorEmails", email.clone()))
+        .collect();
+    query.push(("from", from));
+    if !to.is_empty() {
+        query.push(("to", to));
+    }
+
+    let value = client.get_runs_list(&query).await.into_command_result()?;
+    let response: RunsListApiResponse = serde_json::from_value(value)
+        .context("failed to parse runs list response")
+        .into_command_result()?;
+
+    Ok(response.runs)
+}
+
+#[tauri::command]
+pub(crate) fn get_unseen_trace_ids(
+    state: State<'_, RuntimeState>,
+) -> CommandResult<Vec<String>> {
+    seen_runs::unseen_trace_ids(state.inner()).into_command_result()
+}
+
+#[tauri::command]
+pub(crate) fn mark_run_seen(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+    trace_id: String,
+) -> CommandResult<()> {
+    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
+    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn mark_all_runs_seen(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<()> {
+    seen_runs::mark_all_seen(state.inner()).into_command_result()?;
+    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn open_run_in_browser(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+    trace_id: String,
+) -> CommandResult<()> {
+    let base_url = current_base_url().trim_end_matches('/');
+    let url = format!("{}/runs/{}", base_url, trace_id);
+    webbrowser::open(&url).map_err(|e| format!("failed to open browser: {e}"))?;
+
+    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
+    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn copy_run_auto_fix_prompt(
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+    trace_id: String,
+) -> CommandResult<()> {
+    let state_clone = state.inner().clone();
+    let app_state = current_app_state(&state_clone).into_command_result()?;
+    let session = app_state
+        .session
+        .ok_or_else(|| "not signed in".to_string())?;
+    let client = ApiClient::from_session(&session).into_command_result()?;
+
+    let failure = client
+        .get_notification_for_trace(&trace_id)
+        .await
+        .into_command_result()?
+        .ok_or_else(|| "run not found".to_string())?;
+
+    let prompt = build_notification_auto_fix_prompt(&failure);
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|e| format!("failed to access clipboard: {e}"))?;
+    clipboard
+        .set_text(prompt)
+        .map_err(|e| format!("failed to copy to clipboard: {e}"))?;
+
+    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
+    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
+    Ok(())
 }
 
 async fn run_blocking_command<T, F>(operation: F) -> CommandResult<T>

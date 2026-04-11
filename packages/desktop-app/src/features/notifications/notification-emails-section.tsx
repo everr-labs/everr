@@ -1,4 +1,14 @@
+import { Badge } from "@everr/ui/components/badge";
+import { Button } from "@everr/ui/components/button";
+import { Input } from "@everr/ui/components/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -33,6 +43,7 @@ export function NotificationEmailsSection() {
   const authStatusQuery = useAuthStatusQuery();
   const queryClient = useQueryClient();
   const [newEmail, setNewEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const signedIn = authStatusQuery.data?.status === "signed_in";
 
   useInvalidateOnTauriEvent(SETTINGS_CHANGED_EVENT, (qc) => {
@@ -62,8 +73,8 @@ export function NotificationEmailsSection() {
   if (emailsQuery.isPending) {
     return (
       <SettingsSection
-        title="Notifications"
-        description="These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally."
+        title="Notification emails"
+        description="Emails used to match CI events to you."
       >
         <FeatureLoadingText text="Loading notification settings..." />
       </SettingsSection>
@@ -73,8 +84,8 @@ export function NotificationEmailsSection() {
   if (emailsQuery.isError) {
     return (
       <SettingsSection
-        title="Notifications"
-        description="These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally."
+        title="Notification emails"
+        description="Emails used to match CI events to you."
       >
         <FeatureErrorText message="Failed to load notification settings." />
       </SettingsSection>
@@ -83,9 +94,20 @@ export function NotificationEmailsSection() {
 
   const emails = emailsQuery.data ?? [];
 
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   function addEmail() {
     const trimmed = newEmail.trim();
-    if (!trimmed || emails.includes(trimmed)) return;
+    if (!trimmed) return;
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    if (emails.includes(trimmed)) {
+      setEmailError("This email is already added.");
+      return;
+    }
+    setEmailError("");
     mutation.mutate([...emails, trimmed]);
     setNewEmail("");
   }
@@ -96,46 +118,61 @@ export function NotificationEmailsSection() {
 
   return (
     <SettingsSection
-      title="Notifications"
-      description="These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally."
+      title="Notification emails"
+      description="Emails used to match CI events to you."
     >
-      <div className="flex flex-col gap-1 mb-3">
-        {emails.map((email) => (
-          <div
-            key={email}
-            className="flex items-center justify-between text-sm"
-          >
-            <span className="text-[var(--settings-text)]">{email}</span>
-            <button
-              type="button"
-              onClick={() => removeEmail(email)}
-              disabled={mutation.isPending}
-              className="text-[var(--settings-text-muted)] hover:text-[var(--settings-text)] text-xs disabled:opacity-40"
-            >
-              Remove
-            </button>
+      {emails.length > 0 && (
+        <TooltipProvider>
+          <div className="flex flex-wrap gap-1.5">
+            {emails.map((email) => (
+              <Badge
+                key={email}
+                variant="outline"
+                className="gap-1.5 pl-2.5 pr-1 py-1 text-[0.75rem]"
+              >
+                {email}
+                <Tooltip>
+                  <TooltipTrigger
+                    className="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/[0.1] hover:text-foreground disabled:pointer-events-none"
+                    disabled={mutation.isPending}
+                    onClick={() => removeEmail(email)}
+                  >
+                    <X className="size-3" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Remove</TooltipContent>
+                </Tooltip>
+              </Badge>
+            ))}
           </div>
-        ))}
-      </div>
+        </TooltipProvider>
+      )}
 
-      <div className="flex gap-2">
-        <input
-          type="email"
-          value={newEmail}
-          onChange={(e) => setNewEmail(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addEmail()}
-          placeholder="Add email"
-          disabled={mutation.isPending}
-          className="flex-1 text-sm bg-transparent border border-[var(--settings-border-soft)] rounded px-2 py-1 text-[var(--settings-text)] disabled:opacity-40"
-        />
-        <button
-          type="button"
-          onClick={addEmail}
-          disabled={!newEmail.trim() || mutation.isPending}
-          className="text-sm px-3 py-1 rounded border border-[var(--settings-border-soft)] text-[var(--settings-text)] disabled:opacity-40"
-        >
-          Add
-        </button>
+      <div className="grid gap-1.5">
+        <div className="flex gap-2">
+          <Input
+            type="email"
+            value={newEmail}
+            onChange={(e) => {
+              setNewEmail(e.target.value);
+              setEmailError("");
+            }}
+            onKeyDown={(e) => e.key === "Enter" && addEmail()}
+            placeholder="Add email address"
+            disabled={mutation.isPending}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!newEmail.trim() || mutation.isPending}
+            onClick={addEmail}
+          >
+            <Plus className="size-3.5" />
+            Add
+          </Button>
+        </div>
+        {emailError && (
+          <p className="text-[0.78rem] text-red-400">{emailError}</p>
+        )}
       </div>
     </SettingsSection>
   );
