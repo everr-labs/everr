@@ -37,6 +37,12 @@ pub async fn run() -> Result<()> {
     let assistants_configured = step_configure_assistants()?;
     let desktop_installed = step_install_desktop_app().await?;
 
+    auth::state_store().update_state(|state| {
+        state
+            .settings
+            .mark_setup_complete(build::default_api_base_url());
+    })?;
+
     cliclack::outro(outro_message(assistants_configured, desktop_installed))?;
     Ok(())
 }
@@ -114,7 +120,8 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
     const MAX_REPOS: usize = 3;
 
-    let mut prompt = cliclack::multiselect("Select repositories to import (up to 3)").required(false);
+    let mut prompt =
+        cliclack::multiselect("Select repositories to import (up to 3)").required(false);
     for repo in &repos {
         prompt = prompt.item(repo.full_name.clone(), repo.full_name.clone(), "");
     }
@@ -217,7 +224,11 @@ async fn step_configure_notification_emails(session: &Session) -> Result<()> {
         }
     }
 
-    let notification_emails = if selected.is_empty() { detected } else { selected };
+    let notification_emails = if selected.is_empty() {
+        detected
+    } else {
+        selected
+    };
 
     store.update_state(|state| {
         state.settings.notification_emails = notification_emails;
@@ -438,8 +449,12 @@ fn render_banner() -> String {
         if wordmark.is_empty() {
             writeln!(&mut banner, "{logo}").expect("banner line");
         } else {
-            writeln!(&mut banner, "{logo:<width$}   {wordmark}", width = LOGO_COLUMN_WIDTH)
-                .expect("banner line");
+            writeln!(
+                &mut banner,
+                "{logo:<width$}   {wordmark}",
+                width = LOGO_COLUMN_WIDTH
+            )
+            .expect("banner line");
         }
     }
     banner
@@ -482,5 +497,54 @@ mod tests {
     #[test]
     fn outro_message_without_assistants_configured() {
         assert!(super::outro_message(false, false).contains("everr init"));
+    }
+
+    #[test]
+    fn setup_marks_desktop_wizard_complete() {
+        use std::sync::Mutex;
+
+        use everr_core::build;
+        use everr_core::state::AppStateStore;
+
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let temp = tempfile::tempdir().expect("tempdir");
+        let config_home = temp.path().join("config");
+        std::fs::create_dir_all(&config_home).expect("create config dir");
+
+        let original_home = std::env::var_os("HOME");
+        let original_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        unsafe {
+            std::env::set_var("HOME", temp.path());
+            std::env::set_var("XDG_CONFIG_HOME", &config_home);
+        }
+
+        let store = AppStateStore::for_namespace(build::session_namespace());
+        store
+            .update_state(|state| {
+                state
+                    .settings
+                    .mark_setup_complete(build::default_api_base_url());
+            })
+            .expect("mark setup complete");
+
+        let state = store.load_state().expect("loaded state");
+        assert!(state.settings.wizard_state.wizard_completed);
+        assert_eq!(
+            state.settings.completed_base_url.as_deref(),
+            Some(build::default_api_base_url())
+        );
+
+        match original_home {
+            Some(value) => unsafe { std::env::set_var("HOME", value) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+        match original_xdg {
+            Some(value) => unsafe { std::env::set_var("XDG_CONFIG_HOME", value) },
+            None => unsafe { std::env::remove_var("XDG_CONFIG_HOME") },
+        }
     }
 }

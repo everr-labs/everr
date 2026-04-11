@@ -5,7 +5,7 @@ use tempfile::tempdir;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::cli::sync_installed_cli_from_paths;
-use crate::notifications::active_notification_auto_fix_prompt;
+use crate::notifications::{active_notification_auto_fix_prompt, reset_notifier_runtime_state};
 use crate::settings::{build_assistant_setup_response, build_wizard_status_response};
 use crate::tray::{
     build_tray_failed_runs_url, build_tray_menu_model, build_tray_snapshot, format_tray_title,
@@ -292,6 +292,24 @@ fn active_notification_prompt_prefers_the_active_queue_item() {
 }
 
 #[test]
+fn resetting_notifier_runtime_state_clears_queue_and_dedupe_tracker() {
+    let mut notifier = crate::NotifierState::default();
+    let first = failure("one");
+
+    assert_eq!(notifier.tracker.retain_new(vec![first.clone()]).len(), 1);
+    assert!(notifier.tracker.retain_new(vec![first.clone()]).is_empty());
+
+    notifier.queue.enqueue(first.clone());
+    notifier.queue.enqueue(failure("two"));
+
+    reset_notifier_runtime_state(&mut notifier);
+
+    assert!(notifier.queue.active().is_none());
+    assert!(notifier.queue.pending.is_empty());
+    assert_eq!(notifier.tracker.retain_new(vec![first]).len(), 1);
+}
+
+#[test]
 fn mismatched_completed_base_url_reopens_the_wizard() {
     let mut settings = AppSettings {
         completed_base_url: Some("https://app.everr.dev".to_string()),
@@ -304,6 +322,7 @@ fn mismatched_completed_base_url_reopens_the_wizard() {
     settings.apply_runtime_base_url(current_base_url());
     assert!(!settings.wizard_state.wizard_completed);
 }
+
 
 #[test]
 fn sync_installed_cli_installs_missing_binary() {

@@ -124,6 +124,9 @@ fn setup_configures_assistants_when_detected() {
     assert!(claude_file.exists(), "CLAUDE.md should be created");
     let content = fs::read_to_string(claude_file).expect("read CLAUDE.md");
     assert!(content.contains(BLOCK_START));
+    assert!(content.contains("call `everr ai-instructions` for full usage."));
+    assert!(content.contains("`everr status`"));
+    assert!(!content.contains("`everr runs`"));
 }
 
 #[test]

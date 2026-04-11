@@ -12,13 +12,13 @@ use crate::auth::{
 use crate::notifications::{
     build_test_notification, copy_notification_auto_fix_prompt_inner,
     dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
+    reset_notification_state,
 };
 use crate::settings::{
     assistant_setup_response, current_app_state, emit_auth_changed, emit_settings_changed,
     has_active_session_for_current_base_url, reset_dev_onboarding_inner, update_persisted_state,
     update_settings, wizard_status_response,
 };
-use crate::tray::clear_tray_snapshot;
 use crate::{
     AssistantSetupResponse, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
     PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
@@ -104,7 +104,7 @@ pub(crate) async fn sign_out(
 
     clear_pending_auth(&runtime).into_command_result()?;
 
-    clear_tray_snapshot(&app, state.inner()).into_command_result()?;
+    reset_notification_state(&app, state.inner()).into_command_result()?;
     emit_auth_changed(&app);
 
     Ok(response)
@@ -122,7 +122,7 @@ pub(crate) async fn reset_dev_onboarding(
     let runtime = state.inner().clone();
     let response = run_blocking_command(move || reset_dev_onboarding_inner(&runtime)).await?;
 
-    clear_tray_snapshot(&app, state.inner()).into_command_result()?;
+    reset_notification_state(&app, state.inner()).into_command_result()?;
     emit_auth_changed(&app);
     emit_settings_changed(&app);
 

@@ -5,8 +5,11 @@
 - [**cli-expired-token-no-re-auth-prompt**](todo/issues/cli-expired-token-no-re-auth-prompt.md) — When the CLI auth token expires, commands fail with a generic HTTP 401 error instead of prompting the user to re-authenticate.
 - [**clickhouse-ttl-tuning**](todo/issues/clickhouse-ttl-tuning.md) — ClickHouse table TTLs need to be reviewed and tuned. Currently unclear if TTLs are set at all, or if data is retained indefinitely.
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](todo/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.
+- [**desktop-and-cli-must-install-only-small-global-instructions**](todo/issues/desktop-and-cli-must-install-only-small-global-instructions.md) — Both the desktop app and the CLI must ensure they install only the "small" instructions to the global context (e.g. ~/.claude/CLAUDE.md or equivalent).
+- [**desktop-app-onboarding-state-not-shared-with-cli**](todo/issues/desktop-app-onboarding-state-not-shared-with-cli.md) — The desktop app does not share the "onboarding completed" state with the CLI. After completing onboarding via the CLI, the desktop app still prompts the user through its onboarding wizard.
 - [**getauth-returns-undefined-on-runs-list**](todo/issues/getauth-returns-undefined-on-runs-list.md) — Production error: "can't access property 'user', e is undefined" on `/runs/list` for an authenticated user.
 - [**handle-missing-gh-installation-on-command**](todo/issues/handle-missing-gh-installation-on-command.md) — Handle the case where a repo does not have a GitHub App installation when a command is run.
+- [**hide-import-for-repos-with-runs**](todo/issues/hide-import-for-repos-with-runs.md) — The everr setup should not show the import option for repositories where we already have runs.
 - [**logs-unavailable-for-in-progress-runs**](todo/issues/logs-unavailable-for-in-progress-runs.md) — —
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**notifier-no-git-email-fallback**](todo/issues/notifier-no-git-email-fallback.md) — —

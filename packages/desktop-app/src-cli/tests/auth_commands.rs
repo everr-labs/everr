@@ -1,5 +1,6 @@
 mod support;
 
+use mockito::{Matcher, Server};
 use predicates::str::contains;
 use support::CliTestEnv;
 
@@ -50,5 +51,35 @@ fn mismatched_saved_session_is_cleared_before_commands_run() {
         .failure()
         .stderr(contains("no active session; run `everr login`"));
 
+    assert!(!env.session_path().exists());
+}
+
+#[test]
+fn expired_session_prompts_reauthentication_and_clears_saved_session() {
+    let env = CliTestEnv::new();
+    let mut server = Server::new();
+    env.write_session(&server.url(), "expired-token");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs")
+        .match_header("authorization", "Bearer expired-token")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("limit".into(), "20".into()),
+            Matcher::UrlEncoded("offset".into(), "0".into()),
+        ]))
+        .with_status(401)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"error":"expired"}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["runs"])
+        .assert()
+        .failure()
+        .stderr(contains(
+            "Session expired. Run `everr login` to re-authenticate.",
+        ));
+
+    mock.assert();
     assert!(!env.session_path().exists());
 }

@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import {
   closeCurrentWindow,
   invokeCommand,
+  SETTINGS_CHANGED_EVENT,
   toErrorMessageText,
 } from "@/lib/tauri";
+import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import {
   type AssistantKind,
   AssistantsWizardStep,
@@ -38,6 +40,10 @@ function completeSetupWizard() {
 }
 
 export function useWizardStatusQuery() {
+  useInvalidateOnTauriEvent(SETTINGS_CHANGED_EVENT, (queryClient) => {
+    void queryClient.invalidateQueries({ queryKey: wizardStatusQueryKey });
+  });
+
   return useQuery({
     queryKey: wizardStatusQueryKey,
     queryFn: getWizardStatus,
