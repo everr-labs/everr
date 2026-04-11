@@ -5,7 +5,8 @@ import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 
 const StepLogsQuerySchema = z
   .object({
-    jobName: z.string().min(1),
+    jobName: z.string().min(1).optional(),
+    jobId: z.string().min(1).optional(),
     stepNumber: z.string().min(1),
     tail: z.coerce.number().int().min(1).max(5000).optional(),
     limit: z.coerce.number().int().min(1).max(5000).optional(),
@@ -15,6 +16,10 @@ const StepLogsQuerySchema = z
   .refine((value) => value.tail === undefined || value.limit === undefined, {
     message: "Provide either tail or limit, not both.",
     path: ["tail"],
+  })
+  .refine((value) => value.jobName !== undefined || value.jobId !== undefined, {
+    message: "Provide either jobName or jobId.",
+    path: ["jobName"],
   });
 
 export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
@@ -33,6 +38,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
         const url = new URL(request.url);
         const parsed = StepLogsQuerySchema.safeParse({
           jobName: url.searchParams.get("jobName") ?? undefined,
+          jobId: url.searchParams.get("jobId") ?? undefined,
           stepNumber: url.searchParams.get("stepNumber") ?? undefined,
           tail: url.searchParams.get("tail") ?? undefined,
           limit: url.searchParams.get("limit") ?? undefined,
@@ -44,7 +50,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: jobName, stepNumber. Optional: tail, limit, offset, egrep.",
+                "Invalid query parameters. Required: jobName or jobId, stepNumber. Optional: tail, limit, offset, egrep.",
             },
             { status: 400 },
           );
@@ -55,6 +61,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
             data: {
               traceId,
               jobName: parsed.data.jobName,
+              jobId: parsed.data.jobId,
               stepNumber: parsed.data.stepNumber,
               tail: parsed.data.tail,
               limit: parsed.data.limit,

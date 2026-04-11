@@ -124,8 +124,12 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let session = auth::require_session_with_refresh().await?;
     let client = ApiClient::from_session(&session)?;
     let paging = args.paging();
-    let (job_name, step_number) = resolve_logs_job(&client, &args).await?;
-    let mut query = vec![("jobName", job_name), ("stepNumber", step_number)];
+    let (job_filter, step_number) = resolve_logs_job(&client, &args).await?;
+    let mut query: Vec<(&str, String)> = vec![("stepNumber", step_number)];
+    match job_filter {
+        LogsJobFilter::ByName(name) => query.push(("jobName", name)),
+        LogsJobFilter::ById(id) => query.push(("jobId", id)),
+    }
     push_opt(&mut query, "egrep", args.egrep.clone());
 
     if let Some(paging) = paging {
@@ -459,14 +463,27 @@ fn check_run_conclusions(completed: &[WatchRun]) -> Result<()> {
     Ok(())
 }
 
-async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(String, String)> {
-    // Fast path: job name and step number are both provided directly
+enum LogsJobFilter {
+    ByName(String),
+    ById(String),
+}
+
+async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(LogsJobFilter, String)> {
+    // Fast paths: both identifier and step number are known — no API call needed
     if let (Some(name), Some(step)) = (args.job_name.as_deref(), args.step_number.as_deref()) {
-        return Ok((name.to_string(), step.to_string()));
+        return Ok((LogsJobFilter::ByName(name.to_string()), step.to_string()));
+    }
+    if let (Some(id), Some(step)) = (args.job_id.as_deref(), args.step_number.as_deref()) {
+        return Ok((LogsJobFilter::ById(id.to_string()), step.to_string()));
     }
 
-    // Need run details to resolve job name via --job-id or step number via --log-failed
-    let details_query = vec![("failed", "true".to_string())];
+    // Need run details to resolve the failing step via --log-failed.
+    // Only pass ?failed=true when --log-failed is set; otherwise all jobs are visible.
+    let details_query: Vec<(&str, String)> = if args.log_failed {
+        vec![("failed", "true".to_string())]
+    } else {
+        vec![]
+    };
     let details = client.get_run_details(&args.trace_id, &details_query).await?;
     let show: ShowRunDetails =
         serde_json::from_value(details).context("failed to parse run details")?;
@@ -485,17 +502,18 @@ async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(Str
         _ => unreachable!("clap ensures job_name or job_id is always present"),
     };
 
-    let step = if args.log_failed {
-        job.first_failing_step
-            .ok_or_else(|| anyhow::anyhow!("no failing step found for job {:?}", job.name))?
-            .to_string()
-    } else {
-        args.step_number
-            .clone()
-            .expect("step_number is required when not using --log-failed")
+    let step = job
+        .first_failing_step
+        .ok_or_else(|| anyhow::anyhow!("no failing step found for job {:?}", job.name))?
+        .to_string();
+
+    // Prefer job_id when it was provided — avoids duplicate display-name issues
+    let filter = match args.job_id.as_deref() {
+        Some(id) => LogsJobFilter::ById(id.to_string()),
+        None => LogsJobFilter::ByName(job.name.clone()),
     };
 
-    Ok((job.name.clone(), step))
+    Ok((filter, step))
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<()> {

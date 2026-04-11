@@ -29,15 +29,39 @@ function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
   };
 }
 
+type StepLogsJobFilter =
+  | { jobName: string; jobId?: never }
+  | { jobId: string; jobName?: never };
+
+type StepLogsParams = StepLogsJobFilter & {
+  traceId: string;
+  stepNumber: string;
+  egrep?: string;
+};
+
+function buildJobFilterClause(params: StepLogsJobFilter): {
+  clause: string;
+  queryParam: Record<string, string>;
+} {
+  if (params.jobId !== undefined) {
+    return {
+      clause:
+        "AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}",
+      queryParam: { jobId: params.jobId },
+    };
+  }
+  return {
+    clause: "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
+    queryParam: { jobName: params.jobName! },
+  };
+}
+
 async function countStepLogs(
   context: AuthContext,
-  params: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
-    egrep?: string;
-  },
+  params: StepLogsParams,
 ): Promise<number> {
+  const { clause: jobClause, queryParam: jobParam } =
+    buildJobFilterClause(params);
   const egrepClause = params.egrep
     ? "\n      AND match(Body, {egrep:String})"
     : "";
@@ -45,18 +69,13 @@ async function countStepLogs(
     SELECT count() as cnt
     FROM logs
     WHERE TraceId = {traceId:String}
-      AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+      ${jobClause}
       AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
   `;
-  const queryParams: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
-    egrep?: string;
-  } = {
+  const queryParams: Record<string, string> = {
     traceId: params.traceId,
-    jobName: params.jobName,
     stepNumber: params.stepNumber,
+    ...jobParam,
   };
   if (params.egrep) {
     queryParams.egrep = params.egrep;
@@ -70,17 +89,15 @@ async function countStepLogs(
 
 async function getRawStepLogs(
   context: AuthContext,
-  params: {
-    traceId: string;
-    jobName: string;
-    stepNumber: string;
+  params: StepLogsParams & {
     maxLines?: number;
     offsetLines?: number;
     useTail?: boolean;
-    egrep?: string;
   },
 ): Promise<LogEntry[]> {
   const clickhouse = context.clickhouse;
+  const { clause: jobClause, queryParam: jobParam } =
+    buildJobFilterClause(params);
   const order = params.useTail ? "DESC" : "ASC";
   const limitClause =
     typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
@@ -95,7 +112,7 @@ async function getRawStepLogs(
 			Body as body
 		FROM logs
 		WHERE TraceId = {traceId:String}
-			AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}
+			${jobClause}
 			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
 		ORDER BY Timestamp ${order}
 		${limitClause}
@@ -107,8 +124,8 @@ async function getRawStepLogs(
     body: string;
   }>(sql, {
     traceId: params.traceId,
-    jobName: params.jobName,
     stepNumber: params.stepNumber,
+    ...jobParam,
     maxLines: params.maxLines,
     offsetLines: params.offsetLines,
     egrep: params.egrep,
@@ -401,7 +418,8 @@ export const getStepLogs = createAuthenticatedServerFn({
   .inputValidator(
     z.object({
       traceId: z.string(),
-      jobName: z.string(),
+      jobName: z.string().min(1).optional(),
+      jobId: z.string().min(1).optional(),
       stepNumber: z.string(),
       tail: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
       limit: z.number().int().min(1).max(MAX_LOG_PAGE_SIZE).optional(),
@@ -410,9 +428,14 @@ export const getStepLogs = createAuthenticatedServerFn({
     }),
   )
   .handler(async ({ data, context }) => {
+    const jobFilter: StepLogsJobFilter =
+      data.jobId !== undefined
+        ? { jobId: data.jobId }
+        : { jobName: data.jobName! };
+
     const totalCount = await countStepLogs(context, {
       traceId: data.traceId,
-      jobName: data.jobName,
+      ...jobFilter,
       stepNumber: data.stepNumber,
       egrep: data.egrep,
     });
@@ -424,7 +447,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       const maxLines = data.tail ?? DEFAULT_LOG_PAGE_SIZE;
       const logs = await getRawStepLogs(context, {
         traceId: data.traceId,
-        jobName: data.jobName,
+        ...jobFilter,
         stepNumber: data.stepNumber,
         maxLines,
         offsetLines: data.offset,
@@ -438,7 +461,7 @@ export const getStepLogs = createAuthenticatedServerFn({
     const offset = data.offset ?? 0;
     const logs = await getRawStepLogs(context, {
       traceId: data.traceId,
-      jobName: data.jobName,
+      ...jobFilter,
       stepNumber: data.stepNumber,
       maxLines: data.limit ?? DEFAULT_LOG_PAGE_SIZE,
       offsetLines: offset,

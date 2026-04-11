@@ -17,38 +17,22 @@ curl -fsSL https://everr.dev/install.sh | sh
 
 The installer places `everr` in `~/.local/bin` and automatically runs the guided setup wizard to log in and configure your repository.
 
-To add Everr to your AI assistant context, run:
+To configure a repo with Everr, run:
 
 ```bash
-everr setup-assistant > AGENTS.md
-# or
-everr setup-assistant > CLAUDE.md
+everr init
 ```
 
-This writes a short hint that points agents to `everr ai-instructions` for the full CLI usage reference.
+This command:
+- Imports runs for the current repository
+- Writes a managed block into `AGENTS.md` and/or `CLAUDE.md` (auto-detects which files exist; creates `AGENTS.md` if neither is present)
 
-## Commands
+The snippet added to those files is:
 
-- `everr setup` (guided onboarding wizard: login + assistant configuration)
-- `everr login` / `everr logout`
-- `everr status` (add `--commit <sha>` to target a specific commit, `--branch <name>` and `--repo <repo>` to override context)
-- `everr watch` (waits until local `HEAD` commit appears in runs; use `--commit <sha>` to target a specific commit, `--attempt <n>` to target a specific retry attempt, `--fail-fast` to exit immediately when any run fails without waiting for the rest; exits non-zero if any completed run finishes with `failure`)
-- `everr runs` (list recent runs; use `--branch <name>` or `--current-branch` to filter by branch, `--conclusion <success|failure|cancellation>` by outcome, `--workflow-name <name>` by workflow, `--run-id <id>` for a specific run)
-- `everr show --trace-id <trace_id>` (add `--failed` to show only failed jobs and their failed steps)
-- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>` (prints the last 1000 lines by default; use `--tail <n>` to change, `--offset <n>` to skip lines, or `--limit <n>` and `--offset <n>` for raw paging)
-- `everr grep --pattern <text>` (add `--job-name <job> --step-number <n>` to target a specific step, `--branch <name>` to scope to a branch)
-- `everr workflows` (list workflows and their jobs; use `--repo` and `--branch` to filter)
-- `everr test-history --test-name <name>` (show historical executions for a specific test; use `--module` to disambiguate)
-- `everr slowest-tests` (repo-wide for non-suite tests by default; use `--branch <name>` to scope it)
-- `everr slowest-jobs` (repo-wide by default; use `--branch <name>` to scope it)
-- `everr setup-assistant` (prints the `AGENTS.md` snippet; redirect with `> AGENTS.md` to write it)
-- `everr ai-instructions`
-- `everr uninstall`
+```md
+For CI, GitHub Actions, pipelines, workflow logs, or test performance tasks: call `everr ai-instructions` for full usage.
 
-`everr status` returns the current watch payload for the target commit, including `state`, `active`, and `completed`.
+Quick start — run `everr status` to get the current commit's pipeline state while you plan your next steps.
+```
 
-`everr grep` searches failing step logs for a literal, case-insensitive pattern. Use `--job-name` together with `--step-number` to target one specific failing step. By default it searches the current repository over the last 7 days and excludes the currently checked out branch so you can quickly answer whether the same failure happened elsewhere.
-
-`everr logs` prints the last 1000 lines of a step log by default. Use `--tail <n>` to control how many lines from the bottom. For contiguous raw log paging, pass `--limit <n>` and `--offset <n>`.
-
-Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination.
+This gives your AI assistant a minimal, always-present hint to reach for Everr when working on CI-related tasks.
