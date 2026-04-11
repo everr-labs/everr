@@ -8,8 +8,8 @@ Commands:
 - `everr runs`: recent runs across all branches
   - `--current-branch` / `--branch <name>`: scope to a branch
   - `--conclusion <success|failure|cancellation>`, `--workflow-name <name>`, `--run-id <id>`: filter
-- `everr show --trace-id <trace_id>`: jobs and steps for a run; `--failed` to show only failed
-- `everr logs --trace-id <trace_id> --job-name <job> --step-number <n>`: step logs
+- `everr show <trace_id>`: jobs and steps for a run; `--failed` to show only failed
+- `everr logs <trace_id> --job-name <job> --step-number <n>`: step logs
   - `--log-failed`: use instead of `--step-number` — auto-resolves the first failing step for the job
   - `--job-id <id>`: use instead of `--job-name` when the job id is known
   - `--egrep <pattern>`: filter to lines matching a re2 regex; exits 1 if no lines match

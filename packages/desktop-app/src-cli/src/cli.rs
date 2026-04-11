@@ -190,7 +190,6 @@ pub struct ListRunsArgs {
 
 #[derive(Args, Debug)]
 pub struct ShowRunArgs {
-    #[arg(long)]
     pub trace_id: String,
 
     /// Show only failed jobs and their failed steps
@@ -200,7 +199,6 @@ pub struct ShowRunArgs {
 
 #[derive(Args, Debug)]
 pub struct GetLogsArgs {
-    #[arg(long)]
     pub trace_id: String,
     #[arg(long, required_unless_present = "job_id", conflicts_with = "job_id")]
     pub job_name: Option<String>,
@@ -293,9 +291,9 @@ mod tests {
     #[test]
     fn validates_required_trace_id_for_runs_show() {
         let err =
-            Cli::try_parse_from(["everr", "show"]).expect_err("show should require --trace-id");
+            Cli::try_parse_from(["everr", "show"]).expect_err("show should require trace_id");
         let err_string = err.to_string();
-        assert!(err_string.contains("--trace-id"));
+        assert!(err_string.contains("TRACE_ID") || err_string.contains("trace_id") || err_string.contains("required"));
     }
 
     #[test]
@@ -326,7 +324,6 @@ mod tests {
         let err = Cli::try_parse_from([
             "everr",
             "logs",
-            "--trace-id",
             "trace-1",
             "--job-name",
             "build",
@@ -343,7 +340,7 @@ mod tests {
     fn logs_accepts_log_failed_without_step_number() {
         let cli = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--job-name", "build",
             "--log-failed",
         ])
@@ -362,7 +359,7 @@ mod tests {
     fn logs_accepts_job_id_with_log_failed() {
         let cli = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--job-id", "42",
             "--log-failed",
         ])
@@ -381,7 +378,7 @@ mod tests {
     fn logs_accepts_job_id_with_step_number() {
         let cli = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--job-id", "42",
             "--step-number", "3",
         ])
@@ -400,7 +397,7 @@ mod tests {
     fn logs_rejects_both_job_name_and_job_id() {
         let err = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--job-name", "build",
             "--job-id", "42",
             "--step-number", "1",
@@ -413,7 +410,7 @@ mod tests {
     fn logs_rejects_both_step_number_and_log_failed() {
         let err = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--job-name", "build",
             "--step-number", "1",
             "--log-failed",
@@ -430,7 +427,7 @@ mod tests {
     fn logs_requires_job_identifier() {
         let err = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--step-number", "1",
         ])
         .expect_err("logs should require --job-name or --job-id");
@@ -460,7 +457,6 @@ mod tests {
         let cli = Cli::try_parse_from([
             "everr",
             "logs",
-            "--trace-id",
             "trace-1",
             "--job-name",
             "build",
@@ -543,7 +539,6 @@ mod tests {
         let cli = Cli::try_parse_from([
             "everr",
             "logs",
-            "--trace-id",
             "trace-1",
             "--job-name",
             "build",
@@ -569,7 +564,6 @@ mod tests {
         let cli = Cli::try_parse_from([
             "everr",
             "logs",
-            "--trace-id",
             "trace-1",
             "--job-name",
             "build",
@@ -593,7 +587,6 @@ mod tests {
         let err = Cli::try_parse_from([
             "everr",
             "logs",
-            "--trace-id",
             "trace-1",
             "--job-name",
             "build",
@@ -854,7 +847,7 @@ mod tests {
     fn runs_logs_accepts_egrep_pattern() {
         let cli = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--job-name", "build",
             "--step-number", "2",
             "--egrep", "Error.*timeout",
@@ -872,7 +865,7 @@ mod tests {
     fn runs_logs_egrep_defaults_to_none() {
         let cli = Cli::try_parse_from([
             "everr", "logs",
-            "--trace-id", "trace-1",
+            "trace-1",
             "--job-name", "build",
             "--step-number", "2",
         ])

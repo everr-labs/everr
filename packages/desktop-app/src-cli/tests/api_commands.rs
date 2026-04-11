@@ -322,7 +322,7 @@ fn runs_show_calls_trace_id_endpoint() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["show", "--trace-id", "trace-123"])
+        .args(["show", "trace-123"])
         .assert()
         .success()
         .stdout(contains("\"traceId\": \"trace-123\""));
@@ -354,7 +354,7 @@ fn runs_logs_prints_plain_text() {
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id", "trace-123",
+            "trace-123",
             "--job-name", "build",
             "--step-number", "2",
         ])
@@ -389,7 +389,7 @@ fn runs_logs_offset_without_limit_uses_tail_mode() {
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id", "trace-123",
+            "trace-123",
             "--job-name", "build",
             "--step-number", "2",
             "--offset", "1000",
@@ -427,7 +427,7 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id", "trace-123",
+            "trace-123",
             "--job-name", "build",
             "--step-number", "2",
             "--limit", "2",
@@ -464,7 +464,7 @@ fn runs_logs_egrep_passes_pattern_as_query_param() {
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id", "trace-123",
+            "trace-123",
             "--job-name", "build",
             "--step-number", "2",
             "--egrep", "Error.*timeout",
@@ -493,7 +493,7 @@ fn runs_logs_egrep_exits_one_when_no_lines_match() {
     env.command_with_api_base_url(&server.url())
         .args([
             "logs",
-            "--trace-id", "trace-123",
+            "trace-123",
             "--job-name", "build",
             "--step-number", "2",
             "--egrep", "nonexistent",
@@ -835,7 +835,7 @@ fn api_errors_are_reported_to_the_user() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["show", "--trace-id", "trace-123"])
+        .args(["show", "trace-123"])
         .assert()
         .failure()
         .stderr(contains("CLI API request failed with 500"))
