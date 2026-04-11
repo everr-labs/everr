@@ -7,7 +7,7 @@ use tokio::pin;
 
 use futures_util::StreamExt;
 
-use crate::api::{ApiClient, FailingJob, NotifyPayload, StepLogEntry, WatchRun, WatchState};
+use crate::api::{ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
@@ -468,25 +468,27 @@ async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(Str
     // Need run details to resolve job name via --job-id or step number via --log-failed
     let details_query = vec![("failed", "true".to_string())];
     let details = client.get_run_details(&args.trace_id, &details_query).await?;
-    let failing_jobs = parse_failing_jobs(&details)?;
+    let show: ShowRunDetails =
+        serde_json::from_value(details).context("failed to parse run details")?;
 
-    let job = match (args.job_name.as_deref(), args.job_id.as_deref()) {
-        (Some(name), _) => failing_jobs
+    let job: &ShowJob = match (args.job_name.as_deref(), args.job_id.as_deref()) {
+        (Some(name), _) => show
+            .jobs
             .iter()
             .find(|j| j.name == name)
             .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", name))?,
-        (_, Some(id)) => failing_jobs
+        (_, Some(id)) => show
+            .jobs
             .iter()
-            .find(|j| j.id == id)
+            .find(|j| j.job_id.as_deref() == Some(id))
             .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", id))?,
         _ => unreachable!("clap ensures job_name or job_id is always present"),
     };
 
     let step = if args.log_failed {
-        let s = job.first_failing_step.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("no failing step found for job {:?}", job.name)
-        })?;
-        s.step_number.to_string()
+        job.first_failing_step
+            .ok_or_else(|| anyhow::anyhow!("no failing step found for job {:?}", job.name))?
+            .to_string()
     } else {
         args.step_number
             .clone()
@@ -494,13 +496,6 @@ async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(Str
     };
 
     Ok((job.name.clone(), step))
-}
-
-fn parse_failing_jobs(details: &serde_json::Value) -> Result<Vec<FailingJob>> {
-    match details.get("failingJobs") {
-        Some(v) => serde_json::from_value(v.clone()).context("failed to parse failing jobs"),
-        None => Ok(vec![]),
-    }
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<()> {
