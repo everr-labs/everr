@@ -434,13 +434,13 @@ fn print_watch_summary(completed: &[WatchRun]) {
                     job.name, step.step_number, step.step_name
                 );
                 println!(
-                    "  everr logs --trace-id {} --job-name {:?} --step-number {}",
+                    "  everr logs {} --job-name {:?} --step-number {}",
                     run.trace_id, job.name, step.step_number
                 );
             } else {
                 println!("  {}", job.name);
                 println!(
-                    "  everr logs --trace-id {} --job-name {:?}",
+                    "  everr logs {} --job-name {:?}",
                     run.trace_id, job.name
                 );
             }

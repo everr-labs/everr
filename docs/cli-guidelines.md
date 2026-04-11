@@ -47,11 +47,11 @@ Commands that help an AI understand or investigate CI must be documented in `ai-
 
 ## Rule 3: Keep `ai-instructions` concise — if you can't, refactor the command
 
-Each command entry in `ai-instructions` should fit in one to two lines. If more is needed, treat it as a signal that the interface is too complex — refactor the command first, then document it.
+The command itself should fit on one line. Flags may use sub-bullets, but only when they meaningfully extend the command (e.g. `--egrep`, `--log-failed`). If the command line itself needs more than one line to describe, treat it as a signal that the interface is too complex — refactor the command first, then document it.
 
 **Why:** A command that is hard to explain in one line is usually hard for an AI to use correctly. Complexity in docs reflects complexity in the interface.
 
-**Checklist:** If your `ai-instructions` entry grows beyond two lines, stop and reconsider the command's design.
+**Checklist:** If the command line itself (not its flags) needs more than one line to describe, stop and reconsider the command's design.
 
 ---
 
@@ -61,6 +61,6 @@ Each command solves one well-defined problem. Its output must be bounded to that
 
 **Why:** When a command returns more than its stated goal requires, the useful signal gets buried. An AI or person looking for high-level run status shouldn't have to parse job/step details — that's what `show` is for. Focused output means faster decisions and cleaner drill-down paths.
 
-**Example:** `everr runs` returns high-level metadata for recent runs. It must not include job or step details — use `everr show --trace-id <id>` to go deeper. The CLI has a natural drill-down path: `runs` → `show` → `logs`.
+**Example:** `everr runs` returns high-level metadata for recent runs. It must not include job or step details — use `everr show <trace_id>` to go deeper. The CLI has a natural drill-down path: `runs` → `show` → `logs`.
 
 **Checklist:** When designing a command, write its one-sentence goal. If the output contains fields that belong to a different command's stated goal, move them there. If the response can exceed 30KB under normal usage, the command is doing too much.
