@@ -408,13 +408,25 @@ fn render_logs(header: &Header, rows: &[LogRow], format: TelemetryFormat) {
             println!("{:<22}{:<7}{:<22}{}", "TIME", "LEVEL", "TARGET", "MESSAGE");
             for row in rows {
                 let time = format_timestamp_ns(row.timestamp_ns);
-                println!(
-                    "{:<22}{:<7}{:<22}{}",
-                    time,
-                    &row.level,
-                    truncate(&row.target, 21),
-                    &row.message
-                );
+                let attrs = format_inline_attrs(&row.log_attrs);
+                if attrs.is_empty() {
+                    println!(
+                        "{:<22}{:<7}{:<22}{}",
+                        time,
+                        &row.level,
+                        truncate(&row.target, 21),
+                        &row.message
+                    );
+                } else {
+                    println!(
+                        "{:<22}{:<7}{:<22}{}  {}",
+                        time,
+                        &row.level,
+                        truncate(&row.target, 21),
+                        &row.message,
+                        attrs
+                    );
+                }
             }
             if rows.is_empty() {
                 println!("No matches. Try a wider --since, or drop filters.");
@@ -473,6 +485,22 @@ fn format_duration_ns(ns: u64) -> String {
     } else {
         format!("{:.2}s", ns as f64 / 1_000_000_000.0)
     }
+}
+
+fn format_inline_attrs(kvs: &[KeyValue]) -> String {
+    let parts: Vec<String> = kvs
+        .iter()
+        .map(|kv| {
+            let val = kv
+                .value
+                .as_ref()
+                .and_then(|v| v.get("stringValue"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            format!("{}={}", kv.key, val)
+        })
+        .collect();
+    parts.join(" ")
 }
 
 fn parse_attr_filters(raw: &[String]) -> Result<Vec<(String, String)>> {
