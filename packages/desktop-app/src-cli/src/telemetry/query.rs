@@ -119,9 +119,18 @@ impl TelemetryStore {
             return Ok(Vec::new());
         }
         let glob = self.dir().join("otlp*.json*");
+        // The Rust opentelemetry-appender-tracing bridge only sets
+        // observedTimeUnixNano (not timeUnixNano). DuckDB's read_otlp_logs
+        // maps these to "timestamp" (TIMESTAMP_MS) and "observed_timestamp"
+        // (BIGINT nanoseconds). COALESCE picks whichever is populated,
+        // converting observed_timestamp from nanos to TIMESTAMP_MS.
+        let ts_expr = "COALESCE(\
+            NULLIF(\"timestamp\", '1970-01-01 00:00:00'::TIMESTAMP_MS), \
+            epoch_ms(observed_timestamp)\
+        )";
         let mut sql = format!(
             "SELECT \
-                extract('epoch' FROM \"timestamp\")::BIGINT * 1000, \
+                epoch_ms({ts_expr}) * 1000, \
                 severity_text, \
                 '', \
                 body::VARCHAR, \
@@ -136,13 +145,9 @@ impl TelemetryStore {
         let mut binds: Vec<String> = Vec::new();
 
         if let Some(dur) = filter.since {
-            // The column expression is extract('epoch')::BIGINT * 1000 which
-            // yields microseconds (DuckDB OTLP extension's extract('epoch')
-            // returns milliseconds; * 1000 converts to microseconds).
-            // Compute the cutoff in the same unit.
             let cutoff_us = system_time_ns(SystemTime::now()) / 1_000 - dur.as_micros() as u64;
             clauses.push(format!(
-                "extract('epoch' FROM \"timestamp\")::BIGINT * 1000 >= {cutoff_us}"
+                "epoch_ms({ts_expr}) * 1000 >= {cutoff_us}"
             ));
         }
         if let Some(level) = &filter.level {
@@ -161,7 +166,7 @@ impl TelemetryStore {
             sql.push_str(" WHERE ");
             sql.push_str(&clauses.join(" AND "));
         }
-        sql.push_str(" ORDER BY epoch_ms(\"timestamp\") DESC");
+        sql.push_str(&format!(" ORDER BY {ts_expr} DESC"));
         if let Some(limit) = filter.limit {
             sql.push_str(&format!(" LIMIT {limit}"));
         }
