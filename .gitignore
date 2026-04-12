@@ -6,6 +6,7 @@ coverage
 
 # production
 collector/build
+collector/build-local
 
 # misc
 .DS_Store

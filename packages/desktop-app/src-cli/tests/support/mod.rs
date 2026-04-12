@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+mod duckdb_cache;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
@@ -34,9 +36,12 @@ impl CliTestEnv {
     }
 
     pub fn command(&self) -> Command {
+        let cache = duckdb_cache::warm_otlp_extension();
         let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("everr"));
         cmd.env("HOME", &self.home_dir);
         cmd.env("XDG_CONFIG_HOME", &self.config_dir);
+        cmd.env("XDG_DATA_HOME", self.home_dir.join(".local").join("share"));
+        cmd.env("EVERR_DUCKDB_EXT_DIR", cache);
         cmd
     }
 
@@ -50,6 +55,25 @@ impl CliTestEnv {
         self.config_dir
             .join(build::session_namespace())
             .join(build::default_session_file_name())
+    }
+
+    pub fn telemetry_dir(&self) -> PathBuf {
+        #[cfg(target_os = "macos")]
+        {
+            self.home_dir
+                .join("Library")
+                .join("Application Support")
+                .join("everr")
+                .join("telemetry-dev")
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            self.home_dir
+                .join(".local")
+                .join("share")
+                .join("everr")
+                .join("telemetry-dev")
+        }
     }
 
     pub fn write_session(&self, api_base_url: &str, token: &str) {

@@ -9,6 +9,15 @@
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
-    "updater:default"
+    "updater:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "../../../target/desktop-sidecars/everr-local-collector",
+          "sidecar": true
+        }
+      ]
+    }
   ]
 }

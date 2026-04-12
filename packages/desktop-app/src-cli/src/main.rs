@@ -5,6 +5,7 @@ mod cli;
 mod core;
 mod init;
 mod onboarding;
+mod telemetry;
 mod uninstall;
 
 use anyhow::Result;
@@ -33,6 +34,7 @@ async fn main() -> Result<()> {
         Commands::WorkflowsList(args) => core::workflows_list(args).await?,
         Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,
+        Commands::Telemetry(args) => telemetry::commands::run(args)?,
     }
 
     Ok(())

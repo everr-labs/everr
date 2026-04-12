@@ -248,7 +248,6 @@ fn mismatched_completed_base_url_reopens_the_wizard() {
     assert!(!settings.wizard_state.wizard_completed);
 }
 
-
 #[test]
 fn sync_installed_cli_installs_missing_binary() {
     let temp = tempdir().expect("tempdir");

@@ -24,6 +24,7 @@ mod notifications;
 mod seen_runs;
 mod settings;
 mod startup;
+pub mod telemetry;
 mod tray;
 
 #[cfg(test)]
@@ -199,6 +200,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -234,11 +236,13 @@ pub fn run() {
             let store = current_state_store();
             let _ = store.clear_mismatched_session(build::default_api_base_url())?;
             store.update_state(|state| {
-                state.settings.apply_runtime_base_url(build::default_api_base_url());
+                state
+                    .settings
+                    .apply_runtime_base_url(build::default_api_base_url());
             })?;
             run_local_startup_maintenance(app.handle());
-            let watcher = StateWatcher::start(store.clone())
-                .expect("failed to start state watcher");
+            let watcher =
+                StateWatcher::start(store.clone()).expect("failed to start state watcher");
             let runtime = RuntimeState {
                 store,
                 watcher: Arc::new(watcher),
@@ -247,6 +251,15 @@ pub fn run() {
             };
 
             app.manage(runtime.clone());
+
+            let sidecar =
+                tauri::async_runtime::block_on(telemetry::sidecar::Sidecar::start(app.handle()));
+            app.manage(sidecar);
+
+            let bridge_handle =
+                telemetry::bridge::install(app.state::<telemetry::sidecar::Sidecar>().state());
+            app.manage(std::sync::Mutex::new(Some(bridge_handle)));
+
             build_tray(app.handle())?;
             if wizard_incomplete(&runtime)? {
                 open_settings_window(app.handle())?;
@@ -282,8 +295,27 @@ pub fn run() {
             open_run_in_browser,
             copy_run_auto_fix_prompt
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Order matters: bridge first (flushes span + log batches),
+                // sidecar second (drains the collector).
+                if let Some(handle_slot) = app_handle
+                    .try_state::<std::sync::Mutex<Option<telemetry::bridge::BridgeHandle>>>()
+                {
+                    let handle = handle_slot.inner().lock().unwrap().take();
+                    if let Some(h) = handle {
+                        tauri::async_runtime::block_on(h.shutdown());
+                    }
+                }
+                if let Some(sidecar) = app_handle.try_state::<telemetry::sidecar::Sidecar>() {
+                    tauri::async_runtime::block_on(async move {
+                        sidecar.inner().shutdown().await;
+                    });
+                }
+            }
+        });
 }
 
 fn current_auth_config() -> AuthConfig {

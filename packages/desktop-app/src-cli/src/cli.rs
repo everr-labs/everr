@@ -62,6 +62,74 @@ pub enum Commands {
     Setup,
     /// Initialize the current repository (import runs + write assistant instructions)
     Init,
+    /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
+    #[command(name = "telemetry")]
+    Telemetry(TelemetryArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct TelemetryArgs {
+    #[command(subcommand)]
+    pub command: TelemetrySubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum TelemetrySubcommand {
+    /// Show recent spans
+    Traces(TelemetryQueryArgs),
+    /// Show recent log records
+    Logs(TelemetryLogsArgs),
+    /// Print the resolved telemetry directory
+    Path(TelemetryPathArgs),
+}
+
+#[derive(Args, Debug, Default)]
+pub struct TelemetryQueryArgs {
+    /// Time window (e.g. 5m, 1h, 24h)
+    #[arg(long, default_value = "1h")]
+    pub since: String,
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long)]
+    pub trace_id: Option<String>,
+    #[arg(long, default_value_t = 50)]
+    pub limit: usize,
+    /// Output format — defaults to table on TTY, json otherwise
+    #[arg(long, value_enum)]
+    pub format: Option<TelemetryFormat>,
+    /// Hidden: explicit telemetry directory (tests, cross-build snapshots)
+    #[arg(long, hide = true)]
+    pub telemetry_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct TelemetryLogsArgs {
+    #[arg(long, default_value = "1h")]
+    pub since: String,
+    #[arg(long)]
+    pub level: Option<String>,
+    #[arg(long)]
+    pub grep: Option<String>,
+    #[arg(long)]
+    pub trace_id: Option<String>,
+    #[arg(long, default_value_t = 200)]
+    pub limit: usize,
+    #[arg(long, value_enum)]
+    pub format: Option<TelemetryFormat>,
+    #[arg(long, hide = true)]
+    pub telemetry_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct TelemetryPathArgs {
+    #[arg(long, hide = true)]
+    pub telemetry_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum TelemetryFormat {
+    Table,
+    Json,
 }
 
 #[derive(Args, Debug, Default)]
@@ -202,9 +270,17 @@ pub struct GetLogsArgs {
     pub trace_id: String,
     #[arg(long, required_unless_present = "job_id", conflicts_with = "job_id")]
     pub job_name: Option<String>,
-    #[arg(long, required_unless_present = "job_name", conflicts_with = "job_name")]
+    #[arg(
+        long,
+        required_unless_present = "job_name",
+        conflicts_with = "job_name"
+    )]
     pub job_id: Option<String>,
-    #[arg(long, required_unless_present = "log_failed", conflicts_with = "log_failed")]
+    #[arg(
+        long,
+        required_unless_present = "log_failed",
+        conflicts_with = "log_failed"
+    )]
     pub step_number: Option<String>,
     /// Automatically resolve and show the first failing step for the given job
     #[arg(long, conflicts_with = "step_number")]
@@ -290,10 +366,13 @@ mod tests {
 
     #[test]
     fn validates_required_trace_id_for_runs_show() {
-        let err =
-            Cli::try_parse_from(["everr", "show"]).expect_err("show should require trace_id");
+        let err = Cli::try_parse_from(["everr", "show"]).expect_err("show should require trace_id");
         let err_string = err.to_string();
-        assert!(err_string.contains("TRACE_ID") || err_string.contains("trace_id") || err_string.contains("required"));
+        assert!(
+            err_string.contains("TRACE_ID")
+                || err_string.contains("trace_id")
+                || err_string.contains("required")
+        );
     }
 
     #[test]
@@ -321,14 +400,8 @@ mod tests {
 
     #[test]
     fn validates_required_arguments_for_runs_logs() {
-        let err = Cli::try_parse_from([
-            "everr",
-            "logs",
-            "trace-1",
-            "--job-name",
-            "build",
-        ])
-        .expect_err("logs should require --step-number or --log-failed");
+        let err = Cli::try_parse_from(["everr", "logs", "trace-1", "--job-name", "build"])
+            .expect_err("logs should require --step-number or --log-failed");
         let err_string = err.to_string();
         assert!(
             err_string.contains("step-number") || err_string.contains("log-failed"),
@@ -339,9 +412,11 @@ mod tests {
     #[test]
     fn logs_accepts_log_failed_without_step_number() {
         let cli = Cli::try_parse_from([
-            "everr", "logs",
+            "everr",
+            "logs",
             "trace-1",
-            "--job-name", "build",
+            "--job-name",
+            "build",
             "--log-failed",
         ])
         .expect("valid logs command with --log-failed");
@@ -357,13 +432,9 @@ mod tests {
 
     #[test]
     fn logs_accepts_job_id_with_log_failed() {
-        let cli = Cli::try_parse_from([
-            "everr", "logs",
-            "trace-1",
-            "--job-id", "42",
-            "--log-failed",
-        ])
-        .expect("valid logs command with --job-id and --log-failed");
+        let cli =
+            Cli::try_parse_from(["everr", "logs", "trace-1", "--job-id", "42", "--log-failed"])
+                .expect("valid logs command with --job-id and --log-failed");
 
         let Commands::RunsLogs(args) = cli.command else {
             panic!("expected logs command");
@@ -377,10 +448,13 @@ mod tests {
     #[test]
     fn logs_accepts_job_id_with_step_number() {
         let cli = Cli::try_parse_from([
-            "everr", "logs",
+            "everr",
+            "logs",
             "trace-1",
-            "--job-id", "42",
-            "--step-number", "3",
+            "--job-id",
+            "42",
+            "--step-number",
+            "3",
         ])
         .expect("valid logs command with --job-id and --step-number");
 
@@ -396,11 +470,15 @@ mod tests {
     #[test]
     fn logs_rejects_both_job_name_and_job_id() {
         let err = Cli::try_parse_from([
-            "everr", "logs",
+            "everr",
+            "logs",
             "trace-1",
-            "--job-name", "build",
-            "--job-id", "42",
-            "--step-number", "1",
+            "--job-name",
+            "build",
+            "--job-id",
+            "42",
+            "--step-number",
+            "1",
         ])
         .expect_err("logs should reject both --job-name and --job-id");
         assert!(err.to_string().contains("job"));
@@ -409,10 +487,13 @@ mod tests {
     #[test]
     fn logs_rejects_both_step_number_and_log_failed() {
         let err = Cli::try_parse_from([
-            "everr", "logs",
+            "everr",
+            "logs",
             "trace-1",
-            "--job-name", "build",
-            "--step-number", "1",
+            "--job-name",
+            "build",
+            "--step-number",
+            "1",
             "--log-failed",
         ])
         .expect_err("logs should reject both --step-number and --log-failed");
@@ -425,12 +506,8 @@ mod tests {
 
     #[test]
     fn logs_requires_job_identifier() {
-        let err = Cli::try_parse_from([
-            "everr", "logs",
-            "trace-1",
-            "--step-number", "1",
-        ])
-        .expect_err("logs should require --job-name or --job-id");
+        let err = Cli::try_parse_from(["everr", "logs", "trace-1", "--step-number", "1"])
+            .expect_err("logs should require --job-name or --job-id");
         let err_string = err.to_string();
         assert!(
             err_string.contains("job-name") || err_string.contains("job-id"),
@@ -846,11 +923,15 @@ mod tests {
     #[test]
     fn runs_logs_accepts_egrep_pattern() {
         let cli = Cli::try_parse_from([
-            "everr", "logs",
+            "everr",
+            "logs",
             "trace-1",
-            "--job-name", "build",
-            "--step-number", "2",
-            "--egrep", "Error.*timeout",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
+            "--egrep",
+            "Error.*timeout",
         ])
         .expect("valid logs command with egrep");
 
@@ -864,10 +945,13 @@ mod tests {
     #[test]
     fn runs_logs_egrep_defaults_to_none() {
         let cli = Cli::try_parse_from([
-            "everr", "logs",
+            "everr",
+            "logs",
             "trace-1",
-            "--job-name", "build",
-            "--step-number", "2",
+            "--job-name",
+            "build",
+            "--step-number",
+            "2",
         ])
         .expect("valid logs command");
 

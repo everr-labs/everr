@@ -37,7 +37,9 @@ pub fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
 
 pub fn open_browser_immediately(verification_url: String, user_code: &str) {
     if let Err(error) = webbrowser::open(&verification_url) {
-        eprintln!("Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})");
+        eprintln!(
+            "Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})"
+        );
     }
 
     let code_line = format!("  Code: {user_code}");

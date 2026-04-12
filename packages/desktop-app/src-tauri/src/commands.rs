@@ -12,8 +12,8 @@ use crate::auth::{
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::notifications::{
     build_test_notification, copy_notification_auto_fix_prompt_inner,
-    dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
-    reset_notification_state,
+    dismiss_active_notification_inner, open_notification_target_inner, reset_notification_state,
+    sync_notification_window,
 };
 use crate::seen_runs;
 use crate::settings::{
@@ -152,10 +152,7 @@ pub(crate) async fn get_notification_emails(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<Vec<String>> {
     let state = state.inner().clone();
-    run_blocking_command(move || {
-        Ok(current_app_state(&state)?.settings.notification_emails)
-    })
-    .await
+    run_blocking_command(move || Ok(current_app_state(&state)?.settings.notification_emails)).await
 }
 
 #[tauri::command]
@@ -198,7 +195,6 @@ pub(crate) async fn get_user_profile(
     })
     .await
 }
-
 
 #[tauri::command]
 pub(crate) fn dismiss_active_notification(
@@ -317,9 +313,7 @@ pub(crate) async fn get_runs_list(
 }
 
 #[tauri::command]
-pub(crate) fn get_unseen_trace_ids(
-    state: State<'_, RuntimeState>,
-) -> CommandResult<Vec<String>> {
+pub(crate) fn get_unseen_trace_ids(state: State<'_, RuntimeState>) -> CommandResult<Vec<String>> {
     seen_runs::unseen_trace_ids(state.inner()).into_command_result()
 }
 

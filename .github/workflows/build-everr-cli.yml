@@ -13,6 +13,8 @@ on:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
       - packages/desktop-app/scripts/build-cli.sh
+      - crates/everr-core/**
+      - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
       - packages/docs/content/docs/cli/**
@@ -22,6 +24,8 @@ on:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
       - packages/desktop-app/scripts/build-cli.sh
+      - crates/everr-core/**
+      - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
       - packages/docs/content/docs/cli/**
@@ -46,6 +50,15 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
+
+      - name: Cache DuckDB extension fixture
+        uses: actions/cache@v4
+        with:
+          path: target/test-fixtures/duckdb
+          key: duckdb-otlp-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Prepare test fixtures
+        run: make prepare-test-fixtures
 
       - name: Test
         run: cargo +nightly test --manifest-path packages/desktop-app/src-cli/Cargo.toml -- --report-time -Z unstable-options
