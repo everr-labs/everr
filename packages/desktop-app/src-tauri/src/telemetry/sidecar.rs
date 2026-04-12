@@ -38,6 +38,8 @@ impl Sidecar {
 
     /// Starts the collector from inside Tauri's `setup()` callback.
     pub async fn start(app: &AppHandle) -> Self {
+        kill_orphaned_collector();
+
         let telemetry_dir = match everr_core::build::telemetry_dir() {
             Ok(dir) => dir,
             Err(err) => {
@@ -152,6 +154,25 @@ impl Sidecar {
         let _ = self.state_tx.send(TelemetryState::Disabled {
             reason: "shutdown".into(),
         });
+    }
+}
+
+/// Kill any orphaned collector still holding the health-check port from a
+/// previous run (common during Tauri dev hot-reload).
+fn kill_orphaned_collector() {
+    let output = match std::process::Command::new("lsof")
+        .args(["-ti", &format!("tcp:{HEALTHCHECK_PORT}")])
+        .output()
+    {
+        Ok(o) => o,
+        Err(_) => return,
+    };
+    let pids = String::from_utf8_lossy(&output.stdout);
+    for token in pids.split_whitespace() {
+        if let Ok(pid) = token.parse::<i32>() {
+            eprintln!("[collector] killing orphaned process {pid} on port {HEALTHCHECK_PORT}");
+            let _ = kill(Pid::from_raw(pid), Signal::SIGKILL);
+        }
     }
 }
 
