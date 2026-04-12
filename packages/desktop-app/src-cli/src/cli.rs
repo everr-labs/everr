@@ -79,8 +79,6 @@ pub enum TelemetrySubcommand {
     Traces(TelemetryQueryArgs),
     /// Show recent log records
     Logs(TelemetryLogsArgs),
-    /// Print the resolved telemetry directory
-    Path(TelemetryPathArgs),
 }
 
 #[derive(Args, Debug, Default)]
@@ -116,12 +114,6 @@ pub struct TelemetryLogsArgs {
     pub limit: usize,
     #[arg(long, value_enum)]
     pub format: Option<TelemetryFormat>,
-    #[arg(long, hide = true)]
-    pub telemetry_dir: Option<std::path::PathBuf>,
-}
-
-#[derive(Args, Debug, Default)]
-pub struct TelemetryPathArgs {
     #[arg(long, hide = true)]
     pub telemetry_dir: Option<std::path::PathBuf>,
 }

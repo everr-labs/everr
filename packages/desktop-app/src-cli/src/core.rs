@@ -7,9 +7,7 @@ use tokio::pin;
 
 use futures_util::StreamExt;
 
-use crate::api::{
-    ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState,
-};
+use crate::api::{ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState};
 use crate::auth;
 use crate::cli::{
     GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
@@ -283,9 +281,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
             .as_deref()
             .map(|b| format!("  branch: {b}"))
             .unwrap_or_default();
-        println!(
-            "no runs found yet, waiting...  [repo: {repo}  commit: {target_commit}{branch_part}]"
-        );
+        println!("no runs found yet, waiting...  [repo: {repo}  commit: {target_commit}{branch_part}]");
     }
 
     if args.fail_fast {
@@ -356,7 +352,8 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
                     run_names.insert(event.trace_id.clone(), event.workflow_name.clone());
                     if event.status == "completed" {
                         println!("{}", format_watch_event_line(&event));
-                        if args.fail_fast && is_non_success_conclusion(event.conclusion.as_deref())
+                        if args.fail_fast
+                            && is_non_success_conclusion(event.conclusion.as_deref())
                         {
                             bail!("run failed: {}", event.name);
                         }
@@ -446,7 +443,10 @@ fn print_watch_summary(completed: &[WatchRun]) {
                 );
             } else {
                 println!("  {}", job.name);
-                println!("  everr logs {} --job-name {:?}", run.trace_id, job.name);
+                println!(
+                    "  everr logs {} --job-name {:?}",
+                    run.trace_id, job.name
+                );
             }
         }
     }
@@ -468,10 +468,7 @@ enum LogsJobFilter {
     ById(String),
 }
 
-async fn resolve_logs_job(
-    client: &ApiClient,
-    args: &GetLogsArgs,
-) -> Result<(LogsJobFilter, String)> {
+async fn resolve_logs_job(client: &ApiClient, args: &GetLogsArgs) -> Result<(LogsJobFilter, String)> {
     // Fast paths: both identifier and step number are known — no API call needed
     if let (Some(name), Some(step)) = (args.job_name.as_deref(), args.step_number.as_deref()) {
         return Ok((LogsJobFilter::ByName(name.to_string()), step.to_string()));
@@ -487,9 +484,7 @@ async fn resolve_logs_job(
     } else {
         vec![]
     };
-    let details = client
-        .get_run_details(&args.trace_id, &details_query)
-        .await?;
+    let details = client.get_run_details(&args.trace_id, &details_query).await?;
     let show: ShowRunDetails =
         serde_json::from_value(details).context("failed to parse run details")?;
 
@@ -643,10 +638,7 @@ mod tests {
             conclusion: None,
             job_id: Some(1),
         };
-        assert_eq!(
-            super::format_watch_event_line(&event),
-            "CI → build  in_progress"
-        );
+        assert_eq!(super::format_watch_event_line(&event), "CI → build  in_progress");
     }
 
     #[test]
@@ -667,10 +659,7 @@ mod tests {
             conclusion: Some("success".to_string()),
             job_id: None,
         };
-        assert_eq!(
-            super::format_watch_event_line(&event),
-            "Run completed: CI  success"
-        );
+        assert_eq!(super::format_watch_event_line(&event), "Run completed: CI  success");
     }
 
     #[test]
@@ -776,4 +765,5 @@ mod tests {
             vec![("limit", "25".to_string()), ("offset", "50".to_string())]
         );
     }
+
 }

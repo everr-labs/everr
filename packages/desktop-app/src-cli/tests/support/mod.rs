@@ -89,8 +89,8 @@ impl CliTestEnv {
         fs::create_dir_all(&repo_dir).expect("create repo dir");
 
         run_git(&repo_dir, ["init"]);
-        run_git(&repo_dir, ["config", "user.email", "tests@example.com"]);
-        run_git(&repo_dir, ["config", "user.name", "Test User"]);
+        run_git(&repo_dir, ["config", "user.email", "tests@everr.dev"]);
+        run_git(&repo_dir, ["config", "user.name", "Everr Tests"]);
 
         fs::write(repo_dir.join("README.md"), "# test repo\n").expect("write readme");
         run_git(&repo_dir, ["add", "README.md"]);
@@ -107,7 +107,15 @@ pub fn mock_api_server() -> ServerGuard {
 }
 
 fn platform_config_dir(home_dir: &Path) -> PathBuf {
-    home_dir.join("Library").join("Application Support")
+    #[cfg(target_os = "macos")]
+    {
+        home_dir.join("Library").join("Application Support")
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        home_dir.join(".config")
+    }
 }
 
 pub fn parse_stdout_json(output: &[u8]) -> Value {

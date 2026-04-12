@@ -211,10 +211,7 @@ mod tests {
                 Some("user@example.com"),
                 Some("git@example.com".to_string())
             ),
-            vec![
-                "user@example.com".to_string(),
-                "git@example.com".to_string()
-            ]
+            vec!["user@example.com".to_string(), "git@example.com".to_string()]
         );
     }
 

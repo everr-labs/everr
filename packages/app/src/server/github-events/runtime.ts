@@ -13,7 +13,6 @@ import type { WebhookJobData } from "./types";
 import { TerminalEventError } from "./types";
 
 let boss: PgBoss | undefined;
-let startPromise: Promise<PgBoss> | undefined;
 
 export function getBoss(): PgBoss | undefined {
   return boss;
@@ -52,65 +51,58 @@ const WORK_OPTS = { localConcurrency: GH_EVENTS_CONFIG.workerCount };
 
 export async function startGitHubEventsRuntime(): Promise<PgBoss> {
   if (boss) return boss;
-  if (startPromise) return startPromise;
 
-  startPromise = (async () => {
-    console.log("[startup] Starting GitHub events runtime...");
-    const b = createBoss();
+  console.log("[startup] Starting GitHub events runtime...");
+  boss = createBoss();
 
-    b.on("error", console.error);
+  boss.on("error", console.error);
 
-    await b.start();
+  await boss.start();
 
-    await Promise.all([
-      b.createQueue("gh-collector"),
-      b.createQueue("gh-status"),
-    ]);
+  await Promise.all([
+    boss.createQueue("gh-collector"),
+    boss.createQueue("gh-status"),
+  ]);
 
-    b.work<WebhookJobData>("gh-collector", WORK_OPTS, async (jobs) => {
-      await Promise.all(
-        jobs.map(async (job) => {
-          try {
-            await processCollectorJob(job);
-          } catch (error) {
-            if (error instanceof TerminalEventError) {
-              console.error("[gh-collector] terminal error, not retrying", {
-                jobId: job.id,
-                error: error.message,
-              });
-              return;
-            }
-            throw error;
+  boss.work<WebhookJobData>("gh-collector", WORK_OPTS, async (jobs) => {
+    await Promise.all(
+      jobs.map(async (job) => {
+        try {
+          await processCollectorJob(job);
+        } catch (error) {
+          if (error instanceof TerminalEventError) {
+            console.error("[gh-collector] terminal error, not retrying", {
+              jobId: job.id,
+              error: error.message,
+            });
+            return;
           }
-        }),
-      );
-    });
+          throw error;
+        }
+      }),
+    );
+  });
 
-    b.work<WebhookJobData>("gh-status", WORK_OPTS, async (jobs) => {
-      await Promise.all(
-        jobs.map(async (job) => {
-          try {
-            await processStatusJob(job);
-          } catch (error) {
-            if (error instanceof TerminalEventError) {
-              console.error("[gh-status] terminal error, not retrying", {
-                jobId: job.id,
-                error: error.message,
-              });
-              return;
-            }
-            throw error;
+  boss.work<WebhookJobData>("gh-status", WORK_OPTS, async (jobs) => {
+    await Promise.all(
+      jobs.map(async (job) => {
+        try {
+          await processStatusJob(job);
+        } catch (error) {
+          if (error instanceof TerminalEventError) {
+            console.error("[gh-status] terminal error, not retrying", {
+              jobId: job.id,
+              error: error.message,
+            });
+            return;
           }
-        }),
-      );
-    });
+          throw error;
+        }
+      }),
+    );
+  });
 
-    // Only expose boss once fully initialized
-    boss = b;
-    return b;
-  })();
-
-  return startPromise;
+  return boss;
 }
 
 export async function enqueueWebhookEvent(
@@ -136,7 +128,6 @@ export async function enqueueWebhookEvent(
 export async function stopGitHubEventsRuntime(): Promise<void> {
   const b = boss;
   boss = undefined;
-  startPromise = undefined;
   await b?.stop();
 }
 

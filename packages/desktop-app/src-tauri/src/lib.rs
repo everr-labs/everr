@@ -236,13 +236,11 @@ pub fn run() {
             let store = current_state_store();
             let _ = store.clear_mismatched_session(build::default_api_base_url())?;
             store.update_state(|state| {
-                state
-                    .settings
-                    .apply_runtime_base_url(build::default_api_base_url());
+                state.settings.apply_runtime_base_url(build::default_api_base_url());
             })?;
             run_local_startup_maintenance(app.handle());
-            let watcher =
-                StateWatcher::start(store.clone()).expect("failed to start state watcher");
+            let watcher = StateWatcher::start(store.clone())
+                .expect("failed to start state watcher");
             let runtime = RuntimeState {
                 store,
                 watcher: Arc::new(watcher),
@@ -296,27 +294,8 @@ pub fn run() {
             open_run_in_browser,
             copy_run_auto_fix_prompt
         ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::Exit = event {
-                // Order matters: bridge first (flushes span + log batches),
-                // sidecar second (drains the collector).
-                if let Some(handle_slot) = app_handle
-                    .try_state::<std::sync::Mutex<Option<telemetry::bridge::BridgeHandle>>>()
-                {
-                    let handle = handle_slot.inner().lock().unwrap().take();
-                    if let Some(h) = handle {
-                        tauri::async_runtime::block_on(h.shutdown());
-                    }
-                }
-                if let Some(sidecar) = app_handle.try_state::<telemetry::sidecar::Sidecar>() {
-                    tauri::async_runtime::block_on(async move {
-                        sidecar.inner().shutdown().await;
-                    });
-                }
-            }
-        });
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
 
 fn current_auth_config() -> AuthConfig {

@@ -355,10 +355,8 @@ fn runs_logs_prints_plain_text() {
         .args([
             "logs",
             "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
+            "--job-name", "build",
+            "--step-number", "2",
         ])
         .assert()
         .success()
@@ -392,12 +390,9 @@ fn runs_logs_offset_without_limit_uses_tail_mode() {
         .args([
             "logs",
             "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--offset",
-            "1000",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--offset", "1000",
         ])
         .assert()
         .success()
@@ -433,12 +428,9 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
         .args([
             "logs",
             "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--limit",
-            "2",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--limit", "2",
         ])
         .assert()
         .success()
@@ -473,12 +465,9 @@ fn runs_logs_egrep_passes_pattern_as_query_param() {
         .args([
             "logs",
             "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--egrep",
-            "Error.*timeout",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--egrep", "Error.*timeout",
         ])
         .assert()
         .success()
@@ -505,12 +494,9 @@ fn runs_logs_egrep_exits_one_when_no_lines_match() {
         .args([
             "logs",
             "trace-123",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-            "--egrep",
-            "nonexistent",
+            "--job-name", "build",
+            "--step-number", "2",
+            "--egrep", "nonexistent",
         ])
         .assert()
         .failure()

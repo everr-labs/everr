@@ -74,16 +74,6 @@ fn telemetry_logs_trace_id_filter_matches_fixture() {
 }
 
 #[test]
-fn telemetry_path_prints_default_dir() {
-    let env = support::CliTestEnv::new();
-    env.command()
-        .args(["telemetry", "path"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("everr/telemetry"));
-}
-
-#[test]
 fn telemetry_traces_missing_dir_shows_sibling_hint_or_fallback() {
     let env = support::CliTestEnv::new();
     env.command()

@@ -3,8 +3,8 @@ use std::fmt;
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
-use reqwest::StatusCode;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -398,6 +398,7 @@ pub struct RepoEntry {
     pub id: i64,
     pub full_name: String,
 }
+
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

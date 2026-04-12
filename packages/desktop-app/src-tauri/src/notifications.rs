@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
 use everr_core::api::{
-    is_reauthentication_required, ApiClient, FailureNotification, NotifyPayload,
+    ApiClient, FailureNotification, NotifyPayload, is_reauthentication_required,
 };
 use everr_core::git::resolve_git_context;
 use futures_util::StreamExt;
@@ -17,7 +17,7 @@ use time::OffsetDateTime;
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::settings::{current_app_state, emit_auth_changed, update_persisted_state};
 use crate::{
-    current_base_url, NotificationQueue, NotifierState, RuntimeState, NOTIFICATION_CHANGED_EVENT,
+    current_base_url, NotifierState, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
     NOTIFICATION_EXIT_EVENT, NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT,
     NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN,
     NOTIFICATION_WINDOW_WIDTH, SEEN_RUNS_CHANGED_EVENT,
@@ -47,7 +47,10 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
                     if is_reauthentication_required(&error) {
                         crate::crash_log::log_error("notifier SSE auth", &error);
                         if let Err(reset_error) = handle_notifier_auth_failure(&app, &state) {
-                            crate::crash_log::log_error("notifier auth reset", &reset_error);
+                            crate::crash_log::log_error(
+                                "notifier auth reset",
+                                &reset_error,
+                            );
                         }
                         backoff = Duration::from_secs(1);
                         continue;
@@ -177,11 +180,7 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         } else {
             // No emails configured and no profile cached — wait for session or filter changes.
             reset_notification_state(app, state)?;
-            wait_for_change(
-                &mut rx,
-                &[StateChange::SessionChanged, StateChange::EmailsChanged],
-            )
-            .await;
+            wait_for_change(&mut rx, &[StateChange::SessionChanged, StateChange::EmailsChanged]).await;
             return Ok(());
         }
     };
@@ -586,10 +585,11 @@ fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
         .ok_or_else(|| anyhow!("failed to resolve notification monitor"))?;
     let work_area = monitor.work_area();
     let scale_factor = monitor.scale_factor();
-    let full_width =
-        ((NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN)
-            * scale_factor)
-            .round() as i32;
+    let full_width = ((NOTIFICATION_WINDOW_WIDTH
+        + NOTIFICATION_WINDOW_INSET
+        + NOTIFICATION_WINDOW_MARGIN)
+        * scale_factor)
+        .round() as i32;
     let inset = (NOTIFICATION_WINDOW_INSET * scale_factor).round() as i32;
     let margin = (NOTIFICATION_WINDOW_MARGIN * scale_factor).round() as i32;
     // Window right edge is flush with the work-area edge.

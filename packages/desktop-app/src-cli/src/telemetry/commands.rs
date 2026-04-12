@@ -7,8 +7,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::cli::{
-    TelemetryArgs, TelemetryFormat, TelemetryLogsArgs, TelemetryPathArgs, TelemetryQueryArgs,
-    TelemetrySubcommand,
+    TelemetryArgs, TelemetryFormat, TelemetryLogsArgs, TelemetryQueryArgs, TelemetrySubcommand,
 };
 use crate::telemetry::otlp::KeyValue;
 use crate::telemetry::query::{LogFilter, LogRow, ScanStats, TraceFilter, TraceRow, TraceTree, system_time_ns};
@@ -20,7 +19,6 @@ pub fn run(args: TelemetryArgs) -> Result<()> {
     match args.command {
         TelemetrySubcommand::Traces(q) => run_traces(q),
         TelemetrySubcommand::Logs(q) => run_logs(q),
-        TelemetrySubcommand::Path(p) => run_path(p),
     }
 }
 
@@ -92,12 +90,6 @@ fn run_logs(args: TelemetryLogsArgs) -> Result<()> {
             Ok(())
         }
     }
-}
-
-fn run_path(args: TelemetryPathArgs) -> Result<()> {
-    let dir = resolved_dir(args.telemetry_dir.as_deref())?;
-    println!("{}", dir.display());
-    Ok(())
 }
 
 fn resolved_dir(explicit: Option<&Path>) -> Result<PathBuf> {
