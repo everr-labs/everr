@@ -463,11 +463,11 @@ fn render_logs(header: &Header, rows: &[LogRow], format: TelemetryFormat) {
 }
 
 fn format_timestamp_ns(nanos: u64) -> String {
-    use chrono::{DateTime, Utc};
+    use chrono::{DateTime, Local, Utc};
     let secs = (nanos / 1_000_000_000) as i64;
     let sub_nanos = (nanos % 1_000_000_000) as u32;
     DateTime::<Utc>::from_timestamp(secs, sub_nanos)
-        .map(|dt| dt.format("%H:%M:%S%.3f %z").to_string())
+        .map(|dt| dt.with_timezone(&Local).format("%H:%M:%S%.3f %z").to_string())
         .unwrap_or_else(|| format!("{nanos}ns"))
 }
 
