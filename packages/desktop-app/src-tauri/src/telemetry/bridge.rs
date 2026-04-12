@@ -47,7 +47,7 @@ static GLOBAL_BRIDGE: OnceLock<GlobalBridge> = OnceLock::new();
 fn global_bridge() -> &'static GlobalBridge {
     GLOBAL_BRIDGE.get_or_init(|| {
         let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper=warn,tower=warn"));
+            .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper=warn,tower=warn,reqwest=warn"));
 
         let fmt_layer = fmt::layer().with_writer(std::io::stderr);
 
