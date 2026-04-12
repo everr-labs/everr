@@ -256,8 +256,9 @@ pub fn run() {
                 tauri::async_runtime::block_on(telemetry::sidecar::Sidecar::start(app.handle()));
             app.manage(sidecar);
 
-            let bridge_handle =
-                telemetry::bridge::install(app.state::<telemetry::sidecar::Sidecar>().state());
+            let bridge_handle = tauri::async_runtime::block_on(async {
+                telemetry::bridge::install(app.state::<telemetry::sidecar::Sidecar>().state())
+            });
             app.manage(std::sync::Mutex::new(Some(bridge_handle)));
 
             build_tray(app.handle())?;

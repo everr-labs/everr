@@ -51,6 +51,9 @@ pub struct LogRow {
 
 impl TelemetryStore {
     pub fn traces(&self, filter: TraceFilter) -> Result<Vec<TraceRow>, StoreError> {
+        if crate::telemetry::store::count_otlp_files(self.dir()) == 0 {
+            return Ok(Vec::new());
+        }
         let glob = self.dir().join("otlp*.json*");
         let mut sql = format!(
             "SELECT \
@@ -112,6 +115,9 @@ impl TelemetryStore {
     }
 
     pub fn logs(&self, filter: LogFilter) -> Result<Vec<LogRow>, StoreError> {
+        if crate::telemetry::store::count_otlp_files(self.dir()) == 0 {
+            return Ok(Vec::new());
+        }
         let glob = self.dir().join("otlp*.json*");
         let mut sql = format!(
             "SELECT \

@@ -35,5 +35,7 @@ service:
       processors: [batch]
       exporters: [file]
   telemetry:
+    metrics:
+      level: none
     logs:
       level: warn
