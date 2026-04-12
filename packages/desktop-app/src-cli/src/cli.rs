@@ -89,6 +89,8 @@ pub struct TelemetryQueryArgs {
     #[arg(long)]
     pub name: Option<String>,
     #[arg(long)]
+    pub service: Option<String>,
+    #[arg(long)]
     pub trace_id: Option<String>,
     #[arg(long, default_value_t = 50)]
     pub limit: usize,

@@ -10,6 +10,7 @@ use crate::telemetry::store::{StoreError, TelemetryStore};
 pub struct TraceFilter {
     pub since: Option<Duration>,
     pub name_like: Option<String>,
+    pub service: Option<String>,
     pub trace_id: Option<String>,
     pub limit: Option<usize>,
 }
@@ -187,7 +188,7 @@ impl TelemetryStore {
 
                             if let Some(ref filter_tid) = filter.trace_id {
                                 match &trace_id {
-                                    Some(tid) if tid.eq_ignore_ascii_case(filter_tid) => {}
+                                    Some(tid) if tid.to_ascii_lowercase().starts_with(&filter_tid.to_ascii_lowercase()) => {}
                                     _ => continue,
                                 }
                             }
@@ -282,6 +283,13 @@ impl TelemetryStore {
                 };
 
                 for rs in &req.resource_spans {
+                    if let Some(ref svc) = filter.service {
+                        let actual = otlp::kv_str(&rs.resource.attributes, "service.name")
+                            .unwrap_or("");
+                        if !actual.contains(svc.as_str()) {
+                            continue;
+                        }
+                    }
                     for ss in &rs.scope_spans {
                         for span in &ss.spans {
                             let ts = span.start_time_unix_nano.unwrap_or(0);
@@ -299,7 +307,7 @@ impl TelemetryStore {
                             }
 
                             if let Some(ref filter_tid) = filter.trace_id {
-                                if !span.trace_id.eq_ignore_ascii_case(filter_tid) {
+                                if !span.trace_id.to_ascii_lowercase().starts_with(&filter_tid.to_ascii_lowercase()) {
                                     continue;
                                 }
                             }

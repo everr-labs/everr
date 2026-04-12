@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 /// Staleness threshold for the sibling-directory mismatch banner.
-#[allow(dead_code)]
 pub const STALE_SIBLING_THRESHOLD: Duration = Duration::from_secs(300);
 
 #[derive(Debug)]

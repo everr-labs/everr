@@ -294,8 +294,23 @@ pub fn run() {
             open_run_in_browser,
             copy_run_auto_fix_prompt
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Flush OTel providers before the collector is killed.
+                if let Some(bridge) = app
+                    .try_state::<std::sync::Mutex<Option<telemetry::bridge::BridgeHandle>>>()
+                    .and_then(|m| m.lock().ok()?.take())
+                {
+                    tauri::async_runtime::block_on(bridge.shutdown());
+                }
+                // Graceful SIGTERM → wait → SIGKILL for the collector sidecar.
+                if let Some(sidecar) = app.try_state::<telemetry::sidecar::Sidecar>() {
+                    tauri::async_runtime::block_on(sidecar.shutdown());
+                }
+            }
+        });
 }
 
 fn current_auth_config() -> AuthConfig {

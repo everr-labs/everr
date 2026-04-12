@@ -52,6 +52,7 @@ fn run_traces(args: TelemetryQueryArgs) -> Result<()> {
     let filter = TraceFilter {
         since: Some(since),
         name_like: args.name.clone(),
+        service: args.service.clone(),
         trace_id: args.trace_id.clone(),
         limit: Some(args.limit),
     };
@@ -102,9 +103,9 @@ fn parse_duration(s: &str) -> Result<Duration> {
         .map_err(|_| anyhow::anyhow!("invalid number in duration: {s}"))?;
     let seconds = match suffix {
         "s" => number,
-        "m" => number * 60,
-        "h" => number * 3600,
-        "d" => number * 86_400,
+        "m" => number.saturating_mul(60),
+        "h" => number.saturating_mul(3600),
+        "d" => number.saturating_mul(86_400),
         other => return Err(anyhow::anyhow!("unknown duration unit: {other}")),
     };
     Ok(Duration::from_secs(seconds))
@@ -319,13 +320,14 @@ fn render_span_children(
         let is_match = matched.contains(&span.span_id);
         let marker = if is_match { "  ← match" } else { "" };
         let truncated = truncate(&span.name, 29);
-        let name_display = if is_match {
-            format!("\x1b[1m{truncated}\x1b[0m")
+        // ANSI bold adds 8 invisible bytes; widen the pad to compensate.
+        let (name_display, pad) = if is_match {
+            (format!("\x1b[1m{truncated}\x1b[0m"), 38)
         } else {
-            truncated.into_owned()
+            (truncated.into_owned(), 30)
         };
         println!(
-            "{prefix}{connector}{:<30} {:<8} {}{}",
+            "{prefix}{connector}{:<pad$} {:<8} {}{}",
             name_display,
             duration,
             status,
@@ -342,6 +344,7 @@ fn render_span_children(
         }
     }
 }
+
 
 fn span_kind_str(kind: u8) -> &'static str {
     match kind {
