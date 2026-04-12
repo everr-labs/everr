@@ -266,13 +266,13 @@ async fn handle_notify_event(
     event: NotifyPayload,
 ) -> Result<()> {
     dbg_notifier!(
-        "event: type={} status={} conclusion={:?} trace={} branch={} workflow={}",
-        event.event_type,
-        event.status,
-        event.conclusion,
-        event.trace_id,
-        event.branch,
-        event.workflow_name,
+        event_type = %event.event_type,
+        status = %event.status,
+        conclusion = ?event.conclusion,
+        trace_id = %event.trace_id,
+        branch = %event.branch,
+        workflow = %event.workflow_name,
+        "event received"
     );
 
     if event.event_type != "run" {
@@ -312,10 +312,10 @@ fn enqueue_notification(
     notification: FailureNotification,
 ) -> Result<()> {
     dbg_notifier!(
-        "notification fired: trace={} repo={} workflow={}",
-        notification.trace_id,
-        notification.repo,
-        notification.workflow_name,
+        trace_id = %notification.trace_id,
+        repo = %notification.repo,
+        workflow = %notification.workflow_name,
+        "notification fired"
     );
     crate::seen_runs::add_seen_run(state, &notification.trace_id)?;
     let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());

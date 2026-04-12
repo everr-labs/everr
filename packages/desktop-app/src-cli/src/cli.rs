@@ -92,6 +92,9 @@ pub struct TelemetryQueryArgs {
     pub service: Option<String>,
     #[arg(long)]
     pub trace_id: Option<String>,
+    /// Filter by OTLP attribute (e.g. --attr event_type=run); repeatable
+    #[arg(long = "attr", value_name = "KEY=VALUE")]
+    pub attrs: Vec<String>,
     #[arg(long, default_value_t = 50)]
     pub limit: usize,
     /// Output format — defaults to table on TTY, json otherwise
@@ -116,6 +119,9 @@ pub struct TelemetryLogsArgs {
     pub target: Option<String>,
     #[arg(long)]
     pub trace_id: Option<String>,
+    /// Filter by OTLP attribute (e.g. --attr event_type=run); repeatable
+    #[arg(long = "attr", value_name = "KEY=VALUE")]
+    pub attrs: Vec<String>,
     #[arg(long, default_value_t = 200)]
     pub limit: usize,
     #[arg(long, value_enum)]

@@ -12,6 +12,7 @@ pub struct TraceFilter {
     pub name_like: Option<String>,
     pub service: Option<String>,
     pub trace_id: Option<String>,
+    pub attrs: Vec<(String, String)>,
     pub limit: Option<usize>,
 }
 
@@ -23,6 +24,7 @@ pub struct LogFilter {
     pub service: Option<String>,
     pub target: Option<String>,
     pub trace_id: Option<String>,
+    pub attrs: Vec<(String, String)>,
     pub limit: Option<usize>,
 }
 
@@ -193,6 +195,10 @@ impl TelemetryStore {
                                 }
                             }
 
+                            if !attrs_match(&record.attributes, &filter.attrs) {
+                                continue;
+                            }
+
                             let span_id = if record.span_id.is_empty() {
                                 None
                             } else {
@@ -310,6 +316,10 @@ impl TelemetryStore {
                                 if !span.trace_id.to_ascii_lowercase().starts_with(&filter_tid.to_ascii_lowercase()) {
                                     continue;
                                 }
+                            }
+
+                            if !attrs_match(&span.attributes, &filter.attrs) {
+                                continue;
                             }
 
                             let entry = candidates
@@ -445,4 +455,14 @@ impl TelemetryStore {
 
         Ok((trees, stats))
     }
+}
+
+/// Returns true if every (key, value) pair in `filter` is present in `kvs`.
+/// Uses substring match on the stringValue representation.
+fn attrs_match(kvs: &[otlp::KeyValue], filter: &[(String, String)]) -> bool {
+    filter.iter().all(|(fk, fv)| {
+        otlp::kv_str(kvs, fk)
+            .map(|actual| actual.contains(fv.as_str()))
+            .unwrap_or(false)
+    })
 }

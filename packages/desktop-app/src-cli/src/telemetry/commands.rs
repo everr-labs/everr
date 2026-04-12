@@ -54,6 +54,7 @@ fn run_traces(args: TelemetryQueryArgs) -> Result<()> {
         name_like: args.name.clone(),
         service: args.service.clone(),
         trace_id: args.trace_id.clone(),
+        attrs: parse_attr_filters(&args.attrs)?,
         limit: Some(args.limit),
     };
     let (trees, stats) = store.trace_trees(filter).context("query failed")?;
@@ -78,6 +79,7 @@ fn run_logs(args: TelemetryLogsArgs) -> Result<()> {
         service: args.service.clone(),
         target: args.target.clone(),
         trace_id: args.trace_id.clone(),
+        attrs: parse_attr_filters(&args.attrs)?,
         limit: Some(args.limit),
     };
     let (rows, stats) = store.logs(filter).context("query failed")?;
@@ -471,6 +473,17 @@ fn format_duration_ns(ns: u64) -> String {
     } else {
         format!("{:.2}s", ns as f64 / 1_000_000_000.0)
     }
+}
+
+fn parse_attr_filters(raw: &[String]) -> Result<Vec<(String, String)>> {
+    raw.iter()
+        .map(|s| {
+            let (k, v) = s
+                .split_once('=')
+                .ok_or_else(|| anyhow::anyhow!("--attr must be KEY=VALUE, got: {s}"))?;
+            Ok((k.to_string(), v.to_string()))
+        })
+        .collect()
 }
 
 fn truncate(s: &str, max: usize) -> std::borrow::Cow<'_, str> {

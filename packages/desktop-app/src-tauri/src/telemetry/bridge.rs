@@ -46,8 +46,9 @@ static GLOBAL_BRIDGE: OnceLock<GlobalBridge> = OnceLock::new();
 /// the reload handle + provider slots.
 fn global_bridge() -> &'static GlobalBridge {
     GLOBAL_BRIDGE.get_or_init(|| {
-        let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper=warn,tower=warn,reqwest=warn"));
+        let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new("info,notifier=debug,h2=info,hyper=info,tower=info,reqwest=info")
+        });
 
         let fmt_layer = fmt::layer().with_writer(std::io::stderr);
 
