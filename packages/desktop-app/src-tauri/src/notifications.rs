@@ -26,7 +26,7 @@ use crate::{
 macro_rules! dbg_notifier {
     ($($arg:tt)*) => {
         if cfg!(debug_assertions) {
-            eprintln!("[notifier] {}", format_args!($($arg)*));
+            tracing::debug!(target: "notifier", $($arg)*);
         }
     };
 }

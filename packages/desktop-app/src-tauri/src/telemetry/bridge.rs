@@ -47,7 +47,7 @@ static GLOBAL_BRIDGE: OnceLock<GlobalBridge> = OnceLock::new();
 fn global_bridge() -> &'static GlobalBridge {
     GLOBAL_BRIDGE.get_or_init(|| {
         let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("info,h2=warn,hyper=warn,tower=warn"));
+            .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper=warn,tower=warn"));
 
         let fmt_layer = fmt::layer().with_writer(std::io::stderr);
 
@@ -99,9 +99,11 @@ fn wire_providers(endpoint: &str, bridge: &GlobalBridge) {
     let resource = build_resource();
 
     // --- Span exporter + TracerProvider ---
+    // with_endpoint() uses the URL as-is (no path appended), so we must
+    // include the signal-specific path ourselves.
     let span_exporter = match SpanExporterBuilder::default()
         .with_http()
-        .with_endpoint(endpoint)
+        .with_endpoint(format!("{endpoint}/v1/traces"))
         .build()
     {
         Ok(e) => e,
@@ -122,7 +124,7 @@ fn wire_providers(endpoint: &str, bridge: &GlobalBridge) {
     // --- Log exporter + LoggerProvider ---
     let log_exporter = match LogExporterBuilder::default()
         .with_http()
-        .with_endpoint(endpoint)
+        .with_endpoint(format!("{endpoint}/v1/logs"))
         .build()
     {
         Ok(e) => e,
