@@ -74,8 +74,9 @@ impl TelemetryStore {
         let mut binds: Vec<String> = Vec::new();
 
         if let Some(dur) = filter.since {
-            let cutoff_us = (system_time_ns(SystemTime::now()) - dur.as_nanos() as u64) / 1_000;
-            clauses.push(format!("epoch_ms(\"timestamp\") >= {cutoff_us}"));
+            // Same ns-as-µs distortion as logs — see comment there.
+            let cutoff_ns = system_time_ns(SystemTime::now()) - dur.as_nanos() as u64;
+            clauses.push(format!("\"timestamp\" >= make_timestamp({cutoff_ns})"));
         }
         if let Some(substr) = &filter.name_like {
             clauses.push("span_name LIKE ?".into());
@@ -145,10 +146,12 @@ impl TelemetryStore {
         let mut binds: Vec<String> = Vec::new();
 
         if let Some(dur) = filter.since {
-            let cutoff_us = system_time_ns(SystemTime::now()) / 1_000 - dur.as_micros() as u64;
-            clauses.push(format!(
-                "epoch_ms({ts_expr}) * 1000 >= {cutoff_us}"
-            ));
+            // read_otlp_logs feeds timeUnixNano (nanoseconds) straight into a
+            // TIMESTAMP column that interprets values as microseconds, so the
+            // stored timestamps are 1000x too large. Use make_timestamp with
+            // nanosecond cutoff so both sides share the same distortion.
+            let cutoff_ns = system_time_ns(SystemTime::now()) - dur.as_nanos() as u64;
+            clauses.push(format!("{ts_expr} >= make_timestamp({cutoff_ns})"));
         }
         if let Some(level) = &filter.level {
             clauses.push("upper(severity_text) = upper(?)".into());
