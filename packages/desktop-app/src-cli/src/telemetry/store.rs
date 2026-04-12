@@ -2,84 +2,51 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use duckdb::Connection;
-
 /// Staleness threshold for the sibling-directory mismatch banner.
-/// See the On-disk contract section in the spec for why this is 5 minutes.
 #[allow(dead_code)]
 pub const STALE_SIBLING_THRESHOLD: Duration = Duration::from_secs(300);
 
 #[derive(Debug)]
 pub enum StoreError {
     DirMissing(PathBuf),
-    ExtensionUnavailable(String),
-    Query(duckdb::Error),
+    Io(std::io::Error),
 }
 
 impl fmt::Display for StoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DirMissing(path) => write!(f, "telemetry directory missing: {}", path.display()),
-            Self::ExtensionUnavailable(msg) => {
-                write!(f, "DuckDB otlp extension unavailable: {msg}")
-            }
-            Self::Query(err) => write!(f, "duckdb query error: {err}"),
+            Self::Io(err) => write!(f, "telemetry I/O error: {err}"),
         }
     }
 }
 
 impl std::error::Error for StoreError {}
 
-impl From<duckdb::Error> for StoreError {
-    fn from(err: duckdb::Error) -> Self {
-        Self::Query(err)
+impl From<std::io::Error> for StoreError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Io(err)
     }
 }
 
+#[derive(Debug)]
 pub struct TelemetryStore {
     dir: PathBuf,
-    conn: Connection,
-}
-
-impl fmt::Debug for TelemetryStore {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TelemetryStore")
-            .field("dir", &self.dir)
-            .finish_non_exhaustive()
-    }
 }
 
 impl TelemetryStore {
-    /// Opens the default telemetry directory for this build profile.
     pub fn open() -> Result<Self, StoreError> {
         let dir = everr_core::build::telemetry_dir()
-            .map_err(|err| StoreError::ExtensionUnavailable(err.to_string()))?;
+            .map_err(|err| StoreError::Io(std::io::Error::new(std::io::ErrorKind::Other, err)))?;
         Self::open_at(&dir)
     }
 
-    /// Opens the store against an explicit telemetry directory. Used by
-    /// the hidden `--telemetry-dir` flag and by tests.
     pub fn open_at(dir: &Path) -> Result<Self, StoreError> {
         if !dir.exists() {
             return Err(StoreError::DirMissing(dir.to_path_buf()));
         }
-        let conn = Connection::open_in_memory().map_err(StoreError::Query)?;
-
-        // If the harness has set EVERR_DUCKDB_EXT_DIR, point DuckDB there so
-        // tests never hit the network. Production leaves this unset.
-        if let Ok(ext_dir) = std::env::var("EVERR_DUCKDB_EXT_DIR") {
-            conn.execute_batch(&format!("SET extension_directory = '{ext_dir}';"))
-                .map_err(|err| StoreError::ExtensionUnavailable(err.to_string()))?;
-        }
-
-        if conn.execute_batch("LOAD otlp;").is_err() {
-            conn.execute_batch("INSTALL otlp FROM community; LOAD otlp;")
-                .map_err(|err| StoreError::ExtensionUnavailable(err.to_string()))?;
-        }
-
         Ok(Self {
             dir: dir.to_path_buf(),
-            conn,
         })
     }
 
@@ -87,14 +54,35 @@ impl TelemetryStore {
         &self.dir
     }
 
-    pub(crate) fn conn(&self) -> &Connection {
-        &self.conn
+    /// List `otlp*.json*` files sorted by mtime (newest first).
+    /// Files whose metadata can't be read are still returned (with UNIX_EPOCH
+    /// mtime) so the query layer can attempt to open them and report failures
+    /// via `ScanStats`.
+    pub fn otlp_files(&self) -> Result<Vec<PathBuf>, std::io::Error> {
+        let mut entries: Vec<(PathBuf, SystemTime)> = Vec::new();
+        for entry in std::fs::read_dir(&self.dir)? {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue, // directory-level read error, not a file
+            };
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("otlp") || !name.contains(".json") {
+                continue;
+            }
+            let mtime = entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(SystemTime::UNIX_EPOCH);
+            entries.push((entry.path(), mtime));
+        }
+        entries.sort_by(|a, b| b.1.cmp(&a.1)); // newest first
+        Ok(entries.into_iter().map(|(p, _)| p).collect())
     }
 }
 
 /// Newest mtime across `otlp*.json*` files in a directory, or `None` if the
-/// directory is missing or contains no matching files. Used by the CLI
-/// command handler's mismatch and stale-sibling probes.
+/// directory is missing or contains no matching files.
 pub fn newest_otlp_mtime(dir: &Path) -> Option<SystemTime> {
     let entries = std::fs::read_dir(dir).ok()?;
     entries

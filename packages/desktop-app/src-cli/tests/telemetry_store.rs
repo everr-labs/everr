@@ -2,7 +2,7 @@ mod support;
 
 use std::fs;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use everr_cli::telemetry::query::{LogFilter, TraceFilter};
 use everr_cli::telemetry::store::{StoreError, TelemetryStore};
@@ -34,44 +34,16 @@ fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/telemetry")
 }
 
-#[test]
-fn traces_returns_all_rows_with_default_filter() {
-    let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
-    let filter = TraceFilter::default();
-    let rows = store.traces(filter).expect("query traces");
-    assert_eq!(rows.len(), 2, "fixture has two spans");
-    let names: Vec<_> = rows.iter().map(|r| r.name.as_str()).collect();
-    assert!(names.iter().any(|n| *n == "test.span.ok"));
-    assert!(names.iter().any(|n| *n == "test.span.err"));
-}
-
-#[test]
-fn traces_preserve_raw_ids_and_structured_resource_attributes() {
-    let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
-    let rows = store.traces(TraceFilter::default()).expect("query traces");
-    assert_eq!(rows[0].trace_id, "0102030405060708090a0b0c0d0e0f10");
-    assert_eq!(rows[0].span_id, "1112131415161718");
-    assert_eq!(rows[0].resource["service.name"], "test-service");
-}
-
-#[test]
-fn traces_name_like_filter_substring_matches() {
-    let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
-    let filter = TraceFilter {
-        name_like: Some("err".into()),
-        ..TraceFilter::default()
-    };
-    let rows = store.traces(filter).expect("query traces");
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].name, "test.span.err");
-}
+// --- Log tests ---
 
 #[test]
 fn logs_returns_all_records_by_default() {
     let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
     let filter = LogFilter::default();
-    let rows = store.logs(filter).expect("query logs");
+    let (rows, stats) = store.logs(filter).expect("query logs");
     assert_eq!(rows.len(), 2, "fixture has two log records");
+    assert_eq!(stats.skipped_unreadable_files, 0);
+    assert_eq!(stats.skipped_malformed_lines, 0);
 }
 
 #[test]
@@ -81,14 +53,17 @@ fn logs_trace_id_filter_matches_fixture_row() {
         trace_id: Some("0102030405060708090a0b0c0d0e0f10".into()),
         ..LogFilter::default()
     };
-    let rows = store.logs(filter).expect("query logs");
+    let (rows, _) = store.logs(filter).expect("query logs");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].message, "test log message info");
     assert_eq!(
         rows[0].trace_id.as_deref(),
         Some("0102030405060708090a0b0c0d0e0f10")
     );
-    assert_eq!(rows[0].resource["service.name"], "test-service");
+    assert_eq!(
+        everr_cli::telemetry::otlp::kv_str(&rows[0].resource_attrs, "service.name"),
+        Some("test-service")
+    );
 }
 
 #[test]
@@ -98,7 +73,7 @@ fn logs_level_filter_matches_severity() {
         level: Some("WARN".into()),
         ..LogFilter::default()
     };
-    let rows = store.logs(filter).expect("query logs");
+    let (rows, _) = store.logs(filter).expect("query logs");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].level, "WARN");
 }
@@ -110,6 +85,96 @@ fn logs_since_filter_excludes_older_rows() {
         since: Some(Duration::from_secs(1)),
         ..LogFilter::default()
     };
-    let rows = store.logs(filter).expect("query logs");
+    let (rows, _) = store.logs(filter).expect("query logs");
     assert_eq!(rows.len(), 0);
+}
+
+#[test]
+fn logs_target_populated_from_scope_name() {
+    let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
+    let (rows, _) = store.logs(LogFilter::default()).expect("query logs");
+    assert!(rows.iter().all(|r| r.target == "test-scope"),
+        "target should come from InstrumentationScope.name");
+}
+
+// --- Trace tree tests ---
+
+#[test]
+fn trace_trees_groups_spans_by_trace_id() {
+    let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
+    let filter = TraceFilter::default();
+    let (trees, stats) = store.trace_trees(filter).expect("query trace trees");
+    assert_eq!(stats.skipped_unreadable_files, 0);
+    // Fixture has 2 spans with the same trace_id → 1 tree
+    assert_eq!(trees.len(), 1);
+    assert_eq!(trees[0].trace_id, "0102030405060708090a0b0c0d0e0f10");
+    assert_eq!(trees[0].spans.len(), 2);
+    assert_eq!(trees[0].service_name, "test-service");
+}
+
+#[test]
+fn trace_trees_name_filter_finds_matching_trace() {
+    let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
+    let filter = TraceFilter {
+        name_like: Some("err".into()),
+        ..TraceFilter::default()
+    };
+    let (trees, _) = store.trace_trees(filter).expect("query");
+    assert_eq!(trees.len(), 1, "trace has a matching span");
+    // Hydration loads ALL spans for the trace, not just the matching one
+    assert_eq!(trees[0].spans.len(), 2);
+    // The matching span should be in matched_span_ids
+    assert!(trees[0].matched_span_ids.iter().any(|id| {
+        trees[0].spans.iter().any(|s| s.span_id == *id && s.name == "test.span.err")
+    }));
+}
+
+#[test]
+fn trace_trees_preserves_raw_ids() {
+    let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
+    let (trees, _) = store.trace_trees(TraceFilter::default()).expect("query");
+    let span = trees[0].spans.iter().find(|s| s.span_id == "1112131415161718").expect("find span");
+    assert_eq!(span.trace_id, "0102030405060708090a0b0c0d0e0f10");
+    assert_eq!(span.kind, 1); // INTERNAL as raw u8
+    assert_eq!(span.status_code, 1); // OK as raw u8
+}
+
+// --- Hydration test ---
+
+fn hydration_fixture_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/telemetry_hydration")
+}
+
+#[test]
+fn trace_trees_hydration_loads_parent_outside_since_window() {
+    // Root span: Sept 2020 (1600000000000000000ns = epoch 1600000000s)
+    // Child span: Nov 2023 (1700000000000000000ns = epoch 1700000000s)
+    // --since window covers child but NOT root.
+    // Discovery should find the trace via the child, hydration should
+    // load the root even though it's outside --since.
+    let store = TelemetryStore::open_at(&hydration_fixture_dir()).expect("open fixture");
+
+    // Compute --since dynamically: midpoint between root and child epochs.
+    // This always includes the child (1700000000s) and excludes the root (1600000000s).
+    let midpoint_epoch_secs: u64 = (1_600_000_000 + 1_700_000_000) / 2; // 1650000000
+    let now_secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let since_secs = now_secs - midpoint_epoch_secs;
+
+    let filter = TraceFilter {
+        since: Some(Duration::from_secs(since_secs)),
+        ..TraceFilter::default()
+    };
+    let (trees, _) = store.trace_trees(filter).expect("query");
+    assert_eq!(trees.len(), 1, "should find 1 trace via child span");
+    assert_eq!(
+        trees[0].spans.len(),
+        2,
+        "hydration must include root span even though it's outside --since"
+    );
+    let names: Vec<_> = trees[0].spans.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains(&"root.span"), "root must be hydrated");
+    assert!(names.contains(&"child.span"), "child must be present");
 }

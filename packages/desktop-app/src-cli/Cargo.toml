@@ -7,10 +7,6 @@ edition = "2024"
 name = "everr"
 path = "src/main.rs"
 
-[[bin]]
-name = "warm_otlp_extension"
-path = "src/bin/warm_otlp_extension.rs"
-
 [dependencies]
 anyhow = "1.0.98"
 chrono = "0.4"
@@ -18,12 +14,12 @@ clap = { version = "4.5.38", features = ["derive"] }
 cliclack = "0.5.2"
 dialoguer = "0.11.0"
 dirs = "6.0.0"
-duckdb = { version = "1.1", features = ["bundled"] }
 everr-core = { path = "../../../crates/everr-core" }
 futures-util = "0.3"
 reqwest = { version = "0.12.15", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+regex = "1"
 strip-ansi-escapes = "0.2"
 tempfile = "3.18.0"
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
@@ -34,7 +30,6 @@ serde_json = "1.0.140"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"
-fd-lock = "4"
 libc = "0.2"
 mockito = "1.7.0"
 predicates = "3.1.3"

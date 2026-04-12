@@ -1,9 +1,9 @@
+use std::io::BufRead;
 use std::time::{Duration, SystemTime};
 
-use duckdb::params_from_iter;
 use serde::Serialize;
-use serde_json::Value;
 
+use crate::telemetry::otlp::{self, KeyValue, OtlpSignal};
 use crate::telemetry::store::{StoreError, TelemetryStore};
 
 #[derive(Debug, Default, Clone)]
@@ -30,11 +30,13 @@ pub struct TraceRow {
     pub span_id: String,
     pub parent_span_id: Option<String>,
     pub name: String,
-    pub kind: String,
-    pub status: String,
+    pub kind: u8,
+    pub status_code: u8,
     pub duration_ns: u64,
-    pub attributes: Value,
-    pub resource: Value,
+    #[serde(skip)]
+    pub resource_attrs: Vec<KeyValue>,
+    #[serde(skip)]
+    pub span_attrs: Vec<KeyValue>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -45,173 +47,380 @@ pub struct LogRow {
     pub message: String,
     pub trace_id: Option<String>,
     pub span_id: Option<String>,
-    pub attributes: Value,
-    pub resource: Value,
+    #[serde(skip)]
+    pub resource_attrs: Vec<KeyValue>,
+    #[serde(skip)]
+    pub log_attrs: Vec<KeyValue>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ScanStats {
+    pub skipped_unreadable_files: usize,
+    pub skipped_malformed_lines: usize,
+}
+
+impl ScanStats {
+    pub fn merge(&mut self, other: &ScanStats) {
+        self.skipped_unreadable_files += other.skipped_unreadable_files;
+        self.skipped_malformed_lines += other.skipped_malformed_lines;
+    }
+}
+
+pub struct TraceTree {
+    pub trace_id: String,
+    pub activity_timestamp_ns: u64,
+    pub service_name: String,
+    pub spans: Vec<TraceRow>,
+    /// Span IDs that matched the discovery-pass filters (for `← match` highlighting).
+    pub matched_span_ids: std::collections::HashSet<String>,
+}
+
+pub(crate) fn system_time_ns(t: SystemTime) -> u64 {
+    t.duration_since(SystemTime::UNIX_EPOCH)
+        // as_nanos() returns u128; the cast is safe — u64 holds nanoseconds
+        // up to year ~2554, well beyond any realistic timestamp.
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0)
 }
 
 impl TelemetryStore {
-    pub fn traces(&self, filter: TraceFilter) -> Result<Vec<TraceRow>, StoreError> {
-        if crate::telemetry::store::count_otlp_files(self.dir()) == 0 {
-            return Ok(Vec::new());
+    pub fn logs(&self, filter: LogFilter) -> Result<(Vec<LogRow>, ScanStats), StoreError> {
+        let files = self.otlp_files()?;
+        if files.is_empty() {
+            return Ok((Vec::new(), ScanStats::default()));
         }
-        let glob = self.dir().join("otlp*.json*");
-        let mut sql = format!(
-            "SELECT \
-                epoch_ms(\"timestamp\")::UBIGINT * 1000, \
-                trace_id, \
-                span_id, \
-                nullif(parent_span_id, ''), \
-                span_name, \
-                span_kind::VARCHAR, \
-                status_code::VARCHAR, \
-                (end_timestamp * 1000000 - epoch_ms(\"timestamp\") * 1000)::UBIGINT, \
-                coalesce(to_json(span_attributes)::VARCHAR, '{{}}'), \
-                coalesce(to_json(resource_attributes)::VARCHAR, '{{}}') \
-             FROM read_otlp_traces('{}')",
-            glob.display()
-        );
-        let mut clauses: Vec<String> = Vec::new();
-        let mut binds: Vec<String> = Vec::new();
 
-        if let Some(dur) = filter.since {
-            // Same ns-as-µs distortion as logs — see comment there.
-            let cutoff_ns = system_time_ns(SystemTime::now()) - dur.as_nanos() as u64;
-            clauses.push(format!("\"timestamp\" >= make_timestamp({cutoff_ns})"));
+        let cutoff_ns = filter.since.map(|dur| {
+            system_time_ns(SystemTime::now()).saturating_sub(dur.as_nanos() as u64)
+        });
+
+        let grep_re = filter.grep.as_ref().map(|pat| {
+            regex::Regex::new(pat).unwrap_or_else(|_| regex::Regex::new(&regex::escape(pat)).unwrap())
+        });
+
+        let mut rows = Vec::new();
+        let mut stats = ScanStats::default();
+
+        for path in &files {
+            let file = match std::fs::File::open(path) {
+                Ok(f) => f,
+                Err(_) => {
+                    stats.skipped_unreadable_files += 1;
+                    continue;
+                }
+            };
+            let reader = std::io::BufReader::new(file);
+
+            for line in reader.lines() {
+                let line = match line {
+                    Ok(l) => l,
+                    Err(_) => {
+                        stats.skipped_malformed_lines += 1;
+                        continue;
+                    }
+                };
+                if line.trim().is_empty() {
+                    continue;
+                }
+
+                let req = match otlp::dispatch_line(&line) {
+                    Some(OtlpSignal::Logs(r)) => r,
+                    Some(OtlpSignal::Traces(_)) => continue, // expected, not an error
+                    None => {
+                        stats.skipped_malformed_lines += 1;
+                        continue;
+                    }
+                };
+
+                for rl in &req.resource_logs {
+                    for sl in &rl.scope_logs {
+                        let target = if sl.scope.name.is_empty() {
+                            String::new()
+                        } else {
+                            sl.scope.name.clone()
+                        };
+                        for record in &sl.log_records {
+                            let ts = otlp::resolve_log_timestamp(
+                                record.time_unix_nano,
+                                record.observed_time_unix_nano,
+                            );
+
+                            if let Some(cutoff) = cutoff_ns {
+                                if ts < cutoff {
+                                    continue;
+                                }
+                            }
+
+                            let level = &record.severity_text;
+                            if let Some(ref lvl) = filter.level {
+                                if !level.eq_ignore_ascii_case(lvl) {
+                                    continue;
+                                }
+                            }
+
+                            let message = otlp::body_string(&record.body);
+                            if let Some(ref re) = grep_re {
+                                if !re.is_match(&message) {
+                                    continue;
+                                }
+                            }
+
+                            let trace_id = if record.trace_id.is_empty() {
+                                None
+                            } else {
+                                Some(record.trace_id.clone())
+                            };
+
+                            if let Some(ref filter_tid) = filter.trace_id {
+                                match &trace_id {
+                                    Some(tid) if tid.eq_ignore_ascii_case(filter_tid) => {}
+                                    _ => continue,
+                                }
+                            }
+
+                            let span_id = if record.span_id.is_empty() {
+                                None
+                            } else {
+                                Some(record.span_id.clone())
+                            };
+
+                            rows.push(LogRow {
+                                timestamp_ns: ts,
+                                level: level.clone(),
+                                target: target.clone(),
+                                message,
+                                trace_id,
+                                span_id,
+                                resource_attrs: rl.resource.attributes.clone(),
+                                log_attrs: record.attributes.clone(),
+                            });
+                        }
+                    }
+                }
+            }
         }
-        if let Some(substr) = &filter.name_like {
-            clauses.push("span_name LIKE ?".into());
-            binds.push(format!("%{substr}%"));
-        }
-        if let Some(trace) = &filter.trace_id {
-            clauses.push("lower(trace_id) = lower(?)".into());
-            binds.push(trace.clone());
-        }
-        if !clauses.is_empty() {
-            sql.push_str(" WHERE ");
-            sql.push_str(&clauses.join(" AND "));
-        }
-        sql.push_str(" ORDER BY \"timestamp\" DESC");
+
+        rows.sort_by(|a, b| b.timestamp_ns.cmp(&a.timestamp_ns));
         if let Some(limit) = filter.limit {
-            sql.push_str(&format!(" LIMIT {limit}"));
+            rows.truncate(limit);
         }
 
-        let mut stmt = self.conn().prepare(&sql)?;
-        let rows = stmt
-            .query_map(params_from_iter(binds), |row| {
-                Ok(TraceRow {
-                    timestamp_ns: row.get::<_, u64>(0)?,
-                    trace_id: row.get::<_, String>(1)?,
-                    span_id: row.get::<_, String>(2)?,
-                    parent_span_id: row.get::<_, Option<String>>(3)?,
-                    name: row.get::<_, String>(4)?,
-                    kind: row.get::<_, String>(5)?,
-                    status: row.get::<_, String>(6)?,
-                    duration_ns: row.get::<_, u64>(7)?,
-                    attributes: parse_json(row.get::<_, String>(8)?),
-                    resource: parse_json(row.get::<_, String>(9)?),
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(rows)
+        Ok((rows, stats))
     }
 
-    pub fn logs(&self, filter: LogFilter) -> Result<Vec<LogRow>, StoreError> {
-        if crate::telemetry::store::count_otlp_files(self.dir()) == 0 {
-            return Ok(Vec::new());
-        }
-        let glob = self.dir().join("otlp*.json*");
-        // The Rust opentelemetry-appender-tracing bridge only sets
-        // observedTimeUnixNano (not timeUnixNano). DuckDB's read_otlp_logs
-        // maps these to "timestamp" (TIMESTAMP_MS) and "observed_timestamp"
-        // (BIGINT nanoseconds). COALESCE picks whichever is populated,
-        // converting observed_timestamp from nanos to TIMESTAMP_MS.
-        let ts_expr = "COALESCE(\
-            NULLIF(\"timestamp\", '1970-01-01 00:00:00'::TIMESTAMP_MS), \
-            epoch_ms(observed_timestamp)\
-        )";
-        let mut sql = format!(
-            "SELECT \
-                epoch_ms({ts_expr}) * 1000, \
-                severity_text, \
-                '', \
-                body::VARCHAR, \
-                nullif(trace_id, ''), \
-                nullif(span_id, ''), \
-                coalesce(to_json(log_attributes)::VARCHAR, '{{}}'), \
-                coalesce(to_json(resource_attributes)::VARCHAR, '{{}}') \
-             FROM read_otlp_logs('{}')",
-            glob.display()
-        );
-        let mut clauses: Vec<String> = Vec::new();
-        let mut binds: Vec<String> = Vec::new();
-
-        if let Some(dur) = filter.since {
-            // read_otlp_logs feeds timeUnixNano (nanoseconds) straight into a
-            // TIMESTAMP column that interprets values as microseconds, so the
-            // stored timestamps are 1000x too large. Use make_timestamp with
-            // nanosecond cutoff so both sides share the same distortion.
-            let cutoff_ns = system_time_ns(SystemTime::now()) - dur.as_nanos() as u64;
-            clauses.push(format!("{ts_expr} >= make_timestamp({cutoff_ns})"));
-        }
-        if let Some(level) = &filter.level {
-            clauses.push("upper(severity_text) = upper(?)".into());
-            binds.push(level.clone());
-        }
-        if let Some(grep) = &filter.grep {
-            clauses.push("regexp_matches(body::VARCHAR, ?)".into());
-            binds.push(grep.clone());
-        }
-        if let Some(trace) = &filter.trace_id {
-            clauses.push("lower(trace_id) = lower(?)".into());
-            binds.push(trace.clone());
-        }
-        if !clauses.is_empty() {
-            sql.push_str(" WHERE ");
-            sql.push_str(&clauses.join(" AND "));
-        }
-        sql.push_str(&format!(" ORDER BY {ts_expr} DESC"));
-        if let Some(limit) = filter.limit {
-            sql.push_str(&format!(" LIMIT {limit}"));
+    /// Two-pass query: discovery finds matching trace IDs, hydration loads
+    /// all spans for those traces. This reads files twice — an explicit
+    /// tradeoff: acceptable for local telemetry volumes (typically <100 files),
+    /// avoids unbounded memory from loading all spans in a single pass before
+    /// knowing which traces survive filtering. Could be collapsed to a single
+    /// pass with a HashMap<trace_id, Vec<TraceRow>> if volumes grow.
+    pub fn trace_trees(&self, filter: TraceFilter) -> Result<(Vec<TraceTree>, ScanStats), StoreError> {
+        let files = self.otlp_files()?;
+        if files.is_empty() {
+            return Ok((Vec::new(), ScanStats::default()));
         }
 
-        let mut stmt = self.conn().prepare(&sql)?;
-        let rows = stmt
-            .query_map(params_from_iter(binds), |row| {
-                Ok(LogRow {
-                    timestamp_ns: row.get::<_, u64>(0)?,
-                    level: row.get::<_, String>(1)?,
-                    target: row.get::<_, String>(2)?,
-                    message: row.get::<_, String>(3)?,
-                    trace_id: row.get::<_, Option<String>>(4)?,
-                    span_id: row.get::<_, Option<String>>(5)?,
-                    attributes: parse_json(row.get::<_, String>(6)?),
-                    resource: parse_json(row.get::<_, String>(7)?),
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(rows)
-    }
-}
-
-fn parse_json(s: String) -> Value {
-    let Ok(mut value) = serde_json::from_str::<Value>(&s) else {
-        return Value::Null;
-    };
-
-    loop {
-        let Value::String(inner) = value else {
-            return value;
+        // When --trace-id is set, skip the --since cutoff during discovery
+        // so any known trace can be found regardless of age.
+        let cutoff_ns = if filter.trace_id.is_some() {
+            None
+        } else {
+            filter.since.map(|dur| {
+                system_time_ns(SystemTime::now()).saturating_sub(dur.as_nanos() as u64)
+            })
         };
 
-        match serde_json::from_str::<Value>(&inner) {
-            Ok(parsed) => value = parsed,
-            Err(_) => return Value::String(inner),
-        }
-    }
-}
+        // --- Discovery pass: find candidate trace IDs and record matched span IDs ---
+        let mut candidates: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        let mut matched_spans: std::collections::HashMap<String, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        let mut stats = ScanStats::default();
 
-fn system_time_ns(t: SystemTime) -> u64 {
-    t.duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0)
+        for path in &files {
+            let file = match std::fs::File::open(path) {
+                Ok(f) => f,
+                Err(_) => {
+                    stats.skipped_unreadable_files += 1;
+                    continue;
+                }
+            };
+            let reader = std::io::BufReader::new(file);
+
+            for line in reader.lines() {
+                let line = match line {
+                    Ok(l) => l,
+                    Err(_) => {
+                        stats.skipped_malformed_lines += 1;
+                        continue;
+                    }
+                };
+                if line.trim().is_empty() {
+                    continue;
+                }
+
+                let req = match otlp::dispatch_line(&line) {
+                    Some(OtlpSignal::Traces(r)) => r,
+                    Some(OtlpSignal::Logs(_)) => continue,
+                    None => {
+                        stats.skipped_malformed_lines += 1;
+                        continue;
+                    }
+                };
+
+                for rs in &req.resource_spans {
+                    for ss in &rs.scope_spans {
+                        for span in &ss.spans {
+                            let ts = span.start_time_unix_nano.unwrap_or(0);
+
+                            if let Some(cutoff) = cutoff_ns {
+                                if ts < cutoff {
+                                    continue;
+                                }
+                            }
+
+                            if let Some(ref name_sub) = filter.name_like {
+                                if !span.name.contains(name_sub.as_str()) {
+                                    continue;
+                                }
+                            }
+
+                            if let Some(ref filter_tid) = filter.trace_id {
+                                if !span.trace_id.eq_ignore_ascii_case(filter_tid) {
+                                    continue;
+                                }
+                            }
+
+                            let entry = candidates
+                                .entry(span.trace_id.clone())
+                                .or_insert(0);
+                            if ts > *entry {
+                                *entry = ts;
+                            }
+                            matched_spans
+                                .entry(span.trace_id.clone())
+                                .or_default()
+                                .insert(span.span_id.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        if candidates.is_empty() {
+            return Ok((Vec::new(), stats));
+        }
+
+        // Sort by activity_timestamp descending, apply limit
+        let mut sorted: Vec<(String, u64)> = candidates.into_iter().collect();
+        sorted.sort_by(|a, b| b.1.cmp(&a.1));
+        if let Some(limit) = filter.limit {
+            sorted.truncate(limit);
+        }
+
+        let selected_ids: std::collections::HashSet<String> =
+            sorted.iter().map(|(id, _)| id.clone()).collect();
+        let activity_timestamps: std::collections::HashMap<String, u64> =
+            sorted.into_iter().collect();
+
+        // --- Hydration pass: load all spans for selected traces ---
+        let mut all_spans: Vec<TraceRow> = Vec::new();
+        let mut hydrate_stats = ScanStats::default();
+
+        for path in &files {
+            let file = match std::fs::File::open(path) {
+                Ok(f) => f,
+                Err(_) => {
+                    hydrate_stats.skipped_unreadable_files += 1;
+                    continue;
+                }
+            };
+            let reader = std::io::BufReader::new(file);
+
+            for line in reader.lines() {
+                let line = match line {
+                    Ok(l) => l,
+                    Err(_) => {
+                        hydrate_stats.skipped_malformed_lines += 1;
+                        continue;
+                    }
+                };
+                if line.trim().is_empty() {
+                    continue;
+                }
+
+                let req = match otlp::dispatch_line(&line) {
+                    Some(OtlpSignal::Traces(r)) => r,
+                    Some(OtlpSignal::Logs(_)) => continue,
+                    None => {
+                        hydrate_stats.skipped_malformed_lines += 1;
+                        continue;
+                    }
+                };
+
+                // Only collect spans for selected trace IDs
+                for rs in &req.resource_spans {
+                    for ss in &rs.scope_spans {
+                        for span in &ss.spans {
+                            if !selected_ids.contains(&span.trace_id) {
+                                continue;
+                            }
+                            let start = span.start_time_unix_nano.unwrap_or(0);
+                            let end = span.end_time_unix_nano.unwrap_or(0);
+                            let parent = if span.parent_span_id.is_empty() {
+                                None
+                            } else {
+                                Some(span.parent_span_id.clone())
+                            };
+
+                            all_spans.push(TraceRow {
+                                timestamp_ns: start,
+                                trace_id: span.trace_id.clone(),
+                                span_id: span.span_id.clone(),
+                                parent_span_id: parent,
+                                name: span.name.clone(),
+                                kind: span.kind,
+                                status_code: span.status.code,
+                                duration_ns: end.saturating_sub(start),
+                                resource_attrs: rs.resource.attributes.clone(),
+                                span_attrs: span.attributes.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        stats.merge(&hydrate_stats);
+
+        // Group spans into TraceTree structs
+        let mut tree_map: std::collections::HashMap<String, Vec<TraceRow>> =
+            std::collections::HashMap::new();
+        for span in all_spans {
+            tree_map.entry(span.trace_id.clone()).or_default().push(span);
+        }
+
+        let mut trees: Vec<TraceTree> = tree_map
+            .into_iter()
+            .map(|(trace_id, spans)| {
+                let activity_ts = activity_timestamps.get(&trace_id).copied().unwrap_or(0);
+                let service_name = spans
+                    .first()
+                    .and_then(|s| otlp::kv_str(&s.resource_attrs, "service.name"))
+                    .unwrap_or("")
+                    .to_string();
+                let matched = matched_spans.remove(&trace_id).unwrap_or_default();
+                TraceTree {
+                    trace_id,
+                    activity_timestamp_ns: activity_ts,
+                    service_name,
+                    spans,
+                    matched_span_ids: matched,
+                }
+            })
+            .collect();
+
+        trees.sort_by(|a, b| b.activity_timestamp_ns.cmp(&a.activity_timestamp_ns));
+
+        Ok((trees, stats))
+    }
 }

@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-mod duckdb_cache;
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
@@ -36,12 +34,10 @@ impl CliTestEnv {
     }
 
     pub fn command(&self) -> Command {
-        let cache = duckdb_cache::warm_otlp_extension();
         let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("everr"));
         cmd.env("HOME", &self.home_dir);
         cmd.env("XDG_CONFIG_HOME", &self.config_dir);
         cmd.env("XDG_DATA_HOME", self.home_dir.join(".local").join("share"));
-        cmd.env("EVERR_DUCKDB_EXT_DIR", cache);
         cmd
     }
 
@@ -58,22 +54,11 @@ impl CliTestEnv {
     }
 
     pub fn telemetry_dir(&self) -> PathBuf {
-        #[cfg(target_os = "macos")]
-        {
-            self.home_dir
-                .join("Library")
-                .join("Application Support")
-                .join("everr")
-                .join("telemetry-dev")
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            self.home_dir
-                .join(".local")
-                .join("share")
-                .join("everr")
-                .join("telemetry-dev")
-        }
+        self.home_dir
+            .join("Library")
+            .join("Application Support")
+            .join("everr")
+            .join("telemetry-dev")
     }
 
     pub fn write_session(&self, api_base_url: &str, token: &str) {
@@ -104,8 +89,8 @@ impl CliTestEnv {
         fs::create_dir_all(&repo_dir).expect("create repo dir");
 
         run_git(&repo_dir, ["init"]);
-        run_git(&repo_dir, ["config", "user.email", "tests@everr.dev"]);
-        run_git(&repo_dir, ["config", "user.name", "Everr Tests"]);
+        run_git(&repo_dir, ["config", "user.email", "tests@example.com"]);
+        run_git(&repo_dir, ["config", "user.name", "Test User"]);
 
         fs::write(repo_dir.join("README.md"), "# test repo\n").expect("write readme");
         run_git(&repo_dir, ["add", "README.md"]);
@@ -122,15 +107,7 @@ pub fn mock_api_server() -> ServerGuard {
 }
 
 fn platform_config_dir(home_dir: &Path) -> PathBuf {
-    #[cfg(target_os = "macos")]
-    {
-        home_dir.join("Library").join("Application Support")
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        home_dir.join(".config")
-    }
+    home_dir.join("Library").join("Application Support")
 }
 
 pub fn parse_stdout_json(output: &[u8]) -> Value {

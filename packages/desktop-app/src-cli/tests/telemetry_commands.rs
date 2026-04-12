@@ -24,7 +24,7 @@ fn telemetry_traces_table_renders_span_rows() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("NAME"))
+        .stdout(predicate::str::contains("TRACE"))
         .stdout(predicate::str::contains("test.span.ok"));
 }
 
