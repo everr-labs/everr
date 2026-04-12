@@ -73,7 +73,9 @@ fn run_logs(args: TelemetryLogsArgs) -> Result<()> {
     let filter = LogFilter {
         since: Some(since),
         level: args.level.clone(),
-        grep: args.grep.clone(),
+        egrep: args.egrep.clone(),
+        service: args.service.clone(),
+        target: args.target.clone(),
         trace_id: args.trace_id.clone(),
         limit: Some(args.limit),
     };

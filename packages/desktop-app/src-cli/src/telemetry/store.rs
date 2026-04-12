@@ -39,12 +39,6 @@ fn is_otlp_file(name: &str) -> bool {
 }
 
 impl TelemetryStore {
-    pub fn open() -> Result<Self, StoreError> {
-        let dir = everr_core::build::telemetry_dir()
-            .map_err(|err| StoreError::Io(std::io::Error::new(std::io::ErrorKind::Other, err)))?;
-        Self::open_at(&dir)
-    }
-
     pub fn open_at(dir: &Path) -> Result<Self, StoreError> {
         if !dir.exists() {
             return Err(StoreError::DirMissing(dir.to_path_buf()));

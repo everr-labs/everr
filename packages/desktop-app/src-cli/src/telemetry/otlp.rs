@@ -72,7 +72,7 @@ pub(crate) struct ResourceSpans {
 #[derive(Deserialize)]
 pub(crate) struct ScopeSpans {
     #[serde(default)]
-    pub scope: Scope,
+    pub _scope: Scope,
     #[serde(default)]
     pub spans: Vec<Span>,
 }

@@ -107,7 +107,11 @@ pub struct TelemetryLogsArgs {
     #[arg(long)]
     pub level: Option<String>,
     #[arg(long)]
-    pub grep: Option<String>,
+    pub egrep: Option<String>,
+    #[arg(long)]
+    pub service: Option<String>,
+    #[arg(long)]
+    pub target: Option<String>,
     #[arg(long)]
     pub trace_id: Option<String>,
     #[arg(long, default_value_t = 200)]

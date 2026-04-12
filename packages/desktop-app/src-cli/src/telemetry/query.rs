@@ -18,7 +18,9 @@ pub struct TraceFilter {
 pub struct LogFilter {
     pub since: Option<Duration>,
     pub level: Option<String>,
-    pub grep: Option<String>,
+    pub egrep: Option<String>,
+    pub service: Option<String>,
+    pub target: Option<String>,
     pub trace_id: Option<String>,
     pub limit: Option<usize>,
 }
@@ -94,7 +96,7 @@ impl TelemetryStore {
             system_time_ns(SystemTime::now()).saturating_sub(dur.as_nanos() as u64)
         });
 
-        let grep_re = filter.grep.as_ref().map(|pat| {
+        let grep_re = filter.egrep.as_ref().map(|pat| {
             regex::Regex::new(pat).unwrap_or_else(|_| regex::Regex::new(&regex::escape(pat)).unwrap())
         });
 
@@ -133,12 +135,24 @@ impl TelemetryStore {
                 };
 
                 for rl in &req.resource_logs {
+                    if let Some(ref svc) = filter.service {
+                        let actual = otlp::kv_str(&rl.resource.attributes, "service.name")
+                            .unwrap_or("");
+                        if !actual.contains(svc.as_str()) {
+                            continue;
+                        }
+                    }
                     for sl in &rl.scope_logs {
                         let target = if sl.scope.name.is_empty() {
                             String::new()
                         } else {
                             sl.scope.name.clone()
                         };
+                        if let Some(ref tgt) = filter.target {
+                            if !target.contains(tgt.as_str()) {
+                                continue;
+                            }
+                        }
                         for record in &sl.log_records {
                             let ts = otlp::resolve_log_timestamp(
                                 record.time_unix_nano,
