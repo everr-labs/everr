@@ -12,7 +12,7 @@ use crate::cli::{
 use crate::telemetry::otlp::KeyValue;
 use crate::telemetry::query::{LogFilter, LogRow, ScanStats, TraceFilter, TraceRow, TraceTree, system_time_ns};
 use crate::telemetry::store::{
-    STALE_SIBLING_THRESHOLD, StoreError, TelemetryStore, count_otlp_files, newest_otlp_mtime,
+    STALE_SIBLING_THRESHOLD, StoreError, TelemetryStore, otlp_file_summary,
 };
 
 pub fn run(args: TelemetryArgs) -> Result<()> {
@@ -22,15 +22,14 @@ pub fn run(args: TelemetryArgs) -> Result<()> {
     }
 }
 
-fn run_traces(args: TelemetryQueryArgs) -> Result<()> {
-    let since = parse_duration(&args.since)?;
-    let format = resolve_format(args.format);
-    let resolved_dir = resolved_dir(args.telemetry_dir.as_deref())?;
-
-    match TelemetryStore::open_at(&resolved_dir) {
+/// Open the telemetry store, emitting user-facing hints on missing/stale dirs.
+/// Returns `Ok(None)` when the directory is missing (hint already printed).
+fn open_store(telemetry_dir: Option<&Path>) -> Result<Option<(TelemetryStore, Header)>> {
+    let resolved = resolved_dir(telemetry_dir)?;
+    match TelemetryStore::open_at(&resolved) {
         Err(StoreError::DirMissing(path)) => {
             emit_missing_or_sibling_hint(&path)?;
-            Ok(())
+            Ok(None)
         }
         Err(StoreError::Io(err)) => {
             eprintln!("telemetry store error: {err}");
@@ -39,57 +38,49 @@ fn run_traces(args: TelemetryQueryArgs) -> Result<()> {
         Ok(store) => {
             maybe_stale_sibling_banner(store.dir());
             let header = Header::compute(store.dir());
-            let filter = TraceFilter {
-                since: Some(since),
-                name_like: args.name.clone(),
-                trace_id: args.trace_id.clone(),
-                limit: Some(args.limit),
-            };
-            let (trees, stats) = store
-                .trace_trees(filter)
-                .context("query failed")?;
-            match format {
-                TelemetryFormat::Json => render_traces_json(&header, &trees, args.limit),
-                TelemetryFormat::Table => render_trace_trees(&header, &trees),
-            }
-            print_scan_warnings(&stats);
-            Ok(())
+            Ok(Some((store, header)))
         }
     }
+}
+
+fn run_traces(args: TelemetryQueryArgs) -> Result<()> {
+    let since = parse_duration(&args.since)?;
+    let format = resolve_format(args.format);
+    let Some((store, header)) = open_store(args.telemetry_dir.as_deref())? else {
+        return Ok(());
+    };
+    let filter = TraceFilter {
+        since: Some(since),
+        name_like: args.name.clone(),
+        trace_id: args.trace_id.clone(),
+        limit: Some(args.limit),
+    };
+    let (trees, stats) = store.trace_trees(filter).context("query failed")?;
+    match format {
+        TelemetryFormat::Json => render_traces_json(&header, &trees, args.limit),
+        TelemetryFormat::Table => render_trace_trees(&header, &trees),
+    }
+    print_scan_warnings(&stats);
+    Ok(())
 }
 
 fn run_logs(args: TelemetryLogsArgs) -> Result<()> {
     let since = parse_duration(&args.since)?;
     let format = resolve_format(args.format);
-    let resolved_dir = resolved_dir(args.telemetry_dir.as_deref())?;
-
-    match TelemetryStore::open_at(&resolved_dir) {
-        Err(StoreError::DirMissing(path)) => {
-            emit_missing_or_sibling_hint(&path)?;
-            Ok(())
-        }
-        Err(StoreError::Io(err)) => {
-            eprintln!("telemetry store error: {err}");
-            Err(anyhow::anyhow!("telemetry store error"))
-        }
-        Ok(store) => {
-            maybe_stale_sibling_banner(store.dir());
-            let header = Header::compute(store.dir());
-            let filter = LogFilter {
-                since: Some(since),
-                level: args.level.clone(),
-                grep: args.grep.clone(),
-                trace_id: args.trace_id.clone(),
-                limit: Some(args.limit),
-            };
-            let (rows, stats) = store
-                .logs(filter)
-                .context("query failed")?;
-            render_logs(&header, &rows, format);
-            print_scan_warnings(&stats);
-            Ok(())
-        }
-    }
+    let Some((store, header)) = open_store(args.telemetry_dir.as_deref())? else {
+        return Ok(());
+    };
+    let filter = LogFilter {
+        since: Some(since),
+        level: args.level.clone(),
+        grep: args.grep.clone(),
+        trace_id: args.trace_id.clone(),
+        limit: Some(args.limit),
+    };
+    let (rows, stats) = store.logs(filter).context("query failed")?;
+    render_logs(&header, &rows, format);
+    print_scan_warnings(&stats);
+    Ok(())
 }
 
 fn resolved_dir(explicit: Option<&Path>) -> Result<PathBuf> {
@@ -131,7 +122,7 @@ fn resolve_format(requested: Option<TelemetryFormat>) -> TelemetryFormat {
 fn emit_missing_or_sibling_hint(resolved: &Path) -> Result<()> {
     let sibling = everr_core::build::telemetry_dir_sibling().ok();
     if let Some(sibling) = sibling.as_deref() {
-        if count_otlp_files(sibling) > 0 {
+        if otlp_file_summary(sibling).0 > 0 {
             eprintln!(
                 "No telemetry in {}, but {} has data. If you're inspecting the other build, pass --telemetry-dir {} or use the matching binary.",
                 resolved.display(),
@@ -152,8 +143,8 @@ fn maybe_stale_sibling_banner(resolved: &Path) {
         Ok(s) => s,
         Err(_) => return,
     };
-    let resolved_mtime = newest_otlp_mtime(resolved);
-    let sibling_mtime = newest_otlp_mtime(&sibling);
+    let resolved_mtime = otlp_file_summary(resolved).1;
+    let sibling_mtime = otlp_file_summary(&sibling).1;
     if let (Some(r), Some(s)) = (resolved_mtime, sibling_mtime) {
         if let Ok(delta) = s.duration_since(r) {
             if delta > STALE_SIBLING_THRESHOLD {
@@ -177,11 +168,12 @@ struct Header {
 
 impl Header {
     fn compute(dir: &Path) -> Self {
-        let age = newest_otlp_mtime(dir).and_then(|t| SystemTime::now().duration_since(t).ok());
+        let (file_count, newest_mtime) = otlp_file_summary(dir);
+        let newest_age = newest_mtime.and_then(|t| SystemTime::now().duration_since(t).ok());
         Self {
             dir: dir.to_path_buf(),
-            file_count: count_otlp_files(dir),
-            newest_age: age,
+            file_count,
+            newest_age,
         }
     }
 
@@ -324,10 +316,11 @@ fn render_span_children(
         let status = status_code_str(span.status_code);
         let is_match = matched.contains(&span.span_id);
         let marker = if is_match { "  ← match" } else { "" };
+        let truncated = truncate(&span.name, 29);
         let name_display = if is_match {
-            format!("\x1b[1m{}\x1b[0m", truncate(&span.name, 29))
+            format!("\x1b[1m{truncated}\x1b[0m")
         } else {
-            truncate(&span.name, 29)
+            truncated.into_owned()
         };
         println!(
             "{prefix}{connector}{:<30} {:<8} {}{}",
@@ -475,12 +468,12 @@ fn format_duration_ns(ns: u64) -> String {
     }
 }
 
-fn truncate(s: &str, max: usize) -> String {
+fn truncate(s: &str, max: usize) -> std::borrow::Cow<'_, str> {
     if s.chars().count() <= max {
-        s.to_string()
+        std::borrow::Cow::Borrowed(s)
     } else {
-        let mut out = s.chars().take(max.saturating_sub(1)).collect::<String>();
+        let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
         out.push('…');
-        out
+        std::borrow::Cow::Owned(out)
     }
 }

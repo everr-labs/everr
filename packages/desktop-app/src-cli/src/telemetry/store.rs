@@ -34,6 +34,10 @@ pub struct TelemetryStore {
     dir: PathBuf,
 }
 
+fn is_otlp_file(name: &str) -> bool {
+    name.starts_with("otlp") && name.contains(".json")
+}
+
 impl TelemetryStore {
     pub fn open() -> Result<Self, StoreError> {
         let dir = everr_core::build::telemetry_dir()
@@ -67,7 +71,7 @@ impl TelemetryStore {
             };
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if !name.starts_with("otlp") || !name.contains(".json") {
+            if !is_otlp_file(&name) {
                 continue;
             }
             let mtime = entry
@@ -81,32 +85,23 @@ impl TelemetryStore {
     }
 }
 
-/// Newest mtime across `otlp*.json*` files in a directory, or `None` if the
-/// directory is missing or contains no matching files.
-pub fn newest_otlp_mtime(dir: &Path) -> Option<SystemTime> {
-    let entries = std::fs::read_dir(dir).ok()?;
-    entries
-        .filter_map(Result::ok)
-        .filter(|e| {
-            let name = e.file_name();
-            let name = name.to_string_lossy();
-            name.starts_with("otlp") && name.contains(".json")
-        })
-        .filter_map(|e| e.metadata().and_then(|m| m.modified()).ok())
-        .max()
-}
-
-/// Count of `otlp*.json*` files in a directory. Returns 0 on missing dir.
-pub fn count_otlp_files(dir: &Path) -> usize {
-    match std::fs::read_dir(dir) {
-        Ok(entries) => entries
-            .filter_map(Result::ok)
-            .filter(|e| {
-                let name = e.file_name();
-                let name = name.to_string_lossy();
-                name.starts_with("otlp") && name.contains(".json")
-            })
-            .count(),
-        Err(_) => 0,
+/// Single-pass summary of `otlp*.json*` files in a directory.
+pub fn otlp_file_summary(dir: &Path) -> (usize, Option<SystemTime>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return (0, None),
+    };
+    let mut count = 0usize;
+    let mut newest: Option<SystemTime> = None;
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name();
+        if !is_otlp_file(&name.to_string_lossy()) {
+            continue;
+        }
+        count += 1;
+        if let Ok(mtime) = entry.metadata().and_then(|m| m.modified()) {
+            newest = Some(newest.map_or(mtime, |prev: SystemTime| prev.max(mtime)));
+        }
     }
+    (count, newest)
 }
