@@ -380,8 +380,20 @@ pub struct FailureNotification {
     pub workflow_name: String,
     pub failed_at: String,
     pub details_url: String,
+    /// All failed jobs in the run with their first failing step.
+    #[serde(default)]
+    pub failed_jobs: Vec<FailedJobInfo>,
+    // Legacy single-job fields kept for backward compatibility with older servers.
     pub job_name: Option<String>,
     pub step_number: Option<String>,
+    pub step_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FailedJobInfo {
+    pub job_name: String,
+    pub step_number: String,
     pub step_name: Option<String>,
 }
 

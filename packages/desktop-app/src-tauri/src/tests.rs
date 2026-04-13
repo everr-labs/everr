@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use everr_core::api::FailureNotification;
+use everr_core::api::{FailedJobInfo, FailureNotification};
 use everr_core::assistant::{AssistantKind, AssistantStatus};
 use everr_core::state::{AppSettings, AppStateStore, WizardState};
 use everr_core::state_watcher::StateWatcher;
@@ -41,6 +41,11 @@ fn failure(dedupe_key: &str) -> FailureNotification {
         workflow_name: "CI".to_string(),
         failed_at: "2026-03-07T10:00:00Z".to_string(),
         details_url: format!("https://example.com/{dedupe_key}"),
+        failed_jobs: vec![FailedJobInfo {
+            job_name: "test".to_string(),
+            step_number: "2".to_string(),
+            step_name: Some("Run suite".to_string()),
+        }],
         job_name: Some("test".to_string()),
         step_number: Some("2".to_string()),
         step_name: Some("Run suite".to_string()),
@@ -118,10 +123,53 @@ fn notification_prompt_builder_formats_single_failure_with_exact_logs_command() 
 
     assert!(prompt.contains("Investigate and fix this CI pipeline failure."));
     assert!(prompt.contains("Failure details:"));
-    assert!(prompt.contains("workflow CI | trace trace-one | step test #2 (Run suite)"));
+    assert!(prompt.contains("workflow CI | trace trace-one | failing steps: test #2 (Run suite)"));
     assert!(prompt.contains("everr logs trace-one --job-name \"test\" --step-number 2"));
     assert!(prompt.contains("Step 2"));
     assert!(prompt.contains("Step 3"));
+}
+
+#[test]
+fn notification_prompt_lists_all_failed_jobs() {
+    let notification = FailureNotification {
+        dedupe_key: "multi".to_string(),
+        trace_id: "trace-multi".to_string(),
+        repo: "everr-labs/everr".to_string(),
+        branch: "main".to_string(),
+        workflow_name: "CI".to_string(),
+        failed_at: "2026-03-07T10:00:00Z".to_string(),
+        details_url: "https://example.com/multi".to_string(),
+        failed_jobs: vec![
+            FailedJobInfo {
+                job_name: "test".to_string(),
+                step_number: "3".to_string(),
+                step_name: Some("Run suite".to_string()),
+            },
+            FailedJobInfo {
+                job_name: "lint".to_string(),
+                step_number: "2".to_string(),
+                step_name: Some("Biome check".to_string()),
+            },
+        ],
+        job_name: Some("test".to_string()),
+        step_number: Some("3".to_string()),
+        step_name: Some("Run suite".to_string()),
+    };
+
+    let prompt = build_notification_auto_fix_prompt(&notification);
+
+    assert!(
+        prompt.contains("failing steps: test #3 (Run suite), lint #2 (Biome check)"),
+        "prompt should list all failed jobs, got: {prompt}"
+    );
+    assert!(
+        prompt.contains("everr logs trace-multi --job-name \"test\" --step-number 3"),
+        "prompt should include logs command for first job"
+    );
+    assert!(
+        prompt.contains("everr logs trace-multi --job-name \"lint\" --step-number 2"),
+        "prompt should include logs command for second job"
+    );
 }
 
 #[test]
