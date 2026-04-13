@@ -78,26 +78,27 @@ impl StateWatcher {
             }
         });
 
-        let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-            let Ok(event) = event else {
-                return;
-            };
+        let mut watcher =
+            notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+                let Ok(event) = event else {
+                    return;
+                };
 
-            match event.kind {
-                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
-                    let matches_state_file = event.paths.iter().any(|p| {
-                        p.file_name()
-                            .map(|name| name == state_file_name)
-                            .unwrap_or(false)
-                    });
-                    if matches_state_file {
-                        let _ = notify_tx.send(());
+                match event.kind {
+                    EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
+                        let matches_state_file = event.paths.iter().any(|p| {
+                            p.file_name()
+                                .map(|name| name == state_file_name)
+                                .unwrap_or(false)
+                        });
+                        if matches_state_file {
+                            let _ = notify_tx.send(());
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
-            }
-        })
-        .context("failed to create filesystem watcher")?;
+            })
+            .context("failed to create filesystem watcher")?;
 
         watcher
             .watch(&watch_dir, RecursiveMode::NonRecursive)
@@ -151,8 +152,8 @@ fn diff_changes(old: &AppState, new: &AppState) -> Vec<StateChange> {
 
 #[cfg(test)]
 mod tests {
-    use crate::state::{AppSettings, AppState, Session, WizardState};
     use super::*;
+    use crate::state::{AppSettings, AppState, Session, WizardState};
 
     #[test]
     fn diff_detects_session_change() {

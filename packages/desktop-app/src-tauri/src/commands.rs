@@ -12,7 +12,7 @@ use crate::auth::{
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::notifications::{
     build_test_notification, copy_notification_auto_fix_prompt_inner,
-    dismiss_active_notification_inner, open_notification_target_inner, sync_notification_window,
+    dismiss_active_notification_inner, enqueue_notification, open_notification_target_inner,
     reset_notification_state,
 };
 use crate::seen_runs;
@@ -152,10 +152,7 @@ pub(crate) async fn get_notification_emails(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<Vec<String>> {
     let state = state.inner().clone();
-    run_blocking_command(move || {
-        Ok(current_app_state(&state)?.settings.notification_emails)
-    })
-    .await
+    run_blocking_command(move || Ok(current_app_state(&state)?.settings.notification_emails)).await
 }
 
 #[tauri::command]
@@ -199,7 +196,6 @@ pub(crate) async fn get_user_profile(
     .await
 }
 
-
 #[tauri::command]
 pub(crate) fn dismiss_active_notification(
     app: AppHandle,
@@ -229,25 +225,9 @@ pub(crate) fn trigger_test_notification(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<TestNotificationResponse> {
     let notification = build_test_notification().into_command_result()?;
+    enqueue_notification(&app, state.inner(), notification).into_command_result()?;
 
-    seen_runs::add_seen_run(state.inner(), &notification.trace_id).into_command_result()?;
-    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
-
-    let shown = {
-        let mut notifier = state
-            .notifier
-            .lock()
-            .map_err(|_| "failed to lock notifier state".to_string())?;
-        notifier.queue.enqueue(notification)
-    };
-
-    if shown {
-        sync_notification_window(&app, state.inner()).into_command_result()?;
-    }
-
-    Ok(TestNotificationResponse {
-        status: if shown { "shown" } else { "queued" },
-    })
+    Ok(TestNotificationResponse { status: "queued" })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -317,9 +297,7 @@ pub(crate) async fn get_runs_list(
 }
 
 #[tauri::command]
-pub(crate) fn get_unseen_trace_ids(
-    state: State<'_, RuntimeState>,
-) -> CommandResult<Vec<String>> {
+pub(crate) fn get_unseen_trace_ids(state: State<'_, RuntimeState>) -> CommandResult<Vec<String>> {
     seen_runs::unseen_trace_ids(state.inner()).into_command_result()
 }
 

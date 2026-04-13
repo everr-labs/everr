@@ -53,7 +53,7 @@ const NOTIFICATION_EXIT_EVENT: &str = "everr://notification-exit";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 124.0;
-const NOTIFICATION_WINDOW_MARGIN: f64 = 16.0;
+const NOTIFICATION_WINDOW_MARGIN: f64 = 38.0;
 const NOTIFICATION_WINDOW_INSET: f64 = 12.0;
 const TRAY_ICON_ID: &str = "everr-app";
 const SETTINGS_MENU_ID: &str = "settings";
@@ -234,11 +234,13 @@ pub fn run() {
             let store = current_state_store();
             let _ = store.clear_mismatched_session(build::default_api_base_url())?;
             store.update_state(|state| {
-                state.settings.apply_runtime_base_url(build::default_api_base_url());
+                state
+                    .settings
+                    .apply_runtime_base_url(build::default_api_base_url());
             })?;
             run_local_startup_maintenance(app.handle());
-            let watcher = StateWatcher::start(store.clone())
-                .expect("failed to start state watcher");
+            let watcher =
+                StateWatcher::start(store.clone()).expect("failed to start state watcher");
             let runtime = RuntimeState {
                 store,
                 watcher: Arc::new(watcher),
