@@ -22,6 +22,12 @@ import { SettingsSection } from "../desktop-shell/ui";
 
 const AUTO_DISMISS_MS = 40_000;
 
+type FailedJobInfo = {
+  jobName: string;
+  stepNumber: string;
+  stepName?: string;
+};
+
 export type FailureNotification = {
   dedupeKey: string;
   traceId: string;
@@ -30,9 +36,7 @@ export type FailureNotification = {
   workflowName: string;
   failedAt: string;
   detailsUrl: string;
-  jobName?: string;
-  stepNumber?: string;
-  stepName?: string;
+  failedJobs: FailedJobInfo[];
 };
 
 type TestNotificationResponse = {
@@ -419,25 +423,16 @@ function NotificationErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 function formatFailureScope(notification: FailureNotification): string | null {
-  if (
-    notification.jobName &&
-    notification.stepNumber &&
-    notification.stepName
-  ) {
-    return `${notification.jobName} • Step ${notification.stepNumber}: ${notification.stepName}`;
+  if (notification.failedJobs.length === 0) {
+    return null;
   }
 
-  if (notification.jobName && notification.stepName) {
-    return `${notification.jobName} • ${notification.stepName}`;
-  }
-
-  if (notification.jobName && notification.stepNumber) {
-    return `${notification.jobName} • Step ${notification.stepNumber}`;
-  }
-
-  if (notification.jobName) {
-    return `Job: ${notification.jobName}`;
-  }
-
-  return null;
+  return notification.failedJobs
+    .map((job) => {
+      if (job.stepName) {
+        return `${job.jobName} • Step ${job.stepNumber}: ${job.stepName}`;
+      }
+      return `${job.jobName} • Step ${job.stepNumber}`;
+    })
+    .join(", ");
 }

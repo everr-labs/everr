@@ -28,12 +28,6 @@ export type FailureNotification = {
   failedAt: string;
   detailsUrl: string;
   failedJobs: FailedJobInfo[];
-  /** @deprecated Legacy single-job field kept for backward compatibility. */
-  jobName?: string;
-  /** @deprecated Legacy single-job field kept for backward compatibility. */
-  stepNumber?: string;
-  /** @deprecated Legacy single-job field kept for backward compatibility. */
-  stepName?: string;
 };
 
 type FailureNotificationsOptions = {
@@ -83,9 +77,6 @@ export async function getFailureNotifications({
       failedAt,
       detailsUrl,
       failedJobs,
-      jobName: firstFailingStep?.jobName,
-      stepNumber: firstFailingStep?.stepNumber,
-      stepName: firstFailingStep?.stepName,
     },
   ];
 }

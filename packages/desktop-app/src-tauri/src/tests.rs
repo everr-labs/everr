@@ -46,9 +46,6 @@ fn failure(dedupe_key: &str) -> FailureNotification {
             step_number: "2".to_string(),
             step_name: Some("Run suite".to_string()),
         }],
-        job_name: Some("test".to_string()),
-        step_number: Some("2".to_string()),
-        step_name: Some("Run suite".to_string()),
     }
 }
 
@@ -151,9 +148,6 @@ fn notification_prompt_lists_all_failed_jobs() {
                 step_name: Some("Biome check".to_string()),
             },
         ],
-        job_name: Some("test".to_string()),
-        step_number: Some("3".to_string()),
-        step_name: Some("Run suite".to_string()),
     };
 
     let prompt = build_notification_auto_fix_prompt(&notification);

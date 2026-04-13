@@ -125,9 +125,6 @@ pub(crate) fn build_test_notification() -> Result<FailureNotification> {
             step_number: "1".to_string(),
             step_name: Some("Preview desktop notification".to_string()),
         }],
-        job_name: Some("Developer settings".to_string()),
-        step_number: Some("1".to_string()),
-        step_name: Some("Preview desktop notification".to_string()),
     })
 }
 

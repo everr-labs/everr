@@ -68,10 +68,7 @@ type FailureNotification = {
   workflowName: string;
   failedAt: string;
   detailsUrl: string;
-  failedJobs?: FailedJobInfo[];
-  jobName?: string;
-  stepNumber?: string;
-  stepName?: string;
+  failedJobs: FailedJobInfo[];
 };
 
 type TestNotificationResponse = {
@@ -159,9 +156,7 @@ function createNotification(
     workflowName: "CI",
     failedAt: "2026-03-07T13:32:00Z",
     detailsUrl: "https://example.com/runs/trace-one/jobs/job-one/steps/3",
-    jobName: "test",
-    stepNumber: "3",
-    stepName: "Run suite",
+    failedJobs: [{ jobName: "test", stepNumber: "3", stepName: "Run suite" }],
     ...overrides,
   };
 }
