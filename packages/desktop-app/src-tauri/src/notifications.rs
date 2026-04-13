@@ -120,9 +120,11 @@ pub(crate) fn build_test_notification() -> Result<FailureNotification> {
         workflow_name: "Test notification".to_string(),
         failed_at: timestamp,
         details_url,
-        job_name: Some("Developer settings".to_string()),
-        step_number: Some("1".to_string()),
-        step_name: Some("Preview desktop notification".to_string()),
+        failed_jobs: vec![everr_core::api::FailedJobInfo {
+            job_name: "Developer settings".to_string(),
+            step_number: "1".to_string(),
+            step_name: Some("Preview desktop notification".to_string()),
+        }],
     })
 }
 
