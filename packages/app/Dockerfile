@@ -17,6 +17,7 @@ COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/app ./packages/app
 RUN pnpm --filter @everr/app build
+RUN pnpm deploy --filter @everr/app --prod /app/deployed
 
 # Stage 3: production
 FROM node:24.4-alpine3.22 AS runner
@@ -25,7 +26,7 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
 COPY --from=build /app/packages/app/.output ./.output
-COPY --from=build /app/packages/app/node_modules ./node_modules
+COPY --from=build /app/deployed/node_modules ./node_modules
 
 # Copy migration files
 COPY packages/app/drizzle ./drizzle
