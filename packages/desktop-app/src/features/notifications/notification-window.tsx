@@ -278,7 +278,13 @@ export function NotificationCard({
   return (
     <main className="h-screen pl-3 pr-4 pt-3">
       <div
+        key={notification.dedupeKey}
         className={`relative h-full ${exiting ? "notification-exit" : "notification-enter"}`}
+        onAnimationEnd={() => {
+          if (exiting) {
+            void dismissMutation.mutateAsync();
+          }
+        }}
       >
         <button
           type="button"
