@@ -13,6 +13,26 @@ const config = defineConfig(() => ({
   },
   resolve: {
     tsconfigPaths: true,
+    alias: [
+      // use-sync-external-store is a CJS shim that does require("react") which
+      // Rollup can't inline for SSR, causing "Cannot find module 'react'" in
+      // production. React 19 exports useSyncExternalStore natively, so we
+      // redirect to our thin ESM wrappers that import from react directly.
+      {
+        find: "use-sync-external-store/shim/with-selector",
+        replacement: new URL(
+          "src/ssr-shims/use-sync-external-store-with-selector.ts",
+          import.meta.url,
+        ).pathname,
+      },
+      {
+        find: "use-sync-external-store/shim",
+        replacement: new URL(
+          "src/ssr-shims/use-sync-external-store-shim.ts",
+          import.meta.url,
+        ).pathname,
+      },
+    ],
   },
   plugins: [
     devtools(),
