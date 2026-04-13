@@ -285,6 +285,7 @@ function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
   const showAction = signedIn || !pendingSignIn || isExpired;
   const action = showAction ? (
     <Button
+      size="lg"
       disabled={
         authStatusQuery.isPending ||
         signInMutation.isPending ||

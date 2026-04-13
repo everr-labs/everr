@@ -6,12 +6,6 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
-  accessTokenAuthMiddleware: {
-    options: {},
-  },
-}));
-
 import { pool } from "@/db/client";
 import { Route } from "./notification";
 
@@ -20,7 +14,7 @@ const mockedQuery = vi.mocked(pool.query);
 type GetHandler = (args: {
   request: Request;
   context: {
-    session: { userId: string; tenantId: number };
+    session: { session: { activeOrganizationId: string; userId: string } };
     clickhouse: { query: ReturnType<typeof vi.fn> };
   };
 }) => Promise<Response>;
@@ -35,7 +29,7 @@ function getHandler(): GetHandler {
 }
 
 const context = {
-  session: { userId: "user_1", tenantId: 42 },
+  session: { session: { activeOrganizationId: "org-42", userId: "user_1" } },
   clickhouse: { query: vi.fn() },
 };
 

@@ -64,7 +64,7 @@ describe("getRunsList", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("FROM workflow_runs");
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("last_event_at >= $2");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
-      42,
+      "test_org",
       expect.any(Date),
       expect.any(Date),
       ["everr-labs/everr"],
@@ -147,7 +147,7 @@ describe("getRunsList", () => {
       totalCount: 1,
     });
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
-      42,
+      "test_org",
       expect.any(Date),
       expect.any(Date),
       20,
@@ -183,7 +183,7 @@ describe("getRunsList", () => {
     expect(mockedClickhouseQuery.mock.calls[0]?.[0]).toContain(
       "ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String}",
     );
-    expect(mockedClickhouseQuery.mock.calls[0]?.[1]).toEqual({
+    expect(mockedClickhouseQuery.mock.calls[0]?.[2]).toEqual({
       pattern: "%Build%",
     });
     expect(result).toEqual([

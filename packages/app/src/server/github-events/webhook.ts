@@ -1,6 +1,8 @@
 import { verify } from "@octokit/webhooks-methods";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { setGithubInstallationStatus } from "@/data/tenants";
+import { db } from "@/db/client";
+import { githubInstallationOrganizations } from "@/db/schema";
 import { env } from "@/env";
 import { headersToRecord } from "./headers";
 import { enqueueWebhookEvent } from "./runtime";
@@ -13,6 +15,18 @@ const installationEventSchema = z.object({
     })
     .optional(),
 });
+
+async function setGithubInstallationStatus(
+  installationId: number,
+  newStatus: "active" | "suspended" | "uninstalled",
+): Promise<void> {
+  await db
+    .update(githubInstallationOrganizations)
+    .set({ status: newStatus, updatedAt: new Date() })
+    .where(
+      eq(githubInstallationOrganizations.githubInstallationId, installationId),
+    );
+}
 
 async function handleInstallationEvent(args: {
   eventType: string;

@@ -7,11 +7,7 @@ vi.mock("@/db/hub", () => ({
   subscribeAuthor: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("@/lib/anyAuthMiddleware", () => ({
-  anyAuthMiddleware: {
-    options: {},
-  },
-}));
+// @/lib/better-auth is mocked globally in test-setup.ts
 
 vi.mock("@/lib/sse", () => ({
   createSSEStream: vi.fn(() => ({
@@ -38,10 +34,8 @@ const mockedSubscribeAuthor = vi.mocked(subscribeAuthor);
 const mockedSubscribeTenant = vi.mocked(subscribeTenant);
 
 const mockSession = {
-  tenantId: 42,
   userId: "u1",
   organizationId: "org1",
-  sessionId: undefined,
 };
 
 type GetHandler = (args: {
@@ -111,7 +105,7 @@ describe("GET /api/events/stream", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
     expect(mockedSubscribeTenant).toHaveBeenCalledWith(
-      42,
+      "org1",
       expect.any(Function),
     );
   });
@@ -127,7 +121,7 @@ describe("GET /api/events/stream", () => {
     expect(response.status).toBe(200);
     expect(mockedSubscribe).toHaveBeenCalledWith(
       "trace",
-      42,
+      "org1",
       "abc123",
       expect.any(Function),
     );
@@ -144,7 +138,7 @@ describe("GET /api/events/stream", () => {
     expect(response.status).toBe(200);
     expect(mockedSubscribe).toHaveBeenCalledWith(
       "commit",
-      42,
+      "org1",
       "deadbeef",
       expect.any(Function),
     );
@@ -160,7 +154,7 @@ describe("GET /api/events/stream", () => {
 
     expect(response.status).toBe(200);
     expect(mockedSubscribeAuthor).toHaveBeenCalledWith(
-      42,
+      "org1",
       "dev@example.com",
       expect.any(Function),
     );
@@ -187,7 +181,7 @@ describe("GET /api/events/stream", () => {
     });
 
     const mockPayload: NotifyPayload = {
-      tenantId: 42,
+      tenantId: "42",
       traceId: "t1",
       runId: "r1",
       sha: "abc",
@@ -229,7 +223,7 @@ describe("GET /api/events/stream", () => {
     });
 
     const mockPayload: NotifyPayload = {
-      tenantId: 42,
+      tenantId: "42",
       traceId: "t1",
       runId: "r1",
       sha: "deadbeef",

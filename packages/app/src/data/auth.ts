@@ -1,27 +1,26 @@
 import { queryOptions } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { workOS } from "@/lib/workos";
+import { auth } from "@/lib/auth.server";
+import {
+  createAuthenticatedServerFn,
+  createPartiallyAuthenticatedServerFn,
+} from "@/lib/serverFn";
 
-/**
- * Get the current organization for the authenticated user.
- * @returns The current organization or null if the user does not have an organization.
- */
-export const getActiveOrganization = createServerFn().handler(
-  async ({ context: { auth } }) => {
-    const authResult = auth();
-    if (!authResult?.user) {
-      throw new Error("No user found");
-    }
+export const getActiveOrganization = createPartiallyAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context: { session } }) => {
+  if (!session.session.activeOrganizationId) {
+    return null;
+  }
 
-    if (!authResult.organizationId) {
-      return null;
-    }
+  const org = await auth.api.getFullOrganization({
+    query: { organizationId: session.session.activeOrganizationId },
+    headers: getRequestHeaders(),
+  });
 
-    return workOS.organizations.getOrganization(authResult.organizationId);
-  },
-);
+  return org;
+});
 
 export const activeOrganizationOptions = () =>
   queryOptions({
@@ -35,22 +34,28 @@ export const updateOrganizationName = createAuthenticatedServerFn({
 })
   .inputValidator(CreateOrganizationInputSchema)
   .handler(async ({ data, context: { session } }) => {
-    const organization = await workOS.organizations.updateOrganization({
-      organization: session.organizationId,
-      name: data.organizationName,
+    const org = await auth.api.updateOrganization({
+      body: {
+        organizationId: session.session.activeOrganizationId,
+        data: { name: data.organizationName },
+      },
+      headers: getRequestHeaders(),
     });
 
     return {
-      organizationId: organization.id,
-      organizationName: organization.name,
+      organizationId: org?.id ?? session.session.activeOrganizationId,
+      organizationName: data.organizationName,
     };
   });
 
 export const markOnboardingComplete = createAuthenticatedServerFn({
   method: "POST",
 }).handler(async ({ context: { session } }) => {
-  return workOS.organizations.updateOrganization({
-    organization: session.organizationId,
-    metadata: { onboardingCompleted: "true" },
+  await auth.api.updateOrganization({
+    body: {
+      organizationId: session.session.activeOrganizationId,
+      data: { metadata: { onboardingCompleted: true } },
+    },
+    headers: getRequestHeaders(),
   });
 });

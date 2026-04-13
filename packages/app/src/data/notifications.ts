@@ -1,6 +1,5 @@
 import { pool } from "@/db/client";
 import type { WorkflowJobStep } from "@/db/schema";
-import type { AuthContext } from "@/lib/auth-context";
 
 type FailureRow = {
   traceId: string;
@@ -31,17 +30,16 @@ export type FailureNotification = {
 };
 
 type FailureNotificationsOptions = {
-  context: AuthContext;
+  tenantId: string;
   origin: string;
   traceId: string;
 };
 
 export async function getFailureNotifications({
-  context,
+  tenantId,
   origin,
   traceId,
 }: FailureNotificationsOptions): Promise<FailureNotification[]> {
-  const tenantId = context.session.tenantId;
   const rows = await loadFailureWithJobs(tenantId, traceId);
   if (rows.length === 0) {
     return [];
@@ -82,7 +80,7 @@ export async function getFailureNotifications({
 }
 
 async function loadFailureWithJobs(
-  tenantId: number,
+  tenantId: string,
   traceId: string,
 ): Promise<FailureRow[]> {
   const result = await pool.query<FailureRow>(

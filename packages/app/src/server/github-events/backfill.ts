@@ -350,7 +350,7 @@ export interface BackfillProgress {
 // ---------------------------------------------------------------------------
 
 async function getExistingTraceIds(
-  tenantId: number,
+  organizationId: string,
   traceIds: string[],
 ): Promise<Set<string>> {
   if (traceIds.length === 0) return new Set();
@@ -360,7 +360,7 @@ async function getExistingTraceIds(
     .from(workflowRuns)
     .where(
       and(
-        eq(workflowRuns.tenantId, tenantId),
+        eq(workflowRuns.organizationId, organizationId),
         inArray(workflowRuns.traceId, traceIds),
       ),
     );
@@ -400,7 +400,7 @@ export async function listInstallationRepos(
  */
 export async function* backfillRepo(
   installationId: number,
-  tenantId: number,
+  organizationId: string,
   repo: ApiRepo,
 ): AsyncGenerator<BackfillProgress> {
   const started = Date.now();
@@ -446,7 +446,7 @@ export async function* backfillRepo(
       const traceIds = candidateRuns.map((run) =>
         generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
       );
-      const existing = await getExistingTraceIds(tenantId, traceIds);
+      const existing = await getExistingTraceIds(organizationId, traceIds);
 
       yield {
         status: "importing",
@@ -481,7 +481,7 @@ export async function* backfillRepo(
               const jobBody = apiJobToCollectorBody(job, repo, installationId);
               await enqueueWebhookEvent(
                 deterministicUuid(
-                  `backfill-${tenantId}-job-${job.id}-${job.run_attempt}`,
+                  `backfill-${organizationId}-job-${job.id}-${job.run_attempt}`,
                 ),
                 {
                   headers: signedHeaders("workflow_job", jobBody),
@@ -498,7 +498,7 @@ export async function* backfillRepo(
 
           const runBody = apiRunToCollectorBody(run, repo, installationId);
           await enqueueWebhookEvent(
-            deterministicUuid(`backfill-${tenantId}-run-${traceIds[i]}`),
+            deterministicUuid(`backfill-${organizationId}-run-${traceIds[i]}`),
             {
               headers: signedHeaders("workflow_run", runBody),
               body: runBody.toString("base64"),

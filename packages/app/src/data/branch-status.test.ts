@@ -28,7 +28,7 @@ describe("getBranchStatus", () => {
     >);
 
     const result = await getBranchStatus({
-      tenantId: 42,
+      tenantId: "42",
       repo: "everr-labs/everr",
       branch: "feature/watch-short-commit",
       commit: "7f14b13",
@@ -38,7 +38,7 @@ describe("getBranchStatus", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("sha = $3");
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("ref = $4");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
-      42,
+      "42",
       "everr-labs/everr",
       "7f14b13",
       "feature/watch-short-commit",
@@ -89,7 +89,7 @@ describe("getBranchStatus", () => {
       } as Awaited<ReturnType<typeof mockedQuery>>);
 
     const result = await getBranchStatus({
-      tenantId: 42,
+      tenantId: "42",
       repo: "everr-labs/everr",
       branch: "feature/watch-short-commit",
       commit: "7f14b13",
@@ -136,7 +136,7 @@ describe("getBranchStatus", () => {
     >);
 
     await getBranchStatus({
-      tenantId: 42,
+      tenantId: "42",
       repo: "everr-labs/everr",
       branch: "main",
       commit: "abc123",
@@ -146,7 +146,7 @@ describe("getBranchStatus", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("attempts = $5");
     expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
-      42,
+      "42",
       "everr-labs/everr",
       "abc123",
       "main",
@@ -183,7 +183,7 @@ describe("getBranchStatus", () => {
     } as Awaited<ReturnType<typeof mockedQuery>>);
 
     const result = await getBranchStatus({
-      tenantId: 42,
+      tenantId: "42",
       repo: "everr-labs/everr",
       branch: "main",
       commit: "abc123",

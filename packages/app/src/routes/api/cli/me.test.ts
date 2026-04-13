@@ -1,25 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
-  accessTokenAuthMiddleware: { options: {} },
-}));
-
-vi.mock("@/lib/workos", () => ({
-  workOS: {
-    userManagement: {
-      getUser: vi.fn(),
-    },
-  },
-}));
-
-import { workOS } from "@/lib/workos";
 import { Route } from "./me";
-
-const mockedGetUser = vi.mocked(workOS.userManagement.getUser);
 
 type GetHandler = (args: {
   request: Request;
-  context: { session: { userId: string; tenantId: number } };
+  context: { session: { userId: string; organizationId: string } };
 }) => Promise<Response>;
 
 function getHandler(): GetHandler {
@@ -32,21 +16,28 @@ function getHandler(): GetHandler {
 }
 
 const context = {
-  session: { userId: "user_abc", tenantId: 42 },
+  session: { userId: "user_abc", organizationId: "org-42" },
 };
+
+async function mockBetterAuthSession(session: unknown) {
+  const { auth } = await import("@/lib/auth.server");
+  vi.mocked(auth.api.getSession).mockResolvedValueOnce(session as never);
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("/api/cli/me", () => {
-  it("returns user profile from WorkOS", async () => {
-    mockedGetUser.mockResolvedValueOnce({
-      email: "alice@example.com",
-      firstName: "Alice",
-      lastName: "Smith",
-      profilePictureUrl: "https://example.com/avatar.png",
-    } as Awaited<ReturnType<typeof mockedGetUser>>);
+  it("returns user profile", async () => {
+    await mockBetterAuthSession({
+      user: {
+        email: "alice@example.com",
+        name: "Alice Smith",
+        image: "https://example.com/avatar.png",
+      },
+      session: {},
+    });
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/me"),
@@ -59,16 +50,17 @@ describe("/api/cli/me", () => {
       name: "Alice Smith",
       profileUrl: "https://example.com/avatar.png",
     });
-    expect(mockedGetUser).toHaveBeenCalledWith("user_abc");
   });
 
-  it("returns name from firstName only when lastName is absent", async () => {
-    mockedGetUser.mockResolvedValueOnce({
-      email: "alice@example.com",
-      firstName: "Alice",
-      lastName: null,
-      profilePictureUrl: null,
-    } as Awaited<ReturnType<typeof mockedGetUser>>);
+  it("returns name from user.name when present", async () => {
+    await mockBetterAuthSession({
+      user: {
+        email: "alice@example.com",
+        name: "Alice",
+        image: null,
+      },
+      session: {},
+    });
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/me"),
@@ -81,13 +73,15 @@ describe("/api/cli/me", () => {
     expect(body.profileUrl).toBe(null);
   });
 
-  it("falls back to email as name when firstName is absent", async () => {
-    mockedGetUser.mockResolvedValueOnce({
-      email: "alice@example.com",
-      firstName: null,
-      lastName: null,
-      profilePictureUrl: null,
-    } as Awaited<ReturnType<typeof mockedGetUser>>);
+  it("falls back to email as name when name is absent", async () => {
+    await mockBetterAuthSession({
+      user: {
+        email: "alice@example.com",
+        name: null,
+        image: null,
+      },
+      session: {},
+    });
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/me"),

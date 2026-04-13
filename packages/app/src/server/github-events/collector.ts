@@ -25,11 +25,11 @@ function classifyFailedResponse(
 
 export async function replayWebhookToCollector(
   event: { headers: WebhookHeaders; body: Buffer },
-  tenantId: number,
+  organizationId: string,
 ): Promise<void> {
   const headers = recordToHeaders(event.headers);
   stripHopByHopHeaders(headers);
-  headers.set(tenantHeaderName, String(tenantId));
+  headers.set(tenantHeaderName, organizationId);
 
   const response = await fetch(env.INGRESS_COLLECTOR_URL, {
     method: "POST",

@@ -19,8 +19,6 @@ import {
 } from "@everr/ui/components/card";
 import { Input } from "@everr/ui/components/input";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useAccessToken } from "@workos/authkit-tanstack-react-start/client";
-import { UserProfile, UserSecurity } from "@workos-inc/widgets";
 import { useState } from "react";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
 
@@ -34,14 +32,9 @@ export const Route = createFileRoute("/_authenticated/_dashboard/account")({
 
 function AccountSettingsPage() {
   const navigate = useNavigate();
-  const { accessToken } = useAccessToken();
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-
-  if (!accessToken) {
-    return null;
-  }
 
   const isDeleteConfirmationValid = deleteConfirmation === "DELETE";
 
@@ -74,12 +67,12 @@ function AccountSettingsPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight">Account Settings</h1>
         <p className="text-muted-foreground">
-          Manage your profile, password access, and account lifecycle.
+          Manage your profile and account lifecycle.
         </p>
       </div>
 
-      <UserProfile authToken={accessToken} />
-      <UserSecurity authToken={accessToken} />
+      {/* TODO: Replace WorkOS UserProfile/UserSecurity widgets with better-auth equivalents */}
+
       <Card>
         <CardHeader>
           <CardTitle>GitHub Connection</CardTitle>

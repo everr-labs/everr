@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getGrepMatches, getGrepTimeRangeValidationError } from "@/data/grep";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 
 const GrepQuerySchema = z
@@ -38,7 +37,6 @@ const GrepQuerySchema = z
 
 export const Route = createFileRoute("/api/cli/grep")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);

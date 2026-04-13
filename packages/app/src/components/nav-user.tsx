@@ -4,6 +4,9 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
 import {
@@ -12,32 +15,52 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { Link } from "@tanstack/react-router";
-import { useAuth } from "@workos/authkit-tanstack-react-start/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useRouter } from "@tanstack/react-router";
 import {
   BadgeCheck,
+  Building2,
+  Check,
   ChevronsUpDown,
   Download,
   LogOut,
   Users,
 } from "lucide-react";
 import { getDownloadUrl, PLATFORMS } from "@/lib/app-download";
+import { authClient } from "@/lib/auth.client";
 
 export function NavUser() {
-  const { user, roles, signOut } = useAuth();
-  const isAdmin = roles?.includes("admin") === true;
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: session } = authClient.useSession();
+  const { data: activeOrg } = authClient.useActiveOrganization();
+  const { data: orgs } = authClient.useListOrganizations();
+  const userRole = activeOrg?.members?.find(
+    (m) => m.userId === session?.user?.id,
+  )?.role;
+  const isAdmin = userRole === "admin" || userRole === "owner";
+  const hasMultipleOrgs = orgs && orgs.length > 1;
 
   const { isMobile } = useSidebar();
 
-  if (!user) {
+  async function handleSwitchOrg(orgId: string) {
+    await authClient.organization.setActive({ organizationId: orgId });
+    await queryClient.invalidateQueries();
+    router.invalidate();
+  }
+
+  if (!session?.user) {
     return null;
   }
 
-  const firstName = user.firstName ?? "";
-  const lastName = user.lastName ?? "";
-  const fullName = `${firstName} ${lastName}`;
+  const { user } = session;
+  const nameParts = (user.name ?? "").split(" ");
+  const firstName = nameParts[0] ?? "";
+  const lastName = nameParts.slice(1).join(" ");
+  const fullName = user.name ?? user.email;
 
-  const initials = firstName.slice(0, 1) + lastName.slice(0, 1);
+  const initials =
+    (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
 
   return (
     <SidebarMenu>
@@ -52,9 +75,9 @@ export function NavUser() {
             }
           >
             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-              {user.profilePictureUrl ? (
+              {user.image ? (
                 <img
-                  src={user.profilePictureUrl}
+                  src={user.image}
                   alt={fullName}
                   className="size-full object-cover rounded-sm"
                 />
@@ -84,6 +107,31 @@ export function NavUser() {
               </div>
             </div>
             <DropdownMenuSeparator />
+            {hasMultipleOrgs && (
+              <DropdownMenuGroup>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Building2 />
+                    {activeOrg?.name ?? "Switch organization"}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {orgs.map((org) => (
+                      <DropdownMenuItem
+                        key={org.id}
+                        onClick={() => void handleSwitchOrg(org.id)}
+                      >
+                        {org.id === activeOrg?.id ? (
+                          <Check />
+                        ) : (
+                          <span className="size-4" />
+                        )}
+                        <span className="truncate">{org.name}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuGroup>
+            )}
             <DropdownMenuGroup>
               <DropdownMenuItem render={<Link to="/account" />}>
                 <BadgeCheck />
@@ -111,7 +159,17 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => void signOut({ returnTo: "/" })}>
+            <DropdownMenuItem
+              onClick={() =>
+                void authClient.signOut({
+                  fetchOptions: {
+                    onSuccess: () => {
+                      window.location.href = "/";
+                    },
+                  },
+                })
+              }
+            >
               <LogOut />
               Log out
             </DropdownMenuItem>

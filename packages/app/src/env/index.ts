@@ -1,16 +1,18 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
-
+import { authEnv } from "./auth";
 import { clickhouseEnv } from "./clickhouse";
 import { dbEnv } from "./db";
 import { githubEnv } from "./github";
 import { githubEventsEnv } from "./github-events";
-import { workOsEnv } from "./workos";
 
 export const env = createEnv({
-  extends: [dbEnv, clickhouseEnv, githubEnv, workOsEnv, githubEventsEnv],
+  extends: [dbEnv, clickhouseEnv, githubEnv, authEnv, githubEventsEnv],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
+    // TODO: Resend API key is required only in production, so we should make it optional in non-production environments by using createFinalSchema
+    RESEND_API_KEY: z.string(),
+    EMAIL_FROM: z.email(),
   },
 
   /**
@@ -27,6 +29,8 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_FROM: process.env.EMAIL_FROM,
   },
 
   /**

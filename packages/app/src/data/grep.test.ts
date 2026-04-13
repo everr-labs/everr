@@ -77,7 +77,7 @@ describe("getGrepMatches", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
     );
-    expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
+    expect(mockedQuery.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",
         pattern: "Expect X to be Y",
@@ -88,7 +88,7 @@ describe("getGrepMatches", () => {
         offset: 7,
       }),
     );
-    expect(mockedQuery.mock.calls[1]?.[1]).toEqual(
+    expect(mockedQuery.mock.calls[1]?.[2]).toEqual(
       expect.objectContaining({
         branches: ["release/1.2"],
         occurrenceLimit: 5,
@@ -179,7 +179,7 @@ describe("getGrepMatches", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).not.toContain(
       "!= {excludeBranch:String}",
     );
-    expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
+    expect(mockedQuery.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",
         pattern: "panic",

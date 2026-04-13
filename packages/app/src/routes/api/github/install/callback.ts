@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getAuth } from "@workos/authkit-tanstack-react-start";
-import {
-  ensureTenantForOrganizationId,
-  GithubInstallationAlreadyLinkedError,
-  linkGithubInstallationToTenant,
-} from "@/data/tenants";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { githubInstallationOrganizations } from "@/db/schema";
+import { auth } from "@/lib/auth.server";
 import { parseInstallState } from "@/lib/github-install-state";
 
 function redirectToDashboard(
@@ -45,8 +43,10 @@ export const Route = createFileRoute("/api/github/install/callback")({
           );
         }
 
-        const auth = await getAuth();
-        if (!auth.user) {
+        const session = await auth.api.getSession({
+          headers: request.headers,
+        });
+        if (!session?.user) {
           return redirectToDashboard(
             callbackURL.origin,
             "error",
@@ -65,21 +65,23 @@ export const Route = createFileRoute("/api/github/install/callback")({
           );
         }
 
-        if (parsedState.userId !== auth.user.id) {
+        if (parsedState.userId !== session.user.id) {
           return redirectToDashboard(
             callbackURL.origin,
             "error",
             "state_user_mismatch",
           );
         }
-        if (!auth.organizationId) {
+
+        const activeOrgId = session.session.activeOrganizationId;
+        if (!activeOrgId) {
           return redirectToDashboard(
             callbackURL.origin,
             "error",
             "missing_org",
           );
         }
-        if (parsedState.organizationId !== auth.organizationId) {
+        if (parsedState.organizationId !== activeOrgId) {
           return redirectToDashboard(
             callbackURL.origin,
             "error",
@@ -88,18 +90,56 @@ export const Route = createFileRoute("/api/github/install/callback")({
         }
 
         try {
-          const tenantId = await ensureTenantForOrganizationId(
-            auth.organizationId,
-          );
-          await linkGithubInstallationToTenant(installationId, tenantId);
-        } catch (error) {
-          if (error instanceof GithubInstallationAlreadyLinkedError) {
-            return redirectToDashboard(
-              callbackURL.origin,
-              "error",
-              "already_linked",
-            );
+          const [existing] = await db
+            .select({
+              githubInstallationId:
+                githubInstallationOrganizations.githubInstallationId,
+              organizationId: githubInstallationOrganizations.organizationId,
+            })
+            .from(githubInstallationOrganizations)
+            .where(
+              eq(
+                githubInstallationOrganizations.githubInstallationId,
+                installationId,
+              ),
+            )
+            .limit(1);
+
+          if (existing) {
+            if (existing.organizationId !== activeOrgId) {
+              return redirectToDashboard(
+                callbackURL.origin,
+                "error",
+                "already_linked",
+              );
+            }
+
+            await db
+              .update(githubInstallationOrganizations)
+              .set({
+                status: "active",
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(
+                    githubInstallationOrganizations.githubInstallationId,
+                    installationId,
+                  ),
+                  eq(
+                    githubInstallationOrganizations.organizationId,
+                    activeOrgId,
+                  ),
+                ),
+              );
+          } else {
+            await db.insert(githubInstallationOrganizations).values({
+              githubInstallationId: installationId,
+              organizationId: activeOrgId,
+              status: "active",
+            });
           }
+        } catch {
           return redirectToDashboard(
             callbackURL.origin,
             "error",
@@ -107,6 +147,8 @@ export const Route = createFileRoute("/api/github/install/callback")({
           );
         }
 
+        // TODO: When installing the GitHub app via the web app, the user is shown this. This should only happen when the installation happens via the Desktop App or the CLI.
+        // When installing via the app, we should redirect to the dashboard.
         return new Response(
           `<!DOCTYPE html>
 <html><head><title>GitHub App Installed</title></head>

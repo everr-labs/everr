@@ -1,32 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
-  accessTokenAuthMiddleware: { options: {} },
-}));
-
-vi.mock("@/lib/workos", () => ({
-  workOS: {
-    organizations: {
-      getOrganization: vi.fn(),
-    },
-    userManagement: {
-      listOrganizationMemberships: vi.fn(),
-    },
-  },
-}));
-
-import { workOS } from "@/lib/workos";
 import { Route } from "./org";
-
-const mockedGetOrg = vi.mocked(workOS.organizations.getOrganization);
-const mockedListMemberships = vi.mocked(
-  workOS.userManagement.listOrganizationMemberships,
-);
 
 type GetHandler = (args: {
   request: Request;
   context: {
-    session: { userId: string; organizationId: string; tenantId: number };
+    session: {
+      session: { activeOrganizationId: string; userId: string };
+      user: { id: string };
+    };
   };
 }) => Promise<Response>;
 
@@ -40,19 +21,27 @@ function getHandler(): GetHandler {
 }
 
 const context = {
-  session: { userId: "user_abc", organizationId: "org_xyz", tenantId: 1 },
+  session: {
+    session: { activeOrganizationId: "org_xyz", userId: "user_abc" },
+    user: { id: "user_abc" },
+  },
 };
+
+async function mockGetFullOrganization(result: unknown) {
+  const { auth } = await import("@/lib/auth.server");
+  vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
+    result as never,
+  );
+}
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/org", () => {
   it("returns org name and isOnlyMember true when user is the only member", async () => {
-    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
-      ReturnType<typeof mockedGetOrg>
-    >);
-    mockedListMemberships.mockResolvedValueOnce({
-      data: [{ userId: "user_abc", role: { slug: "admin" } }],
-    } as Awaited<ReturnType<typeof mockedListMemberships>>);
+    await mockGetFullOrganization({
+      name: "Test Org",
+      members: [{ userId: "user_abc", role: "admin" }],
+    });
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/org"),
@@ -64,23 +53,16 @@ describe("/api/cli/org", () => {
       name: "Test Org",
       isOnlyMember: true,
     });
-    expect(mockedGetOrg).toHaveBeenCalledWith("org_xyz");
-    expect(mockedListMemberships).toHaveBeenCalledWith({
-      organizationId: "org_xyz",
-      limit: 100,
-    });
   });
 
   it("returns isOnlyMember false when another member exists", async () => {
-    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
-      ReturnType<typeof mockedGetOrg>
-    >);
-    mockedListMemberships.mockResolvedValueOnce({
-      data: [
-        { userId: "user_abc", role: { slug: "admin" } },
-        { userId: "user_def", role: { slug: "member" } },
+    await mockGetFullOrganization({
+      name: "Test Org",
+      members: [
+        { userId: "user_abc", role: "admin" },
+        { userId: "user_def", role: "member" },
       ],
-    } as Awaited<ReturnType<typeof mockedListMemberships>>);
+    });
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/org"),
@@ -92,15 +74,13 @@ describe("/api/cli/org", () => {
   });
 
   it("returns isOnlyMember false when the user is not the only member", async () => {
-    mockedGetOrg.mockResolvedValueOnce({ name: "Test Org" } as Awaited<
-      ReturnType<typeof mockedGetOrg>
-    >);
-    mockedListMemberships.mockResolvedValueOnce({
-      data: [
-        { userId: "user_abc", role: { slug: "admin" } },
-        { userId: "user_def", role: { slug: "admin" } },
+    await mockGetFullOrganization({
+      name: "Test Org",
+      members: [
+        { userId: "user_abc", role: "admin" },
+        { userId: "user_def", role: "admin" },
       ],
-    } as Awaited<ReturnType<typeof mockedListMemberships>>);
+    });
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/org"),

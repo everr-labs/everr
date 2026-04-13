@@ -1,18 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type FunctionMiddlewareHandler = (args: {
+  request: Request;
+  context?: Record<string, unknown>;
   next: (args?: unknown) => Promise<unknown>;
 }) => Promise<unknown>;
 
 const mocked = vi.hoisted(() => ({
   handler: null as FunctionMiddlewareHandler | null,
-  middlewareDefinition: { options: { type: "function" } },
+  middlewareDefinition: null as {
+    options: { type: string };
+    __handler: FunctionMiddlewareHandler;
+  } | null,
   createServerFnMiddleware: vi.fn(),
-  createServerFnResult: { authenticated: true },
+  createServerFnResult: {},
   getRequest: vi.fn(),
-  getAccessTokenSessionFromRequest: vi.fn(),
-  getWorkOSAuthSession: vi.fn(),
-  createAuthContext: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 function getHandler(): FunctionMiddlewareHandler {
@@ -29,25 +32,60 @@ beforeEach(() => {
   mocked.createServerFnMiddleware.mockReset();
   mocked.createServerFnMiddleware.mockReturnValue(mocked.createServerFnResult);
   mocked.getRequest.mockReset();
-  mocked.getAccessTokenSessionFromRequest.mockReset();
-  mocked.getWorkOSAuthSession.mockReset();
-  mocked.createAuthContext.mockReset();
-  mocked.createAuthContext.mockImplementation((session) => ({
-    session,
-    clickhouse: {
-      query: vi.fn(),
-    },
-  }));
+  mocked.getSession.mockReset();
 });
 
 async function loadModule() {
-  vi.doMock("@tanstack/react-start", () => ({
-    createMiddleware: vi.fn(() => ({
+  function makeMiddleware(handlers: FunctionMiddlewareHandler[] = []) {
+    return {
+      middleware: (
+        definitions: Array<{ __handler?: FunctionMiddlewareHandler }>,
+      ) =>
+        makeMiddleware([
+          ...handlers,
+          ...definitions
+            .map((definition) => definition.__handler)
+            .filter((handler): handler is FunctionMiddlewareHandler =>
+              Boolean(handler),
+            ),
+        ]),
       server: (handler: FunctionMiddlewareHandler) => {
-        mocked.handler = handler;
-        return mocked.middlewareDefinition;
+        const composed = handlers.reduceRight<FunctionMiddlewareHandler>(
+          (nextHandler, middlewareHandler) =>
+            async ({ request, context, next }) =>
+              middlewareHandler({
+                request,
+                context,
+                next: (args?: unknown) =>
+                  nextHandler({
+                    request,
+                    context:
+                      typeof args === "object" && args !== null
+                        ? {
+                            ...context,
+                            ...((args as { context?: Record<string, unknown> })
+                              .context ?? {}),
+                          }
+                        : context,
+                    next,
+                  }),
+              }),
+          handler,
+        );
+
+        const definition = {
+          options: { type: "function" },
+          __handler: composed,
+        };
+        mocked.handler = composed;
+        mocked.middlewareDefinition = definition;
+        return definition;
       },
-    })),
+    };
+  }
+
+  vi.doMock("@tanstack/react-start", () => ({
+    createMiddleware: vi.fn(() => makeMiddleware()),
     createServerFn: vi.fn(() => ({
       middleware: mocked.createServerFnMiddleware,
     })),
@@ -55,12 +93,12 @@ async function loadModule() {
   vi.doMock("@tanstack/react-start/server", () => ({
     getRequest: mocked.getRequest,
   }));
-  vi.doMock("./auth", () => ({
-    getAccessTokenSessionFromRequest: mocked.getAccessTokenSessionFromRequest,
-    getWorkOSAuthSession: mocked.getWorkOSAuthSession,
-  }));
-  vi.doMock("./auth-context", () => ({
-    createAuthContext: mocked.createAuthContext,
+  vi.doMock("./auth.server", () => ({
+    auth: {
+      api: {
+        getSession: mocked.getSession,
+      },
+    },
   }));
 
   return vi.importActual<typeof import("./serverFn")>("./serverFn");
@@ -78,31 +116,29 @@ describe("createAuthenticatedServerFn", () => {
 });
 
 describe("authMiddleware", () => {
-  it("prefers the access-token session when one is available", async () => {
+  it("authenticates via better-auth session and populates context", async () => {
     await loadModule();
-    const session = {
-      tenantId: 42,
-      organizationId: "org_123",
-      userId: "user_123",
-      sessionId: undefined,
-    };
     const request = new Request("http://localhost/_server");
     const nextResult = new Response(null, { status: 204 });
     const next = vi.fn().mockResolvedValue(nextResult);
     mocked.getRequest.mockReturnValue(request);
-    mocked.getAccessTokenSessionFromRequest.mockResolvedValue(session);
+    mocked.getSession.mockResolvedValue({
+      user: { id: "user_123" },
+      session: { id: "session_123", activeOrganizationId: "org_123" },
+    });
 
-    const response = await getHandler()({ next });
+    const response = await getHandler()({ request, next });
 
     expect(response).toBe(nextResult);
-    expect(mocked.getAccessTokenSessionFromRequest).toHaveBeenCalledWith(
-      request,
-    );
-    expect(mocked.getWorkOSAuthSession).not.toHaveBeenCalled();
-    expect(mocked.createAuthContext).toHaveBeenCalledWith(session);
     expect(next).toHaveBeenCalledWith({
       context: {
-        session,
+        session: {
+          user: { id: "user_123" },
+          session: {
+            id: "session_123",
+            activeOrganizationId: "org_123",
+          },
+        },
         clickhouse: {
           query: expect.any(Function),
         },
@@ -110,43 +146,33 @@ describe("authMiddleware", () => {
     });
   });
 
-  it("falls back to the WorkOS session when there is no access token", async () => {
+  it("throws when session is not available", async () => {
     await loadModule();
-    const session = {
-      tenantId: 77,
-      organizationId: "org_456",
-      userId: "user_456",
-      sessionId: "session_456",
-    };
-    const nextResult = new Response(null, { status: 204 });
-    const next = vi.fn().mockResolvedValue(nextResult);
-    mocked.getRequest.mockReturnValue(new Request("http://localhost/_server"));
-    mocked.getAccessTokenSessionFromRequest.mockResolvedValue(null);
-    mocked.getWorkOSAuthSession.mockResolvedValue(session);
-
-    const response = await getHandler()({ next });
-
-    expect(response).toBe(nextResult);
-    expect(mocked.getWorkOSAuthSession).toHaveBeenCalledTimes(1);
-    expect(mocked.createAuthContext).toHaveBeenCalledWith(session);
-    expect(next).toHaveBeenCalledWith({
-      context: {
-        session,
-        clickhouse: {
-          query: expect.any(Function),
-        },
-      },
-    });
-  });
-
-  it("throws when neither access-token nor WorkOS auth is available", async () => {
-    await loadModule();
+    const request = new Request("http://localhost/_server");
     const next = vi.fn();
-    mocked.getRequest.mockReturnValue(new Request("http://localhost/_server"));
-    mocked.getAccessTokenSessionFromRequest.mockResolvedValue(null);
-    mocked.getWorkOSAuthSession.mockResolvedValue(null);
+    mocked.getRequest.mockReturnValue(request);
+    mocked.getSession.mockResolvedValue(null);
 
-    await expect(getHandler()({ next })).rejects.toThrow("Unauthenticated");
+    await expect(getHandler()({ request, next })).rejects.toThrow(
+      "Unauthenticated",
+    );
+
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("throws when no active organization", async () => {
+    await loadModule();
+    const request = new Request("http://localhost/_server");
+    const next = vi.fn();
+    mocked.getRequest.mockReturnValue(request);
+    mocked.getSession.mockResolvedValue({
+      user: { id: "user_123" },
+      session: { id: "session_123", activeOrganizationId: null },
+    });
+
+    await expect(getHandler()({ request, next })).rejects.toThrow(
+      "No active organization",
+    );
 
     expect(next).not.toHaveBeenCalled();
   });

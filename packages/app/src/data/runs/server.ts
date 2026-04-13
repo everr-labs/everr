@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
 import { pool } from "@/db/client";
-import type { AuthContext } from "@/lib/auth-context";
+import type { ClickhouseQuery } from "@/lib/clickhouse";
 import { normalizeTimestampToUtc } from "@/lib/formatting";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
@@ -57,7 +57,9 @@ function buildJobFilterClause(params: StepLogsJobFilter): {
 }
 
 async function countStepLogs(
-  context: AuthContext,
+  clickhouse: {
+    query: ClickhouseQuery;
+  },
   params: StepLogsParams,
 ): Promise<number> {
   const { clause: jobClause, queryParam: jobParam } =
@@ -80,22 +82,20 @@ async function countStepLogs(
   if (params.egrep) {
     queryParams.egrep = params.egrep;
   }
-  const result = await context.clickhouse.query<{ cnt: string }>(
-    sql,
-    queryParams,
-  );
+  const result = await clickhouse.query<{ cnt: string }>(sql, queryParams);
   return result.length > 0 ? Number(result[0].cnt) : 0;
 }
 
 async function getRawStepLogs(
-  context: AuthContext,
+  clickhouse: {
+    query: ClickhouseQuery;
+  },
   params: StepLogsParams & {
     maxLines?: number;
     offsetLines?: number;
     useTail?: boolean;
   },
 ): Promise<LogEntry[]> {
-  const clickhouse = context.clickhouse;
   const { clause: jobClause, queryParam: jobParam } =
     buildJobFilterClause(params);
   const order = params.useTail ? "DESC" : "ASC";
@@ -214,8 +214,8 @@ export const getRunDetails = createAuthenticatedServerFn({
          metadata->>'html_url' AS "htmlUrl",
          ARRAY(SELECT jsonb_array_elements_text(COALESCE(metadata->'pull_requests', '[]'::jsonb))::int) AS "pullRequestNumbers"
        FROM workflow_runs
-       WHERE tenant_id = $1 AND trace_id = $2`,
-      [session.tenantId, traceId],
+       WHERE organization_id = $1 AND trace_id = $2`,
+      [session.session.activeOrganizationId, traceId],
     );
 
     const pg = pgResult.rows[0];
@@ -284,9 +284,9 @@ export const getRunJobs = createAuthenticatedServerFn({
       }>(
         `SELECT job_id::text AS "jobId", job_name AS name, status, conclusion
          FROM workflow_jobs
-         WHERE tenant_id = $1 AND trace_id = $2
+         WHERE organization_id = $1 AND trace_id = $2
          ORDER BY started_at NULLS LAST, job_name`,
-        [session.tenantId, traceId],
+        [session.session.activeOrganizationId, traceId],
       ),
     ]);
 
@@ -433,7 +433,7 @@ export const getStepLogs = createAuthenticatedServerFn({
         ? { jobId: data.jobId }
         : { jobName: data.jobName! };
 
-    const totalCount = await countStepLogs(context, {
+    const totalCount = await countStepLogs(context.clickhouse, {
       traceId: data.traceId,
       ...jobFilter,
       stepNumber: data.stepNumber,
@@ -445,7 +445,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       (data.limit === undefined && data.offset === undefined)
     ) {
       const maxLines = data.tail ?? DEFAULT_LOG_PAGE_SIZE;
-      const logs = await getRawStepLogs(context, {
+      const logs = await getRawStepLogs(context.clickhouse, {
         traceId: data.traceId,
         ...jobFilter,
         stepNumber: data.stepNumber,
@@ -459,7 +459,7 @@ export const getStepLogs = createAuthenticatedServerFn({
     }
 
     const offset = data.offset ?? 0;
-    const logs = await getRawStepLogs(context, {
+    const logs = await getRawStepLogs(context.clickhouse, {
       traceId: data.traceId,
       ...jobFilter,
       stepNumber: data.stepNumber,

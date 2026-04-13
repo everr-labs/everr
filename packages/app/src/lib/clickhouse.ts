@@ -14,27 +14,27 @@ export type ClickhouseQuery = <T>(
 ) => Promise<T[]>;
 
 export async function query<T>(
-  sql: string,
-  params?: Record<string, unknown>,
-  tenantId?: number,
+  query: string,
+  organizationId: string,
+  query_params?: Record<string, unknown>,
 ): Promise<T[]> {
-  if (typeof tenantId !== "number") {
+  if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
   }
 
   const result = await clickhouse.query({
-    query: sql,
-    query_params: params,
+    query,
+    query_params,
     format: "JSONEachRow",
     clickhouse_settings: {
-      SQL_everr_tenant_id: tenantId,
+      SQL_everr_tenant_id: organizationId,
     },
   });
 
   return result.json<T>();
 }
 
-export function createClickhouseQuery(tenantId: number): ClickhouseQuery {
+export function createClickhouseQuery(organizationId: string) {
   return async <T>(sql: string, params?: Record<string, unknown>) =>
-    query<T>(sql, params, tenantId);
+    query<T>(sql, organizationId, params);
 }

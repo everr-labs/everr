@@ -18,16 +18,16 @@ function ensureStarted(): void {
 type Callback = (payload: NotifyPayload) => void;
 
 export function subscribeTenant(
-  tenantId: number,
+  tenantId: string,
   callback: Callback,
 ): () => void {
   ensureStarted();
-  return hub.subscribe("tenant", String(tenantId), callback);
+  return hub.subscribe("tenant", tenantId, callback);
 }
 
 export function subscribe(
   topic: Exclude<Topic, "tenant">,
-  tenantId: number,
+  tenantId: string,
   id: string,
   callback: Callback,
 ): () => void {
@@ -36,7 +36,7 @@ export function subscribe(
 }
 
 export function subscribeAuthor(
-  tenantId: number,
+  tenantId: string,
   email: string,
   callback: Callback,
 ): () => void {

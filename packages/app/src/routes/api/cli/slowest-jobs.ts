@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getSlowestJobs } from "@/data/cli-insights";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 
 const SlowestJobsQuerySchema = z.object({
@@ -15,7 +14,6 @@ const SlowestJobsQuerySchema = z.object({
 
 export const Route = createFileRoute("/api/cli/slowest-jobs")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);

@@ -20,12 +20,12 @@ export async function getWorkflowsList({
   branch,
 }: {
   pool?: Pool;
-  tenantId: number;
+  tenantId: string;
   repo: string;
   branch?: string;
 }): Promise<WorkflowWithJobs[]> {
   const clauses = [
-    "wr.tenant_id = $1",
+    "wr.organization_id = $1",
     "wr.repository = $2",
     `wr.last_event_at >= NOW() - ${LOOKBACK_SQL}`,
   ];
@@ -45,7 +45,7 @@ export async function getWorkflowsList({
         wj.job_name AS "jobName"
       FROM workflow_runs wr
       JOIN workflow_jobs wj
-        ON wj.tenant_id = wr.tenant_id
+        ON wj.organization_id = wr.organization_id
         AND wj.trace_id = wr.trace_id
       WHERE ${whereClause}
       ORDER BY wr.workflow_name ASC, wj.job_name ASC

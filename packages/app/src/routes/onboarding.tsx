@@ -6,9 +6,6 @@ import { cn } from "@everr/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { getAuth, getSignInUrl } from "@workos/authkit-tanstack-react-start";
-import { useAuth } from "@workos/authkit-tanstack-react-start/client";
-import type { Organization } from "@workos-inc/node";
 import {
   ArrowLeft,
   ArrowRight,
@@ -38,15 +35,11 @@ import {
   updateOrganizationName,
 } from "@/data/auth";
 import {
-  createOrganizationForCurrentUser,
   getGithubAppInstallStatus,
   getInstallationRepos,
   importRepos,
 } from "@/data/onboarding";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+import { authClient } from "@/lib/auth.client";
 
 const STEPS = ["organization", "github", "workflows", "app"] as const;
 type Step = (typeof STEPS)[number];
@@ -57,10 +50,6 @@ const STEP_LABELS: Record<Step, string> = {
   workflows: "Import",
   app: "Install",
 };
-
-// ---------------------------------------------------------------------------
-// Motion variants
-// ---------------------------------------------------------------------------
 
 const SLIDE_OFFSET = 60;
 const SPRING = { type: "spring" as const, stiffness: 300, damping: 30 };
@@ -108,39 +97,27 @@ const staggerItem = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// Route
-// ---------------------------------------------------------------------------
-
 export const Route = createFileRoute("/onboarding")({
-  async beforeLoad({ context: { queryClient } }) {
-    const auth = await getAuth();
+  async beforeLoad({ context: { queryClient, session } }) {
+    const organization = await queryClient.ensureQueryData(
+      activeOrganizationOptions(),
+    );
 
-    if (!auth.user) {
-      const signInUrl = await getSignInUrl({
-        data: "/onboarding",
-      });
-      throw redirect({ href: signInUrl });
+    // Safety net: org should always exist after signup (auto-created by hook).
+    // If missing, proceed to onboarding which will handle it.
+    if (!organization) {
+      return { session, organization };
     }
 
-    let organization: Organization | null = null;
-    try {
-      organization = await queryClient.ensureQueryData(
-        activeOrganizationOptions(),
-      );
-    } catch {
-      return { auth, organization: null };
-    }
-
-    if (organization?.metadata?.onboardingCompleted === "true") {
+    if (organization.metadata?.onboardingCompleted === true) {
       throw redirect({ to: "/" });
     }
 
-    return { auth, organization };
+    return { session, organization };
   },
-  loader: async ({ context: { auth, organization } }) => {
+  loader: async ({ context: { session, organization } }) => {
     let githubInstalled = false;
-    if (auth.organizationId) {
+    if (session?.session.activeOrganizationId) {
       try {
         const status = await getGithubAppInstallStatus();
         // TODO: double check this
@@ -154,30 +131,20 @@ export const Route = createFileRoute("/onboarding")({
   component: OnboardingWizard,
 });
 
-// ---------------------------------------------------------------------------
-// Wizard
-// ---------------------------------------------------------------------------
-
 function OnboardingWizard() {
   const { githubInstalled, organization: initialOrganization } =
     Route.useLoaderData();
-  const { user, loading: authLoading } = useAuth();
+  const { data: sessionData, isPending: authLoading } = authClient.useSession();
+  const user = sessionData?.user;
   const navigate = useNavigate();
   const { data: organization } = useQuery({
     ...activeOrganizationOptions(),
     initialData: initialOrganization,
   });
 
-  const hasOrganization = Boolean(organization);
   const organizationName = organization?.name ?? "";
 
-  const [currentStep, setCurrentStep] = useState<Step>(() =>
-    !hasOrganization
-      ? "organization"
-      : !githubInstalled
-        ? "github"
-        : "workflows",
-  );
+  const [currentStep, setCurrentStep] = useState<Step>("organization");
   const [[stepKey, direction], setStepState] = useState<[number, number]>([
     0, 0,
   ]);
@@ -228,7 +195,7 @@ function OnboardingWizard() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-16">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-16 ">
       <motion.div
         className="relative z-10 w-full max-w-xl"
         initial="hidden"
@@ -251,7 +218,7 @@ function OnboardingWizard() {
           className="mb-12"
           aria-label="Onboarding progress"
         >
-          <div className="relative flex border border-border bg-card">
+          <div className="relative flex border border-border bg-card rounded-md overflow-hidden">
             {/* Active step indicator + accent bar */}
             {[
               "pointer-events-none absolute inset-y-0 bg-primary/[0.07]",
@@ -272,7 +239,9 @@ function OnboardingWizard() {
             {STEPS.map((step, i) => {
               const isActive = i === currentStepIndex;
               const isComplete = i < currentStepIndex;
-              const isClickable = i <= currentStepIndex;
+              const isSkipped =
+                step === "workflows" && !isGithubInstalled && isComplete;
+              const isClickable = i <= currentStepIndex && !isSkipped;
 
               return (
                 <button
@@ -284,14 +253,16 @@ function OnboardingWizard() {
                   disabled={!isClickable}
                   className={cn(
                     "relative flex flex-1 items-center justify-center gap-2 px-3 py-3 text-xs font-medium outline-none transition-colors disabled:cursor-default",
-                    isActive
-                      ? "text-foreground"
-                      : isComplete
-                        ? "text-muted-foreground hover:text-foreground"
-                        : "text-muted-foreground/50",
+                    isSkipped
+                      ? "text-muted-foreground/30"
+                      : isActive
+                        ? "text-foreground"
+                        : isComplete
+                          ? "text-muted-foreground hover:text-foreground"
+                          : "text-muted-foreground/50",
                   )}
                 >
-                  {isComplete ? (
+                  {isComplete && !isSkipped ? (
                     <span className="flex size-5 items-center justify-center bg-primary/15 text-primary">
                       <Check className="size-3" strokeWidth={2.5} />
                     </span>
@@ -345,7 +316,6 @@ function OnboardingWizard() {
                     <OrganizationStep
                       user={user}
                       organizationName={organizationName}
-                      hasOrganization={hasOrganization}
                       onComplete={goForward}
                     />
                   )}
@@ -368,7 +338,9 @@ function OnboardingWizard() {
                   )}
                   {currentStep === "app" && (
                     <AppStep
-                      onBack={goBack}
+                      onBack={() =>
+                        goTo(isGithubInstalled ? "workflows" : "github")
+                      }
                       onFinish={async () => {
                         await markOnboardingComplete();
                         await navigate({ to: "/" });
@@ -388,12 +360,10 @@ function OnboardingWizard() {
 function OrganizationStep({
   user,
   organizationName,
-  hasOrganization,
   onComplete,
 }: {
   user: { email: string };
   organizationName: string;
-  hasOrganization: boolean;
   onComplete: () => void;
 }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -409,13 +379,7 @@ function OrganizationStep({
 
   const mutation = useMutation({
     mutationFn: async (orgName: string) => {
-      if (hasOrganization) {
-        await updateOrganizationName({ data: { organizationName: orgName } });
-      } else {
-        await createOrganizationForCurrentUser({
-          data: { organizationName: orgName },
-        });
-      }
+      await updateOrganizationName({ data: { organizationName: orgName } });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries(activeOrganizationOptions());
@@ -438,7 +402,7 @@ function OrganizationStep({
     const parsed = OrganizationNameSchema.safeParse(orgName);
     if (!parsed.success) return;
 
-    if (hasOrganization && orgName === organizationName) {
+    if (orgName === organizationName) {
       onComplete();
       return;
     }
@@ -460,7 +424,7 @@ function OrganizationStep({
     >
       <motion.section
         variants={staggerItem}
-        className="mt-8 border border-border bg-card p-6 sm:p-10"
+        className="mt-8 border border-border bg-card p-6 sm:p-10 rounded-md"
       >
         <h2 className="text-lg font-semibold">Organization details</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -521,16 +485,11 @@ function OrganizationStep({
               {mutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 size-3.5 animate-spin" />
-                  {hasOrganization ? "Saving..." : "Creating..."}
-                </>
-              ) : hasOrganization ? (
-                <>
-                  Continue
-                  <ArrowRight className="ml-2 size-3.5" />
+                  Saving...
                 </>
               ) : (
                 <>
-                  Create & continue
+                  Continue
                   <ArrowRight className="ml-2 size-3.5" />
                 </>
               )}
@@ -559,7 +518,7 @@ function GitHubStep({
     <StepContainer title="Connect your repos" index={2}>
       <motion.section
         variants={staggerItem}
-        className="mt-8 border border-border bg-card p-6 sm:p-10"
+        className="mt-8 border border-border bg-card p-6 sm:p-10  rounded-md"
       >
         <GithubInstallStep
           installed={installed}
@@ -679,12 +638,6 @@ function WorkflowsStep({
     });
   }
 
-  useEffect(() => {
-    if (!githubInstalled) {
-      onSkip();
-    }
-  }, [githubInstalled, onSkip]);
-
   if (!githubInstalled) {
     return null;
   }
@@ -697,7 +650,7 @@ function WorkflowsStep({
     >
       <motion.section
         variants={staggerItem}
-        className="mt-8 border border-border bg-card p-6 sm:p-10"
+        className="mt-8 border border-border bg-card p-6 sm:p-10 rounded-md"
       >
         {showSuccess ? (
           <div className="flex flex-col items-center py-8">
@@ -889,7 +842,7 @@ function AppStep({
     <StepContainer title="Install Everr" index={4}>
       <motion.section
         variants={staggerItem}
-        className="mt-8 border border-border bg-card p-6 sm:p-10"
+        className="mt-8 border border-border bg-card p-6 sm:p-10 rounded-md"
       >
         <h2 className="text-lg font-semibold">Get the most out of Everr</h2>
 
@@ -901,7 +854,7 @@ function AppStep({
               className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
             >
               <motion.div
-                className="flex size-9 shrink-0 items-center justify-center border border-border bg-muted/50"
+                className="flex size-9 shrink-0 items-center justify-center border border-border bg-muted/50 rounded-md"
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{
@@ -927,7 +880,7 @@ function AppStep({
           <p className="text-xs font-medium tracking-wide text-muted-foreground">
             Run in your terminal
           </p>
-          <div className="mt-3 flex items-center gap-2 border border-border bg-muted/50 px-4 py-3 font-mono text-sm">
+          <div className="mt-3 flex items-center gap-2 border border-border bg-muted/50 px-4 py-3 font-mono text-sm rounded-md">
             <code className="flex-1 truncate text-xs">{INSTALL_COMMAND}</code>
             <button
               type="button"

@@ -21,7 +21,7 @@ beforeEach(() => {
 describe("notifyWorkflowUpdate", () => {
   it("calls db.execute once with pg_notify to 'workflows'", async () => {
     await notifyWorkflowUpdate(mockDb, {
-      tenantId: 42,
+      tenantId: "42",
       traceId: "abc123",
       runId: "999",
       sha: "deadbeef",
@@ -50,7 +50,7 @@ describe("notifyWorkflowUpdate", () => {
 
     await expect(
       notifyWorkflowUpdate(mockDb, {
-        tenantId: 42,
+        tenantId: "42",
         traceId: "abc123",
         runId: "999",
         sha: "deadbeef",
@@ -69,7 +69,7 @@ describe("notifyWorkflowUpdate", () => {
 
   it("accepts job type with jobId", async () => {
     await notifyWorkflowUpdate(mockDb, {
-      tenantId: 42,
+      tenantId: "42",
       traceId: "abc123",
       runId: "999",
       sha: "deadbeef",

@@ -31,11 +31,15 @@ export const getRunsList = createAuthenticatedServerFn({
     const { fromDate, toDate } = resolveTimeRange(data.timeRange);
     const timestampExpr = "last_event_at";
     const clauses = [
-      "tenant_id = $1",
+      "organization_id = $1",
       `${timestampExpr} >= $2`,
       `${timestampExpr} <= $3`,
     ];
-    const params: unknown[] = [session.tenantId, fromDate, toDate];
+    const params: unknown[] = [
+      session.session.activeOrganizationId,
+      fromDate,
+      toDate,
+    ];
 
     if (data.repos?.length) {
       params.push(data.repos);
@@ -130,27 +134,27 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
       SELECT
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT repository AS v FROM workflow_runs
-          WHERE tenant_id = $1 AND status = 'completed' AND repository != ''
+          WHERE organization_id = $1 AND status = 'completed' AND repository != ''
             AND last_event_at >= $2
             AND last_event_at <= $3
           LIMIT 100
         ) r) AS repos,
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT ref AS v FROM workflow_runs
-          WHERE tenant_id = $1 AND status = 'completed' AND ref != ''
+          WHERE organization_id = $1 AND status = 'completed' AND ref != ''
             AND last_event_at >= $2
             AND last_event_at <= $3
           LIMIT 100
         ) b) AS branches,
         (SELECT COALESCE(array_agg(v ORDER BY v), '{}') FROM (
           SELECT DISTINCT workflow_name AS v FROM workflow_runs
-          WHERE tenant_id = $1 AND status = 'completed' AND workflow_name != ''
+          WHERE organization_id = $1 AND status = 'completed' AND workflow_name != ''
             AND last_event_at >= $2
             AND last_event_at <= $3
           LIMIT 100
         ) w) AS "workflowNames"
     `,
-      [session.tenantId, fromDate, toDate],
+      [session.session.activeOrganizationId, fromDate, toDate],
     );
 
     const row = result.rows[0];

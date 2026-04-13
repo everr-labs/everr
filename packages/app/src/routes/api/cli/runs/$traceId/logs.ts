@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getStepLogs } from "@/data/runs/server";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 
 const StepLogsQuerySchema = z
   .object({
@@ -24,7 +23,6 @@ const StepLogsQuerySchema = z
 
 export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ params, request }) => {
         const traceId = params.traceId;

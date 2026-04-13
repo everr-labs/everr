@@ -8,7 +8,7 @@ import {
   parseQueuedWorkflowEvent,
 } from "./payloads";
 import { handleStatusEvent } from "./status-writer";
-import { resolveTenantId } from "./tenant-resolver";
+import { resolveOrganizationId } from "./tenant-resolver";
 import type { WebhookJobData } from "./types";
 import { TerminalEventError } from "./types";
 
@@ -33,8 +33,11 @@ async function processCollectorJob(job: Job<WebhookJobData>): Promise<void> {
   const body = Buffer.from(job.data.body, "base64");
   const parsed = parseQueuedWorkflowEvent(eventType, body);
   const installationId = installationIdFromQueuedEvent(parsed);
-  const tenantId = await resolveTenantId(installationId);
-  await replayWebhookToCollector({ headers: job.data.headers, body }, tenantId);
+  const organizationId = await resolveOrganizationId(installationId);
+  await replayWebhookToCollector(
+    { headers: job.data.headers, body },
+    organizationId,
+  );
 }
 
 async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
@@ -42,9 +45,9 @@ async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
   const body = Buffer.from(job.data.body, "base64");
   const parsed = parseQueuedWorkflowEvent(eventType, body);
   const installationId = installationIdFromQueuedEvent(parsed);
-  const tenantId = await resolveTenantId(installationId);
+  const organizationId = await resolveOrganizationId(installationId);
   // biome-ignore lint/suspicious/noExplicitAny: db is badly typed
-  await handleStatusEvent(db as any, tenantId, parsed);
+  await handleStatusEvent(db as any, organizationId, parsed);
 }
 
 const WORK_OPTS = { localConcurrency: GH_EVENTS_CONFIG.workerCount };
