@@ -54,6 +54,12 @@ type AssistantSetup = {
   assistant_statuses: AssistantStatus[];
 };
 
+type FailedJobInfo = {
+  jobName: string;
+  stepNumber: string;
+  stepName?: string;
+};
+
 type FailureNotification = {
   dedupeKey: string;
   traceId: string;
@@ -62,6 +68,7 @@ type FailureNotification = {
   workflowName: string;
   failedAt: string;
   detailsUrl: string;
+  failedJobs?: FailedJobInfo[];
   jobName?: string;
   stepNumber?: string;
   stepName?: string;

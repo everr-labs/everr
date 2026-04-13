@@ -13,7 +13,7 @@ Step 2:
 
 Step 3:
 - if it looks flaky and doesn't come from this branch, explain the issue and ask me if we should proceed with a more in-depth analysis
-- if it looks like it will cost many tokens to fix it,  explain the issue and ask me if we should proceed with the dix
+- if it looks like it will cost many tokens to fix it,  explain the issue and ask me if we should proceed with the fix
 - otherwise, fix the problem and run the narrowest relevant test or check before finishing.
 
 Return a concise summary: root cause, whether it's a flaky test or a real regression, code changes (if any), verification, and any follow-up risk.
