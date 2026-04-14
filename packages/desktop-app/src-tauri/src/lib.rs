@@ -234,7 +234,6 @@ pub fn run() {
             app.handle().plugin(autostart.build())?;
 
             let store = current_state_store();
-            let _ = store.clear_mismatched_session(build::default_api_base_url())?;
             store.update_state(|state| {
                 state
                     .settings

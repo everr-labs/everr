@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::build;
-use crate::state::AppStateStore;
 use crate::state::Session;
 
 #[derive(Debug)]
@@ -261,15 +260,10 @@ impl ApiClient {
 
 fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {
     if status == StatusCode::UNAUTHORIZED {
-        clear_shared_session_on_auth_failure();
         return anyhow::Error::new(ReauthenticationRequired);
     }
 
     anyhow::anyhow!("{context} failed with {status}: {text}")
-}
-
-fn clear_shared_session_on_auth_failure() {
-    let _ = AppStateStore::for_namespace(build::session_namespace()).clear_session();
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
