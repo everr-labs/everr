@@ -77,12 +77,8 @@ impl ScanStats {
 }
 
 pub struct TraceTree {
-    pub trace_id: String,
     pub activity_timestamp_ns: u64,
-    pub service_name: String,
     pub spans: Vec<TraceRow>,
-    /// Span IDs that matched the discovery-pass filters (for `← match` highlighting).
-    pub matched_span_ids: std::collections::HashSet<String>,
 }
 
 
@@ -256,10 +252,8 @@ impl TelemetryStore {
             filter.to_ns
         };
 
-        // --- Discovery pass: find candidate trace IDs and record matched span IDs ---
+        // --- Discovery pass: find candidate trace IDs ---
         let mut candidates: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
-        let mut matched_spans: std::collections::HashMap<String, std::collections::HashSet<String>> =
-            std::collections::HashMap::new();
         let mut stats = ScanStats::default();
 
         for path in &files {
@@ -338,10 +332,6 @@ impl TelemetryStore {
                             if ts > *entry {
                                 *entry = ts;
                             }
-                            matched_spans
-                                .entry(span.trace_id.clone())
-                                .or_default()
-                                .insert(span.span_id.clone());
                         }
                     }
                 }
@@ -445,18 +435,9 @@ impl TelemetryStore {
             .into_iter()
             .map(|(trace_id, spans)| {
                 let activity_ts = activity_timestamps.get(&trace_id).copied().unwrap_or(0);
-                let service_name = spans
-                    .first()
-                    .and_then(|s| otlp::kv_str(&s.resource_attrs, "service.name"))
-                    .unwrap_or("")
-                    .to_string();
-                let matched = matched_spans.remove(&trace_id).unwrap_or_default();
                 TraceTree {
-                    trace_id,
                     activity_timestamp_ns: activity_ts,
-                    service_name,
                     spans,
-                    matched_span_ids: matched,
                 }
             })
             .collect();

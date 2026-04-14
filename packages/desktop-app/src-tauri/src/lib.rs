@@ -256,10 +256,13 @@ pub fn run() {
                 tauri::async_runtime::block_on(telemetry::sidecar::Sidecar::start(app.handle()));
             app.manage(sidecar);
 
-            let bridge_handle = tauri::async_runtime::block_on(async {
-                telemetry::bridge::install(app.state::<telemetry::sidecar::Sidecar>().state())
-            });
-            app.manage(std::sync::Mutex::new(Some(bridge_handle)));
+            #[cfg(debug_assertions)]
+            {
+                let bridge_handle = tauri::async_runtime::block_on(async {
+                    telemetry::bridge::install(app.state::<telemetry::sidecar::Sidecar>().state())
+                });
+                app.manage(std::sync::Mutex::new(Some(bridge_handle)));
+            }
 
             build_tray(app.handle())?;
             if wizard_incomplete(&runtime)? {
@@ -300,14 +303,13 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                // Flush OTel providers before the collector is killed.
+                #[cfg(debug_assertions)]
                 if let Some(bridge) = app
                     .try_state::<std::sync::Mutex<Option<telemetry::bridge::BridgeHandle>>>()
                     .and_then(|m| m.lock().ok()?.take())
                 {
                     tauri::async_runtime::block_on(bridge.shutdown());
                 }
-                // Graceful SIGTERM → wait → SIGKILL for the collector sidecar.
                 if let Some(sidecar) = app.try_state::<telemetry::sidecar::Sidecar>() {
                     tauri::async_runtime::block_on(sidecar.shutdown());
                 }
