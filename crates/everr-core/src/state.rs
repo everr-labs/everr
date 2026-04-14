@@ -216,7 +216,6 @@ impl AppStateStore {
             return Ok(session);
         }
 
-        self.clear_session()?;
         bail!(NO_ACTIVE_SESSION);
     }
 
@@ -236,22 +235,6 @@ impl AppStateStore {
             Err(error) if is_no_active_session_error(&error) => Ok(false),
             Err(error) => Err(error),
         }
-    }
-
-    pub fn clear_mismatched_session(&self, expected_api_base_url: &str) -> Result<bool> {
-        let _lock = self.lock_exclusive()?;
-        let mut state = self.load_state_unlocked()?;
-        let Some(session) = &state.session else {
-            return Ok(false);
-        };
-
-        if session_matches_api_base_url(&session.api_base_url, expected_api_base_url) {
-            return Ok(false);
-        }
-
-        state.session = None;
-        self.save_state(&state)?;
-        Ok(true)
     }
 
     fn lock_exclusive(&self) -> Result<fs::File> {
@@ -440,7 +423,7 @@ mod tests {
     }
 
     #[test]
-    fn load_session_for_api_base_url_clears_mismatched_session_only() {
+    fn load_session_for_api_base_url_rejects_mismatch_without_clearing() {
         with_temp_config_home(|store| {
             store
                 .save_state(&AppState {
@@ -464,7 +447,9 @@ mod tests {
             assert_eq!(error.to_string(), "no active session");
 
             let state = store.load_state().expect("load state");
-            assert!(state.session.is_none());
+            let session = state.session.expect("session preserved on mismatch");
+            assert_eq!(session.api_base_url, "https://app.everr.dev");
+            assert_eq!(session.token, "token-123");
             assert_eq!(
                 state.settings.completed_base_url.as_deref(),
                 Some("https://app.everr.dev")
