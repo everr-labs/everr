@@ -2,7 +2,7 @@ mod support;
 
 use std::fs;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use everr_cli::telemetry::query::{LogFilter, TraceFilter};
 use everr_cli::telemetry::store::{StoreError, TelemetryStore};
@@ -79,10 +79,15 @@ fn logs_level_filter_matches_severity() {
 }
 
 #[test]
-fn logs_since_filter_excludes_older_rows() {
+fn logs_from_filter_excludes_older_rows() {
     let store = TelemetryStore::open_at(&fixture_dir()).expect("open fixture");
+    // Set from_ns to now (all fixture data is in the past)
+    let now_ns = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
     let filter = LogFilter {
-        since: Some(Duration::from_secs(1)),
+        from_ns: Some(now_ns),
         ..LogFilter::default()
     };
     let (rows, _) = store.logs(filter).expect("query logs");
@@ -146,25 +151,20 @@ fn hydration_fixture_dir() -> PathBuf {
 }
 
 #[test]
-fn trace_trees_hydration_loads_parent_outside_since_window() {
+fn trace_trees_hydration_loads_parent_outside_from_window() {
     // Root span: Sept 2020 (1600000000000000000ns = epoch 1600000000s)
     // Child span: Nov 2023 (1700000000000000000ns = epoch 1700000000s)
-    // --since window covers child but NOT root.
+    // --from window covers child but NOT root.
     // Discovery should find the trace via the child, hydration should
-    // load the root even though it's outside --since.
+    // load the root even though it's outside --from.
     let store = TelemetryStore::open_at(&hydration_fixture_dir()).expect("open fixture");
 
-    // Compute --since dynamically: midpoint between root and child epochs.
-    // This always includes the child (1700000000s) and excludes the root (1600000000s).
-    let midpoint_epoch_secs: u64 = (1_600_000_000 + 1_700_000_000) / 2; // 1650000000
-    let now_secs = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let since_secs = now_secs - midpoint_epoch_secs;
+    // Set --from to midpoint between root and child epochs.
+    // This includes the child (1700000000s) and excludes the root (1600000000s).
+    let midpoint_epoch_ns: u64 = ((1_600_000_000u64 + 1_700_000_000) / 2) * 1_000_000_000;
 
     let filter = TraceFilter {
-        since: Some(Duration::from_secs(since_secs)),
+        from_ns: Some(midpoint_epoch_ns),
         ..TraceFilter::default()
     };
     let (trees, _) = store.trace_trees(filter).expect("query");
@@ -172,7 +172,7 @@ fn trace_trees_hydration_loads_parent_outside_since_window() {
     assert_eq!(
         trees[0].spans.len(),
         2,
-        "hydration must include root span even though it's outside --since"
+        "hydration must include root span even though it's outside --from"
     );
     let names: Vec<_> = trees[0].spans.iter().map(|s| s.name.as_str()).collect();
     assert!(names.contains(&"root.span"), "root must be hydrated");

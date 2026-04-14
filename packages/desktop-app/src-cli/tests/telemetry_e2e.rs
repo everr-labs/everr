@@ -166,10 +166,8 @@ service:
             "traces",
             "--telemetry-dir",
             telemetry_dir.to_str().unwrap(),
-            "--since",
-            "100d",
-            "--format",
-            "json",
+            "--from",
+            "now-100d",
         ])
         .assert()
         .success()

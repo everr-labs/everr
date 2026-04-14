@@ -9,27 +9,7 @@ fn fixture_arg() -> PathBuf {
 }
 
 #[test]
-fn telemetry_traces_table_renders_span_rows() {
-    let env = support::CliTestEnv::new();
-    env.command()
-        .args([
-            "telemetry",
-            "traces",
-            "--telemetry-dir",
-            fixture_arg().to_str().unwrap(),
-            "--since",
-            "1000d",
-            "--format",
-            "table",
-        ])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("TRACE"))
-        .stdout(predicate::str::contains("test.span.ok"));
-}
-
-#[test]
-fn telemetry_traces_json_format_contains_meta_and_rows() {
+fn telemetry_traces_json_contains_meta_and_rows() {
     let env = support::CliTestEnv::new();
     let output = env
         .command()
@@ -38,10 +18,8 @@ fn telemetry_traces_json_format_contains_meta_and_rows() {
             "traces",
             "--telemetry-dir",
             fixture_arg().to_str().unwrap(),
-            "--since",
-            "1000d",
-            "--format",
-            "json",
+            "--from",
+            "now-1000d",
         ])
         .assert()
         .success()
@@ -64,8 +42,8 @@ fn telemetry_logs_trace_id_filter_matches_fixture() {
             "logs",
             "--telemetry-dir",
             fixture_arg().to_str().unwrap(),
-            "--since",
-            "1000d",
+            "--from",
+            "now-1000d",
             "--trace-id",
             "0102030405060708090a0b0c0d0e0f10",
         ])

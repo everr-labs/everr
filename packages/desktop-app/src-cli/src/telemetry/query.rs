@@ -1,5 +1,4 @@
 use std::io::BufRead;
-use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
 
@@ -8,7 +7,10 @@ use crate::telemetry::store::{StoreError, TelemetryStore};
 
 #[derive(Debug, Default, Clone)]
 pub struct TraceFilter {
-    pub since: Option<Duration>,
+    /// Minimum timestamp (epoch nanoseconds, inclusive).
+    pub from_ns: Option<u64>,
+    /// Maximum timestamp (epoch nanoseconds, inclusive).
+    pub to_ns: Option<u64>,
     pub name_like: Option<String>,
     pub service: Option<String>,
     pub trace_id: Option<String>,
@@ -18,7 +20,10 @@ pub struct TraceFilter {
 
 #[derive(Debug, Default, Clone)]
 pub struct LogFilter {
-    pub since: Option<Duration>,
+    /// Minimum timestamp (epoch nanoseconds, inclusive).
+    pub from_ns: Option<u64>,
+    /// Maximum timestamp (epoch nanoseconds, inclusive).
+    pub to_ns: Option<u64>,
     pub level: Option<String>,
     pub egrep: Option<String>,
     pub service: Option<String>,
@@ -80,13 +85,6 @@ pub struct TraceTree {
     pub matched_span_ids: std::collections::HashSet<String>,
 }
 
-pub(crate) fn system_time_ns(t: SystemTime) -> u64 {
-    t.duration_since(SystemTime::UNIX_EPOCH)
-        // as_nanos() returns u128; the cast is safe — u64 holds nanoseconds
-        // up to year ~2554, well beyond any realistic timestamp.
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0)
-}
 
 impl TelemetryStore {
     pub fn logs(&self, filter: LogFilter) -> Result<(Vec<LogRow>, ScanStats), StoreError> {
@@ -95,9 +93,8 @@ impl TelemetryStore {
             return Ok((Vec::new(), ScanStats::default()));
         }
 
-        let cutoff_ns = filter.since.map(|dur| {
-            system_time_ns(SystemTime::now()).saturating_sub(dur.as_nanos() as u64)
-        });
+        let from_ns = filter.from_ns;
+        let to_ns = filter.to_ns;
 
         let grep_re = filter.egrep.as_ref().map(|pat| {
             regex::Regex::new(pat).unwrap_or_else(|_| regex::Regex::new(&regex::escape(pat)).unwrap())
@@ -162,8 +159,13 @@ impl TelemetryStore {
                                 record.observed_time_unix_nano,
                             );
 
-                            if let Some(cutoff) = cutoff_ns {
-                                if ts < cutoff {
+                            if let Some(from) = from_ns {
+                                if ts < from {
+                                    continue;
+                                }
+                            }
+                            if let Some(to) = to_ns {
+                                if ts > to {
                                     continue;
                                 }
                             }
@@ -241,14 +243,17 @@ impl TelemetryStore {
             return Ok((Vec::new(), ScanStats::default()));
         }
 
-        // When --trace-id is set, skip the --since cutoff during discovery
+        // When --trace-id is set, skip the --from cutoff during discovery
         // so any known trace can be found regardless of age.
-        let cutoff_ns = if filter.trace_id.is_some() {
+        let from_ns = if filter.trace_id.is_some() {
             None
         } else {
-            filter.since.map(|dur| {
-                system_time_ns(SystemTime::now()).saturating_sub(dur.as_nanos() as u64)
-            })
+            filter.from_ns
+        };
+        let to_ns = if filter.trace_id.is_some() {
+            None
+        } else {
+            filter.to_ns
         };
 
         // --- Discovery pass: find candidate trace IDs and record matched span IDs ---
@@ -300,8 +305,13 @@ impl TelemetryStore {
                         for span in &ss.spans {
                             let ts = span.start_time_unix_nano.unwrap_or(0);
 
-                            if let Some(cutoff) = cutoff_ns {
-                                if ts < cutoff {
+                            if let Some(from) = from_ns {
+                                if ts < from {
+                                    continue;
+                                }
+                            }
+                            if let Some(to) = to_ns {
+                                if ts > to {
                                     continue;
                                 }
                             }

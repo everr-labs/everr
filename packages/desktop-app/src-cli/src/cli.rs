@@ -83,9 +83,12 @@ pub enum TelemetrySubcommand {
 
 #[derive(Args, Debug, Default)]
 pub struct TelemetryQueryArgs {
-    /// Time window (e.g. 5m, 1h, 24h)
-    #[arg(long, default_value = "1h")]
-    pub since: String,
+    /// Start of time range (date math, e.g. now-1h, now-7d/d)
+    #[arg(long, default_value = "now-1h")]
+    pub from: String,
+    /// End of time range (date math, e.g. now)
+    #[arg(long)]
+    pub to: Option<String>,
     #[arg(long)]
     pub name: Option<String>,
     #[arg(long)]
@@ -97,9 +100,6 @@ pub struct TelemetryQueryArgs {
     pub attrs: Vec<String>,
     #[arg(long, default_value_t = 50)]
     pub limit: usize,
-    /// Output format — defaults to table on TTY, json otherwise
-    #[arg(long, value_enum)]
-    pub format: Option<TelemetryFormat>,
     /// Hidden: explicit telemetry directory (tests, cross-build snapshots)
     #[arg(long, hide = true)]
     pub telemetry_dir: Option<std::path::PathBuf>,
@@ -107,8 +107,12 @@ pub struct TelemetryQueryArgs {
 
 #[derive(Args, Debug, Default)]
 pub struct TelemetryLogsArgs {
-    #[arg(long, default_value = "1h")]
-    pub since: String,
+    /// Start of time range (date math, e.g. now-1h, now-7d/d)
+    #[arg(long, default_value = "now-1h")]
+    pub from: String,
+    /// End of time range (date math, e.g. now)
+    #[arg(long)]
+    pub to: Option<String>,
     #[arg(long)]
     pub level: Option<String>,
     #[arg(long)]

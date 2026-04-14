@@ -10,10 +10,11 @@ use crate::cli::{
     TelemetryArgs, TelemetryFormat, TelemetryLogsArgs, TelemetryQueryArgs, TelemetrySubcommand,
 };
 use crate::telemetry::otlp::KeyValue;
-use crate::telemetry::query::{LogFilter, LogRow, ScanStats, TraceFilter, TraceRow, TraceTree, system_time_ns};
+use crate::telemetry::query::{LogFilter, LogRow, ScanStats, TraceFilter, TraceTree};
 use crate::telemetry::store::{
     STALE_SIBLING_THRESHOLD, StoreError, TelemetryStore, otlp_file_summary,
 };
+use everr_core::datemath;
 
 pub fn run(args: TelemetryArgs) -> Result<()> {
     match args.command {
@@ -44,13 +45,15 @@ fn open_store(telemetry_dir: Option<&Path>) -> Result<Option<(TelemetryStore, He
 }
 
 fn run_traces(args: TelemetryQueryArgs) -> Result<()> {
-    let since = parse_duration(&args.since)?;
-    let format = resolve_format(args.format);
+    let now = SystemTime::now();
+    let from_ns = resolve_datemath_ns(&args.from, now)?;
+    let to_ns = args.to.as_deref().map(|s| resolve_datemath_ns(s, now)).transpose()?;
     let Some((store, header)) = open_store(args.telemetry_dir.as_deref())? else {
         return Ok(());
     };
     let filter = TraceFilter {
-        since: Some(since),
+        from_ns: Some(from_ns),
+        to_ns,
         name_like: args.name.clone(),
         service: args.service.clone(),
         trace_id: args.trace_id.clone(),
@@ -58,22 +61,22 @@ fn run_traces(args: TelemetryQueryArgs) -> Result<()> {
         limit: Some(args.limit),
     };
     let (trees, stats) = store.trace_trees(filter).context("query failed")?;
-    match format {
-        TelemetryFormat::Json => render_traces_json(&header, &trees, args.limit),
-        TelemetryFormat::Table => render_trace_trees(&header, &trees),
-    }
+    render_traces_json(&header, &trees, args.limit);
     print_scan_warnings(&stats);
     Ok(())
 }
 
 fn run_logs(args: TelemetryLogsArgs) -> Result<()> {
-    let since = parse_duration(&args.since)?;
+    let now = SystemTime::now();
+    let from_ns = resolve_datemath_ns(&args.from, now)?;
+    let to_ns = args.to.as_deref().map(|s| resolve_datemath_ns(s, now)).transpose()?;
     let format = resolve_format(args.format);
     let Some((store, header)) = open_store(args.telemetry_dir.as_deref())? else {
         return Ok(());
     };
     let filter = LogFilter {
-        since: Some(since),
+        from_ns: Some(from_ns),
+        to_ns,
         level: args.level.clone(),
         egrep: args.egrep.clone(),
         service: args.service.clone(),
@@ -95,22 +98,9 @@ fn resolved_dir(explicit: Option<&Path>) -> Result<PathBuf> {
     everr_core::build::telemetry_dir().context("resolve telemetry directory")
 }
 
-fn parse_duration(s: &str) -> Result<Duration> {
-    let (num_end, suffix) = match s.find(|c: char| !c.is_ascii_digit()) {
-        Some(idx) => (idx, &s[idx..]),
-        None => return Err(anyhow::anyhow!("missing unit in duration: {s}")),
-    };
-    let number: u64 = s[..num_end]
-        .parse()
-        .map_err(|_| anyhow::anyhow!("invalid number in duration: {s}"))?;
-    let seconds = match suffix {
-        "s" => number,
-        "m" => number.saturating_mul(60),
-        "h" => number.saturating_mul(3600),
-        "d" => number.saturating_mul(86_400),
-        other => return Err(anyhow::anyhow!("unknown duration unit: {other}")),
-    };
-    Ok(Duration::from_secs(seconds))
+fn resolve_datemath_ns(expr: &str, now: SystemTime) -> Result<u64> {
+    datemath::resolve_to_epoch_ns(expr, now)
+        .map_err(|e| anyhow::anyhow!("invalid date math expression '{}': {}", e.expression, e.message))
 }
 
 fn resolve_format(requested: Option<TelemetryFormat>) -> TelemetryFormat {
@@ -263,91 +253,6 @@ fn render_traces_json(header: &Header, trees: &[TraceTree], limit: usize) {
     println!("{}", serde_json::to_string_pretty(&payload).unwrap());
 }
 
-fn render_trace_trees(header: &Header, trees: &[TraceTree]) {
-    header.print_text();
-    if trees.is_empty() {
-        println!("No matches. Try a wider --since, or drop filters.");
-        return;
-    }
-    for (i, tree) in trees.iter().enumerate() {
-        if i > 0 {
-            println!();
-        }
-        let trace_short = tree.trace_id.get(..8).unwrap_or(&tree.trace_id);
-        let age = format_age_ns(tree.activity_timestamp_ns);
-        let service = if tree.service_name.is_empty() {
-            String::new()
-        } else {
-            format!("  service: {}", tree.service_name)
-        };
-        println!("TRACE {trace_short}  {age}{service}");
-
-        // Build parent→children map and collect all known span IDs
-        let mut children: std::collections::HashMap<Option<&str>, Vec<&TraceRow>> =
-            std::collections::HashMap::new();
-        let known_ids: std::collections::HashSet<&str> =
-            tree.spans.iter().map(|s| s.span_id.as_str()).collect();
-        for span in &tree.spans {
-            // Orphan check: if parent_span_id points to a missing parent,
-            // promote this span to root level instead of dropping it.
-            let parent_key = match span.parent_span_id.as_deref() {
-                Some(pid) if known_ids.contains(pid) => Some(pid),
-                _ => None,
-            };
-            children.entry(parent_key).or_default().push(span);
-        }
-
-        // Sort children by timestamp ascending (earliest first within each group)
-        for group in children.values_mut() {
-            group.sort_by_key(|s| s.timestamp_ns);
-        }
-
-        // Render from root spans (no parent, or orphans promoted to root)
-        let roots = children.get(&None).cloned().unwrap_or_default();
-        render_span_children(&roots, &children, &tree.matched_span_ids, "");
-    }
-}
-
-fn render_span_children(
-    spans: &[&TraceRow],
-    children: &std::collections::HashMap<Option<&str>, Vec<&TraceRow>>,
-    matched: &std::collections::HashSet<String>,
-    prefix: &str,
-) {
-    for (i, span) in spans.iter().enumerate() {
-        let is_last = i == spans.len() - 1;
-        let connector = if is_last { "└─ " } else { "├─ " };
-        let duration = format_duration_ns(span.duration_ns);
-        let status = status_code_str(span.status_code);
-        let is_match = matched.contains(&span.span_id);
-        let marker = if is_match { "  ← match" } else { "" };
-        let truncated = truncate(&span.name, 29);
-        // ANSI bold adds 8 invisible bytes; widen the pad to compensate.
-        let (name_display, pad) = if is_match {
-            (format!("\x1b[1m{truncated}\x1b[0m"), 38)
-        } else {
-            (truncated.into_owned(), 30)
-        };
-        println!(
-            "{prefix}{connector}{:<pad$} {:<8} {}{}",
-            name_display,
-            duration,
-            status,
-            marker
-        );
-
-        let child_prefix = if is_last {
-            format!("{prefix}   ")
-        } else {
-            format!("{prefix}│  ")
-        };
-        if let Some(kids) = children.get(&Some(span.span_id.as_str())) {
-            render_span_children(kids, children, matched, &child_prefix);
-        }
-    }
-}
-
-
 fn span_kind_str(kind: u8) -> &'static str {
     match kind {
         0 => "UNSPECIFIED",
@@ -366,23 +271,6 @@ fn status_code_str(code: u8) -> &'static str {
         1 => "OK",
         2 => "ERROR",
         _ => "UNSET",
-    }
-}
-
-fn format_age_ns(timestamp_ns: u64) -> String {
-    let now_ns = system_time_ns(SystemTime::now());
-    if timestamp_ns == 0 || timestamp_ns > now_ns {
-        return "just now".to_string();
-    }
-    let diff_secs = (now_ns - timestamp_ns) / 1_000_000_000;
-    if diff_secs < 60 {
-        format!("{diff_secs}s ago")
-    } else if diff_secs < 3600 {
-        format!("{}m ago", diff_secs / 60)
-    } else if diff_secs < 86400 {
-        format!("{}h ago", diff_secs / 3600)
-    } else {
-        format!("{}d ago", diff_secs / 86400)
     }
 }
 
@@ -429,7 +317,7 @@ fn render_logs(header: &Header, rows: &[LogRow], format: TelemetryFormat) {
                 }
             }
             if rows.is_empty() {
-                println!("No matches. Try a wider --since, or drop filters.");
+                println!("No matches. Try a wider --from, or drop filters.");
             }
         }
         TelemetryFormat::Json => {
@@ -473,18 +361,6 @@ fn format_timestamp_ns(nanos: u64) -> String {
     DateTime::<Utc>::from_timestamp(secs, sub_nanos)
         .map(|dt| dt.with_timezone(&Local).format("%H:%M:%S%.3f %z").to_string())
         .unwrap_or_else(|| format!("{nanos}ns"))
-}
-
-fn format_duration_ns(ns: u64) -> String {
-    if ns < 1_000 {
-        format!("{ns}ns")
-    } else if ns < 1_000_000 {
-        format!("{:.1}µs", ns as f64 / 1_000.0)
-    } else if ns < 1_000_000_000 {
-        format!("{:.1}ms", ns as f64 / 1_000_000.0)
-    } else {
-        format!("{:.2}s", ns as f64 / 1_000_000_000.0)
-    }
 }
 
 fn format_inline_attrs(kvs: &[KeyValue]) -> String {
