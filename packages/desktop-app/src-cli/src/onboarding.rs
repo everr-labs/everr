@@ -271,7 +271,7 @@ fn step_configure_assistants() -> Result<bool> {
     if interactive {
         cliclack::note(
             "Agent integrations",
-            "Each selected assistant gets a small instruction block (under 300 bytes) added to its global context file.",
+            "Each selected assistant gets a small instruction block added to its global context file.",
         )?;
     }
 

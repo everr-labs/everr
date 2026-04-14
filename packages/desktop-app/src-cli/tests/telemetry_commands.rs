@@ -65,3 +65,16 @@ fn telemetry_traces_missing_dir_shows_sibling_hint_or_fallback() {
         .success()
         .stderr(predicate::str::contains("No telemetry"));
 }
+
+#[test]
+fn telemetry_ai_instructions_prints_full_guidance() {
+    let env = support::CliTestEnv::new();
+    env.command()
+        .args(["telemetry", "ai-instructions"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("everr telemetry traces"))
+        .stdout(predicate::str::contains("everr telemetry logs"))
+        .stdout(predicate::str::contains("Investigation playbook:"))
+        .stdout(predicate::str::contains("After modifying instrumented code"));
+}

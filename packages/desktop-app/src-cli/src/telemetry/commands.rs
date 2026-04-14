@@ -20,7 +20,13 @@ pub fn run(args: TelemetryArgs) -> Result<()> {
     match args.command {
         TelemetrySubcommand::Traces(q) => run_traces(q),
         TelemetrySubcommand::Logs(q) => run_logs(q),
+        TelemetrySubcommand::AiInstructions => run_ai_instructions(),
     }
+}
+
+fn run_ai_instructions() -> Result<()> {
+    print!("{}", everr_core::assistant::render_telemetry_ai_instructions());
+    Ok(())
 }
 
 /// Open the telemetry store, emitting user-facing hints on missing/stale dirs.

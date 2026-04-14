@@ -79,6 +79,9 @@ pub enum TelemetrySubcommand {
     Traces(TelemetryQueryArgs),
     /// Show recent log records
     Logs(TelemetryLogsArgs),
+    /// Print AI-oriented guidance for `everr telemetry`
+    #[command(name = "ai-instructions")]
+    AiInstructions,
 }
 
 #[derive(Args, Debug, Default)]
