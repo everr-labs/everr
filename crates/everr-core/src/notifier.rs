@@ -36,9 +36,7 @@ mod tests {
             workflow_name: "build".to_string(),
             failed_at: "2026-03-07T10:00:00Z".to_string(),
             details_url: "https://example.com".to_string(),
-            job_name: Some("build".to_string()),
-            step_number: Some("3".to_string()),
-            step_name: Some("Install dependencies".to_string()),
+            failed_jobs: vec![],
         };
 
         assert_eq!(tracker.retain_new(vec![failure.clone()]).len(), 1);

@@ -1051,7 +1051,7 @@ dependencies = [
 
 [[package]]
 name = "everr-app"
-version = "0.1.21"
+version = "0.1.22"
 dependencies = [
  "anyhow",
  "arboard",
@@ -1059,6 +1059,7 @@ dependencies = [
  "everr-core",
  "futures-util",
  "nix",
+ "objc2",
  "objc2-app-kit",
  "opentelemetry",
  "opentelemetry-appender-tracing",

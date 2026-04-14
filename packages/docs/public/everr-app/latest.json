@@ -1,10 +1,10 @@
 {
-  "version": "0.1.21",
-  "pub_date": "2026-04-11T14:21:39.953Z",
+  "version": "0.1.22",
+  "pub_date": "2026-04-14T08:38:30.025Z",
   "platforms": {
     "darwin-aarch64": {
       "url": "https://everr.dev/everr-app/everr-macos-arm64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQm0yR1RwRlN1ck4wNUVkYys3N0hjWlJhb1MyU21oU0ZQWkRvMXB2ZG1hNU1uTmFwRnFOM2svc2luWkY2b1lXSE5kV1BVYWNnd0lybkpGcksxWExaVkF1eWxueW1pK3c4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1OTE3Mjk5CWZpbGU6RXZlcnIuYXBwLnRhci5nego5RldleXY4bDRIeXBreDRWVE9jMDA0ZkRTalk3SVA4UXI2RmlhVjl1OWF6NTNKcmRnZXhYS05uay8rb2gwTmRtS3QvQTl1Qm9FbGVxMC9sazJOVXRDdz09Cg=="
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQm0yR1RwRlN1ckFyZlh2akZjUWFtL0xlQXVnSmVMaWRTZXd1QlBlNnJXbXpFSGppQVl2RFBIWFV1c2ZxU1BXVHErM2JMTHYyeHp3U24vd09pT3lPWDZtcVNVN2hoc1FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2MTU1OTA5CWZpbGU6RXZlcnIuYXBwLnRhci5negpORk9nb3VNZ2RPL2pETEFuN2p6dkx1TTl3dElIL2lta2xlYUtRb1lDMlR4eG9TT1UzOWI1Wi9mWkd4T0phQTh6YlF0aWNlVmVmTGNqSTZpdjRzZWVDdz09Cg=="
     }
   }
 }

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use everr_core::api::FailureNotification;
+use everr_core::api::{FailedJobInfo, FailureNotification};
 use everr_core::assistant::{AssistantKind, AssistantStatus};
 use everr_core::state::{AppSettings, AppStateStore, WizardState};
 use everr_core::state_watcher::StateWatcher;
@@ -9,6 +9,10 @@ use tempfile::tempdir;
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::cli::sync_installed_cli_from_paths;
 use crate::notifications::{active_notification_auto_fix_prompt, reset_notifier_runtime_state};
+#[cfg(target_os = "macos")]
+use crate::notifications::{
+    notification_hover_uses_native_panel_geometry, notification_window_uses_native_panel,
+};
 use crate::settings::{build_assistant_setup_response, build_wizard_status_response};
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
@@ -41,9 +45,11 @@ fn failure(dedupe_key: &str) -> FailureNotification {
         workflow_name: "CI".to_string(),
         failed_at: "2026-03-07T10:00:00Z".to_string(),
         details_url: format!("https://example.com/{dedupe_key}"),
-        job_name: Some("test".to_string()),
-        step_number: Some("2".to_string()),
-        step_name: Some("Run suite".to_string()),
+        failed_jobs: vec![FailedJobInfo {
+            job_name: "test".to_string(),
+            step_number: "2".to_string(),
+            step_name: Some("Run suite".to_string()),
+        }],
     }
 }
 
@@ -118,10 +124,50 @@ fn notification_prompt_builder_formats_single_failure_with_exact_logs_command() 
 
     assert!(prompt.contains("Investigate and fix this CI pipeline failure."));
     assert!(prompt.contains("Failure details:"));
-    assert!(prompt.contains("workflow CI | trace trace-one | step test #2 (Run suite)"));
+    assert!(prompt.contains("workflow CI | trace trace-one | failing steps: test #2 (Run suite)"));
     assert!(prompt.contains("everr logs trace-one --job-name \"test\" --step-number 2"));
     assert!(prompt.contains("Step 2"));
     assert!(prompt.contains("Step 3"));
+}
+
+#[test]
+fn notification_prompt_lists_all_failed_jobs() {
+    let notification = FailureNotification {
+        dedupe_key: "multi".to_string(),
+        trace_id: "trace-multi".to_string(),
+        repo: "everr-labs/everr".to_string(),
+        branch: "main".to_string(),
+        workflow_name: "CI".to_string(),
+        failed_at: "2026-03-07T10:00:00Z".to_string(),
+        details_url: "https://example.com/multi".to_string(),
+        failed_jobs: vec![
+            FailedJobInfo {
+                job_name: "test".to_string(),
+                step_number: "3".to_string(),
+                step_name: Some("Run suite".to_string()),
+            },
+            FailedJobInfo {
+                job_name: "lint".to_string(),
+                step_number: "2".to_string(),
+                step_name: Some("Biome check".to_string()),
+            },
+        ],
+    };
+
+    let prompt = build_notification_auto_fix_prompt(&notification);
+
+    assert!(
+        prompt.contains("failing steps: test #3 (Run suite), lint #2 (Biome check)"),
+        "prompt should list all failed jobs, got: {prompt}"
+    );
+    assert!(
+        prompt.contains("everr logs trace-multi --job-name \"test\" --step-number 3"),
+        "prompt should include logs command for first job"
+    );
+    assert!(
+        prompt.contains("everr logs trace-multi --job-name \"lint\" --step-number 2"),
+        "prompt should include logs command for second job"
+    );
 }
 
 #[test]
@@ -150,6 +196,18 @@ fn current_app_name_matches_the_build_mode() {
 #[test]
 fn startup_update_checks_are_disabled_in_dev_only() {
     assert_eq!(should_check_for_updates(), !tauri::is_dev());
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn notification_window_uses_native_panel_on_macos() {
+    assert!(notification_window_uses_native_panel());
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn notification_hover_uses_native_panel_geometry_on_macos() {
+    assert!(notification_hover_uses_native_panel_geometry());
 }
 
 #[test]
@@ -247,7 +305,6 @@ fn mismatched_completed_base_url_reopens_the_wizard() {
     settings.apply_runtime_base_url(current_base_url());
     assert!(!settings.wizard_state.wizard_completed);
 }
-
 
 #[test]
 fn sync_installed_cli_installs_missing_binary() {

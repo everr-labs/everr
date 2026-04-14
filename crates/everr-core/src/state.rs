@@ -575,8 +575,14 @@ mod tests {
 
             store.save_state(&state).expect("save state");
 
-            let tmp_path = store.session_file_path().expect("path").with_extension("tmp");
-            assert!(!tmp_path.exists(), "tmp file should be cleaned up after atomic rename");
+            let tmp_path = store
+                .session_file_path()
+                .expect("path")
+                .with_extension("tmp");
+            assert!(
+                !tmp_path.exists(),
+                "tmp file should be cleaned up after atomic rename"
+            );
             assert_eq!(store.load_state().expect("load state"), state);
         });
     }
@@ -597,8 +603,14 @@ mod tests {
                 })
                 .expect("update state");
 
-            let lock_path = store.session_file_path().expect("path").with_extension("lock");
-            assert!(lock_path.exists(), "lock file should exist after update_state");
+            let lock_path = store
+                .session_file_path()
+                .expect("path")
+                .with_extension("lock");
+            assert!(
+                lock_path.exists(),
+                "lock file should exist after update_state"
+            );
 
             let state = store.load_state().expect("load state");
             assert_eq!(

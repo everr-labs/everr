@@ -34,11 +34,10 @@ pub async fn run() -> Result<()> {
                 "Runs already imported for {repo_full_name}, skipping."
             ))?;
         } else {
-            let import = cliclack::confirm(format!(
-                "Import workflow history for {repo_full_name}?"
-            ))
-            .initial_value(true)
-            .interact()?;
+            let import =
+                cliclack::confirm(format!("Import workflow history for {repo_full_name}?"))
+                    .initial_value(true)
+                    .interact()?;
 
             if import {
                 match client.start_import_repos(&[repo_full_name.clone()]).await {
@@ -54,16 +53,12 @@ pub async fn run() -> Result<()> {
     }
 
     // Step 4: write assistant instructions
-    let written =
-        core_assistant::init_repo_instructions_auto(&cwd, build::command_name())?;
+    let written = core_assistant::init_repo_instructions_auto(&cwd, build::command_name())?;
     for path in &written {
         cliclack::log::success(format!("Updated {}", path.display()))?;
     }
 
-    cliclack::outro(format!(
-        "{} init complete.",
-        build::command_name()
-    ))?;
+    cliclack::outro(format!("{} init complete.", build::command_name()))?;
 
     Ok(())
 }
