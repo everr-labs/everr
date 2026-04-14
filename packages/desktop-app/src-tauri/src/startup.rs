@@ -10,7 +10,9 @@ use tokio::sync::broadcast;
 
 use crate::cli::sync_installed_cli;
 use crate::notifications::reset_notification_state;
-use crate::settings::{current_app_state, emit_auth_changed, emit_settings_changed, update_settings};
+use crate::settings::{
+    current_app_state, emit_auth_changed, emit_settings_changed, update_settings,
+};
 use crate::{should_check_for_updates, RuntimeState, UPDATE_CHECK_INTERVAL_SECONDS};
 
 pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {

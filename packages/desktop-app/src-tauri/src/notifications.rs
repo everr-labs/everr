@@ -1,23 +1,32 @@
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
 use everr_core::api::{
-    ApiClient, FailureNotification, NotifyPayload, is_reauthentication_required,
+    is_reauthentication_required, ApiClient, FailureNotification, NotifyPayload,
 };
 use everr_core::git::resolve_git_context;
 use futures_util::StreamExt;
 #[cfg(target_os = "macos")]
-use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+use objc2::{rc::Retained, MainThreadMarker, MainThreadOnly};
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{
+    NSAutoresizingMaskOptions, NSBackingStoreType, NSColor, NSEvent, NSPanel, NSStatusWindowLevel,
+    NSView, NSWindow, NSWindowAnimationBehavior, NSWindowCollectionBehavior, NSWindowStyleMask,
+};
+
 use tauri::Emitter;
-use tauri::{AppHandle, LogicalPosition, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, LogicalPosition, Manager, Position, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::settings::{current_app_state, emit_auth_changed, update_persisted_state};
 use crate::{
-    current_base_url, NotifierState, NotificationQueue, RuntimeState, NOTIFICATION_CHANGED_EVENT,
+    current_base_url, NotificationQueue, NotifierState, RuntimeState, NOTIFICATION_CHANGED_EVENT,
     NOTIFICATION_EXIT_EVENT, NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT,
     NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN,
     NOTIFICATION_WINDOW_WIDTH, SEEN_RUNS_CHANGED_EVENT,
@@ -29,6 +38,15 @@ macro_rules! dbg_notifier {
             eprintln!("[notifier] {}", format_args!($($arg)*));
         }
     };
+}
+
+#[cfg(test)]
+pub(crate) fn notification_window_uses_native_panel() -> bool {
+    cfg!(target_os = "macos")
+}
+
+pub(crate) fn notification_hover_uses_native_panel_geometry() -> bool {
+    cfg!(target_os = "macos")
 }
 
 pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
@@ -47,10 +65,7 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
                     if is_reauthentication_required(&error) {
                         crate::crash_log::log_error("notifier SSE auth", &error);
                         if let Err(reset_error) = handle_notifier_auth_failure(&app, &state) {
-                            crate::crash_log::log_error(
-                                "notifier auth reset",
-                                &reset_error,
-                            );
+                            crate::crash_log::log_error("notifier auth reset", &reset_error);
                         }
                         backoff = Duration::from_secs(1);
                         continue;
@@ -162,12 +177,10 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
     let mut rx = state.watcher.subscribe();
 
     let Some(session) = current_app_state(state)?.session else {
-        reset_notification_state(app, state)?;
         wait_for_change(&mut rx, &[StateChange::SessionChanged]).await;
         return Ok(());
     };
     if session.api_base_url.trim_end_matches('/') != current_base_url().trim_end_matches('/') {
-        reset_notification_state(app, state)?;
         wait_for_change(&mut rx, &[StateChange::SessionChanged]).await;
         return Ok(());
     }
@@ -181,8 +194,7 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
             std::iter::once(profile.email).collect()
         } else {
             // No emails configured and no profile cached — wait for session or filter changes.
-            reset_notification_state(app, state)?;
-            wait_for_change(&mut rx, &[StateChange::SessionChanged, StateChange::EmailsChanged]).await;
+            wait_for_change(&mut rx, &[StateChange::EmailsChanged]).await;
             return Ok(());
         }
     };
@@ -256,7 +268,6 @@ fn handle_notifier_auth_failure(app: &AppHandle, state: &RuntimeState) -> Result
     update_persisted_state(state, |persisted| {
         persisted.session = None;
     })?;
-    reset_notification_state(app, state)?;
     emit_auth_changed(app);
     Ok(())
 }
@@ -308,7 +319,7 @@ async fn handle_notify_event(
     Ok(())
 }
 
-fn enqueue_notification(
+pub(crate) fn enqueue_notification(
     app: &AppHandle,
     state: &RuntimeState,
     notification: FailureNotification,
@@ -412,24 +423,15 @@ pub(crate) fn sync_notification_window(app: &AppHandle, state: &RuntimeState) ->
 
 fn show_notification_window(app: &AppHandle) -> Result<()> {
     let window = ensure_notification_window(app)?;
-    let was_visible = window.is_visible().unwrap_or(false);
-    configure_notification_window_for_fullscreen(&window)?;
+    position_notification_window(app, &window)?;
+    let was_visible = notification_window_is_visible(&window)?;
 
     if !was_visible {
-        position_notification_window(app, &window)?;
-        show_without_focus(&window)?;
+        show_notification_window_host(&window)?;
         start_notification_hover_polling(app);
-    } else {
-        position_notification_window(app, &window)?;
     }
 
     Ok(())
-}
-
-fn show_without_focus(window: &WebviewWindow) -> Result<()> {
-    window
-        .show()
-        .context("failed to show notification window without focus")
 }
 
 fn start_notification_hover_polling(app: &AppHandle) {
@@ -443,7 +445,7 @@ fn start_notification_hover_polling(app: &AppHandle) {
                 break;
             };
 
-            if !window.is_visible().unwrap_or(false) {
+            if !notification_window_is_visible(&window).unwrap_or(false) {
                 break;
             }
 
@@ -457,6 +459,25 @@ fn start_notification_hover_polling(app: &AppHandle) {
 }
 
 fn cursor_is_over_notification_window(app: &AppHandle, window: &WebviewWindow) -> bool {
+    #[cfg(target_os = "macos")]
+    if notification_hover_uses_native_panel_geometry() {
+        return with_notification_native_objects(window, |ns_window, _| {
+            let frame = notification_panel()
+                .map(|panel| panel.frame())
+                .unwrap_or_else(|| ns_window.frame());
+            let cursor = NSEvent::mouseLocation();
+            Ok(point_is_inside_notification_frame(
+                cursor.x,
+                cursor.y,
+                frame.origin.x,
+                frame.origin.y,
+                frame.size.width,
+                frame.size.height,
+            ))
+        })
+        .unwrap_or(false);
+    }
+
     let Ok(cursor) = app.cursor_position() else {
         return false;
     };
@@ -466,27 +487,53 @@ fn cursor_is_over_notification_window(app: &AppHandle, window: &WebviewWindow) -
     let Ok(size) = window.outer_size() else {
         return false;
     };
-    cursor.x >= pos.x as f64
-        && cursor.x < pos.x as f64 + size.width as f64
-        && cursor.y >= pos.y as f64
-        && cursor.y < pos.y as f64 + size.height as f64
+    point_is_inside_notification_frame(
+        cursor.x,
+        cursor.y,
+        pos.x as f64,
+        pos.y as f64,
+        size.width as f64,
+        size.height as f64,
+    )
+}
+
+fn point_is_inside_notification_frame(
+    cursor_x: f64,
+    cursor_y: f64,
+    frame_x: f64,
+    frame_y: f64,
+    frame_width: f64,
+    frame_height: f64,
+) -> bool {
+    cursor_x >= frame_x
+        && cursor_x < frame_x + frame_width
+        && cursor_y >= frame_y
+        && cursor_y < frame_y + frame_height
 }
 
 fn hide_notification_window(app: &AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) {
-        if window.is_visible().unwrap_or(false) {
+        if notification_window_is_visible(&window).unwrap_or(false) {
             // Tell the frontend to play the CSS exit animation, then hide after it completes.
             let _ = window.emit(NOTIFICATION_EXIT_EVENT, ());
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(Duration::from_millis(200)).await;
                 if let Some(w) = app.get_webview_window(NOTIFICATION_WINDOW_LABEL) {
+                    let _ = hide_notification_window_host(&w);
+                    // Once the panel releases the webview back to the backing Tauri window,
+                    // keep that owner hidden between notifications.
+                    #[cfg(target_os = "macos")]
                     let _ = w.hide();
                 }
                 let _ = app.emit(NOTIFICATION_CHANGED_EVENT, ());
             });
             return Ok(());
         }
+        hide_notification_window_host(&window)?;
+        // The native panel is only the temporary presenter. After hide, the webview
+        // is reattached to the hidden Tauri window, so hide that owner as well.
+        #[cfg(target_os = "macos")]
         window
             .hide()
             .context("failed to hide notification window")?;
@@ -547,35 +594,63 @@ fn ensure_notification_window(app: &AppHandle) -> Result<WebviewWindow> {
         .context("failed to build notification window")
 }
 
-#[cfg(target_os = "macos")]
-fn configure_notification_window_for_fullscreen(window: &WebviewWindow) -> Result<()> {
-    let window_for_closure = window.clone();
-    window
-        .run_on_main_thread(move || {
-            let Ok(ns_window) = window_for_closure.ns_window() else {
-                return;
-            };
+fn notification_window_is_visible(window: &WebviewWindow) -> Result<bool> {
+    #[cfg(target_os = "macos")]
+    {
+        return with_notification_native_objects(window, |_, _| {
+            Ok(notification_panel()
+                .map(|p| p.isVisible())
+                .unwrap_or(false))
+        });
+    }
 
-            let ns_window: &NSWindow = unsafe { &*ns_window.cast() };
-            let behavior = ns_window.collectionBehavior()
-                | NSWindowCollectionBehavior::CanJoinAllSpaces
-                | NSWindowCollectionBehavior::FullScreenAuxiliary;
-            ns_window.setCollectionBehavior(behavior);
-            ns_window.setAcceptsMouseMovedEvents(true);
-        })
-        .context("failed to configure notification window")
+    #[cfg(not(target_os = "macos"))]
+    Ok(window.is_visible().unwrap_or(false))
 }
 
-#[cfg(not(target_os = "macos"))]
-fn configure_notification_window_for_fullscreen(_window: &WebviewWindow) -> Result<()> {
-    Ok(())
+fn show_notification_window_host(window: &WebviewWindow) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        return show_notification_panel(window);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        window.show().context("failed to show notification window")
+    }
+}
+
+fn hide_notification_window_host(window: &WebviewWindow) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        return hide_notification_panel(window);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    window.hide().context("failed to hide notification window")
 }
 
 fn position_notification_window(app: &AppHandle, window: &WebviewWindow) -> Result<()> {
-    let (x, y) = notification_window_position(app)?;
+    let Ok((x, y)) = notification_window_position(app) else {
+        return Ok(());
+    };
+
     window
-        .set_position(LogicalPosition::new(x, y))
-        .context("failed to position notification window")
+        .set_position(Position::Logical(LogicalPosition::new(x, y)))
+        .context("failed to position notification window")?;
+
+    #[cfg(target_os = "macos")]
+    {
+        return with_notification_native_objects(window, |ns_window, _| {
+            if let Some(panel) = notification_panel() {
+                panel.setFrame_display(ns_window.frame(), false);
+            }
+            Ok(())
+        });
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    Ok(())
 }
 
 fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
@@ -587,11 +662,10 @@ fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
         .ok_or_else(|| anyhow!("failed to resolve notification monitor"))?;
     let work_area = monitor.work_area();
     let scale_factor = monitor.scale_factor();
-    let full_width = ((NOTIFICATION_WINDOW_WIDTH
-        + NOTIFICATION_WINDOW_INSET
-        + NOTIFICATION_WINDOW_MARGIN)
-        * scale_factor)
-        .round() as i32;
+    let full_width =
+        ((NOTIFICATION_WINDOW_WIDTH + NOTIFICATION_WINDOW_INSET + NOTIFICATION_WINDOW_MARGIN)
+            * scale_factor)
+            .round() as i32;
     let inset = (NOTIFICATION_WINDOW_INSET * scale_factor).round() as i32;
     let margin = (NOTIFICATION_WINDOW_MARGIN * scale_factor).round() as i32;
     // Window right edge is flush with the work-area edge.
@@ -600,4 +674,150 @@ fn notification_window_position(app: &AppHandle) -> Result<(f64, f64)> {
     let y = work_area.position.y + margin - inset;
 
     Ok((x as f64 / scale_factor, y as f64 / scale_factor))
+}
+
+/// Raw pointer to the singleton NSPanel used for notifications.
+/// Only accessed on the main thread (inside `with_notification_native_objects`).
+#[cfg(target_os = "macos")]
+struct SendPtr(*mut objc2::runtime::AnyObject);
+#[cfg(target_os = "macos")]
+// SAFETY: the pointer is only dereferenced on the main thread.
+unsafe impl Send for SendPtr {}
+#[cfg(target_os = "macos")]
+// SAFETY: access is synchronized by the Mutex.
+unsafe impl Sync for SendPtr {}
+#[cfg(target_os = "macos")]
+static NOTIFICATION_PANEL_PTR: Mutex<Option<SendPtr>> = Mutex::new(None);
+
+#[cfg(target_os = "macos")]
+fn show_notification_panel(window: &WebviewWindow) -> Result<()> {
+    with_notification_native_objects(window, |ns_window, webview_view| {
+        let panel = ensure_notification_panel(ns_window, webview_view)?;
+        panel.setFrame_display(ns_window.frame(), false);
+        panel.orderFrontRegardless();
+        Ok(())
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn hide_notification_panel(window: &WebviewWindow) -> Result<()> {
+    with_notification_native_objects(window, |ns_window, webview_view| {
+        attach_notification_webview_to_backing_window(ns_window, webview_view)?;
+        if let Some(panel) = notification_panel() {
+            panel.orderOut(None);
+        }
+        Ok(())
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn with_notification_native_objects<T, F>(window: &WebviewWindow, f: F) -> Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&NSWindow, &NSView) -> Result<T> + Send + 'static,
+{
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    window
+        .with_webview(move |webview| {
+            let result = (|| {
+                let ns_window: &NSWindow = unsafe { &*webview.ns_window().cast() };
+                let webview_view: &NSView = unsafe { &*webview.inner().cast() };
+                f(ns_window, webview_view)
+            })();
+            let _ = tx.send(result);
+        })
+        .context("failed to access native notification webview")?;
+
+    rx.recv()
+        .map_err(|_| anyhow!("failed to receive native notification result"))?
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_notification_panel(
+    ns_window: &NSWindow,
+    webview_view: &NSView,
+) -> Result<Retained<NSPanel>> {
+    if let Some(panel) = notification_panel() {
+        attach_notification_webview_to_panel(&panel, webview_view)?;
+        return Ok(panel);
+    }
+
+    let mtm =
+        MainThreadMarker::new().expect("notification panel must be created on the main thread");
+    let panel = NSPanel::initWithContentRect_styleMask_backing_defer(
+        NSPanel::alloc(mtm),
+        ns_window.frame(),
+        NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel,
+        NSBackingStoreType::Buffered,
+        false,
+    );
+
+    panel.setFloatingPanel(true);
+    panel.setBecomesKeyOnlyIfNeeded(true);
+    panel.setWorksWhenModal(true);
+    panel.setCollectionBehavior(
+        NSWindowCollectionBehavior::Stationary
+            | NSWindowCollectionBehavior::FullScreenAuxiliary
+            | NSWindowCollectionBehavior::CanJoinAllSpaces,
+    );
+    panel.setAnimationBehavior(NSWindowAnimationBehavior::None);
+    panel.setLevel(NSStatusWindowLevel);
+    panel.setOpaque(false);
+    panel.setBackgroundColor(Some(&NSColor::clearColor()));
+    panel.setHasShadow(true);
+    panel.setHidesOnDeactivate(false);
+    panel.setExcludedFromWindowsMenu(true);
+    panel.setAcceptsMouseMovedEvents(true);
+    panel.setIgnoresMouseEvents(false);
+
+    // Transfer one retain count into the static so the panel stays alive.
+    *NOTIFICATION_PANEL_PTR
+        .lock()
+        .map_err(|_| anyhow!("failed to lock notification panel"))? =
+        Some(SendPtr(Retained::into_raw(panel.clone()).cast()));
+
+    attach_notification_webview_to_panel(&panel, webview_view)?;
+
+    Ok(panel)
+}
+
+#[cfg(target_os = "macos")]
+fn notification_panel() -> Option<Retained<NSPanel>> {
+    let guard = NOTIFICATION_PANEL_PTR.lock().ok()?;
+    let ptr = guard.as_ref()?.0;
+    // SAFETY: the pointer was stored by `ensure_notification_panel` on the main thread
+    // and we only call this from `with_notification_native_objects` which also runs on
+    // the main thread. The panel is retained by the Retained we create here.
+    unsafe { Retained::retain(ptr.cast()) }
+}
+
+#[cfg(target_os = "macos")]
+fn attach_notification_webview_to_panel(panel: &NSPanel, webview_view: &NSView) -> Result<()> {
+    let content_view = panel
+        .contentView()
+        .ok_or_else(|| anyhow!("notification panel is missing a content view"))?;
+    attach_notification_webview(content_view.as_ref(), webview_view);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn attach_notification_webview_to_backing_window(
+    ns_window: &NSWindow,
+    webview_view: &NSView,
+) -> Result<()> {
+    let content_view = ns_window
+        .contentView()
+        .ok_or_else(|| anyhow!("notification window is missing a content view"))?;
+    attach_notification_webview(content_view.as_ref(), webview_view);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn attach_notification_webview(content_view: &NSView, webview_view: &NSView) {
+    webview_view.removeFromSuperview();
+    webview_view.setFrame(content_view.bounds());
+    webview_view.setAutoresizingMask(
+        NSAutoresizingMaskOptions::ViewWidthSizable | NSAutoresizingMaskOptions::ViewHeightSizable,
+    );
+    content_view.addSubview(webview_view);
 }

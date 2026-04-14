@@ -15,7 +15,8 @@ fn build_logs_instructions(failure: &FailureNotification) -> String {
         return "Pull the relevant Everr logs for this failure before guessing.".to_string();
     }
 
-    let commands: Vec<String> = failure.failed_jobs
+    let commands: Vec<String> = failure
+        .failed_jobs
         .iter()
         .filter_map(|job| {
             let escaped = serde_json::to_string(&job.job_name).ok()?;
@@ -33,7 +34,8 @@ fn format_notification_failure(failure: &FailureNotification) -> String {
     let jobs_suffix = if failure.failed_jobs.is_empty() {
         String::new()
     } else {
-        let parts: Vec<String> = failure.failed_jobs
+        let parts: Vec<String> = failure
+            .failed_jobs
             .iter()
             .map(|job| {
                 let step_name_suffix = job

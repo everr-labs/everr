@@ -9,6 +9,10 @@ use tempfile::tempdir;
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::cli::sync_installed_cli_from_paths;
 use crate::notifications::{active_notification_auto_fix_prompt, reset_notifier_runtime_state};
+#[cfg(target_os = "macos")]
+use crate::notifications::{
+    notification_hover_uses_native_panel_geometry, notification_window_uses_native_panel,
+};
 use crate::settings::{build_assistant_setup_response, build_wizard_status_response};
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
@@ -194,6 +198,18 @@ fn startup_update_checks_are_disabled_in_dev_only() {
     assert_eq!(should_check_for_updates(), !tauri::is_dev());
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn notification_window_uses_native_panel_on_macos() {
+    assert!(notification_window_uses_native_panel());
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn notification_hover_uses_native_panel_geometry_on_macos() {
+    assert!(notification_hover_uses_native_panel_geometry());
+}
+
 #[test]
 fn assistant_setup_response_returns_detected_and_configured_statuses() {
     let response = build_assistant_setup_response(vec![
@@ -289,7 +305,6 @@ fn mismatched_completed_base_url_reopens_the_wizard() {
     settings.apply_runtime_base_url(current_base_url());
     assert!(!settings.wizard_state.wizard_completed);
 }
-
 
 #[test]
 fn sync_installed_cli_installs_missing_binary() {
