@@ -67,7 +67,6 @@ export const Route = createFileRoute(
   component: UsersManagementPage,
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Better Auth response types are complex
 type AnyRecord = Record<string, any>;
 
 function UsersManagementPage() {
@@ -88,6 +87,7 @@ function UsersManagementPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    // TODO: this is quite ugly. we can probably do better by using tanstack query to fetch the data.
     try {
       const [invRes, memRes] = await Promise.all([
         authClient.organization.listInvitations(),
