@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Embed a local Jaeger-like trace viewer (search + timeline + stats + critical path + spans + JSON) as a new top-level page in the Everr desktop app, reading OTLP JSON files the collector writes on disk.
+**Goal:** Embed a local trace viewer (search + timeline + stats + critical path + spans + JSON) as a new top-level page in the Everr desktop app, reading OTLP JSON files the collector writes on disk.
 
 **Architecture:** New Rust workspace crate `everr-telemetry-dto` holds shared DTOs and aggregation helpers. The desktop app's `src-tauri` exposes three new commands (`telemetry_search_traces`, `telemetry_get_trace`, `telemetry_list_services`) that call into reused CLI telemetry modules plus new aggregation code. The desktop React app adds `features/traces/` with TanStack Router routes `/traces` and `/traces/$traceId`, using Shadcn/BaseUI + Tailwind + TanStack Query. URL search params are the single source of truth for filters; raw datemath strings stay in query keys, resolution happens inside fetchers.
 

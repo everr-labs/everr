@@ -5,9 +5,9 @@ Status: Spec approved, pending implementation plan
 
 ## Summary
 
-Embed a local trace viewer as a new top-level page in the Everr desktop app. It reads OTLP JSON files written by the local collector — the same files the `everr telemetry traces` CLI reads today — and presents a Jaeger-like UI: search + filter across recent traces, then drill into a single trace across four views (timeline / statistics / critical path / spans) plus a raw JSON view.
+Embed a local trace viewer as a new top-level page in the Everr desktop app. It reads OTLP JSON files written by the local collector — the same files the `everr telemetry traces` CLI reads today — and presents a trace-viewer UI: search + filter across recent traces, then drill into a single trace across four views (timeline / statistics / critical path / spans) plus a raw JSON view.
 
-The UI is reimplemented in the desktop app's existing stack (React + Shadcn + BaseUI + Tailwind + TanStack Query/Router). `jaeger-ui` (vendored at `jaeger-ui/`) is the visual and interaction reference, not a source dependency.
+The UI is built in the desktop app's existing stack (React + Shadcn + BaseUI + Tailwind + TanStack Query/Router).
 
 ## Goals
 
@@ -48,7 +48,7 @@ The UI is reimplemented in the desktop app's existing stack (React + Shadcn + Ba
 ### Why this shape
 
 - **Top-level page** rather than nested under `developer`: first-class placement matches how this will actually get used (trace viewing is a primary workflow, not a debug hatch).
-- **Reimplement in the app's stack**: `jaeger-ui` uses antd + Less + Redux + `redux-actions`. Embedding it would mean two design systems (antd vs Shadcn/BaseUI) and Redux-legacy patterns coexisting inside one Tauri app. Feature parity on four screens is tractable when we control the data shape.
+- **Build in the app's stack**: a bespoke implementation keeps one design system (Shadcn/BaseUI) and lets us control the data shape end-to-end. Feature parity on four screens is tractable at this size.
 - **File-scan backend**: we accept the perf tradeoff to avoid standing up an index layer. Single-trace loading is already decent in the CLI; the search/stats paths will be the first to feel slow and can be optimized later.
 
 ## Routes and URL state
