@@ -8,7 +8,6 @@ onlyBuiltDependencies:
 
 catalog:
   '@icons-pack/react-simple-icons': ^13.13.0
-  '@radix-ui/themes': ^3.3.0
   '@t3-oss/env-core': ^0.13.11
   '@tailwindcss/vite': ^4.2.2
   '@tanstack/react-query': ^5.96.0

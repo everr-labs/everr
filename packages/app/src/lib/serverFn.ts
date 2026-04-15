@@ -20,7 +20,7 @@ export const authMiddleware = createMiddleware().server(
   },
 );
 
-const requireOrgMiddleware = createMiddleware()
+export const requireOrgMiddleware = createMiddleware()
   .middleware([authMiddleware])
   .server(async ({ next, context: { session } }) => {
     const activeOrgId = session.session.activeOrganizationId;

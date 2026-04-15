@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { authMiddleware } from "@/lib/serverFn";
+import { requireOrgMiddleware } from "@/lib/serverFn";
 
 /**
- * Wraps all CLI API routes with the auth middleware.
+ * Wraps all CLI API routes with auth + org middleware.
  */
 export const Route = createFileRoute("/api/cli")({
   server: {
-    middleware: [authMiddleware],
+    middleware: [requireOrgMiddleware],
   },
 });

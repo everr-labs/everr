@@ -55,7 +55,15 @@ vi.mock("@tanstack/react-start", () => ({
       server: vi.fn((handler) => ({
         __handler: handlers.reduceRight<typeof handler>(
           (nextHandler, middlewareHandler) =>
-            async ({ request, context, next }) =>
+            async ({
+              request,
+              context,
+              next,
+            }: {
+              request?: Request;
+              context?: Record<string, unknown>;
+              next: (args?: unknown) => Promise<unknown>;
+            }) =>
               middlewareHandler({
                 request,
                 context,
@@ -115,6 +123,8 @@ vi.mock("@/lib/serverFn", async () => {
   const { query } = await import("@/lib/clickhouse");
 
   return {
+    authMiddleware: { __handler: vi.fn() },
+    requireOrgMiddleware: { __handler: vi.fn() },
     createAuthenticatedServerFn: vi.fn(() =>
       makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
         return fn({

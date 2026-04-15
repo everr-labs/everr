@@ -1,4 +1,3 @@
-import { Theme } from "@radix-ui/themes";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -113,16 +112,8 @@ function ShellComponent({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Theme
-          appearance="dark"
-          accentColor="yellow"
-          grayColor="gray"
-          radius="small"
-          scaling="95%"
-        >
-          {children}
-          <Scripts />
-        </Theme>
+        {children}
+        <Scripts />
       </body>
     </html>
   );
