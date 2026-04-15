@@ -69,16 +69,17 @@ pub struct ScanStats {
     pub skipped_malformed_lines: usize,
 }
 
-impl ScanStats {
-    pub fn merge(&mut self, other: &ScanStats) {
-        self.skipped_unreadable_files += other.skipped_unreadable_files;
-        self.skipped_malformed_lines += other.skipped_malformed_lines;
-    }
-}
-
 pub struct TraceTree {
+    #[allow(dead_code)] // consumed by integration tests
+    pub trace_id: String,
     pub activity_timestamp_ns: u64,
+    #[allow(dead_code)] // consumed by integration tests
+    pub service_name: String,
     pub spans: Vec<TraceRow>,
+    /// Span IDs that matched the discovery filter within this trace. The rest of
+    /// `spans` are hydrated context (parents/siblings of matched spans).
+    #[allow(dead_code)] // consumed by integration tests
+    pub matched_span_ids: Vec<String>,
 }
 
 
@@ -99,8 +100,18 @@ impl TelemetryStore {
         let mut rows = Vec::new();
         let mut stats = ScanStats::default();
 
-        for path in &files {
-            let file = match std::fs::File::open(path) {
+        for entry in &files {
+            // File-level prune: `rotation_time_ns` is an upper bound on event
+            // timestamps inside the file, so if it's already below --from the
+            // file can't contain matching events. Files are sorted newest-first
+            // with current/unparseable first, so once we hit this we can stop.
+            if let (Some(rotation), Some(from)) = (entry.rotation_time_ns, from_ns) {
+                if rotation < from {
+                    break;
+                }
+            }
+
+            let file = match std::fs::File::open(&entry.path) {
                 Ok(f) => f,
                 Err(_) => {
                     stats.skipped_unreadable_files += 1;
@@ -227,12 +238,17 @@ impl TelemetryStore {
         Ok((rows, stats))
     }
 
-    /// Two-pass query: discovery finds matching trace IDs, hydration loads
-    /// all spans for those traces. This reads files twice — an explicit
-    /// tradeoff: acceptable for local telemetry volumes (typically <100 files),
-    /// avoids unbounded memory from loading all spans in a single pass before
-    /// knowing which traces survive filtering. Could be collapsed to a single
-    /// pass with a HashMap<trace_id, Vec<TraceRow>> if volumes grow.
+    /// Single-pass query. For each file we build a per-file map of
+    /// `trace_id -> (spans, matched_span_ids)` and emit trees whose traces had
+    /// at least one span matching the discovery filter.
+    ///
+    /// **Assumption: all spans for a given trace are written to the same
+    /// rotated file.** The collector batches and rotates at a few MB, so a
+    /// trace that straddles a rotation boundary would have some spans in the
+    /// previous backup. We accept this truncation rather than pay the cost of
+    /// a cross-file hydration pass — traces on this scale complete in
+    /// milliseconds and the rotation window is many seconds of activity.
+    /// Hydration of parent/sibling spans therefore stays within a single file.
     pub fn trace_trees(&self, filter: TraceFilter) -> Result<(Vec<TraceTree>, ScanStats), StoreError> {
         let files = self.otlp_files()?;
         if files.is_empty() {
@@ -252,12 +268,31 @@ impl TelemetryStore {
             filter.to_ns
         };
 
-        // --- Discovery pass: find candidate trace IDs ---
-        let mut candidates: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        struct TraceAccum {
+            activity_ts: u64,
+            service_name: String,
+            spans: Vec<TraceRow>,
+            matched_span_ids: Vec<String>,
+        }
+
+        let mut trees_by_id: std::collections::HashMap<String, TraceAccum> =
+            std::collections::HashMap::new();
         let mut stats = ScanStats::default();
 
-        for path in &files {
-            let file = match std::fs::File::open(path) {
+        for entry in &files {
+            // File-level prune by --from: `rotation_time_ns` is an upper bound
+            // on event timestamps in a rotated file, so if it's below --from
+            // the file can't contribute. Files are newest-first with the
+            // current file (None) sorting first, so once we hit a skip we're
+            // done. Suppressed when --trace-id is set, matching the per-span
+            // behavior above.
+            if let (Some(rotation), Some(from)) = (entry.rotation_time_ns, from_ns) {
+                if rotation < from {
+                    break;
+                }
+            }
+
+            let file = match std::fs::File::open(&entry.path) {
                 Ok(f) => f,
                 Err(_) => {
                     stats.skipped_unreadable_files += 1;
@@ -288,123 +323,42 @@ impl TelemetryStore {
                 };
 
                 for rs in &req.resource_spans {
+                    let svc_name = otlp::kv_str(&rs.resource.attributes, "service.name")
+                        .unwrap_or("")
+                        .to_string();
                     if let Some(ref svc) = filter.service {
-                        let actual = otlp::kv_str(&rs.resource.attributes, "service.name")
-                            .unwrap_or("");
-                        if !actual.contains(svc.as_str()) {
+                        if !svc_name.contains(svc.as_str()) {
                             continue;
                         }
                     }
                     for ss in &rs.scope_spans {
                         for span in &ss.spans {
-                            let ts = span.start_time_unix_nano.unwrap_or(0);
-
-                            if let Some(from) = from_ns {
-                                if ts < from {
-                                    continue;
-                                }
-                            }
-                            if let Some(to) = to_ns {
-                                if ts > to {
-                                    continue;
-                                }
-                            }
-
-                            if let Some(ref name_sub) = filter.name_like {
-                                if !span.name.contains(name_sub.as_str()) {
-                                    continue;
-                                }
-                            }
-
-                            if let Some(ref filter_tid) = filter.trace_id {
-                                if !span.trace_id.to_ascii_lowercase().starts_with(&filter_tid.to_ascii_lowercase()) {
-                                    continue;
-                                }
-                            }
-
-                            if !attrs_match(&span.attributes, &filter.attrs) {
-                                continue;
-                            }
-
-                            let entry = candidates
-                                .entry(span.trace_id.clone())
-                                .or_insert(0);
-                            if ts > *entry {
-                                *entry = ts;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if candidates.is_empty() {
-            return Ok((Vec::new(), stats));
-        }
-
-        // Sort by activity_timestamp descending, apply limit
-        let mut sorted: Vec<(String, u64)> = candidates.into_iter().collect();
-        sorted.sort_by(|a, b| b.1.cmp(&a.1));
-        if let Some(limit) = filter.limit {
-            sorted.truncate(limit);
-        }
-
-        let selected_ids: std::collections::HashSet<String> =
-            sorted.iter().map(|(id, _)| id.clone()).collect();
-        let activity_timestamps: std::collections::HashMap<String, u64> =
-            sorted.into_iter().collect();
-
-        // --- Hydration pass: load all spans for selected traces ---
-        let mut all_spans: Vec<TraceRow> = Vec::new();
-        let mut hydrate_stats = ScanStats::default();
-
-        for path in &files {
-            let file = match std::fs::File::open(path) {
-                Ok(f) => f,
-                Err(_) => {
-                    hydrate_stats.skipped_unreadable_files += 1;
-                    continue;
-                }
-            };
-            let reader = std::io::BufReader::new(file);
-
-            for line in reader.lines() {
-                let line = match line {
-                    Ok(l) => l,
-                    Err(_) => {
-                        hydrate_stats.skipped_malformed_lines += 1;
-                        continue;
-                    }
-                };
-                if line.trim().is_empty() {
-                    continue;
-                }
-
-                let req = match otlp::dispatch_line(&line) {
-                    Some(OtlpSignal::Traces(r)) => r,
-                    Some(OtlpSignal::Logs(_)) => continue,
-                    None => {
-                        hydrate_stats.skipped_malformed_lines += 1;
-                        continue;
-                    }
-                };
-
-                // Only collect spans for selected trace IDs
-                for rs in &req.resource_spans {
-                    for ss in &rs.scope_spans {
-                        for span in &ss.spans {
-                            if !selected_ids.contains(&span.trace_id) {
-                                continue;
-                            }
                             let start = span.start_time_unix_nano.unwrap_or(0);
                             let end = span.end_time_unix_nano.unwrap_or(0);
+
+                            let matches_filter = {
+                                let in_window = from_ns.is_none_or(|f| start >= f)
+                                    && to_ns.is_none_or(|t| start <= t);
+                                let name_ok = filter
+                                    .name_like
+                                    .as_ref()
+                                    .is_none_or(|n| span.name.contains(n.as_str()));
+                                let tid_ok = filter.trace_id.as_ref().is_none_or(|t| {
+                                    span.trace_id
+                                        .to_ascii_lowercase()
+                                        .starts_with(&t.to_ascii_lowercase())
+                                });
+                                let attrs_ok = attrs_match(&span.attributes, &filter.attrs);
+                                in_window && name_ok && tid_ok && attrs_ok
+                            };
+
                             let parent = if span.parent_span_id.is_empty() {
                                 None
                             } else {
                                 Some(span.parent_span_id.clone())
                             };
 
-                            all_spans.push(TraceRow {
+                            let row = TraceRow {
                                 timestamp_ns: start,
                                 trace_id: span.trace_id.clone(),
                                 span_id: span.span_id.clone(),
@@ -415,34 +369,45 @@ impl TelemetryStore {
                                 duration_ns: end.saturating_sub(start),
                                 resource_attrs: rs.resource.attributes.clone(),
                                 span_attrs: span.attributes.clone(),
-                            });
+                            };
+
+                            let accum = trees_by_id
+                                .entry(span.trace_id.clone())
+                                .or_insert_with(|| TraceAccum {
+                                    activity_ts: 0,
+                                    service_name: svc_name.clone(),
+                                    spans: Vec::new(),
+                                    matched_span_ids: Vec::new(),
+                                });
+                            if matches_filter {
+                                if start > accum.activity_ts {
+                                    accum.activity_ts = start;
+                                }
+                                accum.matched_span_ids.push(span.span_id.clone());
+                            }
+                            accum.spans.push(row);
                         }
                     }
                 }
             }
         }
 
-        stats.merge(&hydrate_stats);
-
-        // Group spans into TraceTree structs
-        let mut tree_map: std::collections::HashMap<String, Vec<TraceRow>> =
-            std::collections::HashMap::new();
-        for span in all_spans {
-            tree_map.entry(span.trace_id.clone()).or_default().push(span);
-        }
-
-        let mut trees: Vec<TraceTree> = tree_map
+        let mut trees: Vec<TraceTree> = trees_by_id
             .into_iter()
-            .map(|(trace_id, spans)| {
-                let activity_ts = activity_timestamps.get(&trace_id).copied().unwrap_or(0);
-                TraceTree {
-                    activity_timestamp_ns: activity_ts,
-                    spans,
-                }
+            .filter(|(_, a)| !a.matched_span_ids.is_empty())
+            .map(|(trace_id, a)| TraceTree {
+                trace_id,
+                activity_timestamp_ns: a.activity_ts,
+                service_name: a.service_name,
+                spans: a.spans,
+                matched_span_ids: a.matched_span_ids,
             })
             .collect();
 
         trees.sort_by(|a, b| b.activity_timestamp_ns.cmp(&a.activity_timestamp_ns));
+        if let Some(limit) = filter.limit {
+            trees.truncate(limit);
+        }
 
         Ok((trees, stats))
     }

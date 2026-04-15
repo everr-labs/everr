@@ -2,6 +2,8 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use chrono::NaiveDateTime;
+
 /// Staleness threshold for the sibling-directory mismatch banner.
 pub const STALE_SIBLING_THRESHOLD: Duration = Duration::from_secs(300);
 
@@ -37,6 +39,32 @@ fn is_otlp_file(name: &str) -> bool {
     name.starts_with("otlp") && name.contains(".json")
 }
 
+/// A telemetry file with its parsed rotation timestamp.
+///
+/// The collector names rotated backups `otlp-YYYY-MM-DDTHH-MM-SS.sss.json`
+/// (hyphens where ISO 8601 uses colons in the time segment; `localtime: false`
+/// so the timestamp is UTC). The currently-active file is `otlp.json`.
+///
+/// `rotation_time_ns` is an **upper bound on event timestamps inside the file**:
+/// every event was written before rotation, so `event_ts <= rotation_ts`. This
+/// lets queries prune files when `filter.from_ns` exceeds it.
+///
+/// `None` means the file is the current `otlp.json` (actively written, no upper
+/// bound known) or the filename was unparseable. Such files must always be scanned.
+pub struct OtlpFile {
+    pub path: PathBuf,
+    pub rotation_time_ns: Option<u64>,
+}
+
+/// Parse the rotation timestamp embedded in an OTLP backup filename.
+/// Returns `None` for `otlp.json` and for unparseable names.
+fn parse_rotation_ns(name: &str) -> Option<u64> {
+    let stem = name.strip_prefix("otlp-")?.strip_suffix(".json")?;
+    let dt = NaiveDateTime::parse_from_str(stem, "%Y-%m-%dT%H-%M-%S%.f").ok()?;
+    let ts_ns = dt.and_utc().timestamp_nanos_opt()?;
+    u64::try_from(ts_ns).ok()
+}
+
 impl TelemetryStore {
     pub fn open_at(dir: &Path) -> Result<Self, StoreError> {
         if !dir.exists() {
@@ -51,12 +79,12 @@ impl TelemetryStore {
         &self.dir
     }
 
-    /// List `otlp*.json*` files sorted by mtime (newest first).
-    /// Files whose metadata can't be read are still returned (with UNIX_EPOCH
-    /// mtime) so the query layer can attempt to open them and report failures
-    /// via `ScanStats`.
-    pub fn otlp_files(&self) -> Result<Vec<PathBuf>, std::io::Error> {
-        let mut entries: Vec<(PathBuf, SystemTime)> = Vec::new();
+    /// List `otlp*.json` files newest-first, tagged with rotation timestamps
+    /// parsed from the filename (see `OtlpFile`). The current `otlp.json` — and
+    /// any backup with an unparseable name — have `rotation_time_ns = None` and
+    /// sort first so queries always scan them.
+    pub fn otlp_files(&self) -> Result<Vec<OtlpFile>, std::io::Error> {
+        let mut entries: Vec<OtlpFile> = Vec::new();
         for entry in std::fs::read_dir(&self.dir)? {
             let entry = match entry {
                 Ok(e) => e,
@@ -67,14 +95,15 @@ impl TelemetryStore {
             if !is_otlp_file(&name) {
                 continue;
             }
-            let mtime = entry
-                .metadata()
-                .and_then(|m| m.modified())
-                .unwrap_or(SystemTime::UNIX_EPOCH);
-            entries.push((entry.path(), mtime));
+            entries.push(OtlpFile {
+                path: entry.path(),
+                rotation_time_ns: parse_rotation_ns(&name),
+            });
         }
-        entries.sort_by(|a, b| b.1.cmp(&a.1)); // newest first
-        Ok(entries.into_iter().map(|(p, _)| p).collect())
+        // `None` (current / unparseable) sorts first; rotated backups follow
+        // by rotation time descending (most recent first).
+        entries.sort_by_key(|e| std::cmp::Reverse(e.rotation_time_ns.unwrap_or(u64::MAX)));
+        Ok(entries)
     }
 }
 

@@ -13,9 +13,9 @@ exporters:
   file:
     path: "{TELEMETRY_DIR}/otlp.json"
     rotation:
-      max_megabytes: 2
-      max_backups: 500
-      localtime: true
+      max_megabytes: 5
+      max_backups: 200
+      localtime: false
     format: json
 
 extensions:
