@@ -24,30 +24,36 @@ import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
  * Verify the user's active organization is still valid (they're still a member).
  * Throws if the org is invalid so the error boundary can handle it.
  */
-const verifyActiveOrg = createPartiallyAuthenticatedServerFn.handler(
-  async ({ context: { session } }) => {
-    const activeOrgId = session.session.activeOrganizationId;
-    if (!activeOrgId) {
-      throw new Error("No active organization");
-    }
+const verifyActiveOrg = createPartiallyAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context: { session } }) => {
+  const activeOrgId = session.session.activeOrganizationId;
+  if (!activeOrgId) {
+    throw new Error("No active organization");
+  }
 
-    // This throws if the user is no longer a member
-    await auth.api.getFullOrganization({
-      headers: getRequestHeaders(),
-      query: { organizationId: activeOrgId },
-    });
+  // This throws if the user is no longer a member
+  await auth.api.getFullOrganization({
+    headers: getRequestHeaders(),
+    query: { organizationId: activeOrgId },
+  });
 
-    return { activeOrganizationId: activeOrgId };
-  },
-);
+  return { activeOrganizationId: activeOrgId };
+});
 
 export const Route = createFileRoute("/_authenticated")({
-  beforeLoad: async ({ context: { session }, location }) => {
+  beforeLoad: async ({
+    context: { session },
+    location: { pathname, hash },
+    search,
+  }) => {
     if (!session?.user) {
       throw redirect({
         to: "/auth/sign-in",
         search: {
-          redirect: `${location.pathname}${location.search}${location.hash}`,
+          redirect: `${pathname}?${Object.entries(search)
+            .map(([key, value]) => `${key}=${value}`)
+            .join("&")}${hash ? `#${hash}` : ""}`,
         },
       });
     }
