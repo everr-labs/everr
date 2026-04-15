@@ -24,6 +24,7 @@ mod notifications;
 mod seen_runs;
 mod settings;
 mod startup;
+pub mod telemetry;
 mod tray;
 
 #[cfg(test)]
@@ -199,6 +200,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -248,6 +250,19 @@ pub fn run() {
             };
 
             app.manage(runtime.clone());
+
+            let sidecar =
+                tauri::async_runtime::block_on(telemetry::sidecar::Sidecar::start(app.handle()));
+            app.manage(sidecar);
+
+            #[cfg(debug_assertions)]
+            {
+                let bridge_handle = tauri::async_runtime::block_on(async {
+                    telemetry::bridge::install(app.state::<telemetry::sidecar::Sidecar>().state())
+                });
+                app.manage(std::sync::Mutex::new(Some(bridge_handle)));
+            }
+
             build_tray(app.handle())?;
             if wizard_incomplete(&runtime)? {
                 open_settings_window(app.handle())?;
@@ -283,8 +298,22 @@ pub fn run() {
             open_run_in_browser,
             copy_run_auto_fix_prompt
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                #[cfg(debug_assertions)]
+                if let Some(bridge) = app
+                    .try_state::<std::sync::Mutex<Option<telemetry::bridge::BridgeHandle>>>()
+                    .and_then(|m| m.lock().ok()?.take())
+                {
+                    tauri::async_runtime::block_on(bridge.shutdown());
+                }
+                if let Some(sidecar) = app.try_state::<telemetry::sidecar::Sidecar>() {
+                    tauri::async_runtime::block_on(sidecar.shutdown());
+                }
+            }
+        });
 }
 
 fn current_auth_config() -> AuthConfig {

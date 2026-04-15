@@ -52,6 +52,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@opentelemetry/auto-instrumentations-node": "^0.72.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.214.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.214.0",
+    "@opentelemetry/resources": "^2.6.1",
+    "@opentelemetry/sdk-logs": "^0.214.0",
+    "@opentelemetry/sdk-node": "^0.214.0",
+    "@opentelemetry/sdk-trace-node": "^2.6.1",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
     "@tanstack/devtools-vite": "^0.6.0",
     "@tanstack/react-form-devtools": "^0.2.20",
     "@testing-library/dom": "^10.4.1",

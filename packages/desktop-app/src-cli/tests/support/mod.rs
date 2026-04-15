@@ -37,6 +37,7 @@ impl CliTestEnv {
         let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("everr"));
         cmd.env("HOME", &self.home_dir);
         cmd.env("XDG_CONFIG_HOME", &self.config_dir);
+        cmd.env("XDG_DATA_HOME", self.home_dir.join(".local").join("share"));
         cmd
     }
 
@@ -50,6 +51,14 @@ impl CliTestEnv {
         self.config_dir
             .join(build::session_namespace())
             .join(build::default_session_file_name())
+    }
+
+    pub fn telemetry_dir(&self) -> PathBuf {
+        self.home_dir
+            .join("Library")
+            .join("Application Support")
+            .join("everr")
+            .join("telemetry-dev")
     }
 
     pub fn write_session(&self, api_base_url: &str, token: &str) {

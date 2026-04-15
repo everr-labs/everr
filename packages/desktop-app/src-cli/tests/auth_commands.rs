@@ -41,7 +41,7 @@ fn auth_logout_without_session_is_idempotent() {
 }
 
 #[test]
-fn mismatched_saved_session_is_cleared_before_commands_run() {
+fn mismatched_saved_session_is_rejected_without_clearing() {
     let env = CliTestEnv::new();
     env.write_session("https://app.everr.dev", "token-123");
 
@@ -51,11 +51,11 @@ fn mismatched_saved_session_is_cleared_before_commands_run() {
         .failure()
         .stderr(contains("no active session; run `everr login`"));
 
-    assert!(!env.session_path().exists());
+    assert!(env.session_path().exists());
 }
 
 #[test]
-fn expired_session_prompts_reauthentication_and_clears_saved_session() {
+fn expired_session_prompts_reauthentication_without_clearing_saved_session() {
     let env = CliTestEnv::new();
     let mut server = Server::new();
     env.write_session(&server.url(), "expired-token");
@@ -81,5 +81,5 @@ fn expired_session_prompts_reauthentication_and_clears_saved_session() {
         ));
 
     mock.assert();
-    assert!(!env.session_path().exists());
+    assert!(env.session_path().exists());
 }

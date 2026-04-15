@@ -8,6 +8,7 @@ const BLOCK_START: &str = "<!-- BEGIN everr -->";
 const BLOCK_END: &str = "<!-- END everr -->";
 const ASSISTANT_INSTRUCTIONS: &str = include_str!("../assets/assistant-instructions.md");
 const DISCOVERY_INSTRUCTIONS: &str = include_str!("../assets/discovery-instructions.md");
+const TELEMETRY_INSTRUCTIONS: &str = include_str!("../assets/telemetry-instructions.md");
 const CURSOR_RULE_HEADER: &str = concat!(
     "---\n",
     "description: Use Everr CLI only when the task involves CI, GitHub Actions workflows, pipelines, failing jobs, workflow logs, or CI test failures.\n",
@@ -264,6 +265,10 @@ pub fn render_discovery_instructions() -> &'static str {
     DISCOVERY_INSTRUCTIONS
 }
 
+pub fn render_telemetry_ai_instructions() -> &'static str {
+    TELEMETRY_INSTRUCTIONS
+}
+
 fn remove_managed_prompt_at(assistant: AssistantKind, path: &Path) -> Result<()> {
     if !path.exists() {
         return Ok(());
@@ -462,7 +467,8 @@ mod tests {
         AssistantKind, assistant_root_for_home, content_for_assistant, init_repo_instructions,
         path_for_assistant_in, refresh_existing_managed_prompts_in,
         remove_managed_block_for_assistant, render_assistant_instructions,
-        render_discovery_instructions, upsert_generic_managed_block, upsert_managed_block,
+        render_discovery_instructions, render_telemetry_ai_instructions,
+        upsert_generic_managed_block, upsert_managed_block,
     };
 
     #[test]
@@ -708,18 +714,28 @@ mod tests {
         assert!(claude.contains("<!-- BEGIN everr -->"));
     }
 
-    // The onboarding UI tells users the instruction block is "under 300 bytes" —
-    // this test ensures that claim stays true if the discovery instructions change.
+    // Soft bloat guard on the discovery instruction block — the block appears
+    // in every user's AGENTS.md / CLAUDE.md, so we keep it reasonably small,
+    // but there's no specific byte number quoted to users anymore.
     #[test]
-    fn discovery_content_for_claude_and_codex_stays_under_300_bytes() {
+    fn discovery_content_for_claude_and_codex_stays_reasonably_small() {
         for assistant in [AssistantKind::Claude, AssistantKind::Codex] {
             let content = super::content_for_assistant_discovery(assistant, "everr");
             assert!(
-                content.len() < 300,
-                "discovery content for {assistant:?} is {} bytes, must stay under 300",
+                content.len() < 600,
+                "discovery content for {assistant:?} is {} bytes, must stay under 600",
                 content.len()
             );
         }
+    }
+
+    #[test]
+    fn telemetry_ai_instructions_includes_both_commands_and_playbook() {
+        let rendered = render_telemetry_ai_instructions();
+        assert!(rendered.contains("everr telemetry traces"));
+        assert!(rendered.contains("everr telemetry logs"));
+        assert!(rendered.contains("Investigation playbook:"));
+        assert!(rendered.contains("After modifying instrumented code"));
     }
 
     fn sync_assistants_for_home(

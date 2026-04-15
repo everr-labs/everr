@@ -1,0 +1,82 @@
+---
+title: Telemetry
+description: Query local OpenTelemetry traces and logs written by the Everr Desktop collector.
+---
+
+## Overview
+
+The Everr Desktop app runs a local OpenTelemetry Collector as a Tauri sidecar that receives OTLP over gRPC (`:4317`) and HTTP (`:4318`), writing newline-delimited JSON files to disk. The `everr telemetry` commands read those files — no daemon, no network, no database.
+
+Any locally running service or app you instrument with OpenTelemetry and point at the local collector will be visible to these commands.
+
+## Commands
+
+### `everr telemetry traces`
+
+Shows recent traces as a tree, newest first.
+
+```shell
+everr telemetry traces --from now-10m --limit 5
+```
+
+Useful flags:
+
+- `--from <date-math>` (default `now-1h`) / `--to <date-math>`
+- `--name <pattern>` — substring match on span name
+- `--service <name>` — filter by `service.name`
+- `--trace-id <id>` — inspect one trace end-to-end
+- `--attr key=value` — OTLP attribute filter (repeatable)
+- `--limit <n>` (default 50)
+
+### `everr telemetry logs`
+
+Shows recent log records in a table.
+
+```shell
+everr telemetry logs --from now-10m --level WARN
+```
+
+Useful flags:
+
+- `--from` / `--to` as above
+- `--level <DEBUG|INFO|WARN|ERROR>`
+- `--target <name>` — tracing target / scope
+- `--service <name>`
+- `--egrep <regex>` — re2 regex on the message
+- `--trace-id <id>` — logs correlated to a specific trace
+- `--attr key=value` — repeatable
+- `--limit <n>` (default 200)
+- `--format <table|json>` (default `table`)
+
+### Pivoting between logs and traces
+
+Find a log of interest, grab its `trace_id` from JSON output, and pass it to `traces`:
+
+```shell
+everr telemetry logs --level ERROR --format json --limit 1
+everr telemetry traces --trace-id <id>
+```
+
+## AI assistant integration
+
+`everr telemetry ai-instructions` prints the full usage guide in a format optimized for AI assistants. There are two ways to make your assistant discover it.
+
+### Automatic (recommended)
+
+```shell
+everr setup-assistant
+```
+
+This writes a managed block to your project's `AGENTS.md` or `CLAUDE.md` containing both the CI and telemetry pointers.
+
+### Manual
+
+If you manage your `AGENTS.md` / `CLAUDE.md` by hand, add this block:
+
+<!-- AI_INTEGRATION_SNIPPET_START -->
+```markdown
+For debugging locally running OpenTelemetry-instrumented services — runtime errors, slow requests, or verifying instrumentation changes: call `everr telemetry ai-instructions` for full usage.
+```
+<!-- AI_INTEGRATION_SNIPPET_END -->
+
+The full body is intentionally not duplicated here — run `everr telemetry ai-instructions` to see what your assistant will read.

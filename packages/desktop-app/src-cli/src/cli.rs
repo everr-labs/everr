@@ -62,6 +62,87 @@ pub enum Commands {
     Setup,
     /// Initialize the current repository (import runs + write assistant instructions)
     Init,
+    /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
+    #[command(name = "telemetry")]
+    Telemetry(TelemetryArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct TelemetryArgs {
+    #[command(subcommand)]
+    pub command: TelemetrySubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum TelemetrySubcommand {
+    /// Show recent spans
+    Traces(TelemetryQueryArgs),
+    /// Show recent log records
+    Logs(TelemetryLogsArgs),
+    /// Print the local collector's OTLP HTTP origin (e.g. http://127.0.0.1:54318)
+    Endpoint,
+    /// Print AI-oriented guidance for `everr telemetry`
+    #[command(name = "ai-instructions")]
+    AiInstructions,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct TelemetryQueryArgs {
+    /// Start of time range (date math, e.g. now-1h, now-7d/d)
+    #[arg(long, default_value = "now-1h")]
+    pub from: String,
+    /// End of time range (date math, e.g. now)
+    #[arg(long)]
+    pub to: Option<String>,
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long)]
+    pub service: Option<String>,
+    #[arg(long)]
+    pub trace_id: Option<String>,
+    /// Filter by OTLP attribute (e.g. --attr event_type=run); repeatable
+    #[arg(long = "attr", value_name = "KEY=VALUE")]
+    pub attrs: Vec<String>,
+    #[arg(long, default_value_t = 50)]
+    pub limit: usize,
+    /// Hidden: explicit telemetry directory (tests, cross-build snapshots)
+    #[arg(long, hide = true)]
+    pub telemetry_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct TelemetryLogsArgs {
+    /// Start of time range (date math, e.g. now-1h, now-7d/d)
+    #[arg(long, default_value = "now-1h")]
+    pub from: String,
+    /// End of time range (date math, e.g. now)
+    #[arg(long)]
+    pub to: Option<String>,
+    #[arg(long)]
+    pub level: Option<String>,
+    #[arg(long)]
+    pub egrep: Option<String>,
+    #[arg(long)]
+    pub service: Option<String>,
+    #[arg(long)]
+    pub target: Option<String>,
+    #[arg(long)]
+    pub trace_id: Option<String>,
+    /// Filter by OTLP attribute (e.g. --attr event_type=run); repeatable
+    #[arg(long = "attr", value_name = "KEY=VALUE")]
+    pub attrs: Vec<String>,
+    #[arg(long, default_value_t = 200)]
+    pub limit: usize,
+    #[arg(long, value_enum)]
+    pub format: Option<TelemetryFormat>,
+    #[arg(long, hide = true)]
+    pub telemetry_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum TelemetryFormat {
+    Table,
+    Json,
 }
 
 #[derive(Args, Debug, Default)]

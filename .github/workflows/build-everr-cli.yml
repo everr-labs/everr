@@ -13,6 +13,8 @@ on:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
       - packages/desktop-app/scripts/build-cli.sh
+      - crates/everr-core/**
+      - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
       - packages/docs/content/docs/cli/**
@@ -22,6 +24,8 @@ on:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
       - packages/desktop-app/scripts/build-cli.sh
+      - crates/everr-core/**
+      - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
       - packages/docs/content/docs/cli/**

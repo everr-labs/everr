@@ -1,4 +1,4 @@
 {
   "title": "CLI",
-  "pages": ["index", "commands"]
+  "pages": ["index", "commands", "telemetry"]
 }

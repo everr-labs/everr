@@ -9,19 +9,29 @@ edition = "2021"
 name = "everr_app_lib"
 crate-type = [ "staticlib", "cdylib", "rlib" ]
 
-[build-dependencies.tauri-build]
-version = "2"
-features = []
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+serde_json = "1"
 
 [dependencies]
 arboard = "3.6.1"
 anyhow = "1.0.98"
 futures-util = "0.3"
 dirs = "6.0.0"
+nix = { version = "0.29", features = ["signal"], default-features = false }
+opentelemetry = "0.31"
+opentelemetry-appender-tracing = { version = "0.31", features = ["experimental_use_tracing_span_context"] }
+opentelemetry-otlp = { version = "0.31", default-features = false, features = ["http-proto", "reqwest-blocking-client", "logs", "trace", "internal-logs"] }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde_json = "1"
 sha2 = "0.10.9"
 tauri-plugin-autostart = "2"
+tauri-plugin-shell = "2"
 tauri-plugin-updater = "2"
+tracing = "0.1"
+tracing-opentelemetry = "0.32"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 webbrowser = "1.0.6"
 url = "2"
 
@@ -42,11 +52,14 @@ features = [ "formatting" ]
 
 [dependencies.tokio]
 version = "1.44.2"
-features = [ "time", "sync", "macros" ]
+features = [ "time", "sync", "macros", "process", "io-util" ]
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6.4"
 objc2-app-kit = "0.3.2"
 
 [dev-dependencies]
+opentelemetry-proto = { version = "0.31", features = ["gen-tonic"] }
+prost = "0.14"
 tempfile = "3.18.0"
+wiremock = "0.6"

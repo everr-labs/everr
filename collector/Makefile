@@ -25,6 +25,10 @@ build-debug: install-tools
 	sed 's/debug_compilation: false/debug_compilation: true/g' config/manifest.yaml > config/manifest-debug.yaml
 	$(OCB) --config config/manifest-debug.yaml
 
+.PHONY: build-local
+build-local: $(addprefix $(TOOLS_BIN_DIR)/, builder)
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 $(OCB) --config config/manifest.local.yaml
+
 .PHONY: run
 run: build
 	$(CUSTOM_COL_DIR)/everr-collector --config ./config.yml

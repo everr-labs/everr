@@ -18,7 +18,9 @@ fn setup_assistant_prints_repo_instructions() {
         .assert()
         .success()
         .stdout(contains("call `everr ai-instructions` for full usage."))
-        .stdout(contains("`everr status`"));
+        .stdout(contains("`everr status`"))
+        .stdout(contains("call `everr telemetry ai-instructions` for full usage."))
+        .stdout(contains("OpenTelemetry"));
 }
 
 #[test]
