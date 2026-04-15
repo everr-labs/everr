@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { getActiveOrganization } from "@/data/auth";
-import { authClient } from "@/lib/auth.client";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_authenticated/device")({
   validateSearch: z.object({

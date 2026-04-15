@@ -27,7 +27,7 @@ import {
   Users,
 } from "lucide-react";
 import { getDownloadUrl, PLATFORMS } from "@/lib/app-download";
-import { authClient } from "@/lib/auth.client";
+import { authClient } from "@/lib/auth-client";
 
 export function NavUser() {
   const router = useRouter();

@@ -32,8 +32,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { authClient } from "@/lib/auth.client";
 import { auth } from "@/lib/auth.server";
+import { authClient } from "@/lib/auth-client";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 const ensureOrgAdmin = createAuthenticatedServerFn.handler(

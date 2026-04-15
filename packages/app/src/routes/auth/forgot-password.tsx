@@ -5,7 +5,7 @@ import { useForm } from "@tanstack/react-form";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import { authClient } from "@/lib/auth.client";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/auth/forgot-password")({
   component: ForgotPassword,

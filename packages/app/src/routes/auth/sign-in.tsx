@@ -6,7 +6,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
-import { authClient } from "@/lib/auth.client";
+import { authClient } from "@/lib/auth-client";
 
 const SignInSearchSchema = z.object({
   redirect: z.string().optional(),

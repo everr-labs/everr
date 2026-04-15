@@ -9,7 +9,7 @@ import {
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import { authClient } from "@/lib/auth.client";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/auth/accept-invitation/$invitationId")({
   component: AcceptInvitation,

@@ -39,7 +39,7 @@ import {
   getInstallationRepos,
   importRepos,
 } from "@/data/onboarding";
-import { authClient } from "@/lib/auth.client";
+import { authClient } from "@/lib/auth-client";
 
 const STEPS = ["organization", "github", "workflows", "app"] as const;
 type Step = (typeof STEPS)[number];
