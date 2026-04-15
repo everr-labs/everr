@@ -67,6 +67,24 @@ const TELEMETRY_SUBDIR: &str = "telemetry-dev";
 #[cfg(not(debug_assertions))]
 const TELEMETRY_SUBDIR: &str = "telemetry";
 
+#[cfg(debug_assertions)]
+pub const OTLP_HTTP_PORT: u16 = 54318;
+
+#[cfg(not(debug_assertions))]
+pub const OTLP_HTTP_PORT: u16 = 54418;
+
+#[cfg(debug_assertions)]
+pub const HEALTHCHECK_PORT: u16 = 54319;
+
+#[cfg(not(debug_assertions))]
+pub const HEALTHCHECK_PORT: u16 = 54419;
+
+/// Origin (scheme + host + port) for the local OTLP HTTP collector.
+/// Instrumented code points its OTLP HTTP exporter at this.
+pub fn otlp_http_origin() -> String {
+    format!("http://127.0.0.1:{OTLP_HTTP_PORT}")
+}
+
 /// Resolve the local-only diagnostic telemetry directory for this build.
 ///
 /// On macOS this is `~/Library/Application Support/everr/telemetry[-dev]/`.

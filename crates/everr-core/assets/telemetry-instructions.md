@@ -4,6 +4,12 @@ or verify that instrumentation changes produce the expected spans/logs. Data is
 sourced from OTLP JSON files the local collector writes to disk; it exists only
 while the service that emits it is running.
 
+Also use Everr telemetry as the output target when *adding* new instrumentation
+to diagnose slowness, errors, or regressions. Emit OTLP spans/events to the
+local collector instead of ad-hoc `eprintln!` / `console.log` /
+`tracing-subscriber fmt` output — the query commands below then become your
+inspection loop, and you iterate in the same tool you'd use to verify.
+
 Commands:
 - `everr telemetry traces`: recent traces as a tree view, newest first
   - `--from <date-math>` (default now-1h) / `--to <date-math>`: time window
@@ -34,6 +40,20 @@ Investigation playbook:
 - If results are empty, check the "newest file age" line in the output — a
   stale or missing file means the emitting service isn't running or isn't
   pointed at the local collector.
+
+Adding new instrumentation:
+- The collector runs only on the local machine and only while the Everr
+  Desktop app is running.
+- Get the collector's OTLP HTTP origin with `everr telemetry endpoint` and
+  point the SDK's OTLP HTTP exporter at it. Do NOT hardcode the port.
+- Use the language's standard OTel SDK (Rust: `tracing` +
+  `tracing-opentelemetry` + OTLP HTTP exporter; Node/TS:
+  `@opentelemetry/sdk-node` + OTLP HTTP exporter).
+- Span around the entry point and around every I/O call (file, network, DB,
+  subprocess) — that's what makes "where did the time go" legible in
+  `everr telemetry traces`.
+- Set `service.name` on the resource so `--service` can isolate your output
+  from other services sharing the collector.
 
 After modifying instrumented code, verify the change landed:
 - Trigger the code path you edited in the running service

@@ -79,6 +79,8 @@ pub enum TelemetrySubcommand {
     Traces(TelemetryQueryArgs),
     /// Show recent log records
     Logs(TelemetryLogsArgs),
+    /// Print the local collector's OTLP HTTP origin (e.g. http://127.0.0.1:54318)
+    Endpoint,
     /// Print AI-oriented guidance for `everr telemetry`
     #[command(name = "ai-instructions")]
     AiInstructions,

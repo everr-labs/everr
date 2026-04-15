@@ -20,8 +20,14 @@ pub fn run(args: TelemetryArgs) -> Result<()> {
     match args.command {
         TelemetrySubcommand::Traces(q) => run_traces(q),
         TelemetrySubcommand::Logs(q) => run_logs(q),
+        TelemetrySubcommand::Endpoint => run_endpoint(),
         TelemetrySubcommand::AiInstructions => run_ai_instructions(),
     }
+}
+
+fn run_endpoint() -> Result<()> {
+    println!("{}", everr_core::build::otlp_http_origin());
+    Ok(())
 }
 
 fn run_ai_instructions() -> Result<()> {
