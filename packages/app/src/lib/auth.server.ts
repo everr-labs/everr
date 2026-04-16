@@ -143,7 +143,7 @@ export const auth = betterAuth({
           inviterName: data.inviter.user.name,
           organizationName: data.organization.name,
           role: data.role,
-          inviteUrl: `${env.BETTER_AUTH_URL}/auth/accept-invitation/${data.id}`,
+          inviteUrl: `${env.BETTER_AUTH_URL}/invite/${data.id}`,
         });
       },
     }),

@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
-export const Route = createFileRoute("/auth/forgot-password")({
+export const Route = createFileRoute("/_auth/_guest/auth/forgot-password")({
   component: ForgotPassword,
 });
 
@@ -97,12 +97,7 @@ function ForgotPassword() {
               </p>
             )}
 
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              disabled={isSubmitting}
-            >
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />

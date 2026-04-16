@@ -93,14 +93,12 @@ function CliDeviceApprovalPage() {
               <div className="mt-10 grid grid-cols-2 gap-4">
                 <Button
                   variant="outline"
-                  size="lg"
                   disabled={isSubmitting}
                   onClick={() => void submit("deny")}
                 >
                   Deny
                 </Button>
                 <Button
-                  size="lg"
                   disabled={isSubmitting}
                   onClick={() => void submit("approve")}
                 >

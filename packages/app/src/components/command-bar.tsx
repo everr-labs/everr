@@ -74,7 +74,6 @@ export function CommandBar() {
       <Button
         type="button"
         variant="outline"
-        size="lg"
         onClick={() => toggleCommandBar(true)}
         className={cn("w-52 cursor-text", open ? "opacity-0" : "opacity-100")}
       >

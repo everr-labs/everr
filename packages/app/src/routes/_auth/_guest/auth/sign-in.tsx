@@ -10,22 +10,23 @@ import { authClient } from "@/lib/auth-client";
 
 const SignInSearchSchema = z.object({
   redirect: z.string().optional(),
+  email: z.string().optional(),
 });
 
-export const Route = createFileRoute("/auth/sign-in")({
+export const Route = createFileRoute("/_auth/_guest/auth/sign-in")({
   validateSearch: SignInSearchSchema,
   component: SignIn,
 });
 
 function SignIn() {
   const navigate = useNavigate();
-  const { redirect: redirectTo } = Route.useSearch();
+  const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm({
     defaultValues: {
-      email: "",
+      email: prefillEmail ?? "",
       password: "",
     },
     onSubmit: async ({ value }) => {
@@ -122,12 +123,7 @@ function SignIn() {
             </p>
           )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={isSubmitting}
-          >
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />

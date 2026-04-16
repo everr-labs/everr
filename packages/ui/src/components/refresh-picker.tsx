@@ -61,7 +61,6 @@ export function RefreshPicker({
     <div className="flex items-center">
       <Button
         variant="outline"
-        size="lg"
         className="rounded-r-none border-r-0"
         onClick={onRefresh}
       >
@@ -76,11 +75,7 @@ export function RefreshPicker({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button
-              variant="outline"
-              size="lg"
-              className="rounded-l-none gap-1 px-1.5"
-            />
+            <Button variant="outline" className="rounded-l-none gap-1 px-1.5" />
           }
         >
           {value && <span className="text-xs text-center">{activeLabel}</span>}

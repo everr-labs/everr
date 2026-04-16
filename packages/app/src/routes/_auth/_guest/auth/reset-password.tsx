@@ -13,7 +13,7 @@ const searchSchema = z.object({
   error: z.string().optional(),
 });
 
-export const Route = createFileRoute("/auth/reset-password")({
+export const Route = createFileRoute("/_auth/_guest/auth/reset-password")({
   validateSearch: searchSchema,
   component: ResetPassword,
 });
@@ -87,7 +87,6 @@ function ResetPassword() {
             </p>
             <Button
               className="w-full"
-              size="lg"
               onClick={() => void navigate({ to: "/auth/sign-in" })}
             >
               Sign in
@@ -146,7 +145,6 @@ function ResetPassword() {
             <Button
               type="submit"
               className="w-full"
-              size="lg"
               disabled={isSubmitting || !token}
             >
               {isSubmitting ? (

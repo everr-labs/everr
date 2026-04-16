@@ -111,7 +111,6 @@ export function NotificationsPage() {
           {hasUnread && (
             <Button
               variant="outline"
-              size="lg"
               disabled={markAllReadMutation.isPending}
               onClick={() => void markAllReadMutation.mutateAsync()}
             >
