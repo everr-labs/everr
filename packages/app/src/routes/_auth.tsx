@@ -7,13 +7,16 @@ export const Route = createFileRoute("/_auth")({
 
 function RouteComponent() {
   return (
-    <div className="relative min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[1.75fr_1fr]">
+    <div className="relative min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[1.15fr_1fr] xl:grid-cols-[1.15fr_1fr]">
       <aside className="relative hidden overflow-hidden border-r border-white/5 bg-black lg:block">
         <AsciiCitrus />
 
-        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-10">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.4em] text-primary/80">
-            <a href="/" className="font-heading z-1-">
+        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-10">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.4em] text-primary">
+            <a
+              href="https://everr.dev"
+              className="pointer-events-auto font-heading text-lg"
+            >
               Everr
             </a>
           </div>
