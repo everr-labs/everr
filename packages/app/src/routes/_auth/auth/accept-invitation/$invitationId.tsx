@@ -11,7 +11,9 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
-export const Route = createFileRoute("/auth/accept-invitation/$invitationId")({
+export const Route = createFileRoute(
+  "/_auth/auth/accept-invitation/$invitationId",
+)({
   component: AcceptInvitation,
 });
 

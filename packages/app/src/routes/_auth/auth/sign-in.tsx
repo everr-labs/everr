@@ -12,7 +12,7 @@ const SignInSearchSchema = z.object({
   redirect: z.string().optional(),
 });
 
-export const Route = createFileRoute("/auth/sign-in")({
+export const Route = createFileRoute("/_auth/auth/sign-in")({
   validateSearch: SignInSearchSchema,
   component: SignIn,
 });

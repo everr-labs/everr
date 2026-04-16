@@ -16,22 +16,6 @@
   }
 }
 
-@layer utilities {
-  .everr-decoration {
-    @apply after:content-[''] after:inline-block after:-mb-[.1ch] after:h-[.1ch] after:w-[.8ch] after:bg-current;
-  }
-  .everr-decoration-primary {
-    @apply after:bg-primary;
-  }
-  .everr-decoration-primary-foreground {
-    @apply after:text-primary-foreground;
-  }
-
-  .animate-fade-up {
-    animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-}
-
 .product-perspective {
   perspective: min(1400px, 100vw);
   perspective-origin: 50% 40%;
@@ -60,17 +44,6 @@
   }
   50% {
     opacity: 0;
-  }
-}
-
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
