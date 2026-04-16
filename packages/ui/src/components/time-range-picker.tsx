@@ -162,9 +162,7 @@ export function TimeRangePicker({
           delay={0}
           render={
             <PopoverTrigger
-              render={
-                <Button variant="outline" size="lg" className="gap-1.5" />
-              }
+              render={<Button variant="outline" className="gap-1.5" />}
             />
           }
         >

@@ -87,7 +87,6 @@ function ResetPassword() {
             </p>
             <Button
               className="w-full"
-              size="lg"
               onClick={() => void navigate({ to: "/auth/sign-in" })}
             >
               Sign in
@@ -146,7 +145,6 @@ function ResetPassword() {
             <Button
               type="submit"
               className="w-full"
-              size="lg"
               disabled={isSubmitting || !token}
             >
               {isSubmitting ? (
