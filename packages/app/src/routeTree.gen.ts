@@ -17,6 +17,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
+import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiCliWorkflowsListRouteImport } from './routes/api/cli/workflows-list'
@@ -37,10 +38,7 @@ import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authen
 import { Route as AuthenticatedDashboardReposRouteImport } from './routes/_authenticated/_dashboard/repos'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
-import { Route as AuthAuthSignUpRouteImport } from './routes/_auth/auth/sign-up'
-import { Route as AuthAuthSignInRouteImport } from './routes/_auth/auth/sign-in'
-import { Route as AuthAuthResetPasswordRouteImport } from './routes/_auth/auth/reset-password'
-import { Route as AuthAuthForgotPasswordRouteImport } from './routes/_auth/auth/forgot-password'
+import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
@@ -48,7 +46,10 @@ import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/githu
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
-import { Route as AuthAuthAcceptInvitationInvitationIdRouteImport } from './routes/_auth/auth/accept-invitation/$invitationId'
+import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
+import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
+import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
+import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/_guest/auth/forgot-password'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
@@ -93,6 +94,10 @@ const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/_dashboard',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthGuestRoute = AuthGuestRouteImport.update({
+  id: '/_guest',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
@@ -201,24 +206,9 @@ const AuthenticatedDashboardAccountRoute =
     path: '/account',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthAuthSignUpRoute = AuthAuthSignUpRouteImport.update({
-  id: '/auth/sign-up',
-  path: '/auth/sign-up',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthAuthSignInRoute = AuthAuthSignInRouteImport.update({
-  id: '/auth/sign-in',
-  path: '/auth/sign-in',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthAuthResetPasswordRoute = AuthAuthResetPasswordRouteImport.update({
-  id: '/auth/reset-password',
-  path: '/auth/reset-password',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthAuthForgotPasswordRoute = AuthAuthForgotPasswordRouteImport.update({
-  id: '/auth/forgot-password',
-  path: '/auth/forgot-password',
+const AuthInviteInvitationIdRoute = AuthInviteInvitationIdRouteImport.update({
+  id: '/invite/$invitationId',
+  path: '/invite/$invitationId',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthenticatedDashboardWorkflowsIndexRoute =
@@ -259,11 +249,27 @@ const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
   path: '/name',
   getParentRoute: () => ApiCliOrgRoute,
 } as any)
-const AuthAuthAcceptInvitationInvitationIdRoute =
-  AuthAuthAcceptInvitationInvitationIdRouteImport.update({
-    id: '/auth/accept-invitation/$invitationId',
-    path: '/auth/accept-invitation/$invitationId',
-    getParentRoute: () => AuthRoute,
+const AuthGuestAuthSignUpRoute = AuthGuestAuthSignUpRouteImport.update({
+  id: '/auth/sign-up',
+  path: '/auth/sign-up',
+  getParentRoute: () => AuthGuestRoute,
+} as any)
+const AuthGuestAuthSignInRoute = AuthGuestAuthSignInRouteImport.update({
+  id: '/auth/sign-in',
+  path: '/auth/sign-in',
+  getParentRoute: () => AuthGuestRoute,
+} as any)
+const AuthGuestAuthResetPasswordRoute =
+  AuthGuestAuthResetPasswordRouteImport.update({
+    id: '/auth/reset-password',
+    path: '/auth/reset-password',
+    getParentRoute: () => AuthGuestRoute,
+  } as any)
+const AuthGuestAuthForgotPasswordRoute =
+  AuthGuestAuthForgotPasswordRouteImport.update({
+    id: '/auth/forgot-password',
+    path: '/auth/forgot-password',
+    getParentRoute: () => AuthGuestRoute,
   } as any)
 const AuthenticatedDashboardRunsTraceIdRouteRoute =
   AuthenticatedDashboardRunsTraceIdRouteRouteImport.update({
@@ -314,10 +320,7 @@ export interface FileRoutesByFullPath {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/auth/forgot-password': typeof AuthAuthForgotPasswordRoute
-  '/auth/reset-password': typeof AuthAuthResetPasswordRoute
-  '/auth/sign-in': typeof AuthAuthSignInRoute
-  '/auth/sign-up': typeof AuthAuthSignUpRoute
+  '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
@@ -338,7 +341,10 @@ export interface FileRoutesByFullPath {
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
-  '/auth/accept-invitation/$invitationId': typeof AuthAuthAcceptInvitationInvitationIdRoute
+  '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
+  '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
+  '/auth/sign-in': typeof AuthGuestAuthSignInRoute
+  '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -360,10 +366,7 @@ export interface FileRoutesByTo {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/auth/forgot-password': typeof AuthAuthForgotPasswordRoute
-  '/auth/reset-password': typeof AuthAuthResetPasswordRoute
-  '/auth/sign-in': typeof AuthAuthSignInRoute
-  '/auth/sign-up': typeof AuthAuthSignUpRoute
+  '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
@@ -382,7 +385,10 @@ export interface FileRoutesByTo {
   '/api/cli/test-history': typeof ApiCliTestHistoryRoute
   '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
-  '/auth/accept-invitation/$invitationId': typeof AuthAuthAcceptInvitationInvitationIdRoute
+  '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
+  '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
+  '/auth/sign-in': typeof AuthGuestAuthSignInRoute
+  '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -402,15 +408,13 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/_auth/_guest': typeof AuthGuestRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/_auth/auth/forgot-password': typeof AuthAuthForgotPasswordRoute
-  '/_auth/auth/reset-password': typeof AuthAuthResetPasswordRoute
-  '/_auth/auth/sign-in': typeof AuthAuthSignInRoute
-  '/_auth/auth/sign-up': typeof AuthAuthSignUpRoute
+  '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
   '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/_authenticated/_dashboard/repos': typeof AuthenticatedDashboardReposRoute
@@ -432,7 +436,10 @@ export interface FileRoutesById {
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
-  '/_auth/auth/accept-invitation/$invitationId': typeof AuthAuthAcceptInvitationInvitationIdRoute
+  '/_auth/_guest/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
+  '/_auth/_guest/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
+  '/_auth/_guest/auth/sign-in': typeof AuthGuestAuthSignInRoute
+  '/_auth/_guest/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -456,10 +463,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
-    | '/auth/forgot-password'
-    | '/auth/reset-password'
-    | '/auth/sign-in'
-    | '/auth/sign-up'
+    | '/invite/$invitationId'
     | '/account'
     | '/cost-analysis'
     | '/repos'
@@ -480,7 +484,10 @@ export interface FileRouteTypes {
     | '/api/cli/workflows-list'
     | '/api/events/stream'
     | '/runs/$traceId'
-    | '/auth/accept-invitation/$invitationId'
+    | '/auth/forgot-password'
+    | '/auth/reset-password'
+    | '/auth/sign-in'
+    | '/auth/sign-up'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -502,10 +509,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
-    | '/auth/forgot-password'
-    | '/auth/reset-password'
-    | '/auth/sign-in'
-    | '/auth/sign-up'
+    | '/invite/$invitationId'
     | '/account'
     | '/cost-analysis'
     | '/repos'
@@ -524,7 +528,10 @@ export interface FileRouteTypes {
     | '/api/cli/test-history'
     | '/api/cli/workflows-list'
     | '/api/events/stream'
-    | '/auth/accept-invitation/$invitationId'
+    | '/auth/forgot-password'
+    | '/auth/reset-password'
+    | '/auth/sign-in'
+    | '/auth/sign-up'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -543,15 +550,13 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_authenticated'
     | '/onboarding'
+    | '/_auth/_guest'
     | '/_authenticated/_dashboard'
     | '/_authenticated/device'
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
-    | '/_auth/auth/forgot-password'
-    | '/_auth/auth/reset-password'
-    | '/_auth/auth/sign-in'
-    | '/_auth/auth/sign-up'
+    | '/_auth/invite/$invitationId'
     | '/_authenticated/_dashboard/account'
     | '/_authenticated/_dashboard/cost-analysis'
     | '/_authenticated/_dashboard/repos'
@@ -573,7 +578,10 @@ export interface FileRouteTypes {
     | '/api/events/stream'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
-    | '/_auth/auth/accept-invitation/$invitationId'
+    | '/_auth/_guest/auth/forgot-password'
+    | '/_auth/_guest/auth/reset-password'
+    | '/_auth/_guest/auth/sign-in'
+    | '/_auth/_guest/auth/sign-up'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -659,6 +667,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_auth/_guest': {
+      id: '/_auth/_guest'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthGuestRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_authenticated/_dashboard/': {
       id: '/_authenticated/_dashboard/'
@@ -800,32 +815,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardAccountRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_auth/auth/sign-up': {
-      id: '/_auth/auth/sign-up'
-      path: '/auth/sign-up'
-      fullPath: '/auth/sign-up'
-      preLoaderRoute: typeof AuthAuthSignUpRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/auth/sign-in': {
-      id: '/_auth/auth/sign-in'
-      path: '/auth/sign-in'
-      fullPath: '/auth/sign-in'
-      preLoaderRoute: typeof AuthAuthSignInRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/auth/reset-password': {
-      id: '/_auth/auth/reset-password'
-      path: '/auth/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthAuthResetPasswordRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/auth/forgot-password': {
-      id: '/_auth/auth/forgot-password'
-      path: '/auth/forgot-password'
-      fullPath: '/auth/forgot-password'
-      preLoaderRoute: typeof AuthAuthForgotPasswordRouteImport
+    '/_auth/invite/$invitationId': {
+      id: '/_auth/invite/$invitationId'
+      path: '/invite/$invitationId'
+      fullPath: '/invite/$invitationId'
+      preLoaderRoute: typeof AuthInviteInvitationIdRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_authenticated/_dashboard/workflows/': {
@@ -877,12 +871,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliOrgNameRouteImport
       parentRoute: typeof ApiCliOrgRoute
     }
-    '/_auth/auth/accept-invitation/$invitationId': {
-      id: '/_auth/auth/accept-invitation/$invitationId'
-      path: '/auth/accept-invitation/$invitationId'
-      fullPath: '/auth/accept-invitation/$invitationId'
-      preLoaderRoute: typeof AuthAuthAcceptInvitationInvitationIdRouteImport
-      parentRoute: typeof AuthRoute
+    '/_auth/_guest/auth/sign-up': {
+      id: '/_auth/_guest/auth/sign-up'
+      path: '/auth/sign-up'
+      fullPath: '/auth/sign-up'
+      preLoaderRoute: typeof AuthGuestAuthSignUpRouteImport
+      parentRoute: typeof AuthGuestRoute
+    }
+    '/_auth/_guest/auth/sign-in': {
+      id: '/_auth/_guest/auth/sign-in'
+      path: '/auth/sign-in'
+      fullPath: '/auth/sign-in'
+      preLoaderRoute: typeof AuthGuestAuthSignInRouteImport
+      parentRoute: typeof AuthGuestRoute
+    }
+    '/_auth/_guest/auth/reset-password': {
+      id: '/_auth/_guest/auth/reset-password'
+      path: '/auth/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthGuestAuthResetPasswordRouteImport
+      parentRoute: typeof AuthGuestRoute
+    }
+    '/_auth/_guest/auth/forgot-password': {
+      id: '/_auth/_guest/auth/forgot-password'
+      path: '/auth/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof AuthGuestAuthForgotPasswordRouteImport
+      parentRoute: typeof AuthGuestRoute
     }
     '/_authenticated/_dashboard/runs/$traceId': {
       id: '/_authenticated/_dashboard/runs/$traceId'
@@ -936,21 +951,32 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthGuestRouteChildren {
+  AuthGuestAuthForgotPasswordRoute: typeof AuthGuestAuthForgotPasswordRoute
+  AuthGuestAuthResetPasswordRoute: typeof AuthGuestAuthResetPasswordRoute
+  AuthGuestAuthSignInRoute: typeof AuthGuestAuthSignInRoute
+  AuthGuestAuthSignUpRoute: typeof AuthGuestAuthSignUpRoute
+}
+
+const AuthGuestRouteChildren: AuthGuestRouteChildren = {
+  AuthGuestAuthForgotPasswordRoute: AuthGuestAuthForgotPasswordRoute,
+  AuthGuestAuthResetPasswordRoute: AuthGuestAuthResetPasswordRoute,
+  AuthGuestAuthSignInRoute: AuthGuestAuthSignInRoute,
+  AuthGuestAuthSignUpRoute: AuthGuestAuthSignUpRoute,
+}
+
+const AuthGuestRouteWithChildren = AuthGuestRoute._addFileChildren(
+  AuthGuestRouteChildren,
+)
+
 interface AuthRouteChildren {
-  AuthAuthForgotPasswordRoute: typeof AuthAuthForgotPasswordRoute
-  AuthAuthResetPasswordRoute: typeof AuthAuthResetPasswordRoute
-  AuthAuthSignInRoute: typeof AuthAuthSignInRoute
-  AuthAuthSignUpRoute: typeof AuthAuthSignUpRoute
-  AuthAuthAcceptInvitationInvitationIdRoute: typeof AuthAuthAcceptInvitationInvitationIdRoute
+  AuthGuestRoute: typeof AuthGuestRouteWithChildren
+  AuthInviteInvitationIdRoute: typeof AuthInviteInvitationIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
-  AuthAuthForgotPasswordRoute: AuthAuthForgotPasswordRoute,
-  AuthAuthResetPasswordRoute: AuthAuthResetPasswordRoute,
-  AuthAuthSignInRoute: AuthAuthSignInRoute,
-  AuthAuthSignUpRoute: AuthAuthSignUpRoute,
-  AuthAuthAcceptInvitationInvitationIdRoute:
-    AuthAuthAcceptInvitationInvitationIdRoute,
+  AuthGuestRoute: AuthGuestRouteWithChildren,
+  AuthInviteInvitationIdRoute: AuthInviteInvitationIdRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)

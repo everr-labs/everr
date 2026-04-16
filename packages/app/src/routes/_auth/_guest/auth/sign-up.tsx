@@ -10,23 +10,24 @@ import { authClient } from "@/lib/auth-client";
 
 const SignUpSearchSchema = z.object({
   redirect: z.string().optional(),
+  email: z.string().optional(),
 });
 
-export const Route = createFileRoute("/_auth/auth/sign-up")({
+export const Route = createFileRoute("/_auth/_guest/auth/sign-up")({
   validateSearch: SignUpSearchSchema,
   component: SignUp,
 });
 
 function SignUp() {
   const navigate = useNavigate();
-  const { redirect: redirectTo } = Route.useSearch();
+  const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm({
     defaultValues: {
       name: "",
-      email: "",
+      email: prefillEmail ?? "",
       password: "",
     },
     onSubmit: async ({ value }) => {

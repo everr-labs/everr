@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
-export const Route = createFileRoute("/_auth/auth/forgot-password")({
+export const Route = createFileRoute("/_auth/_guest/auth/forgot-password")({
   component: ForgotPassword,
 });
 

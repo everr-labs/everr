@@ -4,8 +4,8 @@
 
 - [**cli-expired-token-no-re-auth-prompt**](todo/issues/cli-expired-token-no-re-auth-prompt.md) — When the CLI auth token expires, commands fail with a generic HTTP 401 error instead of prompting the user to re-authenticate.
 - [**clickhouse-ttl-tuning**](todo/issues/clickhouse-ttl-tuning.md) — ClickHouse table TTLs need to be reviewed and tuned. Currently unclear if TTLs are set at all, or if data is retained indefinitely.
+- [**collapsed-sidebar-submenu-focus-open**](todo/issues/collapsed-sidebar-submenu-focus-open.md) — When the sidebar is in icon-only (collapsed) mode, tabbing to a group item does not open its flyout submenu. The user must press Enter / Space / ArrowDown to open it. Hover-open works (`openOnHover` with 80ms delay).
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](todo/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.
-- [**getauth-returns-undefined-on-runs-list**](todo/issues/getauth-returns-undefined-on-runs-list.md) — Production error: "can't access property 'user', e is undefined" on `/runs/list` for an authenticated user.
 - [**handle-missing-gh-installation-on-command**](todo/issues/handle-missing-gh-installation-on-command.md) — Handle the case where a repo does not have a GitHub App installation when a command is run.
 - [**handle-runid-in-everr-show**](todo/issues/handle-runid-in-everr-show.md) — —
 - [**hide-import-for-repos-with-runs**](todo/issues/hide-import-for-repos-with-runs.md) — The everr setup should not show the import option for repositories where we already have runs.
