@@ -12,6 +12,7 @@ export const env = createEnv({
     NODE_ENV: z.enum(["development", "production", "test"]),
     // TODO: Resend API key is required only in production, so we should make it optional in non-production environments by using createFinalSchema
     RESEND_API_KEY: z.string(),
+    // TODO: this should be a string so we can alo set the sender name, ie. Everr "Team <hello@everr.dev>"
     EMAIL_FROM: z.email(),
   },
 

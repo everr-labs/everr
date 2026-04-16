@@ -45,6 +45,10 @@ export const auth = betterAuth({
         // It doesn't force users to signup via the email invitation link, so users can basically signup by themselves without joining the organization that invited them,
         // but it's good enough for now given we'll remove this limitation soon anyway.
         before: async (userData) => {
+          if (!env.REQUIRE_INVITATION_FOR_SIGNUP) {
+            return true;
+          }
+
           const pending = await db
             .select({ id: invitation.id })
             .from(invitation)
