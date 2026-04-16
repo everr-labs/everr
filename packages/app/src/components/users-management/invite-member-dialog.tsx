@@ -34,6 +34,7 @@ export function InviteMemberDialog() {
   };
 
   const handleOpenChange = (next: boolean) => {
+    if (!next && invite.isPending) return;
     setOpen(next);
     if (!next) reset();
   };
@@ -80,9 +81,9 @@ export function InviteMemberDialog() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Role</Label>
+              <Label htmlFor="invite-role">Role</Label>
               <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
-                <SelectTrigger>
+                <SelectTrigger id="invite-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
