@@ -1,4 +1,3 @@
-import { Theme } from "@radix-ui/themes";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -10,14 +9,36 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { getAuthAction } from "@workos/authkit-tanstack-react-start";
-import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
-import { WorkOsWidgets } from "@workos-inc/widgets";
+import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
+import { auth } from "@/lib/auth.server";
 import { queryClient } from "@/query-client";
 import appCss from "@/styles/app.css?url";
 import type { RouterContext } from "../router";
 
+export const getSession = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const session = await auth.api.getSession({
+      headers: getRequestHeaders(),
+    });
+
+    if (!session?.session || !session?.user) {
+      return null;
+    }
+
+    return {
+      user: session.user,
+      session: session.session,
+    };
+  },
+);
+
 export const Route = createRootRouteWithContext<RouterContext>()({
+  beforeLoad: async () => {
+    const session = await getSession();
+
+    return { session };
+  },
   head: () => ({
     meta: [
       {
@@ -57,40 +78,30 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   }),
   shellComponent: ShellComponent,
   component: Component,
-  loader: async () => {
-    const auth = await getAuthAction();
-    return {
-      auth,
-    };
-  },
 });
 
 function Component() {
-  const { auth } = Route.useLoaderData();
-
   return (
-    <AuthKitProvider initialAuth={auth}>
-      <QueryClientProvider client={queryClient}>
-        <Outlet />
-        <TanStackDevtools
-          config={{ position: "bottom-right" }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-            {
-              name: "React Query",
-              render: <ReactQueryDevtoolsPanel />,
-            },
-            {
-              name: "React Form",
-              render: <FormDevtoolsPanel />,
-            },
-          ]}
-        />
-      </QueryClientProvider>
-    </AuthKitProvider>
+    <QueryClientProvider client={queryClient}>
+      <Outlet />
+      <TanStackDevtools
+        config={{ position: "bottom-right" }}
+        plugins={[
+          {
+            name: "Tanstack Router",
+            render: <TanStackRouterDevtoolsPanel />,
+          },
+          {
+            name: "React Query",
+            render: <ReactQueryDevtoolsPanel />,
+          },
+          {
+            name: "React Form",
+            render: <FormDevtoolsPanel />,
+          },
+        ]}
+      />
+    </QueryClientProvider>
   );
 }
 
@@ -101,16 +112,8 @@ function ShellComponent({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Theme
-          appearance="dark"
-          accentColor="yellow"
-          grayColor="gray"
-          radius="small"
-          scaling="95%"
-        >
-          <WorkOsWidgets>{children}</WorkOsWidgets>
-          <Scripts />
-        </Theme>
+        {children}
+        <Scripts />
       </body>
     </html>
   );

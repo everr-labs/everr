@@ -68,12 +68,12 @@ function RunsListPage() {
   };
   const { data: runsResult } = useQuery(runsListOptions(runsInput));
   const navigate = Route.useNavigate();
-
-  if (!runsResult) return null;
-
   const updateFilter = (updates: Record<string, unknown>) => {
     navigate({ search: (prev) => ({ ...prev, ...updates, page: 1 }) });
   };
+
+  // !TODO: Add an empty state component here
+  if (!runsResult) return <div>No runs found</div>;
 
   return (
     <div className="space-y-6">

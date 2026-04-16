@@ -72,8 +72,12 @@ pub async fn start_device_authorization(
     config: &AuthConfig,
 ) -> Result<DeviceAuthorization> {
     let authorization_response = client
-        .post(format!("{}/api/cli/auth/device/start", config.api_base_url))
+        .post(format!(
+            "{}/api/auth/device/code",
+            config.api_base_url
+        ))
         .header(CONTENT_TYPE, "application/json")
+        .body("{\"client_id\":\"everr-desktop\",\"scope\":\"openid\"}")
         .send()
         .await
         .context("failed to start CLI device authorization")?;
@@ -100,12 +104,15 @@ pub async fn poll_device_authorization(
     config: &AuthConfig,
     authorization: &DeviceAuthorization,
 ) -> Result<DevicePollStatus> {
-    let poll_url = format!("{}/api/cli/auth/device/poll", config.api_base_url);
+    let poll_url = format!(
+        "{}/api/auth/device/token",
+        config.api_base_url
+    );
     let token_response = client
         .post(&poll_url)
         .header(CONTENT_TYPE, "application/json")
         .body(format!(
-            "{{\"device_code\":\"{}\"}}",
+            "{{\"grant_type\":\"urn:ietf:params:oauth:grant-type:device_code\",\"device_code\":\"{}\",\"client_id\":\"everr-desktop\"}}",
             authorization.device_code
         ))
         .send()
@@ -144,7 +151,10 @@ pub async fn login_with_device_authorization(
     let client = build_http_client()?;
     let token = complete_device_authorization_with_url(
         &client,
-        &format!("{}/api/cli/auth/device/poll", config.api_base_url),
+        &format!(
+            "{}/api/auth/device/token",
+            config.api_base_url
+        ),
         authorization,
     )
     .await?;
@@ -220,7 +230,7 @@ async fn complete_device_authorization_with_url(
             .post(poll_url)
             .header(CONTENT_TYPE, "application/json")
             .body(format!(
-                "{{\"device_code\":\"{}\"}}",
+                "{{\"grant_type\":\"urn:ietf:params:oauth:grant-type:device_code\",\"device_code\":\"{}\",\"client_id\":\"everr-desktop\"}}",
                 authorization.device_code
             ))
             .send()

@@ -14,7 +14,6 @@ const { webhookSecret, webhookMocks } = vi.hoisted(() => {
     webhookSecret,
     webhookMocks: {
       enqueueWebhookEvent: vi.fn(),
-      setInstallationStatus: vi.fn(),
     },
   };
 });
@@ -23,11 +22,27 @@ vi.mock("./runtime", () => ({
   enqueueWebhookEvent: webhookMocks.enqueueWebhookEvent,
 }));
 
-vi.mock("@/data/tenants", () => ({
-  setGithubInstallationStatus: webhookMocks.setInstallationStatus,
+vi.mock("@/db/client", () => {
+  const set = vi
+    .fn()
+    .mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  return {
+    db: {
+      update: vi.fn().mockReturnValue({ set }),
+    },
+  };
+});
+
+vi.mock("@/db/schema", () => ({
+  githubInstallationOrganizations: {
+    githubInstallationId: "github_installation_id",
+  },
 }));
 
+import { db } from "@/db/client";
 import { handleGitHubWebhookRequest } from "./webhook";
+
+const mockedDb = vi.mocked(db);
 
 function sign(payload: string, secret: string): string {
   return `sha256=${createHmac("sha256", secret).update(payload).digest("hex")}`;
@@ -35,7 +50,7 @@ function sign(payload: string, secret: string): string {
 
 beforeEach(() => {
   webhookMocks.enqueueWebhookEvent.mockReset().mockResolvedValue(undefined);
-  webhookMocks.setInstallationStatus.mockReset();
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -132,8 +147,6 @@ describe("handleGitHubWebhookRequest", () => {
       action: "deleted",
       installation: { id: 123 },
     });
-    webhookMocks.setInstallationStatus.mockResolvedValue(undefined);
-
     const response = await handleGitHubWebhookRequest(
       new Request("http://localhost/webhook/github", {
         method: "POST",
@@ -147,10 +160,7 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(webhookMocks.setInstallationStatus).toHaveBeenCalledWith(
-      123,
-      "uninstalled",
-    );
+    expect(mockedDb.update).toHaveBeenCalled();
     expect(webhookMocks.enqueueWebhookEvent).not.toHaveBeenCalled();
   });
 
@@ -161,7 +171,6 @@ describe("handleGitHubWebhookRequest", () => {
       action: "suspend",
       installation: { id: 456 },
     });
-    webhookMocks.setInstallationStatus.mockResolvedValue(undefined);
 
     const response = await handleGitHubWebhookRequest(
       new Request("http://localhost/webhook/github", {
@@ -176,10 +185,7 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(webhookMocks.setInstallationStatus).toHaveBeenCalledWith(
-      456,
-      "suspended",
-    );
+    expect(mockedDb.update).toHaveBeenCalled();
     expect(webhookMocks.enqueueWebhookEvent).not.toHaveBeenCalled();
   });
 
@@ -190,8 +196,6 @@ describe("handleGitHubWebhookRequest", () => {
       action: "added",
       installation: { id: 789 },
     });
-    webhookMocks.setInstallationStatus.mockResolvedValue(undefined);
-
     const response = await handleGitHubWebhookRequest(
       new Request("http://localhost/webhook/github", {
         method: "POST",
@@ -205,7 +209,7 @@ describe("handleGitHubWebhookRequest", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(webhookMocks.setInstallationStatus).not.toHaveBeenCalled();
+    expect(mockedDb.update).not.toHaveBeenCalled();
     expect(webhookMocks.enqueueWebhookEvent).not.toHaveBeenCalled();
   });
 

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getFailureNotifications } from "@/data/notifications";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 
 const NotificationQuerySchema = z.object({
   traceId: z.string().min(1),
@@ -9,7 +8,6 @@ const NotificationQuerySchema = z.object({
 
 export const Route = createFileRoute("/api/cli/notification")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ request, context }) => {
         const url = new URL(request.url);
@@ -25,7 +23,7 @@ export const Route = createFileRoute("/api/cli/notification")({
         }
 
         const failures = await getFailureNotifications({
-          context,
+          tenantId: context.session.session.activeOrganizationId,
           origin: url.origin,
           traceId: parsed.data.traceId,
         });

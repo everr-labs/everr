@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getBranchStatus } from "@/data/branch-status";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 
 const WatchQuerySchema = z.object({
   repo: z.string().min(1),
@@ -12,7 +11,6 @@ const WatchQuerySchema = z.object({
 
 export const Route = createFileRoute("/api/cli/runs/status")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ request, context }) => {
         const url = new URL(request.url);
@@ -34,7 +32,7 @@ export const Route = createFileRoute("/api/cli/runs/status")({
         }
 
         const result = await getBranchStatus({
-          tenantId: context.session.tenantId,
+          tenantId: context.session.session.activeOrganizationId,
           ...parsed.data,
         });
         return Response.json(result);

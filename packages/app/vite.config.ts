@@ -44,6 +44,12 @@ const config = defineConfig(() => ({
       router: {
         routeFileIgnorePattern: "\\.test\\.",
       },
+      // In prod this gives us more readable function ids
+      serverFns: {
+        generateFunctionId: ({ filename, functionName }) => {
+          return `${filename}--${functionName}`;
+        },
+      },
     }),
     nitro(),
     viteReact(),

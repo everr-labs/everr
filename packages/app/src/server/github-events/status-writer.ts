@@ -97,7 +97,7 @@ function workflowJobLastEventAt(workflowJob: WorkflowJobPayload): Date {
 
 export async function upsertWorkflowRun(
   db: AnyDb,
-  tenantId: number,
+  organizationId: string,
   event: Extract<ParsedQueuedWorkflowEvent, { eventType: "workflow_run" }>,
 ) {
   const workflowRun = event.payload.workflow_run;
@@ -135,7 +135,7 @@ export async function upsertWorkflowRun(
   };
 
   const values = {
-    tenantId,
+    organizationId,
     runId: workflowRun.id,
     attempts: runAttempt,
     traceId: generateWorkflowTraceId(repositoryId, workflowRun.id, runAttempt),
@@ -160,7 +160,7 @@ export async function upsertWorkflowRun(
     .values(values)
     .onConflictDoUpdate({
       target: [
-        workflowRuns.tenantId,
+        workflowRuns.organizationId,
         workflowRuns.runId,
         workflowRuns.attempts,
       ],
@@ -185,7 +185,7 @@ export async function upsertWorkflowRun(
 
   if (result.length > 0 && values.sha) {
     void notifyWorkflowUpdate(db, {
-      tenantId,
+      tenantId: organizationId,
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
@@ -204,7 +204,7 @@ export async function upsertWorkflowRun(
 
 export async function upsertWorkflowJob(
   db: AnyDb,
-  tenantId: number,
+  organizationId: string,
   event: Extract<ParsedQueuedWorkflowEvent, { eventType: "workflow_job" }>,
 ) {
   const workflowJob = event.payload.workflow_job;
@@ -243,7 +243,7 @@ export async function upsertWorkflowJob(
   };
 
   const values = {
-    tenantId,
+    organizationId,
     jobId: workflowJob.id,
     runId: workflowJob.run_id,
     attempts: runAttempt,
@@ -271,7 +271,7 @@ export async function upsertWorkflowJob(
     .insert(workflowJobs)
     .values(values)
     .onConflictDoUpdate({
-      target: [workflowJobs.tenantId, workflowJobs.jobId],
+      target: [workflowJobs.organizationId, workflowJobs.jobId],
       set: {
         runId: sql`excluded.run_id`,
         attempts: sql`excluded.attempts`,
@@ -294,7 +294,7 @@ export async function upsertWorkflowJob(
 
   if (result.length > 0 && values.sha) {
     void notifyWorkflowUpdate(db, {
-      tenantId,
+      tenantId: organizationId,
       traceId: values.traceId,
       runId: String(values.runId),
       sha: values.sha,
@@ -313,12 +313,12 @@ export async function upsertWorkflowJob(
 
 export async function handleStatusEvent(
   db: AnyDb,
-  tenantId: number,
+  organizationId: string,
   event: ParsedQueuedWorkflowEvent,
 ) {
   if (event.eventType === "workflow_run") {
-    await upsertWorkflowRun(db, tenantId, event);
+    await upsertWorkflowRun(db, organizationId, event);
   } else {
-    await upsertWorkflowJob(db, tenantId, event);
+    await upsertWorkflowJob(db, organizationId, event);
   }
 }

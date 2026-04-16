@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 export type NotifyPayload = {
-  tenantId: number;
+  tenantId: string;
   traceId: string;
   runId: string;
   sha: string;

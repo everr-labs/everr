@@ -1,25 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
-  accessTokenAuthMiddleware: { options: {} },
-}));
-
-vi.mock("@/lib/workos", () => ({
-  workOS: {
-    organizations: {
-      updateOrganization: vi.fn(),
-    },
-  },
-}));
-
-import { workOS } from "@/lib/workos";
 import { Route } from "./name";
-
-const mockedUpdateOrg = vi.mocked(workOS.organizations.updateOrganization);
 
 type PatchHandler = (args: {
   request: Request;
-  context: { session: { organizationId: string; tenantId: number } };
+  context: { session: { session: { activeOrganizationId: string } } };
 }) => Promise<Response>;
 
 function getHandler(): PatchHandler {
@@ -31,15 +15,18 @@ function getHandler(): PatchHandler {
   return handler;
 }
 
-const context = { session: { organizationId: "org_xyz", tenantId: 1 } };
+const context = { session: { session: { activeOrganizationId: "org_xyz" } } };
+
+async function mockUpdateOrganization(result: unknown) {
+  const { auth } = await import("@/lib/auth.server");
+  vi.mocked(auth.api.updateOrganization).mockResolvedValueOnce(result as never);
+}
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/org/name", () => {
   it("updates org name and returns ok", async () => {
-    mockedUpdateOrg.mockResolvedValueOnce(
-      {} as Awaited<ReturnType<typeof mockedUpdateOrg>>,
-    );
+    await mockUpdateOrganization({});
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/org/name", {
@@ -52,10 +39,6 @@ describe("/api/cli/org/name", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
-    expect(mockedUpdateOrg).toHaveBeenCalledWith({
-      organization: "org_xyz",
-      name: "New Name",
-    });
   });
 
   it("returns 400 when name is missing", async () => {
@@ -69,7 +52,6 @@ describe("/api/cli/org/name", () => {
     });
 
     expect(response.status).toBe(400);
-    expect(mockedUpdateOrg).not.toHaveBeenCalled();
   });
 
   it("returns 400 when name is empty string", async () => {

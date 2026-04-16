@@ -1,23 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
-import { workOS } from "@/lib/workos";
+import { auth } from "@/lib/auth.server";
 
 export const Route = createFileRoute("/api/cli/me")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
-      GET: async ({ context }) => {
-        const user = await workOS.userManagement.getUser(
-          context.session.userId,
-        );
+      GET: async ({ request }) => {
+        const session = await auth.api.getSession({
+          headers: request.headers,
+        });
 
-        const nameParts = [user.firstName, user.lastName].filter(Boolean);
-        const name = nameParts.length > 0 ? nameParts.join(" ") : user.email;
+        if (!session?.user) {
+          return Response.json({ error: "User not found" }, { status: 404 });
+        }
+
+        const name = session.user.name || session.user.email;
 
         return Response.json({
-          email: user.email,
+          email: session.user.email,
           name,
-          profileUrl: user.profilePictureUrl ?? null,
+          profileUrl: session.user.image ?? null,
         });
       },
     },

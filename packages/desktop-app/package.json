@@ -26,7 +26,6 @@
   "dependencies": {
     "@everr/datemath": "workspace:*",
     "@everr/ui": "workspace:*",
-    "@radix-ui/themes": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "1.168.10",
     "@tauri-apps/api": "^2.10.1",

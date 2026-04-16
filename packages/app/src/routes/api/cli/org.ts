@@ -1,25 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
-import { workOS } from "@/lib/workos";
+import { auth } from "@/lib/auth.server";
 
 export const Route = createFileRoute("/api/cli/org")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
-      GET: async ({ context }) => {
-        const { organizationId, userId } = context.session;
+      GET: async ({ request, context }) => {
+        const { session, user } = context.session;
 
-        const [org, memberships] = await Promise.all([
-          workOS.organizations.getOrganization(organizationId),
-          workOS.userManagement.listOrganizationMemberships({
-            organizationId,
-            limit: 100,
-          }),
-        ]);
+        const org = await auth.api.getFullOrganization({
+          headers: request.headers,
+          query: { organizationId: session.activeOrganizationId },
+        });
+
+        if (!org) {
+          return Response.json(
+            { error: "Organization not found" },
+            { status: 404 },
+          );
+        }
 
         const isOnlyMember =
-          memberships.data.length === 1 &&
-          memberships.data[0].userId === userId;
+          org.members.length === 1 && org.members[0].userId === user.id;
 
         return Response.json({ name: org.name, isOnlyMember });
       },

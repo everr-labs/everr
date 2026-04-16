@@ -1,6 +1,4 @@
 @import "@everr/ui/src/styles/global.css";
-@import "@radix-ui/themes/styles.css";
-@import "@workos-inc/widgets/styles.css";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
 @source not "../../.output";

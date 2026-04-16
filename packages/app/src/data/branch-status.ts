@@ -33,7 +33,7 @@ export type BranchStatusResponse = {
 };
 
 type BranchStatusInput = {
-  tenantId: number;
+  tenantId: string;
   repo: string;
   branch?: string;
   commit: string;
@@ -99,7 +99,7 @@ export async function getBranchStatus({
         last_event_at AS "lastEventAt",
         attempts
       FROM workflow_runs
-      WHERE tenant_id = $1
+      WHERE organization_id = $1
         AND repository = $2
         AND sha = $3
         ${matchingRunsBranchClause}
@@ -136,7 +136,7 @@ export async function getBranchStatus({
               job_name AS "jobName",
               status
             FROM workflow_jobs
-            WHERE tenant_id = $1
+            WHERE organization_id = $1
               AND trace_id = ANY($2::text[])
               AND status != 'completed'
             ORDER BY trace_id ASC, job_name ASC
@@ -161,7 +161,7 @@ export async function getBranchStatus({
               job_name AS "jobName",
               metadata->'steps' AS "steps"
             FROM workflow_jobs
-            WHERE tenant_id = $1
+            WHERE organization_id = $1
               AND trace_id = ANY($2::text[])
               AND conclusion = 'failure'
             ORDER BY trace_id ASC, started_at ASC

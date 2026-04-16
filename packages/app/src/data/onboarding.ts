@@ -1,159 +1,32 @@
-import { createServerFn } from "@tanstack/react-start";
-import {
-  getAuth,
-  switchToOrganization,
-} from "@workos/authkit-tanstack-react-start";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { CreateOrganizationInputSchema } from "@/common/organization-name";
-import {
-  ensureTenantForOrganizationId,
-  getGithubInstallationsForTenant,
-} from "@/data/tenants";
+import { db } from "@/db/client";
+import { githubInstallationOrganizations } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { workOS } from "@/lib/workos";
 import {
   backfillRepo,
   JOB_QUOTA_PER_REPO,
   listInstallationRepos,
 } from "@/server/github-events/backfill";
 
-export type OnboardingErrorCode =
-  | "UNAUTHENTICATED"
-  | "ORG_CREATE_FAILED"
-  | "MEMBERSHIP_CREATE_FAILED"
-  | "SESSION_SWITCH_FAILED"
-  | "TENANT_LINK_FAILED";
-
-function createSafeOnboardingError(
-  code: OnboardingErrorCode,
-  requestId: string,
-): Error {
-  switch (code) {
-    case "UNAUTHENTICATED":
-      return new Error("You need to sign in before creating an organization.");
-    case "ORG_CREATE_FAILED":
-      return new Error(
-        `We couldn't create your organization right now. Please try again. (ref: ${requestId})`,
-      );
-    case "MEMBERSHIP_CREATE_FAILED":
-      return new Error(
-        `Your organization was created, but we couldn't finish setup. Please try again. (ref: ${requestId})`,
-      );
-    case "SESSION_SWITCH_FAILED":
-      return new Error(
-        `Your organization was created, but we couldn't switch your session. Please try again. (ref: ${requestId})`,
-      );
-    case "TENANT_LINK_FAILED":
-      return new Error(
-        `Your organization is ready, but we couldn't finish tenant setup. Please try again. (ref: ${requestId})`,
-      );
-  }
+async function getInstallationsForOrganization(organizationId: string) {
+  return db
+    .select({
+      installationId: githubInstallationOrganizations.githubInstallationId,
+      status: githubInstallationOrganizations.status,
+      createdAt: githubInstallationOrganizations.createdAt,
+      updatedAt: githubInstallationOrganizations.updatedAt,
+    })
+    .from(githubInstallationOrganizations)
+    .where(eq(githubInstallationOrganizations.organizationId, organizationId));
 }
-
-export const createOrganizationForCurrentUser = createServerFn({
-  method: "POST",
-})
-  .inputValidator(CreateOrganizationInputSchema)
-  .handler(async ({ data }) => {
-    const requestId = crypto.randomUUID();
-
-    const auth = await getAuth();
-    if (!auth.user) {
-      throw createSafeOnboardingError("UNAUTHENTICATED", requestId);
-    }
-
-    if (auth.organizationId) {
-      try {
-        await ensureTenantForOrganizationId(auth.organizationId);
-      } catch (error) {
-        console.error("[onboarding] tenant_link_failed_existing_org", {
-          requestId,
-          userId: auth.user.id,
-          organizationId: auth.organizationId,
-          error,
-        });
-        throw createSafeOnboardingError("TENANT_LINK_FAILED", requestId);
-      }
-
-      return {
-        organizationId: auth.organizationId,
-        organizationName: data.organizationName,
-      };
-    }
-
-    let organizationId: string;
-
-    try {
-      const organization = await workOS.organizations.createOrganization({
-        name: data.organizationName,
-        metadata: {
-          onboardingCompleted: "false",
-        },
-      });
-      organizationId = organization.id;
-    } catch (error) {
-      console.error("[onboarding] org_create_failed", {
-        requestId,
-        userId: auth.user.id,
-        organizationName: data.organizationName,
-        error,
-      });
-      throw createSafeOnboardingError("ORG_CREATE_FAILED", requestId);
-    }
-
-    try {
-      await workOS.userManagement.createOrganizationMembership({
-        organizationId,
-        userId: auth.user.id,
-        roleSlug: "admin",
-      });
-    } catch (error) {
-      console.error("[onboarding] membership_create_failed", {
-        requestId,
-        userId: auth.user.id,
-        organizationId,
-        error,
-      });
-      throw createSafeOnboardingError("MEMBERSHIP_CREATE_FAILED", requestId);
-    }
-
-    try {
-      await switchToOrganization({
-        data: { organizationId },
-      });
-    } catch (error) {
-      console.error("[onboarding] session_switch_failed", {
-        requestId,
-        userId: auth.user.id,
-        organizationId,
-        error,
-      });
-      throw createSafeOnboardingError("SESSION_SWITCH_FAILED", requestId);
-    }
-
-    try {
-      await ensureTenantForOrganizationId(organizationId);
-    } catch (error) {
-      console.error("[onboarding] tenant_link_failed_new_org", {
-        requestId,
-        userId: auth.user.id,
-        organizationId,
-        error,
-      });
-      throw createSafeOnboardingError("TENANT_LINK_FAILED", requestId);
-    }
-
-    return {
-      organizationId,
-      organizationName: data.organizationName,
-    };
-  });
 
 export const getGithubAppInstallStatus = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const tenantId = await ensureTenantForOrganizationId(session.organizationId);
-  const installations = await getGithubInstallationsForTenant(tenantId);
+  const installations = await getInstallationsForOrganization(
+    session.session.activeOrganizationId,
+  );
 
   return installations.map((installation) => ({
     installed: installation.status === "active",
@@ -166,8 +39,9 @@ export const getGithubAppInstallStatus = createAuthenticatedServerFn({
 export const getInstallationRepos = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const tenantId = await ensureTenantForOrganizationId(session.organizationId);
-  const installations = await getGithubInstallationsForTenant(tenantId);
+  const installations = await getInstallationsForOrganization(
+    session.session.activeOrganizationId,
+  );
   const active = installations.find((i) => i.status === "active");
 
   if (!active) {
@@ -181,10 +55,9 @@ export const getInstallationRepos = createAuthenticatedServerFn({
 export const importRepos = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ repos: z.array(z.string().min(1)).min(1) }))
   .handler(async function* ({ data, context: { session } }) {
-    const tenantId = await ensureTenantForOrganizationId(
-      session.organizationId,
+    const installations = await getInstallationsForOrganization(
+      session.session.activeOrganizationId,
     );
-    const installations = await getGithubInstallationsForTenant(tenantId);
     const active = installations.find((i) => i.status === "active");
     if (!active) {
       throw new Error("No active GitHub installation found");
@@ -215,7 +88,7 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
       try {
         for await (const update of backfillRepo(
           active.installationId,
-          tenantId,
+          session.session.activeOrganizationId,
           repo,
         )) {
           yield {
@@ -244,54 +117,3 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
 
     yield { type: "done" as const, totalJobs, totalErrors };
   });
-
-export const ensureOrganizationForDevice = createServerFn({
-  method: "POST",
-}).handler(async () => {
-  const auth = await getAuth();
-  if (!auth.user) {
-    throw new Error("unauthenticated");
-  }
-
-  if (auth.organizationId) {
-    // Already has org in session — nothing to do.
-    return { isNewOrg: false };
-  }
-
-  // Check if the user is already a member of any org.
-  const memberships = await workOS.userManagement.listOrganizationMemberships({
-    userId: auth.user.id,
-  });
-
-  if (memberships.data.length > 0) {
-    // Switch to the most recently created org.
-    const sorted = [...memberships.data].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    );
-    await switchToOrganization({
-      data: { organizationId: sorted[0].organizationId },
-    });
-    return { isNewOrg: false };
-  }
-
-  // No orgs — create a placeholder.
-  const user = await workOS.userManagement.getUser(auth.user.id);
-  const firstName = user.firstName ?? user.email.split("@")[0];
-  const orgName = `${firstName}'s workspace`;
-
-  const organization = await workOS.organizations.createOrganization({
-    name: orgName,
-    metadata: { onboardingCompleted: "false" },
-  });
-
-  await workOS.userManagement.createOrganizationMembership({
-    organizationId: organization.id,
-    userId: auth.user.id,
-    roleSlug: "admin",
-  });
-
-  await switchToOrganization({ data: { organizationId: organization.id } });
-  await ensureTenantForOrganizationId(organization.id);
-
-  return { isNewOrg: true };
-});

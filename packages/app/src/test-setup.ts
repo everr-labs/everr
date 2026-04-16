@@ -25,7 +25,69 @@ function makeServerFnChain(wrapHandler: (fn: AnyFn) => AnyFn) {
 // ---------------------------------------------------------------------------
 
 vi.mock("@tanstack/react-start", () => ({
-  createMiddleware: vi.fn(() => ({ server: vi.fn(() => ({})) })),
+  createMiddleware: vi.fn(() => {
+    const makeMiddleware = (
+      handlers: Array<
+        (args: {
+          request?: Request;
+          context?: Record<string, unknown>;
+          next: (args?: unknown) => Promise<unknown>;
+        }) => Promise<unknown>
+      > = [],
+    ) => ({
+      middleware: (
+        definitions: Array<{
+          __handler?: (args: {
+            request?: Request;
+            context?: Record<string, unknown>;
+            next: (args?: unknown) => Promise<unknown>;
+          }) => Promise<unknown>;
+        }>,
+      ) =>
+        makeMiddleware([
+          ...handlers,
+          ...definitions
+            .map((definition) => definition.__handler)
+            .filter((handler): handler is NonNullable<typeof handler> =>
+              Boolean(handler),
+            ),
+        ]),
+      server: vi.fn((handler) => ({
+        __handler: handlers.reduceRight<typeof handler>(
+          (nextHandler, middlewareHandler) =>
+            async ({
+              request,
+              context,
+              next,
+            }: {
+              request?: Request;
+              context?: Record<string, unknown>;
+              next: (args?: unknown) => Promise<unknown>;
+            }) =>
+              middlewareHandler({
+                request,
+                context,
+                next: (args?: unknown) =>
+                  nextHandler({
+                    request,
+                    context:
+                      typeof args === "object" && args !== null
+                        ? {
+                            ...context,
+                            ...((args as { context?: Record<string, unknown> })
+                              .context ?? {}),
+                          }
+                        : context,
+                    next,
+                  }),
+              }),
+          handler,
+        ),
+      })),
+    });
+
+    return makeMiddleware();
+  }),
   createServerFn: vi.fn(() =>
     makeServerFnChain(
       (fn) => async (opts?: { data?: unknown }) => fn({ data: opts?.data }),
@@ -57,70 +119,59 @@ vi.mock("@/lib/clickhouse", () => {
 // from getAuth(), with the same guards as the real authMiddleware.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/serverFn", () => ({
-  createAuthenticatedServerFn: vi.fn(() =>
-    makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
-      const { getAuth } = await import("@workos/authkit-tanstack-react-start");
-      const { query } = await import("@/lib/clickhouse");
-      const auth = await getAuth();
-      if (!auth?.user) throw new Error("Unauthenticated");
-      if (!auth?.organizationId) throw new Error("Missing organization");
-      return fn({
-        data: opts?.data,
-        context: {
-          session: {
-            userId: auth.user.id,
-            organizationId: auth.organizationId,
-            sessionId: auth.sessionId,
-            tenantId: 42,
+vi.mock("@/lib/serverFn", async () => {
+  const { query } = await import("@/lib/clickhouse");
+
+  return {
+    authMiddleware: { __handler: vi.fn() },
+    requireOrgMiddleware: { __handler: vi.fn() },
+    createAuthenticatedServerFn: vi.fn(() =>
+      makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
+        return fn({
+          data: opts?.data,
+          context: {
+            session: {
+              session: {
+                userId: "test_user",
+                activeOrganizationId: "test_org",
+                id: "test_session",
+              },
+            },
+            clickhouse: {
+              query: <T>(sql: string, params?: Record<string, unknown>) =>
+                query<T>(sql, "42", params),
+            },
           },
-          clickhouse: {
-            query: <T>(sql: string, params?: Record<string, unknown>) =>
-              query<T>(sql, params, 42),
-          },
-        },
-      });
-    }),
-  ),
-}));
+        });
+      }),
+    ),
+  };
+});
 
 // ---------------------------------------------------------------------------
-// @/lib/workos — prevent env validation at import time.
+// @/lib/auth.server — prevent env/db access at import time.
 // Individual tests can override specific methods.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/workos", () => ({
-  workOS: {
-    organizations: { createOrganization: vi.fn(), getOrganization: vi.fn() },
-    userManagement: {
-      getUser: vi.fn(),
-      createOrganizationMembership: vi.fn(),
+vi.mock("@/lib/auth.server", () => ({
+  auth: {
+    api: {
+      getSession: vi.fn().mockResolvedValue({
+        user: {
+          id: "test_user",
+          email: "test@example.com",
+          name: "Test User",
+          image: null,
+        },
+        session: { id: "test_session", activeOrganizationId: "test_org" },
+      }),
+      getFullOrganization: vi.fn(),
+      createOrganization: vi.fn(),
+      updateOrganization: vi.fn(),
+      setActiveOrganization: vi.fn(),
+      listOrganizations: vi.fn(),
     },
   },
-}));
-
-// ---------------------------------------------------------------------------
-// WorkOS authkit — default: authenticated user with org.
-// Override in individual tests: vi.mocked(getAuth).mockResolvedValue(...)
-// ---------------------------------------------------------------------------
-
-vi.mock("@workos/authkit-tanstack-react-start", () => ({
-  authkitMiddleware: vi.fn(() => ({})),
-  getAuth: vi.fn().mockResolvedValue({
-    user: { id: "test_user" },
-    organizationId: "test_org",
-    sessionId: "test_session",
-  }),
-  getAuthAction: vi.fn(),
-  getSignInUrl: vi.fn(),
-  handleCallbackRoute: vi.fn(),
-  switchToOrganization: vi.fn(),
-}));
-
-vi.mock("@workos/authkit-tanstack-react-start/client", () => ({
-  AuthKitProvider: ({ children }: { children: unknown }) => children,
-  useAuth: vi.fn(() => ({ isLoading: false, user: null })),
-  useAccessToken: vi.fn(() => ({ data: null })),
 }));
 
 // ---------------------------------------------------------------------------

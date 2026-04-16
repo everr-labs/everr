@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getWorkflowsList } from "@/data/workflows-list";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
 
 const WorkflowsListQuerySchema = z.object({
   repo: z.string().min(1),
@@ -10,7 +9,6 @@ const WorkflowsListQuerySchema = z.object({
 
 export const Route = createFileRoute("/api/cli/workflows-list")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ request, context }) => {
         const url = new URL(request.url);
@@ -30,7 +28,7 @@ export const Route = createFileRoute("/api/cli/workflows-list")({
         }
 
         const workflows = await getWorkflowsList({
-          tenantId: context.session.tenantId,
+          tenantId: context.session.session.activeOrganizationId,
           repo: parsed.data.repo,
           branch: parsed.data.branch,
         });

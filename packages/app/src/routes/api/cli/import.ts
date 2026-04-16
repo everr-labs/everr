@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { getGithubInstallationsForTenant } from "@/data/tenants";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
+import { db } from "@/db/client";
+import { githubInstallationOrganizations } from "@/db/schema";
 import {
   backfillRepo,
   listInstallationRepos,
@@ -11,7 +12,6 @@ const BodySchema = z.object({ repos: z.array(z.string().min(1)).min(1) });
 
 export const Route = createFileRoute("/api/cli/import")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       POST: async ({ request, context }) => {
         const parsed = BodySchema.safeParse(await request.json());
@@ -22,31 +22,42 @@ export const Route = createFileRoute("/api/cli/import")({
           );
         }
 
-        const installations = await getGithubInstallationsForTenant(
-          context.session.tenantId,
+        const installations = await db
+          .select({
+            installationId:
+              githubInstallationOrganizations.githubInstallationId,
+            status: githubInstallationOrganizations.status,
+          })
+          .from(githubInstallationOrganizations)
+          .where(
+            eq(
+              githubInstallationOrganizations.organizationId,
+              context.session.session.activeOrganizationId,
+            ),
+          );
+        const activeInstallation = installations.find(
+          (i) => i.status === "active",
         );
-        const active = installations.find((i) => i.status === "active");
-        if (!active) {
+        if (!activeInstallation) {
           return Response.json(
             { error: "no active GitHub installation" },
             { status: 400 },
           );
         }
 
-        const allRepos = await listInstallationRepos(active.installationId);
+        const allRepos = await listInstallationRepos(
+          activeInstallation.installationId,
+        );
         const repos = parsed.data.repos
           .map((name) => allRepos.find((r) => r.full_name === name))
           .filter((r) => r != null);
-
-        const tenantId = context.session.tenantId;
-        const installationId = active.installationId;
 
         (async () => {
           for (const repo of repos) {
             try {
               for await (const _ of backfillRepo(
-                installationId,
-                tenantId,
+                activeInstallation.installationId,
+                context.session.session.activeOrganizationId,
                 repo,
               )) {
               }

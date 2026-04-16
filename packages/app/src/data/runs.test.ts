@@ -186,7 +186,7 @@ describe("getStepLogs", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(2);
     expect(mockedQuery.mock.calls[1]?.[0]).toContain("ORDER BY Timestamp DESC");
     expect(mockedQuery.mock.calls[1]?.[0]).toContain("LIMIT {maxLines:UInt32}");
-    expect(mockedQuery.mock.calls[1]?.[1]).toMatchObject({
+    expect(mockedQuery.mock.calls[1]?.[2]).toMatchObject({
       maxLines: 500,
     });
     expect(result).toEqual({
@@ -228,7 +228,7 @@ describe("getStepLogs", () => {
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "WHERE TraceId = {traceId:String}",
     );
-    expect(mockedQuery.mock.calls[1]?.[1]).toEqual({
+    expect(mockedQuery.mock.calls[1]?.[2]).toEqual({
       traceId: "trace-1",
       jobName: "build",
       stepNumber: "2",
@@ -265,7 +265,7 @@ describe("getStepLogs", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
-    expect(mockedQuery.mock.calls[1]?.[1]).toMatchObject({
+    expect(mockedQuery.mock.calls[1]?.[2]).toMatchObject({
       maxLines: 1000,
       offsetLines: 2000,
     });
@@ -294,8 +294,8 @@ describe("getStepLogs", () => {
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "match(Body, {egrep:String})",
     );
-    expect(mockedQuery.mock.calls[0]?.[1]).toMatchObject({ egrep: "Error" });
-    expect(mockedQuery.mock.calls[1]?.[1]).toMatchObject({ egrep: "Error" });
+    expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({ egrep: "Error" });
+    expect(mockedQuery.mock.calls[1]?.[2]).toMatchObject({ egrep: "Error" });
     expect(result.logs).toHaveLength(1);
     expect(result.logs[0]?.body).toBe("Error: timeout");
   });

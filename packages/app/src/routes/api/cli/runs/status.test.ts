@@ -4,12 +4,6 @@ vi.mock("@/data/branch-status", () => ({
   getBranchStatus: vi.fn(),
 }));
 
-vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
-  accessTokenAuthMiddleware: {
-    options: {},
-  },
-}));
-
 import { getBranchStatus } from "@/data/branch-status";
 import { Route } from "./status";
 
@@ -19,7 +13,9 @@ type GetHandler = (args: {
   request: Request;
   context: {
     session: {
-      tenantId: number;
+      session: {
+        activeOrganizationId: string;
+      };
     };
   };
 }) => Promise<Response>;
@@ -62,7 +58,9 @@ describe("/api/cli/runs/status", () => {
       ),
       context: {
         session: {
-          tenantId: 42,
+          session: {
+            activeOrganizationId: "org-42",
+          },
         },
       },
     });
@@ -105,7 +103,9 @@ describe("/api/cli/runs/status", () => {
       ),
       context: {
         session: {
-          tenantId: 42,
+          session: {
+            activeOrganizationId: "org-42",
+          },
         },
       },
     });
@@ -150,7 +150,9 @@ describe("/api/cli/runs/status", () => {
       ),
       context: {
         session: {
-          tenantId: 42,
+          session: {
+            activeOrganizationId: "org-42",
+          },
         },
       },
     });
@@ -185,14 +187,16 @@ describe("/api/cli/runs/status", () => {
       ),
       context: {
         session: {
-          tenantId: 42,
+          session: {
+            activeOrganizationId: "org-42",
+          },
         },
       },
     });
 
     expect(response.status).toBe(200);
     expect(mockedGetBranchStatus).toHaveBeenCalledWith({
-      tenantId: 42,
+      tenantId: "org-42",
       repo: "everr-labs/everr",
       branch: "main",
       commit: "abc123",
@@ -207,7 +211,9 @@ describe("/api/cli/runs/status", () => {
       ),
       context: {
         session: {
-          tenantId: 42,
+          session: {
+            activeOrganizationId: "org-42",
+          },
         },
       },
     });

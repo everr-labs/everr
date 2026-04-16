@@ -1,16 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getGithubInstallationsForTenant } from "@/data/tenants";
-import { accessTokenAuthMiddleware } from "@/lib/accessTokenAuthMiddleware";
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { githubInstallationOrganizations } from "@/db/schema";
 import { listInstallationRepos } from "@/server/github-events/backfill";
 
 export const Route = createFileRoute("/api/cli/repos")({
   server: {
-    middleware: [accessTokenAuthMiddleware],
     handlers: {
       GET: async ({ context }) => {
-        const installations = await getGithubInstallationsForTenant(
-          context.session.tenantId,
-        );
+        const installations = await db
+          .select({
+            installationId:
+              githubInstallationOrganizations.githubInstallationId,
+            status: githubInstallationOrganizations.status,
+          })
+          .from(githubInstallationOrganizations)
+          .where(
+            eq(
+              githubInstallationOrganizations.organizationId,
+              context.session.session.activeOrganizationId,
+            ),
+          );
         const active = installations.find((i) => i.status === "active");
 
         if (!active) {

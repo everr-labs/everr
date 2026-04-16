@@ -2,15 +2,6 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-const authClientMocks = vi.hoisted(() => ({
-  accessToken: "access_token_123",
-}));
-
-const widgetMocks = vi.hoisted(() => ({
-  userProfileProps: [] as Array<{ authToken: string }>,
-  userSecurityProps: [] as Array<{ authToken: string }>,
-}));
-
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@tanstack/react-router")>();
@@ -33,42 +24,23 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-vi.mock("@workos/authkit-tanstack-react-start/client", () => ({
-  useAccessToken: () => ({
-    accessToken: authClientMocks.accessToken,
-  }),
-}));
-
-vi.mock("@workos-inc/widgets", () => ({
-  UserProfile: (props: { authToken: string }) => {
-    widgetMocks.userProfileProps.push(props);
-    return <div data-testid="user-profile" />;
-  },
-  UserSecurity: (props: { authToken: string }) => {
-    widgetMocks.userSecurityProps.push(props);
-    return <div data-testid="user-security" />;
-  },
-}));
-
 import { Route } from "./account";
 
 describe("/account route", () => {
-  it("renders WorkOS profile and security widgets", () => {
+  it("renders account settings page with heading and danger zone", () => {
     const Component = Route.options.component as React.ComponentType;
     render(<Component />);
 
     expect(screen.getByText("Account Settings")).toBeInTheDocument();
-    expect(screen.getByTestId("user-profile")).toBeInTheDocument();
-    expect(screen.getByTestId("user-security")).toBeInTheDocument();
+    expect(screen.getByText("Danger Zone")).toBeInTheDocument();
+    expect(screen.getByText("Delete account")).toBeInTheDocument();
   });
 
-  it("passes the AuthKit access token to both widgets", () => {
+  it("renders GitHub connection card", () => {
     const Component = Route.options.component as React.ComponentType;
     render(<Component />);
 
-    expect(widgetMocks.userProfileProps[0]?.authToken).toBe("access_token_123");
-    expect(widgetMocks.userSecurityProps[0]?.authToken).toBe(
-      "access_token_123",
-    );
+    expect(screen.getByText("GitHub Connection")).toBeInTheDocument();
+    expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
   });
 });

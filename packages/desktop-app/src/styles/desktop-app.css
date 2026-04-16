@@ -1,5 +1,4 @@
 @import "@everr/ui/src/styles/global.css";
-@import "@radix-ui/themes/styles.css";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
 

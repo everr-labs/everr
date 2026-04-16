@@ -114,12 +114,12 @@ describe("upsertWorkflowRun", () => {
   it("preserves requested workflow run status", async () => {
     const { db, insert, values, onConflictDoUpdate } = createMockDb();
 
-    await upsertWorkflowRun(db, 42, buildRunEvent("requested"));
+    await upsertWorkflowRun(db, "org-42", buildRunEvent("requested"));
 
     expect(insert).toHaveBeenCalledWith(workflowRuns);
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
-      tenantId: 42,
+      organizationId: "org-42",
       runId: 456,
       attempts: 1,
       traceId: generateWorkflowTraceId(654321, 456, 1),
@@ -146,7 +146,7 @@ describe("upsertWorkflowRun", () => {
     );
     expect(mockedNotify).toHaveBeenCalledOnce();
     expect(mockedNotify).toHaveBeenCalledWith(db, {
-      tenantId: 42,
+      tenantId: "org-42",
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
       sha: "abc123",
@@ -165,7 +165,7 @@ describe("upsertWorkflowRun", () => {
   it("preserves waiting workflow run status", async () => {
     const { db, values } = createMockDb();
 
-    await upsertWorkflowRun(db, 42, buildRunEvent("waiting"));
+    await upsertWorkflowRun(db, "org-42", buildRunEvent("waiting"));
 
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
@@ -179,7 +179,7 @@ describe("upsertWorkflowRun", () => {
   it("uses the freshest event timestamp for in_progress workflow runs", async () => {
     const { db, values } = createMockDb();
 
-    await upsertWorkflowRun(db, 42, buildRunEvent("in_progress"));
+    await upsertWorkflowRun(db, "org-42", buildRunEvent("in_progress"));
 
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
@@ -195,7 +195,7 @@ describe("upsertWorkflowRun", () => {
 
     await upsertWorkflowRun(
       db,
-      42,
+      "org-42",
       buildRunEvent("completed", { conclusion: "success" }),
     );
 
@@ -215,7 +215,7 @@ describe("upsertWorkflowRun", () => {
 
     await upsertWorkflowRun(
       db,
-      42,
+      "org-42",
       buildRunEvent("requested", {
         event: "push",
         workflow_id: 100,
@@ -248,7 +248,7 @@ describe("upsertWorkflowRun", () => {
     const { db, returning } = createMockDb();
     returning.mockResolvedValue([]);
 
-    await upsertWorkflowRun(db, 42, buildRunEvent("requested"));
+    await upsertWorkflowRun(db, "org-42", buildRunEvent("requested"));
 
     expect(mockedNotify).not.toHaveBeenCalled();
   });
@@ -258,7 +258,7 @@ describe("upsertWorkflowRun", () => {
     const event = buildRunEvent("requested");
     event.payload.workflow_run = undefined;
 
-    await expect(upsertWorkflowRun(db, 42, event)).rejects.toThrow(
+    await expect(upsertWorkflowRun(db, "org-42", event)).rejects.toThrow(
       "workflow_run payload missing workflow_run",
     );
     expect(mockedNotify).not.toHaveBeenCalled();
@@ -269,7 +269,7 @@ describe("upsertWorkflowRun", () => {
     const event = buildRunEvent("requested");
     delete event.payload.repository?.id;
 
-    await expect(upsertWorkflowRun(db, 42, event)).rejects.toThrow(
+    await expect(upsertWorkflowRun(db, "org-42", event)).rejects.toThrow(
       "workflow event missing repository.id",
     );
     expect(mockedNotify).not.toHaveBeenCalled();
@@ -280,12 +280,12 @@ describe("upsertWorkflowJob", () => {
   it("inserts a queued workflow job with canonical storage fields", async () => {
     const { db, insert, values, onConflictDoUpdate } = createMockDb();
 
-    await upsertWorkflowJob(db, 42, buildJobEvent("queued"));
+    await upsertWorkflowJob(db, "org-42", buildJobEvent("queued"));
 
     expect(insert).toHaveBeenCalledWith(workflowJobs);
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
-      tenantId: 42,
+      organizationId: "org-42",
       jobId: 789,
       runId: 456,
       attempts: 1,
@@ -307,7 +307,7 @@ describe("upsertWorkflowJob", () => {
     );
     expect(mockedNotify).toHaveBeenCalledOnce();
     expect(mockedNotify).toHaveBeenCalledWith(db, {
-      tenantId: 42,
+      tenantId: "org-42",
       traceId: generateWorkflowTraceId(654321, 456, 1),
       runId: "456",
       sha: "abc123",
@@ -326,7 +326,7 @@ describe("upsertWorkflowJob", () => {
   it("preserves requested workflow job status", async () => {
     const { db, values } = createMockDb();
 
-    await upsertWorkflowJob(db, 42, buildJobEvent("requested"));
+    await upsertWorkflowJob(db, "org-42", buildJobEvent("requested"));
 
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
@@ -340,7 +340,7 @@ describe("upsertWorkflowJob", () => {
   it("preserves waiting workflow job status", async () => {
     const { db, values } = createMockDb();
 
-    await upsertWorkflowJob(db, 42, buildJobEvent("waiting"));
+    await upsertWorkflowJob(db, "org-42", buildJobEvent("waiting"));
 
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
@@ -354,7 +354,7 @@ describe("upsertWorkflowJob", () => {
   it("uses started_at as the ordering timestamp for in_progress workflow jobs", async () => {
     const { db, values } = createMockDb();
 
-    await upsertWorkflowJob(db, 42, buildJobEvent("in_progress"));
+    await upsertWorkflowJob(db, "org-42", buildJobEvent("in_progress"));
 
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({
@@ -371,7 +371,7 @@ describe("upsertWorkflowJob", () => {
 
     await upsertWorkflowJob(
       db,
-      42,
+      "org-42",
       buildJobEvent("completed", {
         conclusion: "failure",
         completed_at: "2026-03-05T10:05:00Z",
@@ -393,7 +393,7 @@ describe("upsertWorkflowJob", () => {
     const { db, returning } = createMockDb();
     returning.mockResolvedValue([]);
 
-    await upsertWorkflowJob(db, 42, buildJobEvent("queued"));
+    await upsertWorkflowJob(db, "org-42", buildJobEvent("queued"));
 
     expect(mockedNotify).not.toHaveBeenCalled();
   });
@@ -403,7 +403,7 @@ describe("upsertWorkflowJob", () => {
     const event = buildJobEvent("in_progress");
     event.payload.workflow_job = undefined;
 
-    await expect(upsertWorkflowJob(db, 42, event)).rejects.toThrow(
+    await expect(upsertWorkflowJob(db, "org-42", event)).rejects.toThrow(
       "workflow_job payload missing workflow_job",
     );
     expect(mockedNotify).not.toHaveBeenCalled();
@@ -414,7 +414,7 @@ describe("upsertWorkflowJob", () => {
     const event = buildJobEvent("queued");
     delete event.payload.repository?.id;
 
-    await expect(upsertWorkflowJob(db, 42, event)).rejects.toThrow(
+    await expect(upsertWorkflowJob(db, "org-42", event)).rejects.toThrow(
       "workflow event missing repository.id",
     );
     expect(mockedNotify).not.toHaveBeenCalled();
@@ -425,7 +425,7 @@ describe("handleStatusEvent", () => {
   it("routes workflow_run events to upsertWorkflowRun", async () => {
     const { db, insert } = createMockDb();
 
-    await handleStatusEvent(db, 42, buildRunEvent("requested"));
+    await handleStatusEvent(db, "org-42", buildRunEvent("requested"));
 
     expect(insert).toHaveBeenCalledWith(workflowRuns);
   });
@@ -433,7 +433,7 @@ describe("handleStatusEvent", () => {
   it("routes workflow_job events to upsertWorkflowJob", async () => {
     const { db, insert } = createMockDb();
 
-    await handleStatusEvent(db, 42, buildJobEvent("in_progress"));
+    await handleStatusEvent(db, "org-42", buildJobEvent("in_progress"));
 
     expect(insert).toHaveBeenCalledWith(workflowJobs);
   });

@@ -34,7 +34,7 @@ import { NotificationHub } from "./notification-hub";
 
 function makePayload(overrides: Partial<NotifyPayload> = {}): NotifyPayload {
   return {
-    tenantId: 42,
+    tenantId: "42",
     traceId: "trace-1",
     runId: "run-1",
     sha: "abc123",

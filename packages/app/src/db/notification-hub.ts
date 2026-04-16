@@ -61,7 +61,7 @@ export class NotificationHub {
   }
 
   dispatch(payload: NotifyPayload): void {
-    this.dispatchTopic("tenant", String(payload.tenantId), payload);
+    this.dispatchTopic("tenant", payload.tenantId, payload);
     this.dispatchTopic(
       "trace",
       `${payload.tenantId}:${payload.traceId}`,

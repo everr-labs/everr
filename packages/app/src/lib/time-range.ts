@@ -8,7 +8,7 @@ import {
   type QuickRangeGroup,
   type TimeRange,
 } from "@everr/ui/components/time-range-picker";
-import { z } from "zod";
+import * as z from "zod";
 
 export {
   DEFAULT_TIME_RANGE,

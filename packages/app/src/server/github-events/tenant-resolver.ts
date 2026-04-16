@@ -1,21 +1,41 @@
-import { getActiveTenantForGithubInstallation } from "@/data/tenants";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { githubInstallationOrganizations } from "@/db/schema";
 import { GH_EVENTS_CONFIG } from "./config";
 import { TerminalEventError } from "./types";
 
-const tenantCache = new Map<number, { tenantId: number; expiresAt: number }>();
+const cache = new Map<number, { organizationId: string; expiresAt: number }>();
 
-export async function resolveTenantId(installationId: number): Promise<number> {
+export async function resolveOrganizationId(
+  installationId: number,
+): Promise<string> {
   const now = Date.now();
-  const cached = tenantCache.get(installationId);
-  if (cached && cached.expiresAt > now) return cached.tenantId;
+  const cached = cache.get(installationId);
+  if (cached && cached.expiresAt > now) return cached.organizationId;
 
-  const tenantId = await getActiveTenantForGithubInstallation(installationId);
-  if (!tenantId) throw new TerminalEventError("tenant not found");
+  const [mapping] = await db
+    .select({
+      organizationId: githubInstallationOrganizations.organizationId,
+    })
+    .from(githubInstallationOrganizations)
+    .where(
+      and(
+        eq(
+          githubInstallationOrganizations.githubInstallationId,
+          installationId,
+        ),
+        eq(githubInstallationOrganizations.status, "active"),
+      ),
+    )
+    .limit(1);
 
-  tenantCache.set(installationId, {
-    tenantId,
+  if (!mapping)
+    throw new TerminalEventError("organization not found for installation");
+
+  cache.set(installationId, {
+    organizationId: mapping.organizationId,
     expiresAt: now + GH_EVENTS_CONFIG.tenantCacheTTLms,
   });
 
-  return tenantId;
+  return mapping.organizationId;
 }

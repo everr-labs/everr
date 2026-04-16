@@ -49,7 +49,7 @@ describe("getTestHistory", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
     );
-    expect(mockedQuery.mock.calls[0]?.[1]).toEqual(
+    expect(mockedQuery.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",
         testModule: "suite",
