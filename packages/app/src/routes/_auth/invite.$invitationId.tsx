@@ -3,98 +3,23 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import {
-  type InvitationLookup,
+  type InviteLoaderResult,
   isMemberOfOrg,
   lookupInvitation,
+  resolveInvitationLoader,
 } from "@/data/invite";
 import { authClient } from "@/lib/auth-client";
-
-type LoaderResult =
-  | { status: "not-found" }
-  | {
-      status: "inactive";
-      reason: "expired" | "canceled" | "rejected";
-      organizationName: string;
-    }
-  | {
-      status: "accepted";
-      organizationName: string;
-      alreadyMember: boolean;
-    }
-  | {
-      status: "unauthenticated";
-      organizationName: string;
-      invitedEmail: string;
-      inviterName: string;
-      role: string | null;
-    }
-  | {
-      status: "accept-ready";
-      invitationId: string;
-      organizationName: string;
-      inviterName: string;
-      role: string | null;
-    }
-  | {
-      status: "wrong-recipient";
-      organizationName: string;
-      invitedEmail: string;
-    };
-
-async function resolveLoaderResult(
-  invitationId: string,
-  session: { user: { email: string } } | null,
-  lookup: InvitationLookup,
-): Promise<LoaderResult> {
-  if (lookup.status === "not-found") return { status: "not-found" };
-  if (lookup.status === "inactive") return lookup;
-
-  if (lookup.status === "accepted") {
-    const alreadyMember = session
-      ? (
-          await isMemberOfOrg({
-            data: { organizationId: lookup.organizationId },
-          })
-        ).isMember
-      : false;
-    return {
-      status: "accepted",
-      organizationName: lookup.organizationName,
-      alreadyMember,
-    };
-  }
-
-  if (!session) {
-    return {
-      status: "unauthenticated",
-      organizationName: lookup.organizationName,
-      invitedEmail: lookup.invitedEmail,
-      inviterName: lookup.inviterName,
-      role: lookup.role,
-    };
-  }
-
-  if (session.user.email.toLowerCase() !== lookup.invitedEmail.toLowerCase()) {
-    return {
-      status: "wrong-recipient",
-      organizationName: lookup.organizationName,
-      invitedEmail: lookup.invitedEmail,
-    };
-  }
-
-  return {
-    status: "accept-ready",
-    invitationId,
-    organizationName: lookup.organizationName,
-    inviterName: lookup.inviterName,
-    role: lookup.role,
-  };
-}
 
 export const Route = createFileRoute("/_auth/invite/$invitationId")({
   loader: async ({ context: { session }, params: { invitationId } }) => {
     const lookup = await lookupInvitation({ data: { invitationId } });
-    return resolveLoaderResult(invitationId, session, lookup);
+    return resolveInvitationLoader({
+      invitationId,
+      session,
+      lookup,
+      checkIsMember: async (organizationId) =>
+        (await isMemberOfOrg({ data: { organizationId } })).isMember,
+    });
   },
   component: AcceptInvitation,
 });
@@ -158,7 +83,7 @@ function NotFoundContent() {
 function InactiveContent({
   data,
 }: {
-  data: Extract<LoaderResult, { status: "inactive" }>;
+  data: Extract<InviteLoaderResult, { status: "inactive" }>;
 }) {
   const title =
     data.reason === "expired"
@@ -185,7 +110,7 @@ function InactiveContent({
 function AcceptedContent({
   data,
 }: {
-  data: Extract<LoaderResult, { status: "accepted" }>;
+  data: Extract<InviteLoaderResult, { status: "accepted" }>;
 }) {
   const title = data.alreadyMember
     ? `You're already in ${data.organizationName}`
@@ -211,7 +136,7 @@ function UnauthenticatedContent({
   data,
 }: {
   invitationId: string;
-  data: Extract<LoaderResult, { status: "unauthenticated" }>;
+  data: Extract<InviteLoaderResult, { status: "unauthenticated" }>;
 }) {
   return (
     <>
@@ -264,7 +189,7 @@ function UnauthenticatedContent({
 function AcceptReadyContent({
   data,
 }: {
-  data: Extract<LoaderResult, { status: "accept-ready" }>;
+  data: Extract<InviteLoaderResult, { status: "accept-ready" }>;
 }) {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -378,7 +303,7 @@ function WrongRecipientContent({
   data,
 }: {
   invitationId: string;
-  data: Extract<LoaderResult, { status: "wrong-recipient" }>;
+  data: Extract<InviteLoaderResult, { status: "wrong-recipient" }>;
 }) {
   const navigate = useNavigate();
   const [isSigningOut, setIsSigningOut] = useState(false);
