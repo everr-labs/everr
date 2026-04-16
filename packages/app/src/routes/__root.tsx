@@ -1,3 +1,4 @@
+import { Toaster } from "@everr/ui/components/sonner";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -113,6 +114,7 @@ function ShellComponent({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <Toaster />
         <Scripts />
       </body>
     </html>
