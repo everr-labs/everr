@@ -182,6 +182,9 @@ importers:
       simple-icons:
         specifier: ^16.14.0
         version: 16.14.0
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -494,6 +497,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.7.0(react@19.2.4)
+      next-themes:
+        specifier: ^0.4.6
+        version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react:
         specifier: 'catalog:'
         version: 19.2.4

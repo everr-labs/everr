@@ -49,6 +49,7 @@
     "recharts": "catalog:",
     "resend": "^6.10.0",
     "simple-icons": "^16.14.0",
+    "sonner": "^2.0.7",
     "zod": "catalog:"
   },
   "devDependencies": {
