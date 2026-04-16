@@ -21,26 +21,13 @@ import {
 } from "@everr/ui/components/select";
 import { useState } from "react";
 import { toast } from "sonner";
+import { formatDate } from "./format-date";
 import {
   type Member,
   type OrgRole,
   useRemoveMember,
   useUpdateMemberRole,
 } from "./queries";
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-});
-
-function formatDate(dateStr: string | Date) {
-  try {
-    return dateFormatter.format(new Date(dateStr));
-  } catch {
-    return String(dateStr);
-  }
-}
 
 interface MembersTableProps {
   members: Member[];
@@ -66,16 +53,18 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
   const confirmRoleChange = () => {
     if (!rolePending) return;
     const { memberId, memberName, nextRole } = rolePending;
+    const clearIfStillMine = () =>
+      setRolePending((p) => (p?.memberId === memberId ? null : p));
     updateRole.mutate(
       { memberId, role: nextRole },
       {
         onSuccess: () => {
           toast.success(`${memberName} is now ${nextRole}`);
-          setRolePending(null);
+          clearIfStillMine();
         },
         onError: (err) => {
           toast.error(err.message);
-          setRolePending(null);
+          clearIfStillMine();
         },
       },
     );
@@ -149,7 +138,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
       cell: (row) => formatDate(row.createdAt),
     },
     {
-      header: "",
+      header: <span className="sr-only">Actions</span>,
       cell: (row) => {
         const isSelf = row.userId === currentUserId;
         const isLastOwner = row.role === "owner" && ownerCount <= 1;
@@ -174,6 +163,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
                 <AlertDialogAction
                   variant="destructive"
                   onClick={() => handleRemove(row.id, memberName)}
+                  disabled={remove.isPending}
                 >
                   Remove
                 </AlertDialogAction>

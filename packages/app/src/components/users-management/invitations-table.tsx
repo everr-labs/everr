@@ -13,21 +13,8 @@ import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { toast } from "sonner";
+import { formatDate } from "./format-date";
 import { type Invitation, useRevokeInvitation } from "./queries";
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-});
-
-function formatDate(dateStr: string | Date) {
-  try {
-    return dateFormatter.format(new Date(dateStr));
-  } catch {
-    return String(dateStr);
-  }
-}
 
 interface InvitationsTableProps {
   invitations: Invitation[];
@@ -58,7 +45,7 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
       cell: (row) => formatDate(row.expiresAt),
     },
     {
-      header: "",
+      header: <span className="sr-only">Actions</span>,
       cell: (row) => (
         <AlertDialog>
           <AlertDialogTrigger render={<Button variant="ghost" size="sm" />}>
