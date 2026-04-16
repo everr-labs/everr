@@ -1,15 +1,16 @@
 import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import {
   bearer,
   deviceAuthorization,
   organization as organizationPlugin,
 } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { member, user } from "@/db/schema";
+import { invitation, member, user } from "@/db/schema";
 import { env } from "@/env";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
 import {
@@ -26,7 +27,6 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    disableSignUp: true,
     sendResetPassword: async ({ user, url }) => {
       sendPasswordResetEmail({ to: user.email, url });
     },
@@ -39,6 +39,35 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
   },
   databaseHooks: {
+    user: {
+      create: {
+        // TODO: this is a very basic form of avoiding signups from non-invited users.
+        // It doesn't force users to signup via the email invitation link, so users can basically signup by themselves without joining the organization that invited them,
+        // but it's good enough for now given we'll remove this limitation soon anyway.
+        before: async (userData) => {
+          if (!env.REQUIRE_INVITATION_FOR_SIGNUP) {
+            return true;
+          }
+
+          const pending = await db
+            .select({ id: invitation.id })
+            .from(invitation)
+            .where(
+              and(
+                eq(invitation.email, userData.email),
+                eq(invitation.status, "pending"),
+              ),
+            )
+            .limit(1);
+
+          if (pending.length === 0) {
+            throw new APIError("FORBIDDEN", {
+              message: "Signup is by invitation only",
+            });
+          }
+        },
+      },
+    },
     session: {
       create: {
         before: async (session) => {
