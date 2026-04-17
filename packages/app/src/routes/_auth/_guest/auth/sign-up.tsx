@@ -104,7 +104,7 @@ function SignUp() {
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
             )}
