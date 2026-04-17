@@ -1,0 +1,92 @@
+---
+title: "Devlog #2: Better Auth, a multi-view desktop app, and local telemetry"
+description: "We swapped our auth stack to make self-hosting easier, rebuilt the desktop app around a sidebar and notification history, shipped `everr init` for CLI onboarding, and added a local OpenTelemetry collector for debugging instrumented services."
+date: "2026-04-17"
+author: Everr Team
+commits: 188
+prs: 23
+additions: 67339
+deletions: 57755
+---
+
+Two weeks since the last devlog. The headline changes: we migrated our auth stack to be friendlier to self-hosters, rebuilt the desktop app into a proper multi-view surface with a notifications inbox, shipped a CLI onboarding command, and added a local OpenTelemetry collector that's already pulling its weight debugging our own services.
+
+Here's what shipped.
+
+## Migrating to Better Auth
+
+We replaced our auth stack with [Better Auth](https://www.better-auth.com/). The main reason was self-hosting: we want teams that run Everr on their own infrastructure to do so without signing up for a third-party identity provider or wiring up a SaaS tenant just to log in. Better Auth runs in-process against our own database, so a self-hosted deployment needs nothing beyond the Everr services it already runs.
+
+The auth flow got a full rebuild on top of it. Login, signup, and the device-code flow now share a single layout with consistent typography, tighter forms, and inline validation. The device flow opens the browser automatically, shows the signed-in user and org on confirmation, and returns you to the terminal with a clean summary. It's the part of the product every user touches on day one, and it finally reflects that.
+
+## Desktop app: sidebar and a notifications inbox
+
+The desktop app had been a single-surface tray application. You'd click the tray icon, see a popover with recent runs, and that was it. Useful, but not enough once we started sending multiple notifications per day.
+
+We rebuilt the shell around a sidebar with dedicated views: a runs list, a notifications page with full history and mark-all-read, a settings page, and a developer tools view. The notifications icon shows an unread count. Each history item has quick actions: open the run, or copy an auto-fix prompt for a coding agent to debug the failure with.
+
+The notification window now behaves like a native macOS notification: it stays above other windows without grabbing focus, instead of acting like a regular app window. Small thing, but it's the difference between the app feeling native and feeling like a webpage in a frame.
+
+## Watch command redesign
+
+`everr watch` was the CLI command we used most on our own CI, and it had accumulated friction. The output was a single line that kept repainting, which made it hard to tell what had already happened versus what was happening now. If a job failed mid-run, the only way to see the logs was to stop watching and run a separate command.
+
+We rewrote it as an event-driven, append-only stream. The bigger motivation was coding agents: a repainting line burns tokens on every redraw and leaves the agent re-parsing the whole terminal to figure out what changed. Append-only output is cheap to tail and trivial to reason about: one line per event, no cursor tricks. The header prints repo, commit, and branch once so the agent (or you) can confirm it's watching the right thing, and when a job fails, the summary includes the failing job, step, and inline logs so the agent has everything it needs without another tool call.
+
+ANSI escape codes in imported logs are stripped by default, which makes pasting a failure into a chat or a coding agent's context actually readable.
+
+## `everr init` and CLI-first onboarding
+
+Onboarding previously required going through the web app. That's fine for someone installing Everr for their team, but for individual developers who live in the terminal, it was a detour.
+
+`everr init` is a new command that walks you through setup from the CLI: connect your GitHub org, pick repos to import, configure notification emails, and you're done. It uses the same onboarding steps as the web flow so both surfaces stay in sync.
+
+Organization name editing and repo import are now non-fatal during onboarding. If something fails, the flow continues and tells you what to retry, rather than getting stuck.
+
+## Local OpenTelemetry collector
+
+This one started as an internal tool and graduated into the CLI.
+
+Our own services are OpenTelemetry-instrumented. Debugging them locally meant either shipping traces to a full observability backend or squinting at raw logs. We wanted something in between: a lightweight collector that runs on your machine, captures traces, logs, and metrics from local services, and lets you query them from the CLI.
+
+`everr telemetry` does that. It starts a local collector, receives OTLP, and exposes `logs`, `traces`, and `metrics` subcommands for querying. You can filter by service, target, or attribute, use `--egrep` for regex-based log search, and see inline attributes in a table format.
+
+The collector is also cross-cutting tooling for coding agents: `everr telemetry ai-instructions` returns the command surface in a form an agent can read, so an agent debugging a local service can discover what it needs without us hand-holding every prompt.
+
+## Log search improvements
+
+The `logs` command got `--egrep` for regex filtering, validated using the same regex engine ClickHouse uses internally, so what validates in the CLI matches what runs in the query.
+
+We also added `--log-failed` and `--job-id` for common patterns: "show me logs from the failing step" and "show me logs from this specific job" without having to look up step numbers.
+
+## Notification improvements
+
+**All failed jobs, not just one.** Failure notifications used to report a single failing job per run. On workflows with parallel jobs, that meant a cascade of notifications as each job finished, or a single notification that undersold the scope of the breakage. Notifications now surface every failed job in one payload, and the tray resets failure state on a successful workflow run.
+
+**Identity matching.** CI events reference the commit author's email, which isn't always the one you signed up with. You can now list the emails you use across git configs, and we match CI events against that list to decide which runs are yours. This fell back to the profile email before, which quietly missed anything committed from a work laptop or a different machine.
+
+**Treated correctly.** Cancelled and skipped jobs are no longer treated as failures. They were triggering notifications for jobs that intentionally didn't run.
+
+## CLI guidelines
+
+We wrote a [CLI guidelines doc](https://github.com/everr-labs/everr) to capture how we want new commands structured: positional arguments for identifiers like `trace_id`, sub-bullets in `ai-instructions` output, visibility of useful flags in help output, and consistent output formatting. It's partly for us, partly for coding agents when they generate or modify commands.
+
+We also migrated `show` and `logs` to take `trace_id` as a positional argument to match the guidelines.
+
+## Under the hood
+
+**Run details from Postgres.** `getRunDetails` was hitting ClickHouse. Run detail queries are transactional reads of a single row, not aggregations over many. Postgres was the better fit and the latency improvement was obvious. ClickHouse still handles what it's good at: log search and aggregates.
+
+**Shared state hardening.** Our shared-state module, used by the desktop app and CLI to coordinate, now uses atomic writes, file locking, and filesystem-event propagation. Before, concurrent writers could race on the state file.
+
+**Timestamps.** Log timestamps are now displayed in the local timezone, not UTC, and the `--since` filter compares timestamps in the correct units. Both were silently giving wrong answers in a way that only mattered if you noticed.
+
+## What's next
+
+The Vercel log drain integration is in progress. We mentioned it in the last devlog and it's the main remaining piece of our "beyond CI" push. Once deployment logs flow in, we can show build and deploy together in a single timeline.
+
+The desktop app's notification window is getting a visual pass to match the web app, and we want to experiment with richer content: not just "job X failed" but a one-line root cause guess generated from the log tail.
+
+On the agent side, we want `everr telemetry` and `everr logs` to surface structured output that coding agents can ingest without parsing free-form text. The `ai-instructions` commands are a start; the next step is making the default output agent-friendly without being unreadable to humans.
+
+Two weeks in, the pattern is clear: every friction we hit in daily use becomes a PR that week. That's the part of building Everr that feels most right.
