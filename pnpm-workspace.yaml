@@ -3,24 +3,24 @@ packages:
   - "packages/*"
   - "collector"
 
-onlyBuiltDependencies:
-  - lefthook
-
 catalog:
   '@icons-pack/react-simple-icons': ^13.13.0
   '@t3-oss/env-core': ^0.13.11
   '@tailwindcss/vite': ^4.2.2
-  '@tanstack/react-query': ^5.96.0
+  '@tanstack/react-query': ^5.99.0
   '@types/react': ^19.2.14
   '@types/react-dom': ^19.2.3
   '@vitejs/plugin-react': ^6.0.1
-  'lucide-react': ^1.7.0
+  'lucide-react': ^1.8.0
   motion: ^12.38.0
-  nitro: 3.0.260311-beta
+  nitro: 3.0.260415-beta
+  react: ^19.2.5
+  react-dom: ^19.2.5
   recharts: "^2.15.4"
-  vite: ^8.0.3
-  zod: ^4.3.6
-  react: ^19.2.4
-  react-dom: ^19.2.4
   tailwindcss: ^4.2.2
-  typescript: ^6.0.2
+  typescript: ^6.0.3
+  vite: ^8.0.8
+  zod: ^4.3.6
+
+onlyBuiltDependencies:
+  - lefthook
