@@ -1,4 +1,4 @@
-import { SiGithub, SiX } from "@icons-pack/react-simple-icons";
+import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
 import { Citrus } from "lucide-react";
 
@@ -54,6 +54,15 @@ export function Footer() {
               >
                 <SiGithub className="size-5" />
               </a>
+              <a
+                href="https://discord.gg/hd6yYDjAuw"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                aria-label="Discord"
+              >
+                <SiDiscord className="size-5" />
+              </a>
             </div>
             <p className="mt-4 text-sm text-fd-muted-foreground">
               &copy; {new Date().getFullYear()} Everr
@@ -96,6 +105,16 @@ export function Footer() {
                 >
                   CLI Docs
                 </Link>
+              </li>
+              <li>
+                <a
+                  href="https://discord.gg/hd6yYDjAuw"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  Discord
+                </a>
               </li>
             </ul>
           </div>

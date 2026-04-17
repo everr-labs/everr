@@ -1,3 +1,4 @@
+import { SiDiscord } from "@icons-pack/react-simple-icons";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { Citrus } from "lucide-react";
 
@@ -32,6 +33,14 @@ export function baseOptions(): BaseLayoutProps {
         url: "/devlog",
         on: "nav",
         active: "nested-url",
+      },
+      {
+        type: "icon",
+        text: "Discord",
+        label: "Discord",
+        icon: <SiDiscord />,
+        url: "https://discord.gg/hd6yYDjAuw",
+        external: true,
       },
     ],
   };
