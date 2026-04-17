@@ -1,3 +1,4 @@
+import type { QueryResultRow } from "pg";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({
@@ -9,7 +10,12 @@ vi.mock("@/db/client", () => ({
 import { pool } from "@/db/client";
 import { getBranchStatus } from "./branch-status";
 
-const mockedQuery = vi.mocked(pool.query);
+const mockedQuery = vi.mocked(
+  pool.query as (
+    text: string,
+    values?: readonly never[],
+  ) => Promise<{ rows: QueryResultRow[] }>,
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -23,9 +29,7 @@ afterEach(() => {
 
 describe("getBranchStatus", () => {
   it("returns pending when no matching runs exist", async () => {
-    mockedQuery.mockResolvedValueOnce({ rows: [] } as Awaited<
-      ReturnType<typeof mockedQuery>
-    >);
+    mockedQuery.mockResolvedValueOnce({ rows: [] });
 
     const result = await getBranchStatus({
       tenantId: "42",
@@ -80,13 +84,13 @@ describe("getBranchStatus", () => {
             attempts: 1,
           },
         ],
-      } as Awaited<ReturnType<typeof mockedQuery>>)
+      })
       .mockResolvedValueOnce({
         rows: [
           { traceId: "trace-42", jobName: "lint", status: "queued" },
           { traceId: "trace-42", jobName: "test", status: "in_progress" },
         ],
-      } as Awaited<ReturnType<typeof mockedQuery>>);
+      });
 
     const result = await getBranchStatus({
       tenantId: "42",
@@ -131,9 +135,7 @@ describe("getBranchStatus", () => {
   });
 
   it("filters by attempt when provided", async () => {
-    mockedQuery.mockResolvedValueOnce({ rows: [] } as Awaited<
-      ReturnType<typeof mockedQuery>
-    >);
+    mockedQuery.mockResolvedValueOnce({ rows: [] });
 
     await getBranchStatus({
       tenantId: "42",
@@ -180,7 +182,7 @@ describe("getBranchStatus", () => {
           attempts: 1,
         },
       ],
-    } as Awaited<ReturnType<typeof mockedQuery>>);
+    });
 
     const result = await getBranchStatus({
       tenantId: "42",
