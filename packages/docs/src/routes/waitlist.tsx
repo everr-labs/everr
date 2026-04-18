@@ -1,8 +1,9 @@
+import { Button } from "@everr/ui/components/button";
+import { Input } from "@everr/ui/components/input";
 import { usePostHog } from "@posthog/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Footer } from "@/components/footer";
-import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/waitlist")({
   component: Waitlist,
@@ -127,12 +128,12 @@ function WaitlistHero() {
 
       <form
         onSubmit={handleSubmit}
-        className="mt-10 flex w-full max-w-md flex-col items-center gap-4 sm:flex-row md:mt-14"
+        className="mt-10 w-full max-w-md items-center gap-2 sm:gap-4 flex md:mt-14"
       >
-        <input
+        <Input
           type="email"
           required
-          placeholder="you@company.com"
+          placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="h-14 w-full flex-1 border-2 border-fd-border bg-fd-card px-4 font-mono text-sm text-fd-foreground placeholder:text-fd-muted-foreground/50 outline-none transition-colors focus:border-primary"

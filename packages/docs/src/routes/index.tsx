@@ -1,8 +1,8 @@
+import { Button } from "@everr/ui/components/button";
 import { SiDiscord } from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 import { Footer } from "@/components/footer";
-import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -892,7 +892,7 @@ function CommunitySection() {
             variant="outline"
             size="xl"
             nativeButton={false}
-            className="border-2 border-primary-foreground bg-primary-foreground text-primary hover:bg-primary-foreground/90 hover:text-primary"
+            className="border-2 border-primary-foreground bg-primary-foreground text-primary hover:bg-primary-foreground/90 hover:text-primary focus-visible:ring-primary-foreground ring-offset-primary focus-visible:border-primary-foreground"
             render={
               // biome-ignore lint/a11y/useAnchorContent: content is injected
               <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" />
