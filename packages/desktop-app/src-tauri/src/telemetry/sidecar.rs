@@ -13,7 +13,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::watch;
 use tokio::time::{sleep, timeout};
 
-use crate::telemetry::ports::{HEALTHCHECK_PORT, OTLP_HTTP_PORT};
+use crate::telemetry::ports::{HEALTHCHECK_PORT, OTLP_HTTP_PORT, SQL_HTTP_PORT};
 
 const CONFIG_TEMPLATE: &str = include_str!("collector.yaml.tmpl");
 
@@ -180,6 +180,7 @@ fn render_config(telemetry_dir: &Path) -> String {
     CONFIG_TEMPLATE
         .replace("{OTLP_PORT}", &OTLP_HTTP_PORT.to_string())
         .replace("{HEALTH_PORT}", &HEALTHCHECK_PORT.to_string())
+        .replace("{SQL_HTTP_PORT}", &SQL_HTTP_PORT.to_string())
         .replace("{TELEMETRY_DIR}", &telemetry_dir.display().to_string())
 }
 
