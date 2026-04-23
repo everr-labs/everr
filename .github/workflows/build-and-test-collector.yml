@@ -17,12 +17,14 @@ on:
     paths:
       - .github/workflows/build-and-test-collector.yml
       - collector/**
+      - crates/everr-core/build/ai_instructions_schema.md
 
   push:
     branches: [main]
     paths:
       - .github/workflows/build-and-test-collector.yml
       - collector/**
+      - crates/everr-core/build/ai_instructions_schema.md
 
 jobs:
   install-tools:
@@ -200,3 +202,61 @@ jobs:
 
       - name: Make test-all
         run: make test-all
+
+  build-local-macos:
+    name: Build Local + Drift Check (macOS)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache: false
+
+      - name: Cache Go
+        id: cache
+        timeout-minutes: 5
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ./collector/.tools
+          key: go-cache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            go-cache-${{ runner.os }}-
+
+      - name: Warm module cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: go mod download
+
+      - name: Make install-tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: make install-tools
+
+      - name: Install libchdb
+        run: |
+          curl -sL https://lib.chdb.io | bash
+          echo "CHDB_LIB_PATH=$PWD/libchdb.so" >> "$GITHUB_ENV"
+
+      - name: Make build-local
+        run: make build-local
+
+      - name: Run local collector smoke tests
+        run: go test ./test/smoke/... -v
+
+      - name: Check ai-instructions schema drift
+        run: |
+          go run ./cmd/genaischema \
+            --binary build-local/everr-local-collector \
+            --out /tmp/new-schema.md
+          diff -u ../crates/everr-core/build/ai_instructions_schema.md /tmp/new-schema.md
