@@ -13,10 +13,16 @@ processors:
 
 exporters:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter v0.145.0
+  - gomod: github.com/everr-labs/chdbexporter v0.0.0-00010101000000-000000000000
 
 extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.145.0
+  - gomod: github.com/everr-labs/everr/collector/extension/sqlhttp v0.0.0-SNAPSHOT
+    path: ./extension/sqlhttp
 
 providers:
   - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.27.0
   - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.27.0
+
+replaces:
+  - github.com/everr-labs/chdbexporter => ../../third_party/chdbexporter
