@@ -7,6 +7,7 @@ use nix::errno::Errno;
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use tauri::AppHandle;
+use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
@@ -52,12 +53,19 @@ impl Sidecar {
                 return Self::disabled(format!("write collector config: {err}"));
             }
         };
+        let (chdb_env_name, chdb_env_value) = match chdb_lib_env_from_app(app) {
+            Ok(env) => env,
+            Err(err) => {
+                return Self::disabled(err);
+            }
+        };
 
         let (tx, rx) = watch::channel(TelemetryState::Starting);
 
         let (receiver, cmd_child) =
             match app.shell().sidecar("everr-local-collector").and_then(|s| {
                 s.args(["--config", &config_path.display().to_string()])
+                    .env(chdb_env_name, chdb_env_value)
                     .spawn()
             }) {
                 Ok(pair) => pair,
@@ -155,6 +163,46 @@ impl Sidecar {
             reason: "shutdown".into(),
         });
     }
+}
+
+pub fn resolve_chdb_lib_path(resource_dir: &Path) -> std::io::Result<PathBuf> {
+    let lib = resource_dir.join("libchdb.so");
+    if lib.is_file() {
+        return Ok(lib);
+    }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        format!(
+            "bundled chDB resource not found at {}; run pnpm desktop:prepare:debug",
+            lib.display()
+        ),
+    ))
+}
+
+pub fn chdb_lib_env(resource_dir: &Path) -> std::io::Result<(&'static str, PathBuf)> {
+    Ok(("CHDB_LIB_PATH", resolve_chdb_lib_path(resource_dir)?))
+}
+
+fn resource_dir_for_detached_sidecar(binary: &Path) -> PathBuf {
+    let Some(sidecar_dir) = binary.parent() else {
+        return PathBuf::from(".");
+    };
+    if sidecar_dir.file_name().and_then(|name| name.to_str()) == Some("desktop-sidecars") {
+        if let Some(target_dir) = sidecar_dir.parent() {
+            return target_dir.join("desktop-resources");
+        }
+    }
+
+    sidecar_dir.to_path_buf()
+}
+
+fn chdb_lib_env_from_app(app: &AppHandle) -> Result<(&'static str, PathBuf), String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|err| format!("failed to resolve app resource directory: {err}"))?;
+    chdb_lib_env(&resource_dir).map_err(|err| err.to_string())
 }
 
 /// Kill any orphaned collector still holding the health-check port from a
@@ -291,9 +339,12 @@ pub async fn spawn_collector_detached(
     telemetry_dir: &Path,
 ) -> std::io::Result<DetachedSidecar> {
     let config_path = write_config(telemetry_dir)?;
+    let resource_dir = resource_dir_for_detached_sidecar(binary);
+    let (chdb_env_name, chdb_env_value) = chdb_lib_env(&resource_dir)?;
     let mut child = Command::new(binary)
         .arg("--config")
         .arg(&config_path)
+        .env(chdb_env_name, chdb_env_value)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)

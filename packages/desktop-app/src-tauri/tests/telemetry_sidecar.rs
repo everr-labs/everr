@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use everr_app_lib::telemetry::sidecar::{
-    spawn_collector_detached, wait_for_disabled_state, TelemetryState,
+    chdb_lib_env, resolve_chdb_lib_path, spawn_collector_detached, wait_for_disabled_state,
+    TelemetryState,
 };
 use tempfile::TempDir;
 
@@ -77,4 +78,36 @@ async fn wait_for_disabled_state_returns_after_state_changes() {
         started.elapsed() < Duration::from_millis(500),
         "helper should return soon after the state changes"
     );
+}
+
+#[test]
+fn resolve_chdb_lib_path_requires_bundled_resource() {
+    let tmp = TempDir::new().expect("tempdir");
+    let missing = resolve_chdb_lib_path(tmp.path()).expect_err("missing lib should error");
+    assert!(
+        missing
+            .to_string()
+            .contains("bundled chDB resource not found"),
+        "unexpected error: {missing}"
+    );
+
+    let lib = tmp.path().join("libchdb.so");
+    std::fs::write(&lib, "fake chdb").expect("write fake lib");
+
+    assert_eq!(
+        resolve_chdb_lib_path(tmp.path()).expect("resolve bundled lib"),
+        lib
+    );
+}
+
+#[test]
+fn chdb_lib_env_points_collector_at_bundled_resource() {
+    let tmp = TempDir::new().expect("tempdir");
+    let lib = tmp.path().join("libchdb.so");
+    std::fs::write(&lib, "fake chdb").expect("write fake lib");
+
+    let (name, value) = chdb_lib_env(tmp.path()).expect("env");
+
+    assert_eq!(name, "CHDB_LIB_PATH");
+    assert_eq!(value, lib);
 }

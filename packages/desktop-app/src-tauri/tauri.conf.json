@@ -51,7 +51,7 @@
     ],
     "createUpdaterArtifacts": true,
     "resources": {
-      "../../../target/desktop-resources/everr": "everr"
+      "../../../target/desktop-resources/": ""
     },
     "externalBin": [
       "../../../target/desktop-sidecars/everr-local-collector"
