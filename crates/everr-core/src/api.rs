@@ -404,7 +404,7 @@ pub struct RepoEntry {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct NotifyPayload {
-    pub tenant_id: i64,
+    pub tenant_id: String,
     pub trace_id: String,
     pub run_id: String,
     pub sha: String,

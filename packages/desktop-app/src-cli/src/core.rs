@@ -629,7 +629,7 @@ mod tests {
     fn format_watch_event_line_formats_job_event() {
         use crate::api::NotifyPayload;
         let event = NotifyPayload {
-            tenant_id: 1,
+            tenant_id: "1".to_string(),
             trace_id: "t1".to_string(),
             run_id: "42".to_string(),
             sha: "abc".to_string(),
@@ -653,7 +653,7 @@ mod tests {
     fn format_watch_event_line_formats_run_event() {
         use crate::api::NotifyPayload;
         let event = NotifyPayload {
-            tenant_id: 1,
+            tenant_id: "1".to_string(),
             trace_id: "t1".to_string(),
             run_id: "42".to_string(),
             sha: "abc".to_string(),

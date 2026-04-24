@@ -96,10 +96,10 @@ async function loadFailureWithJobs(
         j.metadata->'steps' AS "steps"
       FROM workflow_runs r
       LEFT JOIN workflow_jobs j
-        ON  j.tenant_id = r.tenant_id
+        ON  j.organization_id = r.organization_id
         AND j.trace_id  = r.trace_id
         AND j.conclusion = 'failure'
-      WHERE r.tenant_id = $1
+      WHERE r.organization_id = $1
         AND r.trace_id  = $2
         AND r.conclusion = 'failure'
       ORDER BY j.started_at ASC NULLS LAST
