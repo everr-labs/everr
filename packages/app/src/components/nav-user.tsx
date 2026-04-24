@@ -26,7 +26,7 @@ import {
   LogOut,
   Users,
 } from "lucide-react";
-import { getDownloadUrl, PLATFORMS } from "@/lib/app-download";
+import { PLATFORMS, useDownloadUrl } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
 
 export function NavUser() {
@@ -35,6 +35,7 @@ export function NavUser() {
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: orgs } = authClient.useListOrganizations();
+  const downloadUrl = useDownloadUrl(PLATFORMS[0].updaterTarget);
   const userRole = activeOrg?.members?.find(
     (m) => m.userId === session?.user?.id,
   )?.role;
@@ -143,20 +144,19 @@ export function NavUser() {
                   Users Management
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem
-                render={
-                  <a
-                    href={getDownloadUrl(PLATFORMS[0].os, PLATFORMS[0].arch)}
-                    download
-                  >
-                    <Download />
-                    Download App
-                  </a>
-                }
-              >
-                <Download />
-                Download App
-              </DropdownMenuItem>
+              {downloadUrl ? (
+                <DropdownMenuItem
+                  render={
+                    <a href={downloadUrl} download>
+                      <Download />
+                      Download App
+                    </a>
+                  }
+                >
+                  <Download />
+                  Download App
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem

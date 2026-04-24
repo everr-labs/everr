@@ -1,5 +1,5 @@
+import { spawn } from "node:child_process";
 import {
-  copyFile,
   mkdir,
   readFile,
   readdir,
@@ -19,7 +19,24 @@ const bundleDirs = [
   path.join(repoDir, "target", "release", "bundle"),
   path.join(packageDir, "src-tauri", "target", "release", "bundle"),
 ];
-const DEFAULT_DOWNLOAD_BASE_URL = "https://everr.dev";
+const DEFAULT_RELEASE_REPO = "everr-labs/everr";
+const RELEASE_TAG_PREFIX = "desktop-v";
+
+function releaseTagFor(version: string) {
+  return `${RELEASE_TAG_PREFIX}${version}`;
+}
+
+export function buildReleaseAssetUrl({
+  repo,
+  version,
+  assetName,
+}: {
+  repo: string;
+  version: string;
+  assetName: string;
+}) {
+  return `https://github.com/${repo}/releases/download/${releaseTagFor(version)}/${assetName}`;
+}
 
 export type DesktopReleaseTarget = {
   platform: "macos";
@@ -215,12 +232,70 @@ async function readDesktopVersion() {
   return config.version;
 }
 
-function resolveDownloadBaseUrl() {
+function resolveReleaseRepo() {
   loadBuildEnvFile();
-  return (process.env.EVERR_DOWNLOAD_BASE_URL?.trim() || DEFAULT_DOWNLOAD_BASE_URL).replace(
+  return (process.env.EVERR_RELEASE_REPO?.trim() || DEFAULT_RELEASE_REPO).replace(
     /\/+$/,
     "",
   );
+}
+
+function runGh(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("gh", args, { stdio: "inherit" });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`gh ${args.join(" ")} exited with code ${code}`));
+    });
+  });
+}
+
+async function ghReleaseExists(repo: string, tag: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("gh", ["release", "view", tag, "--repo", repo], {
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    child.on("error", reject);
+    child.on("close", (code) => resolve(code === 0));
+  });
+}
+
+async function uploadToGitHubRelease({
+  repo,
+  version,
+  artifacts,
+}: {
+  repo: string;
+  version: string;
+  artifacts: ReleaseArtifacts;
+}) {
+  const tag = releaseTagFor(version);
+  const assets = [artifacts.dmg, artifacts.updaterArchive, artifacts.updaterSignature];
+
+  if (await ghReleaseExists(repo, tag)) {
+    await runGh([
+      "release",
+      "upload",
+      tag,
+      ...assets,
+      "--clobber",
+      "--repo",
+      repo,
+    ]);
+  } else {
+    await runGh([
+      "release",
+      "create",
+      tag,
+      ...assets,
+      "--repo",
+      repo,
+      "--title",
+      `Desktop ${version}`,
+      "--generate-notes",
+    ]);
+  }
 }
 
 export async function copyReleaseArtifact() {
@@ -233,9 +308,16 @@ export async function copyReleaseArtifact() {
   const artifacts = await findReleaseArtifacts(bundleDir);
   const destDir = path.join(docsPublicDir, "everr-app");
   const version = await readDesktopVersion();
-  const downloadBaseUrl = resolveDownloadBaseUrl();
+  const repo = resolveReleaseRepo();
   const updaterSignature = (await readFile(artifacts.updaterSignature, "utf8")).trim();
-  const updaterArchiveUrl = `${downloadBaseUrl}/everr-app/${target.updaterArchiveName}`;
+
+  await uploadToGitHubRelease({ repo, version, artifacts });
+
+  const updaterArchiveUrl = buildReleaseAssetUrl({
+    repo,
+    version,
+    assetName: target.updaterArchiveName,
+  });
   const manifest = buildUpdaterManifest({
     version,
     pubDate: new Date().toISOString(),
@@ -246,18 +328,9 @@ export async function copyReleaseArtifact() {
 
   await mkdir(destDir, { recursive: true });
   await removeStaleArtifacts(destDir, target);
-  await copyFile(artifacts.dmg, path.join(destDir, target.dmgName));
-  await copyFile(artifacts.updaterArchive, path.join(destDir, target.updaterArchiveName));
-  await copyFile(
-    artifacts.updaterSignature,
-    path.join(destDir, target.updaterSignatureName),
-  );
   await writeFile(path.join(destDir, "latest.json"), manifest);
 
-  console.log(`Copied Everr release artifact to ${path.join(destDir, target.dmgName)}`);
-  console.log(
-    `Copied updater archive to ${path.join(destDir, target.updaterArchiveName)}`,
-  );
+  console.log(`Uploaded desktop ${version} assets to ${repo} release ${releaseTagFor(version)}`);
   console.log(`Wrote updater manifest to ${path.join(destDir, "latest.json")}`);
 }
 

@@ -353,13 +353,26 @@ async fn step_install_desktop_app() -> Result<bool> {
     }
 
     {
-        let dmg_url = format!(
-            "{}/everr-app/everr-macos-arm64.dmg",
+        let spinner = cliclack::spinner();
+        spinner.start("Resolving latest desktop app...");
+
+        let manifest_url = format!(
+            "{}/everr-app/latest.json",
             build::default_docs_base_url()
         );
+        let manifest: serde_json::Value = reqwest::get(&manifest_url)
+            .await
+            .context("failed to fetch latest.json")?
+            .json()
+            .await
+            .context("failed to parse latest.json")?;
+        let updater_url = manifest
+            .pointer("/platforms/darwin-aarch64/url")
+            .and_then(|v| v.as_str())
+            .context("latest.json missing darwin-aarch64 url")?;
+        let dmg_url = updater_url.replace(".app.tar.gz", ".dmg");
 
-        let spinner = cliclack::spinner();
-        spinner.start("Downloading desktop app...");
+        spinner.set_message("Downloading desktop app...");
 
         let tmp_dir = tempfile::tempdir().context("failed to create temp dir")?;
         let dmg_path = tmp_dir.path().join("Everr.dmg");
