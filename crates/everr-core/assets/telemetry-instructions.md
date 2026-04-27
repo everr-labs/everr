@@ -3,12 +3,16 @@ runtime errors, slow requests, regressions, and whether new instrumentation is
 emitting data. Data lives in the local collector sidecar and only exists while
 Everr Desktop is running.
 
+Setup:
+- For the normal Everr Desktop app, point OTLP/HTTP exporters at
+  `http://127.0.0.1:54418`.
+
 Commands:
 - `everr telemetry query "<SQL>"`: run read-only SQL against local telemetry.
   Allowed statements: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
   Always include a time window and a `LIMIT`; responses are capped at 16 MiB.
-- `everr telemetry endpoint`: print the OTLP HTTP origin. Point SDK exporters at
-  this value; do not hardcode ports.
+- `everr telemetry endpoint`: print the current OTLP and SQL origins if you need
+  to confirm the build-specific values.
 - `everr telemetry ai-instructions`: print this compact guide.
 
 Schema:
@@ -33,7 +37,7 @@ Investigation playbook:
 - Use traces for flow and latency; use logs for discrete facts and errors.
 - Pivot logs to traces with `TraceId`.
 - Empty or stale results usually mean the app is not running, not configured to
-  export OTLP to `everr telemetry endpoint`, or the collector sidecar is not up.
+  export OTLP to `http://127.0.0.1:54418`, or the collector sidecar is not up.
 
 Useful queries:
 - Recent spans:
