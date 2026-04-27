@@ -1,0 +1,18 @@
+type: chdb
+display_name: chDB Exporter
+
+status:
+  class: exporter
+  stability:
+    alpha: [metrics]
+    beta: [traces, logs]
+  distributions: [contrib]
+  codeowners:
+    active: [hanjm, Frapschen, SpencerTorres]
+    emeritus: [dmitryax]
+
+tests:
+  config:
+    path: /tmp/chdbexporter
+    ttl: 48h
+  skip_lifecycle: true

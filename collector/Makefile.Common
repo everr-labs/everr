@@ -56,8 +56,13 @@ gen:
 	go generate ./...
 
 .PHONY: test
+TEST_PREP ?=
+TEST_ENV ?=
+TEST_CMD ?= go test -v ./... -coverprofile=coverage.out -covermode=atomic
+
 test:
-	go test -v ./... -coverprofile=coverage.out -covermode=atomic
+	$(if $(strip $(TEST_PREP)),$(TEST_PREP),:)
+	$(TEST_ENV) $(TEST_CMD)
 
 .PHONY: fmt
 fmt:

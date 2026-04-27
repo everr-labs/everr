@@ -3,9 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  CHDB_LIB_ARCHIVE_SHA256,
+  CHDB_LIB_ASSET_NAME,
+  CHDB_RELEASE_VERSION,
   bumpDesktopAppVersion,
   bumpVersion,
+  chdbReleaseAssetUrl,
   defaultDesktopVersionPaths,
+  sha256File,
   type DesktopVersionPaths,
 } from "./build-support";
 
@@ -121,6 +126,27 @@ describe("build-support version helpers", () => {
     await expect(readFile(paths.tauriConfigPath, "utf8")).resolves.toContain('"version": "2.4.10"');
     await expect(readFile(paths.tauriCargoTomlPath, "utf8")).resolves.toContain(
       'version = "2.4.10"',
+    );
+  });
+});
+
+describe("build-support chDB helpers", () => {
+  it("pins the official macOS arm64 chDB release asset", () => {
+    expect(CHDB_RELEASE_VERSION).toBe("v4.0.2");
+    expect(CHDB_LIB_ASSET_NAME).toBe("macos-arm64-libchdb.tar.gz");
+    expect(CHDB_LIB_ARCHIVE_SHA256).toMatch(/^[a-f0-9]{64}$/);
+    expect(chdbReleaseAssetUrl()).toBe(
+      "https://github.com/chdb-io/chdb/releases/download/v4.0.2/macos-arm64-libchdb.tar.gz",
+    );
+  });
+
+  it("calculates sha256 for downloaded archives", async () => {
+    const rootDir = await makeTempDir();
+    const archivePath = path.join(rootDir, "archive.tar.gz");
+    await writeFile(archivePath, "libchdb archive bytes");
+
+    await expect(sha256File(archivePath)).resolves.toBe(
+      "2f46dbf2c435259d53d08abc8757955b1503c9e13e713aa4d16154a93632bbb4",
     );
   });
 });

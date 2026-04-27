@@ -1,5 +1,15 @@
 import { createHash } from "node:crypto";
-import { chmod, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inc as incrementVersion } from "semver";
@@ -16,6 +26,11 @@ export const envFile = path.join(packageDir, ".env");
 export const desktopPackageJsonPath = path.join(packageDir, "package.json");
 export const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
 export const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
+export const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
+export const CHDB_RELEASE_VERSION = "v4.0.2";
+export const CHDB_LIB_ASSET_NAME = "macos-arm64-libchdb.tar.gz";
+export const CHDB_LIB_ARCHIVE_SHA256 =
+  "54b4da9c4d71f09b8a37e823a7addba392c4789a7034192a4863a1edd452f9e8";
 
 let didLoadEnvFile = false;
 
@@ -37,6 +52,119 @@ function getEnv(name: string) {
   loadBuildEnvFile();
   const value = process.env[name]?.trim();
   return value ? value : undefined;
+}
+
+export function chdbReleaseAssetUrl(
+  version = CHDB_RELEASE_VERSION,
+  assetName = CHDB_LIB_ASSET_NAME,
+) {
+  return `https://github.com/chdb-io/chdb/releases/download/${version}/${assetName}`;
+}
+
+export async function sha256File(filePath: string) {
+  return createHash("sha256").update(await readFile(filePath)).digest("hex");
+}
+
+async function pathExists(filePath: string) {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function findFileByName(rootDir: string, fileName: string): Promise<string | undefined> {
+  const entries = await readdir(rootDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(rootDir, entry.name);
+    if (entry.isFile() && entry.name === fileName) {
+      return entryPath;
+    }
+    if (entry.isDirectory()) {
+      const found = await findFileByName(entryPath, fileName);
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+async function downloadChdbArchive(archivePath: string) {
+  await mkdir(path.dirname(archivePath), { recursive: true });
+  const tmpPath = `${archivePath}.tmp`;
+  await rm(tmpPath, { force: true });
+  await $`curl --fail --location --silent --show-error --output ${tmpPath} ${chdbReleaseAssetUrl()}`;
+  const digest = await sha256File(tmpPath);
+  if (digest !== CHDB_LIB_ARCHIVE_SHA256) {
+    await rm(tmpPath, { force: true });
+    throw new Error(
+      `Downloaded ${CHDB_LIB_ASSET_NAME} has sha256 ${digest}; expected ${CHDB_LIB_ARCHIVE_SHA256}.`,
+    );
+  }
+  await rm(archivePath, { force: true });
+  await copyFile(tmpPath, archivePath);
+  await rm(tmpPath, { force: true });
+}
+
+async function ensureChdbArchive(archivePath: string) {
+  if (await pathExists(archivePath)) {
+    const digest = await sha256File(archivePath);
+    if (digest === CHDB_LIB_ARCHIVE_SHA256) {
+      return;
+    }
+    console.error(
+      `Ignoring cached ${archivePath} because sha256 is ${digest}; expected ${CHDB_LIB_ARCHIVE_SHA256}.`,
+    );
+  }
+
+  await downloadChdbArchive(archivePath);
+}
+
+export async function prepareChdbLibResource(mode: string) {
+  if (mode !== "debug" && mode !== "release") {
+    throw new Error(`Unsupported mode: ${mode}`);
+  }
+
+  if (process.platform !== "darwin") {
+    throw new Error("Bundled chDB resources are currently only supported on macOS.");
+  }
+  if (process.arch !== "arm64") {
+    throw new Error("Bundled chDB resources are currently only supported on macOS arm64.");
+  }
+
+  const chdbCacheDir = path.join(repoDir, "target", "chdb");
+  const archivePath = path.join(chdbCacheDir, `${CHDB_RELEASE_VERSION}-${CHDB_LIB_ASSET_NAME}`);
+  const extractDir = path.join(chdbCacheDir, `${CHDB_RELEASE_VERSION}-extract`);
+  const destLib = path.join(desktopResourceDir, "libchdb.so");
+
+  await ensureChdbArchive(archivePath);
+  await rm(extractDir, { recursive: true, force: true });
+  await mkdir(extractDir, { recursive: true });
+  await $`tar -xzf ${archivePath} -C ${extractDir}`;
+
+  const extractedLib = await findFileByName(extractDir, "libchdb.so");
+  if (!extractedLib) {
+    throw new Error(`${CHDB_LIB_ASSET_NAME} did not contain libchdb.so.`);
+  }
+
+  const extractedStat = await stat(extractedLib);
+  if (!extractedStat.isFile()) {
+    throw new Error(`Extracted libchdb.so is not a file: ${extractedLib}`);
+  }
+
+  await mkdir(desktopResourceDir, { recursive: true });
+  await copyFile(extractedLib, destLib);
+  await chmod(destLib, 0o644);
+
+  if (mode === "release") {
+    await signBinaryIfNeeded(destLib);
+  }
+
+  console.log(`Prepared chDB resource at ${destLib}`);
+  return destLib;
 }
 
 export function resolveCliBuild(mode: string) {

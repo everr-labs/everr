@@ -1,7 +1,12 @@
 import { chmod, copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { $ } from "zx";
-import { repoDir, resolveTargetTriple, signBinaryIfNeeded } from "./build-support.ts";
+import {
+  prepareChdbLibResource,
+  repoDir,
+  resolveTargetTriple,
+  signBinaryIfNeeded,
+} from "./build-support.ts";
 
 const args = process.argv.slice(2);
 if (args.length !== 1) {
@@ -9,6 +14,8 @@ if (args.length !== 1) {
   process.exit(1);
 }
 const [mode] = args;
+
+await prepareChdbLibResource(mode);
 
 // Build the local collector. The collector Makefile detects host GOOS/GOARCH.
 console.log(`Building local OTel collector (${mode})...`);

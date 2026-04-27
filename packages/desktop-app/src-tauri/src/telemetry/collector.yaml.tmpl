@@ -10,29 +10,32 @@ processors:
     send_batch_size: 512
 
 exporters:
-  file:
-    path: "{TELEMETRY_DIR}/otlp.json"
-    rotation:
-      max_megabytes: 5
-      max_backups: 200
-      localtime: false
-    format: json
+  chdb:
+    path: "{TELEMETRY_DIR}/chdb"
+    ttl: 48h
 
 extensions:
   health_check:
     endpoint: 127.0.0.1:{HEALTH_PORT}
+  sqlhttp:
+    endpoint: 127.0.0.1:{SQL_HTTP_PORT}
+    path: "{TELEMETRY_DIR}/chdb"
 
 service:
-  extensions: [health_check]
+  extensions: [health_check, sqlhttp]
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [file]
+      exporters: [chdb]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [file]
+      exporters: [chdb]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [chdb]
   telemetry:
     metrics:
       level: none

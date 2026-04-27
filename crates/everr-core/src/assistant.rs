@@ -730,12 +730,25 @@ mod tests {
     }
 
     #[test]
-    fn telemetry_ai_instructions_includes_both_commands_and_playbook() {
+    fn telemetry_ai_instructions_are_compact_and_point_to_schema_discovery() {
         let rendered = render_telemetry_ai_instructions();
-        assert!(rendered.contains("everr telemetry traces"));
-        assert!(rendered.contains("everr telemetry logs"));
+        assert!(
+            rendered.len() < 3_500,
+            "telemetry instructions are {} bytes; keep them compact",
+            rendered.len()
+        );
+        assert!(rendered.contains("http://127.0.0.1:54418"));
+        assert!(rendered.contains("everr telemetry query"));
+        assert!(rendered.contains("everr telemetry ai-instructions"));
+        assert!(rendered.contains("DESCRIBE TABLE otel_traces"));
+        assert!(rendered.contains("otel_logs"));
+        assert!(rendered.contains("otel_traces"));
         assert!(rendered.contains("Investigation playbook:"));
-        assert!(rendered.contains("After modifying instrumented code"));
+        assert!(!rendered.contains("do not hardcode ports"));
+        assert!(!rendered.contains("debug build"));
+        assert!(!rendered.contains("54318"));
+        assert!(!rendered.contains("otel_metrics_exponential_histogram"));
+        assert!(!rendered.contains("ValueAtQuantiles.Quantile"));
     }
 
     fn sync_assistants_for_home(

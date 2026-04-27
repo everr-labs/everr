@@ -5,7 +5,7 @@ export const authEnv = createEnv({
   server: {
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.url(),
-    REQUIRE_INVITATION_FOR_SIGNUP: z.stringbool().optional().default(true),
+    REQUIRE_INVITATION_FOR_SIGNUP: z.stringbool().optional().default(false),
   },
   runtimeEnv: {
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,

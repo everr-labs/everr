@@ -1,64 +1,56 @@
-Use Everr telemetry when debugging a locally running OpenTelemetry-instrumented
-service or app — investigate runtime behavior, errors, slow requests/interactions,
-or verify that instrumentation changes produce the expected spans/logs. Data is
-sourced from OTLP JSON files the local collector writes to disk; it exists only
-while the service that emits it is running.
+Use Everr telemetry to debug a locally running OpenTelemetry-instrumented app:
+runtime errors, slow requests, regressions, and whether new instrumentation is
+emitting data. Data lives in the local collector sidecar and only exists while
+Everr Desktop is running.
 
-Also use Everr telemetry as the output target when *adding* new instrumentation
-to diagnose slowness, errors, or regressions. Emit OTLP spans/events to the
-local collector instead of ad-hoc `eprintln!` / `console.log` /
-`tracing-subscriber fmt` output — the query commands below then become your
-inspection loop, and you iterate in the same tool you'd use to verify.
+Setup:
+- For the normal Everr Desktop app, point OTLP/HTTP exporters at
+  `http://127.0.0.1:54418`.
 
 Commands:
-- `everr telemetry traces`: recent traces as a tree view, newest first
-  - `--from <date-math>` (default now-1h) / `--to <date-math>`: time window
-    (e.g. now-10m, now-1h, now-7d/d)
-  - `--name <pattern>`: substring match on span name; matches are highlighted
-  - `--service <name>`: filter by `service.name` resource attribute
-  - `--trace-id <id>`: inspect one trace end-to-end
-  - `--attr <key=value>`: filter by OTLP attribute; repeatable
-  - `--limit <n>` (default 50)
-- `everr telemetry logs`: recent log records as a table
-  - `--from <date-math>` (default now-1h) / `--to <date-math>`
-  - `--level <DEBUG|INFO|WARN|ERROR>`: filter by severity
-  - `--target <name>`: filter by tracing target / scope
-  - `--service <name>`: filter by `service.name` resource attribute
-  - `--egrep <regex>`: re2 regex filter on the message
-  - `--trace-id <id>`: logs correlated to a specific trace
-  - `--attr <key=value>`: repeatable
-  - `--limit <n>` (default 200)
-  - `--format <table|json>` (default table)
+- `everr telemetry query "<SQL>"`: run read-only SQL against local telemetry.
+  Allowed statements: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
+  Always include a time window and a `LIMIT`; responses are capped at 16 MiB.
+- `everr telemetry endpoint`: print the current OTLP and SQL origins if you need
+  to confirm the build-specific values.
+- `everr telemetry ai-instructions`: print this compact guide.
+
+Schema:
+- Start with `otel_traces` and `otel_logs`.
+- `otel_traces` key columns: `Timestamp`, `TraceId`, `SpanId`,
+  `ParentSpanId`, `ServiceName`, `ScopeName`, `SpanName`, `SpanKind`,
+  `Duration`, `StatusCode`, `StatusMessage`, `SpanAttributes`,
+  `ResourceAttributes`.
+- `otel_logs` key columns: `Timestamp`, `TraceId`, `SpanId`, `ServiceName`,
+  `ScopeName`, `SeverityText`, `SeverityNumber`, `Body`, `LogAttributes`,
+  `ResourceAttributes`.
+- Metrics tables exist for sums, gauges, histograms, exponential histograms, and
+  summaries. Discover exact columns only when needed:
+  `everr telemetry query "SHOW TABLES"`
+  `everr telemetry query "DESCRIBE TABLE otel_traces"`
 
 Investigation playbook:
-- Start broad, then narrow: use the default `now-1h` window first, then add
-  `--service`, `--target`, or `--name` once you know where to look.
-- Use `logs` for *what* happened, `traces` for *why it was slow* or how a
-  request flowed.
-- Pivot from a log to its trace: copy the `trace_id` from `logs --format json`
-  and pass it to `traces --trace-id <id>` for the full causal tree.
-- If results are empty, check the "newest file age" line in the output — a
-  stale or missing file means the emitting service isn't running or isn't
-  pointed at the local collector.
+- Check freshness first:
+  `everr telemetry query "SELECT max(Timestamp) AS last_seen FROM otel_traces"`
+- Start broad, then narrow by `ServiceName`, a recent `Timestamp` window,
+  `SpanName`, `SeverityNumber`, or attributes.
+- Use traces for flow and latency; use logs for discrete facts and errors.
+- Pivot logs to traces with `TraceId`.
+- Empty or stale results usually mean the app is not running, not configured to
+  export OTLP to `http://127.0.0.1:54418`, or the collector sidecar is not up.
 
-Adding new instrumentation:
-- The collector runs only on the local machine and only while the Everr
-  Desktop app is running.
-- Get the collector's OTLP HTTP origin with `everr telemetry endpoint` and
-  point the SDK's OTLP HTTP exporter at it. Do NOT hardcode the port.
-- Use the language's standard OTel SDK (Rust: `tracing` +
-  `tracing-opentelemetry` + OTLP HTTP exporter; Node/TS:
-  `@opentelemetry/sdk-node` + OTLP HTTP exporter).
-- Span around the entry point and around every I/O call (file, network, DB,
-  subprocess) — that's what makes "where did the time go" legible in
-  `everr telemetry traces`.
-- Set `service.name` on the resource so `--service` can isolate your output
-  from other services sharing the collector.
+Useful queries:
+- Recent spans:
+  `everr telemetry query "SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode FROM otel_traces WHERE Timestamp > now() - INTERVAL 15 MINUTE ORDER BY Timestamp DESC LIMIT 50"`
+- Slowest spans:
+  `everr telemetry query "SELECT SpanName, quantile(0.95)(Duration) AS p95, count() AS n FROM otel_traces WHERE ServiceName = '<service>' AND Timestamp > now() - INTERVAL 15 MINUTE GROUP BY SpanName ORDER BY p95 DESC LIMIT 20"`
+- Recent errors:
+  `everr telemetry query "SELECT Timestamp, ServiceName, SeverityText, Body FROM otel_logs WHERE SeverityNumber >= 17 AND Timestamp > now() - INTERVAL 1 HOUR ORDER BY Timestamp DESC LIMIT 100"`
+- One trace:
+  `everr telemetry query "SELECT Timestamp, SpanName, Duration, StatusCode, StatusMessage FROM otel_traces WHERE TraceId = '<trace-id>' ORDER BY Timestamp ASC"`
 
-After modifying instrumented code, verify the change landed:
-- Trigger the code path you edited in the running service
-- `everr telemetry logs --from now-2m --target <module>` to confirm new log output
-- `everr telemetry traces --from now-2m --service <service.name> --name <span>`
-  to confirm new or changed spans
-- Don't claim "verified" unless the returned rows reflect the code you just
-  edited (timestamps within the window, attribute values that match the change).
+When adding instrumentation:
+- Set `service.name`.
+- Span entry points and I/O boundaries.
+- After triggering the path, verify with a recent query. Do not claim the
+  instrumentation works unless returned rows show the new signal.

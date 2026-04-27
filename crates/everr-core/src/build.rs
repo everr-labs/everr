@@ -79,10 +79,26 @@ pub const HEALTHCHECK_PORT: u16 = 54319;
 #[cfg(not(debug_assertions))]
 pub const HEALTHCHECK_PORT: u16 = 54419;
 
+#[cfg(debug_assertions)]
+pub const SQL_HTTP_PORT: u16 = 54320;
+
+#[cfg(not(debug_assertions))]
+pub const SQL_HTTP_PORT: u16 = 54420;
+
 /// Origin (scheme + host + port) for the local OTLP HTTP collector.
 /// Instrumented code points its OTLP HTTP exporter at this.
 pub fn otlp_http_origin() -> String {
     format!("http://127.0.0.1:{OTLP_HTTP_PORT}")
+}
+
+/// Origin for the local telemetry SQL HTTP endpoint served by the collector
+/// sidecar's `sqlhttp` extension. The `everr telemetry` CLI targets this.
+pub fn sql_http_origin() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(origin) = std::env::var("EVERR_SQL_HTTP_ORIGIN") {
+        return origin;
+    }
+    format!("http://127.0.0.1:{SQL_HTTP_PORT}")
 }
 
 /// Resolve the local-only diagnostic telemetry directory for this build.
@@ -146,5 +162,36 @@ mod tests {
         let sibling = telemetry_dir_sibling().expect("resolve sibling telemetry dir");
         assert_ne!(primary, sibling);
         assert_eq!(primary.parent(), sibling.parent());
+    }
+
+    #[test]
+    fn sql_http_origin_matches_port() {
+        let origin = super::sql_http_origin();
+        assert!(origin.starts_with("http://127.0.0.1:"));
+        let port: u16 = origin.rsplit(':').next().unwrap().parse().unwrap();
+        assert_eq!(port, super::SQL_HTTP_PORT);
+    }
+
+    #[test]
+    fn sql_http_origin_honors_debug_override() {
+        const KEY: &str = "EVERR_SQL_HTTP_ORIGIN";
+        let previous = std::env::var_os(KEY);
+
+        unsafe {
+            std::env::set_var(KEY, "http://127.0.0.1:65530");
+        }
+
+        let origin = super::sql_http_origin();
+
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var(KEY, value);
+            },
+            None => unsafe {
+                std::env::remove_var(KEY);
+            },
+        }
+
+        assert_eq!(origin, "http://127.0.0.1:65530");
     }
 }
