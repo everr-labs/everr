@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use reqwest::StatusCode;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use crate::build;
@@ -404,6 +404,7 @@ pub struct RepoEntry {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct NotifyPayload {
+    #[serde(deserialize_with = "deserialize_string_or_number")]
     pub tenant_id: String,
     pub trace_id: String,
     pub run_id: String,
@@ -420,9 +421,30 @@ pub struct NotifyPayload {
     pub job_id: Option<i64>,
 }
 
+fn deserialize_string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumber {
+        String(String),
+        Number(i64),
+        Unsigned(u64),
+    }
+
+    match StringOrNumber::deserialize(deserializer)? {
+        StringOrNumber::String(value) => Ok(value),
+        StringOrNumber::Number(value) => Ok(value.to_string()),
+        StringOrNumber::Unsigned(value) => Ok(value.to_string()),
+    }
+}
+
 #[cfg(test)]
 mod api_client_tests {
     use super::*;
+    use futures_util::pin_mut;
+    use futures_util::StreamExt;
 
     fn make_session(base_url: &str) -> crate::state::Session {
         crate::state::Session {
@@ -553,6 +575,48 @@ mod api_client_tests {
             error.to_string(),
             "Session expired. Run `everr login` to re-authenticate."
         );
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn events_stream_accepts_numeric_tenant_id() {
+        let mut server = mockito::Server::new_async().await;
+        let body = r#"event: message
+data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"everr-labs/everr","branch":"main","authorEmail":null,"workflowName":"CI","name":"CI","type":"run","status":"completed","conclusion":"success","jobId":null}
+
+"#;
+        let mock = server
+            .mock("GET", "/api/events/stream")
+            .match_query(mockito::Matcher::UrlEncoded(
+                "scope".to_string(),
+                "commit".to_string(),
+            ))
+            .match_query(mockito::Matcher::UrlEncoded(
+                "key".to_string(),
+                "deadbeef".to_string(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let stream = client
+            .events_stream("commit", Some("deadbeef"))
+            .await
+            .expect("open SSE stream");
+        pin_mut!(stream);
+        let payload = stream
+            .next()
+            .await
+            .expect("first SSE item")
+            .expect("payload");
+
+        assert_eq!(payload.tenant_id, "1");
+        assert_eq!(payload.trace_id, "trace-1");
+        assert_eq!(payload.event_type, "run");
+        assert_eq!(payload.conclusion.as_deref(), Some("success"));
         mock.assert_async().await;
     }
 }
