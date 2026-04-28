@@ -1,4 +1,5 @@
 import { apiKey } from "@better-auth/api-key";
+import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -13,11 +14,40 @@ import { db } from "@/db/client";
 import { invitation, member, user } from "@/db/schema";
 import { env } from "@/env";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
+import { upsertOrgSubscription } from "@/lib/billing-data.server";
 import {
   sendInvitationEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
+import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
+
+type PolarSubscriptionPayload = {
+  id: string;
+  status: string;
+  productId: string;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+  customer: { externalId?: string | null };
+};
+
+async function syncSubscription(data: PolarSubscriptionPayload) {
+  const orgId = data.customer.externalId;
+  if (!orgId) {
+    console.warn("[polar webhook] subscription has no externalId", {
+      subscriptionId: data.id,
+    });
+    return;
+  }
+  await upsertOrgSubscription({
+    orgId,
+    polarSubscriptionId: data.id,
+    polarProductId: data.productId,
+    status: data.status,
+    currentPeriodEnd: data.currentPeriodEnd ?? null,
+    cancelAtPeriodEnd: data.cancelAtPeriodEnd,
+  });
+}
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -146,12 +176,55 @@ export const auth = betterAuth({
           inviteUrl: `${env.BETTER_AUTH_URL}/invite/${data.id}`,
         });
       },
+      organizationHooks: {
+        afterCreateOrganization: async ({ organization, user: creator }) => {
+          try {
+            await ensurePolarCustomerForOrg({
+              orgId: organization.id,
+              orgName: organization.name,
+              fallbackEmail: creator.email,
+            });
+          } catch (error) {
+            console.error("[polar] failed to create customer for org", {
+              orgId: organization.id,
+              error,
+            });
+          }
+        },
+      },
     }),
     deviceAuthorization(),
     apiKey({
       references: "user",
     }),
     bearer(),
+    polar({
+      client: polarClient,
+      createCustomerOnSignUp: false,
+      use: [
+        webhooks({
+          secret: env.POLAR_WEBHOOK_SECRET,
+          onSubscriptionCreated: async ({ data }) => {
+            await syncSubscription(data);
+          },
+          onSubscriptionUpdated: async ({ data }) => {
+            await syncSubscription(data);
+          },
+          onSubscriptionActive: async ({ data }) => {
+            await syncSubscription(data);
+          },
+          onSubscriptionUncanceled: async ({ data }) => {
+            await syncSubscription(data);
+          },
+          onSubscriptionCanceled: async ({ data }) => {
+            await syncSubscription(data);
+          },
+          onSubscriptionRevoked: async ({ data }) => {
+            await syncSubscription(data);
+          },
+        }),
+      ],
+    }),
     tanstackStartCookies(), // must be last
   ],
   logger: {
