@@ -14,6 +14,10 @@ const SLUG_TO_PRODUCT: Record<string, string> = {
   pro: env.POLAR_PRO_PRODUCT_ID,
 };
 
+export class NotBillingAdminError extends Error {
+  name = "NotBillingAdminError";
+}
+
 const billingAdminMiddleware = createMiddleware()
   .middleware([requireOrgMiddleware])
   .server(async ({ next, context: { session } }) => {
@@ -21,7 +25,7 @@ const billingAdminMiddleware = createMiddleware()
       headers: getRequestHeaders(),
     });
     if (role !== "admin" && role !== "owner") {
-      throw new Error("Only org admins can manage billing");
+      throw new NotBillingAdminError("Only org admins can manage billing");
     }
 
     return next({
@@ -32,6 +36,10 @@ const billingAdminMiddleware = createMiddleware()
 const createBillingAdminServerFn = createServerFn().middleware([
   billingAdminMiddleware,
 ]);
+
+export const ensureOrgBillingAdmin = createBillingAdminServerFn({
+  method: "GET",
+}).handler(async () => ({ ok: true }));
 
 export const getOrgEntitlement = createAuthenticatedServerFn({
   method: "GET",

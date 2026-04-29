@@ -16,23 +16,60 @@ import {
   Check,
   CreditCard,
   Loader2,
+  type LucideIcon,
   Sparkles,
   Zap,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
+  ensureOrgBillingAdmin,
   getOrgEntitlement,
   getOrgPortalUrl,
+  NotBillingAdminError,
   startOrgCheckout,
 } from "@/data/billing";
 import { authClient } from "@/lib/auth-client";
+
+type Entitlement = {
+  tier: "free" | "pro";
+  status: string | null;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+};
 
 export const Route = createFileRoute("/_authenticated/_dashboard/billing")({
   staticData: { breadcrumb: "Billing", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Billing" }],
   }),
+  beforeLoad: async () => {
+    await ensureOrgBillingAdmin();
+  },
+  errorComponent: ({ error }) => {
+    if (
+      error instanceof NotBillingAdminError ||
+      error.name === "NotBillingAdminError"
+    ) {
+      return <NotAdminMessage />;
+    }
+    throw error;
+  },
   component: BillingPage,
 });
+
+function NotAdminMessage() {
+  return (
+    <div className="mx-auto w-full max-w-4xl">
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-muted-foreground text-sm">
+            Only organization admins can manage billing.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 const FREE_FEATURES = [
   "7-day data retention",
@@ -50,50 +87,37 @@ const PRO_FEATURES = [
 ];
 
 function BillingPage() {
-  const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
-  const userRole = activeOrg?.members?.find(
-    (m) => m.userId === session?.user?.id,
-  )?.role;
-  const isAdmin = userRole === "admin" || userRole === "owner";
 
-  const { data: entitlement, isLoading } = useQuery({
+  const { data: entitlement } = useQuery({
     queryKey: ["billing", "entitlement", activeOrg?.id],
-    enabled: Boolean(activeOrg?.id) && isAdmin,
+    enabled: Boolean(activeOrg?.id),
     queryFn: () => getOrgEntitlement(),
   });
-
-  if (!isAdmin) {
-    return (
-      <div className="mx-auto w-full max-w-4xl space-y-3">
-        <Header orgName={activeOrg?.name} />
-        <Card>
-          <CardContent className="py-10 text-center">
-            <p className="text-muted-foreground text-sm">
-              Only organization admins can manage billing.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const isPro = entitlement?.tier === "pro";
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <Header orgName={activeOrg?.name} />
-
-      {isLoading ? (
-        <Skeleton className="h-40 w-full rounded-xl" />
-      ) : isPro ? (
-        <ProHero entitlement={entitlement} />
-      ) : (
-        <FreeHero />
-      )}
-
-      {!isLoading ? isPro ? <ManageBillingCard /> : <PlanComparison /> : null}
+      <Body entitlement={entitlement} />
     </div>
+  );
+}
+
+function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
+  if (!entitlement) return <Skeleton className="h-40 w-full rounded-xl" />;
+  if (entitlement.tier === "pro") {
+    return (
+      <>
+        <ProHero entitlement={entitlement} />
+        <ManageBillingCard />
+      </>
+    );
+  }
+  return (
+    <>
+      <FreeHero />
+      <PlanComparison />
+    </>
   );
 }
 
@@ -109,15 +133,7 @@ function Header({ orgName }: { orgName?: string }) {
   );
 }
 
-function ProHero({
-  entitlement,
-}: {
-  entitlement: {
-    status: string | null;
-    currentPeriodEnd: Date | null;
-    cancelAtPeriodEnd: boolean;
-  };
-}) {
+function ProHero({ entitlement }: { entitlement: Entitlement }) {
   const renewalDate = entitlement.currentPeriodEnd
     ? new Date(entitlement.currentPeriodEnd).toLocaleDateString(undefined, {
         month: "long",
@@ -250,38 +266,47 @@ function PlanComparison() {
   );
 }
 
-function UpgradeButton() {
-  const upgrade = useMutation({
-    mutationFn: () => startOrgCheckout({ data: { slug: "pro" } }),
+function RedirectButton({
+  mutationFn,
+  variant,
+  icon: Icon,
+  label,
+  loadingLabel,
+}: {
+  mutationFn: () => Promise<{ url: string }>;
+  variant?: "default" | "outline";
+  icon: LucideIcon;
+  label: ReactNode;
+  loadingLabel: ReactNode;
+}) {
+  const m = useMutation({
+    mutationFn,
     onSuccess: ({ url }) => {
       window.location.href = url;
     },
   });
+  const busy = m.isPending || m.isSuccess;
   return (
-    <Button
-      onClick={() => upgrade.mutate()}
-      disabled={upgrade.isPending || upgrade.isSuccess}
-    >
-      {upgrade.isPending || upgrade.isSuccess ? (
-        <Loader2 className="animate-spin" />
-      ) : (
-        <Sparkles />
-      )}
-      {upgrade.isPending || upgrade.isSuccess
-        ? "Starting checkout…"
-        : "Upgrade to Pro"}
-      {!(upgrade.isPending || upgrade.isSuccess) ? <ArrowUpRight /> : null}
+    <Button variant={variant} onClick={() => m.mutate()} disabled={busy}>
+      {busy ? <Loader2 className="animate-spin" /> : <Icon />}
+      {busy ? loadingLabel : label}
+      {!busy ? <ArrowUpRight /> : null}
     </Button>
   );
 }
 
+function UpgradeButton() {
+  return (
+    <RedirectButton
+      mutationFn={() => startOrgCheckout({ data: { slug: "pro" } })}
+      icon={Sparkles}
+      label="Upgrade to Pro"
+      loadingLabel="Starting checkout…"
+    />
+  );
+}
+
 function ManageBillingCard() {
-  const portal = useMutation({
-    mutationFn: () => getOrgPortalUrl(),
-    onSuccess: ({ url }) => {
-      window.location.href = url;
-    },
-  });
   return (
     <Card>
       <CardHeader>
@@ -291,21 +316,13 @@ function ManageBillingCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button
+        <RedirectButton
+          mutationFn={() => getOrgPortalUrl()}
           variant="outline"
-          onClick={() => portal.mutate()}
-          disabled={portal.isPending || portal.isSuccess}
-        >
-          {portal.isPending || portal.isSuccess ? (
-            <Loader2 className="animate-spin" />
-          ) : (
-            <CreditCard />
-          )}
-          {portal.isPending || portal.isSuccess
-            ? "Opening portal…"
-            : "Open billing portal"}
-          {!(portal.isPending || portal.isSuccess) ? <ArrowUpRight /> : null}
-        </Button>
+          icon={CreditCard}
+          label="Open billing portal"
+          loadingLabel="Opening portal…"
+        />
       </CardContent>
     </Card>
   );
