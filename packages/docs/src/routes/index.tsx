@@ -20,7 +20,7 @@ function HeroSection() {
     <section className="flex min-h-[85vh] flex-col items-center justify-center text-center">
       <Link
         to="/waitlist"
-        className="mb-6 flex animate-fade-up items-center gap-1.5 border border-primary/30 bg-primary/5 px-4 py-1.5 font-heading text-xs font-bold uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary/10 md:mb-8"
+        className="mb-6 flex animate-fade-up items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-4 py-1.5 font-heading text-xs font-bold uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary/10 md:mb-8"
       >
         <ChevronRightIcon className="size-4" />
         Join the waitlist
@@ -160,7 +160,7 @@ function ProductVisualization() {
               ))}
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-2 border-fd-border bg-fd-secondary/30 px-3 py-2 text-xs">
+            <div className="mt-5 flex items-center justify-between rounded-md border-2 border-fd-border bg-fd-secondary/30 px-3 py-2 text-xs">
               <span className="font-bold uppercase tracking-wider">
                 p95 duration
               </span>
@@ -272,7 +272,7 @@ function MissingLayerSection() {
         </p>
 
         {/* What Everr does - four pillars */}
-        <div className="mt-16 grid grid-cols-1 gap-px border-2 border-primary/60 bg-fd-border sm:grid-cols-2 md:mt-20">
+        <div className="mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-md border-2 border-primary/60 bg-fd-border sm:grid-cols-2 md:mt-20">
           {[
             {
               label: "Structured telemetry",
@@ -386,7 +386,7 @@ function HowItWorksSection() {
 
         <div className="mt-16 flex flex-col gap-6 md:mt-20 md:gap-8">
           {/* Step 01 - Connect */}
-          <div className="border-2 border-fd-border">
+          <div className="overflow-hidden rounded-md border-2 border-fd-border">
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="flex flex-col justify-center border-b-2 border-fd-border p-8 md:border-r-2 md:border-b-0 md:p-12">
                 <span className="font-heading text-[64px] leading-none text-primary/20 md:text-[80px]">
@@ -408,7 +408,7 @@ function HowItWorksSection() {
           </div>
 
           {/* Step 02 - See (reversed layout) */}
-          <div className="border-2 border-fd-border">
+          <div className="overflow-hidden rounded-md border-2 border-fd-border">
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="order-2 p-6 md:order-1 md:p-8">
                 <RunsAndTestsViz />
@@ -430,7 +430,7 @@ function HowItWorksSection() {
           </div>
 
           {/* Step 03 - Fix */}
-          <div className="border-2 border-fd-border">
+          <div className="overflow-hidden rounded-md border-2 border-fd-border">
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="flex flex-col justify-center border-b-2 border-fd-border p-8 md:border-r-2 md:border-b-0 md:p-12">
                 <span className="font-heading text-[64px] leading-none text-primary/20 md:text-[80px]">
@@ -480,7 +480,7 @@ function ConnectProvidersViz() {
           "linear-gradient(black 85%, rgba(0,0,0,0.4) 95%, transparent 100%)",
       }}
     >
-      <div className="flex h-[480px] flex-col overflow-hidden border-2 border-fd-border bg-fd-card">
+      <div className="flex h-[480px] flex-col overflow-hidden rounded-md border-2 border-fd-border bg-fd-card">
         <div className="flex h-12 shrink-0 items-center border-b-2 border-fd-border bg-fd-secondary/50 pl-4">
           <span className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground">
             Integrations
@@ -490,7 +490,7 @@ function ConnectProvidersViz() {
           {CI_PROVIDERS.map((provider) => (
             <div
               key={provider.name}
-              className={`flex flex-col gap-2 border-2 p-4 ${
+              className={`flex flex-col gap-2 rounded-md border-2 p-4 ${
                 provider.status === "connected"
                   ? "border-primary/30 bg-primary/5"
                   : "border-fd-border bg-fd-secondary/30"
@@ -588,7 +588,7 @@ function RunsAndTestsViz() {
             "linear-gradient(to bottom, transparent 0%, var(--color-fd-background) 100%)",
         }}
       />
-      <div className="flex flex-col overflow-hidden border-2 border-fd-border bg-fd-card">
+      <div className="flex flex-col overflow-hidden rounded-md border-2 border-fd-border bg-fd-card">
         <div className="border-b-2 border-fd-border bg-fd-secondary/50 px-5 py-2.5">
           <span className="text-[10px] font-bold uppercase tracking-wider text-fd-muted-foreground">
             Recent runs
@@ -623,7 +623,7 @@ function RunsAndTestsViz() {
             <span>main</span>
           </div>
 
-          <div className="mt-3 border-2 border-fd-border bg-fd-secondary/20">
+          <div className="mt-3 overflow-hidden rounded-md border-2 border-fd-border bg-fd-secondary/20">
             <div className="grid grid-cols-[1fr_52px_44px_44px] gap-1 border-b border-fd-border/50 px-3 py-1.5">
               <span className="text-[9px] font-bold uppercase tracking-wider text-fd-muted-foreground">
                 Test results - 3212 passed · 1 failed · 1 flaky
@@ -726,9 +726,9 @@ function CodeAssistantViz() {
             "linear-gradient(to bottom, transparent 0%, var(--color-fd-background) 100%)",
         }}
       />
-      <div className="relative flex h-[430px] w-[580px] shrink-0 flex-col gap-2 overflow-hidden border-2 border-fd-border bg-fd-card px-5 pb-4 pt-14 font-heading text-[10px] leading-4 text-fd-foreground sm:text-[11px]">
+      <div className="relative flex h-[430px] w-[580px] shrink-0 flex-col gap-2 overflow-hidden rounded-md border-2 border-fd-border bg-fd-card px-5 pb-4 pt-14 font-heading text-[10px] leading-4 text-fd-foreground sm:text-[11px]">
         <div className="absolute left-4 top-3 z-10 lg:right-4 lg:left-auto">
-          <span className="inline-flex items-center border-2 border-fd-border bg-fd-secondary/70 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-fd-foreground">
+          <span className="inline-flex items-center rounded-md border-2 border-fd-border bg-fd-secondary/70 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-fd-foreground">
             Has the CI pipeline failed?
           </span>
         </div>
@@ -853,6 +853,158 @@ function WhySection() {
             </div>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Pricing                                                            */
+/* ------------------------------------------------------------------ */
+
+const PRICING_TIERS = [
+  {
+    name: "Free",
+    tagline: "For individuals and small projects getting started.",
+    price: "$0",
+    priceSuffix: "/ forever",
+    cta: { label: "Get started", href: APP_URL },
+    featured: false,
+    features: [
+      "Up to 1 connected repository",
+      "7 days of pipeline history",
+      "Core traces, runs, and test results",
+      "Community support on Discord",
+    ],
+  },
+  {
+    name: "Pro",
+    tagline: "For teams who ship continuously and need deep signal.",
+    price: "$TBD",
+    priceSuffix: "/ user / month",
+    cta: { label: "Start free trial", href: APP_URL },
+    featured: true,
+    features: [
+      "Unlimited repositories and runs",
+      "Full retention and historical analytics",
+      "Flakiness, regression, and cost insights",
+      "AI-native CLI and structured APIs",
+      "Priority support and onboarding",
+    ],
+  },
+];
+
+function PricingSection() {
+  return (
+    <section>
+      <div className="mx-auto max-w-7xl">
+        <p className="mb-3 font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+          Pricing
+        </p>
+        <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl">
+          Simple,{" "}
+          <span className="relative inline-block px-2 sm:px-3">
+            <span className="absolute inset-x-0 bottom-0 top-0 bg-primary" />
+            <span className="relative text-primary-foreground everr-decoration">
+              honest
+            </span>
+          </span>{" "}
+          pricing
+        </h2>
+        <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
+          Start free. Upgrade when you need deeper history, broader signal, or
+          team-grade support.
+        </p>
+
+        <div className="mt-16 grid grid-cols-1 gap-6 md:mt-20 md:grid-cols-2 md:gap-8">
+          {PRICING_TIERS.map((tier) => (
+            <div
+              key={tier.name}
+              className={`relative flex flex-col overflow-hidden rounded-md border-2 ${
+                tier.featured
+                  ? "border-primary bg-primary/[0.03]"
+                  : "border-fd-border bg-fd-background"
+              }`}
+            >
+              {tier.featured && (
+                <span className="absolute right-6 top-6 rounded-sm bg-primary px-3 py-1 font-heading text-[10px] font-bold uppercase tracking-[0.25em] text-primary-foreground">
+                  Recommended
+                </span>
+              )}
+
+              <div className="border-b-2 border-fd-border p-8 md:p-10">
+                <h3 className="font-heading text-2xl font-bold uppercase tracking-wider">
+                  {tier.name}
+                </h3>
+                <p className="mt-3 leading-relaxed text-fd-muted-foreground">
+                  {tier.tagline}
+                </p>
+                <div className="mt-8 flex items-baseline gap-2">
+                  <span className="font-heading text-5xl font-bold leading-none md:text-6xl">
+                    {tier.price}
+                  </span>
+                  <span className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground">
+                    {tier.priceSuffix}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-1 flex-col p-8 md:p-10">
+                <ul className="space-y-3">
+                  {tier.features.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-3 text-[15px] leading-relaxed"
+                    >
+                      <span
+                        aria-hidden
+                        className={`mt-[3px] inline-flex size-4 shrink-0 items-center justify-center font-heading text-[11px] font-bold ${
+                          tier.featured
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-fd-secondary text-fd-foreground"
+                        }`}
+                      >
+                        &#10003;
+                      </span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-10 pt-2">
+                  <Button
+                    variant={tier.featured ? "cta" : "outline"}
+                    size="xl"
+                    nativeButton={false}
+                    className="w-full"
+                    render={
+                      // biome-ignore lint/a11y/useAnchorContent: content is injected
+                      <a
+                        href={tier.cta.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
+                    }
+                  >
+                    {tier.cta.label}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-10 font-heading text-[11px] uppercase tracking-[0.25em] text-fd-muted-foreground/40">
+          Need something custom?{" "}
+          <a
+            href={DISCORD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-fd-foreground underline-offset-4 hover:underline"
+          >
+            Talk to us on Discord
+          </a>
+        </p>
       </div>
     </section>
   );
@@ -984,6 +1136,10 @@ function Home() {
             <div className="h-[2px] w-full bg-fd-border" />
 
             <WhySection />
+
+            <div className="h-[2px] w-full bg-fd-border" />
+
+            <PricingSection />
           </div>
         </div>
 
