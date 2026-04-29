@@ -142,24 +142,24 @@ export function NavUser() {
                 <BadgeCheck />
                 Account
               </DropdownMenuItem>
-              {isAdmin ? (
-                <DropdownMenuItem
-                  render={<Link to="/billing" />}
-                  nativeButton={false}
-                >
-                  <CreditCard />
-                  Billing
-                </DropdownMenuItem>
-              ) : null}
-              {isAdmin ? (
-                <DropdownMenuItem
-                  render={<Link to="/users-management" />}
-                  nativeButton={false}
-                >
-                  <Users />
-                  Users Management
-                </DropdownMenuItem>
-              ) : null}
+              {isAdmin && (
+                <>
+                  <DropdownMenuItem
+                    render={<Link to="/billing" />}
+                    nativeButton={false}
+                  >
+                    <CreditCard />
+                    Billing
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    render={<Link to="/users-management" />}
+                    nativeButton={false}
+                  >
+                    <Users />
+                    Users Management
+                  </DropdownMenuItem>
+                </>
+              )}
               {downloadUrl ? (
                 <DropdownMenuItem
                   nativeButton={false}
