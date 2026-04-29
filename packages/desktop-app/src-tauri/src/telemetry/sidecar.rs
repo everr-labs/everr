@@ -66,6 +66,7 @@ impl Sidecar {
             match app.shell().sidecar("everr-local-collector").and_then(|s| {
                 s.args(["--config", &config_path.display().to_string()])
                     .env(chdb_env_name, chdb_env_value)
+                    .env("TZ", "UTC")
                     .spawn()
             }) {
                 Ok(pair) => pair,
@@ -345,6 +346,7 @@ pub async fn spawn_collector_detached(
         .arg("--config")
         .arg(&config_path)
         .env(chdb_env_name, chdb_env_value)
+        .env("TZ", "UTC")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
