@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { SiDiscord } from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
@@ -143,16 +144,20 @@ function ProductVisualization() {
                   </span>
                   <div className="h-6 bg-fd-secondary/60">
                     <div
-                      className={`h-full ${span.ok ? "bg-primary/45" : "bg-red-500/45"}`}
+                      className={cn(
+                        "h-full",
+                        span.ok ? "bg-primary/45" : "bg-red-500/45",
+                      )}
                       style={{ width: span.pct }}
                     />
                   </div>
                   <span
-                    className={`text-right font-heading text-xs ${
+                    className={cn(
+                      "text-right font-heading text-xs",
                       span.ok
                         ? "text-fd-muted-foreground"
-                        : "font-bold text-red-500"
-                    }`}
+                        : "font-bold text-red-500",
+                    )}
                   >
                     {span.duration}
                   </span>
@@ -222,7 +227,11 @@ function ProblemSection() {
             return (
               <div
                 key={item.num}
-                className={`${!isLast ? "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10" : ""} ${i > 0 ? "md:pl-10" : ""}`}
+                className={cn(
+                  !isLast &&
+                    "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10",
+                  i > 0 && "md:pl-10",
+                )}
               >
                 <span className="font-heading text-[11px] font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/40">
                   {item.num}
@@ -341,7 +350,11 @@ function MissingLayerSection() {
               return (
                 <div
                   key={item.title}
-                  className={`${!isLast ? "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10" : ""} ${i > 0 ? "md:pl-10" : ""}`}
+                  className={cn(
+                    !isLast &&
+                      "border-b-2 border-fd-border pb-10 md:border-b-0 md:border-r-2 md:pb-0 md:pr-10",
+                    i > 0 && "md:pl-10",
+                  )}
                 >
                   <h4 className="font-heading text-lg font-bold everr-decoration everr-decoration-primary">
                     {item.title}
@@ -480,7 +493,7 @@ function ConnectProvidersViz() {
           "linear-gradient(black 85%, rgba(0,0,0,0.4) 95%, transparent 100%)",
       }}
     >
-      <div className="flex h-[480px] flex-col overflow-hidden rounded-md border-2 border-fd-border bg-fd-card">
+      <div className="flex h-120 flex-col overflow-hidden rounded-md border-2 border-fd-border bg-fd-card">
         <div className="flex h-12 shrink-0 items-center border-b-2 border-fd-border bg-fd-secondary/50 pl-4">
           <span className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground">
             Integrations
@@ -490,11 +503,12 @@ function ConnectProvidersViz() {
           {CI_PROVIDERS.map((provider) => (
             <div
               key={provider.name}
-              className={`flex flex-col gap-2 rounded-md border-2 p-4 ${
+              className={cn(
+                "flex flex-col gap-2 rounded-md border-2 p-4",
                 provider.status === "connected"
                   ? "border-primary/30 bg-primary/5"
-                  : "border-fd-border bg-fd-secondary/30"
-              }`}
+                  : "border-fd-border bg-fd-secondary/30",
+              )}
             >
               <span className="font-heading text-[13px] font-bold">
                 {provider.name}
@@ -599,7 +613,7 @@ function RunsAndTestsViz() {
         <div className="border-b border-fd-border/50 px-4 py-3">
           <div className="flex items-center justify-between">
             <span className="text-[13px] font-bold">ci / build-and-test</span>
-            <span className="inline-flex items-center gap-[3px] border border-red-500/15 bg-red-500/5 px-1.5 py-px text-[10px] font-bold uppercase text-red-500">
+            <span className="inline-flex items-center gap-0.75 border border-red-500/15 bg-red-500/5 px-1.5 py-px text-[10px] font-bold uppercase text-red-500">
               {/** biome-ignore lint/a11y/noSvgWithoutTitle: decorative */}
               <svg
                 width="8"
@@ -645,13 +659,14 @@ function RunsAndTestsViz() {
               >
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block size-1.5 shrink-0 ${
+                    className={cn(
+                      "inline-block size-1.5 shrink-0",
                       test.status === "passed"
                         ? "bg-green-500"
                         : test.status === "failed"
                           ? "bg-red-500"
-                          : "bg-yellow-500"
-                    }`}
+                          : "bg-yellow-500",
+                    )}
                   />
                   <span className="truncate font-heading text-[11px]">
                     {test.name}
@@ -679,7 +694,7 @@ function RunsAndTestsViz() {
           >
             <div className="flex items-center justify-between">
               <span className="text-[13px] font-bold">{run.title}</span>
-              <span className="inline-flex items-center gap-[3px] border border-green-500/15 bg-green-500/5 px-1.5 py-px text-[10px] font-bold uppercase text-green-400">
+              <span className="inline-flex items-center gap-0.75 border border-green-500/15 bg-green-500/5 px-1.5 py-px text-[10px] font-bold uppercase text-green-400">
                 {/** biome-ignore lint/a11y/noSvgWithoutTitle: decorative */}
                 <svg
                   width="8"
@@ -868,27 +883,26 @@ const PRICING_TIERS = [
     tagline: "For individuals and small projects getting started.",
     price: "$0",
     priceSuffix: "/ forever",
-    cta: { label: "Get started", href: APP_URL },
+    cta: "Join the waitlist",
     featured: false,
     features: [
-      "Up to 1 connected repository",
-      "7 days of pipeline history",
-      "Core traces, runs, and test results",
+      "Unlimited repositories",
+      "14 days cloud telemetry retention",
+      "Unlimited local telemetry",
+      "AI-native CLI and structured APIs",
       "Community support on Discord",
     ],
   },
   {
     name: "Pro",
     tagline: "For teams who ship continuously and need deep signal.",
-    price: "$TBD",
-    priceSuffix: "/ user / month",
-    cta: { label: "Start free trial", href: APP_URL },
+    price: "$49",
+    priceSuffix: "/ month",
+    cta: "Join the waitlist",
     featured: true,
     features: [
-      "Unlimited repositories and runs",
-      "Full retention and historical analytics",
-      "Flakiness, regression, and cost insights",
-      "AI-native CLI and structured APIs",
+      "13 months cloud metrics retention",
+      "30 days cloud logs and traces retention",
       "Priority support and onboarding",
     ],
   },
@@ -920,11 +934,10 @@ function PricingSection() {
           {PRICING_TIERS.map((tier) => (
             <div
               key={tier.name}
-              className={`relative flex flex-col overflow-hidden rounded-md border-2 ${
-                tier.featured
-                  ? "border-primary bg-primary/[0.03]"
-                  : "border-fd-border bg-fd-background"
-              }`}
+              className={cn(
+                "relative flex flex-col overflow-hidden rounded-md border-2 border-fd-border bg-fd-background",
+                tier.featured && "border-primary",
+              )}
             >
               {tier.featured && (
                 <span className="absolute right-6 top-6 rounded-sm bg-primary px-3 py-1 font-heading text-[10px] font-bold uppercase tracking-[0.25em] text-primary-foreground">
@@ -958,11 +971,12 @@ function PricingSection() {
                     >
                       <span
                         aria-hidden
-                        className={`mt-[3px] inline-flex size-4 shrink-0 items-center justify-center font-heading text-[11px] font-bold ${
+                        className={cn(
+                          `mt-0.75 inline-flex size-4 shrink-0 items-center justify-center font-heading text-[11px] font-bold`,
                           tier.featured
                             ? "bg-primary text-primary-foreground"
-                            : "bg-fd-secondary text-fd-foreground"
-                        }`}
+                            : "bg-fd-secondary text-fd-foreground",
+                        )}
                       >
                         &#10003;
                       </span>
@@ -971,6 +985,7 @@ function PricingSection() {
                   ))}
                 </ul>
 
+                <div className="grow" />
                 <div className="mt-10 pt-2">
                   <Button
                     variant={tier.featured ? "cta" : "outline"}
@@ -978,15 +993,14 @@ function PricingSection() {
                     nativeButton={false}
                     className="w-full"
                     render={
-                      // biome-ignore lint/a11y/useAnchorContent: content is injected
-                      <a
-                        href={tier.cta.href}
+                      <Link
+                        to="/waitlist"
                         target="_blank"
                         rel="noopener noreferrer"
                       />
                     }
                   >
-                    {tier.cta.label}
+                    {tier.cta}
                   </Button>
                 </div>
               </div>
@@ -1020,7 +1034,7 @@ function CommunitySection() {
       {/* Oversized decorative Discord icon */}
       <SiDiscord
         aria-hidden
-        className="pointer-events-none absolute -right-12 -top-16 size-[340px] text-primary-foreground/10 sm:-right-8 sm:size-[420px] md:-right-4 md:size-[520px]"
+        className="pointer-events-none absolute -right-12 -top-16 size-85 text-primary-foreground/10 sm:-right-8 sm:size-105 md:-right-4 md:size-130"
       />
 
       <div className="relative mx-auto max-w-7xl px-6 py-16 sm:py-20 md:py-28">
@@ -1125,19 +1139,19 @@ function Home() {
           <div className="flex flex-col gap-16 md:gap-32">
             <ProblemSection />
 
-            <div className="h-[2px] w-full bg-fd-border" />
+            <div className="h-0.5 w-full bg-fd-border" />
 
             <MissingLayerSection />
 
-            <div className="h-[2px] w-full bg-fd-border" />
+            <div className="h-0.5 w-full bg-fd-border" />
 
             <HowItWorksSection />
 
-            <div className="h-[2px] w-full bg-fd-border" />
+            <div className="h-0.5 w-full bg-fd-border" />
 
             <WhySection />
 
-            <div className="h-[2px] w-full bg-fd-border" />
+            <div className="h-0.5 w-full bg-fd-border" />
 
             <PricingSection />
           </div>
