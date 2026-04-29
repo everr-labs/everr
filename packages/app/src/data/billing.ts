@@ -1,21 +1,34 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import { eq } from "drizzle-orm";
 import * as z from "zod";
+import { db } from "@/db/client";
+import { organization } from "@/db/schema";
 import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
 import { getOrgEntitlement as readOrgEntitlement } from "@/lib/billing-data.server";
-import { polarClient } from "@/lib/polar.server";
+import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import {
   createAuthenticatedServerFn,
   requireOrgMiddleware,
 } from "@/lib/serverFn";
 
-const SLUG_TO_PRODUCT: Record<string, string> = {
-  pro: env.POLAR_PRO_PRODUCT_ID,
-};
-
 export class NotBillingAdminError extends Error {
   name = "NotBillingAdminError";
+}
+
+async function ensureCustomerForOrg(orgId: string, fallbackEmail: string) {
+  const [org] = await db
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, orgId))
+    .limit(1);
+  if (!org) throw new Error("Organization not found");
+  await ensurePolarCustomerForOrg({
+    orgId,
+    orgName: org.name,
+    fallbackEmail,
+  });
 }
 
 const billingAdminMiddleware = createMiddleware()
@@ -50,10 +63,9 @@ export const getOrgEntitlement = createAuthenticatedServerFn({
 export const startOrgCheckout = createBillingAdminServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ slug: z.string() }))
-  .handler(async ({ context: { session, orgId }, data }) => {
-    const productId = SLUG_TO_PRODUCT[data.slug];
-    if (!productId) throw new Error("Unknown product");
+  .inputValidator(z.object({ slug: z.literal("pro") }))
+  .handler(async ({ context: { session, orgId } }) => {
+    await ensureCustomerForOrg(orgId, session.user.email);
 
     const successUrl = new URL(
       "/checkout/success?checkout_id={CHECKOUT_ID}",
@@ -61,7 +73,7 @@ export const startOrgCheckout = createBillingAdminServerFn({
     ).toString();
 
     const checkout = await polarClient.checkouts.create({
-      products: [productId],
+      products: [env.POLAR_PRO_PRODUCT_ID],
       externalCustomerId: orgId,
       successUrl,
       metadata: { orgId, userId: session.user.id },
@@ -72,7 +84,8 @@ export const startOrgCheckout = createBillingAdminServerFn({
 
 export const getOrgPortalUrl = createBillingAdminServerFn({
   method: "POST",
-}).handler(async ({ context: { orgId } }) => {
+}).handler(async ({ context: { session, orgId } }) => {
+  await ensureCustomerForOrg(orgId, session.user.email);
   const result = await polarClient.customerSessions.create({
     externalCustomerId: orgId,
   });
