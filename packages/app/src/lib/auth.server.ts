@@ -31,7 +31,7 @@ type PolarSubscriptionPayload = {
   customer: { externalId?: string | null };
 };
 
-async function syncSubscription(data: PolarSubscriptionPayload) {
+async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
   const orgId = data.customer.externalId;
   if (!orgId) {
     console.warn("[polar webhook] subscription has no externalId", {
@@ -204,24 +204,12 @@ export const auth = betterAuth({
       use: [
         webhooks({
           secret: env.POLAR_WEBHOOK_SECRET,
-          onSubscriptionCreated: async ({ data }) => {
-            await syncSubscription(data);
-          },
-          onSubscriptionUpdated: async ({ data }) => {
-            await syncSubscription(data);
-          },
-          onSubscriptionActive: async ({ data }) => {
-            await syncSubscription(data);
-          },
-          onSubscriptionUncanceled: async ({ data }) => {
-            await syncSubscription(data);
-          },
-          onSubscriptionCanceled: async ({ data }) => {
-            await syncSubscription(data);
-          },
-          onSubscriptionRevoked: async ({ data }) => {
-            await syncSubscription(data);
-          },
+          onSubscriptionCreated: syncSubscription,
+          onSubscriptionUpdated: syncSubscription,
+          onSubscriptionActive: syncSubscription,
+          onSubscriptionUncanceled: syncSubscription,
+          onSubscriptionCanceled: syncSubscription,
+          onSubscriptionRevoked: syncSubscription,
         }),
       ],
     }),
