@@ -5,6 +5,7 @@ CREATE TABLE "org_subscription" (
 	"status" text NOT NULL,
 	"current_period_end" timestamp,
 	"cancel_at_period_end" boolean DEFAULT false NOT NULL,
+	"polar_modified_at" timestamp NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

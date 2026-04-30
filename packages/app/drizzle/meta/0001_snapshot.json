@@ -1453,6 +1453,12 @@
           "notNull": true,
           "default": false
         },
+        "polar_modified_at": {
+          "name": "polar_modified_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp",

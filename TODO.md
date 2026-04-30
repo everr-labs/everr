@@ -12,7 +12,6 @@
 - [**logs-unavailable-for-in-progress-runs**](todo/issues/logs-unavailable-for-in-progress-runs.md) — —
 - [**migrate-fs2-to-fd-lock**](todo/issues/migrate-fs2-to-fd-lock.md) — —
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
-- [**polar-webhook-out-of-order-upserts**](todo/issues/polar-webhook-out-of-order-upserts.md) — `upsertOrgSubscription` in `packages/app/src/lib/billing-data.server.ts` unconditionally overwrites the row keyed by `orgId` on every Polar subscription webhook. If webhook deliveries arrive out of order (Polar does not guarantee ordering, and retries can interleave), a late stale event can clobber a fresher state — e.g., `subscription.canceled` arriving after `subscription.active` and rolling the row back, or vice versa.
 - [**show-logged-in-user-info-desktop**](todo/issues/show-logged-in-user-info-desktop.md) — Display the logged-in user's name and email somewhere in the desktop app UI.
 - [**store-installation-repo-list-in-db**](todo/issues/store-installation-repo-list-in-db.md) — Store the list of installation repositories in the database.
 

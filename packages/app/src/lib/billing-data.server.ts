@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { orgSubscription } from "@/db/schema";
 
@@ -44,6 +44,7 @@ type SubscriptionUpsert = {
   status: string;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
+  polarModifiedAt: Date;
 };
 
 export async function upsertOrgSubscription(input: SubscriptionUpsert) {
@@ -58,7 +59,9 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
         status: input.status,
         currentPeriodEnd: input.currentPeriodEnd,
         cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+        polarModifiedAt: input.polarModifiedAt,
         updatedAt: new Date(),
       },
+      setWhere: sql`${orgSubscription.polarModifiedAt} < ${input.polarModifiedAt}`,
     });
 }

@@ -10,6 +10,7 @@ export const orgSubscription = pgTable("org_subscription", {
   status: text("status").notNull(),
   currentPeriodEnd: timestamp("current_period_end"),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
+  polarModifiedAt: timestamp("polar_modified_at").notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => new Date())

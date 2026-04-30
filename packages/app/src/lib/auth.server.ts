@@ -28,6 +28,8 @@ type PolarSubscriptionPayload = {
   productId: string;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
+  modifiedAt: Date | null;
+  createdAt: Date;
   customer: { externalId?: string | null };
 };
 
@@ -46,6 +48,7 @@ async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
     status: data.status,
     currentPeriodEnd: data.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: data.cancelAtPeriodEnd,
+    polarModifiedAt: data.modifiedAt ?? data.createdAt,
   });
 }
 

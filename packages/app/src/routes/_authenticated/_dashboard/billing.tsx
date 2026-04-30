@@ -72,18 +72,16 @@ function NotAdminMessage() {
 }
 
 const FREE_FEATURES = [
-  "7-day data retention",
-  "Up to 3 team members",
-  "Community support",
-  "Core dashboards",
+  "Unlimited repositories",
+  "Unlimited local telemetry",
+  "AI-native CLI and structured APIs",
+  "Community support on Discord",
 ];
 
 const PRO_FEATURES = [
-  "30-day data retention",
-  "Unlimited team members",
-  "Priority support",
-  "Advanced dashboards & alerts",
-  "AI-native trace inspection",
+  "Everything in Free",
+  "Premium support",
+  "White-glove onboarding",
 ];
 
 function BillingPage() {
@@ -240,7 +238,7 @@ function PlanComparison() {
             <div>
               <CardTitle className="text-xl">Pro</CardTitle>
               <CardDescription>
-                Everything you need to ship reliable agents
+                For teams who ship continuously and need deep signal.
               </CardDescription>
             </div>
           </div>

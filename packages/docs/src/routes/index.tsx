@@ -887,7 +887,6 @@ const PRICING_TIERS = [
     featured: false,
     features: [
       "Unlimited repositories",
-      "14 days cloud telemetry retention",
       "Unlimited local telemetry",
       "AI-native CLI and structured APIs",
       "Community support on Discord",
@@ -901,9 +900,9 @@ const PRICING_TIERS = [
     cta: "Join the waitlist",
     featured: true,
     features: [
-      "13 months cloud metrics retention",
-      "30 days cloud logs and traces retention",
-      "Priority support and onboarding",
+      "Everything in Free",
+      "Premium support",
+      "White-glove onboarding",
     ],
   },
 ];
@@ -926,8 +925,8 @@ function PricingSection() {
           pricing
         </h2>
         <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
-          Start free. Upgrade when you need deeper history, broader signal, or
-          team-grade support.
+          Start free. Upgrade when your team needs premium support and hands-on
+          onboarding.
         </p>
 
         <div className="mt-16 grid grid-cols-1 gap-6 md:mt-20 md:grid-cols-2 md:gap-8">
