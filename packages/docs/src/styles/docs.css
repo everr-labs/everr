@@ -24,7 +24,7 @@
 .product-tilt {
   transform: rotateX(48deg) rotateY(0deg) rotateZ(0deg);
   transform-origin: 0px 2%;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   overflow: hidden;
   border: 2px solid var(--color-fd-border);
   background: var(--color-fd-card, transparent);
