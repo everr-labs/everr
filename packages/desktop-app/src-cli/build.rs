@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use sha2::{Digest, Sha256};
+
 fn main() {
     let tauri_conf = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/tauri.conf.json");
     let collector_asset = std::env::var("EVERR_EMBEDDED_COLLECTOR_GZ").ok();
@@ -34,6 +36,14 @@ fn main() {
             println!("cargo:rustc-cfg=everr_embedded_collector_assets");
             println!("cargo:rustc-env=EVERR_EMBEDDED_COLLECTOR_GZ={collector}");
             println!("cargo:rustc-env=EVERR_EMBEDDED_CHDB_GZ={chdb}");
+            println!(
+                "cargo:rustc-env=EVERR_EMBEDDED_COLLECTOR_GZ_SHA256={}",
+                sha256_file(&collector)
+            );
+            println!(
+                "cargo:rustc-env=EVERR_EMBEDDED_CHDB_GZ_SHA256={}",
+                sha256_file(&chdb)
+            );
         }
         _ if require_assets => {
             panic!(
@@ -42,4 +52,14 @@ fn main() {
         }
         _ => {}
     }
+}
+
+fn sha256_file(path: &str) -> String {
+    let bytes = std::fs::read(path).unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+    let digest = Sha256::digest(bytes);
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        out.push_str(&format!("{byte:02x}"));
+    }
+    out
 }

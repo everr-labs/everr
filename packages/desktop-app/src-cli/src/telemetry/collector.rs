@@ -2,22 +2,21 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use flate2::read::GzDecoder;
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
-use sha2::{Digest, Sha256};
-use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::time::{sleep, timeout};
+use tokio::time::timeout;
 
 use crate::cli::TelemetryStartArgs;
 
 const COLLECTOR_BIN_NAME: &str = "everr-local-collector";
 const CHDB_LIB_NAME: &str = "libchdb.so";
+const SKIP_ORPHANED_COLLECTOR_KILL_ENV: &str = "EVERR_SKIP_ORPHANED_COLLECTOR_KILL";
 
 #[cfg(everr_embedded_collector_assets)]
 const COLLECTOR_GZ: &[u8] = include_bytes!(env!("EVERR_EMBEDDED_COLLECTOR_GZ"));
@@ -25,9 +24,19 @@ const COLLECTOR_GZ: &[u8] = include_bytes!(env!("EVERR_EMBEDDED_COLLECTOR_GZ"));
 const COLLECTOR_GZ: &[u8] = &[];
 
 #[cfg(everr_embedded_collector_assets)]
+const COLLECTOR_GZ_SHA256: &str = env!("EVERR_EMBEDDED_COLLECTOR_GZ_SHA256");
+#[cfg(not(everr_embedded_collector_assets))]
+const COLLECTOR_GZ_SHA256: &str = "";
+
+#[cfg(everr_embedded_collector_assets)]
 const CHDB_GZ: &[u8] = include_bytes!(env!("EVERR_EMBEDDED_CHDB_GZ"));
 #[cfg(not(everr_embedded_collector_assets))]
 const CHDB_GZ: &[u8] = &[];
+
+#[cfg(everr_embedded_collector_assets)]
+const CHDB_GZ_SHA256: &str = env!("EVERR_EMBEDDED_CHDB_GZ_SHA256");
+#[cfg(not(everr_embedded_collector_assets))]
+const CHDB_GZ_SHA256: &str = "";
 
 #[derive(Debug)]
 pub struct ExtractedAssets {
@@ -47,7 +56,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
 
     let mut child = spawn_collector(&assets, &config_path).await?;
     let health_endpoint = format!("http://127.0.0.1:{}/", everr_core::build::HEALTHCHECK_PORT);
-    if !wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await {
+    if !everr_core::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await {
         if let Some(status) = child.try_wait().context("poll collector process")? {
             bail!("collector exited before it became ready: {status}");
         }
@@ -124,10 +133,16 @@ async fn spawn_collector(assets: &ExtractedAssets, config_path: &Path) -> Result
         .with_context(|| format!("spawn {}", assets.collector.display()))?;
 
     if let Some(stdout) = child.stdout.take() {
-        tokio::spawn(forward_output(stdout, "[collector stdout]"));
+        tokio::spawn(everr_core::collector::forward_output(
+            stdout,
+            "[collector stdout]",
+        ));
     }
     if let Some(stderr) = child.stderr.take() {
-        tokio::spawn(forward_output(stderr, "[collector stderr]"));
+        tokio::spawn(everr_core::collector::forward_output(
+            stderr,
+            "[collector stderr]",
+        ));
     }
 
     Ok(child)
@@ -159,48 +174,19 @@ async fn terminate_child(child: &mut Child) {
     }
 }
 
-async fn wait_healthcheck(endpoint: &str, deadline: Duration) -> bool {
-    let start = Instant::now();
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(500))
-        .build()
-        .expect("reqwest client");
-    while start.elapsed() < deadline {
-        if let Ok(resp) = client.get(endpoint).send().await {
-            if resp.status().is_success() {
-                return true;
-            }
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
-    false
-}
-
-async fn forward_output<R: tokio::io::AsyncRead + Unpin>(reader: R, prefix: &'static str) {
-    let mut lines = BufReader::new(reader).lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        eprintln!("{prefix} {line}");
-    }
-}
-
 fn kill_orphaned_collector() {
-    let output = match std::process::Command::new("lsof")
-        .args([
-            "-ti",
-            &format!("tcp:{}", everr_core::build::HEALTHCHECK_PORT),
-        ])
-        .output()
+    if std::env::var(SKIP_ORPHANED_COLLECTOR_KILL_ENV)
+        .ok()
+        .as_deref()
+        == Some("1")
     {
-        Ok(o) => o,
-        Err(_) => return,
-    };
-    let pids = String::from_utf8_lossy(&output.stdout);
-    for token in pids.split_whitespace() {
-        if let Ok(pid) = token.parse::<i32>() {
-            eprintln!("[collector] killing orphaned collector process {pid}");
-            let _ = kill(Pid::from_raw(pid), Signal::SIGKILL);
-        }
+        return;
     }
+
+    everr_core::collector::kill_processes_on_port(
+        everr_core::build::HEALTHCHECK_PORT,
+        "orphaned collector process",
+    );
 }
 
 fn extract_embedded_assets() -> Result<ExtractedAssets> {
@@ -208,22 +194,32 @@ fn extract_embedded_assets() -> Result<ExtractedAssets> {
         .context("failed to resolve user cache directory")?
         .join(everr_core::build::session_namespace())
         .join("collector-assets");
-    extract_assets_to_cache(&cache_root, COLLECTOR_GZ, CHDB_GZ)
+    extract_assets_to_cache(
+        &cache_root,
+        COLLECTOR_GZ,
+        CHDB_GZ,
+        COLLECTOR_GZ_SHA256,
+        CHDB_GZ_SHA256,
+    )
 }
 
 fn extract_assets_to_cache(
     cache_root: &Path,
     collector_gz: &[u8],
     chdb_gz: &[u8],
+    collector_hash: &str,
+    chdb_hash: &str,
 ) -> Result<ExtractedAssets> {
-    if collector_gz.is_empty() || chdb_gz.is_empty() {
+    if collector_gz.is_empty()
+        || chdb_gz.is_empty()
+        || collector_hash.is_empty()
+        || chdb_hash.is_empty()
+    {
         bail!(
             "collector assets are not embedded in this CLI build; rebuild with `pnpm --dir packages/desktop-app build:cli:debug`"
         );
     }
 
-    let collector_hash = sha256_hex(collector_gz);
-    let chdb_hash = sha256_hex(chdb_gz);
     let asset_dir = cache_root.join(format!("{collector_hash}-{chdb_hash}"));
     let collector = asset_dir.join(COLLECTOR_BIN_NAME);
     let chdb_lib = asset_dir.join(CHDB_LIB_NAME);
@@ -234,6 +230,7 @@ fn extract_assets_to_cache(
             .with_context(|| format!("chmod {}", collector.display()))?;
         set_permissions(&chdb_lib, 0o644)
             .with_context(|| format!("chmod {}", chdb_lib.display()))?;
+        prune_stale_asset_dirs(cache_root, &asset_dir)?;
         return Ok(ExtractedAssets {
             collector,
             chdb_lib,
@@ -246,11 +243,32 @@ fn extract_assets_to_cache(
     write_gzip_asset(chdb_gz, &chdb_lib, 0o644)?;
     fs::write(&marker, format!("{collector_hash}\n{chdb_hash}\n"))
         .with_context(|| format!("write {}", marker.display()))?;
+    prune_stale_asset_dirs(cache_root, &asset_dir)?;
 
     Ok(ExtractedAssets {
         collector,
         chdb_lib,
     })
+}
+
+fn prune_stale_asset_dirs(cache_root: &Path, keep_dir: &Path) -> Result<()> {
+    let entries = match fs::read_dir(cache_root) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err).with_context(|| format!("read {}", cache_root.display())),
+    };
+
+    for entry in entries {
+        let entry = entry.with_context(|| format!("read {}", cache_root.display()))?;
+        let path = entry.path();
+        if path == keep_dir || !entry.file_type()?.is_dir() {
+            continue;
+        }
+        fs::remove_dir_all(&path)
+            .with_context(|| format!("remove stale asset cache {}", path.display()))?;
+    }
+
+    Ok(())
 }
 
 fn write_gzip_asset(bytes: &[u8], path: &Path, mode: u32) -> Result<()> {
@@ -293,7 +311,10 @@ fn set_permissions(_path: &Path, _mode: u32) -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
 fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+
     let digest = Sha256::digest(bytes);
     let mut out = String::with_capacity(digest.len() * 2);
     for byte in digest {
@@ -314,7 +335,8 @@ mod tests {
     #[test]
     fn extraction_requires_embedded_assets() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let err = extract_assets_to_cache(dir.path(), &[], &[]).expect_err("missing assets");
+        let err =
+            extract_assets_to_cache(dir.path(), &[], &[], "", "").expect_err("missing assets");
 
         assert!(
             err.to_string()
@@ -329,7 +351,7 @@ mod tests {
         let chdb = gzip(b"chdb bytes");
 
         let assets =
-            extract_assets_to_cache(dir.path(), &collector, &chdb).expect("extract assets");
+            extract_test_assets_to_cache(dir.path(), &collector, &chdb).expect("extract assets");
 
         assert_eq!(
             fs::read(&assets.collector).expect("collector"),
@@ -349,12 +371,18 @@ mod tests {
     #[test]
     fn changed_asset_bytes_use_a_new_cache_dir() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let first = extract_assets_to_cache(dir.path(), &gzip(b"one"), &gzip(b"lib"))
+        let first = extract_test_assets_to_cache(dir.path(), &gzip(b"one"), &gzip(b"lib"))
             .expect("first extract");
-        let second = extract_assets_to_cache(dir.path(), &gzip(b"two"), &gzip(b"lib"))
+        let first_dir = first
+            .collector
+            .parent()
+            .expect("first cache dir")
+            .to_path_buf();
+        let second = extract_test_assets_to_cache(dir.path(), &gzip(b"two"), &gzip(b"lib"))
             .expect("second extract");
 
-        assert_ne!(first.collector.parent(), second.collector.parent());
+        assert_ne!(Some(first_dir.as_path()), second.collector.parent());
+        assert!(!first_dir.exists());
         assert_eq!(fs::read(second.collector).expect("collector"), b"two");
     }
 
@@ -366,14 +394,16 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let collector = gzip(b"collector bytes");
         let chdb = gzip(b"chdb bytes");
-        let first = extract_assets_to_cache(dir.path(), &collector, &chdb).expect("first extract");
+        let first =
+            extract_test_assets_to_cache(dir.path(), &collector, &chdb).expect("first extract");
 
         fs::set_permissions(&first.collector, fs::Permissions::from_mode(0o644))
             .expect("make collector non-executable");
         fs::set_permissions(&first.chdb_lib, fs::Permissions::from_mode(0o600))
             .expect("make chdb permissions stale");
 
-        let second = extract_assets_to_cache(dir.path(), &collector, &chdb).expect("cache hit");
+        let second =
+            extract_test_assets_to_cache(dir.path(), &collector, &chdb).expect("cache hit");
 
         assert_eq!(
             fs::metadata(second.collector)
@@ -391,6 +421,20 @@ mod tests {
                 & 0o777,
             0o644
         );
+    }
+
+    fn extract_test_assets_to_cache(
+        cache_root: &Path,
+        collector_gz: &[u8],
+        chdb_gz: &[u8],
+    ) -> Result<ExtractedAssets> {
+        extract_assets_to_cache(
+            cache_root,
+            collector_gz,
+            chdb_gz,
+            &sha256_hex(collector_gz),
+            &sha256_hex(chdb_gz),
+        )
     }
 
     fn gzip(bytes: &[u8]) -> Vec<u8> {

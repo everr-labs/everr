@@ -67,6 +67,8 @@ const TELEMETRY_SUBDIR: &str = "telemetry-dev";
 #[cfg(not(debug_assertions))]
 const TELEMETRY_SUBDIR: &str = "telemetry";
 
+const TELEMETRY_DIR_OVERRIDE_ENV: &str = "EVERR_TELEMETRY_DIR";
+
 #[cfg(debug_assertions)]
 pub const OTLP_HTTP_PORT: u16 = 54318;
 
@@ -111,6 +113,12 @@ pub fn sql_http_origin() -> String {
 /// (reader) MUST call this function so the two sides cannot drift. See the
 /// spec's On-disk contract section for the rationale.
 pub fn telemetry_dir() -> anyhow::Result<PathBuf> {
+    if let Ok(path) = std::env::var(TELEMETRY_DIR_OVERRIDE_ENV) {
+        if !path.trim().is_empty() {
+            return Ok(PathBuf::from(path));
+        }
+    }
+
     let base = dirs::data_local_dir().context("failed to resolve user local data dir")?;
     Ok(base.join(SESSION_NAMESPACE).join(TELEMETRY_SUBDIR))
 }

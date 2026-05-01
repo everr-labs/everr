@@ -4,12 +4,14 @@
 //! `target/desktop-resources/`. If missing, the test skips with a clear
 //! message (run `pnpm desktop:prepare:debug` to produce it).
 
+use std::net::TcpListener;
 use std::path::PathBuf;
 use std::time::Duration;
 
 use everr_app_lib::telemetry::sidecar::{
-    spawn_cli_collector_detached, wait_for_disabled_state, TelemetryState,
+    TelemetryState, spawn_cli_collector_detached, wait_for_disabled_state,
 };
+use everr_core::build::HEALTHCHECK_PORT;
 use tempfile::TempDir;
 
 fn cli_path() -> Option<PathBuf> {
@@ -32,8 +34,16 @@ async fn spawn_collector_reaches_ready_and_shuts_down() {
         );
         return;
     };
-    let _tmp = TempDir::new().expect("tempdir");
-    let handle = spawn_cli_collector_detached(&binary).await.expect("spawn");
+    if !health_port_is_free() {
+        eprintln!("skipping: telemetry health port {HEALTHCHECK_PORT} is already in use");
+        return;
+    }
+
+    let tmp = TempDir::new().expect("tempdir");
+    let telemetry_dir = tmp.path().join("telemetry");
+    let handle = spawn_cli_collector_detached(&binary, &telemetry_dir)
+        .await
+        .expect("spawn");
     let state = handle.wait_ready().await;
     assert!(matches!(state, TelemetryState::Ready { .. }));
 
@@ -52,6 +62,8 @@ async fn spawn_collector_reaches_ready_and_shuts_down() {
     assert!(resp.status().is_success());
 
     handle.shutdown().await;
+
+    assert!(telemetry_dir.join("chdb").exists());
 }
 
 #[tokio::test]
@@ -72,4 +84,8 @@ async fn wait_for_disabled_state_returns_after_state_changes() {
         started.elapsed() < Duration::from_millis(500),
         "helper should return soon after the state changes"
     );
+}
+
+fn health_port_is_free() -> bool {
+    TcpListener::bind(("127.0.0.1", HEALTHCHECK_PORT)).is_ok()
 }

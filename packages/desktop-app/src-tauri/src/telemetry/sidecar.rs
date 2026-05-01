@@ -3,10 +3,9 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use nix::errno::Errno;
-use nix::sys::signal::{Signal, kill, killpg};
+use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
 use tauri::AppHandle;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::watch;
 use tokio::time::{sleep, timeout};
@@ -138,37 +137,7 @@ async fn hard_kill_process_group(process_group: Pid, child: &mut Child) {
 /// Kill any orphaned collector still holding the health-check port from a
 /// previous run (common during Tauri dev hot-reload).
 fn kill_orphaned_collector() {
-    let output = match std::process::Command::new("lsof")
-        .args(["-ti", &format!("tcp:{HEALTHCHECK_PORT}")])
-        .output()
-    {
-        Ok(o) => o,
-        Err(_) => return,
-    };
-    let pids = String::from_utf8_lossy(&output.stdout);
-    for token in pids.split_whitespace() {
-        if let Ok(pid) = token.parse::<i32>() {
-            eprintln!("[collector] killing orphaned process {pid} on port {HEALTHCHECK_PORT}");
-            let _ = kill(Pid::from_raw(pid), Signal::SIGKILL);
-        }
-    }
-}
-
-pub async fn wait_healthcheck(endpoint: &str, deadline: Duration) -> bool {
-    let start = Instant::now();
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(500))
-        .build()
-        .expect("reqwest client");
-    while start.elapsed() < deadline {
-        if let Ok(resp) = client.get(endpoint).send().await {
-            if resp.status().is_success() {
-                return true;
-            }
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
-    false
+    everr_core::collector::kill_processes_on_port(HEALTHCHECK_PORT, "orphaned collector process");
 }
 
 pub async fn wait_for_disabled_state(
@@ -244,7 +213,7 @@ async fn monitor_readiness(
 ) {
     let endpoint = format!("http://127.0.0.1:{HEALTHCHECK_PORT}/");
     loop {
-        if wait_healthcheck(&endpoint, Duration::from_secs(3)).await {
+        if everr_core::collector::wait_healthcheck(&endpoint, Duration::from_secs(3)).await {
             let _ = state_tx.send(TelemetryState::Ready {
                 otlp_endpoint: format!("http://127.0.0.1:{OTLP_HTTP_PORT}"),
             });
@@ -261,8 +230,16 @@ async fn monitor_readiness(
 }
 
 /// Test helper that spawns the collector without requiring a Tauri AppHandle.
-pub async fn spawn_cli_collector_detached(binary: &Path) -> std::io::Result<DetachedSidecar> {
-    let child = spawn_cli_collector(binary).await?;
+pub async fn spawn_cli_collector_detached(
+    binary: &Path,
+    telemetry_dir: &Path,
+) -> std::io::Result<DetachedSidecar> {
+    let child = spawn_cli_collector_with(binary, |command| {
+        command
+            .env("EVERR_TELEMETRY_DIR", telemetry_dir)
+            .env("EVERR_SKIP_ORPHANED_COLLECTOR_KILL", "1");
+    })
+    .await?;
     let child = std::sync::Arc::new(std::sync::Mutex::new(Some(child)));
     let (tx, rx) = watch::channel(TelemetryState::Starting);
     tokio::spawn(monitor_child(child.clone(), tx.clone()));
@@ -276,6 +253,13 @@ pub async fn spawn_cli_collector_detached(binary: &Path) -> std::io::Result<Deta
 }
 
 async fn spawn_cli_collector(binary: &Path) -> std::io::Result<Child> {
+    spawn_cli_collector_with(binary, |_| {}).await
+}
+
+async fn spawn_cli_collector_with(
+    binary: &Path,
+    configure: impl FnOnce(&mut Command),
+) -> std::io::Result<Child> {
     let mut command = Command::new(binary);
     command
         .args(["telemetry", "start", "--quiet"])
@@ -283,14 +267,21 @@ async fn spawn_cli_collector(binary: &Path) -> std::io::Result<Child> {
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     command.process_group(0);
+    configure(&mut command);
 
     let mut child = command.spawn()?;
 
     if let Some(stdout) = child.stdout.take() {
-        tokio::spawn(forward_output(stdout, "[collector stdout]"));
+        tokio::spawn(everr_core::collector::forward_output(
+            stdout,
+            "[collector stdout]",
+        ));
     }
     if let Some(stderr) = child.stderr.take() {
-        tokio::spawn(forward_output(stderr, "[collector stderr]"));
+        tokio::spawn(everr_core::collector::forward_output(
+            stderr,
+            "[collector stderr]",
+        ));
     }
 
     Ok(child)
@@ -303,7 +294,7 @@ pub struct DetachedSidecar {
 impl DetachedSidecar {
     pub async fn wait_ready(&self) -> TelemetryState {
         let endpoint = format!("http://127.0.0.1:{HEALTHCHECK_PORT}/");
-        if wait_healthcheck(&endpoint, Duration::from_secs(10)).await {
+        if everr_core::collector::wait_healthcheck(&endpoint, Duration::from_secs(10)).await {
             let otlp = format!("http://127.0.0.1:{OTLP_HTTP_PORT}");
             let state = TelemetryState::Ready {
                 otlp_endpoint: otlp,
@@ -321,12 +312,5 @@ impl DetachedSidecar {
 
     pub async fn shutdown(&self) {
         self.inner.shutdown().await;
-    }
-}
-
-async fn forward_output<R: tokio::io::AsyncRead + Unpin>(reader: R, prefix: &'static str) {
-    let mut lines = BufReader::new(reader).lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        eprintln!("{prefix} {line}");
     }
 }
