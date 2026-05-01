@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
   push:
-    branches: [main]
+    branches: [main, guido/desktop-build-sign-ci]
     paths:
       - .github/actions/everr-resource-usage/**
       - .github/workflows/build-signed-desktop-release.yml
