@@ -37,12 +37,13 @@ pub struct ExtractedAssets {
 
 pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     ensure_supported_platform()?;
-    kill_orphaned_collector();
 
     let telemetry_dir = everr_core::build::telemetry_dir()?;
     let config_path =
         everr_core::collector::write_config(&telemetry_dir).context("write collector config")?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
+
+    kill_orphaned_collector();
 
     let mut child = spawn_collector(&assets, &config_path).await?;
     let health_endpoint = format!("http://127.0.0.1:{}/", everr_core::build::HEALTHCHECK_PORT);
@@ -196,9 +197,7 @@ fn kill_orphaned_collector() {
     let pids = String::from_utf8_lossy(&output.stdout);
     for token in pids.split_whitespace() {
         if let Ok(pid) = token.parse::<i32>() {
-            eprintln!(
-                "[collector] killing orphaned collector process {pid}"
-            );
+            eprintln!("[collector] killing orphaned collector process {pid}");
             let _ = kill(Pid::from_raw(pid), Signal::SIGKILL);
         }
     }
@@ -231,6 +230,10 @@ fn extract_assets_to_cache(
     let marker = asset_dir.join(".complete");
 
     if marker.is_file() && collector.is_file() && chdb_lib.is_file() {
+        set_permissions(&collector, 0o755)
+            .with_context(|| format!("chmod {}", collector.display()))?;
+        set_permissions(&chdb_lib, 0o644)
+            .with_context(|| format!("chmod {}", chdb_lib.display()))?;
         return Ok(ExtractedAssets {
             collector,
             chdb_lib,
@@ -353,6 +356,41 @@ mod tests {
 
         assert_ne!(first.collector.parent(), second.collector.parent());
         assert_eq!(fs::read(second.collector).expect("collector"), b"two");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_hit_repairs_asset_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let collector = gzip(b"collector bytes");
+        let chdb = gzip(b"chdb bytes");
+        let first = extract_assets_to_cache(dir.path(), &collector, &chdb).expect("first extract");
+
+        fs::set_permissions(&first.collector, fs::Permissions::from_mode(0o644))
+            .expect("make collector non-executable");
+        fs::set_permissions(&first.chdb_lib, fs::Permissions::from_mode(0o600))
+            .expect("make chdb permissions stale");
+
+        let second = extract_assets_to_cache(dir.path(), &collector, &chdb).expect("cache hit");
+
+        assert_eq!(
+            fs::metadata(second.collector)
+                .expect("collector metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        assert_eq!(
+            fs::metadata(second.chdb_lib)
+                .expect("chdb metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o644
+        );
     }
 
     fn gzip(bytes: &[u8]) -> Vec<u8> {

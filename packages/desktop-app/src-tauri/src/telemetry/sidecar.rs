@@ -3,7 +3,7 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use nix::errno::Errno;
-use nix::sys::signal::{kill, Signal};
+use nix::sys::signal::{Signal, kill, killpg};
 use nix::unistd::Pid;
 use tauri::AppHandle;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -81,7 +81,8 @@ impl Sidecar {
             return;
         };
 
-        match kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
+        let process_group = Pid::from_raw(pid as i32);
+        match killpg(process_group, Signal::SIGTERM) {
             Ok(()) => {}
             Err(Errno::ESRCH) => {
                 let _ = self.state_tx.send(TelemetryState::Disabled {
@@ -90,8 +91,11 @@ impl Sidecar {
                 return;
             }
             Err(err) => {
-                eprintln!("[collector] SIGTERM failed: {err}; hard-killing");
-                let _ = child.kill().await;
+                eprintln!("[collector] SIGTERM failed: {err}; hard-killing process group");
+                hard_kill_process_group(process_group, &mut child).await;
+                let _ = self.state_tx.send(TelemetryState::Disabled {
+                    reason: "shutdown".into(),
+                });
                 return;
             }
         }
@@ -103,14 +107,31 @@ impl Sidecar {
                 eprintln!("[collector] wait after SIGTERM failed: {err}");
             }
             Err(_) => {
-                eprintln!("[collector] did not exit within 3s of SIGTERM; hard-killing");
-                let _ = child.kill().await;
+                eprintln!(
+                    "[collector] did not exit within 3s of SIGTERM; hard-killing process group"
+                );
+                hard_kill_process_group(process_group, &mut child).await;
             }
         }
 
         let _ = self.state_tx.send(TelemetryState::Disabled {
             reason: "shutdown".into(),
         });
+    }
+}
+
+async fn hard_kill_process_group(process_group: Pid, child: &mut Child) {
+    match killpg(process_group, Signal::SIGKILL) {
+        Ok(()) | Err(Errno::ESRCH) => {}
+        Err(err) => {
+            eprintln!("[collector] SIGKILL process group failed: {err}; hard-killing CLI child");
+            let _ = child.kill().await;
+            return;
+        }
+    }
+
+    if timeout(Duration::from_secs(1), child.wait()).await.is_err() {
+        let _ = child.kill().await;
     }
 }
 
@@ -255,12 +276,15 @@ pub async fn spawn_cli_collector_detached(binary: &Path) -> std::io::Result<Deta
 }
 
 async fn spawn_cli_collector(binary: &Path) -> std::io::Result<Child> {
-    let mut child = Command::new(binary)
+    let mut command = Command::new(binary);
+    command
         .args(["telemetry", "start", "--quiet"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()?;
+        .kill_on_drop(true);
+    command.process_group(0);
+
+    let mut child = command.spawn()?;
 
     if let Some(stdout) = child.stdout.take() {
         tokio::spawn(forward_output(stdout, "[collector stdout]"));
