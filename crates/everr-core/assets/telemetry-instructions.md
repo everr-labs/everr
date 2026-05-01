@@ -10,8 +10,6 @@ Setup:
   `http://127.0.0.1:54418`.
 
 Commands:
-- `everr telemetry start`: start the local collector in the foreground. Stop it
-  with Ctrl+C when done.
 - `everr telemetry query "<SQL>"`: run read-only SQL against local telemetry.
   Allowed statements: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
   Always include a time window and a `LIMIT`; responses are capped at 16 MiB.
