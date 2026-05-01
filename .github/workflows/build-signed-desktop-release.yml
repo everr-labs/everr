@@ -12,11 +12,6 @@ concurrency:
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: Optional exact desktop app version to build, for example 0.1.31
-        required: false
-        type: string
 
   push:
     branches: [main]
@@ -42,7 +37,6 @@ jobs:
     timeout-minutes: 60
     env:
       EVERR_DESKTOP_PUBLIC_BASE_URL: https://everr.dev/everr-app
-      EVERR_DESKTOP_RELEASE_VERSION: ${{ github.event.inputs.version || '' }}
 
     steps:
       - name: Checkout

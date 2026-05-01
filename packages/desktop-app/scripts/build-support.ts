@@ -305,7 +305,6 @@ export async function publishCliArtifact(
 
   const outputDir = options.outputDir ?? docsPublicDir;
   const outputBin = path.join(outputDir, "everr");
-  const outputBinDev = path.join(outputDir, "everr.bin");
   const outputSha = path.join(outputDir, "everr.sha256");
 
   await mkdir(outputDir, { recursive: true });
@@ -319,10 +318,8 @@ export async function publishCliArtifact(
     .digest("hex");
 
   await writeFile(outputSha, `${digest}  everr\n`);
-  await copyFile(outputBin, outputBinDev);
 
   console.log(`Wrote ${outputBin}`);
-  console.log(`Wrote ${outputBinDev}`);
   console.log(`Wrote ${outputSha}`);
 
   return { outputBin, outputSha };
@@ -432,20 +429,6 @@ async function writeDesktopAppVersion(version: string, paths: DesktopVersionPath
       replaceCargoPackageVersion(tauriCargoToml, version),
     ),
   ]);
-}
-
-export async function setDesktopAppVersion(version: string) {
-  const paths: DesktopVersionPaths = defaultDesktopVersionPaths;
-  const packageJson = await readDesktopVersionJson(paths.packageJsonPath);
-  const currentVersion = packageJson.version;
-  const nextVersion = normalizeDesktopVersion(version);
-
-  await writeDesktopAppVersion(nextVersion, paths);
-
-  return {
-    previousVersion: currentVersion,
-    nextVersion,
-  };
 }
 
 export async function bumpDesktopAppVersion(

@@ -7,7 +7,6 @@ import {
   desktopReleaseDir,
   installCliBinary,
   loadBuildEnvFile,
-  setDesktopAppVersion,
 } from "./build-support.ts";
 import { stageReleaseArtifacts } from "./copy-release-artifact.ts";
 
@@ -16,7 +15,6 @@ export async function buildDesktop(args = process.argv.slice(2)) {
   let installCli = false;
   let bumpReleaseVersion = false;
   let ciBuild = false;
-  let exactVersion = process.env.EVERR_DESKTOP_RELEASE_VERSION?.trim() || undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -36,21 +34,8 @@ export async function buildDesktop(args = process.argv.slice(2)) {
       continue;
     }
 
-    if (arg === "--version") {
-      exactVersion = args[index + 1];
-      index += 1;
-      if (!exactVersion) {
-        throw new Error("--version requires a semantic version value.");
-      }
-      continue;
-    }
-
-    if (arg.startsWith("--version=")) {
-      exactVersion = arg.slice("--version=".length);
-      if (!exactVersion) {
-        throw new Error("--version requires a semantic version value.");
-      }
-      continue;
+    if (arg === "--version" || arg.startsWith("--version=")) {
+      throw new Error("Use `pnpm bump:desktop` to change the desktop app version before building.");
     }
 
     if (arg === "--bundles" || arg.startsWith("--bundles=")) {
@@ -64,10 +49,6 @@ export async function buildDesktop(args = process.argv.slice(2)) {
 
   loadBuildEnvFile();
 
-  if (bumpReleaseVersion && exactVersion) {
-    throw new Error("Use either --release or --version, not both.");
-  }
-
   if (ciBuild && installCli) {
     throw new Error("--install is not supported for CI desktop builds.");
   }
@@ -75,11 +56,6 @@ export async function buildDesktop(args = process.argv.slice(2)) {
   if (bumpReleaseVersion) {
     const { previousVersion, nextVersion } = await bumpDesktopAppVersion("patch");
     console.log(`Bumped desktop app version from ${previousVersion} to ${nextVersion}.`);
-  }
-
-  if (exactVersion) {
-    const { previousVersion, nextVersion } = await setDesktopAppVersion(exactVersion);
-    console.log(`Set desktop app version from ${previousVersion} to ${nextVersion}.`);
   }
 
   await rm(desktopReleaseDir, { recursive: true, force: true });

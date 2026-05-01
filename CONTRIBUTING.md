@@ -128,10 +128,10 @@ For macOS distribution, use:
 pnpm --dir packages/desktop-app build:desktop
 ```
 
-To bump the desktop app patch version before building that release, use:
+To bump the desktop app patch version without building, use:
 
 ```bash
-pnpm --dir packages/desktop-app build:desktop -- --release
+pnpm bump:desktop
 ```
 
 If you also want that release flow to install the signed CLI into `~/.local/bin`, opt in explicitly:

@@ -299,7 +299,7 @@ async function collectReleaseFiles(rootDir: string) {
 
 async function assertCliArtifactsPresent(rootDir: string) {
   const missing: string[] = [];
-  for (const name of ["everr", "everr.bin", "everr.sha256"]) {
+  for (const name of ["everr", "everr.sha256"]) {
     if (!(await pathExists(path.join(rootDir, name)))) {
       missing.push(name);
     }

@@ -107,9 +107,7 @@ Keep the private key backed up somewhere safe. If it is lost, existing installs 
 
 Workflow: **Build Signed Desktop Release**
 
-It runs automatically on pushes to `main`. You can also run it manually from GitHub Actions.
-
-For manual runs, the optional `version` input sets an exact desktop app version for that build. Leave it empty to use the committed version from `packages/desktop-app/src-tauri/tauri.conf.json`.
+It runs automatically on pushes to `main`. You can also run it manually from GitHub Actions. Both paths use the committed version from `packages/desktop-app/src-tauri/tauri.conf.json`.
 
 The uploaded artifact is named:
 
@@ -121,7 +119,6 @@ It contains:
 
 ```text
 everr
-everr.bin
 everr.sha256
 SHA256SUMS
 release-metadata.json

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,7 +10,7 @@ import {
   bumpVersion,
   chdbReleaseAssetUrl,
   defaultDesktopVersionPaths,
-  setDesktopAppVersion,
+  publishCliArtifact,
   sha256File,
   type DesktopVersionPaths,
 } from "./build-support";
@@ -130,32 +130,6 @@ describe("build-support version helpers", () => {
     );
   });
 
-  it("sets an exact desktop app version across release files", async () => {
-    const rootDir = await makeTempDir();
-    const paths = await writeDesktopVersionFiles(rootDir, "0.1.0");
-    Object.assign(defaultDesktopVersionPaths, paths);
-
-    await expect(setDesktopAppVersion("1.2.3")).resolves.toEqual({
-      previousVersion: "0.1.0",
-      nextVersion: "1.2.3",
-    });
-
-    await expect(readFile(paths.packageJsonPath, "utf8")).resolves.toContain('"version": "1.2.3"');
-    await expect(readFile(paths.tauriConfigPath, "utf8")).resolves.toContain('"version": "1.2.3"');
-    await expect(readFile(paths.tauriCargoTomlPath, "utf8")).resolves.toContain(
-      'version = "1.2.3"',
-    );
-  });
-
-  it("rejects invalid exact desktop app versions", async () => {
-    const rootDir = await makeTempDir();
-    const paths = await writeDesktopVersionFiles(rootDir, "0.1.0");
-    Object.assign(defaultDesktopVersionPaths, paths);
-
-    await expect(setDesktopAppVersion("not-a-version")).rejects.toThrow(
-      "Unsupported desktop app version",
-    );
-  });
 });
 
 describe("build-support chDB helpers", () => {
@@ -176,5 +150,26 @@ describe("build-support chDB helpers", () => {
     await expect(sha256File(archivePath)).resolves.toBe(
       "2f46dbf2c435259d53d08abc8757955b1503c9e13e713aa4d16154a93632bbb4",
     );
+  });
+});
+
+describe("build-support CLI artifact helpers", () => {
+  it("publishes one CLI binary and its checksum", async () => {
+    const rootDir = await makeTempDir();
+    const sourceBin = path.join(rootDir, "built-everr");
+    const outputDir = path.join(rootDir, "release");
+
+    await writeFile(sourceBin, "cli bytes");
+
+    await expect(publishCliArtifact(sourceBin, { outputDir })).resolves.toEqual({
+      outputBin: path.join(outputDir, "everr"),
+      outputSha: path.join(outputDir, "everr.sha256"),
+    });
+
+    await expect(readFile(path.join(outputDir, "everr"), "utf8")).resolves.toBe("cli bytes");
+    await expect(readFile(path.join(outputDir, "everr.sha256"), "utf8")).resolves.toBe(
+      "178893fed67c46f50c58cd77b698bb27649bee32019baa1e72b5142f9676e7a2  everr\n",
+    );
+    await expect(access(path.join(outputDir, "everr.bin"))).rejects.toThrow();
   });
 });
