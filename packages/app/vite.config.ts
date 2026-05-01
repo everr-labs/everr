@@ -14,6 +14,15 @@ const config = defineConfig(() => ({
   resolve: {
     tsconfigPaths: true,
     alias: [
+      // tslib gets pulled in by Radix UI on SSR. Nitro/Rollup wraps tslib's
+      // CJS as `__toESM(tslib).default` and destructures helpers off `.default`,
+      // which is undefined — crashing route loaders with "Cannot destructure
+      // property '__extends'". Pin to the ESM file directly to bypass the
+      // CJS interop path entirely.
+      {
+        find: /^tslib$/,
+        replacement: "tslib/tslib.es6.mjs",
+      },
       // use-sync-external-store is a CJS shim that does require("react") which
       // Rollup can't inline for SSR, causing "Cannot find module 'react'" in
       // production. React 19 exports useSyncExternalStore natively, so we
