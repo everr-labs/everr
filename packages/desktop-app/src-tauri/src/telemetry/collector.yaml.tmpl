@@ -3,6 +3,8 @@ receivers:
     protocols:
       http:
         endpoint: 127.0.0.1:{OTLP_PORT}
+        cors:
+          allowed_origins: ["*"]
 
 processors:
   batch:
