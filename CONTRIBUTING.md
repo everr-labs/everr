@@ -141,5 +141,6 @@ pnpm --dir packages/desktop-app build:desktop -- --install
 ```
 
 The Apple signing and notarization inputs are documented in `packages/desktop-app/README.md`.
+CI secret setup is documented in `docs/desktop-release-secrets.md`.
 `packages/desktop-app/.env` is sourced automatically by the package-native build scripts.
-That release flow stages the DMG and updater artifacts into `packages/docs/public/everr-app/`.
+That release flow stages the DMG, updater artifacts, checksums, release metadata, and signed CLI files into `target/desktop-release/`.

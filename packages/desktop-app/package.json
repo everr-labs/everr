@@ -11,6 +11,7 @@
     "desktop:prepare:debug": "pnpm run desktop:prepare:cli:debug",
     "desktop:prepare:release": "pnpm run desktop:prepare:cli:release",
     "build:desktop": "node ./scripts/build-desktop.ts",
+    "build:desktop:ci": "node ./scripts/build-desktop.ts --ci",
     "build:cli:debug": "node ./scripts/build-cli.ts debug",
     "build:cli:release": "node ./scripts/build-cli.ts release",
     "install:cli:debug": "node ./scripts/build-cli.ts debug --install",

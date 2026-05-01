@@ -2,6 +2,7 @@ import { chmod, copyFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { $ } from "zx";
 import {
+  desktopReleaseDir,
   prepareCliEmbeddedAssets,
   publishCliArtifact,
   resolveCliBuild,
@@ -40,7 +41,7 @@ await chmod(destBin, 0o755);
 
 if (mode === "release") {
   await signBinaryIfNeeded(destBin);
-  await publishCliArtifact(sourceBin);
+  await publishCliArtifact(sourceBin, { outputDir: desktopReleaseDir });
 }
 
 console.log(`Prepared bundled CLI resource at ${destBin}`);

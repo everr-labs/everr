@@ -1,5 +1,7 @@
-import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
+  copyFile,
   mkdir,
   readFile,
   readdir,
@@ -10,7 +12,7 @@ import {
 import { arch as getArch, platform as getPlatform } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { docsPublicDir, loadBuildEnvFile } from "./build-support.ts";
+import { desktopReleaseDir, loadBuildEnvFile } from "./build-support.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageDir = path.resolve(scriptDir, "..");
@@ -19,24 +21,9 @@ const bundleDirs = [
   path.join(repoDir, "target", "release", "bundle"),
   path.join(packageDir, "src-tauri", "target", "release", "bundle"),
 ];
-const DEFAULT_RELEASE_REPO = "everr-labs/everr";
-const RELEASE_TAG_PREFIX = "desktop-v";
-
-function releaseTagFor(version: string) {
-  return `${RELEASE_TAG_PREFIX}${version}`;
-}
-
-export function buildReleaseAssetUrl({
-  repo,
-  version,
-  assetName,
-}: {
-  repo: string;
-  version: string;
-  assetName: string;
-}) {
-  return `https://github.com/${repo}/releases/download/${releaseTagFor(version)}/${assetName}`;
-}
+const DEFAULT_PUBLIC_BASE_URL = "https://everr.dev/everr-app";
+const RELEASE_CHECKSUMS_NAME = "SHA256SUMS";
+const RELEASE_METADATA_NAME = "release-metadata.json";
 
 export type DesktopReleaseTarget = {
   platform: "macos";
@@ -51,6 +38,12 @@ type ReleaseArtifacts = {
   dmg: string;
   updaterArchive: string;
   updaterSignature: string;
+};
+
+type ReleaseFileEntry = {
+  path: string;
+  sha256: string;
+  size: number;
 };
 
 export function normalizePlatform(value: NodeJS.Platform) {
@@ -80,6 +73,16 @@ export function getDesktopReleaseTarget(
   };
 }
 
+export function buildPublicArtifactUrl({
+  baseUrl,
+  assetName,
+}: {
+  baseUrl: string;
+  assetName: string;
+}) {
+  return `${baseUrl.replace(/\/+$/, "")}/${assetName}`;
+}
+
 export function buildUpdaterManifest({
   version,
   pubDate,
@@ -103,6 +106,40 @@ export function buildUpdaterManifest({
           signature,
         },
       },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+export function buildReleaseMetadata({
+  version,
+  publicBaseUrl,
+  target,
+  files,
+  createdAt,
+}: {
+  version: string;
+  publicBaseUrl: string;
+  target: DesktopReleaseTarget;
+  files: ReleaseFileEntry[];
+  createdAt: string;
+}) {
+  return `${JSON.stringify(
+    {
+      schema_version: 1,
+      product: "Everr",
+      version,
+      public_base_url: publicBaseUrl,
+      target,
+      build: {
+        github_repository: process.env.GITHUB_REPOSITORY ?? null,
+        github_ref: process.env.GITHUB_REF ?? null,
+        github_sha: process.env.GITHUB_SHA ?? null,
+        github_run_id: process.env.GITHUB_RUN_ID ?? null,
+        created_at: createdAt,
+      },
+      files,
     },
     null,
     2,
@@ -192,33 +229,6 @@ export async function findReleaseArtifacts(bundleDir: string): Promise<ReleaseAr
   };
 }
 
-async function removeStaleArtifacts(dir: string, target: DesktopReleaseTarget) {
-  if (!(await pathExists(dir))) {
-    return;
-  }
-
-  const legacyPrefix = `everr-app-${target.platform}-${target.arch}`;
-  const staleEntries = new Set([
-    "latest.json",
-    target.dmgName,
-    target.updaterArchiveName,
-    target.updaterSignatureName,
-  ]);
-  const entries = await readdir(dir);
-
-  await Promise.all(
-    entries
-      .filter(
-        (entry) =>
-          staleEntries.has(entry) ||
-          entry.startsWith(`${legacyPrefix}.`) ||
-          entry === `${target.platform}-${target.arch}` ||
-          entry === `darwin-${target.arch}`,
-      )
-      .map((entry) => rm(path.join(dir, entry), { force: true, recursive: true })),
-  );
-}
-
 async function readDesktopVersion() {
   const configPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
   const config = JSON.parse(await readFile(configPath, "utf8")) as {
@@ -232,73 +242,101 @@ async function readDesktopVersion() {
   return config.version;
 }
 
-function resolveReleaseRepo() {
+function resolvePublicBaseUrl() {
   loadBuildEnvFile();
-  return (process.env.EVERR_RELEASE_REPO?.trim() || DEFAULT_RELEASE_REPO).replace(
-    /\/+$/,
-    "",
+  return (
+    process.env.EVERR_DESKTOP_PUBLIC_BASE_URL?.trim() || DEFAULT_PUBLIC_BASE_URL
+  ).replace(/\/+$/, "");
+}
+
+async function sha256File(filePath: string) {
+  const hash = createHash("sha256");
+
+  await new Promise<void>((resolve, reject) => {
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", resolve);
+  });
+
+  return hash.digest("hex");
+}
+
+function releaseRelativePath(rootDir: string, filePath: string) {
+  return path.relative(rootDir, filePath).split(path.sep).join("/");
+}
+
+async function describeReleaseFile(
+  rootDir: string,
+  filePath: string,
+): Promise<ReleaseFileEntry> {
+  const fileStat = await stat(filePath);
+  return {
+    path: releaseRelativePath(rootDir, filePath),
+    sha256: await sha256File(filePath),
+    size: fileStat.size,
+  };
+}
+
+async function copyReleaseFile(rootDir: string, source: string, dest: string) {
+  await mkdir(path.dirname(dest), { recursive: true });
+  await copyFile(source, dest);
+  return describeReleaseFile(rootDir, dest);
+}
+
+async function collectReleaseFiles(rootDir: string) {
+  const files = await findFiles(rootDir);
+  const ignored = new Set([RELEASE_CHECKSUMS_NAME, RELEASE_METADATA_NAME]);
+  const entries = await Promise.all(
+    files
+      .filter((file) => !ignored.has(releaseRelativePath(rootDir, file)))
+      .map((file) => describeReleaseFile(rootDir, file)),
   );
+
+  entries.sort((left, right) => left.path.localeCompare(right.path));
+  return entries;
 }
 
-function runGh(args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("gh", args, { stdio: "inherit" });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`gh ${args.join(" ")} exited with code ${code}`));
-    });
-  });
-}
+async function assertCliArtifactsPresent(rootDir: string) {
+  const missing: string[] = [];
+  for (const name of ["everr", "everr.bin", "everr.sha256"]) {
+    if (!(await pathExists(path.join(rootDir, name)))) {
+      missing.push(name);
+    }
+  }
 
-async function ghReleaseExists(repo: string, tag: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("gh", ["release", "view", tag, "--repo", repo], {
-      stdio: ["ignore", "ignore", "ignore"],
-    });
-    child.on("error", reject);
-    child.on("close", (code) => resolve(code === 0));
-  });
-}
-
-async function uploadToGitHubRelease({
-  repo,
-  version,
-  artifacts,
-}: {
-  repo: string;
-  version: string;
-  artifacts: ReleaseArtifacts;
-}) {
-  const tag = releaseTagFor(version);
-  const assets = [artifacts.dmg, artifacts.updaterArchive, artifacts.updaterSignature];
-
-  if (await ghReleaseExists(repo, tag)) {
-    await runGh([
-      "release",
-      "upload",
-      tag,
-      ...assets,
-      "--clobber",
-      "--repo",
-      repo,
-    ]);
-  } else {
-    await runGh([
-      "release",
-      "create",
-      tag,
-      ...assets,
-      "--repo",
-      repo,
-      "--title",
-      `Desktop ${version}`,
-      "--generate-notes",
-    ]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing staged CLI artifact(s): ${missing.join(", ")}. The desktop release build must run the release CLI sidecar preparation before staging artifacts.`,
+    );
   }
 }
 
-export async function copyReleaseArtifact() {
+export async function writeReleaseChecksums(rootDir: string) {
+  await rm(path.join(rootDir, RELEASE_CHECKSUMS_NAME), { force: true });
+
+  const files = await findFiles(rootDir);
+  const entries = await Promise.all(
+    files
+      .filter((file) => releaseRelativePath(rootDir, file) !== RELEASE_CHECKSUMS_NAME)
+      .map(async (file) => ({
+        path: releaseRelativePath(rootDir, file),
+        sha256: await sha256File(file),
+      })),
+  );
+
+  entries.sort((left, right) => left.path.localeCompare(right.path));
+
+  const checksumsPath = path.join(rootDir, RELEASE_CHECKSUMS_NAME);
+  await writeFile(
+    checksumsPath,
+    entries.map((entry) => `${entry.sha256}  ${entry.path}`).join("\n") + "\n",
+  );
+
+  return checksumsPath;
+}
+
+export async function stageReleaseArtifacts() {
   loadBuildEnvFile();
 
   const platform = normalizePlatform(getPlatform());
@@ -306,34 +344,68 @@ export async function copyReleaseArtifact() {
   const target = getDesktopReleaseTarget(platform, arch);
   const bundleDir = await findBundleDir();
   const artifacts = await findReleaseArtifacts(bundleDir);
-  const destDir = path.join(docsPublicDir, "everr-app");
+  const appDestDir = path.join(desktopReleaseDir, "everr-app");
   const version = await readDesktopVersion();
-  const repo = resolveReleaseRepo();
-  const updaterSignature = (await readFile(artifacts.updaterSignature, "utf8")).trim();
+  const publicBaseUrl = resolvePublicBaseUrl();
+  const createdAt = new Date().toISOString();
 
-  await uploadToGitHubRelease({ repo, version, artifacts });
+  await mkdir(desktopReleaseDir, { recursive: true });
+  await assertCliArtifactsPresent(desktopReleaseDir);
+  await rm(appDestDir, { recursive: true, force: true });
+  await mkdir(appDestDir, { recursive: true });
 
-  const updaterArchiveUrl = buildReleaseAssetUrl({
-    repo,
-    version,
+  await copyReleaseFile(
+    desktopReleaseDir,
+    artifacts.dmg,
+    path.join(appDestDir, target.dmgName),
+  );
+  await copyReleaseFile(
+    desktopReleaseDir,
+    artifacts.updaterArchive,
+    path.join(appDestDir, target.updaterArchiveName),
+  );
+  await copyReleaseFile(
+    desktopReleaseDir,
+    artifacts.updaterSignature,
+    path.join(appDestDir, target.updaterSignatureName),
+  );
+
+  const updaterSignature = (
+    await readFile(path.join(appDestDir, target.updaterSignatureName), "utf8")
+  ).trim();
+  const updaterArchiveUrl = buildPublicArtifactUrl({
+    baseUrl: publicBaseUrl,
     assetName: target.updaterArchiveName,
   });
   const manifest = buildUpdaterManifest({
     version,
-    pubDate: new Date().toISOString(),
+    pubDate: createdAt,
     downloadUrl: updaterArchiveUrl,
     signature: updaterSignature,
     updaterTarget: target.updaterTarget,
   });
 
-  await mkdir(destDir, { recursive: true });
-  await removeStaleArtifacts(destDir, target);
-  await writeFile(path.join(destDir, "latest.json"), manifest);
+  await writeFile(path.join(appDestDir, "latest.json"), manifest);
 
-  console.log(`Uploaded desktop ${version} assets to ${repo} release ${releaseTagFor(version)}`);
-  console.log(`Wrote updater manifest to ${path.join(destDir, "latest.json")}`);
+  const files = await collectReleaseFiles(desktopReleaseDir);
+  await writeFile(
+    path.join(desktopReleaseDir, RELEASE_METADATA_NAME),
+    buildReleaseMetadata({
+      version,
+      publicBaseUrl,
+      target,
+      files,
+      createdAt,
+    }),
+  );
+  await writeReleaseChecksums(desktopReleaseDir);
+
+  console.log(`Staged desktop ${version} release artifacts in ${desktopReleaseDir}`);
+  console.log(`Wrote updater manifest to ${path.join(appDestDir, "latest.json")}`);
 }
 
+export const copyReleaseArtifact = stageReleaseArtifacts;
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await copyReleaseArtifact();
+  await stageReleaseArtifacts();
 }

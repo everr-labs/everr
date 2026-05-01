@@ -10,6 +10,7 @@ import {
   bumpVersion,
   chdbReleaseAssetUrl,
   defaultDesktopVersionPaths,
+  setDesktopAppVersion,
   sha256File,
   type DesktopVersionPaths,
 } from "./build-support";
@@ -126,6 +127,33 @@ describe("build-support version helpers", () => {
     await expect(readFile(paths.tauriConfigPath, "utf8")).resolves.toContain('"version": "2.4.10"');
     await expect(readFile(paths.tauriCargoTomlPath, "utf8")).resolves.toContain(
       'version = "2.4.10"',
+    );
+  });
+
+  it("sets an exact desktop app version across release files", async () => {
+    const rootDir = await makeTempDir();
+    const paths = await writeDesktopVersionFiles(rootDir, "0.1.0");
+    Object.assign(defaultDesktopVersionPaths, paths);
+
+    await expect(setDesktopAppVersion("1.2.3")).resolves.toEqual({
+      previousVersion: "0.1.0",
+      nextVersion: "1.2.3",
+    });
+
+    await expect(readFile(paths.packageJsonPath, "utf8")).resolves.toContain('"version": "1.2.3"');
+    await expect(readFile(paths.tauriConfigPath, "utf8")).resolves.toContain('"version": "1.2.3"');
+    await expect(readFile(paths.tauriCargoTomlPath, "utf8")).resolves.toContain(
+      'version = "1.2.3"',
+    );
+  });
+
+  it("rejects invalid exact desktop app versions", async () => {
+    const rootDir = await makeTempDir();
+    const paths = await writeDesktopVersionFiles(rootDir, "0.1.0");
+    Object.assign(defaultDesktopVersionPaths, paths);
+
+    await expect(setDesktopAppVersion("not-a-version")).rejects.toThrow(
+      "Unsupported desktop app version",
     );
   });
 });

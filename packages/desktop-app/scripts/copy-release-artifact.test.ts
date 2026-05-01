@@ -1,11 +1,14 @@
-import { mkdtemp, mkdir, writeFile, utimes } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, utimes } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildPublicArtifactUrl,
+  buildReleaseMetadata,
   buildUpdaterManifest,
   findReleaseArtifacts,
   getDesktopReleaseTarget,
+  writeReleaseChecksums,
 } from "./copy-release-artifact";
 
 const tempDirs: string[] = [];
@@ -65,6 +68,45 @@ describe("copy-release-artifact helpers", () => {
     });
   });
 
+  it("builds public artifact URLs from the deploy base URL", () => {
+    expect(
+      buildPublicArtifactUrl({
+        baseUrl: "https://everr.dev/everr-app/",
+        assetName: "everr-macos-arm64.app.tar.gz",
+      }),
+    ).toBe("https://everr.dev/everr-app/everr-macos-arm64.app.tar.gz");
+  });
+
+  it("builds release metadata for the deploy artifact bundle", () => {
+    const metadata = buildReleaseMetadata({
+      version: "1.2.3",
+      publicBaseUrl: "https://everr.dev/everr-app",
+      target: getDesktopReleaseTarget("macos", "arm64"),
+      createdAt: "2026-03-14T17:00:00.000Z",
+      files: [
+        {
+          path: "everr-app/latest.json",
+          sha256: "a".repeat(64),
+          size: 123,
+        },
+      ],
+    });
+
+    expect(JSON.parse(metadata)).toMatchObject({
+      schema_version: 1,
+      product: "Everr",
+      version: "1.2.3",
+      public_base_url: "https://everr.dev/everr-app",
+      files: [
+        {
+          path: "everr-app/latest.json",
+          sha256: "a".repeat(64),
+          size: 123,
+        },
+      ],
+    });
+  });
+
   it("finds the newest dmg and matching updater archive/signature", async () => {
     const bundleDir = await makeTempDir();
     const oldTime = Date.UTC(2026, 2, 14, 15, 0, 0);
@@ -102,5 +144,23 @@ describe("copy-release-artifact helpers", () => {
       updaterArchive: path.join(bundleDir, "nested", "latest.app.tar.gz"),
       updaterSignature: path.join(bundleDir, "nested", "latest.app.tar.gz.sig"),
     });
+  });
+
+  it("writes sorted checksums for staged release files", async () => {
+    const releaseDir = await makeTempDir();
+    await writeFile(path.join(releaseDir, "b.txt"), "second");
+    await mkdir(path.join(releaseDir, "nested"), { recursive: true });
+    await writeFile(path.join(releaseDir, "nested", "a.txt"), "first");
+
+    const checksumsPath = await writeReleaseChecksums(releaseDir);
+    const checksums = await readFile(checksumsPath, "utf8");
+
+    expect(checksums).toBe(
+      [
+        "16367aacb67a4a017c8da8ab95682ccb390863780f7114dda0a0e0c55644c7c4  b.txt",
+        "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e  nested/a.txt",
+        "",
+      ].join("\n"),
+    );
   });
 });

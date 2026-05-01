@@ -15,7 +15,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
-import { inc as incrementVersion } from "semver";
+import { inc as incrementVersion, valid as validVersion } from "semver";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { $ } from "zx";
 
@@ -30,6 +30,7 @@ export const desktopPackageJsonPath = path.join(packageDir, "package.json");
 export const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
 export const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
 export const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
+export const desktopReleaseDir = path.join(repoDir, "target", "desktop-release");
 export const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
 export const CHDB_RELEASE_VERSION = "v4.0.2";
 export const CHDB_LIB_ASSET_NAME = "macos-arm64-libchdb.tar.gz";
@@ -292,14 +293,22 @@ export async function signBinaryIfNeeded(binaryPath: string) {
   await $`codesign --force --sign ${signingIdentity} --options runtime --timestamp ${binaryPath}`;
 }
 
-export async function publishCliArtifact(sourceBin: string) {
+export type PublishCliArtifactOptions = {
+  outputDir?: string;
+};
+
+export async function publishCliArtifact(
+  sourceBin: string,
+  options: PublishCliArtifactOptions = {},
+) {
   loadBuildEnvFile();
 
-  const outputBin = path.join(docsPublicDir, "everr");
-  const outputBinDev = path.join(docsPublicDir, "everr.bin");
-  const outputSha = path.join(docsPublicDir, "everr.sha256");
+  const outputDir = options.outputDir ?? docsPublicDir;
+  const outputBin = path.join(outputDir, "everr");
+  const outputBinDev = path.join(outputDir, "everr.bin");
+  const outputSha = path.join(outputDir, "everr.sha256");
 
-  await mkdir(docsPublicDir, { recursive: true });
+  await mkdir(outputDir, { recursive: true });
   await copyFile(sourceBin, outputBin);
   await chmod(outputBin, 0o755);
 
@@ -347,8 +356,19 @@ type VersionedJsonFile = {
   version?: string;
 };
 
+function normalizeDesktopVersion(version: string) {
+  const normalized = validVersion(version.trim());
+  if (!normalized) {
+    throw new Error(
+      `Unsupported desktop app version "${version}". Expected a semantic version in the form X.Y.Z.`,
+    );
+  }
+
+  return normalized;
+}
+
 export function bumpVersion(version: string, increment: "patch" | "minor" | "major") {
-  const nextVersion = incrementVersion(version.trim(), increment);
+  const nextVersion = incrementVersion(normalizeDesktopVersion(version), increment);
   if (!nextVersion) {
     throw new Error(
       `Unsupported desktop app version "${version}". Expected a semantic version in the form X.Y.Z.`,
@@ -394,30 +414,49 @@ async function readJsonFile<T>(pathname: string): Promise<T> {
   return JSON.parse(await readFile(pathname, "utf8")) as T;
 }
 
-export async function bumpDesktopAppVersion(
-  increment: "patch" | "minor" | "major",
-) {
-  const paths: DesktopVersionPaths = defaultDesktopVersionPaths;
+async function writeDesktopAppVersion(version: string, paths: DesktopVersionPaths) {
   const [packageJson, tauriConfig, tauriCargoToml] = await Promise.all([
     readDesktopVersionJson(paths.packageJsonPath),
     readJsonFile<VersionedJsonFile>(paths.tauriConfigPath),
     readFile(paths.tauriCargoTomlPath, "utf8"),
   ]);
 
-  const currentVersion = packageJson.version;
-  const nextVersion = bumpVersion(currentVersion, increment);
-
-  packageJson.version = nextVersion;
-  tauriConfig.version = nextVersion;
+  packageJson.version = version;
+  tauriConfig.version = version;
 
   await Promise.all([
     writeFile(paths.packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`),
     writeFile(paths.tauriConfigPath, `${JSON.stringify(tauriConfig, null, 2)}\n`),
     writeFile(
       paths.tauriCargoTomlPath,
-      replaceCargoPackageVersion(tauriCargoToml, nextVersion),
+      replaceCargoPackageVersion(tauriCargoToml, version),
     ),
   ]);
+}
+
+export async function setDesktopAppVersion(version: string) {
+  const paths: DesktopVersionPaths = defaultDesktopVersionPaths;
+  const packageJson = await readDesktopVersionJson(paths.packageJsonPath);
+  const currentVersion = packageJson.version;
+  const nextVersion = normalizeDesktopVersion(version);
+
+  await writeDesktopAppVersion(nextVersion, paths);
+
+  return {
+    previousVersion: currentVersion,
+    nextVersion,
+  };
+}
+
+export async function bumpDesktopAppVersion(
+  increment: "patch" | "minor" | "major",
+) {
+  const paths: DesktopVersionPaths = defaultDesktopVersionPaths;
+  const packageJson = await readDesktopVersionJson(paths.packageJsonPath);
+  const currentVersion = packageJson.version;
+  const nextVersion = bumpVersion(currentVersion, increment);
+
+  await writeDesktopAppVersion(nextVersion, paths);
 
   return {
     previousVersion: currentVersion,
