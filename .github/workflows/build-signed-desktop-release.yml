@@ -193,7 +193,7 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app_path"
           codesign --verify --strict --verbose=2 "$cli_path"
           spctl --assess --type execute --verbose "$app_path"
-          spctl --assess --type open --verbose "$dmg_path"
+          spctl --assess --type open --context context:primary-signature --verbose "$dmg_path"
           xcrun stapler validate "$app_path"
           xcrun stapler validate "$dmg_path"
 
