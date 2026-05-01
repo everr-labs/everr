@@ -11,7 +11,6 @@ mod uninstall;
 use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, Commands};
-use tokio::task;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,8 +34,7 @@ async fn main() -> Result<()> {
         Commands::WorkflowsList(args) => core::workflows_list(args).await?,
         Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,
-        Commands::Telemetry(args) => task::spawn_blocking(move || telemetry::commands::run(args))
-            .await??,
+        Commands::Telemetry(args) => telemetry::commands::run(args).await?,
     }
 
     Ok(())

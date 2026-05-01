@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
 import {
   access,
   chmod,
@@ -11,7 +12,9 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
+import { createGzip } from "node:zlib";
 import { inc as incrementVersion } from "semver";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { $ } from "zx";
@@ -27,10 +30,13 @@ export const desktopPackageJsonPath = path.join(packageDir, "package.json");
 export const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
 export const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
 export const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
+export const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
 export const CHDB_RELEASE_VERSION = "v4.0.2";
 export const CHDB_LIB_ASSET_NAME = "macos-arm64-libchdb.tar.gz";
 export const CHDB_LIB_ARCHIVE_SHA256 =
   "54b4da9c4d71f09b8a37e823a7addba392c4789a7034192a4863a1edd452f9e8";
+export const LOCAL_COLLECTOR_BIN_NAME = "everr-local-collector";
+export const CHDB_LIB_FILE_NAME = "libchdb.so";
 
 let didLoadEnvFile = false;
 
@@ -124,6 +130,10 @@ async function ensureChdbArchive(archivePath: string) {
 }
 
 export async function prepareChdbLibResource(mode: string) {
+  return prepareChdbLibAt(mode, path.join(desktopResourceDir, CHDB_LIB_FILE_NAME));
+}
+
+async function prepareChdbLibAt(mode: string, destLib: string) {
   if (mode !== "debug" && mode !== "release") {
     throw new Error(`Unsupported mode: ${mode}`);
   }
@@ -138,7 +148,6 @@ export async function prepareChdbLibResource(mode: string) {
   const chdbCacheDir = path.join(repoDir, "target", "chdb");
   const archivePath = path.join(chdbCacheDir, `${CHDB_RELEASE_VERSION}-${CHDB_LIB_ASSET_NAME}`);
   const extractDir = path.join(chdbCacheDir, `${CHDB_RELEASE_VERSION}-extract`);
-  const destLib = path.join(desktopResourceDir, "libchdb.so");
 
   await ensureChdbArchive(archivePath);
   await rm(extractDir, { recursive: true, force: true });
@@ -155,7 +164,7 @@ export async function prepareChdbLibResource(mode: string) {
     throw new Error(`Extracted libchdb.so is not a file: ${extractedLib}`);
   }
 
-  await mkdir(desktopResourceDir, { recursive: true });
+  await mkdir(path.dirname(destLib), { recursive: true });
   await copyFile(extractedLib, destLib);
   await chmod(destLib, 0o644);
 
@@ -163,8 +172,53 @@ export async function prepareChdbLibResource(mode: string) {
     await signBinaryIfNeeded(destLib);
   }
 
-  console.log(`Prepared chDB resource at ${destLib}`);
+  console.log(`Prepared chDB library at ${destLib}`);
   return destLib;
+}
+
+async function gzipFile(source: string, dest: string) {
+  await mkdir(path.dirname(dest), { recursive: true });
+  const tmp = `${dest}.tmp`;
+  await rm(tmp, { force: true });
+  await pipeline(createReadStream(source), createGzip({ level: 9 }), createWriteStream(tmp));
+  await rm(dest, { force: true });
+  await copyFile(tmp, dest);
+  await rm(tmp, { force: true });
+  console.log(`Compressed ${source} -> ${dest}`);
+}
+
+export type CliEmbeddedAssets = {
+  collectorGz: string;
+  chdbGz: string;
+};
+
+export async function prepareCliEmbeddedAssets(mode: string): Promise<CliEmbeddedAssets> {
+  if (mode !== "debug" && mode !== "release") {
+    throw new Error(`Unsupported mode: ${mode}`);
+  }
+
+  await mkdir(cliEmbeddedAssetsDir, { recursive: true });
+
+  const collectorSource = path.join(repoDir, "collector", "build-local", LOCAL_COLLECTOR_BIN_NAME);
+  const collectorPrepared = path.join(cliEmbeddedAssetsDir, LOCAL_COLLECTOR_BIN_NAME);
+  const chdbPrepared = path.join(cliEmbeddedAssetsDir, CHDB_LIB_FILE_NAME);
+  const collectorGz = `${collectorPrepared}.gz`;
+  const chdbGz = `${chdbPrepared}.gz`;
+
+  console.log(`Building local OTel collector for CLI embedding (${mode})...`);
+  await $`make -C ${path.join(repoDir, "collector")} build-local`;
+
+  await copyFile(collectorSource, collectorPrepared);
+  await chmod(collectorPrepared, 0o755);
+  if (mode === "release") {
+    await signBinaryIfNeeded(collectorPrepared);
+  }
+
+  await prepareChdbLibAt(mode, chdbPrepared);
+  await gzipFile(collectorPrepared, collectorGz);
+  await gzipFile(chdbPrepared, chdbGz);
+
+  return { collectorGz, chdbGz };
 }
 
 export function resolveCliBuild(mode: string) {

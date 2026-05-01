@@ -1,5 +1,4 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
@@ -7,16 +6,12 @@ use nix::errno::Errno;
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use tauri::AppHandle;
-use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::watch;
 use tokio::time::{sleep, timeout};
 
-use crate::telemetry::ports::{HEALTHCHECK_PORT, OTLP_HTTP_PORT, SQL_HTTP_PORT};
-
-const CONFIG_TEMPLATE: &str = include_str!("collector.yaml.tmpl");
+use crate::telemetry::ports::{HEALTHCHECK_PORT, OTLP_HTTP_PORT};
 
 #[derive(Debug, Clone)]
 pub enum TelemetryState {
@@ -26,8 +21,7 @@ pub enum TelemetryState {
 }
 
 pub struct Sidecar {
-    child: std::sync::Mutex<Option<Child>>,
-    command_child: std::sync::Mutex<Option<tauri_plugin_shell::process::CommandChild>>,
+    child: std::sync::Arc<std::sync::Mutex<Option<Child>>>,
     state_tx: watch::Sender<TelemetryState>,
     state_rx: watch::Receiver<TelemetryState>,
 }
@@ -41,48 +35,29 @@ impl Sidecar {
     pub async fn start(app: &AppHandle) -> Self {
         kill_orphaned_collector();
 
-        let telemetry_dir = match everr_core::build::telemetry_dir() {
-            Ok(dir) => dir,
+        let cli_path = match crate::cli::bundled_cli_path(app) {
+            Ok(path) => path,
             Err(err) => {
-                return Self::disabled(format!("telemetry_dir(): {err}"));
-            }
-        };
-        let config_path = match write_config(&telemetry_dir) {
-            Ok(p) => p,
-            Err(err) => {
-                return Self::disabled(format!("write collector config: {err}"));
-            }
-        };
-        let (chdb_env_name, chdb_env_value) = match chdb_lib_env_from_app(app) {
-            Ok(env) => env,
-            Err(err) => {
-                return Self::disabled(err);
+                return Self::disabled(format!("bundled CLI: {err}"));
             }
         };
 
         let (tx, rx) = watch::channel(TelemetryState::Starting);
+        let child = match spawn_cli_collector(&cli_path).await {
+            Ok(child) => child,
+            Err(err) => {
+                return Self::disabled(format!("CLI collector spawn: {err}"));
+            }
+        };
+        let child = std::sync::Arc::new(std::sync::Mutex::new(Some(child)));
 
-        let (receiver, cmd_child) =
-            match app.shell().sidecar("everr-local-collector").and_then(|s| {
-                s.args(["--config", &config_path.display().to_string()])
-                    .env(chdb_env_name, chdb_env_value)
-                    .env("TZ", "UTC")
-                    .spawn()
-            }) {
-                Ok(pair) => pair,
-                Err(err) => {
-                    return Self::disabled(format!("sidecar spawn: {err}"));
-                }
-            };
-
-        tokio::spawn(forward_receiver(receiver, tx.clone()));
+        tokio::spawn(monitor_child(child.clone(), tx.clone()));
         tokio::spawn(monitor_readiness(tx.clone(), tx.subscribe()));
 
         Self {
-            child: std::sync::Mutex::new(None),
+            child,
             state_tx: tx,
             state_rx: rx,
-            command_child: std::sync::Mutex::new(Some(cmd_child)),
         }
     }
 
@@ -91,40 +66,13 @@ impl Sidecar {
             reason: reason.clone(),
         });
         Self {
-            child: std::sync::Mutex::new(None),
+            child: std::sync::Arc::new(std::sync::Mutex::new(None)),
             state_tx: tx,
             state_rx: rx,
-            command_child: std::sync::Mutex::new(None),
         }
     }
 
     pub async fn shutdown(&self) {
-        // Try command_child first (Tauri sidecar path)
-        if let Some(cmd_child) = self.command_child.lock().unwrap().take() {
-            let pid = Pid::from_raw(cmd_child.pid() as i32);
-            match kill(pid, Signal::SIGTERM) {
-                Ok(()) => {
-                    if !wait_for_disabled_state(self.state(), Duration::from_secs(3)).await {
-                        eprintln!(
-                            "[collector] did not report exit within 3s of SIGTERM; hard-killing"
-                        );
-                        let _ = cmd_child.kill();
-                    }
-                }
-                Err(Errno::ESRCH) => {}
-                Err(err) => {
-                    eprintln!("[collector] SIGTERM failed: {err}; hard-killing");
-                    let _ = cmd_child.kill();
-                }
-            }
-
-            let _ = self.state_tx.send(TelemetryState::Disabled {
-                reason: "shutdown".into(),
-            });
-            return;
-        }
-
-        // Fall back to tokio Child (detached/test path)
         let Some(mut child) = self.child.lock().unwrap().take() else {
             return;
         };
@@ -166,46 +114,6 @@ impl Sidecar {
     }
 }
 
-pub fn resolve_chdb_lib_path(resource_dir: &Path) -> std::io::Result<PathBuf> {
-    let lib = resource_dir.join("libchdb.so");
-    if lib.is_file() {
-        return Ok(lib);
-    }
-
-    Err(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        format!(
-            "bundled chDB resource not found at {}; run pnpm desktop:prepare:debug",
-            lib.display()
-        ),
-    ))
-}
-
-pub fn chdb_lib_env(resource_dir: &Path) -> std::io::Result<(&'static str, PathBuf)> {
-    Ok(("CHDB_LIB_PATH", resolve_chdb_lib_path(resource_dir)?))
-}
-
-fn resource_dir_for_detached_sidecar(binary: &Path) -> PathBuf {
-    let Some(sidecar_dir) = binary.parent() else {
-        return PathBuf::from(".");
-    };
-    if sidecar_dir.file_name().and_then(|name| name.to_str()) == Some("desktop-sidecars") {
-        if let Some(target_dir) = sidecar_dir.parent() {
-            return target_dir.join("desktop-resources");
-        }
-    }
-
-    sidecar_dir.to_path_buf()
-}
-
-fn chdb_lib_env_from_app(app: &AppHandle) -> Result<(&'static str, PathBuf), String> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|err| format!("failed to resolve app resource directory: {err}"))?;
-    chdb_lib_env(&resource_dir).map_err(|err| err.to_string())
-}
-
 /// Kill any orphaned collector still holding the health-check port from a
 /// previous run (common during Tauri dev hot-reload).
 fn kill_orphaned_collector() {
@@ -223,21 +131,6 @@ fn kill_orphaned_collector() {
             let _ = kill(Pid::from_raw(pid), Signal::SIGKILL);
         }
     }
-}
-
-fn render_config(telemetry_dir: &Path) -> String {
-    CONFIG_TEMPLATE
-        .replace("{OTLP_PORT}", &OTLP_HTTP_PORT.to_string())
-        .replace("{HEALTH_PORT}", &HEALTHCHECK_PORT.to_string())
-        .replace("{SQL_HTTP_PORT}", &SQL_HTTP_PORT.to_string())
-        .replace("{TELEMETRY_DIR}", &telemetry_dir.display().to_string())
-}
-
-fn write_config(telemetry_dir: &Path) -> std::io::Result<PathBuf> {
-    fs::create_dir_all(telemetry_dir)?;
-    let config_path = telemetry_dir.join(".collector.yaml");
-    fs::write(&config_path, render_config(telemetry_dir))?;
-    Ok(config_path)
 }
 
 pub async fn wait_healthcheck(endpoint: &str, deadline: Duration) -> bool {
@@ -286,28 +179,40 @@ pub async fn wait_for_disabled_state(
     }
 }
 
-async fn forward_receiver(
-    mut receiver: tauri::async_runtime::Receiver<tauri_plugin_shell::process::CommandEvent>,
+async fn monitor_child(
+    child: std::sync::Arc<std::sync::Mutex<Option<Child>>>,
     state_tx: watch::Sender<TelemetryState>,
 ) {
-    use tauri_plugin_shell::process::CommandEvent;
-    while let Some(event) = receiver.recv().await {
-        match event {
-            CommandEvent::Stdout(bytes) => {
-                eprintln!("[collector stdout] {}", String::from_utf8_lossy(&bytes));
+    loop {
+        let status = {
+            let mut guard = child.lock().unwrap();
+            let Some(child) = guard.as_mut() else {
+                break;
+            };
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    guard.take();
+                    Some(Ok(status))
+                }
+                Ok(None) => None,
+                Err(err) => Some(Err(err)),
             }
-            CommandEvent::Stderr(bytes) => {
-                eprintln!("[collector stderr] {}", String::from_utf8_lossy(&bytes));
-            }
-            CommandEvent::Error(err) => eprintln!("[collector] error: {err}"),
-            CommandEvent::Terminated(payload) => {
-                eprintln!("[collector] terminated: {payload:?}");
+        };
+
+        match status {
+            Some(Ok(status)) => {
                 let _ = state_tx.send(TelemetryState::Disabled {
-                    reason: format!("collector terminated: {payload:?}"),
+                    reason: format!("collector CLI terminated: {status}"),
                 });
                 break;
             }
-            _ => {}
+            Some(Err(err)) => {
+                let _ = state_tx.send(TelemetryState::Disabled {
+                    reason: format!("collector CLI wait failed: {err}"),
+                });
+                break;
+            }
+            None => sleep(Duration::from_millis(250)).await,
         }
     }
 }
@@ -335,18 +240,23 @@ async fn monitor_readiness(
 }
 
 /// Test helper that spawns the collector without requiring a Tauri AppHandle.
-pub async fn spawn_collector_detached(
-    binary: &Path,
-    telemetry_dir: &Path,
-) -> std::io::Result<DetachedSidecar> {
-    let config_path = write_config(telemetry_dir)?;
-    let resource_dir = resource_dir_for_detached_sidecar(binary);
-    let (chdb_env_name, chdb_env_value) = chdb_lib_env(&resource_dir)?;
+pub async fn spawn_cli_collector_detached(binary: &Path) -> std::io::Result<DetachedSidecar> {
+    let child = spawn_cli_collector(binary).await?;
+    let child = std::sync::Arc::new(std::sync::Mutex::new(Some(child)));
+    let (tx, rx) = watch::channel(TelemetryState::Starting);
+    tokio::spawn(monitor_child(child.clone(), tx.clone()));
+    Ok(DetachedSidecar {
+        inner: Sidecar {
+            child,
+            state_tx: tx,
+            state_rx: rx,
+        },
+    })
+}
+
+async fn spawn_cli_collector(binary: &Path) -> std::io::Result<Child> {
     let mut child = Command::new(binary)
-        .arg("--config")
-        .arg(&config_path)
-        .env(chdb_env_name, chdb_env_value)
-        .env("TZ", "UTC")
+        .args(["telemetry", "start", "--quiet"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
@@ -359,15 +269,7 @@ pub async fn spawn_collector_detached(
         tokio::spawn(forward_output(stderr, "[collector stderr]"));
     }
 
-    let (tx, rx) = watch::channel(TelemetryState::Starting);
-    Ok(DetachedSidecar {
-        inner: Sidecar {
-            child: std::sync::Mutex::new(Some(child)),
-            command_child: std::sync::Mutex::new(None),
-            state_tx: tx,
-            state_rx: rx,
-        },
-    })
+    Ok(child)
 }
 
 pub struct DetachedSidecar {
@@ -377,7 +279,7 @@ pub struct DetachedSidecar {
 impl DetachedSidecar {
     pub async fn wait_ready(&self) -> TelemetryState {
         let endpoint = format!("http://127.0.0.1:{HEALTHCHECK_PORT}/");
-        if wait_healthcheck(&endpoint, Duration::from_secs(3)).await {
+        if wait_healthcheck(&endpoint, Duration::from_secs(10)).await {
             let otlp = format!("http://127.0.0.1:{OTLP_HTTP_PORT}");
             let state = TelemetryState::Ready {
                 otlp_endpoint: otlp,

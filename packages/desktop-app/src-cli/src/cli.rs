@@ -75,13 +75,22 @@ pub struct TelemetryArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum TelemetrySubcommand {
+    /// Start the local collector in the foreground.
+    Start(TelemetryStartArgs),
     /// Run a SQL query against local telemetry.
     Query(TelemetryQueryArgs),
-    /// Print the local collector's OTLP and SQL endpoints.
+    /// Print the local collector URL.
     Endpoint,
     /// Print AI-oriented guidance for `everr telemetry`.
     #[command(name = "ai-instructions")]
     AiInstructions,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct TelemetryStartArgs {
+    /// Suppress collector URL output after the collector is ready.
+    #[arg(long)]
+    pub quiet: bool,
 }
 
 #[derive(Args, Debug, Default)]

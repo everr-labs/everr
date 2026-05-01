@@ -1,9 +1,4 @@
 {
-  "bundle": {
-    "externalBin": [
-      "../../../target/desktop-sidecars/everr-local-collector"
-    ]
-  },
   "productName": "Everr_Dev",
   "identifier": "dev.everr.everr-dev",
   "app": {

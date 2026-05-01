@@ -91,7 +91,7 @@ fn cli_install_path(bin_name: &str) -> Result<PathBuf> {
     Ok(home.join(".local").join("bin").join(bin_name))
 }
 
-fn bundled_cli_path(app: &AppHandle) -> Result<PathBuf> {
+pub(crate) fn bundled_cli_path(app: &AppHandle) -> Result<PathBuf> {
     let resource_dir = app
         .path()
         .resource_dir()
