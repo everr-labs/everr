@@ -2,23 +2,21 @@ import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { auth } from "@/lib/auth.server";
 import { createClickhouseQuery } from "./clickhouse";
 
-export const authMiddleware = createMiddleware().server(
-  async ({ request, next }) => {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+const authMiddleware = createMiddleware().server(async ({ request, next }) => {
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
 
-    if (!session?.session || !session?.user) {
-      throw new Error("Unauthenticated");
-    }
+  if (!session?.session || !session?.user) {
+    throw new Error("Unauthenticated");
+  }
 
-    return next({
-      context: {
-        session,
-      },
-    });
-  },
-);
+  return next({
+    context: {
+      session,
+    },
+  });
+});
 
 export const requireOrgMiddleware = createMiddleware()
   .middleware([authMiddleware])

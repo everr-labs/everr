@@ -1,25 +1,15 @@
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { DataPanel } from "@/components/data-panel";
 import { PanelShell } from "@/components/panel-shell";
 import { TraceWaterfall } from "@/components/run-detail";
-import { flakyTestNamesOptions } from "@/data/flaky-tests/options";
-import { runDetailsOptions, runSpansOptions } from "@/data/runs/options";
+import { runSpansOptions } from "@/data/runs/options";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/runs/$traceId/trace",
 )({
   loader: async ({ context: { queryClient }, params }) => {
-    const [, runDetails] = await Promise.all([
-      queryClient.ensureQueryData(runSpansOptions(params.traceId)),
-      queryClient.ensureQueryData(runDetailsOptions(params.traceId)),
-    ]);
-
-    // Pre-fetch flaky test names for badge display
-    if (runDetails?.repo) {
-      await queryClient.prefetchQuery(flakyTestNamesOptions(runDetails.repo));
-    }
+    await queryClient.ensureQueryData(runSpansOptions(params.traceId));
   },
   component: TraceView,
   pendingComponent: TraceViewSkeleton,
@@ -38,30 +28,21 @@ const traceSkeleton = (
 
 function TraceView() {
   const { traceId } = Route.useParams();
-  const { data: runDetails } = useQuery(runDetailsOptions(traceId));
-  const repo = runDetails?.repo;
 
   return (
     <DataPanel
-      queries={[
-        runSpansOptions(traceId),
-        ...(repo ? [flakyTestNamesOptions(repo)] : []),
-      ]}
+      queries={[runSpansOptions(traceId)]}
       className="flex h-full flex-col overflow-hidden"
       inset="flush-content"
       skeleton={traceSkeleton}
     >
-      {(spans, flakyTestNames) =>
+      {(spans) =>
         spans.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
             No trace data available
           </p>
         ) : (
-          <TraceWaterfall
-            spans={spans}
-            traceId={traceId}
-            flakyTestNames={flakyTestNames}
-          />
+          <TraceWaterfall spans={spans} traceId={traceId} />
         )
       }
     </DataPanel>

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/data/flaky-tests/server", () => ({
+vi.mock("@/data/test-history", () => ({
   getTestHistory: vi.fn(),
 }));
 
@@ -10,7 +10,7 @@ vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
   },
 }));
 
-import { getTestHistory } from "@/data/flaky-tests/server";
+import { getTestHistory } from "@/data/test-history";
 import { Route } from "./test-history";
 
 const mockedGetTestHistory = vi.mocked(getTestHistory);

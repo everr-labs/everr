@@ -22,6 +22,91 @@ const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
   skip: "skip",
 };
 
+interface SpanRow {
+  spanId: string;
+  parentSpanId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  conclusion: string;
+  jobId: string;
+  jobName: string;
+  stepNumber: string;
+  createdAt: string;
+  startedAt: string;
+  headBranch: string;
+  headSha: string;
+  runnerName: string;
+  labels: string;
+  sender: string;
+  runAttempt: string;
+  htmlUrl: string;
+  testName: string;
+  testResult: string;
+  testDuration: string;
+  testFramework: string;
+  testLanguage: string;
+  isSubtest: string;
+  isSuite: string;
+}
+
+function computeQueueTime(row: SpanRow): number | undefined {
+  if (!row.createdAt || !row.startedAt || row.stepNumber) return undefined;
+  const created = new Date(row.createdAt).getTime();
+  const started = new Date(row.startedAt).getTime();
+  if (Number.isNaN(created) || Number.isNaN(started)) return undefined;
+  return started - created;
+}
+
+function jobAttributes(row: SpanRow) {
+  if (row.stepNumber) {
+    return {
+      headBranch: undefined,
+      headSha: undefined,
+      runnerName: undefined,
+      labels: undefined,
+      sender: undefined,
+      runAttempt: undefined,
+      htmlUrl: undefined,
+    };
+  }
+  return {
+    headBranch: row.headBranch || undefined,
+    headSha: row.headSha || undefined,
+    runnerName: row.runnerName || undefined,
+    labels: row.labels || undefined,
+    sender: row.sender || undefined,
+    runAttempt: row.runAttempt ? Number(row.runAttempt) : undefined,
+    htmlUrl: row.htmlUrl || undefined,
+  };
+}
+
+function rowToSpan(row: SpanRow): Span {
+  return {
+    spanId: row.spanId,
+    parentSpanId: row.parentSpanId,
+    name: row.name,
+    startTime: Number(row.startTime),
+    endTime: Number(row.endTime),
+    duration: Number(row.duration),
+    conclusion:
+      row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
+    jobId: row.jobId || undefined,
+    jobName: row.jobName || undefined,
+    stepNumber: row.stepNumber || undefined,
+    queueTime: computeQueueTime(row),
+    ...jobAttributes(row),
+    testName: row.testName || undefined,
+    testResult: row.testResult || undefined,
+    testDuration: row.testDuration ? Number(row.testDuration) : undefined,
+    testFramework: row.testFramework || undefined,
+    testLanguage: row.testLanguage || undefined,
+    isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
+    isSuite: row.isSuite === "true" || row.isSuite === "1",
+  };
+}
+
 function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
   return {
     timestamp: normalizeTimestampToUtc(row.timestamp),
@@ -52,7 +137,7 @@ function buildJobFilterClause(params: StepLogsJobFilter): {
   }
   return {
     clause: "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
-    queryParam: { jobName: params.jobName! },
+    queryParam: { jobName: params.jobName },
   };
 }
 
@@ -319,45 +404,6 @@ export const getRunJobs = createAuthenticatedServerFn({
     return [...chJobs, ...pgOnlyJobs] satisfies Job[];
   });
 
-export const getJobSteps = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
-  .handler(async ({ data: { traceId, jobId }, context: { clickhouse } }) => {
-    const sql = `
-			SELECT
-					SpanName as name,
-					SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
-					StatusMessage as conclusion,
-					Duration / 1000000 as duration,
-					toUnixTimestamp64Milli(Timestamp) as startTime,
-					toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime
-			FROM traces
-			WHERE TraceId = {traceId:String}
-				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
-				AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
-			ORDER BY toUInt32OrZero(stepNumber)
-		`;
-
-    const result = await clickhouse.query<{
-      name: string;
-      stepNumber: string;
-      conclusion: string;
-      duration: string;
-      startTime: string;
-      endTime: string;
-    }>(sql, { traceId, jobId });
-
-    return result.map((row) => ({
-      stepNumber: row.stepNumber,
-      name: row.name,
-      conclusion: row.conclusion,
-      duration: Number(row.duration),
-      startTime: Number(row.startTime),
-      endTime: Number(row.endTime),
-    })) satisfies Step[];
-  });
-
 export const getAllJobsSteps = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -428,10 +474,14 @@ export const getStepLogs = createAuthenticatedServerFn({
     }),
   )
   .handler(async ({ data, context }) => {
-    const jobFilter: StepLogsJobFilter =
-      data.jobId !== undefined
-        ? { jobId: data.jobId }
-        : { jobName: data.jobName! };
+    let jobFilter: StepLogsJobFilter;
+    if (data.jobId !== undefined) {
+      jobFilter = { jobId: data.jobId };
+    } else if (data.jobName !== undefined) {
+      jobFilter = { jobName: data.jobName };
+    } else {
+      throw new Error("Either jobId or jobName is required.");
+    }
 
     const totalCount = await countStepLogs(context.clickhouse, {
       traceId: data.traceId,
@@ -516,79 +566,7 @@ export const getRunSpans = createAuthenticatedServerFn({
 			ORDER BY startTime ASC
 		`;
 
-    const result = await clickhouse.query<{
-      spanId: string;
-      parentSpanId: string;
-      name: string;
-      startTime: string;
-      endTime: string;
-      duration: string;
-      conclusion: string;
-      jobId: string;
-      jobName: string;
-      stepNumber: string;
-      createdAt: string;
-      startedAt: string;
-      headBranch: string;
-      headSha: string;
-      runnerName: string;
-      labels: string;
-      sender: string;
-      runAttempt: string;
-      htmlUrl: string;
-      testName: string;
-      testResult: string;
-      testDuration: string;
-      testFramework: string;
-      testLanguage: string;
-      isSubtest: string;
-      isSuite: string;
-    }>(sql, { traceId });
+    const result = await clickhouse.query<SpanRow>(sql, { traceId });
 
-    return result.map((row) => {
-      // Calculate queue time from created_at and started_at (ISO timestamps)
-      let queueTime: number | undefined;
-      if (row.createdAt && row.startedAt && !row.stepNumber) {
-        const created = new Date(row.createdAt).getTime();
-        const started = new Date(row.startedAt).getTime();
-        if (!Number.isNaN(created) && !Number.isNaN(started)) {
-          queueTime = started - created;
-        }
-      }
-
-      // Only include job-specific attributes for job spans (not steps)
-      const isJobSpan = !row.stepNumber;
-
-      return {
-        spanId: row.spanId,
-        parentSpanId: row.parentSpanId,
-        name: row.name,
-        startTime: Number(row.startTime),
-        endTime: Number(row.endTime),
-        duration: Number(row.duration),
-        conclusion:
-          row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
-        jobId: row.jobId || undefined,
-        jobName: row.jobName || undefined,
-        stepNumber: row.stepNumber || undefined,
-        queueTime,
-        // Job-specific attributes (only for job spans)
-        headBranch: isJobSpan && row.headBranch ? row.headBranch : undefined,
-        headSha: isJobSpan && row.headSha ? row.headSha : undefined,
-        runnerName: isJobSpan && row.runnerName ? row.runnerName : undefined,
-        labels: isJobSpan && row.labels ? row.labels : undefined,
-        sender: isJobSpan && row.sender ? row.sender : undefined,
-        runAttempt:
-          isJobSpan && row.runAttempt ? Number(row.runAttempt) : undefined,
-        htmlUrl: isJobSpan && row.htmlUrl ? row.htmlUrl : undefined,
-        // Test-specific attributes
-        testName: row.testName || undefined,
-        testResult: row.testResult || undefined,
-        testDuration: row.testDuration ? Number(row.testDuration) : undefined,
-        testFramework: row.testFramework || undefined,
-        testLanguage: row.testLanguage || undefined,
-        isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
-        isSuite: row.isSuite === "true" || row.isSuite === "1",
-      };
-    }) satisfies Span[];
+    return result.map(rowToSpan) satisfies Span[];
   });

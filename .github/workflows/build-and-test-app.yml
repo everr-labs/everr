@@ -68,6 +68,11 @@ jobs:
       - name: Typecheck
         run: pnpm -r --filter @everr/app... typecheck
 
+      - uses: fallow-rs/fallow@v2
+        with:
+          config: .fallowrc.jsonc
+          workspace: "@everr/app"
+
       - name: Test
         run: pnpm -r --filter @everr/app... test:ci
 

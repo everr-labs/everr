@@ -16,20 +16,19 @@ const GrepQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).optional(),
     offset: z.coerce.number().int().min(0).optional(),
   })
-  .refine(
-    (data) => data.jobName === undefined || data.stepNumber !== undefined,
-    {
-      message: "Provide both jobName and stepNumber together.",
-      path: ["stepNumber"],
-    },
-  )
-  .refine(
-    (data) => data.stepNumber === undefined || data.jobName !== undefined,
-    {
-      message: "Provide both jobName and stepNumber together.",
-      path: ["jobName"],
-    },
-  )
+  .superRefine((data, ctx) => {
+    if ((data.jobName === undefined) === (data.stepNumber === undefined)) {
+      return;
+    }
+
+    const missing = data.jobName === undefined ? "jobName" : "stepNumber";
+    const present = missing === "jobName" ? "stepNumber" : "jobName";
+    ctx.addIssue({
+      code: "custom",
+      message: `${missing} is required when ${present} is set.`,
+      path: [missing],
+    });
+  })
   .refine((data) => !(data.branch && data.excludeBranch), {
     message: "Provide either branch or excludeBranch, not both.",
     path: ["excludeBranch"],

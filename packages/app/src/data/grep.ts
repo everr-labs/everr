@@ -9,7 +9,7 @@ import {
 
 const MAX_RECENT_OCCURRENCES_PER_BRANCH = 5;
 const MAX_MATCHED_LINES_PER_OCCURRENCE = 3;
-export const MAX_GREP_LOOKBACK_DAYS = 30;
+const MAX_GREP_LOOKBACK_DAYS = 30;
 const UNKNOWN_BRANCH = "(unknown)";
 const MAX_GREP_LOOKBACK_MS = MAX_GREP_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 const MAX_GREP_LOOKBACK_EPSILON_MS = 1000;
@@ -47,9 +47,9 @@ const GrepInputSchema = z
     path: ["excludeBranch"],
   });
 
-export type GrepInput = z.infer<typeof GrepInputSchema>;
+type GrepInput = z.infer<typeof GrepInputSchema>;
 
-export interface GrepOccurrence {
+interface GrepOccurrence {
   traceId: string;
   runId: string;
   runAttempt: number;
@@ -65,14 +65,14 @@ export interface GrepOccurrence {
   matchedLines: string[];
 }
 
-export interface GrepBranchItem {
+interface GrepBranchItem {
   branch: string;
   occurrenceCount: number;
   lastSeen: string;
   recentOccurrences: GrepOccurrence[];
 }
 
-export interface GrepResult {
+interface GrepResult {
   repo: string;
   pattern: string;
   jobName: string | null;

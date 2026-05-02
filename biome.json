@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -8,17 +8,17 @@
   "files": {
     "ignoreUnknown": false,
     "includes": [
-      "packages/app/**/src/**/*",
+      "packages/app/src/**/*",
       "packages/app/vite.config.ts",
 
-      "packages/docs/**/src/**/*",
+      "packages/docs/src/**/*",
       "packages/docs/vite.config.ts",
+      "packages/docs/cource.config.ts",
 
-      "packages/desktop-app/**/src/**/*",
+      "packages/desktop-app/src/**/*",
       "packages/desktop-app/vite.config.ts",
 
-      "packages/ui/**/src/**/*",
-      "packages/ui/**/*.css",
+      "packages/ui/src/**/*",
 
       "packages/datemath/**/src/**/*",
       "packages/datemath/vite.config.ts",

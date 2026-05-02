@@ -3,9 +3,6 @@ import {
   DEFAULT_TIME_RANGE,
   formatTimeRangeDisplay,
   QUICK_RANGE_GROUPS,
-  QUICK_RANGES,
-  type QuickRange,
-  type QuickRangeGroup,
   type TimeRange,
 } from "@everr/ui/components/time-range-picker";
 import * as z from "zod";
@@ -14,9 +11,6 @@ export {
   DEFAULT_TIME_RANGE,
   formatTimeRangeDisplay,
   QUICK_RANGE_GROUPS,
-  QUICK_RANGES,
-  type QuickRange,
-  type QuickRangeGroup,
   type TimeRange,
 };
 
@@ -42,10 +36,7 @@ export function resolveTimeRange(range: TimeRange) {
   };
 }
 
-export {
-  getRefreshIntervalMs,
-  REFRESH_INTERVALS,
-} from "@everr/ui/components/refresh-picker";
+export { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 
 export type RefreshInterval = string;
 

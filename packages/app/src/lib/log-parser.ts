@@ -17,9 +17,8 @@ export interface LogGroup {
 }
 
 // Parse GitHub workflow command markers
-export const MARKER_REGEX =
-  /^##\[(group|endgroup|error|warning|notice|debug)\](.*)$/;
-export const COMMAND_REGEX = /^\[command\](.*)$/;
+const MARKER_REGEX = /^##\[(group|endgroup|error|warning|notice|debug)\](.*)$/;
+const COMMAND_REGEX = /^\[command\](.*)$/;
 
 export type MarkerType =
   | "group"
@@ -121,30 +120,49 @@ export function parseLogs(logs: LogEntry[]): {
   return { lines, groups };
 }
 
-export interface VisibleLine {
+interface VisibleLine {
   index: number;
   indentLevel: number;
   displayLine: number;
 }
 
-export function computeVisibleLines(
+function computeGroupDepth(group: LogGroup, groups: LogGroup[]): number {
+  let depth = 0;
+  for (const other of groups) {
+    if (
+      other.startIndex < group.startIndex &&
+      other.endIndex > group.endIndex
+    ) {
+      depth++;
+    }
+  }
+  return depth;
+}
+
+function hasUniformTimestamps(
   lines: ParsedLogLine[],
-  groups: LogGroup[],
-  collapsed: Set<string>,
-) {
+  group: LogGroup,
+): boolean {
+  const headerTimestamp = formatTimestampTimeOfDay(
+    lines[group.startIndex].timestamp,
+  );
+  for (let i = group.startIndex + 1; i < group.endIndex; i++) {
+    if (
+      !lines[i].isGroupEnd &&
+      formatTimestampTimeOfDay(lines[i].timestamp) !== headerTimestamp
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildGroupMetadata(lines: ParsedLogLine[], groups: LogGroup[]) {
   const lineToGroup = new Map<number, { groupId: string; depth: number }>();
   const groupsWithUniformTimestamps = new Set<string>();
 
   for (const group of groups) {
-    let depth = 0;
-    for (const other of groups) {
-      if (
-        other.startIndex < group.startIndex &&
-        other.endIndex > group.endIndex
-      ) {
-        depth++;
-      }
-    }
+    const depth = computeGroupDepth(group, groups);
 
     for (let i = group.startIndex + 1; i < group.endIndex; i++) {
       const existing = lineToGroup.get(i);
@@ -153,56 +171,67 @@ export function computeVisibleLines(
       }
     }
 
-    const headerTimestamp = formatTimestampTimeOfDay(
-      lines[group.startIndex].timestamp,
-    );
-    let hasUniformTimestamps = true;
-    for (let i = group.startIndex + 1; i < group.endIndex; i++) {
-      if (
-        !lines[i].isGroupEnd &&
-        formatTimestampTimeOfDay(lines[i].timestamp) !== headerTimestamp
-      ) {
-        hasUniformTimestamps = false;
-        break;
-      }
-    }
-    if (hasUniformTimestamps) {
+    if (hasUniformTimestamps(lines, group)) {
       groupsWithUniformTimestamps.add(group.id);
     }
   }
 
-  const visible: VisibleLine[] = [];
+  return { lineToGroup, groupsWithUniformTimestamps };
+}
 
+function isHiddenByCollapse(
+  index: number,
+  groups: LogGroup[],
+  collapsed: Set<string>,
+): boolean {
+  for (const group of groups) {
+    if (
+      index > group.startIndex &&
+      index < group.endIndex &&
+      collapsed.has(group.id)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function computeIndentLevel(index: number, groups: LogGroup[]): number {
+  let indentLevel = 0;
+  for (const group of groups) {
+    if (index > group.startIndex && index <= group.endIndex) {
+      indentLevel++;
+    }
+  }
+  return indentLevel;
+}
+
+export function computeVisibleLines(
+  lines: ParsedLogLine[],
+  groups: LogGroup[],
+  collapsed: Set<string>,
+) {
+  const { lineToGroup, groupsWithUniformTimestamps } = buildGroupMetadata(
+    lines,
+    groups,
+  );
+
+  const visible: VisibleLine[] = [];
   let displayLine = 0;
+
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.isGroupEnd) continue;
+    if (lines[i].isGroupEnd) continue;
     displayLine++;
 
-    const groupInfo = lineToGroup.get(i);
-    let isHidden = false;
-    if (groupInfo) {
-      for (const group of groups) {
-        if (
-          i > group.startIndex &&
-          i < group.endIndex &&
-          collapsed.has(group.id)
-        ) {
-          isHidden = true;
-          break;
-        }
-      }
+    if (lineToGroup.get(i) && isHiddenByCollapse(i, groups, collapsed)) {
+      continue;
     }
 
-    if (!isHidden) {
-      let indentLevel = 0;
-      for (const group of groups) {
-        if (i > group.startIndex && i <= group.endIndex) {
-          indentLevel++;
-        }
-      }
-      visible.push({ index: i, indentLevel, displayLine });
-    }
+    visible.push({
+      index: i,
+      indentLevel: computeIndentLevel(i, groups),
+      displayLine,
+    });
   }
 
   return { visible, lineToGroup, groupsWithUniformTimestamps };
