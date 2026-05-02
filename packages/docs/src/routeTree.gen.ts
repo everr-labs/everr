@@ -13,6 +13,7 @@ import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
+import { Route as EverrAppSplatRouteImport } from './routes/everr-app/$'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
@@ -38,6 +39,11 @@ const DevlogIndexRoute = DevlogIndexRouteImport.update({
 const BlogIndexRoute = BlogIndexRouteImport.update({
   id: '/blog/',
   path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EverrAppSplatRoute = EverrAppSplatRouteImport.update({
+  id: '/everr-app/$',
+  path: '/everr-app/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsSplatRoute = DocsSplatRouteImport.update({
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
+  '/everr-app/$': typeof EverrAppSplatRoute
   '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
+  '/everr-app/$': typeof EverrAppSplatRoute
   '/blog': typeof BlogIndexRoute
   '/devlog': typeof DevlogIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
+  '/everr-app/$': typeof EverrAppSplatRoute
   '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
+    | '/everr-app/$'
     | '/blog/'
     | '/devlog/'
     | '/api/og/devlog/$slug'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
+    | '/everr-app/$'
     | '/blog'
     | '/devlog'
     | '/api/og/devlog/$slug'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
+    | '/everr-app/$'
     | '/blog/'
     | '/devlog/'
     | '/api/og/devlog/$slug'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   BlogSlugRoute: typeof BlogSlugRoute
   DevlogSlugRoute: typeof DevlogSlugRoute
   DocsSplatRoute: typeof DocsSplatRoute
+  EverrAppSplatRoute: typeof EverrAppSplatRoute
   BlogIndexRoute: typeof BlogIndexRoute
   DevlogIndexRoute: typeof DevlogIndexRoute
   ApiOgDevlogSlugRoute: typeof ApiOgDevlogSlugRoute
@@ -188,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/blog'
       fullPath: '/blog/'
       preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/everr-app/$': {
+      id: '/everr-app/$'
+      path: '/everr-app/$'
+      fullPath: '/everr-app/$'
+      preLoaderRoute: typeof EverrAppSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/$': {
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogSlugRoute: BlogSlugRoute,
   DevlogSlugRoute: DevlogSlugRoute,
   DocsSplatRoute: DocsSplatRoute,
+  EverrAppSplatRoute: EverrAppSplatRoute,
   BlogIndexRoute: BlogIndexRoute,
   DevlogIndexRoute: DevlogIndexRoute,
   ApiOgDevlogSlugRoute: ApiOgDevlogSlugRoute,
