@@ -6,21 +6,21 @@ packages:
 catalog:
   '@icons-pack/react-simple-icons': ^13.13.0
   '@t3-oss/env-core': ^0.13.11
-  '@tailwindcss/vite': ^4.2.2
-  '@tanstack/react-query': ^5.99.0
+  '@tailwindcss/vite': ^4.2.4
+  '@tanstack/react-query': ^5.100.8
   '@types/react': ^19.2.14
   '@types/react-dom': ^19.2.3
   '@vitejs/plugin-react': ^6.0.1
-  'lucide-react': ^1.8.0
+  'lucide-react': ^1.14.0
   motion: ^12.38.0
-  nitro: 3.0.260415-beta
+  nitro: 3.0.260429-beta
   react: ^19.2.5
   react-dom: ^19.2.5
   recharts: "^2.15.4"
-  tailwindcss: ^4.2.2
+  tailwindcss: ^4.2.4
   typescript: ^6.0.3
-  vite: ^8.0.8
-  zod: ^4.3.6
+  vite: ^8.0.10
+  zod: ^4.4.2
 
 onlyBuiltDependencies:
   - lefthook

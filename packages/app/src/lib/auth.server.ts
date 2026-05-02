@@ -216,7 +216,10 @@ export const auth = betterAuth({
         },
       },
     }),
-    deviceAuthorization(),
+    // Empty `schema` works around a better-auth@1.6.9 bug: its options Zod
+    // schema declares `schema` non-optional, so calling deviceAuthorization()
+    // without args fails parse with "expected nonoptional, received undefined".
+    deviceAuthorization({ schema: {} }),
     apiKey({
       references: "user",
     }),
