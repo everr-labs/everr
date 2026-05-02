@@ -72,7 +72,6 @@ jobs:
         with:
           config: .fallowrc.jsonc
           workspace: "@everr/app"
-          comment: true
 
       - name: Test
         run: pnpm -r --filter @everr/app... test:ci

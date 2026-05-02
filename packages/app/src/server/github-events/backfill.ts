@@ -391,6 +391,91 @@ export async function listInstallationRepos(
 // Main backfill entry point
 // ---------------------------------------------------------------------------
 
+async function fetchCandidateRuns(
+  token: string,
+  runsUrl: string,
+): Promise<ApiWorkflowRun[]> {
+  const candidateRuns: ApiWorkflowRun[] = [];
+  for await (const run of paginate<ApiWorkflowRun>(
+    token,
+    runsUrl,
+    "workflow_runs",
+  )) {
+    if (VALID_CONCLUSIONS.has(run.conclusion ?? "")) {
+      candidateRuns.push(run);
+    }
+  }
+  return candidateRuns;
+}
+
+async function enqueueJob(
+  job: ApiWorkflowJob,
+  repo: ApiRepo,
+  installationId: number,
+  organizationId: string,
+): Promise<void> {
+  const jobBody = apiJobToCollectorBody(job, repo, installationId);
+  await enqueueWebhookEvent(
+    deterministicUuid(
+      `backfill-${organizationId}-job-${job.id}-${job.run_attempt}`,
+    ),
+    {
+      headers: signedHeaders("workflow_job", jobBody),
+      body: jobBody.toString("base64"),
+    },
+  );
+}
+
+async function enqueueRun(
+  run: ApiWorkflowRun,
+  traceId: string,
+  repo: ApiRepo,
+  installationId: number,
+  organizationId: string,
+): Promise<void> {
+  const runBody = apiRunToCollectorBody(run, repo, installationId);
+  await enqueueWebhookEvent(
+    deterministicUuid(`backfill-${organizationId}-run-${traceId}`),
+    {
+      headers: signedHeaders("workflow_run", runBody),
+      body: runBody.toString("base64"),
+    },
+  );
+}
+
+/**
+ * Enqueue all completed jobs for a run. Returns the number successfully
+ * enqueued; failures are appended to `errors` and counted as 0.
+ */
+async function enqueueJobsForRun(
+  run: ApiWorkflowRun,
+  repo: ApiRepo,
+  installationId: number,
+  organizationId: string,
+  errors: string[],
+): Promise<number> {
+  const jobsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs/${run.id}/jobs?per_page=100`;
+  const freshToken = await getInstallationToken(installationId);
+
+  let enqueued = 0;
+  for await (const job of paginate<ApiWorkflowJob>(
+    freshToken,
+    jobsUrl,
+    "jobs",
+  )) {
+    if (job.status !== "completed") continue;
+
+    try {
+      await enqueueJob(job, repo, installationId, organizationId);
+      enqueued++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`job ${job.id} in run ${run.id}: ${msg}`);
+    }
+  }
+  return enqueued;
+}
+
 /**
  * Backfills historical GitHub Actions data for a single repo.
  *
@@ -418,115 +503,80 @@ export async function* backfillRepo(
     durationMs: 0,
   };
 
-  let jobCount = 0;
   let runsProcessed = 0;
 
+  const progress = (): BackfillProgress => ({
+    status: "importing",
+    jobsEnqueued: result.jobsReplayed,
+    jobsQuota: JOB_QUOTA_PER_REPO,
+    runsProcessed,
+  });
+
   for (const branch of BRANCH_CANDIDATES) {
-    if (jobCount >= JOB_QUOTA_PER_REPO) break;
+    if (result.jobsReplayed >= JOB_QUOTA_PER_REPO) break;
 
     const branchParam = branch ? `&branch=${branch}` : "";
     const runsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs?status=completed${branchParam}&per_page=100`;
 
+    let candidateRuns: ApiWorkflowRun[];
     try {
       const token = await getInstallationToken(installationId);
-
-      // Collect all valid runs, then dedup in one query
-      const candidateRuns: ApiWorkflowRun[] = [];
-      for await (const run of paginate<ApiWorkflowRun>(
-        token,
-        runsUrl,
-        "workflow_runs",
-      )) {
-        if (!VALID_CONCLUSIONS.has(run.conclusion ?? "")) continue;
-        candidateRuns.push(run);
-      }
-
-      if (candidateRuns.length === 0) continue;
-
-      const traceIds = candidateRuns.map((run) =>
-        generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
-      );
-      const existing = await getExistingTraceIds(organizationId, traceIds);
-
-      yield {
-        status: "importing",
-        jobsEnqueued: result.jobsReplayed,
-        jobsQuota: JOB_QUOTA_PER_REPO,
-        runsProcessed,
-      };
-
-      for (let i = 0; i < candidateRuns.length; i++) {
-        if (jobCount >= JOB_QUOTA_PER_REPO) break;
-        const run = candidateRuns[i];
-
-        if (existing.has(traceIds[i])) {
-          result.runsSkipped++;
-          continue;
-        }
-
-        try {
-          // Enqueue job events BEFORE the run event so the collector's
-          // step-timing cache is populated when eventToLogs processes the run.
-          const jobsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs/${run.id}/jobs?per_page=100`;
-          const freshToken = await getInstallationToken(installationId);
-
-          for await (const job of paginate<ApiWorkflowJob>(
-            freshToken,
-            jobsUrl,
-            "jobs",
-          )) {
-            if (job.status !== "completed") continue;
-
-            try {
-              const jobBody = apiJobToCollectorBody(job, repo, installationId);
-              await enqueueWebhookEvent(
-                deterministicUuid(
-                  `backfill-${organizationId}-job-${job.id}-${job.run_attempt}`,
-                ),
-                {
-                  headers: signedHeaders("workflow_job", jobBody),
-                  body: jobBody.toString("base64"),
-                },
-              );
-              result.jobsReplayed++;
-              jobCount++;
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              result.errors.push(`job ${job.id} in run ${run.id}: ${msg}`);
-            }
-          }
-
-          const runBody = apiRunToCollectorBody(run, repo, installationId);
-          await enqueueWebhookEvent(
-            deterministicUuid(`backfill-${organizationId}-run-${traceIds[i]}`),
-            {
-              headers: signedHeaders("workflow_run", runBody),
-              body: runBody.toString("base64"),
-            },
-          );
-          result.runsReplayed++;
-          runsProcessed++;
-          yield {
-            status: "importing",
-            jobsEnqueued: result.jobsReplayed,
-            jobsQuota: JOB_QUOTA_PER_REPO,
-            runsProcessed,
-          };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          result.errors.push(`run ${run.id}: ${msg}`);
-        }
-      }
-
-      // Found runs on this branch — don't try the next candidate
-      break;
+      candidateRuns = await fetchCandidateRuns(token, runsUrl);
     } catch (err) {
-      // Branch may not exist (404) — try next
       const msg = err instanceof Error ? err.message : String(err);
+      // Branch may not exist (404) — try next
       if (!msg.includes("status=404")) {
         result.errors.push(`branch ${branch ?? "all"}: ${msg}`);
       }
+      continue;
     }
+
+    if (candidateRuns.length === 0) continue;
+
+    const traceIds = candidateRuns.map((run) =>
+      generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
+    );
+    const existing = await getExistingTraceIds(organizationId, traceIds);
+
+    yield progress();
+
+    for (let i = 0; i < candidateRuns.length; i++) {
+      if (result.jobsReplayed >= JOB_QUOTA_PER_REPO) break;
+      const run = candidateRuns[i];
+
+      if (existing.has(traceIds[i])) {
+        result.runsSkipped++;
+        continue;
+      }
+
+      try {
+        // Enqueue job events BEFORE the run event so the collector's
+        // step-timing cache is populated when eventToLogs processes the run.
+        result.jobsReplayed += await enqueueJobsForRun(
+          run,
+          repo,
+          installationId,
+          organizationId,
+          result.errors,
+        );
+        await enqueueRun(
+          run,
+          traceIds[i],
+          repo,
+          installationId,
+          organizationId,
+        );
+        result.runsReplayed++;
+        runsProcessed++;
+        yield progress();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.errors.push(`run ${run.id}: ${msg}`);
+      }
+    }
+
+    // Found runs on this branch — don't try the next candidate
+    break;
   }
 
   result.durationMs = Date.now() - started;
