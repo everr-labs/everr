@@ -8,7 +8,10 @@ import {
   installCliBinary,
   loadBuildEnvFile,
 } from "./build-support.ts";
-import { stageReleaseArtifacts } from "./copy-release-artifact.ts";
+import {
+  notarizeReleaseDmgIfConfigured,
+  stageReleaseArtifacts,
+} from "./copy-release-artifact.ts";
 
 export async function buildDesktop(args = process.argv.slice(2)) {
   const tauriArgs: string[] = [];
@@ -67,6 +70,7 @@ export async function buildDesktop(args = process.argv.slice(2)) {
       CI: process.env.CI || "true",
     },
   })`pnpm tauri build --bundles app,dmg ${tauriArgs}`;
+  await notarizeReleaseDmgIfConfigured();
   await stageReleaseArtifacts();
 
   if (installCli) {

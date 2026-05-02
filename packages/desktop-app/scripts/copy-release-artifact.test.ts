@@ -8,6 +8,7 @@ import {
   buildUpdaterManifest,
   findReleaseArtifacts,
   getDesktopReleaseTarget,
+  resolveDmgNotarizationRequest,
   writeReleaseChecksums,
 } from "./copy-release-artifact";
 
@@ -105,6 +106,39 @@ describe("copy-release-artifact helpers", () => {
         },
       ],
     });
+  });
+
+  it("resolves the App Store Connect credentials needed to notarize the release DMG", () => {
+    expect(
+      resolveDmgNotarizationRequest({
+        platform: "darwin",
+        dmgPath: "/tmp/Everr.dmg",
+        env: {
+          APPLE_API_KEY: "KEY123",
+          APPLE_API_KEY_PATH: "/tmp/AuthKey_KEY123.p8",
+          APPLE_API_ISSUER: "issuer-uuid",
+        },
+      }),
+    ).toEqual({
+      dmgPath: "/tmp/Everr.dmg",
+      keyId: "KEY123",
+      keyPath: "/tmp/AuthKey_KEY123.p8",
+      issuer: "issuer-uuid",
+    });
+  });
+
+  it("skips DMG notarization on non-macOS hosts", () => {
+    expect(
+      resolveDmgNotarizationRequest({
+        platform: "linux",
+        dmgPath: "/tmp/Everr.dmg",
+        env: {
+          APPLE_API_KEY: "KEY123",
+          APPLE_API_KEY_PATH: "/tmp/AuthKey_KEY123.p8",
+          APPLE_API_ISSUER: "issuer-uuid",
+        },
+      }),
+    ).toBeNull();
   });
 
   it("finds the newest dmg and matching updater archive/signature", async () => {

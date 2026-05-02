@@ -12,6 +12,7 @@ import {
 import { arch as getArch, platform as getPlatform } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { $ } from "zx";
 import { desktopReleaseDir, loadBuildEnvFile } from "./build-support.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -38,6 +39,13 @@ type ReleaseArtifacts = {
   dmg: string;
   updaterArchive: string;
   updaterSignature: string;
+};
+
+export type DmgNotarizationRequest = {
+  dmgPath: string;
+  keyId: string;
+  keyPath: string;
+  issuer: string;
 };
 
 type ReleaseFileEntry = {
@@ -181,6 +189,57 @@ async function findBundleDir() {
   }
 
   throw new Error("Could not locate the Tauri release bundle directory.");
+}
+
+export function resolveDmgNotarizationRequest({
+  platform = process.platform,
+  env = process.env,
+  dmgPath,
+}: {
+  platform?: NodeJS.Platform | string;
+  env?: NodeJS.ProcessEnv;
+  dmgPath: string;
+}): DmgNotarizationRequest | null {
+  if (platform !== "darwin") {
+    return null;
+  }
+
+  const keyId = env.APPLE_API_KEY?.trim();
+  const keyPath = env.APPLE_API_KEY_PATH?.trim();
+  const issuer = env.APPLE_API_ISSUER?.trim();
+
+  if (!keyId || !keyPath || !issuer) {
+    return null;
+  }
+
+  return {
+    dmgPath,
+    keyId,
+    keyPath,
+    issuer,
+  };
+}
+
+export async function notarizeDmgIfConfigured(dmgPath: string) {
+  loadBuildEnvFile();
+
+  const request = resolveDmgNotarizationRequest({ dmgPath });
+  if (!request) {
+    console.error(
+      `Skipping DMG notarization for ${dmgPath} because this is not macOS or App Store Connect API credentials are not configured.`,
+    );
+    return;
+  }
+
+  console.log(`Submitting ${dmgPath} for Apple notarization...`);
+  await $`xcrun notarytool submit ${request.dmgPath} --key ${request.keyPath} --key-id ${request.keyId} --issuer ${request.issuer} --wait`;
+  await $`xcrun stapler staple ${request.dmgPath}`;
+}
+
+export async function notarizeReleaseDmgIfConfigured() {
+  const bundleDir = await findBundleDir();
+  const artifacts = await findReleaseArtifacts(bundleDir);
+  await notarizeDmgIfConfigured(artifacts.dmg);
 }
 
 async function findNewestFileWithSuffix(dir: string, suffix: string) {
