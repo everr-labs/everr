@@ -477,6 +477,80 @@ async function enqueueJobsForRun(
 }
 
 /**
+ * Process a single run: enqueue its jobs and the run event.
+ * Mutates `result` and `progress` to reflect the outcome.
+ */
+async function processRun(
+  run: ApiWorkflowRun,
+  traceId: string,
+  repo: ApiRepo,
+  installationId: number,
+  organizationId: string,
+  result: BackfillResult,
+  progress: { runsProcessed: number },
+): Promise<void> {
+  try {
+    // Enqueue job events BEFORE the run event so the collector's
+    // step-timing cache is populated when eventToLogs processes the run.
+    result.jobsReplayed += await enqueueJobsForRun(
+      run,
+      repo,
+      installationId,
+      organizationId,
+      result.errors,
+    );
+    await enqueueRun(run, traceId, repo, installationId, organizationId);
+    result.runsReplayed++;
+    progress.runsProcessed++;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    result.errors.push(`run ${run.id}: ${msg}`);
+  }
+}
+
+interface BranchFetch {
+  candidateRuns: ApiWorkflowRun[];
+  traceIds: string[];
+  existing: Set<string>;
+}
+
+/**
+ * Fetch candidate runs for a branch and dedup against existing traceIds.
+ * Returns null if the branch was a 404 (try next), or if there are no runs.
+ * Errors other than 404 are recorded in `result.errors`.
+ */
+async function fetchBranch(
+  branch: string | null,
+  installationId: number,
+  organizationId: string,
+  repo: ApiRepo,
+  result: BackfillResult,
+): Promise<BranchFetch | null> {
+  const branchParam = branch ? `&branch=${branch}` : "";
+  const runsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs?status=completed${branchParam}&per_page=100`;
+
+  let candidateRuns: ApiWorkflowRun[];
+  try {
+    const token = await getInstallationToken(installationId);
+    candidateRuns = await fetchCandidateRuns(token, runsUrl);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("status=404")) {
+      result.errors.push(`branch ${branch ?? "all"}: ${msg}`);
+    }
+    return null;
+  }
+
+  if (candidateRuns.length === 0) return null;
+
+  const traceIds = candidateRuns.map((run) =>
+    generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
+  );
+  const existing = await getExistingTraceIds(organizationId, traceIds);
+  return { candidateRuns, traceIds, existing };
+}
+
+/**
  * Backfills historical GitHub Actions data for a single repo.
  *
  * Tries main, then master, then no branch filter — stops at the first
@@ -502,77 +576,47 @@ export async function* backfillRepo(
     errors: [],
     durationMs: 0,
   };
+  const progress = { runsProcessed: 0 };
 
-  let runsProcessed = 0;
-
-  const progress = (): BackfillProgress => ({
+  const snapshot = (): BackfillProgress => ({
     status: "importing",
     jobsEnqueued: result.jobsReplayed,
     jobsQuota: JOB_QUOTA_PER_REPO,
-    runsProcessed,
+    runsProcessed: progress.runsProcessed,
   });
 
   for (const branch of BRANCH_CANDIDATES) {
     if (result.jobsReplayed >= JOB_QUOTA_PER_REPO) break;
 
-    const branchParam = branch ? `&branch=${branch}` : "";
-    const runsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs?status=completed${branchParam}&per_page=100`;
-
-    let candidateRuns: ApiWorkflowRun[];
-    try {
-      const token = await getInstallationToken(installationId);
-      candidateRuns = await fetchCandidateRuns(token, runsUrl);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // Branch may not exist (404) — try next
-      if (!msg.includes("status=404")) {
-        result.errors.push(`branch ${branch ?? "all"}: ${msg}`);
-      }
-      continue;
-    }
-
-    if (candidateRuns.length === 0) continue;
-
-    const traceIds = candidateRuns.map((run) =>
-      generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
+    const fetched = await fetchBranch(
+      branch,
+      installationId,
+      organizationId,
+      repo,
+      result,
     );
-    const existing = await getExistingTraceIds(organizationId, traceIds);
+    if (!fetched) continue;
 
-    yield progress();
+    yield snapshot();
 
-    for (let i = 0; i < candidateRuns.length; i++) {
+    for (let i = 0; i < fetched.candidateRuns.length; i++) {
       if (result.jobsReplayed >= JOB_QUOTA_PER_REPO) break;
-      const run = candidateRuns[i];
 
-      if (existing.has(traceIds[i])) {
+      if (fetched.existing.has(fetched.traceIds[i])) {
         result.runsSkipped++;
         continue;
       }
 
-      try {
-        // Enqueue job events BEFORE the run event so the collector's
-        // step-timing cache is populated when eventToLogs processes the run.
-        result.jobsReplayed += await enqueueJobsForRun(
-          run,
-          repo,
-          installationId,
-          organizationId,
-          result.errors,
-        );
-        await enqueueRun(
-          run,
-          traceIds[i],
-          repo,
-          installationId,
-          organizationId,
-        );
-        result.runsReplayed++;
-        runsProcessed++;
-        yield progress();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result.errors.push(`run ${run.id}: ${msg}`);
-      }
+      await processRun(
+        fetched.candidateRuns[i],
+        fetched.traceIds[i],
+        repo,
+        installationId,
+        organizationId,
+        result,
+        progress,
+      );
+      yield snapshot();
     }
 
     // Found runs on this branch — don't try the next candidate
@@ -588,7 +632,7 @@ export async function* backfillRepo(
     status: "done",
     jobsEnqueued: result.jobsReplayed,
     jobsQuota: JOB_QUOTA_PER_REPO,
-    runsProcessed,
+    runsProcessed: progress.runsProcessed,
     errors: result.errors,
   };
 }
