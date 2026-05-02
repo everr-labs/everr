@@ -4,10 +4,10 @@ import * as z from "zod";
 export const clickhouseEnv = createEnv({
   server: {
     CLICKHOUSE_URL: z.url(),
-    CLICKHOUSE_USERNAME: z.string().default("default"),
-    CLICKHOUSE_PASSWORD: z.string().default(""),
-    CLICKHOUSE_DATABASE: z.string().default("default"),
-    CLICKHOUSE_RETENTION_USERNAME: z.string().default("app_retention"),
+    CLICKHOUSE_USERNAME: z.string(),
+    CLICKHOUSE_PASSWORD: z.string(),
+    CLICKHOUSE_DATABASE: z.string(),
+    CLICKHOUSE_RETENTION_USERNAME: z.string(),
     CLICKHOUSE_RETENTION_PASSWORD: z.string(),
   },
   runtimeEnv: {

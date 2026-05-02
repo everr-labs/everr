@@ -3,6 +3,7 @@
 ## Issues
 
 - [**cli-expired-token-no-re-auth-prompt**](todo/issues/cli-expired-token-no-re-auth-prompt.md) — When the CLI auth token expires, commands fail with a generic HTTP 401 error instead of prompting the user to re-authenticate.
+- [**clickhouse-ttl-merge-cost-monitoring**](todo/issues/clickhouse-ttl-merge-cost-monitoring.md) — We dropped `ttl_only_drop_parts = 1` from `app.traces`, `app.logs`, `app.metrics_gauge`, `app.metrics_sum` so per-tenant TTL (via `dictGetOrDefault('app.tenant_retention', ...)`) actually deletes expired rows row-by-row. This is required for correctness — with the setting on, parts containing both free-tier and pro-tier rows would persist for the longest-lived row's retention, causing free-tier data (and downgraded customers' data) to linger far past its stated retention.
 - [**clickhouse-ttl-tuning**](todo/issues/clickhouse-ttl-tuning.md) — ClickHouse table TTLs need to be reviewed and tuned. Currently unclear if TTLs are set at all, or if data is retained indefinitely.
 - [**collapsed-sidebar-submenu-focus-open**](todo/issues/collapsed-sidebar-submenu-focus-open.md) — When the sidebar is in icon-only (collapsed) mode, tabbing to a group item does not open its flyout submenu. The user must press Enter / Space / ArrowDown to open it. Hover-open works (`openOnHover` with 80ms delay).
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](todo/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.

@@ -35,7 +35,7 @@ ORDER BY (tenant_id, ServiceName, SpanName, toDateTime(Timestamp))
 -- on the next clean TTL merge once the dict recovers; the fallback never
 -- gets baked into a part.
 TTL toDateTime(Timestamp) + INTERVAL dictGetOrDefault('app.tenant_retention', 'traces_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+SETTINGS index_granularity = 8192
 AS
 SELECT
   *,
@@ -57,7 +57,7 @@ ENGINE = MergeTree
 PARTITION BY toDate(TimestampTime)
 ORDER BY (tenant_id, ServiceName, TimestampTime, Timestamp)
 TTL TimestampTime + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+SETTINGS index_granularity = 8192
 AS
 SELECT
   *,
@@ -79,7 +79,7 @@ ENGINE = MergeTree
 PARTITION BY toDate(TimeUnix)
 ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
 TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+SETTINGS index_granularity = 8192
 AS
 SELECT
   *,
@@ -101,7 +101,7 @@ ENGINE = MergeTree
 PARTITION BY toDate(TimeUnix)
 ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
 TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+SETTINGS index_granularity = 8192
 AS
 SELECT
   *,
