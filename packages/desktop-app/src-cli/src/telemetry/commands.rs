@@ -5,11 +5,15 @@ use serde_json::Value;
 
 use crate::cli::{TelemetryArgs, TelemetryFormat, TelemetryQueryArgs, TelemetrySubcommand};
 use crate::telemetry::client::{QueryClient, Rows};
+use crate::telemetry::collector;
 use crate::telemetry::sibling;
 
-pub fn run(args: TelemetryArgs) -> Result<()> {
+pub async fn run(args: TelemetryArgs) -> Result<()> {
     match args.command {
-        TelemetrySubcommand::Query(q) => run_query(q),
+        TelemetrySubcommand::Start(start) => collector::run_start(start).await,
+        TelemetrySubcommand::Query(q) => tokio::task::spawn_blocking(move || run_query(q))
+            .await
+            .context("telemetry query task failed")?,
         TelemetrySubcommand::Endpoint => run_endpoint(),
         TelemetrySubcommand::AiInstructions => run_ai_instructions(),
     }
@@ -17,7 +21,6 @@ pub fn run(args: TelemetryArgs) -> Result<()> {
 
 fn run_endpoint() -> Result<()> {
     println!("{}", everr_core::build::otlp_http_origin());
-    println!("{}", everr_core::build::sql_http_origin());
     Ok(())
 }
 
@@ -34,7 +37,9 @@ fn run_query(args: TelemetryQueryArgs) -> Result<()> {
         Ok(rows) => rows,
         Err(err) => {
             if is_connect_error(&err) {
-                eprintln!("telemetry collector isn't running — start the Everr desktop app");
+                eprintln!(
+                    "telemetry collector isn't running — run `everr telemetry start` or open Everr Desktop"
+                );
                 std::process::exit(2);
             }
             return Err(err).context("query failed");

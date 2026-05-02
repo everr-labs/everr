@@ -1,6 +1,7 @@
 import { $ } from "zx";
 import {
   installCliBinary,
+  prepareCliEmbeddedAssets,
   publishCliArtifact,
   resolveCliBuild,
 } from "./build-support.ts";
@@ -23,9 +24,17 @@ if (flag === "--install") {
 }
 
 const { buildArgs, builtBin } = resolveCliBuild(mode);
+const assets = await prepareCliEmbeddedAssets(mode);
 
 console.log(`Building everr CLI (${mode})...`);
-await $`cargo build ${buildArgs}`;
+await $({
+  env: {
+    ...process.env,
+    EVERR_EMBEDDED_COLLECTOR_GZ: assets.collectorGz,
+    EVERR_EMBEDDED_CHDB_GZ: assets.chdbGz,
+    EVERR_REQUIRE_EMBEDDED_COLLECTOR: "1",
+  },
+})`cargo build ${buildArgs}`;
 
 let installSource = builtBin;
 

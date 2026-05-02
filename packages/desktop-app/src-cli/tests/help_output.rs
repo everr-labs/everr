@@ -26,7 +26,8 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("wait-pipeline").not())
         .stdout(contains("runs"))
         .stdout(contains("show"))
-        .stdout(contains("logs"));
+        .stdout(contains("logs"))
+        .stdout(contains("telemetry"));
 }
 
 #[test]
@@ -82,6 +83,25 @@ fn runs_logs_help_lists_paging_flags_and_default_page_size() {
         .stdout(contains("--offset <OFFSET>"))
         .stdout(contains("default: 1000"))
         .stdout(contains("--egrep"));
+}
+
+#[test]
+fn telemetry_help_lists_start_command() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["telemetry", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("start"))
+        .stdout(contains("query"))
+        .stdout(contains("endpoint"));
+
+    env.command()
+        .args(["telemetry", "start", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("--quiet"));
 }
 
 #[test]
