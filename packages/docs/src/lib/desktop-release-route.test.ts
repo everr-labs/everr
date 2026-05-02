@@ -28,6 +28,17 @@ describe("/everr-app/$", () => {
     );
   });
 
+  it("redirects known CLI release files", async () => {
+    const response = await getHandler()({
+      request: new Request("https://everr.dev/everr-app/everr.sha256"),
+    });
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain(
+      "/everr-app/everr.sha256",
+    );
+  });
+
   it("returns 404 for unknown files", async () => {
     const response = await getHandler()({
       request: new Request("https://everr.dev/everr-app/debug.txt"),

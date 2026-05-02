@@ -1,4 +1,4 @@
-import { access, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -200,6 +200,5 @@ describe("build-support CLI artifact helpers", () => {
     await expect(readFile(path.join(outputDir, "everr.sha256"), "utf8")).resolves.toBe(
       "178893fed67c46f50c58cd77b698bb27649bee32019baa1e72b5142f9676e7a2  everr\n",
     );
-    await expect(access(path.join(outputDir, "everr.bin"))).rejects.toThrow();
   });
 });

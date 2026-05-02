@@ -15,6 +15,24 @@ describe("resolveDesktopReleaseRedirectUrl", () => {
     );
   });
 
+  it("redirects CLI release files to the public artifact base URL", () => {
+    expect(
+      resolveDesktopReleaseRedirectUrl({
+        pathname: "/everr-app/everr",
+        publicBaseUrl,
+      }),
+    ).toBe("https://desktop-release.example.com/releases/everr-app/everr");
+
+    expect(
+      resolveDesktopReleaseRedirectUrl({
+        pathname: "/everr-app/everr.sha256",
+        publicBaseUrl,
+      }),
+    ).toBe(
+      "https://desktop-release.example.com/releases/everr-app/everr.sha256",
+    );
+  });
+
   it("rejects unknown desktop release files", () => {
     expect(
       resolveDesktopReleaseRedirectUrl({

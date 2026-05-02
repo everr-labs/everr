@@ -128,6 +128,9 @@ everr-app/everr-macos-arm64.app.tar.gz
 everr-app/everr-macos-arm64.app.tar.gz.sig
 ```
 
+During deploy, the CLI files are published under `everr-app/everr` and `everr-app/everr.sha256`.
+The public installer still stays at `https://everr.dev/install.sh`, but it downloads those release-managed CLI files through the docs redirect route.
+
 ## Pull From The Deploy Repo
 
 The deploy repo can download the artifact by workflow run ID.
