@@ -24,7 +24,12 @@ export function resolveDesktopReleaseRedirectUrl({
     return null;
   }
 
-  const artifactPath = decodeURIComponent(pathname.slice(prefix.length));
+  let artifactPath: string;
+  try {
+    artifactPath = decodeURIComponent(pathname.slice(prefix.length));
+  } catch {
+    return null;
+  }
 
   if (!allowedDesktopReleasePaths.has(artifactPath)) {
     return null;

@@ -32,4 +32,13 @@ describe("resolveDesktopReleaseRedirectUrl", () => {
       }),
     ).toBeNull();
   });
+
+  it("rejects malformed encoded paths", () => {
+    expect(
+      resolveDesktopReleaseRedirectUrl({
+        pathname: "/everr-app/%E0%A4%A",
+        publicBaseUrl,
+      }),
+    ).toBeNull();
+  });
 });

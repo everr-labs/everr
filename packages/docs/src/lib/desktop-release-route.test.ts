@@ -43,4 +43,12 @@ describe("/everr-app/$", () => {
 
     expect(response.status).toBe(404);
   });
+
+  it("returns 404 for malformed encoded paths", async () => {
+    const response = await getHandler()({
+      request: new Request("https://everr.dev/everr-app/%E0%A4%A"),
+    });
+
+    expect(response.status).toBe(404);
+  });
 });
