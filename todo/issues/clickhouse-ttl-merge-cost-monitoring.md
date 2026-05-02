@@ -41,5 +41,3 @@ medium
 3. **Move expensive metrics rows to a separate table** with a different partitioning scheme if `app.metrics_sum`/`app.metrics_gauge` (longest pro retention at 395 days) dominate the rewrite cost.
 
 **What NOT to do**: re-enable `ttl_only_drop_parts = 1` without one of the fixes above — it silently breaks the per-tenant retention contract documented in `packages/docs/content/docs/reference/retention.mdx`.
-
-**Related**: `todo/issues/clickhouse-ttl-tuning.md` (older, broader TTL audit issue).

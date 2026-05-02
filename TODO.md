@@ -15,6 +15,7 @@
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**show-logged-in-user-info-desktop**](todo/issues/show-logged-in-user-info-desktop.md) — Display the logged-in user's name and email somewhere in the desktop app UI.
 - [**store-installation-repo-list-in-db**](todo/issues/store-installation-repo-list-in-db.md) — Store the list of installation repositories in the database.
+- [**tenant-retention-cleanup-on-org-delete**](todo/issues/tenant-retention-cleanup-on-org-delete.md) — Tenant retention rows are never removed when an org is deleted. Stale entries accumulate in `app.tenant_retention_source` and in the `app.tenant_retention` dictionary.
 
 ## Ideas
 
