@@ -12,7 +12,6 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
-    "@base-ui/react": "^1.4.0",
     "@everr/ui": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/space-grotesk": "^5.2.10",
@@ -23,34 +22,27 @@
     "@takumi-rs/image-response": "^1.0.12",
     "@tanstack/react-router": "1.168.22",
     "@tanstack/react-start": "1.167.41",
-    "class-variance-authority": "^0.7.1",
     "fumadocs-core": "16.7.16",
     "fumadocs-mdx": "14.3.0",
     "fumadocs-ui": "16.7.16",
     "lucide-react": "catalog:",
-    "motion": "catalog:",
     "posthog-js": "^1.369.2",
     "react": "catalog:",
     "react-dom": "catalog:",
     "resend": "^6.12.0",
-    "shadcn": "^4.3.0",
-    "simple-icons": "^16.16.0",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@tanstack/devtools-vite": "^0.6.0",
     "@tanstack/react-devtools": "^0.10.2",
-
     "@tanstack/react-router-devtools": "1.166.13",
-
     "@types/mdx": "^2.0.13",
     "@types/node": "^25.6.0",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "nitro": "catalog:",
-    "srvx": "^0.11.15",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

@@ -26,7 +26,13 @@
   "ignoreDependencies": [
     "@tanstack/__mocks__"
   ],
+  "ignoreExports": [
+    // fumadocs loads this config at build time
+    { "file": "packages/docs/source.config.ts", "exports": ["*"] }
+  ],
   "ignorePatterns": [
-    "packages/app/src/ssr-shims/**"
+    "packages/app/src/ssr-shims/**",
+    // fumadocs globs MDX content at build time
+    "packages/docs/content/**"
   ]
 }
