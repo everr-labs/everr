@@ -70,11 +70,9 @@ jobs:
 
       - uses: fallow-rs/fallow@v2
         with:
-          format: sarif
-
-      - uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: fallow-results.sarif
+          config: .fallowrc.jsonc
+          workspace: "@everr/app"
+          comment: true
 
       - name: Test
         run: pnpm -r --filter @everr/app... test:ci
