@@ -103,10 +103,10 @@ importers:
         version: 6.0.0
       '@polar-sh/better-auth':
         specifier: ^1.8.3
-        version: 1.8.3(@polar-sh/sdk@0.47.1)(@stripe/react-stripe-js@4.0.2(@stripe/stripe-js@7.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@stripe/stripe-js@7.9.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(better-auth@1.6.5(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.16)(pg@8.20.0))(pg@8.20.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(solid-js@1.9.11)(vitest@4.1.4))(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)(zod@4.3.6)
+        version: 1.8.3(@polar-sh/sdk@0.46.7)(@stripe/react-stripe-js@4.0.2(@stripe/stripe-js@7.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@stripe/stripe-js@7.9.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(better-auth@1.6.5(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.16)(pg@8.20.0))(pg@8.20.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(solid-js@1.9.11)(vitest@4.1.4))(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)(zod@4.3.6)
       '@polar-sh/sdk':
-        specifier: ^0.47.1
-        version: 0.47.1
+        specifier: ^0.46.4
+        version: 0.46.7
       '@t3-oss/env-core':
         specifier: 'catalog:'
         version: 0.13.11(typescript@6.0.3)(zod@4.3.6)
@@ -114,9 +114,6 @@ importers:
         specifier: 'catalog:'
         version: 4.2.2(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))
       '@tanstack/react-form':
-        specifier: ^1.29.0
-        version: 1.29.0(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@tanstack/react-form-start':
         specifier: ^1.29.0
         version: 1.29.0(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@tanstack/react-query':
@@ -201,9 +198,6 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: ^2.6.1
         version: 2.6.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions':
-        specifier: ^1.40.0
-        version: 1.40.0
       '@tanstack/devtools-vite':
         specifier: ^0.6.0
         version: 0.6.0(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))
@@ -2298,8 +2292,8 @@ packages:
   '@polar-sh/sdk@0.42.5':
     resolution: {integrity: sha512-GzC3/ElCtMO55+KeXwFTANlydZzw5qI3DU/F9vAFIsUKuegSmh+Xu03KCL+ct9/imJOvLUQucYhUSsNKqo2j2Q==}
 
-  '@polar-sh/sdk@0.47.1':
-    resolution: {integrity: sha512-fkz7wPLbqfuDmY9LxuXpE2uP2TAV6J0q/YN5hJ4UBxpjbkB0hKM6c4R35N89t83dfzMlG6EOlqOn+Rd1T6XrJQ==}
+  '@polar-sh/sdk@0.46.7':
+    resolution: {integrity: sha512-g8/goRQFfnik9Ood2Ej5AsbEXv2rohzhVlmW7wjkCuwdc8i59FWhdBjolX2tUwcXXjugziXrhCZJLivY3W6ytQ==}
 
   '@polar-sh/ui@0.1.2':
     resolution: {integrity: sha512-YTmMB2lr+PplMTDZnTs0Crgu0KNBKyQcSX4N0FYXSlo1Q6e9IKs4hwzEcqNUv3eHS4BxGO1SvxxNjuSK+il49Q==}
@@ -3562,15 +3556,6 @@ packages:
     peerDependencies:
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@tanstack/react-form-start@1.29.0':
-    resolution: {integrity: sha512-d0/y/Y5eX0Hj7R7cmaP+HIMq6FemNC8maFqAOeDWNGFTzzxN5tvhOEeD+ftDVYXZEmIpL2+oX0juZAI2a2GVWA==}
-    peerDependencies:
-      '@tanstack/react-start': ^1.134.9
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      '@tanstack/react-start':
-        optional: true
-
   '@tanstack/react-form@1.29.0':
     resolution: {integrity: sha512-jj425NNX0QKqbUzqSNiYI3HCPHSk2df47acXCJyXczWOTmG81ECZGkgofgqamFsSU9kMiH6Di5RLUnftrlhWSw==}
     peerDependencies:
@@ -4619,9 +4604,6 @@ packages:
   decimal.js@10.6.0:
     resolution: {integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==}
 
-  decode-formdata@0.9.0:
-    resolution: {integrity: sha512-q5uwOjR3Um5YD+ZWPOF/1sGHVW9A5rCrRwITQChRXlmPkxDFBqCm4jNTIVdGHNH9OnR+V9MoZVgRhsFb+ARbUw==}
-
   decode-named-character-reference@1.3.0:
     resolution: {integrity: sha512-GtpQYB283KrPp6nRw50q3U9/VfOutZOe103qlN7BPP6Ad27xYnOIWv4lPzo8HCAL+mMZofJ9KEy30fq6MfaK6Q==}
 
@@ -4669,9 +4651,6 @@ packages:
 
   detect-node-es@1.1.0:
     resolution: {integrity: sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==}
-
-  devalue@5.7.1:
-    resolution: {integrity: sha512-MUbZ586EgQqdRnC4yDrlod3BEdyvE4TapGYHMW2CiaW+KkkFmWEFqBUaLltEZCGi0iFXCEjRF0OjF0DV2QHjOA==}
 
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
@@ -9204,10 +9183,10 @@ snapshots:
 
   '@oxc-project/types@0.126.0': {}
 
-  '@polar-sh/better-auth@1.8.3(@polar-sh/sdk@0.47.1)(@stripe/react-stripe-js@4.0.2(@stripe/stripe-js@7.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@stripe/stripe-js@7.9.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(better-auth@1.6.5(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.16)(pg@8.20.0))(pg@8.20.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(solid-js@1.9.11)(vitest@4.1.4))(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)(zod@4.3.6)':
+  '@polar-sh/better-auth@1.8.3(@polar-sh/sdk@0.46.7)(@stripe/react-stripe-js@4.0.2(@stripe/stripe-js@7.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@stripe/stripe-js@7.9.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(better-auth@1.6.5(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.16)(pg@8.20.0))(pg@8.20.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(solid-js@1.9.11)(vitest@4.1.4))(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)(zod@4.3.6)':
     dependencies:
       '@polar-sh/checkout': 0.2.0(@stripe/react-stripe-js@4.0.2(@stripe/stripe-js@7.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@stripe/stripe-js@7.9.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)
-      '@polar-sh/sdk': 0.47.1
+      '@polar-sh/sdk': 0.46.7
       better-auth: 1.6.5(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.16)(pg@8.20.0))(pg@8.20.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(solid-js@1.9.11)(vitest@4.1.4)
       zod: 4.3.6
     transitivePeerDependencies:
@@ -9243,7 +9222,7 @@ snapshots:
       standardwebhooks: 1.0.0
       zod: 4.3.6
 
-  '@polar-sh/sdk@0.47.1':
+  '@polar-sh/sdk@0.46.7':
     dependencies:
       standardwebhooks: 1.0.0
       zod: 4.3.6
@@ -10451,17 +10430,6 @@ snapshots:
       - solid-js
       - vue
 
-  '@tanstack/react-form-start@1.29.0(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)':
-    dependencies:
-      '@tanstack/react-form': 1.29.0(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      decode-formdata: 0.9.0
-      devalue: 5.7.1
-      react: 19.2.5
-    optionalDependencies:
-      '@tanstack/react-start': 1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0))
-    transitivePeerDependencies:
-      - react-dom
-
   '@tanstack/react-form@1.29.0(@tanstack/react-start@1.167.41(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(terser@5.33.0)(tsx@4.21.0)(yaml@2.7.0)))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)':
     dependencies:
       '@tanstack/form-core': 1.29.0
@@ -11486,8 +11454,6 @@ snapshots:
 
   decimal.js@10.6.0: {}
 
-  decode-formdata@0.9.0: {}
-
   decode-named-character-reference@1.3.0:
     dependencies:
       character-entities: 2.0.2
@@ -11516,8 +11482,6 @@ snapshots:
   detect-libc@2.1.2: {}
 
   detect-node-es@1.1.0: {}
-
-  devalue@5.7.1: {}
 
   devlop@1.1.0:
     dependencies:

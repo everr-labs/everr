@@ -23,7 +23,7 @@
     "@icons-pack/react-simple-icons": "catalog:",
     "@octokit/webhooks-methods": "^6.0.0",
     "@polar-sh/better-auth": "^1.8.3",
-    "@polar-sh/sdk": "^0.47.1",
+    "@polar-sh/sdk": "^0.46.4",
     "@t3-oss/env-core": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-form": "^1.29.0",
