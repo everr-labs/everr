@@ -26,13 +26,10 @@ CI uses the same release path through:
 pnpm build:desktop:ci
 ```
 
-To bump the desktop app version by one patch without building, use:
-
-```bash
-pnpm bump:desktop
-```
-
-That updates the version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
+CI uses the commit SHA as the human release identity and generates the numeric
+Tauri/macOS updater version from the checked-in development version plus the
+workflow run number. The checked-in version stays as the local development
+fallback.
 
 Install the signed release CLI into `~/.local/bin` only when you explicitly opt in:
 

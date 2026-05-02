@@ -15,8 +15,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
-import { inc as incrementVersion, valid as validVersion } from "semver";
-import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import { parse as parseVersion, valid as validVersion } from "semver";
 import { $ } from "zx";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -364,33 +363,115 @@ function normalizeDesktopVersion(version: string) {
   return normalized;
 }
 
-export function bumpVersion(version: string, increment: "patch" | "minor" | "major") {
-  const nextVersion = incrementVersion(normalizeDesktopVersion(version), increment);
-  if (!nextVersion) {
+export type DesktopReleaseIdentity = {
+  platformVersion: string;
+  releaseSha: string;
+  releaseShortSha: string;
+  source: "github-actions" | "local";
+};
+
+function releaseShortSha(releaseSha: string) {
+  return releaseSha === "unknown" ? "unknown" : releaseSha.slice(0, 7);
+}
+
+function normalizeGithubRunNumber(value: string) {
+  const trimmed = value.trim();
+  if (!/^[1-9][0-9]*$/.test(trimmed)) {
     throw new Error(
-      `Unsupported desktop app version "${version}". Expected a semantic version in the form X.Y.Z.`,
+      `GITHUB_RUN_NUMBER must be a positive integer to generate a desktop platform version; got "${value}".`,
     );
   }
 
-  return nextVersion;
+  return trimmed;
 }
 
-type CargoManifest = {
-  package?: {
-    version?: string;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-};
-
-function replaceCargoPackageVersion(cargoToml: string, version: string) {
-  const cargoManifest = parseToml(cargoToml) as CargoManifest;
-  if (!cargoManifest.package) {
-    throw new Error("Could not update desktop app version in Cargo.toml.");
+function buildGithubActionsPlatformVersion(fallbackVersion: string, githubRunNumber: string) {
+  const parsed = parseVersion(normalizeDesktopVersion(fallbackVersion));
+  if (!parsed) {
+    throw new Error(
+      `Unsupported desktop app version "${fallbackVersion}". Expected a semantic version in the form X.Y.Z.`,
+    );
   }
 
-  cargoManifest.package.version = version;
-  return stringifyToml(cargoManifest);
+  return normalizeDesktopVersion(
+    `${parsed.major}.${parsed.minor}.${parsed.patch + Number(githubRunNumber)}`,
+  );
+}
+
+function normalizeReleaseSha(value: string) {
+  const trimmed = value.trim();
+  if (!/^[0-9a-f]{7,40}$/i.test(trimmed)) {
+    throw new Error(`GITHUB_SHA must look like a git commit SHA; got "${value}".`);
+  }
+
+  return trimmed;
+}
+
+export function resolveDesktopReleaseIdentity({
+  env = process.env,
+  fallbackVersion,
+  fallbackSha,
+}: {
+  env?: NodeJS.ProcessEnv;
+  fallbackVersion: string;
+  fallbackSha?: string;
+}): DesktopReleaseIdentity {
+  const envPlatformVersion = env.EVERR_PLATFORM_VERSION?.trim();
+  const envReleaseSha = env.EVERR_RELEASE_SHA?.trim();
+  const envReleaseShortSha = env.EVERR_RELEASE_SHORT_SHA?.trim();
+
+  if (envPlatformVersion) {
+    const platformVersion = normalizeDesktopVersion(envPlatformVersion);
+    const releaseSha = envReleaseSha || fallbackSha?.trim() || "unknown";
+
+    return {
+      platformVersion,
+      releaseSha,
+      releaseShortSha: envReleaseShortSha || releaseShortSha(releaseSha),
+      source: env.GITHUB_SHA && env.GITHUB_RUN_NUMBER ? "github-actions" : "local",
+    };
+  }
+
+  const githubSha = env.GITHUB_SHA?.trim();
+  const githubRunNumber = env.GITHUB_RUN_NUMBER?.trim();
+
+  if (githubSha && githubRunNumber) {
+    const releaseSha = normalizeReleaseSha(githubSha);
+    const platformVersion = buildGithubActionsPlatformVersion(
+      fallbackVersion,
+      normalizeGithubRunNumber(githubRunNumber),
+    );
+
+    return {
+      platformVersion,
+      releaseSha,
+      releaseShortSha: releaseShortSha(releaseSha),
+      source: "github-actions",
+    };
+  }
+
+  const platformVersion = normalizeDesktopVersion(fallbackVersion);
+  const releaseSha = fallbackSha?.trim() || "unknown";
+
+  return {
+    platformVersion,
+    releaseSha,
+    releaseShortSha: releaseShortSha(releaseSha),
+    source: "local",
+  };
+}
+
+export async function writeDesktopReleaseTauriConfigOverride({
+  outputPath,
+  platformVersion,
+}: {
+  outputPath: string;
+  platformVersion: string;
+}) {
+  const version = normalizeDesktopVersion(platformVersion);
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify({ version }, null, 2)}\n`);
+  return outputPath;
 }
 
 async function readDesktopVersionJson(
@@ -407,42 +488,6 @@ async function readDesktopVersionJson(
   };
 }
 
-async function readJsonFile<T>(pathname: string): Promise<T> {
-  return JSON.parse(await readFile(pathname, "utf8")) as T;
-}
-
-async function writeDesktopAppVersion(version: string, paths: DesktopVersionPaths) {
-  const [packageJson, tauriConfig, tauriCargoToml] = await Promise.all([
-    readDesktopVersionJson(paths.packageJsonPath),
-    readJsonFile<VersionedJsonFile>(paths.tauriConfigPath),
-    readFile(paths.tauriCargoTomlPath, "utf8"),
-  ]);
-
-  packageJson.version = version;
-  tauriConfig.version = version;
-
-  await Promise.all([
-    writeFile(paths.packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`),
-    writeFile(paths.tauriConfigPath, `${JSON.stringify(tauriConfig, null, 2)}\n`),
-    writeFile(
-      paths.tauriCargoTomlPath,
-      replaceCargoPackageVersion(tauriCargoToml, version),
-    ),
-  ]);
-}
-
-export async function bumpDesktopAppVersion(
-  increment: "patch" | "minor" | "major",
-) {
-  const paths: DesktopVersionPaths = defaultDesktopVersionPaths;
-  const packageJson = await readDesktopVersionJson(paths.packageJsonPath);
-  const currentVersion = packageJson.version;
-  const nextVersion = bumpVersion(currentVersion, increment);
-
-  await writeDesktopAppVersion(nextVersion, paths);
-
-  return {
-    previousVersion: currentVersion,
-    nextVersion,
-  };
+export async function readDesktopTauriConfigVersion(paths = defaultDesktopVersionPaths) {
+  return (await readDesktopVersionJson(paths.tauriConfigPath)).version;
 }

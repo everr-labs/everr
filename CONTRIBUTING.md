@@ -128,11 +128,9 @@ For macOS distribution, use:
 pnpm --dir packages/desktop-app build:desktop
 ```
 
-To bump the desktop app patch version without building, use:
-
-```bash
-pnpm bump:desktop
-```
+CI derives the release identity from the commit SHA and generates the numeric
+Tauri/macOS updater version automatically, so release prep does not need a
+manual desktop version bump.
 
 If you also want that release flow to install the signed CLI into `~/.local/bin`, opt in explicitly:
 

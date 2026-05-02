@@ -10,7 +10,6 @@
     "desktop:prepare:cli:release": "node ./scripts/prepare-tauri-cli-sidecar.ts release",
     "desktop:prepare:debug": "pnpm run desktop:prepare:cli:debug",
     "desktop:prepare:release": "pnpm run desktop:prepare:cli:release",
-    "bump:desktop": "node ./scripts/bump-desktop-version.ts",
     "build:desktop": "node ./scripts/build-desktop.ts",
     "build:desktop:ci": "node ./scripts/build-desktop.ts --ci",
     "build:cli:debug": "node ./scripts/build-cli.ts debug",
@@ -46,7 +45,6 @@
     "@vitejs/plugin-react": "catalog:",
     "jsdom": "^29.0.2",
     "semver": "^7.7.4",
-    "smol-toml": "^1.6.1",
     "typescript": "catalog:",
     "vite": "catalog:",
     "zx": "^8.8.5"

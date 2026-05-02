@@ -50,7 +50,8 @@ describe("copy-release-artifact helpers", () => {
 
   it("builds a static updater manifest with an embedded signature", () => {
     const manifest = buildUpdaterManifest({
-      version: "1.2.3",
+      version: "0.1.1264",
+      releaseShortSha: "82efe1c",
       pubDate: "2026-03-14T17:00:00Z",
       downloadUrl: "https://everr.dev/everr-app/everr-macos-arm64.app.tar.gz",
       signature: "signed-data",
@@ -58,7 +59,8 @@ describe("copy-release-artifact helpers", () => {
     });
 
     expect(JSON.parse(manifest)).toEqual({
-      version: "1.2.3",
+      version: "0.1.1264",
+      notes: "Everr desktop release 82efe1c",
       pub_date: "2026-03-14T17:00:00Z",
       platforms: {
         "darwin-aarch64": {
@@ -80,7 +82,9 @@ describe("copy-release-artifact helpers", () => {
 
   it("builds release metadata for the deploy artifact bundle", () => {
     const metadata = buildReleaseMetadata({
-      version: "1.2.3",
+      platformVersion: "0.1.1264",
+      releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+      releaseShortSha: "82efe1c",
       publicBaseUrl: "https://everr.dev/everr-app",
       target: getDesktopReleaseTarget("macos", "arm64"),
       createdAt: "2026-03-14T17:00:00.000Z",
@@ -96,7 +100,10 @@ describe("copy-release-artifact helpers", () => {
     expect(JSON.parse(metadata)).toMatchObject({
       schema_version: 1,
       product: "Everr",
-      version: "1.2.3",
+      version: "0.1.1264",
+      platform_version: "0.1.1264",
+      release_sha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+      release_short_sha: "82efe1c",
       public_base_url: "https://everr.dev/everr-app",
       files: [
         {

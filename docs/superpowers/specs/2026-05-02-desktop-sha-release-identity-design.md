@@ -43,9 +43,9 @@ For CI builds, derive:
 
 - `release_sha = GITHUB_SHA`
 - `release_short_sha = first 7-12 characters of GITHUB_SHA`
-- `platform_version = 0.0.<GITHUB_RUN_NUMBER>`
+- `platform_version = <checked-in major>.<checked-in minor>.<checked-in patch + GITHUB_RUN_NUMBER>`
 
-`GITHUB_RUN_NUMBER` is monotonic for the workflow, so later workflow runs naturally produce later SemVer patch values. Reruns of the same workflow run keep the same version, which is fine because they are retrying the same release attempt.
+`GITHUB_RUN_NUMBER` is monotonic for the workflow, so later workflow runs naturally produce later SemVer patch values above the checked-in development version. Reruns of the same workflow run keep the same version, which is fine because they are retrying the same release attempt.
 
 For local builds without GitHub Actions env vars:
 

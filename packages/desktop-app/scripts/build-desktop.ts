@@ -3,10 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "zx";
 import {
-  bumpDesktopAppVersion,
   desktopReleaseDir,
   installCliBinary,
   loadBuildEnvFile,
+  readDesktopTauriConfigVersion,
+  repoDir,
+  resolveDesktopReleaseIdentity,
+  writeDesktopReleaseTauriConfigOverride,
 } from "./build-support.ts";
 import {
   notarizeReleaseDmgIfConfigured,
@@ -16,7 +19,6 @@ import {
 export async function buildDesktop(args = process.argv.slice(2)) {
   const tauriArgs: string[] = [];
   let installCli = false;
-  let bumpReleaseVersion = false;
   let ciBuild = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -33,12 +35,11 @@ export async function buildDesktop(args = process.argv.slice(2)) {
     }
 
     if (arg === "--release") {
-      bumpReleaseVersion = true;
-      continue;
+      throw new Error("Desktop release versions are derived from the CI commit SHA.");
     }
 
     if (arg === "--version" || arg.startsWith("--version=")) {
-      throw new Error("Use `pnpm bump:desktop` to change the desktop app version before building.");
+      throw new Error("Desktop release versions are derived from the CI commit SHA.");
     }
 
     if (arg === "--bundles" || arg.startsWith("--bundles=")) {
@@ -56,18 +57,36 @@ export async function buildDesktop(args = process.argv.slice(2)) {
     throw new Error("--install is not supported for CI desktop builds.");
   }
 
-  if (bumpReleaseVersion) {
-    const { previousVersion, nextVersion } = await bumpDesktopAppVersion("patch");
-    console.log(`Bumped desktop app version from ${previousVersion} to ${nextVersion}.`);
-  }
-
   await rm(desktopReleaseDir, { recursive: true, force: true });
+
+  const fallbackVersion = await readDesktopTauriConfigVersion();
+  const gitShaResult = await $({ nothrow: true })`git -C ${repoDir} rev-parse HEAD`;
+  const identity = resolveDesktopReleaseIdentity({
+    fallbackVersion,
+    fallbackSha: gitShaResult.exitCode === 0 ? gitShaResult.stdout.trim() : undefined,
+  });
+  Object.assign(process.env, {
+    EVERR_PLATFORM_VERSION: identity.platformVersion,
+    EVERR_RELEASE_SHA: identity.releaseSha,
+    EVERR_RELEASE_SHORT_SHA: identity.releaseShortSha,
+  });
+
+  if (ciBuild) {
+    const overridePath = await writeDesktopReleaseTauriConfigOverride({
+      outputPath: path.join(repoDir, "target", "desktop-build", "tauri-release.conf.json"),
+      platformVersion: identity.platformVersion,
+    });
+    tauriArgs.push("--config", overridePath);
+  }
 
   // DMG packaging is more reliable in CI mode because Tauri skips Finder AppleScript setup.
   await $({
     env: {
       ...process.env,
       CI: process.env.CI || "true",
+      EVERR_PLATFORM_VERSION: identity.platformVersion,
+      EVERR_RELEASE_SHA: identity.releaseSha,
+      EVERR_RELEASE_SHORT_SHA: identity.releaseShortSha,
     },
   })`pnpm tauri build --bundles app,dmg ${tauriArgs}`;
   await notarizeReleaseDmgIfConfigured();

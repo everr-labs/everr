@@ -4,7 +4,7 @@
 
 **Goal:** Remove manual desktop version bumps while using the commit SHA as the human release identity and a generated SemVer as the Tauri/macOS updater version.
 
-**Architecture:** Add a small release identity helper in the desktop build scripts. CI derives `platformVersion` from `GITHUB_RUN_NUMBER` and `releaseSha` from `GITHUB_SHA`, passes a temporary Tauri config override to `tauri build`, and writes SHA-aware release metadata. The app exposes the short SHA through a small Tauri command and displays it on the Developer page.
+**Architecture:** Add a small release identity helper in the desktop build scripts. CI derives `platformVersion` from the checked-in development version plus `GITHUB_RUN_NUMBER`, derives `releaseSha` from `GITHUB_SHA`, passes a temporary Tauri config override to `tauri build`, and writes SHA-aware release metadata. The app exposes the short SHA through a small Tauri command and displays it on the Settings page.
 
 **Tech Stack:** TypeScript build scripts, Vitest, Tauri v2, Rust commands, React.
 
@@ -32,7 +32,7 @@ it("derives CI release identity from GitHub Actions env vars", () => {
       fallbackSha: "localsha",
     }),
   ).toEqual({
-    platformVersion: "0.0.1234",
+    platformVersion: "0.1.1264",
     releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
     releaseShortSha: "82efe1c",
     source: "github-actions",
@@ -98,7 +98,7 @@ export function resolveDesktopReleaseIdentity(options: {
 ```
 
 Rules:
-- If both `GITHUB_SHA` and `GITHUB_RUN_NUMBER` are present, return `platformVersion = 0.0.<runNumber>`.
+- If both `GITHUB_SHA` and `GITHUB_RUN_NUMBER` are present, return `platformVersion = <fallback major>.<fallback minor>.<fallback patch + runNumber>`.
 - Validate the generated SemVer with the existing SemVer validation.
 - Use the first 7 characters for `releaseShortSha`.
 - Outside CI, use `fallbackVersion` and `fallbackSha ?? "unknown"`.
@@ -132,12 +132,12 @@ it("writes a Tauri config override with the generated platform version", async (
   await expect(
     writeDesktopReleaseTauriConfigOverride({
       outputPath: overridePath,
-      platformVersion: "0.0.1234",
+      platformVersion: "0.1.1264",
     }),
   ).resolves.toBe(overridePath);
 
   await expect(readFile(overridePath, "utf8")).resolves.toBe(
-    `${JSON.stringify({ version: "0.0.1234" }, null, 2)}\n`,
+    `${JSON.stringify({ version: "0.1.1264" }, null, 2)}\n`,
   );
 });
 
@@ -198,7 +198,7 @@ Update manifest and metadata tests to assert:
 
 ```ts
 expect(JSON.parse(manifest)).toMatchObject({
-  version: "0.0.1234",
+  version: "0.1.1264",
   notes: "Everr desktop release 82efe1c",
 });
 ```
@@ -208,7 +208,7 @@ Update release metadata expectations to include:
 ```ts
 release_sha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
 release_short_sha: "82efe1c",
-platform_version: "0.0.1234",
+platform_version: "0.1.1264",
 ```
 
 - [ ] **Step 2: Verify RED**
@@ -250,14 +250,14 @@ Expected: copy-release-artifact tests pass.
 
 - [ ] **Step 1: Write failing frontend test**
 
-Add a test near the Developer page tests:
+Add a test near the Settings page tests:
 
 ```ts
-it("shows the desktop release SHA on the developer page", async () => {
+it("shows the desktop release SHA on the settings page", async () => {
   renderMainApp({
     commandOverrides: {
       get_build_info: () => ({
-        platform_version: "0.0.1234",
+        platform_version: "0.1.1264",
         release_sha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
         release_short_sha: "82efe1c",
       }),
@@ -265,7 +265,7 @@ it("shows the desktop release SHA on the developer page", async () => {
   });
 
   await act(async () => {
-    await router.navigate({ to: "/developer" });
+    await router.navigate({ to: "/settings" });
   });
 
   expect(await screen.findByText("82efe1c")).toBeInTheDocument();
@@ -312,7 +312,7 @@ Update the Rust build scripts to emit:
 - `EVERR_RELEASE_SHA` from env, else `unknown`.
 - `EVERR_RELEASE_SHORT_SHA` from env, else first 7 characters of release SHA or `unknown`.
 
-Update the Developer page to call `invokeCommand("get_build_info")` and render the short SHA in a small existing section.
+Update the Settings page to call `invokeCommand("get_build_info")` and render the short SHA in a small existing section.
 
 - [ ] **Step 4: Verify GREEN**
 

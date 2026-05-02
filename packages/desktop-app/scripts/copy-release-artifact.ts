@@ -13,7 +13,11 @@ import { arch as getArch, platform as getPlatform } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "zx";
-import { desktopReleaseDir, loadBuildEnvFile } from "./build-support.ts";
+import {
+  desktopReleaseDir,
+  loadBuildEnvFile,
+  resolveDesktopReleaseIdentity,
+} from "./build-support.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageDir = path.resolve(scriptDir, "..");
@@ -93,12 +97,14 @@ export function buildPublicArtifactUrl({
 
 export function buildUpdaterManifest({
   version,
+  releaseShortSha,
   pubDate,
   downloadUrl,
   signature,
   updaterTarget,
 }: {
   version: string;
+  releaseShortSha: string;
   pubDate: string;
   downloadUrl: string;
   signature: string;
@@ -107,6 +113,7 @@ export function buildUpdaterManifest({
   return `${JSON.stringify(
     {
       version,
+      notes: `Everr desktop release ${releaseShortSha}`,
       pub_date: pubDate,
       platforms: {
         [updaterTarget]: {
@@ -121,13 +128,17 @@ export function buildUpdaterManifest({
 }
 
 export function buildReleaseMetadata({
-  version,
+  platformVersion,
+  releaseSha,
+  releaseShortSha,
   publicBaseUrl,
   target,
   files,
   createdAt,
 }: {
-  version: string;
+  platformVersion: string;
+  releaseSha: string;
+  releaseShortSha: string;
   publicBaseUrl: string;
   target: DesktopReleaseTarget;
   files: ReleaseFileEntry[];
@@ -137,7 +148,10 @@ export function buildReleaseMetadata({
     {
       schema_version: 1,
       product: "Everr",
-      version,
+      version: platformVersion,
+      platform_version: platformVersion,
+      release_sha: releaseSha,
+      release_short_sha: releaseShortSha,
       public_base_url: publicBaseUrl,
       target,
       build: {
@@ -404,7 +418,11 @@ export async function stageReleaseArtifacts() {
   const bundleDir = await findBundleDir();
   const artifacts = await findReleaseArtifacts(bundleDir);
   const appDestDir = path.join(desktopReleaseDir, "everr-app");
-  const version = await readDesktopVersion();
+  const fallbackVersion = await readDesktopVersion();
+  const identity = resolveDesktopReleaseIdentity({
+    fallbackVersion: process.env.EVERR_PLATFORM_VERSION ?? fallbackVersion,
+    fallbackSha: process.env.EVERR_RELEASE_SHA ?? process.env.GITHUB_SHA,
+  });
   const publicBaseUrl = resolvePublicBaseUrl();
   const createdAt = new Date().toISOString();
 
@@ -437,7 +455,8 @@ export async function stageReleaseArtifacts() {
     assetName: target.updaterArchiveName,
   });
   const manifest = buildUpdaterManifest({
-    version,
+    version: identity.platformVersion,
+    releaseShortSha: identity.releaseShortSha,
     pubDate: createdAt,
     downloadUrl: updaterArchiveUrl,
     signature: updaterSignature,
@@ -450,7 +469,9 @@ export async function stageReleaseArtifacts() {
   await writeFile(
     path.join(desktopReleaseDir, RELEASE_METADATA_NAME),
     buildReleaseMetadata({
-      version,
+      platformVersion: identity.platformVersion,
+      releaseSha: identity.releaseSha,
+      releaseShortSha: identity.releaseShortSha,
       publicBaseUrl,
       target,
       files,
@@ -459,7 +480,9 @@ export async function stageReleaseArtifacts() {
   );
   await writeReleaseChecksums(desktopReleaseDir);
 
-  console.log(`Staged desktop ${version} release artifacts in ${desktopReleaseDir}`);
+  console.log(
+    `Staged desktop ${identity.releaseShortSha} (${identity.platformVersion}) release artifacts in ${desktopReleaseDir}`,
+  );
   console.log(`Wrote updater manifest to ${path.join(appDestDir, "latest.json")}`);
 }
 

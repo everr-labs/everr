@@ -6,13 +6,14 @@ import {
   CHDB_LIB_ARCHIVE_SHA256,
   CHDB_LIB_ASSET_NAME,
   CHDB_RELEASE_VERSION,
-  bumpDesktopAppVersion,
-  bumpVersion,
   chdbReleaseAssetUrl,
   defaultDesktopVersionPaths,
   publishCliArtifact,
+  readDesktopTauriConfigVersion,
+  resolveDesktopReleaseIdentity,
   sha256File,
   type DesktopVersionPaths,
+  writeDesktopReleaseTauriConfigOverride,
 } from "./build-support";
 
 const tempDirs: string[] = [];
@@ -24,15 +25,7 @@ async function makeTempDir() {
   return dir;
 }
 
-async function writeDesktopVersionFiles(
-  rootDir: string,
-  version: string,
-  overrides?: {
-    packageJsonVersion?: string;
-    tauriConfigVersion?: string;
-    tauriCargoVersion?: string;
-  },
-) {
+async function writeDesktopVersionFiles(rootDir: string, version: string) {
   const paths: DesktopVersionPaths = {
     packageJsonPath: path.join(rootDir, "package.json"),
     tauriConfigPath: path.join(rootDir, "src-tauri", "tauri.conf.json"),
@@ -53,27 +46,6 @@ async function writeDesktopVersionFiles(
     `[package]\nname = "everr-app"\nversion = "${version}"\nedition = "2021"\n`,
   );
 
-  if (overrides?.packageJsonVersion) {
-    await writeFile(
-      paths.packageJsonPath,
-      `${JSON.stringify({ name: "@everr/desktop-app", version: overrides.packageJsonVersion }, null, 2)}\n`,
-    );
-  }
-
-  if (overrides?.tauriConfigVersion) {
-    await writeFile(
-      paths.tauriConfigPath,
-      `${JSON.stringify({ productName: "Everr", version: overrides.tauriConfigVersion }, null, 2)}\n`,
-    );
-  }
-
-  if (overrides?.tauriCargoVersion) {
-    await writeFile(
-      paths.tauriCargoTomlPath,
-      `[package]\nname = "everr-app"\nversion = "${overrides.tauriCargoVersion}"\nedition = "2021"\n`,
-    );
-  }
-
   return paths;
 }
 
@@ -88,48 +60,106 @@ afterEach(async () => {
 });
 
 describe("build-support version helpers", () => {
-  it("bumps a patch version", () => {
-    expect(bumpVersion("1.2.3", "patch")).toBe("1.2.4");
+  it("derives CI release identity from GitHub Actions env vars", () => {
+    expect(
+      resolveDesktopReleaseIdentity({
+        env: {
+          GITHUB_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+          GITHUB_RUN_NUMBER: "1234",
+        },
+        fallbackVersion: "0.1.30",
+        fallbackSha: "localsha",
+      }),
+    ).toEqual({
+      platformVersion: "0.1.1264",
+      releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+      releaseShortSha: "82efe1c",
+      source: "github-actions",
+    });
   });
 
-  it("updates the desktop app version across release files", async () => {
+  it("uses local fallbacks outside GitHub Actions", () => {
+    expect(
+      resolveDesktopReleaseIdentity({
+        env: {},
+        fallbackVersion: "0.1.30",
+        fallbackSha: "localsha123456",
+      }),
+    ).toEqual({
+      platformVersion: "0.1.30",
+      releaseSha: "localsha123456",
+      releaseShortSha: "localsh",
+      source: "local",
+    });
+  });
+
+  it("uses pre-resolved release env without adding the GitHub run number again", () => {
+    expect(
+      resolveDesktopReleaseIdentity({
+        env: {
+          GITHUB_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+          GITHUB_RUN_NUMBER: "1234",
+          EVERR_PLATFORM_VERSION: "0.1.1264",
+          EVERR_RELEASE_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+          EVERR_RELEASE_SHORT_SHA: "82efe1c",
+        },
+        fallbackVersion: "0.1.30",
+      }),
+    ).toEqual({
+      platformVersion: "0.1.1264",
+      releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+      releaseShortSha: "82efe1c",
+      source: "github-actions",
+    });
+  });
+
+  it("rejects invalid generated platform versions", () => {
+    expect(() =>
+      resolveDesktopReleaseIdentity({
+        env: {
+          GITHUB_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+          GITHUB_RUN_NUMBER: "not-a-number",
+        },
+        fallbackVersion: "0.1.30",
+        fallbackSha: "localsha",
+      }),
+    ).toThrow(/GITHUB_RUN_NUMBER/);
+  });
+
+  it("writes a Tauri config override with the generated platform version", async () => {
+    const rootDir = await makeTempDir();
+    const overridePath = path.join(rootDir, "release-tauri.conf.json");
+
+    await expect(
+      writeDesktopReleaseTauriConfigOverride({
+        outputPath: overridePath,
+        platformVersion: "0.1.1264",
+      }),
+    ).resolves.toBe(overridePath);
+
+    await expect(readFile(overridePath, "utf8")).resolves.toBe(
+      `${JSON.stringify({ version: "0.1.1264" }, null, 2)}\n`,
+    );
+  });
+
+  it("rejects raw SHAs as Tauri platform versions", async () => {
+    const rootDir = await makeTempDir();
+
+    await expect(
+      writeDesktopReleaseTauriConfigOverride({
+        outputPath: path.join(rootDir, "bad.conf.json"),
+        platformVersion: "82efe1c",
+      }),
+    ).rejects.toThrow(/semantic version/);
+  });
+
+  it("reads the checked-in desktop Tauri config version", async () => {
     const rootDir = await makeTempDir();
     const paths = await writeDesktopVersionFiles(rootDir, "0.1.0");
     Object.assign(defaultDesktopVersionPaths, paths);
 
-    await expect(bumpDesktopAppVersion("patch")).resolves.toEqual({
-      previousVersion: "0.1.0",
-      nextVersion: "0.1.1",
-    });
-
-    await expect(readFile(paths.packageJsonPath, "utf8")).resolves.toContain('"version": "0.1.1"');
-    await expect(readFile(paths.tauriConfigPath, "utf8")).resolves.toContain('"version": "0.1.1"');
-    await expect(readFile(paths.tauriCargoTomlPath, "utf8")).resolves.toContain(
-      'version = "0.1.1"',
-    );
+    await expect(readDesktopTauriConfigVersion()).resolves.toBe("0.1.0");
   });
-
-  it("uses package.json as the source of truth when other versions differ", async () => {
-    const rootDir = await makeTempDir();
-    const paths = await writeDesktopVersionFiles(rootDir, "0.1.0", {
-      packageJsonVersion: "2.4.9",
-      tauriConfigVersion: "1.0.0",
-      tauriCargoVersion: "0.1.1",
-    });
-    Object.assign(defaultDesktopVersionPaths, paths);
-
-    await expect(bumpDesktopAppVersion("patch")).resolves.toEqual({
-      previousVersion: "2.4.9",
-      nextVersion: "2.4.10",
-    });
-
-    await expect(readFile(paths.packageJsonPath, "utf8")).resolves.toContain('"version": "2.4.10"');
-    await expect(readFile(paths.tauriConfigPath, "utf8")).resolves.toContain('"version": "2.4.10"');
-    await expect(readFile(paths.tauriCargoTomlPath, "utf8")).resolves.toContain(
-      'version = "2.4.10"',
-    );
-  });
-
 });
 
 describe("build-support chDB helpers", () => {

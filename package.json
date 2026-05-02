@@ -7,7 +7,6 @@
     "dev:desktop": "pnpm --filter @everr/desktop-app dev",
     "dev:cli": "pnpm --filter @everr/desktop-app build:cli:debug",
     "dev:docs": "pnpm --filter @everr/docs dev",
-    "bump:desktop": "pnpm --filter @everr/desktop-app bump:desktop",
     "build:desktop": "pnpm --filter @everr/desktop-app build:desktop",
     "build:desktop:ci": "pnpm --filter @everr/desktop-app build:desktop:ci",
     "check": "biome check",
