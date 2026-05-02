@@ -15,12 +15,14 @@ import { invitation, member, user } from "@/db/schema";
 import { env } from "@/env";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
+import { upsertTenantRetention } from "@/lib/clickhouse";
 import {
   sendInvitationEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
+import { resolveRetention } from "@/lib/retention";
 
 type PolarSubscriptionPayload = {
   id: string;
@@ -189,6 +191,24 @@ export const auth = betterAuth({
             });
           } catch (error) {
             console.error("[polar] failed to create customer for org", {
+              orgId: organization.id,
+              error,
+            });
+          }
+
+          // Seed free-tier retention so the dictionary has an entry for this
+          // tenant and TTL merges don't fall back to the dictGetOrDefault
+          // baseline before the first subscription webhook arrives.
+          try {
+            const retention = resolveRetention("free");
+            await upsertTenantRetention({
+              tenantId: organization.id,
+              tracesDays: retention.tracesDays,
+              logsDays: retention.logsDays,
+              metricsDays: retention.metricsDays,
+            });
+          } catch (error) {
+            console.error("[retention] failed to seed retention for org", {
               orgId: organization.id,
               error,
             });

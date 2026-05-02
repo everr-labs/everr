@@ -1,0 +1,37 @@
+---
+title: Data Retention
+description: How long Everr keeps your traces, logs, and metrics, and how retention behaves when your plan changes.
+---
+
+Everr stores your telemetry for a fixed window based on your plan. Once data falls outside that window it is removed automatically and cannot be recovered.
+
+## How long we keep your data
+
+| Signal | Free | Pro |
+|---|---|---|
+| Traces | 30 days | 90 days |
+| Logs | 30 days | 90 days |
+| Metrics | 30 days | 13 months |
+
+Each signal type is governed by its own retention window. On the Pro plan, metrics stick around for 13 months — long enough to compare current behavior against the same week or month last year — while traces and logs roll off at 90 days, where the per-event volume is much higher and the long-tail value is lower.
+
+## When retention changes take effect
+
+When you change plans, the new retention windows start applying within a few minutes. There is no separate migration step.
+
+Retention applies to **all** of your data, not just data ingested after the change:
+
+- **Upgrading.** Your existing data is held for the longer window. Anything that already aged out under the previous plan is gone — we don't restore previously-deleted data when you upgrade.
+- **Downgrading.** Existing data outside the shorter window will be removed in the minutes after the change. If keeping older data matters, export it before downgrading.
+
+We chose retroactive retention (rather than grandfathering data ingested under the old plan) because it keeps the rules predictable: at any given moment, your retention is exactly what your current plan says it is. We may revisit this with a grace period for downgrades as the product matures.
+
+## How we handle failures
+
+Retention is enforced by background processes. If those processes can't determine the correct window for a tenant — for example, during a transient outage of an internal service — they intentionally fall back to keeping data **longer**, never shorter. Once the issue clears, the system catches up on the next pass.
+
+In short: an internal failure may briefly delay deletion of data that should have been removed, but it will not cause data to be deleted earlier than your plan allows.
+
+## Custom retention
+
+Custom per-tenant retention is not currently exposed. If you have a compliance, audit, or contractual requirement that needs a non-standard window, [get in touch](mailto:hello@everr.dev) and we'll work something out.
