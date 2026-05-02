@@ -6,7 +6,7 @@ import { resolveRetention, type Tier } from "@/lib/retention";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
-export function tierForSubscription(args: {
+function tierForSubscription(args: {
   status: string | null | undefined;
 }): Tier {
   return args.status && ACTIVE_STATUSES.has(args.status) ? "pro" : "free";
@@ -47,7 +47,7 @@ type SubscriptionUpsert = {
 };
 
 export async function upsertOrgSubscription(input: SubscriptionUpsert) {
-  const applied = await db
+  await db
     .insert(orgSubscription)
     .values(input)
     .onConflictDoUpdate({
@@ -62,14 +62,21 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
         updatedAt: new Date(),
       },
       setWhere: sql`${orgSubscription.polarModifiedAt} < ${input.polarModifiedAt}`,
-    })
-    .returning({ orgId: orgSubscription.orgId });
+    });
 
-  // Stale webhook (older polarModifiedAt than what's stored) — skip downstream effects.
-  if (applied.length === 0) return;
+  // Sync retention from the persisted PG state (not from `input`) so webhook
+  // retries after a transient ClickHouse failure still converge — including
+  // the case where the staleness guard above blocks the PG update on retry.
+  const [current] = await db
+    .select({ status: orgSubscription.status })
+    .from(orgSubscription)
+    .where(eq(orgSubscription.orgId, input.orgId))
+    .limit(1);
+  if (!current) return;
 
-  const tier = tierForSubscription({ status: input.status });
-  const retention = resolveRetention(tier);
+  const retention = resolveRetention(
+    tierForSubscription({ status: current.status }),
+  );
 
   await upsertTenantRetention({
     tenantId: input.orgId,

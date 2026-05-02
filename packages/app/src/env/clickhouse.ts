@@ -7,7 +7,6 @@ export const clickhouseEnv = createEnv({
     CLICKHOUSE_USERNAME: z.string().default("default"),
     CLICKHOUSE_PASSWORD: z.string().default(""),
     CLICKHOUSE_DATABASE: z.string().default("default"),
-    // Narrowly-scoped writer for app.tenant_retention_source + dictionary reload.
     CLICKHOUSE_RETENTION_USERNAME: z.string().default("app_retention"),
     CLICKHOUSE_RETENTION_PASSWORD: z.string(),
   },
