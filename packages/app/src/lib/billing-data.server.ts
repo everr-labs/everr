@@ -11,7 +11,7 @@ export type OrgEntitlement = {
   cancelAtPeriodEnd: boolean;
 };
 
-export async function getOrgEntitlement(
+export async function readOrgEntitlement(
   orgId: string,
 ): Promise<OrgEntitlement> {
   const [row] = await db

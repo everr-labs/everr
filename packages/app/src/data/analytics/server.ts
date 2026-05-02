@@ -2,8 +2,6 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import {
   type DurationTrendPoint,
-  type QueueTimePoint,
-  type RunnerUtilization,
   type SuccessRatePoint,
   TimeRangeInputSchema,
 } from "./schemas";
@@ -47,59 +45,6 @@ export const getDurationTrends = createAuthenticatedServerFn({
       p95Duration: Number(row.p95Duration),
       runCount: Number(row.runCount),
     })) satisfies DurationTrendPoint[];
-  });
-
-// Queue Time Analysis
-export const getQueueTimeAnalysis = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
-
-    const sql = `
-			SELECT
-				toDate(Timestamp) as date,
-				avg(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
-				) * 1000 as avgQueueTime,
-				quantile(0.5)(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
-				) * 1000 as p50QueueTime,
-				quantile(0.95)(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
-				) * 1000 as p95QueueTime,
-				max(
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.started_at'])) -
-					toUnixTimestamp(parseDateTimeBestEffort(ResourceAttributes['everr.github.workflow_job.created_at']))
-				) * 1000 as maxQueueTime
-			FROM traces
-			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['everr.github.workflow_job.created_at'] != ''
-				AND ResourceAttributes['everr.github.workflow_job.started_at'] != ''
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-			GROUP BY date
-			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
-		`;
-
-    const result = await clickhouse.query<{
-      date: string;
-      avgQueueTime: string;
-      p50QueueTime: string;
-      p95QueueTime: string;
-      maxQueueTime: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
-
-    return result.map((row) => ({
-      date: row.date,
-      avgQueueTime: Math.max(0, Number(row.avgQueueTime)),
-      p50QueueTime: Math.max(0, Number(row.p50QueueTime)),
-      p95QueueTime: Math.max(0, Number(row.p95QueueTime)),
-      maxQueueTime: Math.max(0, Number(row.maxQueueTime)),
-    })) satisfies QueueTimePoint[];
   });
 
 // Success Rate Trends
@@ -147,45 +92,4 @@ export const getSuccessRateTrends = createAuthenticatedServerFn({
       successCount: Number(row.successCount),
       failureCount: Number(row.failureCount),
     })) satisfies SuccessRatePoint[];
-  });
-
-// Runner Utilization
-export const getRunnerUtilization = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
-
-    const sql = `
-			SELECT
-				ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
-				count(*) as totalJobs,
-				avg(Duration) / 1000000 as avgDuration,
-				round(countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'success') * 100.0 / nullIf(count(*), 0), 1) as successRate,
-				sum(Duration) / 1000000 as totalDuration
-			FROM traces
-			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-			GROUP BY labels
-			ORDER BY totalJobs DESC
-			LIMIT 20
-		`;
-
-    const result = await clickhouse.query<{
-      labels: string;
-      totalJobs: string;
-      avgDuration: string;
-      successRate: string;
-      totalDuration: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
-
-    return result.map((row) => ({
-      labels: row.labels,
-      totalJobs: Number(row.totalJobs),
-      avgDuration: Number(row.avgDuration),
-      successRate: Number(row.successRate) || 0,
-      totalDuration: Number(row.totalDuration),
-    })) satisfies RunnerUtilization[];
   });

@@ -158,21 +158,6 @@ export function repositoryIdFromQueuedEvent(
   return repositoryId && repositoryId > 0 ? repositoryId : null;
 }
 
-export function repositoryHTMLURL(repository?: {
-  full_name?: string;
-  html_url?: string;
-}): string {
-  if (repository?.html_url) {
-    return repository.html_url;
-  }
-
-  if (repository?.full_name) {
-    return `https://github.com/${repository.full_name}`;
-  }
-
-  return "https://github.com";
-}
-
 export function parseTimestamp(
   ...values: Array<string | null | undefined>
 ): Date {

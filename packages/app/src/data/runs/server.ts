@@ -319,45 +319,6 @@ export const getRunJobs = createAuthenticatedServerFn({
     return [...chJobs, ...pgOnlyJobs] satisfies Job[];
   });
 
-export const getJobSteps = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
-  .handler(async ({ data: { traceId, jobId }, context: { clickhouse } }) => {
-    const sql = `
-			SELECT
-					SpanName as name,
-					SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
-					StatusMessage as conclusion,
-					Duration / 1000000 as duration,
-					toUnixTimestamp64Milli(Timestamp) as startTime,
-					toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime
-			FROM traces
-			WHERE TraceId = {traceId:String}
-				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
-				AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
-			ORDER BY toUInt32OrZero(stepNumber)
-		`;
-
-    const result = await clickhouse.query<{
-      name: string;
-      stepNumber: string;
-      conclusion: string;
-      duration: string;
-      startTime: string;
-      endTime: string;
-    }>(sql, { traceId, jobId });
-
-    return result.map((row) => ({
-      stepNumber: row.stepNumber,
-      name: row.name,
-      conclusion: row.conclusion,
-      duration: Number(row.duration),
-      startTime: Number(row.startTime),
-      endTime: Number(row.endTime),
-    })) satisfies Step[];
-  });
-
 export const getAllJobsSteps = createAuthenticatedServerFn({
   method: "GET",
 })

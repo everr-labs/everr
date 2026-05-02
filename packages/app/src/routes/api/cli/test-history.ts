@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getTestHistory } from "@/data/flaky-tests/server";
+import { getTestHistory } from "@/data/test-history";
 import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 
 const TestHistoryQuerySchema = z.object({

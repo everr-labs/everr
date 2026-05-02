@@ -12,26 +12,10 @@ export interface DurationTrendPoint {
   runCount: number;
 }
 
-export interface QueueTimePoint {
-  date: string;
-  avgQueueTime: number;
-  p50QueueTime: number;
-  p95QueueTime: number;
-  maxQueueTime: number;
-}
-
 export interface SuccessRatePoint {
   date: string;
   successRate: number;
   totalRuns: number;
   successCount: number;
   failureCount: number;
-}
-
-export interface RunnerUtilization {
-  labels: string;
-  totalJobs: number;
-  avgDuration: number;
-  successRate: number;
-  totalDuration: number;
 }

@@ -1,9 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
-import {
-  type TimeRangeInput,
-  TimeRangeInputSchema,
-} from "@/data/analytics/schemas";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange } from "@/lib/time-range";
 import { testFullNameExpr } from "./sql-helpers";
@@ -13,7 +9,7 @@ import {
   TestPerformanceFilterSchema,
 } from "./test-performance/filters";
 
-export interface TestResultsSummary {
+interface TestResultsSummary {
   totalTests: number;
   passCount: number;
   failCount: number;
@@ -21,7 +17,7 @@ export interface TestResultsSummary {
   passRate: number;
 }
 
-export const getTestResultsSummary = createAuthenticatedServerFn({
+const getTestResultsSummary = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(
@@ -102,51 +98,6 @@ export interface TestDurationTrendPoint {
   p95Duration: number;
 }
 
-export const getTestDurationTrend = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
-
-    const sql = `
-			SELECT
-				toDate(timestamp) as date,
-				avg(test_duration) as avgDuration,
-				quantile(0.5)(test_duration) as p50Duration,
-				quantile(0.95)(test_duration) as p95Duration
-			FROM (
-				SELECT
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-					${testFullNameExpr()},
-					anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration,
-					max(Timestamp) as timestamp
-				FROM traces
-				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND SpanAttributes['everr.test.name'] != ''
-					AND SpanAttributes['everr.test.result'] IN ('pass', 'fail')
-				GROUP BY run_id, head_sha, test_full_name
-			)
-			GROUP BY date
-			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
-		`;
-
-    const result = await clickhouse.query<{
-      date: string;
-      avgDuration: string;
-      p50Duration: string;
-      p95Duration: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
-
-    return result.map((row) => ({
-      date: row.date,
-      avgDuration: Number(row.avgDuration),
-      p50Duration: Number(row.p50Duration),
-      p95Duration: Number(row.p95Duration),
-    })) satisfies TestDurationTrendPoint[];
-  });
-
 // Query options factories
 export const testResultsSummaryOptions = (
   input: TestPerformanceFilterInput & { includeSkipped?: boolean },
@@ -154,10 +105,4 @@ export const testResultsSummaryOptions = (
   queryOptions({
     queryKey: ["testResults", "summary", input],
     queryFn: () => getTestResultsSummary({ data: input }),
-  });
-
-export const testDurationTrendOptions = (input: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["testResults", "durationTrend", input],
-    queryFn: () => getTestDurationTrend({ data: input }),
   });

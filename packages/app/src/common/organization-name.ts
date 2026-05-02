@@ -9,7 +9,3 @@ export const OrganizationNameSchema = z
 export const CreateOrganizationInputSchema = z.object({
   organizationName: OrganizationNameSchema,
 });
-
-export type CreateOrganizationInput = z.infer<
-  typeof CreateOrganizationInputSchema
->;

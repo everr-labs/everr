@@ -5,7 +5,7 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getTestHistory } from "./flaky-tests/server";
+import { getTestHistory } from "./test-history";
 
 const mockedQuery = vi.mocked(query);
 

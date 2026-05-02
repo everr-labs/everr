@@ -11,9 +11,7 @@ const SlowestQueryInputSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-export type SlowestQueryInput = z.infer<typeof SlowestQueryInputSchema>;
-
-export interface SlowTestItem {
+interface SlowTestItem {
   testPackage: string;
   testFullName: string;
   avgDurationSeconds: number;
@@ -26,7 +24,7 @@ export interface SlowTestItem {
   lastSeen: string;
 }
 
-export interface SlowestTestsResult {
+interface SlowestTestsResult {
   repo: string;
   branch: string | null;
   timeRange: {
@@ -37,7 +35,7 @@ export interface SlowestTestsResult {
   items: SlowTestItem[];
 }
 
-export interface SlowJobItem {
+interface SlowJobItem {
   workflowName: string;
   jobName: string;
   avgDurationSeconds: number;
@@ -50,7 +48,7 @@ export interface SlowJobItem {
   lastSeen: string;
 }
 
-export interface SlowestJobsResult {
+interface SlowestJobsResult {
   repo: string;
   branch: string | null;
   timeRange: {

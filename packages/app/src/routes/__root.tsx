@@ -17,22 +17,20 @@ import { queryClient } from "@/query-client";
 import appCss from "@/styles/app.css?url";
 import type { RouterContext } from "../router";
 
-export const getSession = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const session = await auth.api.getSession({
-      headers: getRequestHeaders(),
-    });
+const getSession = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await auth.api.getSession({
+    headers: getRequestHeaders(),
+  });
 
-    if (!session?.session || !session?.user) {
-      return null;
-    }
+  if (!session?.session || !session?.user) {
+    return null;
+  }
 
-    return {
-      user: session.user,
-      session: session.session,
-    };
-  },
-);
+  return {
+    user: session.user,
+    session: session.session,
+  };
+});
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async () => {

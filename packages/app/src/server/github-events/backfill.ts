@@ -328,7 +328,7 @@ function signedHeaders(
 // Progress tracking
 // ---------------------------------------------------------------------------
 
-export interface BackfillResult {
+interface BackfillResult {
   repo: string;
   runsReplayed: number;
   runsSkipped: number;

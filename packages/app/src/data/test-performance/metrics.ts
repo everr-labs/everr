@@ -9,7 +9,7 @@ import {
 
 // --- Stats ---
 
-export interface TestPerformanceStats {
+interface TestPerformanceStats {
   totalExecutions: number;
   failExecutions: number;
   uniqueFailingTests: number;
@@ -22,7 +22,7 @@ export interface TestPerformanceStats {
   failureRate: number;
 }
 
-export const getTestPerfStats = createAuthenticatedServerFn({
+const getTestPerfStats = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -108,7 +108,7 @@ export interface ScatterPoint {
   commitSha: string;
 }
 
-export const getTestPerfScatter = createAuthenticatedServerFn({
+const getTestPerfScatter = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -178,14 +178,14 @@ export const getTestPerfScatter = createAuthenticatedServerFn({
 
 // --- Trend ---
 
-export interface TestPerfTrendPoint {
+interface TestPerfTrendPoint {
   date: string;
   avgDuration: number;
   p50Duration: number;
   p95Duration: number;
 }
 
-export interface TestPerfStatsTrendPoint {
+interface TestPerfStatsTrendPoint {
   date: string;
   totalExecutions: number;
   failExecutions: number;
@@ -198,7 +198,7 @@ export interface TestPerfStatsTrendPoint {
   failureRate: number;
 }
 
-export const getTestPerfTrend = createAuthenticatedServerFn({
+const getTestPerfTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -239,7 +239,7 @@ export const getTestPerfTrend = createAuthenticatedServerFn({
     })) satisfies TestPerfTrendPoint[];
   });
 
-export const getTestPerfStatsTrend = createAuthenticatedServerFn({
+const getTestPerfStatsTrend = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)
@@ -318,7 +318,7 @@ export interface TestFailure {
   repo: string;
 }
 
-export const getTestPerfFailures = createAuthenticatedServerFn({
+const getTestPerfFailures = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerformanceFilterSchema)

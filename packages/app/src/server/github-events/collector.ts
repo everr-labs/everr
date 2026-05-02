@@ -4,7 +4,7 @@ import { recordToHeaders, stripHopByHopHeaders } from "./headers";
 import type { WebhookHeaders } from "./types";
 import { TerminalEventError } from "./types";
 
-export const tenantHeaderName = "x-everr-tenant-id";
+const tenantHeaderName = "x-everr-tenant-id";
 
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || (status >= 500 && status <= 599);
