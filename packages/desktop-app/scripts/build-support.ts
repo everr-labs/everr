@@ -15,8 +15,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
-import { inc as incrementVersion } from "semver";
-import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import { parse as parseVersion, valid as validVersion } from "semver";
 import { $ } from "zx";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -30,6 +29,7 @@ export const desktopPackageJsonPath = path.join(packageDir, "package.json");
 export const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
 export const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
 export const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
+export const desktopReleaseDir = path.join(repoDir, "target", "desktop-release");
 export const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
 export const CHDB_RELEASE_VERSION = "v4.0.2";
 export const CHDB_LIB_ASSET_NAME = "macos-arm64-libchdb.tar.gz";
@@ -292,14 +292,21 @@ export async function signBinaryIfNeeded(binaryPath: string) {
   await $`codesign --force --sign ${signingIdentity} --options runtime --timestamp ${binaryPath}`;
 }
 
-export async function publishCliArtifact(sourceBin: string) {
+export type PublishCliArtifactOptions = {
+  outputDir?: string;
+};
+
+export async function publishCliArtifact(
+  sourceBin: string,
+  options: PublishCliArtifactOptions = {},
+) {
   loadBuildEnvFile();
 
-  const outputBin = path.join(docsPublicDir, "everr");
-  const outputBinDev = path.join(docsPublicDir, "everr.bin");
-  const outputSha = path.join(docsPublicDir, "everr.sha256");
+  const outputDir = options.outputDir ?? docsPublicDir;
+  const outputBin = path.join(outputDir, "everr");
+  const outputSha = path.join(outputDir, "everr.sha256");
 
-  await mkdir(docsPublicDir, { recursive: true });
+  await mkdir(outputDir, { recursive: true });
   await copyFile(sourceBin, outputBin);
   await chmod(outputBin, 0o755);
 
@@ -310,10 +317,8 @@ export async function publishCliArtifact(sourceBin: string) {
     .digest("hex");
 
   await writeFile(outputSha, `${digest}  everr\n`);
-  await copyFile(outputBin, outputBinDev);
 
   console.log(`Wrote ${outputBin}`);
-  console.log(`Wrote ${outputBinDev}`);
   console.log(`Wrote ${outputSha}`);
 
   return { outputBin, outputSha };
@@ -347,33 +352,126 @@ type VersionedJsonFile = {
   version?: string;
 };
 
-export function bumpVersion(version: string, increment: "patch" | "minor" | "major") {
-  const nextVersion = incrementVersion(version.trim(), increment);
-  if (!nextVersion) {
+function normalizeDesktopVersion(version: string) {
+  const normalized = validVersion(version.trim());
+  if (!normalized) {
     throw new Error(
       `Unsupported desktop app version "${version}". Expected a semantic version in the form X.Y.Z.`,
     );
   }
 
-  return nextVersion;
+  return normalized;
 }
 
-type CargoManifest = {
-  package?: {
-    version?: string;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
+export type DesktopReleaseIdentity = {
+  platformVersion: string;
+  releaseSha: string;
+  releaseShortSha: string;
+  source: "github-actions" | "local";
 };
 
-function replaceCargoPackageVersion(cargoToml: string, version: string) {
-  const cargoManifest = parseToml(cargoToml) as CargoManifest;
-  if (!cargoManifest.package) {
-    throw new Error("Could not update desktop app version in Cargo.toml.");
+function releaseShortSha(releaseSha: string) {
+  return releaseSha === "unknown" ? "unknown" : releaseSha.slice(0, 7);
+}
+
+function normalizeGithubRunNumber(value: string) {
+  const trimmed = value.trim();
+  if (!/^[1-9][0-9]*$/.test(trimmed)) {
+    throw new Error(
+      `GITHUB_RUN_NUMBER must be a positive integer to generate a desktop platform version; got "${value}".`,
+    );
   }
 
-  cargoManifest.package.version = version;
-  return stringifyToml(cargoManifest);
+  return trimmed;
+}
+
+function buildGithubActionsPlatformVersion(fallbackVersion: string, githubRunNumber: string) {
+  const parsed = parseVersion(normalizeDesktopVersion(fallbackVersion));
+  if (!parsed) {
+    throw new Error(
+      `Unsupported desktop app version "${fallbackVersion}". Expected a semantic version in the form X.Y.Z.`,
+    );
+  }
+
+  return normalizeDesktopVersion(
+    `${parsed.major}.${parsed.minor}.${parsed.patch + Number(githubRunNumber)}`,
+  );
+}
+
+function normalizeReleaseSha(value: string) {
+  const trimmed = value.trim();
+  if (!/^[0-9a-f]{7,40}$/i.test(trimmed)) {
+    throw new Error(`GITHUB_SHA must look like a git commit SHA; got "${value}".`);
+  }
+
+  return trimmed;
+}
+
+export function resolveDesktopReleaseIdentity({
+  env = process.env,
+  fallbackVersion,
+  fallbackSha,
+}: {
+  env?: NodeJS.ProcessEnv;
+  fallbackVersion: string;
+  fallbackSha?: string;
+}): DesktopReleaseIdentity {
+  const envPlatformVersion = env.EVERR_PLATFORM_VERSION?.trim();
+  const envReleaseSha = env.EVERR_RELEASE_SHA?.trim();
+  const envReleaseShortSha = env.EVERR_RELEASE_SHORT_SHA?.trim();
+
+  if (envPlatformVersion) {
+    const platformVersion = normalizeDesktopVersion(envPlatformVersion);
+    const releaseSha = envReleaseSha || fallbackSha?.trim() || "unknown";
+
+    return {
+      platformVersion,
+      releaseSha,
+      releaseShortSha: envReleaseShortSha || releaseShortSha(releaseSha),
+      source: env.GITHUB_SHA && env.GITHUB_RUN_NUMBER ? "github-actions" : "local",
+    };
+  }
+
+  const githubSha = env.GITHUB_SHA?.trim();
+  const githubRunNumber = env.GITHUB_RUN_NUMBER?.trim();
+
+  if (githubSha && githubRunNumber) {
+    const releaseSha = normalizeReleaseSha(githubSha);
+    const platformVersion = buildGithubActionsPlatformVersion(
+      fallbackVersion,
+      normalizeGithubRunNumber(githubRunNumber),
+    );
+
+    return {
+      platformVersion,
+      releaseSha,
+      releaseShortSha: releaseShortSha(releaseSha),
+      source: "github-actions",
+    };
+  }
+
+  const platformVersion = normalizeDesktopVersion(fallbackVersion);
+  const releaseSha = fallbackSha?.trim() || "unknown";
+
+  return {
+    platformVersion,
+    releaseSha,
+    releaseShortSha: releaseShortSha(releaseSha),
+    source: "local",
+  };
+}
+
+export async function writeDesktopReleaseTauriConfigOverride({
+  outputPath,
+  platformVersion,
+}: {
+  outputPath: string;
+  platformVersion: string;
+}) {
+  const version = normalizeDesktopVersion(platformVersion);
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify({ version }, null, 2)}\n`);
+  return outputPath;
 }
 
 async function readDesktopVersionJson(
@@ -390,37 +488,6 @@ async function readDesktopVersionJson(
   };
 }
 
-async function readJsonFile<T>(pathname: string): Promise<T> {
-  return JSON.parse(await readFile(pathname, "utf8")) as T;
-}
-
-export async function bumpDesktopAppVersion(
-  increment: "patch" | "minor" | "major",
-) {
-  const paths: DesktopVersionPaths = defaultDesktopVersionPaths;
-  const [packageJson, tauriConfig, tauriCargoToml] = await Promise.all([
-    readDesktopVersionJson(paths.packageJsonPath),
-    readJsonFile<VersionedJsonFile>(paths.tauriConfigPath),
-    readFile(paths.tauriCargoTomlPath, "utf8"),
-  ]);
-
-  const currentVersion = packageJson.version;
-  const nextVersion = bumpVersion(currentVersion, increment);
-
-  packageJson.version = nextVersion;
-  tauriConfig.version = nextVersion;
-
-  await Promise.all([
-    writeFile(paths.packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`),
-    writeFile(paths.tauriConfigPath, `${JSON.stringify(tauriConfig, null, 2)}\n`),
-    writeFile(
-      paths.tauriCargoTomlPath,
-      replaceCargoPackageVersion(tauriCargoToml, nextVersion),
-    ),
-  ]);
-
-  return {
-    previousVersion: currentVersion,
-    nextVersion,
-  };
+export async function readDesktopTauriConfigVersion(paths = defaultDesktopVersionPaths) {
+  return (await readDesktopVersionJson(paths.tauriConfigPath)).version;
 }

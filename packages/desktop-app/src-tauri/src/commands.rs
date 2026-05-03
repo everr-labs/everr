@@ -180,6 +180,23 @@ pub(crate) struct UserProfileResponse {
     pub profile_url: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct BuildInfoResponse {
+    pub platform_version: &'static str,
+    pub release_sha: &'static str,
+    pub release_short_sha: &'static str,
+}
+
+#[tauri::command]
+pub(crate) fn get_build_info() -> CommandResult<BuildInfoResponse> {
+    Ok(BuildInfoResponse {
+        platform_version: env!("EVERR_VERSION"),
+        release_sha: env!("EVERR_RELEASE_SHA"),
+        release_short_sha: env!("EVERR_RELEASE_SHORT_SHA"),
+    })
+}
+
 #[tauri::command]
 pub(crate) async fn get_user_profile(
     state: State<'_, RuntimeState>,

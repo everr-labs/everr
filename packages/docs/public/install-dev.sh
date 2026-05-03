@@ -25,7 +25,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-binary_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}.bin"
+binary_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}"
 checksum_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}.sha256"
 
 echo "Downloading Everr CLI..."

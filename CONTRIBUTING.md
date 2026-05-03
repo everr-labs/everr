@@ -128,11 +128,9 @@ For macOS distribution, use:
 pnpm --dir packages/desktop-app build:desktop
 ```
 
-To bump the desktop app patch version before building that release, use:
-
-```bash
-pnpm --dir packages/desktop-app build:desktop -- --release
-```
+CI derives the release identity from the commit SHA and generates the numeric
+Tauri/macOS updater version automatically, so release prep does not need a
+manual desktop version bump.
 
 If you also want that release flow to install the signed CLI into `~/.local/bin`, opt in explicitly:
 
@@ -141,5 +139,6 @@ pnpm --dir packages/desktop-app build:desktop -- --install
 ```
 
 The Apple signing and notarization inputs are documented in `packages/desktop-app/README.md`.
+CI secret setup is documented in `docs/desktop-release-secrets.md`.
 `packages/desktop-app/.env` is sourced automatically by the package-native build scripts.
-That release flow stages the DMG and updater artifacts into `packages/docs/public/everr-app/`.
+That release flow stages the DMG, updater artifacts, checksums, release metadata, and signed CLI files into `target/desktop-release/`.
