@@ -1,7 +1,6 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { queryClient } from "./query-client";
 import { routeTree } from "./routeTree.gen";
 
 export interface RouterContext {
@@ -9,6 +8,17 @@ export interface RouterContext {
 }
 
 export const getRouter = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: true,
+        retry: 3,
+      },
+    },
+  });
+
   return createRouter({
     routeTree,
     context: { queryClient },
