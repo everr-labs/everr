@@ -739,6 +739,7 @@ mod tests {
         );
         assert!(rendered.contains("http://127.0.0.1:54418"));
         assert!(rendered.contains("everr telemetry query"));
+        assert!(rendered.contains("everr wrap -- <command>"));
         assert!(rendered.contains("everr telemetry ai-instructions"));
         assert!(rendered.contains("DESCRIBE TABLE otel_traces"));
         assert!(rendered.contains("otel_logs"));

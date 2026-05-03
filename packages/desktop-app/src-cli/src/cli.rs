@@ -57,6 +57,8 @@ pub enum Commands {
     /// List workflows and their jobs for a repository
     #[command(name = "workflows")]
     WorkflowsList(WorkflowsListArgs),
+    /// Run a command and send its stdout/stderr logs to the local collector
+    Wrap(WrapArgs),
     /// Run the full setup wizard (login + org + import + assistant configuration)
     #[command(name = "setup")]
     Setup,
@@ -294,6 +296,18 @@ pub struct WorkflowsListArgs {
     pub branch: Option<String>,
 }
 
+#[derive(Args, Debug, Default)]
+pub struct WrapArgs {
+    /// Command and arguments to run
+    #[arg(
+        required = true,
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        value_name = "COMMAND"
+    )]
+    pub command: Vec<String>,
+}
+
 impl GetLogsArgs {
     pub fn paging(&self) -> Option<LogPagingArgs> {
         if self.limit.is_none() {
@@ -339,6 +353,10 @@ mod tests {
         let ai_instructions =
             Cli::try_parse_from(["everr", "ai-instructions"]).expect("ai-instructions command");
         assert!(matches!(ai_instructions.command, Commands::AiInstructions));
+
+        let wrap =
+            Cli::try_parse_from(["everr", "wrap", "--", "cargo", "test"]).expect("wrap command");
+        assert!(matches!(wrap.command, Commands::Wrap(_)));
     }
 
     #[test]
@@ -373,6 +391,36 @@ mod tests {
         assert_eq!(args.repo.as_deref(), Some("everr-labs/everr"));
         assert_eq!(args.branch.as_deref(), Some("feature/tests"));
         assert_eq!(args.commit.as_deref(), Some("abc123def456"));
+    }
+
+    #[test]
+    fn wrap_accepts_command_after_separator() {
+        let cli = Cli::try_parse_from([
+            "everr",
+            "wrap",
+            "--",
+            "cargo",
+            "test",
+            "--package",
+            "everr-cli",
+        ])
+        .expect("valid wrap command");
+
+        let Commands::Wrap(args) = cli.command else {
+            panic!("expected wrap command");
+        };
+
+        assert_eq!(
+            args.command,
+            vec!["cargo", "test", "--package", "everr-cli"]
+        );
+    }
+
+    #[test]
+    fn wrap_requires_command() {
+        let err = Cli::try_parse_from(["everr", "wrap"]).expect_err("wrap should require command");
+
+        assert!(err.to_string().contains("<COMMAND>"));
     }
 
     #[test]

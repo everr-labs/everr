@@ -7,6 +7,7 @@ mod init;
 mod onboarding;
 mod telemetry;
 mod uninstall;
+mod wrap;
 
 use anyhow::Result;
 use clap::Parser;
@@ -32,6 +33,7 @@ async fn main() -> Result<()> {
         Commands::RunsShow(args) => core::runs_show(args).await?,
         Commands::RunsLogs(args) => core::runs_logs(args).await?,
         Commands::WorkflowsList(args) => core::workflows_list(args).await?,
+        Commands::Wrap(args) => wrap::run(args).await?,
         Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,
         Commands::Telemetry(args) => telemetry::commands::run(args).await?,

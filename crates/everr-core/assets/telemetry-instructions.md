@@ -15,6 +15,8 @@ Commands:
   Always include a time window and a `LIMIT`; responses are capped at 16 MiB.
 - `everr telemetry endpoint`: print the current collector URL if you need to
   confirm the build-specific value.
+- `everr wrap -- <command>`: run a plain command normally while mirroring each
+  stdout/stderr line into `otel_logs` with `service.name = 'everr-wrap-<cmd>'`.
 - `everr telemetry ai-instructions`: print this compact guide.
 
 Schema:
@@ -38,6 +40,8 @@ Investigation playbook:
   `SpanName`, `SeverityNumber`, or attributes.
 - Use traces for flow and latency; use logs for discrete facts and errors.
 - Pivot logs to traces with `TraceId`.
+- For commands that do not emit OTLP themselves, wrap them with
+  `everr wrap -- <command>` and query `ServiceName = 'everr-wrap-<cmd>'`.
 - Empty or stale results usually mean the app is not running, not configured to
   export OTLP to `http://127.0.0.1:54418`, or the collector is not up.
 
