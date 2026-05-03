@@ -2,9 +2,10 @@ mod support;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::process::{Command as ProcessCommand, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use predicates::str::{contains, diff};
 use support::CliTestEnv;
@@ -83,6 +84,80 @@ fn wrap_refuses_to_run_when_collector_is_unavailable() {
         .stderr(contains("telemetry collector isn't running"));
 }
 
+#[test]
+fn wrap_exits_when_stdout_consumer_closes_pipe() {
+    let collector = OtlpLogServer::start();
+    let env = CliTestEnv::new();
+    let mut wrapped = everr_process(&env, collector.origin())
+        .args([
+            "wrap",
+            "--",
+            "sh",
+            "-c",
+            "i=0; while [ $i -lt 200000 ]; do echo y; i=$((i + 1)); done",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn wrapped command");
+    let wrapped_stdout = wrapped.stdout.take().expect("wrapped stdout");
+    let mut wrapped_stderr = wrapped.stderr.take().expect("wrapped stderr");
+
+    let mut head = ProcessCommand::new("head")
+        .args(["-n", "1"])
+        .stdin(Stdio::from(wrapped_stdout))
+        .stdout(Stdio::null())
+        .spawn()
+        .expect("spawn head");
+
+    let head_status = head.wait().expect("wait for head");
+    assert!(head_status.success(), "head failed: {head_status}");
+
+    let status = wait_for_child(&mut wrapped, Duration::from_secs(3))
+        .expect("wrap should exit after stdout pipe closes");
+    assert!(
+        !status.success(),
+        "wrap should report the closed output pipe"
+    );
+
+    let mut stderr = String::new();
+    wrapped_stderr
+        .read_to_string(&mut stderr)
+        .expect("read wrapped stderr");
+    assert!(
+        !stderr.contains("stdout forwarding task failed") && !stderr.contains("Broken pipe"),
+        "wrap should not print an internal pipe error, got: {stderr}"
+    );
+}
+
+#[test]
+fn slow_collector_does_not_throttle_wrapped_output() {
+    let collector = OtlpLogServer::start_with_non_probe_delay(Duration::from_millis(300));
+    let env = CliTestEnv::new();
+    let started = Instant::now();
+    let mut wrapped = everr_process(&env, collector.origin())
+        .args([
+            "wrap",
+            "--",
+            "sh",
+            "-c",
+            "i=0; while [ $i -lt 2000 ]; do echo line-$i; i=$((i + 1)); done",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn wrapped command");
+
+    let status = wait_for_child(&mut wrapped, Duration::from_secs(3))
+        .expect("wrap should not wait for collector queue space while reading output");
+    assert!(status.success(), "wrapped command failed: {status}");
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "wrap took too long: {:?}",
+        started.elapsed()
+    );
+}
+
 struct OtlpLogServer {
     origin: String,
     bodies: Arc<Mutex<Vec<String>>>,
@@ -90,6 +165,14 @@ struct OtlpLogServer {
 
 impl OtlpLogServer {
     fn start() -> Self {
+        Self::start_with_delay(None)
+    }
+
+    fn start_with_non_probe_delay(delay: Duration) -> Self {
+        Self::start_with_delay(Some(delay))
+    }
+
+    fn start_with_delay(response_delay_non_probe: Option<Duration>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind OTLP test server");
         let origin = format!("http://{}", listener.local_addr().expect("server addr"));
         let bodies = Arc::new(Mutex::new(Vec::new()));
@@ -105,6 +188,11 @@ impl OtlpLogServer {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
                         if let Some(body) = read_request_body(&mut stream) {
+                            if !is_probe_body(&body) {
+                                if let Some(delay) = response_delay_non_probe {
+                                    thread::sleep(delay);
+                                }
+                            }
                             thread_bodies.lock().expect("lock bodies").push(body);
                         }
                         write_ok(&mut stream);
@@ -134,6 +222,32 @@ impl OtlpLogServer {
             thread::sleep(Duration::from_millis(10));
         }
     }
+}
+
+fn everr_process(env: &CliTestEnv, collector_origin: &str) -> ProcessCommand {
+    let mut command = ProcessCommand::new(assert_cmd::cargo::cargo_bin!("everr"));
+    command.env("HOME", &env.home_dir);
+    command.env("XDG_CONFIG_HOME", &env.config_dir);
+    command.env("XDG_DATA_HOME", env.home_dir.join(".local").join("share"));
+    command.env("EVERR_OTLP_HTTP_ORIGIN", collector_origin);
+    command
+}
+
+fn wait_for_child(
+    child: &mut std::process::Child,
+    timeout: Duration,
+) -> Option<std::process::ExitStatus> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if let Some(status) = child.try_wait().expect("poll child") {
+            return Some(status);
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+    None
 }
 
 fn read_request_body(stream: &mut TcpStream) -> Option<String> {
@@ -191,4 +305,8 @@ fn write_ok(stream: &mut TcpStream) {
     stream
         .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
         .expect("write response");
+}
+
+fn is_probe_body(body: &str) -> bool {
+    body.trim() == r#"{"resourceLogs":[]}"#
 }

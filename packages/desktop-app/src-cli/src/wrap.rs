@@ -13,6 +13,7 @@ use crate::cli::WrapArgs;
 const BATCH_SIZE: usize = 64;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(200);
 const EXPORT_TIMEOUT: Duration = Duration::from_secs(5);
+const EXPORT_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
 const COLLECTOR_UNAVAILABLE: &str =
     "telemetry collector isn't running — run `everr telemetry start` or open Everr Desktop";
 
@@ -60,11 +61,18 @@ pub async fn run(args: WrapArgs) -> Result<()> {
         .context("stderr forwarding task failed")??;
 
     let exit_code = exit_code_for_status(&status);
-    let _ = records_tx.send(LogRecord::exit(exit_code)).await;
+    try_queue_record(&records_tx, LogRecord::exit(exit_code));
     drop(records_tx);
 
-    if let Err(err) = export_task.await.context("log export task failed")? {
-        eprintln!("everr wrap: failed to send some logs to the local collector: {err}");
+    match tokio::time::timeout(EXPORT_DRAIN_TIMEOUT, export_task).await {
+        Ok(join_result) => {
+            if let Err(err) = join_result.context("log export task failed")? {
+                eprintln!("everr wrap: failed to send some logs to the local collector: {err}");
+            }
+        }
+        Err(_) => {
+            eprintln!("everr wrap: timed out sending some logs to the local collector");
+        }
     }
 
     if status.success() {
@@ -97,17 +105,25 @@ where
             return Ok(());
         }
 
-        writer
-            .write_all(&buf)
-            .await
-            .with_context(|| format!("write wrapped {stream}"))?;
-        writer
-            .flush()
-            .await
-            .with_context(|| format!("flush wrapped {stream}"))?;
+        if let Err(err) = writer.write_all(&buf).await {
+            if err.kind() == std::io::ErrorKind::BrokenPipe {
+                return Ok(());
+            }
+            return Err(err).with_context(|| format!("write wrapped {stream}"));
+        }
+        if let Err(err) = writer.flush().await {
+            if err.kind() == std::io::ErrorKind::BrokenPipe {
+                return Ok(());
+            }
+            return Err(err).with_context(|| format!("flush wrapped {stream}"));
+        }
 
-        let _ = records_tx.send(LogRecord::line(stream, &buf)).await;
+        try_queue_record(&records_tx, LogRecord::line(stream, &buf));
     }
+}
+
+fn try_queue_record(records_tx: &mpsc::Sender<LogRecord>, record: LogRecord) {
+    let _ = records_tx.try_send(record);
 }
 
 async fn export_records(
