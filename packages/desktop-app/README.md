@@ -86,7 +86,7 @@ The public key is embedded into the built app from `src-tauri/tauri.conf.json` s
 The private key variables are used by `tauri build` to sign the updater archive staged into `target/desktop-release/everr-app/`.
 
 CI signing and secret setup are documented in [`../../docs/desktop-release-secrets.md`](../../docs/desktop-release-secrets.md).
-CI uses the `Build Signed Desktop Release` workflow, runs on a Blacksmith macOS runner, and uploads the staged `target/desktop-release/` folder as a GitHub Actions artifact for the deploy repository.
+CI uses the `Deploy Desktop App` workflow, runs on a Blacksmith macOS runner, and uploads the staged `target/desktop-release/` folder as a GitHub Actions artifact for the deploy repository.
 
 You can discover the signing identity name with:
 

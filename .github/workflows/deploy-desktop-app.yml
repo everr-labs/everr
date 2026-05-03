@@ -1,0 +1,261 @@
+name: Deploy Desktop App
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/everr-resource-usage/**
+      - .github/workflows/deploy-desktop-app.yml
+      - .nvmrc
+      - Cargo.toml
+      - Cargo.lock
+      - Makefile
+      - collector/**
+      - crates/everr-core/**
+      - package.json
+      - packages/desktop-app/**
+      - packages/ui/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+
+jobs:
+  build:
+    name: Build, Sign, Notarize
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 60
+    env:
+      EVERR_DESKTOP_PUBLIC_BASE_URL: https://everr.dev/everr-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache-dependency-path: |
+            collector/**/go.sum
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate release secrets
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for name in \
+            APPLE_API_ISSUER \
+            APPLE_API_KEY_ID \
+            APPLE_API_PRIVATE_KEY \
+            APPLE_CERTIFICATE \
+            APPLE_CERTIFICATE_PASSWORD \
+            APPLE_KEYCHAIN_PASSWORD \
+            TAURI_SIGNING_PRIVATE_KEY \
+            TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+          do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required secret(s): %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Import Apple Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          certificate_path="$RUNNER_TEMP/everr-developer-id.p12"
+          keychain_path="$RUNNER_TEMP/everr-build.keychain-db"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path" 2>/dev/null || \
+            printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$certificate_path"
+
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/productsign
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -s "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$APPLE_KEYCHAIN_PASSWORD" \
+            "$keychain_path"
+
+          cert_info="$(security find-identity -v -p codesigning "$keychain_path" | awk '/Developer ID Application/ { print; exit }')"
+          if [[ -z "$cert_info" ]]; then
+            echo "No Developer ID Application identity was found in the imported certificate."
+            security find-identity -v -p codesigning "$keychain_path"
+            exit 1
+          fi
+
+          cert_id="$(printf '%s' "$cert_info" | awk -F'"' '{print $2}')"
+          {
+            echo "APPLE_SIGNING_IDENTITY=$cert_id"
+            echo "APPLE_KEYCHAIN_PATH=$keychain_path"
+          } >> "$GITHUB_ENV"
+
+      - name: Write App Store Connect API key
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          key_dir="$RUNNER_TEMP/app-store-connect"
+          key_path="$key_dir/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+          mkdir -p "$key_dir"
+          printf '%s' "$APPLE_API_PRIVATE_KEY" | perl -0pe 's/\\n/\n/g' > "$key_path"
+          chmod 600 "$key_path"
+
+          {
+            echo "APPLE_API_KEY=$APPLE_API_KEY_ID"
+            echo "APPLE_API_KEY_PATH=$key_path"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed desktop release
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm --dir packages/desktop-app build:desktop:ci
+
+      - name: Verify signing and notarization
+        run: |
+          set -euo pipefail
+
+          app_path="$(find target/release/bundle/macos packages/desktop-app/src-tauri/target/release/bundle/macos -maxdepth 1 -name 'Everr.app' -print -quit 2>/dev/null || true)"
+          dmg_path="target/desktop-release/everr-app/everr-macos-arm64.dmg"
+          cli_path="target/desktop-release/everr"
+
+          if [[ -z "$app_path" ]]; then
+            echo "Could not find the built Everr.app bundle."
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          codesign --verify --strict --verbose=2 "$cli_path"
+          spctl --assess --type execute --verbose "$app_path"
+          spctl --assess --type open --context context:primary-signature --verbose "$dmg_path"
+          xcrun stapler validate "$app_path"
+          xcrun stapler validate "$dmg_path"
+
+      - name: Attest release artifact checksums
+        uses: actions/attest@v4
+        with:
+          subject-checksums: target/desktop-release/SHA256SUMS
+
+      - name: Upload desktop release artifact
+        id: upload-desktop-release
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-desktop-release-${{ github.sha }}
+          path: target/desktop-release
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write release summary
+        run: |
+          {
+            echo "## Desktop release artifact"
+            echo
+            echo "- Artifact name: everr-desktop-release-${GITHUB_SHA}"
+            echo "- Artifact ID: ${{ steps.upload-desktop-release.outputs.artifact-id }}"
+            echo "- Artifact digest: ${{ steps.upload-desktop-release.outputs.artifact-digest }}"
+            echo
+            echo '```json'
+            cat target/desktop-release/release-metadata.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete temporary keychain
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${APPLE_KEYCHAIN_PATH:-}" && -f "$APPLE_KEYCHAIN_PATH" ]]; then
+            security delete-keychain "$APPLE_KEYCHAIN_PATH"
+          fi
+
+  notify-deploy:
+    name: Notify Deploy Repo
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: build
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
+          owner: everr-labs
+          repositories: everr-deploy
+
+      - name: Dispatch desktop app release event
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: everr-labs/everr-deploy
+          event-type: desktop-app-release
+          client-payload: |
+            {
+              "source_repo": "${{ github.repository }}",
+              "run_id": "${{ github.run_id }}",
+              "sha": "${{ github.sha }}",
+              "artifact_name": "everr-desktop-release-${{ github.sha }}"
+            }
