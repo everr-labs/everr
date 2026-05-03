@@ -13,7 +13,6 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { auth } from "@/lib/auth.server";
-import { queryClient } from "@/query-client";
 import appCss from "@/styles/app.css?url";
 import type { RouterContext } from "../router";
 
@@ -82,6 +81,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function Component() {
+  const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
