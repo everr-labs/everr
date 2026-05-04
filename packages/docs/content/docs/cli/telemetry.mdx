@@ -45,6 +45,18 @@ Prints the collector URL for the current build.
 everr telemetry endpoint
 ```
 
+### `everr wrap`
+
+Runs a plain command normally and mirrors each stdout/stderr line into the local collector.
+
+```shell
+everr wrap -- npm test
+```
+
+Use this when a tool is not OpenTelemetry-instrumented yet but you still want its logs in `otel_logs`. The wrapped command keeps its normal terminal output and exit code, and its logs use `service.name = everr-wrap-<cmd>`.
+
+The local collector must already be running. If the collector is unavailable, `everr wrap` exits without running the command. If the wrapped command exits with a non-zero code, `everr wrap` exits with the same code after forwarding its output and attempting to send its logs.
+
 ### Pivoting between logs and traces
 
 Find a log of interest, grab its `TraceId`, and query the matching trace:
@@ -70,8 +82,12 @@ This writes a managed block to your project's `AGENTS.md` or `CLAUDE.md` contain
 
 If you manage your `AGENTS.md` / `CLAUDE.md` by hand, add this block:
 
+<!-- AI_INTEGRATION_SNIPPET_START -->
+
 ```markdown
 For debugging locally running OpenTelemetry-instrumented services — runtime errors, slow requests, or verifying instrumentation changes — or for adding new instrumentation to diagnose slowness, errors, or regressions: call `everr telemetry ai-instructions` for full usage.
 ```
+
+<!-- AI_INTEGRATION_SNIPPET_END -->
 
 The full body is intentionally not duplicated here — run `everr telemetry ai-instructions` to see what your assistant will read.

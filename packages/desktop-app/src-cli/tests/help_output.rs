@@ -27,6 +27,7 @@ fn root_help_lists_main_commands() {
         .stdout(contains("runs"))
         .stdout(contains("show"))
         .stdout(contains("logs"))
+        .stdout(contains("wrap"))
         .stdout(contains("telemetry"));
 }
 
@@ -102,6 +103,20 @@ fn telemetry_help_lists_start_command() {
         .assert()
         .success()
         .stdout(contains("--quiet"));
+}
+
+#[test]
+fn wrap_help_describes_command_capture() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["wrap", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("<COMMAND>"))
+        .stdout(contains(
+            "send its stdout/stderr logs to the local collector",
+        ));
 }
 
 #[test]

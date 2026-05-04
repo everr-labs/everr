@@ -90,6 +90,10 @@ pub const SQL_HTTP_PORT: u16 = 54420;
 /// Origin (scheme + host + port) for the local OTLP HTTP collector.
 /// Instrumented code points its OTLP HTTP exporter at this.
 pub fn otlp_http_origin() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(origin) = std::env::var("EVERR_OTLP_HTTP_ORIGIN") {
+        return origin;
+    }
     format!("http://127.0.0.1:{OTLP_HTTP_PORT}")
 }
 
@@ -178,6 +182,29 @@ mod tests {
         assert!(origin.starts_with("http://127.0.0.1:"));
         let port: u16 = origin.rsplit(':').next().unwrap().parse().unwrap();
         assert_eq!(port, super::SQL_HTTP_PORT);
+    }
+
+    #[test]
+    fn otlp_http_origin_honors_debug_override() {
+        const KEY: &str = "EVERR_OTLP_HTTP_ORIGIN";
+        let previous = std::env::var_os(KEY);
+
+        unsafe {
+            std::env::set_var(KEY, "http://127.0.0.1:65529");
+        }
+
+        let origin = super::otlp_http_origin();
+
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var(KEY, value);
+            },
+            None => unsafe {
+                std::env::remove_var(KEY);
+            },
+        }
+
+        assert_eq!(origin, "http://127.0.0.1:65529");
     }
 
     #[test]

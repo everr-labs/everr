@@ -46,6 +46,15 @@ description: Reference for all Everr CLI commands.
 
 Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination.
 
+## Local Telemetry
+
+- `everr telemetry start` — start the local OpenTelemetry collector
+- `everr telemetry query "<SQL>"` — query local telemetry with read-only SQL
+- `everr telemetry endpoint` — print the current local collector URL
+- `everr wrap -- <command>` — run a command normally and mirror stdout/stderr into local telemetry
+  - Requires a running collector; if unavailable, the command is not run
+  - Preserves the wrapped command's non-zero exit code
+
 ## Test Analytics
 
 - `everr test-history --test-name <name>` — show historical executions for a specific test
