@@ -124,7 +124,7 @@ export function CommandBar() {
             )}
             {navMain.map((group) => (
               <CommandGroup key={group.title} heading={group.title}>
-                {group.items?.map((item) => (
+                {(group.items ?? [group]).map((item) => (
                   <CommandItem
                     key={item.url}
                     onSelect={() => handleSelect(item.url)}
