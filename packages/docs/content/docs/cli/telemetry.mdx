@@ -25,6 +25,16 @@ Useful flags:
 
 - `--quiet` — suppress collector URL output after startup.
 
+### `everr telemetry status`
+
+Checks whether the local collector healthcheck is reachable.
+
+```shell
+everr telemetry status
+```
+
+It exits with code `0` when the collector is running and code `2` when it is stopped.
+
 ### `everr telemetry query`
 
 Runs read-only SQL against local telemetry.
@@ -50,10 +60,10 @@ everr telemetry endpoint
 Runs a plain command normally and mirrors each stdout/stderr line into the local collector.
 
 ```shell
-everr wrap -- npm test
+everr wrap -- npm run lint
 ```
 
-Use this when a tool is not OpenTelemetry-instrumented yet but you still want its logs in `otel_logs`. The wrapped command keeps its normal terminal output and exit code, and its logs use `service.name = everr-wrap-<cmd>`.
+Use this for build and linting tasks that are not OpenTelemetry-instrumented but still need logs in `otel_logs`. For runtime app debugging, add real OpenTelemetry instrumentation instead. The wrapped command keeps its normal terminal output and exit code, and its logs use `service.name = everr-wrap-<cmd>`.
 
 The local collector must already be running. If the collector is unavailable, `everr wrap` exits without running the command. If the wrapped command exits with a non-zero code, `everr wrap` exits with the same code after forwarding its output and attempting to send its logs.
 
@@ -66,28 +76,21 @@ everr telemetry query "SELECT Timestamp, TraceId, ServiceName, SeverityText, Bod
 everr telemetry query "SELECT Timestamp, SpanName, Duration, StatusCode, StatusMessage FROM otel_traces WHERE TraceId = '<id>' ORDER BY Timestamp ASC"
 ```
 
-## AI assistant integration
+## Everr skills
 
-`everr telemetry ai-instructions` prints the full usage guide in a format optimized for AI assistants. There are two ways to make your assistant discover it.
+Everr ships bundled skills for agents that need local telemetry context:
 
-### Automatic (recommended)
+- `local-telemetry-setup` explains how to start the collector and point a local app at it.
+- `local-debugging` explains how to query local logs and traces while debugging runtime issues.
 
 ```shell
-everr setup-assistant
+everr skills install local-telemetry-setup local-debugging --project
 ```
 
-This writes a managed block to your project's `AGENTS.md` or `CLAUDE.md` containing both the CI and telemetry pointers.
+To install every bundled Everr skill instead:
 
-### Manual
-
-If you manage your `AGENTS.md` / `CLAUDE.md` by hand, add this block:
-
-<!-- AI_INTEGRATION_SNIPPET_START -->
-
-```markdown
-For debugging locally running OpenTelemetry-instrumented services — runtime errors, slow requests, or verifying instrumentation changes — or for adding new instrumentation to diagnose slowness, errors, or regressions: call `everr telemetry ai-instructions` for full usage.
+```shell
+everr skills install --all --project
 ```
 
-<!-- AI_INTEGRATION_SNIPPET_END -->
-
-The full body is intentionally not duplicated here — run `everr telemetry ai-instructions` to see what your assistant will read.
+Use `--global` when you want the skills available outside the current repository.

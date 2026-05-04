@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[cfg(debug_assertions)]
 const VERSION_OUTPUT: &str = concat!(env!("EVERR_VERSION"), " (debug build)");
@@ -14,7 +14,7 @@ pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
     name = "everr",
     version = VERSION_OUTPUT,
     long_version = VERSION_OUTPUT,
-    about = "CLI for CI/CD observability in Everr, designed for humans and code assistants"
+    about = "CLI for CI/CD observability in Everr, designed for humans and agent skills"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -29,10 +29,6 @@ pub enum Commands {
     Login(LoginArgs),
     /// Log out and clear the local session
     Logout,
-    /// Print the repo-level AGENTS.md instructions for Everr
-    SetupAssistant,
-    /// Print the full AI instructions for Everr CLI usage
-    AiInstructions,
     /// Show all pipeline runs for a specific commit
     Status(StatusArgs),
     /// Search failing step logs on other branches
@@ -59,14 +55,17 @@ pub enum Commands {
     WorkflowsList(WorkflowsListArgs),
     /// Run a command and send its stdout/stderr logs to the local collector
     Wrap(WrapArgs),
-    /// Run the full setup wizard (login + org + import + assistant configuration)
+    /// Run the full setup wizard (login + org + import + skills installation)
     #[command(name = "setup")]
     Setup,
-    /// Initialize the current repository (import runs + write assistant instructions)
+    /// Initialize the current repository by importing recent runs
     Init,
     /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
     #[command(name = "telemetry")]
     Telemetry(TelemetryArgs),
+    /// Manage bundled Everr agent skills
+    #[command(name = "skills")]
+    Skills(SkillsArgs),
 }
 
 #[derive(Args, Debug)]
@@ -81,11 +80,113 @@ pub enum TelemetrySubcommand {
     Start(TelemetryStartArgs),
     /// Run a SQL query against local telemetry.
     Query(TelemetryQueryArgs),
+    /// Check whether the local collector is running.
+    Status,
     /// Print the local collector URL.
     Endpoint,
-    /// Print AI-oriented guidance for `everr telemetry`.
-    #[command(name = "ai-instructions")]
-    AiInstructions,
+}
+
+#[derive(Args, Debug)]
+pub struct SkillsArgs {
+    #[command(subcommand)]
+    pub command: SkillsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SkillsSubcommand {
+    /// List bundled Everr skills
+    List(SkillsListArgs),
+    /// Install bundled Everr skills
+    Install(SkillsInstallArgs),
+    /// Update installed bundled Everr skills
+    Update(SkillsUpdateArgs),
+    /// Uninstall bundled Everr skills
+    Uninstall(SkillsUninstallArgs),
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy, Eq, PartialEq)]
+#[value(rename_all = "kebab-case")]
+pub enum SkillAgentArg {
+    All,
+    Codex,
+    ClaudeCode,
+    Cursor,
+}
+
+#[derive(Args, Debug, Default, Clone)]
+pub struct SkillScopeArgs {
+    /// Use project-local .agents/skills in the current directory
+    #[arg(long, conflicts_with = "global")]
+    pub project: bool,
+    /// Use global ~/.agents/skills
+    #[arg(long)]
+    pub global: bool,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct SkillsListArgs {
+    #[command(flatten)]
+    pub scope: SkillScopeArgs,
+    /// Provider to inspect
+    #[arg(long = "agent", value_enum)]
+    pub agents: Vec<SkillAgentArg>,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct SkillsInstallArgs {
+    /// Skill names to install. Omit in an interactive terminal to choose from a prompt.
+    pub skills: Vec<String>,
+    /// Install all bundled skills
+    #[arg(long)]
+    pub all: bool,
+    #[command(flatten)]
+    pub scope: SkillScopeArgs,
+    /// Provider to install for
+    #[arg(long = "agent", value_enum)]
+    pub agents: Vec<SkillAgentArg>,
+    /// Copy into provider directories instead of symlinking
+    #[arg(long)]
+    pub copy: bool,
+    /// Overwrite existing differing skill files
+    #[arg(long)]
+    pub force: bool,
+    /// Preview without writing files
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct SkillsUpdateArgs {
+    /// Skill names to update. With none, updates installed bundled skills.
+    pub skills: Vec<String>,
+    #[command(flatten)]
+    pub scope: SkillScopeArgs,
+    /// Provider to update for
+    #[arg(long = "agent", value_enum)]
+    pub agents: Vec<SkillAgentArg>,
+    /// Preview without writing files
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct SkillsUninstallArgs {
+    /// Skill names to uninstall
+    pub skills: Vec<String>,
+    /// Uninstall all bundled skills
+    #[arg(long)]
+    pub all: bool,
+    /// Confirm uninstalling all bundled skills
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+    #[command(flatten)]
+    pub scope: SkillScopeArgs,
+    /// Provider to uninstall for
+    #[arg(long = "agent", value_enum)]
+    pub agents: Vec<SkillAgentArg>,
+    /// Preview without removing files
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Args, Debug, Default)]
@@ -346,13 +447,8 @@ mod tests {
         let uninstall = Cli::try_parse_from(["everr", "uninstall"]).expect("uninstall command");
         assert!(matches!(uninstall.command, Commands::Uninstall));
 
-        let setup_assistant =
-            Cli::try_parse_from(["everr", "setup-assistant"]).expect("setup-assistant command");
-        assert!(matches!(setup_assistant.command, Commands::SetupAssistant));
-
-        let ai_instructions =
-            Cli::try_parse_from(["everr", "ai-instructions"]).expect("ai-instructions command");
-        assert!(matches!(ai_instructions.command, Commands::AiInstructions));
+        let skills = Cli::try_parse_from(["everr", "skills", "list"]).expect("skills command");
+        assert!(matches!(skills.command, Commands::Skills(_)));
 
         let wrap =
             Cli::try_parse_from(["everr", "wrap", "--", "cargo", "test"]).expect("wrap command");
@@ -548,10 +644,14 @@ mod tests {
     }
 
     #[test]
-    fn setup_assistant_rejects_removed_assistant_flag() {
-        let err = Cli::try_parse_from(["everr", "setup-assistant", "--assistant", "codex"])
-            .expect_err("setup-assistant should reject removed --assistant flag");
-        assert!(err.to_string().contains("--assistant"));
+    fn old_assistant_commands_are_rejected() {
+        let setup_err = Cli::try_parse_from(["everr", "setup-assistant"])
+            .expect_err("setup-assistant should be removed");
+        assert!(setup_err.to_string().contains("setup-assistant"));
+
+        let instructions_err = Cli::try_parse_from(["everr", "ai-instructions"])
+            .expect_err("ai-instructions should be removed");
+        assert!(instructions_err.to_string().contains("ai-instructions"));
     }
 
     #[test]
@@ -703,11 +803,26 @@ mod tests {
     }
 
     #[test]
-    fn setup_assistant_parses_without_arguments() {
-        let cli =
-            Cli::try_parse_from(["everr", "setup-assistant"]).expect("setup-assistant command");
+    fn skills_install_parses_without_json_option() {
+        let interactive_cli =
+            Cli::try_parse_from(["everr", "skills", "install"]).expect("skills install command");
+        assert!(matches!(interactive_cli.command, Commands::Skills(_)));
 
-        assert!(matches!(cli.command, Commands::SetupAssistant));
+        let cli = Cli::try_parse_from([
+            "everr",
+            "skills",
+            "install",
+            "ci-debugging",
+            "--project",
+            "--agent",
+            "claude-code",
+        ])
+        .expect("skills install command");
+
+        assert!(matches!(cli.command, Commands::Skills(_)));
+        let err = Cli::try_parse_from(["everr", "skills", "install", "ci-debugging", "--json"])
+            .expect_err("skills install should not accept --json");
+        assert!(err.to_string().contains("--json"));
     }
 
     #[test]

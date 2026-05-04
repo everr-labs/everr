@@ -30,22 +30,22 @@ Every data-returning command must include a top-level field (e.g. `filters`) in 
 
 ---
 
-## Rule 2: AI-useful commands belong in `ai-instructions`
+## Rule 2: AI-useful guidance belongs in bundled skills
 
-Commands that help an AI understand or investigate CI must be documented in `ai-instructions`. Human-only commands must not appear there.
+Commands that help an agent understand or investigate CI/local telemetry must be documented in the relevant bundled skill. Human-only commands must not be promoted as agent workflows.
 
 | Category | Commands |
 |---|---|
-| AI-useful (document in `ai-instructions`) | `status`, `watch`, `grep`, `runs`, `show`, `logs`, `workflows`, `test-history`, `slowest-tests`, `slowest-jobs` |
-| Human-only (exclude from `ai-instructions`) | `setup`, `init`, `login`, `logout`, `uninstall`, `setup-assistant` |
+| Agent-useful (document in a skill) | `status`, `watch`, `grep`, `runs`, `show`, `logs`, `workflows`, `test-history`, `slowest-tests`, `slowest-jobs`, `telemetry query`, `telemetry endpoint`, `wrap` |
+| Human-only (exclude from skills) | `setup`, `init`, `login`, `logout`, `uninstall` |
 
-**Why:** `ai-instructions` is the single source of truth for what an AI can use. Including setup/auth commands adds noise and risks an AI attempting to run interactive flows.
+**Why:** Skills are the source of truth for what an agent can use. Including setup/auth commands adds noise and risks an agent attempting to run interactive flows.
 
-**Checklist:** When adding a command, decide: AI-useful or human-only? Add to `ai-instructions` accordingly.
+**Checklist:** When adding a command, decide: agent-useful or human-only? Add the guidance to the right bundled skill when it is agent-useful.
 
 ---
 
-## Rule 3: Keep `ai-instructions` concise — if you can't, refactor the command
+## Rule 3: Keep skill command guidance concise — if you can't, refactor the command
 
 The command itself should fit on one line. Flags may use sub-bullets, but only when they meaningfully extend the command (e.g. `--egrep`, `--log-failed`). If the command line itself needs more than one line to describe, treat it as a signal that the interface is too complex — refactor the command first, then document it.
 

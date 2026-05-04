@@ -1,10 +1,10 @@
 pub mod api;
-pub mod assistant;
 pub mod auth;
 pub mod build;
 pub mod collector;
 pub mod datemath;
 pub mod git;
 pub mod notifier;
+pub mod skills;
 pub mod state;
 pub mod state_watcher;

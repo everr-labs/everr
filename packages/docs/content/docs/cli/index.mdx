@@ -25,14 +25,11 @@ everr init
 
 This command:
 - Imports runs for the current repository
-- Writes a managed block into `AGENTS.md` and/or `CLAUDE.md` (auto-detects which files exist; creates `AGENTS.md` if neither is present)
 
-The snippet added to those files is:
+To teach supported agents how to use Everr from this repo, install the bundled skills:
 
-```md
-For CI, GitHub Actions, pipelines, workflow logs, or test performance tasks: call `everr ai-instructions` for full usage.
-
-Quick start — run `everr status` to get the current commit's pipeline state while you plan your next steps.
+```bash
+everr skills install
 ```
 
-This gives your AI assistant a minimal, always-present hint to reach for Everr when working on CI-related tasks.
+The installer asks which skills, scope, providers, and install mode to use. Project installs write the canonical skills to `.agents/skills`. For Claude Code, Everr also creates provider symlinks under `.claude/skills`. Use `--global` to install the same skills under `~/.agents/skills` and link them into supported global provider directories.

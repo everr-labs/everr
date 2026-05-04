@@ -16,8 +16,8 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("\n  install").not())
         .stdout(contains("login"))
         .stdout(contains("logout"))
-        .stdout(contains("setup-assistant"))
-        .stdout(contains("ai-instructions"))
+        .stdout(predicates::str::contains("setup-assistant").not())
+        .stdout(predicates::str::contains("ai-instructions").not())
         .stdout(contains("status"))
         .stdout(contains("grep"))
         .stdout(contains("slowest-tests"))
@@ -28,7 +28,8 @@ fn root_help_lists_main_commands() {
         .stdout(contains("show"))
         .stdout(contains("logs"))
         .stdout(contains("wrap"))
-        .stdout(contains("telemetry"));
+        .stdout(contains("telemetry"))
+        .stdout(contains("skills"));
 }
 
 #[test]
@@ -96,6 +97,7 @@ fn telemetry_help_lists_start_command() {
         .success()
         .stdout(contains("start"))
         .stdout(contains("query"))
+        .stdout(contains("status"))
         .stdout(contains("endpoint"));
 
     env.command()
@@ -135,29 +137,19 @@ fn status_help_lists_commit_based_options() {
 }
 
 #[test]
-fn setup_assistant_help_describes_output() {
+fn skills_help_describes_skill_management() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["setup-assistant", "--help"])
+        .args(["skills", "--help"])
         .assert()
         .success()
-        .stdout(contains(
-            "Print the repo-level AGENTS.md instructions for Everr",
-        ));
-}
-
-#[test]
-fn ai_instructions_help_describes_full_guidance_output() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["ai-instructions", "--help"])
-        .assert()
-        .success()
-        .stdout(contains(
-            "Print the full AI instructions for Everr CLI usage",
-        ));
+        .stdout(contains("Manage bundled Everr agent skills"))
+        .stdout(contains("list"))
+        .stdout(contains("install"))
+        .stdout(contains("update"))
+        .stdout(contains("uninstall"))
+        .stdout(predicates::str::contains("--json").not());
 }
 
 #[test]

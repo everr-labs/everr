@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use everr_core::state_watcher::StateChange;
-use everr_core::{assistant, build};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_updater::UpdaterExt;
@@ -22,10 +21,6 @@ pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {
 
     if let Err(error) = ensure_background_launch(app) {
         crate::crash_log::log_error("enable background launch", &error);
-    }
-
-    if let Err(error) = assistant::refresh_existing_managed_prompts(build::command_name()) {
-        crate::crash_log::log_error("refresh assistant instructions", &error);
     }
 }
 

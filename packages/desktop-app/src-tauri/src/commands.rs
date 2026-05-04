@@ -1,7 +1,5 @@
 use anyhow::{Context, Result};
 use everr_core::api::{ApiClient, FailureNotification};
-use everr_core::assistant::{self, AssistantKind};
-use everr_core::build;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
@@ -17,12 +15,12 @@ use crate::notifications::{
 };
 use crate::seen_runs;
 use crate::settings::{
-    assistant_setup_response, current_app_state, emit_auth_changed, emit_settings_changed,
-    reset_dev_onboarding_inner, update_persisted_state, update_settings, wizard_status_response,
+    current_app_state, emit_auth_changed, emit_settings_changed, reset_dev_onboarding_inner,
+    update_persisted_state, update_settings, wizard_status_response,
 };
 use crate::{
-    current_base_url, AssistantSetupResponse, AuthStatusResponse, CommandResult, DevResetResponse,
-    IntoCommandResult, PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
+    current_base_url, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
+    PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
     WizardStatusResponse, SEEN_RUNS_CHANGED_EVENT,
 };
 
@@ -32,14 +30,6 @@ pub(crate) async fn get_auth_status(
 ) -> CommandResult<AuthStatusResponse> {
     let state = state.inner().clone();
     run_blocking_command(move || auth_status_response(&state)).await
-}
-
-#[tauri::command]
-pub(crate) async fn get_assistant_setup(
-    state: State<'_, RuntimeState>,
-) -> CommandResult<AssistantSetupResponse> {
-    let state = state.inner().clone();
-    run_blocking_command(move || assistant_setup_response(&state)).await
 }
 
 #[tauri::command]
@@ -130,23 +120,6 @@ pub(crate) async fn reset_dev_onboarding(
     Ok(response)
 }
 
-#[tauri::command]
-pub(crate) async fn configure_assistants(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-    assistants: Vec<AssistantKind>,
-) -> CommandResult<AssistantSetupResponse> {
-    let runtime = state.inner().clone();
-    let response = run_blocking_command(move || {
-        assistant::sync_discovery_assistants(&assistants, build::command_name())?;
-        assistant_setup_response(&runtime)
-    })
-    .await?;
-
-    emit_settings_changed(&app);
-
-    Ok(response)
-}
 #[tauri::command]
 pub(crate) async fn get_notification_emails(
     state: State<'_, RuntimeState>,
