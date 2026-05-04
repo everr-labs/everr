@@ -20,7 +20,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import AnsiImport from "ansi-to-react";
 import {
   Boxes,
-  Braces,
   ChevronRight,
   Clock3,
   FileSearch,
@@ -147,7 +146,7 @@ function LogsExplorerPage() {
       <section className="bg-background text-foreground flex h-full min-h-[720px] flex-col overflow-hidden">
         <div className="border-b bg-muted/10 px-3 py-2">
           <form
-            className="max-w-3xl"
+            className="w-full"
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
@@ -187,7 +186,12 @@ function LogsExplorerPage() {
           </form>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_360px]">
+        <div
+          className={cn(
+            "grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]",
+            selectedLogState && "xl:grid-cols-[260px_minmax(0,1fr)_360px]",
+          )}
+        >
           <aside className="bg-muted/15 min-h-0 border-b lg:border-r lg:border-b-0">
             <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
               <div className="flex items-center gap-2 text-xs font-medium">
@@ -290,9 +294,14 @@ function LogsExplorerPage() {
             </div>
           </main>
 
-          <aside className="bg-muted/10 min-h-0 min-w-0 xl:border-l">
-            <LogInspectorPanel log={selectedLogState?.log ?? null} />
-          </aside>
+          {selectedLogState ? (
+            <aside className="bg-muted/10 min-h-0 min-w-0 xl:border-l">
+              <LogInspectorPanel
+                log={selectedLogState.log}
+                onClose={() => setSelectedLogState(null)}
+              />
+            </aside>
+          ) : null}
         </div>
       </section>
     </div>
@@ -524,20 +533,13 @@ function LogStream({
   );
 }
 
-function LogInspectorPanel({ log }: { log: LogExplorerRow | null }) {
-  if (!log) {
-    return (
-      <div className="flex h-full min-h-64 flex-col items-center justify-center gap-2 p-6 text-center">
-        <Braces className="text-muted-foreground size-5" />
-        <div className="text-sm font-medium">Select a log event</div>
-        <p className="text-muted-foreground max-w-64 text-xs">
-          Inspect the message, source attributes, and trace linkage without
-          leaving the stream.
-        </p>
-      </div>
-    );
-  }
-
+function LogInspectorPanel({
+  log,
+  onClose,
+}: {
+  log: LogExplorerRow;
+  onClose: () => void;
+}) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b p-3">
@@ -548,12 +550,22 @@ function LogInspectorPanel({ log }: { log: LogExplorerRow | null }) {
               {formatRelativeTime(log.timestamp)}
             </div>
           </div>
-          <Badge
-            variant="outline"
-            className={cn("capitalize", levelBadgeClassName(log.level))}
-          >
-            {log.level}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Badge
+              variant="outline"
+              className={cn("capitalize", levelBadgeClassName(log.level))}
+            >
+              {log.level}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close log details"
+              onClick={onClose}
+            >
+              <X />
+            </Button>
+          </div>
         </div>
       </div>
 
