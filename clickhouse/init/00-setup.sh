@@ -23,4 +23,10 @@ GRANT SELECT ON app.* TO app_ro;
 -- LIFETIME(MIN 60 MAX 120). Tables and the dictionary are created in 10-create-mvs.sql.
 -- SELECT is granted so the dictionary source can authenticate as app_retention.
 GRANT INSERT, SELECT ON app.tenant_retention_source TO app_retention;
+
+-- dictGet is needed wherever the TTL expression evaluates dictGetOrDefault:
+-- collector_rw inserts trigger the materialized views which call dictGet during
+-- the cascading INSERT into app.*; app_ro queries may also reference it.
+GRANT dictGet ON app.tenant_retention TO collector_rw;
+GRANT dictGet ON app.tenant_retention TO app_ro;
 SQL

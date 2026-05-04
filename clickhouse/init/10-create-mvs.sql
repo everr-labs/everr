@@ -27,6 +27,8 @@ CREATE DICTIONARY IF NOT EXISTS app.tenant_retention
 )
 PRIMARY KEY tenant_id
 SOURCE(CLICKHOUSE(
+  user 'app_retention'
+  password 'app-retention-dev'
   query 'SELECT tenant_id, traces_days, logs_days, metrics_days FROM app.tenant_retention_source FINAL'
 ))
 LAYOUT(HASHED())
