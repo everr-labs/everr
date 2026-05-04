@@ -76,6 +76,7 @@ describe("getLogsExplorer", () => {
         traceId: "trace-1",
         limit: 50,
         offset: 100,
+        histogramBuckets: 24,
       },
     });
 
@@ -83,6 +84,7 @@ describe("getLogsExplorer", () => {
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
     const countSql = mockedQuery.mock.calls[1]?.[0] ?? "";
     const levelCountsSql = mockedQuery.mock.calls[2]?.[0] ?? "";
+    const histogramSql = mockedQuery.mock.calls[3]?.[0] ?? "";
     expect(sql).toContain("FROM logs");
     expect(sql).toContain(
       "TimestampTime >= parseDateTimeBestEffort({fromTime:String})",
@@ -94,6 +96,7 @@ describe("getLogsExplorer", () => {
     expect(sql).toContain("IN {levels:Array(String)}");
     expect(countSql).toContain("IN {levels:Array(String)}");
     expect(levelCountsSql).not.toContain("IN {levels:Array(String)}");
+    expect(histogramSql).toContain("INTERVAL 300 SECOND");
     expect(sql).not.toContain("PREWHERE");
     expect(sql).not.toContain("SQL_everr_tenant_id");
     expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({
@@ -113,7 +116,14 @@ describe("getLogsExplorer", () => {
     expect(result.totalCount).toBe(1);
     expect(result.levelCounts.error).toBe(1);
     expect(result.levelCounts.warning).toBe(2);
-    expect(result.histogram[0]?.total).toBe(1);
+    expect(result.histogram).toHaveLength(25);
+    expect(result.histogram.find((bucket) => bucket.total === 1)).toMatchObject(
+      {
+        timestamp: "2026-03-09T12:00:00.000Z",
+        rangeLabel: "12:00 PM - 12:05 PM",
+        total: 1,
+      },
+    );
   });
 
   it("can fetch additional log pages without summary queries", async () => {
