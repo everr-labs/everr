@@ -1,5 +1,6 @@
 import {
   ChartLine,
+  FileText,
   FlaskConical,
   GitBranch,
   type LucideIcon,
@@ -36,6 +37,11 @@ export const navMain: NavItem[] = [
         url: "/workflows",
       },
     ],
+  },
+  {
+    title: "Logs",
+    url: "/logs",
+    icon: FileText,
   },
   {
     title: "Testing",
