@@ -13,6 +13,10 @@ Use this skill for debugging requests such as:
 - runtime errors, exceptions, crashes, failed local commands, failing tests, slow requests, flaky behavior, regressions, missing spans, stale telemetry, or instrumentation checks
 - prompts containing "debug", "diagnose", "investigate", "reproduce", "why is this failing", "why is this slow", or "what happened"
 
+## Performance Rule
+
+Do not make runtime traces or high-volume debug logs visible on stdout/stderr just so they can be inspected. For performance and noise control, prefer exporting traces/logs/metrics to the local collector and query them with `everr telemetry query`. Use stdout/stderr capture only for bounded build or lint commands via `everr wrap`.
+
 ## Default Workflow
 
 1. First decide whether local OpenTelemetry data could help. Use telemetry when the problem may involve runtime behavior, local services, requests, jobs, tests, command output, logs, traces, metrics, latency, or errors.
@@ -66,5 +70,5 @@ For "my local request is slow":
 
 For "debug this failing local test":
 1. Check whether the failure might emit logs, traces, metrics, or wrapped command output.
-2. If yes, check `everr telemetry status`, run or rerun the test, then query recent logs or wrapped command logs.
+2. If yes, check `everr telemetry status`, run or rerun the test, then query recent logs or wrapped command logs. Do not add noisy stdout/stderr trace dumps.
 3. If no useful telemetry is possible, state that and debug with the test output and code path instead.

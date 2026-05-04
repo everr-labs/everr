@@ -31,6 +31,8 @@ Use this skill when a local app or command needs to emit telemetry into Everr be
 
 OpenTelemetry clients can export directly to the local collector. No Everr wrapper is needed for instrumented runtime services.
 
+Do not configure runtime traces or high-volume debug logs to print to stdout/stderr for debugging. For performance and noise control, export traces/logs/metrics to the local collector and inspect them with `everr telemetry query`.
+
 When OpenTelemetry is missing:
 - Inspect the app framework and dependencies first.
 - Add the SDK, `service.name`, auto-instrumentations when available, and an OTLP/HTTP exporter.
