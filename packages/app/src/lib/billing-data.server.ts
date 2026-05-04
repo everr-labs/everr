@@ -1,8 +1,16 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { orgSubscription } from "@/db/schema";
+import { upsertTenantRetention } from "@/lib/clickhouse";
+import { resolveRetention, type Tier } from "@/lib/retention";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
+
+function tierForSubscription(args: {
+  status: string | null | undefined;
+}): Tier {
+  return args.status && ACTIVE_STATUSES.has(args.status) ? "pro" : "free";
+}
 
 export type OrgEntitlement = {
   tier: "free" | "pro";
@@ -20,20 +28,11 @@ export async function getOrgEntitlement(
     .where(eq(orgSubscription.orgId, orgId))
     .limit(1);
 
-  if (!row || !ACTIVE_STATUSES.has(row.status)) {
-    return {
-      tier: "free",
-      status: row?.status ?? null,
-      currentPeriodEnd: row?.currentPeriodEnd ?? null,
-      cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
-    };
-  }
-
   return {
-    tier: "pro",
-    status: row.status,
-    currentPeriodEnd: row.currentPeriodEnd,
-    cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    tier: tierForSubscription({ status: row?.status }),
+    status: row?.status ?? null,
+    currentPeriodEnd: row?.currentPeriodEnd ?? null,
+    cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
   };
 }
 
@@ -64,4 +63,25 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
       },
       setWhere: sql`${orgSubscription.polarModifiedAt} < ${input.polarModifiedAt}`,
     });
+
+  // Sync retention from the persisted PG state (not from `input`) so webhook
+  // retries after a transient ClickHouse failure still converge — including
+  // the case where the staleness guard above blocks the PG update on retry.
+  const [current] = await db
+    .select({ status: orgSubscription.status })
+    .from(orgSubscription)
+    .where(eq(orgSubscription.orgId, input.orgId))
+    .limit(1);
+  if (!current) return;
+
+  const retention = resolveRetention(
+    tierForSubscription({ status: current.status }),
+  );
+
+  await upsertTenantRetention({
+    tenantId: input.orgId,
+    tracesDays: retention.tracesDays,
+    logsDays: retention.logsDays,
+    metricsDays: retention.metricsDays,
+  });
 }

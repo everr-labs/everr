@@ -3,6 +3,7 @@
 ## Issues
 
 - [**cli-expired-token-no-re-auth-prompt**](todo/issues/cli-expired-token-no-re-auth-prompt.md) — When the CLI auth token expires, commands fail with a generic HTTP 401 error instead of prompting the user to re-authenticate.
+- [**clickhouse-ttl-merge-cost-monitoring**](todo/issues/clickhouse-ttl-merge-cost-monitoring.md) — We dropped `ttl_only_drop_parts = 1` from `app.traces`, `app.logs`, `app.metrics_gauge`, `app.metrics_sum` so per-tenant TTL (via `dictGetOrDefault('app.tenant_retention', ...)`) actually deletes expired rows row-by-row. This is required for correctness — with the setting on, parts containing both free-tier and pro-tier rows would persist for the longest-lived row's retention, causing free-tier data (and downgraded customers' data) to linger far past its stated retention.
 - [**clickhouse-ttl-tuning**](todo/issues/clickhouse-ttl-tuning.md) — ClickHouse table TTLs need to be reviewed and tuned. Currently unclear if TTLs are set at all, or if data is retained indefinitely.
 - [**collapsed-sidebar-submenu-focus-open**](todo/issues/collapsed-sidebar-submenu-focus-open.md) — When the sidebar is in icon-only (collapsed) mode, tabbing to a group item does not open its flyout submenu. The user must press Enter / Space / ArrowDown to open it. Hover-open works (`openOnHover` with 80ms delay).
 - [**collector-tmp-uses-writable-layer-instead-of-tmpfs**](todo/issues/collector-tmp-uses-writable-layer-instead-of-tmpfs.md) — The collector writes temp files to the container's copy-on-write writable layer instead of a tmpfs mount.
@@ -14,6 +15,7 @@
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**show-logged-in-user-info-desktop**](todo/issues/show-logged-in-user-info-desktop.md) — Display the logged-in user's name and email somewhere in the desktop app UI.
 - [**store-installation-repo-list-in-db**](todo/issues/store-installation-repo-list-in-db.md) — Store the list of installation repositories in the database.
+- [**tenant-retention-cleanup-on-org-delete**](todo/issues/tenant-retention-cleanup-on-org-delete.md) — Tenant retention rows are never removed when an org is deleted. Stale entries accumulate in `app.tenant_retention_source` and in the `app.tenant_retention` dictionary.
 
 ## Ideas
 
@@ -29,6 +31,7 @@
 - [**per-job-log-ingestion**](todo/ideas/per-job-log-ingestion.md) — Reduce the feedback loop by announcing failed jobs as soon as the `workflow_job` completed webhook arrives, along with the failure logs for that job.
 - [**personalized-onboarding-prompt**](todo/ideas/personalized-onboarding-prompt.md) — At the end of the onboarding flow, show a personalized prompt tailored to what Everr has learned about the user's repo — e.g. a suggested next action based on their slowest job, a flaky test, or their notification setup.
 - [**queue-span-for-workflow-jobs**](todo/ideas/queue-span-for-workflow-jobs.md) — Emit a dedicated span representing the time a job spends queued (created → started) instead of computing queue time client-side from resource attributes.
+- [**retention-ingest-time-column**](todo/ideas/retention-ingest-time-column.md) — Replace the dictionary-at-TTL approach with a per-row materialized column. Each MV stamps `retention_at_ingest UInt32` from `dictGet('app.tenant_retention', ...)` at insert time; the table's TTL becomes `<Timestamp> + INTERVAL retention_at_ingest DAY`. Retention semantics shift from "current tier applies to all data" to "tier at ingestion applies forever to that data" — Datadog / Honeycomb-style.
 - [**show-failed-tests-in-everr-show**](todo/ideas/show-failed-tests-in-everr-show.md) — Add a `--tests` or `--failed-tests` flag to `everr show` that displays the list of failed tests for a run, including test name, module, and duration.
 - [**store-repository-id**](todo/ideas/store-repository-id.md) — Store the repositoryId to identify and associate data with specific repositories.
 - [**vercel-log-drain-integration**](todo/ideas/vercel-log-drain-integration.md) — Integrate with Vercel via log drains to bring deployment pipeline observability into Everr — extending the same visibility already available for build pipelines (CI) to CD workflows.
