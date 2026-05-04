@@ -351,7 +351,7 @@ fn resolve_skill_names(options: &SkillOperationOptions) -> Result<Vec<String>> {
     Ok(deduped.into_iter().collect())
 }
 
-fn installed_bundled_skill_names(options: &SkillOperationOptions) -> Result<Vec<String>> {
+pub fn installed_bundled_skill_names(options: &SkillOperationOptions) -> Result<Vec<String>> {
     let available = bundled_skills()?;
     let mut installed = Vec::new();
     for skill in available {

@@ -1,10 +1,11 @@
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use everr_core::skills::{
-    self as core_skills, bundled_skills, install_bundled_skills, uninstall_bundled_skills,
-    update_bundled_skills, InstallMode, SkillOperationOptions, SkillPathAction, SkillProvider,
-    SkillScope,
+    self as core_skills, InstallMode, SkillOperationOptions, SkillOperationSummary,
+    SkillPathAction, SkillProvider, SkillScope, bundled_skills, install_bundled_skills,
+    uninstall_bundled_skills, update_bundled_skills,
 };
 use std::io::IsTerminal;
 
@@ -107,10 +108,18 @@ fn run_install(args: SkillsInstallArgs) -> Result<()> {
 }
 
 fn run_update(args: SkillsUpdateArgs) -> Result<()> {
+    let home_dir = resolve_home_dir()?;
+    let providers = resolve_providers(&args.agents);
+    if !args.scope.project && !args.scope.global {
+        let summary = update_installed_scopes(home_dir, providers, args.skills, args.dry_run)?;
+        print_summary("Updated", "Would update", &summary);
+        return Ok(());
+    }
+
     let options = operation_options(
         resolve_scope(&args.scope),
-        resolve_home_dir()?,
-        resolve_providers(&args.agents),
+        home_dir,
+        providers,
         args.skills,
         false,
         InstallMode::Symlink,
@@ -120,6 +129,102 @@ fn run_update(args: SkillsUpdateArgs) -> Result<()> {
     let summary = update_bundled_skills(&options)?;
     print_summary("Updated", "Would update", &summary);
     Ok(())
+}
+
+fn update_installed_scopes(
+    home_dir: PathBuf,
+    providers: Vec<SkillProvider>,
+    requested_skills: Vec<String>,
+    dry_run: bool,
+) -> Result<SkillOperationSummary> {
+    let requested_skills = if requested_skills.is_empty() {
+        None
+    } else {
+        Some(normalize_requested_skill_names(requested_skills)?)
+    };
+    let mut summaries = Vec::new();
+
+    for scope in [SkillScope::Project, SkillScope::Global] {
+        let probe_options = operation_options(
+            scope,
+            home_dir.clone(),
+            providers.clone(),
+            Vec::new(),
+            false,
+            InstallMode::Symlink,
+            true,
+            dry_run,
+        )?;
+        let installed: BTreeSet<String> =
+            core_skills::installed_bundled_skill_names(&probe_options)?
+                .into_iter()
+                .collect();
+        let skill_names = match &requested_skills {
+            Some(requested) => requested
+                .iter()
+                .filter(|name| installed.contains(*name))
+                .cloned()
+                .collect::<Vec<_>>(),
+            None => installed.into_iter().collect(),
+        };
+        if skill_names.is_empty() {
+            continue;
+        }
+
+        let options = SkillOperationOptions {
+            skill_names,
+            ..probe_options
+        };
+        summaries.push(update_bundled_skills(&options)?);
+    }
+
+    if summaries.is_empty() {
+        if let Some(requested) = requested_skills {
+            bail!(
+                "no installed bundled Everr skills found matching {}",
+                requested.join(", ")
+            );
+        }
+        bail!("no installed bundled Everr skills found in project or global scope");
+    }
+
+    Ok(merge_summaries(summaries, dry_run))
+}
+
+fn normalize_requested_skill_names(skills: Vec<String>) -> Result<Vec<String>> {
+    let available: BTreeSet<String> = bundled_skills()?
+        .into_iter()
+        .map(|skill| skill.name)
+        .collect();
+    let mut names = BTreeSet::new();
+    for skill in skills {
+        let name = skill.trim().to_string();
+        if name.is_empty() {
+            continue;
+        }
+        if !available.contains(&name) {
+            bail!("unknown skill {name:?}");
+        }
+        names.insert(name);
+    }
+    if names.is_empty() {
+        bail!("provide at least one skill name");
+    }
+    Ok(names.into_iter().collect())
+}
+
+fn merge_summaries(summaries: Vec<SkillOperationSummary>, dry_run: bool) -> SkillOperationSummary {
+    let mut skills = BTreeSet::new();
+    let mut changes = Vec::new();
+    for summary in summaries {
+        skills.extend(summary.skills);
+        changes.extend(summary.changes);
+    }
+    SkillOperationSummary {
+        skills: skills.into_iter().collect(),
+        changes,
+        dry_run,
+    }
 }
 
 fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {

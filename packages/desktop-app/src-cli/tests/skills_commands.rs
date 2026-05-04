@@ -115,6 +115,39 @@ fn skills_install_global_copy_writes_provider_copy() {
 }
 
 #[test]
+fn skills_update_without_scope_checks_global_skills() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+
+    env.command()
+        .args([
+            "skills",
+            "install",
+            "local-debugging",
+            "--global",
+            "--agent",
+            "codex",
+        ])
+        .assert()
+        .success();
+
+    let skill_doc = env.home_dir.join(".agents/skills/local-debugging/SKILL.md");
+    fs::write(&skill_doc, "local edits").expect("edit global skill");
+
+    env.command()
+        .current_dir(&repo)
+        .args(["skills", "update"])
+        .assert()
+        .success()
+        .stdout(contains("Updated 1 skill"));
+
+    let content = fs::read_to_string(skill_doc).expect("read updated skill");
+    assert!(content.contains("name: local-debugging"));
+    assert!(!content.contains("local edits"));
+}
+
+#[test]
 fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
     let env = CliTestEnv::new();
     let repo = env.home_dir.join("repo");
