@@ -1,22 +1,19 @@
-Use Everr telemetry to debug a locally running OpenTelemetry-instrumented app:
-runtime errors, slow requests, regressions, and whether new instrumentation is
-emitting data. Data lives in the local collector sidecar and only exists while
-`everr telemetry start` or Everr Desktop is running.
+Use Everr telemetry to debug local OpenTelemetry apps: runtime errors, slow
+requests, regressions, and whether instrumentation emits data. Data only exists
+while `everr telemetry start` or Everr Desktop is running.
 
 Setup:
-- Standalone CLI: run `everr telemetry start` in one terminal, then run query
-  commands from another terminal.
-- For the normal Everr Desktop app, point OTLP/HTTP exporters at
-  `http://127.0.0.1:54418`.
+- Standalone CLI: run `everr telemetry start`, then query from another terminal.
+- Everr Desktop: point OTLP/HTTP exporters at `http://127.0.0.1:54418`.
 
 Commands:
 - `everr telemetry query "<SQL>"`: run read-only SQL against local telemetry.
   Allowed statements: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
   Always include a time window and a `LIMIT`; responses are capped at 16 MiB.
-- `everr telemetry endpoint`: print the current collector URL if you need to
-  confirm the build-specific value.
-- `everr wrap -- <command>`: run a plain command normally while mirroring each
-  stdout/stderr line into `otel_logs` with `service.name = 'everr-wrap-<cmd>'`.
+- `everr telemetry endpoint`: print the current collector URL.
+- `everr wrap -- <command>`: mirror stdout/stderr into `otel_logs` with
+  `service.name = 'everr-wrap-<cmd>'`. Requires a running collector; without
+  one, the command is not run. Non-zero wrapped exits pass through.
 - `everr telemetry ai-instructions`: print this compact guide.
 
 Schema:

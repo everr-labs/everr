@@ -55,6 +55,8 @@ everr wrap -- npm test
 
 Use this when a tool is not OpenTelemetry-instrumented yet but you still want its logs in `otel_logs`. The wrapped command keeps its normal terminal output and exit code, and its logs use `service.name = everr-wrap-<cmd>`.
 
+The local collector must already be running. If the collector is unavailable, `everr wrap` exits without running the command. If the wrapped command exits with a non-zero code, `everr wrap` exits with the same code after forwarding its output and attempting to send its logs.
+
 ### Pivoting between logs and traces
 
 Find a log of interest, grab its `TraceId`, and query the matching trace:

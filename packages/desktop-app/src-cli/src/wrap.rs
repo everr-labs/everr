@@ -305,8 +305,6 @@ impl OtlpLogExporter {
                 "resource": {
                     "attributes": [
                         attr("service.name", &self.command.service_name()),
-                        attr("service.version", env!("EVERR_VERSION")),
-                        attr("deployment.environment", everr_core::build::build_type_label()),
                     ],
                 },
                 "scopeLogs": [{

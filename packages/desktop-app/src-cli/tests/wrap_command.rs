@@ -56,6 +56,18 @@ fn wrap_preserves_output_and_sends_logs_to_collector() {
             .any(|body| body.contains(r#""service.name""#) && body.contains("everr-wrap-sh")),
         "expected command-specific service name, got: {bodies:#?}"
     );
+    assert!(
+        bodies
+            .iter()
+            .all(|body| !body.contains(r#""service.version""#)),
+        "wrap payload should not include service.version, got: {bodies:#?}"
+    );
+    assert!(
+        bodies
+            .iter()
+            .all(|body| !body.contains(r#""deployment.environment""#)),
+        "wrap payload should not include deployment.environment, got: {bodies:#?}"
+    );
 }
 
 #[test]
