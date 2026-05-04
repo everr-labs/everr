@@ -21,6 +21,7 @@ export const LogsExplorerInputSchema = z.object({
   traceId: z.string().trim().optional(),
   limit: z.number().int().min(1).max(500).default(200),
   offset: z.number().int().min(0).default(0),
+  histogramBuckets: z.number().int().min(12).max(240).default(80),
   includeSummary: z.boolean().default(true),
 });
 
@@ -48,6 +49,7 @@ export interface LogExplorerRow {
 export interface LogHistogramBucket {
   timestamp: string;
   timeLabel: string;
+  rangeLabel: string;
   total: number;
   error: number;
   warning: number;

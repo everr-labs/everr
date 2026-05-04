@@ -74,16 +74,39 @@ function buildWhereClause(input: {
   return clauses.join("\n      AND ");
 }
 
-function bucketSeconds(fromDate: Date, toDate: Date): number {
+const HISTOGRAM_INTERVAL_SECONDS = [
+  1,
+  5,
+  10,
+  15,
+  30,
+  60,
+  2 * 60,
+  5 * 60,
+  10 * 60,
+  15 * 60,
+  30 * 60,
+  60 * 60,
+  2 * 60 * 60,
+  6 * 60 * 60,
+  12 * 60 * 60,
+  24 * 60 * 60,
+] as const;
+
+function bucketSeconds(
+  fromDate: Date,
+  toDate: Date,
+  targetBuckets: number,
+): number {
   const durationSeconds = Math.max(
     1,
     (toDate.getTime() - fromDate.getTime()) / 1000,
   );
-  if (durationSeconds <= 30 * 60) return 60;
-  if (durationSeconds <= 3 * 60 * 60) return 5 * 60;
-  if (durationSeconds <= 12 * 60 * 60) return 15 * 60;
-  if (durationSeconds <= 3 * 24 * 60 * 60) return 60 * 60;
-  return 6 * 60 * 60;
+  const idealSeconds = durationSeconds / targetBuckets;
+  return (
+    HISTOGRAM_INTERVAL_SECONDS.find((seconds) => seconds >= idealSeconds) ??
+    HISTOGRAM_INTERVAL_SECONDS[HISTOGRAM_INTERVAL_SECONDS.length - 1]
+  );
 }
 
 function mapLogRow(row: {
@@ -133,6 +156,7 @@ function mapLogRow(row: {
 
 function mapHistogramRow(row: {
   bucket: string;
+  intervalSeconds: number;
   total: string | number;
   error: string | number;
   warning: string | number;
@@ -143,12 +167,15 @@ function mapHistogramRow(row: {
 }): LogHistogramBucket {
   const timestamp = normalizeTimestampToUtc(row.bucket);
   const date = new Date(timestamp);
+  const endDate = new Date(date.getTime() + row.intervalSeconds * 1000);
+  const timeFormatOptions = {
+    hour: "2-digit",
+    minute: "2-digit",
+  } satisfies Intl.DateTimeFormatOptions;
   return {
     timestamp,
-    timeLabel: date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    timeLabel: date.toLocaleTimeString([], timeFormatOptions),
+    rangeLabel: `${date.toLocaleTimeString([], timeFormatOptions)} - ${endDate.toLocaleTimeString([], timeFormatOptions)}`,
     total: Number(row.total),
     error: Number(row.error),
     warning: Number(row.warning),
@@ -157,6 +184,54 @@ function mapHistogramRow(row: {
     trace: Number(row.trace),
     unknown: Number(row.unknown),
   };
+}
+
+function fillHistogramBuckets(
+  rows: Array<{
+    bucket: string;
+    total: string | number;
+    error: string | number;
+    warning: string | number;
+    info: string | number;
+    debug: string | number;
+    trace: string | number;
+    unknown: string | number;
+  }>,
+  fromDate: Date,
+  toDate: Date,
+  intervalSeconds: number,
+): LogHistogramBucket[] {
+  const intervalMs = intervalSeconds * 1000;
+  const startMs = Math.floor(fromDate.getTime() / intervalMs) * intervalMs;
+  const endMs = Math.floor(toDate.getTime() / intervalMs) * intervalMs;
+  const rowsByBucket = new Map(
+    rows.map((row) => [
+      new Date(normalizeTimestampToUtc(row.bucket)).getTime(),
+      row,
+    ]),
+  );
+  const buckets: LogHistogramBucket[] = [];
+
+  for (let bucketMs = startMs; bucketMs <= endMs; bucketMs += intervalMs) {
+    const row = rowsByBucket.get(bucketMs);
+    buckets.push(
+      row
+        ? mapHistogramRow({ ...row, intervalSeconds })
+        : mapHistogramRow({
+            bucket: new Date(bucketMs).toISOString(),
+            intervalSeconds,
+            total: 0,
+            error: 0,
+            warning: 0,
+            info: 0,
+            debug: 0,
+            trace: 0,
+            unknown: 0,
+          }),
+    );
+  }
+
+  return buckets;
 }
 
 function emptyLevelCounts(): Record<LogLevel, number> {
@@ -183,7 +258,11 @@ export const getLogsExplorer = createAuthenticatedServerFn({
       ...data,
       includeLevels: false,
     });
-    const intervalSeconds = bucketSeconds(fromDate, toDate);
+    const intervalSeconds = bucketSeconds(
+      fromDate,
+      toDate,
+      data.histogramBuckets,
+    );
     const queryParams = {
       fromTime: fromISO,
       toTime: toISO,
@@ -321,7 +400,12 @@ export const getLogsExplorer = createAuthenticatedServerFn({
     return {
       logs: rows.map(mapLogRow),
       totalCount: Number(countsRow?.total ?? 0),
-      histogram: histogram.map(mapHistogramRow),
+      histogram: fillHistogramBuckets(
+        histogram,
+        fromDate,
+        toDate,
+        intervalSeconds,
+      ),
       levelCounts,
     } satisfies LogsExplorerResult;
   });

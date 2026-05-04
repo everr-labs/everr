@@ -54,6 +54,7 @@ const Ansi =
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 const PAGE_SIZE = 200;
+const DEFAULT_HISTOGRAM_BUCKETS = 80;
 const LOG_LEVELS = [
   "error",
   "warning",
@@ -62,6 +63,53 @@ const LOG_LEVELS = [
   "trace",
   "unknown",
 ] as const satisfies readonly LogLevel[];
+
+const LOG_LEVEL_META = {
+  error: {
+    label: "Error",
+    chartColor: "var(--destructive)",
+    dotClassName: "bg-destructive",
+    badgeClassName: "border-destructive/40 bg-destructive/10 text-destructive",
+  },
+  warning: {
+    label: "Warning",
+    chartColor: "var(--color-amber-500)",
+    dotClassName: "bg-amber-500",
+    badgeClassName: "border-amber-500/40 bg-amber-500/10 text-amber-500",
+  },
+  info: {
+    label: "Info",
+    chartColor: "var(--color-sky-500)",
+    dotClassName: "bg-sky-500",
+    badgeClassName: "border-sky-500/40 bg-sky-500/10 text-sky-500",
+  },
+  debug: {
+    label: "Debug",
+    chartColor: "var(--color-violet-500)",
+    dotClassName: "bg-violet-500",
+    badgeClassName: "border-violet-500/40 bg-violet-500/10 text-violet-500",
+  },
+  trace: {
+    label: "Trace",
+    chartColor: "var(--color-emerald-500)",
+    dotClassName: "bg-emerald-500",
+    badgeClassName: "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+  },
+  unknown: {
+    label: "Unknown",
+    chartColor: "var(--muted-foreground)",
+    dotClassName: "bg-muted-foreground",
+    badgeClassName: "border-border bg-muted/50 text-muted-foreground",
+  },
+} satisfies Record<
+  LogLevel,
+  {
+    label: string;
+    chartColor: string;
+    dotClassName: string;
+    badgeClassName: string;
+  }
+>;
 
 export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
   staticData: { breadcrumb: "Logs", fullBleed: true },
@@ -86,6 +134,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
         repos: deps.repos,
         traceId: deps.traceId,
         limit: PAGE_SIZE,
+        histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
       }),
     );
   },
@@ -109,6 +158,7 @@ function LogsExplorerPage() {
     repos: deps.repos,
     traceId: deps.traceId,
     limit: PAGE_SIZE,
+    histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
   };
   const {
     data,
@@ -359,12 +409,30 @@ function TraceFilter({
 }
 
 const chartConfig = {
-  unknown: { label: "Unknown", color: "var(--muted-foreground)" },
-  trace: { label: "Trace", color: "var(--chart-5)" },
-  debug: { label: "Debug", color: "var(--chart-4)" },
-  info: { label: "Info", color: "var(--chart-1)" },
-  warning: { label: "Warning", color: "var(--chart-2)" },
-  error: { label: "Error", color: "var(--destructive)" },
+  unknown: {
+    label: LOG_LEVEL_META.unknown.label,
+    color: LOG_LEVEL_META.unknown.chartColor,
+  },
+  trace: {
+    label: LOG_LEVEL_META.trace.label,
+    color: LOG_LEVEL_META.trace.chartColor,
+  },
+  debug: {
+    label: LOG_LEVEL_META.debug.label,
+    color: LOG_LEVEL_META.debug.chartColor,
+  },
+  info: {
+    label: LOG_LEVEL_META.info.label,
+    color: LOG_LEVEL_META.info.chartColor,
+  },
+  warning: {
+    label: LOG_LEVEL_META.warning.label,
+    color: LOG_LEVEL_META.warning.chartColor,
+  },
+  error: {
+    label: LOG_LEVEL_META.error.label,
+    color: LOG_LEVEL_META.error.chartColor,
+  },
 } satisfies ChartConfig;
 
 const histogramStack = [
@@ -391,7 +459,9 @@ function LogHistogram({ data }: { data: LogHistogramBucket[] }) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              labelKey="timeLabel"
+              labelFormatter={(_value, payload) =>
+                payload?.[0]?.payload?.rangeLabel
+              }
               formatter={(value, name) => (
                 <>
                   <div
@@ -710,31 +780,11 @@ function hasCiContext(log: LogExplorerRow) {
 }
 
 function levelBadgeClassName(level: LogLevel) {
-  if (level === "error") {
-    return "border-destructive/40 bg-destructive/10 text-destructive";
-  }
-  if (level === "warning") {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-  }
-  if (level === "info") {
-    return "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300";
-  }
-  if (level === "debug") {
-    return "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300";
-  }
-  if (level === "trace") {
-    return "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-  }
-  return "border-border bg-muted/50 text-muted-foreground";
+  return LOG_LEVEL_META[level].badgeClassName;
 }
 
 function levelDotClassName(level: LogLevel) {
-  if (level === "error") return "bg-destructive";
-  if (level === "warning") return "bg-amber-500";
-  if (level === "info") return "bg-sky-500";
-  if (level === "debug") return "bg-violet-500";
-  if (level === "trace") return "bg-emerald-500";
-  return "bg-muted-foreground";
+  return LOG_LEVEL_META[level].dotClassName;
 }
 
 function LogRowsSkeleton() {
