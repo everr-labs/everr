@@ -59,6 +59,12 @@ describe("getGrepMatches", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(mockedQuery.mock.calls[0]?.[0]).not.toMatch(
+      /\bWITH\s+\w+\s+AS\s*\(/i,
+    );
+    expect(mockedQuery.mock.calls[1]?.[0]).not.toMatch(
+      /\bWITH\s+\w+\s+AS\s*\(/i,
+    );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "lowerUTF8(t.StatusMessage) IN ('failure', 'failed')",
     );
@@ -102,13 +108,10 @@ describe("getGrepMatches", () => {
     expect(mockedQuery.mock.calls[1]?.[0]).toContain(
       "t.Duration / 1000000 as step_duration",
     );
-    const occurrenceSummaryGroupBy = mockedQuery.mock.calls[1]?.[0]
-      .split("FROM matching_lines")[1]
-      ?.split("),\n    ranked_occurrences")[0];
-    expect(occurrenceSummaryGroupBy).toBeDefined();
-    expect(occurrenceSummaryGroupBy).not.toContain("step_conclusion");
-    expect(occurrenceSummaryGroupBy).not.toContain("run_conclusion");
-    expect(occurrenceSummaryGroupBy).not.toContain("step_duration");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("dense_rank() OVER");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
+      "PARTITION BY matching_lines.branch, matching_lines.trace_id, matching_lines.job_name, matching_lines.step_number",
+    );
     expect(result).toEqual({
       repo: "everr-labs/everr",
       pattern: "Expect X to be Y",
