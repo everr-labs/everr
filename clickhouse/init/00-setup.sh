@@ -21,5 +21,6 @@ GRANT SELECT ON app.* TO app_ro;
 
 -- App writes per-tenant retention rows; the dictionary refreshes itself via
 -- LIFETIME(MIN 60 MAX 120). Tables and the dictionary are created in 10-create-mvs.sql.
-GRANT INSERT ON app.tenant_retention_source TO app_retention;
+-- SELECT is granted so the dictionary source can authenticate as app_retention.
+GRANT INSERT, SELECT ON app.tenant_retention_source TO app_retention;
 SQL
