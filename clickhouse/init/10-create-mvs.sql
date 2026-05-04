@@ -1,3 +1,10 @@
+-- TTL clauses below reference dictGetOrDefault, which CH classifies as
+-- non-deterministic. Opting in is intentional: we want each merge to re-read
+-- the current dictionary value so plan upgrades rescue not-yet-deleted rows
+-- instead of being baked into part metadata. See RETENTION_MIGRATION.md and
+-- todo/issues/clickhouse-ttl-merge-cost-monitoring.md for context.
+SET allow_suspicious_ttl_expressions = 1;
+
 -- Per-tenant retention source + dictionary. App writes to the source table;
 -- TTL clauses on app.* tables call dictGetOrDefault('app.tenant_retention', ...).
 CREATE TABLE IF NOT EXISTS app.tenant_retention_source
