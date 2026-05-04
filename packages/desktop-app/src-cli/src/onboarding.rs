@@ -24,6 +24,7 @@ const WORDMARK_LINES: &[&str] = &[
 const LOGO_COLUMN_WIDTH: usize = 10;
 const BANNER_COLOR: &str = "\x1b[38;2;223;255;0m";
 const ANSI_RESET: &str = "\x1b[0m";
+const INSTALL_SKILLS_DEFAULT: bool = true;
 
 pub async fn run() -> Result<()> {
     println!();
@@ -251,7 +252,7 @@ fn step_install_skills() -> Result<bool> {
         )?;
 
         let install: bool = cliclack::confirm("Install Everr skills?")
-            .initial_value(true)
+            .initial_value(INSTALL_SKILLS_DEFAULT)
             .interact()?;
         if !install {
             cliclack::log::remark("Skipping Everr skills.")?;
@@ -519,6 +520,11 @@ mod tests {
     #[test]
     fn outro_message_without_skills_installed() {
         assert!(super::outro_message(false, false).contains("everr skills install --all"));
+    }
+
+    #[test]
+    fn setup_defaults_to_installing_skills() {
+        assert!(super::INSTALL_SKILLS_DEFAULT);
     }
 
     #[test]
