@@ -19,7 +19,6 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import AnsiImport from "ansi-to-react";
 import {
-  Activity,
   Boxes,
   Braces,
   ChevronRight,
@@ -98,7 +97,10 @@ export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
 function LogsExplorerPage() {
   const deps = Route.useLoaderDeps();
   const navigate = Route.useNavigate();
-  const [selectedLog, setSelectedLog] = useState<LogExplorerRow | null>(null);
+  const [selectedLogState, setSelectedLogState] = useState<{
+    log: LogExplorerRow;
+    key: string;
+  } | null>(null);
 
   const input = {
     timeRange: deps.timeRange,
@@ -143,20 +145,9 @@ function LogsExplorerPage() {
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-[720px] flex-col overflow-hidden">
-        <div className="border-b px-3 py-2">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <Activity className="text-muted-foreground size-4 shrink-0" />
-              <div className="min-w-0">
-                <h1 className="truncate text-sm font-medium">Logs</h1>
-                <p className="text-muted-foreground truncate text-xs">
-                  Explore raw and structured events across services.
-                </p>
-              </div>
-            </div>
-          </div>
-
+        <div className="border-b bg-muted/10 px-3 py-2">
           <form
+            className="max-w-3xl"
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
@@ -164,18 +155,22 @@ function LogsExplorerPage() {
               updateSearch({ q: q || undefined });
             }}
           >
-            <InputGroup className="h-10">
+            <label htmlFor="logs-search" className="sr-only">
+              Search logs
+            </label>
+            <InputGroup className="h-8">
               <InputGroupAddon>
                 <Search />
               </InputGroupAddon>
               <InputGroupInput
+                id="logs-search"
                 key={deps.q ?? ""}
                 name="q"
                 defaultValue={deps.q ?? ""}
-                placeholder="Search messages, errors, IDs..."
+                placeholder="Search messages, errors, IDs"
               />
-              {deps.q ? (
-                <InputGroupAddon align="inline-end">
+              <InputGroupAddon align="inline-end">
+                {deps.q ? (
                   <InputGroupButton
                     size="icon-xs"
                     aria-label="Clear query"
@@ -183,9 +178,7 @@ function LogsExplorerPage() {
                   >
                     <X />
                   </InputGroupButton>
-                </InputGroupAddon>
-              ) : null}
-              <InputGroupAddon align="inline-end">
+                ) : null}
                 <InputGroupButton type="submit" variant="secondary">
                   Search
                 </InputGroupButton>
@@ -208,8 +201,9 @@ function LogsExplorerPage() {
                     key={level}
                     type="button"
                     className={cn(
-                      "flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs transition-colors hover:bg-muted",
-                      deps.levels.includes(level) && "bg-muted font-medium",
+                      "flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+                      deps.levels.includes(level) &&
+                        "bg-background font-medium shadow-xs ring-1 ring-border",
                     )}
                     onClick={() => toggleLevel(level)}
                   >
@@ -280,12 +274,12 @@ function LogsExplorerPage() {
                 ) : logs.length ? (
                   <LogStream
                     logs={logs}
-                    selectedLogId={selectedLog?.id}
+                    selectedLogKey={selectedLogState?.key}
                     totalCount={totalCount}
                     hasNextPage={hasNextPage}
                     isFetchingNextPage={isFetchingNextPage}
                     onLoadMore={() => fetchNextPage()}
-                    onSelect={setSelectedLog}
+                    onSelect={(log, key) => setSelectedLogState({ log, key })}
                   />
                 ) : (
                   <div className="text-muted-foreground flex h-full min-h-80 items-center justify-center text-sm">
@@ -297,7 +291,7 @@ function LogsExplorerPage() {
           </main>
 
           <aside className="bg-muted/10 min-h-0 min-w-0 xl:border-l">
-            <LogInspectorPanel log={selectedLog} />
+            <LogInspectorPanel log={selectedLogState?.log ?? null} />
           </aside>
         </div>
       </section>
@@ -423,7 +417,7 @@ function LogHistogram({ data }: { data: LogHistogramBucket[] }) {
 
 function LogStream({
   logs,
-  selectedLogId,
+  selectedLogKey,
   totalCount,
   hasNextPage,
   isFetchingNextPage,
@@ -431,12 +425,12 @@ function LogStream({
   onSelect,
 }: {
   logs: LogExplorerRow[];
-  selectedLogId?: string;
+  selectedLogKey?: string;
   totalCount: number;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
-  onSelect: (log: LogExplorerRow) => void;
+  onSelect: (log: LogExplorerRow, key: string) => void;
 }) {
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     if (!hasNextPage || isFetchingNextPage) return;
@@ -453,56 +447,62 @@ function LogStream({
       className="h-full min-h-0 overflow-auto bg-background"
       onScroll={handleScroll}
     >
-      {logs.map((log) => (
-        <button
-          key={log.id}
-          type="button"
-          className={cn(
-            "group grid w-full grid-cols-[86px_minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]",
-            selectedLogId === log.id && "bg-muted/70",
-          )}
-          onClick={() => onSelect(log)}
-        >
-          <div className="flex min-w-0 flex-col gap-1">
-            <span className="font-mono text-muted-foreground tabular-nums">
-              {formatTimestampTimeOfDay(log.timestamp)}
-            </span>
-            <Badge
-              variant="outline"
-              className={cn("capitalize", levelBadgeClassName(log.level))}
-            >
-              {log.level}
-            </Badge>
-          </div>
-
-          <div className="min-w-0">
-            <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
-              <span className="flex min-w-0 items-center gap-1">
-                <Server className="size-3 shrink-0" />
-                <span className="truncate">{log.serviceName || "unknown"}</span>
+      {logs.map((log, index) => {
+        const rowKey = `${log.id}:${index}`;
+        return (
+          <button
+            key={rowKey}
+            type="button"
+            className={cn(
+              "group grid w-full grid-cols-[86px_minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30",
+              selectedLogKey === rowKey && "bg-muted/70 hover:bg-muted/70",
+            )}
+            onClick={() => onSelect(log, rowKey)}
+          >
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="font-mono text-muted-foreground tabular-nums">
+                {formatTimestampTimeOfDay(log.timestamp)}
               </span>
-              <span className="hidden min-w-0 items-center gap-1 sm:flex">
-                <Boxes className="size-3 shrink-0" />
-                <span className="truncate">{log.repo || "default"}</span>
+              <Badge
+                variant="outline"
+                className={cn("capitalize", levelBadgeClassName(log.level))}
+              >
+                {log.level}
+              </Badge>
+            </div>
+
+            <div className="min-w-0">
+              <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+                <span className="flex min-w-0 items-center gap-1">
+                  <Server className="size-3 shrink-0" />
+                  <span className="truncate">
+                    {log.serviceName || "unknown"}
+                  </span>
+                </span>
+                <span className="hidden min-w-0 items-center gap-1 sm:flex">
+                  <Boxes className="size-3 shrink-0" />
+                  <span className="truncate">{log.repo || "default"}</span>
+                </span>
+              </div>
+              <div className="max-h-10 overflow-hidden whitespace-pre-wrap break-words font-mono text-[0.75rem] leading-5">
+                <Ansi useClasses>{log.body}</Ansi>
+              </div>
+            </div>
+
+            <div className="hidden min-w-0 flex-col items-end text-muted-foreground md:flex">
+              <span className="truncate font-mono">
+                {shortIdentifier(log.traceId) || "no trace"}
+              </span>
+              <span className="truncate font-mono">
+                {shortIdentifier(log.spanId) || "no span"}
               </span>
             </div>
-            <div className="max-h-10 overflow-hidden whitespace-pre-wrap break-words font-mono text-[0.75rem] leading-5">
-              <Ansi useClasses>{log.body}</Ansi>
-            </div>
-          </div>
 
-          <div className="hidden min-w-0 flex-col items-end text-muted-foreground md:flex">
-            <span className="truncate font-mono">
-              {shortIdentifier(log.traceId) || "no trace"}
-            </span>
-            <span className="truncate font-mono">
-              {shortIdentifier(log.spanId) || "no span"}
-            </span>
-          </div>
-
-          <ChevronRight className="text-muted-foreground mt-1 size-4 opacity-0 transition-opacity group-hover:opacity-100" />
-        </button>
-      ))}
+            <ChevronRight className="text-muted-foreground mt-1 size-4 opacity-0 transition-opacity group-hover:opacity-100" />
+          </button>
+        );
+      })}
       <div className="text-muted-foreground flex h-12 items-center justify-center border-b px-3 text-xs">
         {isFetchingNextPage ? (
           <span className="flex items-center gap-2">
