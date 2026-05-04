@@ -14,6 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@everr/ui/components/popover";
+import { cn } from "@everr/ui/lib/utils";
 import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
@@ -79,7 +80,7 @@ export function FilterCombobox<TData>({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className={`h-8 justify-between hover:bg-transparent ${className}`}
+              className={cn("h-8 justify-between", className)}
             />
           }
         >
