@@ -4,13 +4,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, bail};
 use reqwest::Client;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use crate::cli::WrapArgs;
 
 const BATCH_SIZE: usize = 64;
+const READ_BUFFER_SIZE: usize = 8 * 1024;
+const MAX_LOG_BODY_BYTES: usize = 16 * 1024;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(200);
 const EXPORT_TIMEOUT: Duration = Duration::from_secs(5);
 const EXPORT_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
@@ -92,20 +94,22 @@ where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
 {
-    let mut reader = BufReader::new(reader);
-    let mut buf = Vec::new();
+    let mut reader = reader;
+    let mut buf = [0_u8; READ_BUFFER_SIZE];
+    let mut recorder = StreamLogRecorder::new(stream, records_tx);
 
     loop {
-        buf.clear();
         let read = reader
-            .read_until(b'\n', &mut buf)
+            .read(&mut buf)
             .await
             .with_context(|| format!("read wrapped {stream}"))?;
         if read == 0 {
+            recorder.finish();
             return Ok(());
         }
 
-        if let Err(err) = writer.write_all(&buf).await {
+        let chunk = &buf[..read];
+        if let Err(err) = writer.write_all(chunk).await {
             if err.kind() == std::io::ErrorKind::BrokenPipe {
                 return Ok(());
             }
@@ -118,7 +122,48 @@ where
             return Err(err).with_context(|| format!("flush wrapped {stream}"));
         }
 
-        try_queue_record(&records_tx, LogRecord::line(stream, &buf));
+        recorder.record(chunk);
+    }
+}
+
+struct StreamLogRecorder {
+    stream: &'static str,
+    records_tx: mpsc::Sender<LogRecord>,
+    pending: Vec<u8>,
+}
+
+impl StreamLogRecorder {
+    fn new(stream: &'static str, records_tx: mpsc::Sender<LogRecord>) -> Self {
+        Self {
+            stream,
+            records_tx,
+            pending: Vec::new(),
+        }
+    }
+
+    fn record(&mut self, bytes: &[u8]) {
+        for part in bytes.split_inclusive(|byte| *byte == b'\n') {
+            self.pending.extend_from_slice(part);
+            if part.ends_with(b"\n") || self.pending.len() >= MAX_LOG_BODY_BYTES {
+                self.flush();
+            }
+        }
+    }
+
+    fn finish(&mut self) {
+        self.flush();
+    }
+
+    fn flush(&mut self) {
+        if self.pending.is_empty() {
+            return;
+        }
+
+        try_queue_record(
+            &self.records_tx,
+            LogRecord::line(self.stream, &self.pending),
+        );
+        self.pending.clear();
     }
 }
 

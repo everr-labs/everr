@@ -3,7 +3,7 @@ mod support;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::process::{Command as ProcessCommand, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -56,6 +56,52 @@ fn wrap_preserves_output_and_sends_logs_to_collector() {
             .any(|body| body.contains(r#""service.name""#) && body.contains("everr-wrap-sh")),
         "expected command-specific service name, got: {bodies:#?}"
     );
+}
+
+#[test]
+fn wrap_forwards_partial_output_before_newline() {
+    let collector = OtlpLogServer::start();
+    let env = CliTestEnv::new();
+    let mut wrapped = everr_process(&env, collector.origin())
+        .args([
+            "wrap",
+            "--",
+            "sh",
+            "-c",
+            "printf partial; sleep 3; printf ' done\\n'",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn wrapped command");
+    let mut wrapped_stdout = wrapped.stdout.take().expect("wrapped stdout");
+
+    let (first_tx, first_rx) = mpsc::channel();
+    let reader = thread::spawn(move || {
+        let mut first = [0_u8; 7];
+        let result = wrapped_stdout
+            .read_exact(&mut first)
+            .map(|_| String::from_utf8_lossy(&first).to_string());
+        let _ = first_tx.send(result);
+
+        let mut rest = String::new();
+        let _ = wrapped_stdout.read_to_string(&mut rest);
+        rest
+    });
+
+    match first_rx.recv_timeout(Duration::from_millis(1500)) {
+        Ok(Ok(output)) => assert_eq!(output, "partial"),
+        Ok(Err(err)) => panic!("read partial output: {err}"),
+        Err(err) => {
+            let _ = wrapped.kill();
+            let _ = wrapped.wait();
+            panic!("partial output was not forwarded before newline: {err}");
+        }
+    }
+
+    let status = wrapped.wait().expect("wait for wrapped command");
+    assert!(status.success(), "wrapped command failed: {status}");
+    assert_eq!(reader.join().expect("join stdout reader"), " done\n");
 }
 
 #[test]
