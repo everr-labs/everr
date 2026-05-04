@@ -48,6 +48,7 @@ export interface LogExplorerRow {
 
 export interface LogHistogramBucket {
   timestamp: string;
+  endTimestamp: string;
   timeLabel: string;
   rangeLabel: string;
   total: number;
