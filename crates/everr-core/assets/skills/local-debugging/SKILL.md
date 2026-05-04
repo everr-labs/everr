@@ -1,20 +1,28 @@
 ---
 name: local-debugging
-description: Use when a task mentions local debugging with Everr telemetry, OpenTelemetry traces/logs/metrics, slow local requests, runtime errors, missing spans, stale telemetry, instrumentation verification, TraceId pivots, or querying the local collector.
+description: Use whenever a task asks to debug, diagnose, investigate, reproduce, or explain a local problem, bug, error, failure, slow behavior, flaky behavior, regression, missing signal, or runtime issue. Always check whether Everr/OpenTelemetry traces, logs, metrics, or wrapped command output can help before continuing with code-only debugging.
 ---
 
 # Local Debugging With Everr
 
-Use Everr telemetry from the repository root to debug local OpenTelemetry apps: runtime errors, slow requests, regressions, and whether instrumentation emits fresh data.
+Use Everr telemetry from the repository root to debug local problems when traces, logs, metrics, or wrapped command output can explain behavior.
+
+## Activation Signals
+
+Use this skill for debugging requests such as:
+- runtime errors, exceptions, crashes, failed local commands, failing tests, slow requests, flaky behavior, regressions, missing spans, stale telemetry, or instrumentation checks
+- prompts containing "debug", "diagnose", "investigate", "reproduce", "why is this failing", "why is this slow", or "what happened"
 
 ## Default Workflow
 
-1. Run `everr telemetry status` if the collector state is unknown.
-2. Check freshness before diagnosing behavior: query the newest `Timestamp`.
-3. Start broad, then narrow by `ServiceName`, recent `Timestamp`, `SpanName`, `SeverityNumber`, `TraceId`, or attributes.
-4. Use traces for request flow and latency; use logs for errors and discrete facts.
-5. Pivot between logs and traces with `TraceId`.
-6. If data is empty or stale, treat setup as the bug: verify the app is running, exporters point at `everr telemetry endpoint`, and the collector is up.
+1. First decide whether local OpenTelemetry data could help. Use telemetry when the problem may involve runtime behavior, local services, requests, jobs, tests, command output, logs, traces, metrics, latency, or errors.
+2. If telemetry could help, run `everr telemetry status` when the collector state is unknown.
+3. Check freshness before diagnosing behavior: query the newest `Timestamp`.
+4. Start broad, then narrow by `ServiceName`, recent `Timestamp`, `SpanName`, `SeverityNumber`, `TraceId`, or attributes.
+5. Use traces for request flow and latency; use logs for errors and discrete facts.
+6. Pivot between logs and traces with `TraceId`.
+7. If data is empty or stale, treat setup as the bug: verify the app is running, exporters point at `everr telemetry endpoint`, and the collector is up.
+8. If telemetry cannot help, say why briefly, then continue with the best code, test, or configuration debugging path.
 
 ## Command Choice
 
@@ -55,3 +63,8 @@ For "my local request is slow":
 3. Find recent spans for the service, then run the slowest-spans query with its `ServiceName`.
 4. Pick a slow span, copy its `TraceId`, and query the full trace in timestamp order.
 5. Explain the slow operation, missing instrumentation, or stale-data setup issue before proposing a fix.
+
+For "debug this failing local test":
+1. Check whether the failure might emit logs, traces, metrics, or wrapped command output.
+2. If yes, check `everr telemetry status`, run or rerun the test, then query recent logs or wrapped command logs.
+3. If no useful telemetry is possible, state that and debug with the test output and code path instead.
