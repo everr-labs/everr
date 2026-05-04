@@ -32,7 +32,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Bar, BarChart, XAxis } from "recharts";
+import { Bar, BarChart, ReferenceArea, XAxis } from "recharts";
 import { z } from "zod";
 import { FilterCombobox } from "@/components/filter-combobox";
 import {
@@ -310,7 +310,13 @@ function LogsExplorerPage() {
                 {isPending ? (
                   <Skeleton className="h-[104px] w-full" />
                 ) : summary?.histogram.length ? (
-                  <LogHistogram data={summary.histogram} />
+                  <LogHistogram
+                    data={summary.histogram}
+                    onSelectRange={({ from, to }) => {
+                      setSelectedLogState(null);
+                      updateSearch({ from, to });
+                    }}
+                  />
                 ) : (
                   <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-sm">
                     No log volume in this range
@@ -444,17 +450,110 @@ const histogramStack = [
   "error",
 ] as const satisfies readonly LogLevel[];
 
-function LogHistogram({ data }: { data: LogHistogramBucket[] }) {
+type HistogramMouseEvent = {
+  activeTooltipIndex?: number | null;
+};
+
+function histogramEventIndex(
+  event: unknown,
+  data: LogHistogramBucket[],
+): number | null {
+  const index = (event as HistogramMouseEvent | undefined)?.activeTooltipIndex;
+  if (typeof index !== "number" || index < 0 || index >= data.length) {
+    return null;
+  }
+  return index;
+}
+
+function LogHistogram({
+  data,
+  onSelectRange,
+}: {
+  data: LogHistogramBucket[];
+  onSelectRange: (range: { from: string; to: string }) => void;
+}) {
+  const [dragRange, setDragRange] = useState<{
+    startIndex: number;
+    endIndex: number;
+  } | null>(null);
+
+  const activeRange = dragRange
+    ? {
+        startIndex: Math.min(dragRange.startIndex, dragRange.endIndex),
+        endIndex: Math.max(dragRange.startIndex, dragRange.endIndex),
+      }
+    : null;
+  const selectedStart = activeRange ? data[activeRange.startIndex] : undefined;
+  const selectedEnd = activeRange ? data[activeRange.endIndex] : undefined;
+
+  const startDrag = (event: unknown) => {
+    const index = histogramEventIndex(event, data);
+    if (index === null) return;
+    setDragRange({ startIndex: index, endIndex: index });
+  };
+
+  const updateDrag = (event: unknown) => {
+    const index = histogramEventIndex(event, data);
+    if (index === null) return;
+    setDragRange((currentRange) =>
+      currentRange ? { ...currentRange, endIndex: index } : currentRange,
+    );
+  };
+
+  const commitDrag = (event: unknown) => {
+    const finalIndex = histogramEventIndex(event, data);
+    const committedRange =
+      dragRange && finalIndex !== null
+        ? { ...dragRange, endIndex: finalIndex }
+        : dragRange;
+
+    if (committedRange) {
+      const startIndex = Math.min(
+        committedRange.startIndex,
+        committedRange.endIndex,
+      );
+      const endIndex = Math.max(
+        committedRange.startIndex,
+        committedRange.endIndex,
+      );
+      const startBucket = data[startIndex];
+      const endBucket = data[endIndex];
+
+      onSelectRange({
+        from: startBucket.timestamp,
+        to: endBucket.endTimestamp,
+      });
+    }
+    setDragRange(null);
+  };
+
   return (
-    <ChartContainer config={chartConfig} className="h-[104px] w-full">
-      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+    <ChartContainer
+      config={chartConfig}
+      className="h-[104px] w-full select-none [&_.recharts-wrapper]:cursor-ew-resize"
+      onMouseDown={(event) => event.preventDefault()}
+    >
+      <BarChart
+        data={data}
+        margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+        onMouseDown={startDrag}
+        onMouseMove={updateDrag}
+        onMouseUp={commitDrag}
+        onMouseLeave={() => setDragRange(null)}
+      >
         <XAxis
-          dataKey="timeLabel"
+          dataKey="timestamp"
           tickLine={false}
           axisLine={false}
           tickMargin={4}
           fontSize={10}
           interval="preserveStartEnd"
+          tickFormatter={(value) =>
+            new Date(value).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          }
         />
         <ChartTooltip
           content={
@@ -489,6 +588,18 @@ function LogHistogram({ data }: { data: LogHistogramBucket[] }) {
             isAnimationActive={false}
           />
         ))}
+        {selectedStart && selectedEnd ? (
+          <ReferenceArea
+            x1={selectedStart.timestamp}
+            x2={selectedEnd.timestamp}
+            isFront
+            fill="var(--primary)"
+            fillOpacity={0.08}
+            stroke="var(--primary)"
+            strokeOpacity={0.35}
+            strokeDasharray="3 3"
+          />
+        ) : null}
       </BarChart>
     </ChartContainer>
   );

@@ -174,6 +174,7 @@ function mapHistogramRow(row: {
   } satisfies Intl.DateTimeFormatOptions;
   return {
     timestamp,
+    endTimestamp: endDate.toISOString(),
     timeLabel: date.toLocaleTimeString([], timeFormatOptions),
     rangeLabel: `${date.toLocaleTimeString([], timeFormatOptions)} - ${endDate.toLocaleTimeString([], timeFormatOptions)}`,
     total: Number(row.total),

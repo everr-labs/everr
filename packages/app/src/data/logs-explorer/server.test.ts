@@ -120,6 +120,7 @@ describe("getLogsExplorer", () => {
     expect(result.histogram.find((bucket) => bucket.total === 1)).toMatchObject(
       {
         timestamp: "2026-03-09T12:00:00.000Z",
+        endTimestamp: "2026-03-09T12:05:00.000Z",
         rangeLabel: "12:00 PM - 12:05 PM",
         total: 1,
       },
