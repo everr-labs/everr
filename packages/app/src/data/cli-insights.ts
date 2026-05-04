@@ -102,19 +102,6 @@ export const getSlowestTests = createAuthenticatedServerFn({
     }
 
     const sql = `
-      WITH executions AS (
-        SELECT
-          SpanAttributes['everr.test.package'] as test_package,
-          ${normalizedTestFullNameExpr},
-          ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-          ResourceAttributes['vcs.ref.head.revision'] as head_sha,
-          anyLast(SpanAttributes['everr.test.result']) as test_result,
-          anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration,
-          max(Timestamp) as last_seen
-        FROM traces
-        WHERE ${conditions.join("\n          AND ")}
-        GROUP BY test_package, test_full_name, run_id, head_sha
-      )
       SELECT
         test_package,
         test_full_name,
@@ -126,7 +113,19 @@ export const getSlowestTests = createAuthenticatedServerFn({
         countIf(test_result = 'fail') as fail_count,
         countIf(test_result = 'skip') as skip_count,
         max(last_seen) as last_seen
-      FROM executions
+      FROM (
+        SELECT
+          SpanAttributes['everr.test.package'] as test_package,
+          ${normalizedTestFullNameExpr},
+          ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+          ResourceAttributes['vcs.ref.head.revision'] as head_sha,
+          anyLast(SpanAttributes['everr.test.result']) as test_result,
+          anyLast(toFloat64OrZero(SpanAttributes['everr.test.duration_seconds'])) as test_duration,
+          max(Timestamp) as last_seen
+        FROM traces
+        WHERE ${conditions.join("\n          AND ")}
+        GROUP BY test_package, test_full_name, run_id, head_sha
+      ) AS executions
       WHERE ${leafTestFilter({
         leftExpr: "tuple(test_package, test_full_name)",
         rightExpr:
@@ -206,7 +205,18 @@ export const getSlowestJobs = createAuthenticatedServerFn({
     }
 
     const sql = `
-      WITH job_executions AS (
+      SELECT
+        workflow_name,
+        job_name,
+        avg(job_duration) as avg_duration,
+        quantile(0.95)(job_duration) as p95_duration,
+        max(job_duration) as max_duration,
+        count(*) as executions,
+        countIf(lowerUTF8(conclusion) = 'success') as success_count,
+        countIf(lowerUTF8(conclusion) IN ('failure', 'failed')) as failure_count,
+        countIf(lowerUTF8(conclusion) = 'skip') as skip_count,
+        max(last_seen) as last_seen
+      FROM (
         SELECT
           anyLast(ResourceAttributes['cicd.pipeline.name']) as workflow_name,
           anyLast(ResourceAttributes['cicd.pipeline.task.name']) as job_name,
@@ -220,19 +230,7 @@ export const getSlowestJobs = createAuthenticatedServerFn({
         FROM traces
         WHERE ${conditions.join("\n          AND ")}
         GROUP BY ResourceAttributes['cicd.pipeline.task.run.id']
-      )
-      SELECT
-        workflow_name,
-        job_name,
-        avg(job_duration) as avg_duration,
-        quantile(0.95)(job_duration) as p95_duration,
-        max(job_duration) as max_duration,
-        count(*) as executions,
-        countIf(lowerUTF8(conclusion) = 'success') as success_count,
-        countIf(lowerUTF8(conclusion) IN ('failure', 'failed')) as failure_count,
-        countIf(lowerUTF8(conclusion) = 'skip') as skip_count,
-        max(last_seen) as last_seen
-      FROM job_executions
+      ) AS job_executions
       GROUP BY workflow_name, job_name
       ORDER BY
         avg_duration DESC,

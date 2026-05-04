@@ -89,7 +89,8 @@ export interface GrepResult {
 
 interface GrepSqlParts {
   params: Record<string, unknown>;
-  whereClause: string;
+  traceWhereClause: string;
+  logWhereClause: string;
 }
 
 interface GrepBranchRow {
@@ -142,11 +143,13 @@ function buildGrepSqlParts(
   fromISO: string,
   toISO: string,
 ): GrepSqlParts {
-  const conditions = [
+  const traceConditions = [
     "t.Timestamp >= {fromTime:String} AND t.Timestamp <= {toTime:String}",
     "t.ResourceAttributes['vcs.repository.name'] = {repo:String}",
     "t.SpanAttributes['everr.github.workflow_job_step.number'] != ''",
     "lowerUTF8(t.StatusMessage) IN ('failure', 'failed')",
+  ];
+  const logConditions = [
     "positionCaseInsensitive(l.Body, {pattern:String}) > 0",
   ];
   const params: Record<string, unknown> = {
@@ -157,28 +160,28 @@ function buildGrepSqlParts(
   };
 
   if (data.jobName) {
-    conditions.push(
+    traceConditions.push(
       "t.ResourceAttributes['cicd.pipeline.task.name'] = {jobName:String}",
     );
     params.jobName = data.jobName;
   }
 
   if (data.stepNumber) {
-    conditions.push(
+    traceConditions.push(
       "t.SpanAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}",
     );
     params.stepNumber = data.stepNumber;
   }
 
   if (data.branch) {
-    conditions.push(
+    traceConditions.push(
       "t.ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
     );
     params.branch = data.branch;
   }
 
   if (data.excludeBranch) {
-    conditions.push(
+    traceConditions.push(
       "t.ResourceAttributes['vcs.ref.head.name'] != {excludeBranch:String}",
     );
     params.excludeBranch = data.excludeBranch;
@@ -186,7 +189,8 @@ function buildGrepSqlParts(
 
   return {
     params,
-    whereClause: conditions.join("\n        AND "),
+    traceWhereClause: traceConditions.join("\n        AND "),
+    logWhereClause: logConditions.join("\n        AND "),
   };
 }
 
@@ -194,129 +198,101 @@ function branchExpr(alias: string): string {
   return `coalesce(nullIf(${alias}.ResourceAttributes['vcs.ref.head.name'], ''), '${UNKNOWN_BRANCH}')`;
 }
 
-function buildBranchSummarySql(whereClause: string): string {
+function buildFilteredTracesSql(traceWhereClause: string): string {
   return `
-    WITH matching_occurrences AS (
-      SELECT
-        ${branchExpr("t")} as branch,
-        t.TraceId as trace_id,
-        anyLast(l.Timestamp) as last_matched_at
-      FROM traces t
-      INNER JOIN logs l
-        ON l.TraceId = t.TraceId
-        AND l.ScopeAttributes['cicd.pipeline.task.name'] = t.ResourceAttributes['cicd.pipeline.task.name']
-        AND l.LogAttributes['everr.github.workflow_job_step.number'] = t.SpanAttributes['everr.github.workflow_job_step.number']
-      WHERE ${whereClause}
-      GROUP BY branch, trace_id, t.ResourceAttributes['cicd.pipeline.task.name'], t.SpanAttributes['everr.github.workflow_job_step.number']
-    )
+    SELECT
+      ${branchExpr("t")} as branch,
+      t.TraceId as trace_id,
+      t.ResourceAttributes['cicd.pipeline.run.id'] as run_id,
+      toUInt32OrZero(t.ResourceAttributes['everr.github.workflow_job.run_attempt']) as run_attempt,
+      t.ResourceAttributes['cicd.pipeline.name'] as workflow_name,
+      t.ResourceAttributes['cicd.pipeline.task.name'] as job_name,
+      t.SpanAttributes['everr.github.workflow_job_step.number'] as step_number,
+      t.SpanName as step_name,
+      t.StatusMessage as step_conclusion,
+      t.Duration / 1000000 as step_duration
+    FROM traces t
+    WHERE ${traceWhereClause}
+  `;
+}
+
+function buildFilteredLogsSql(logWhereClause: string): string {
+  return `
+    SELECT
+      l.TraceId as trace_id,
+      l.ScopeAttributes['cicd.pipeline.task.name'] as job_name,
+      l.LogAttributes['everr.github.workflow_job_step.number'] as step_number,
+      l.Timestamp as matched_at,
+      l.Body as matched_line
+    FROM logs l
+    WHERE ${logWhereClause}
+  `;
+}
+
+function buildMatchingLinesSql(
+  traceWhereClause: string,
+  logWhereClause: string,
+): string {
+  return `
+    SELECT
+      t.branch,
+      t.trace_id,
+      t.run_id,
+      t.run_attempt,
+      t.workflow_name,
+      t.job_name,
+      t.step_number,
+      t.step_name,
+      t.step_conclusion,
+      t.step_duration,
+      l.matched_at,
+      l.matched_line
+    FROM (${buildFilteredTracesSql(traceWhereClause)}) AS t
+    INNER JOIN (${buildFilteredLogsSql(logWhereClause)}) AS l
+      ON l.trace_id = t.trace_id
+      AND l.job_name = t.job_name
+      AND l.step_number = t.step_number
+  `;
+}
+
+function buildRunConclusionsSql(): string {
+  return `
+    SELECT
+      TraceId as trace_id,
+      ${RUN_CONCLUSION_EXPR} as run_conclusion
+    FROM traces
+    GROUP BY trace_id
+  `;
+}
+
+function buildBranchSummarySql(
+  traceWhereClause: string,
+  logWhereClause: string,
+): string {
+  return `
     SELECT
       branch,
       count(*) as occurrence_count,
       max(last_matched_at) as last_seen
-    FROM matching_occurrences
+    FROM (
+      SELECT
+        branch,
+        trace_id,
+        anyLast(matched_at) as last_matched_at
+      FROM (${buildMatchingLinesSql(traceWhereClause, logWhereClause)}) AS matching_lines
+      GROUP BY branch, trace_id, job_name, step_number
+    ) AS matching_occurrences
     GROUP BY branch
     ORDER BY last_seen DESC, occurrence_count DESC, branch ASC
     LIMIT {limit:UInt32} OFFSET {offset:UInt32}
   `;
 }
 
-function buildOccurrenceDetailsSql(whereClause: string): string {
+function buildOccurrenceDetailsSql(
+  traceWhereClause: string,
+  logWhereClause: string,
+): string {
   return `
-    WITH run_conclusions AS (
-      SELECT
-        TraceId as trace_id,
-        ${RUN_CONCLUSION_EXPR} as run_conclusion
-      FROM traces
-      GROUP BY trace_id
-    ),
-    matching_lines AS (
-      SELECT
-        ${branchExpr("t")} as branch,
-        t.TraceId as trace_id,
-        t.ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-        toUInt32OrZero(t.ResourceAttributes['everr.github.workflow_job.run_attempt']) as run_attempt,
-        t.ResourceAttributes['cicd.pipeline.name'] as workflow_name,
-        t.ResourceAttributes['cicd.pipeline.task.name'] as job_name,
-        t.SpanAttributes['everr.github.workflow_job_step.number'] as step_number,
-        t.SpanName as step_name,
-        t.StatusMessage as step_conclusion,
-        rc.run_conclusion as run_conclusion,
-        t.Duration / 1000000 as step_duration,
-        l.Timestamp as matched_at,
-        l.Body as matched_line
-      FROM traces t
-      INNER JOIN logs l
-        ON l.TraceId = t.TraceId
-        AND l.ScopeAttributes['cicd.pipeline.task.name'] = t.ResourceAttributes['cicd.pipeline.task.name']
-        AND l.LogAttributes['everr.github.workflow_job_step.number'] = t.SpanAttributes['everr.github.workflow_job_step.number']
-      INNER JOIN run_conclusions rc
-        ON rc.trace_id = t.TraceId
-      WHERE ${whereClause}
-        AND ${branchExpr("t")} IN {branches:Array(String)}
-    ),
-    occurrence_summary AS (
-      SELECT
-        branch,
-        trace_id,
-        run_id,
-        run_attempt,
-        workflow_name,
-        job_name,
-        step_number,
-        step_name,
-        anyLast(step_conclusion) as step_conclusion,
-        anyLast(run_conclusion) as run_conclusion,
-        anyLast(step_duration) as step_duration,
-        max(matched_at) as timestamp,
-        count(*) as match_count
-      FROM matching_lines
-      GROUP BY
-        branch,
-        trace_id,
-        run_id,
-        run_attempt,
-        workflow_name,
-        job_name,
-        step_number,
-        step_name
-    ),
-    ranked_occurrences AS (
-      SELECT
-        *,
-        row_number() OVER (
-          PARTITION BY branch
-          ORDER BY timestamp DESC, trace_id ASC, job_name ASC, toUInt32OrZero(step_number) ASC
-        ) as occurrence_rank
-      FROM occurrence_summary
-    ),
-    ranked_lines AS (
-      SELECT
-        ro.branch,
-        ro.trace_id,
-        ro.run_id,
-        ro.run_attempt,
-        ro.workflow_name,
-        ro.job_name,
-        ro.step_number,
-        ro.step_name,
-        ro.step_conclusion,
-        ro.run_conclusion,
-        ro.step_duration,
-        ro.timestamp,
-        ro.match_count,
-        ml.matched_line,
-        row_number() OVER (
-          PARTITION BY ro.branch, ro.trace_id, ro.job_name, ro.step_number
-          ORDER BY ml.matched_at ASC, ml.matched_line ASC
-        ) as line_rank
-      FROM ranked_occurrences ro
-      INNER JOIN matching_lines ml
-        ON ml.branch = ro.branch
-        AND ml.trace_id = ro.trace_id
-        AND ml.job_name = ro.job_name
-        AND ml.step_number = ro.step_number
-      WHERE ro.occurrence_rank <= {occurrenceLimit:UInt32}
-    )
     SELECT
       branch,
       trace_id,
@@ -332,8 +308,45 @@ function buildOccurrenceDetailsSql(whereClause: string): string {
       timestamp,
       match_count,
       matched_line
-    FROM ranked_lines
-    WHERE line_rank <= {lineLimit:UInt32}
+    FROM (
+      SELECT
+        *,
+        dense_rank() OVER (
+          PARTITION BY branch
+          ORDER BY timestamp DESC, trace_id ASC, job_name ASC, toUInt32OrZero(step_number) ASC
+        ) as occurrence_rank
+      FROM (
+        SELECT
+          matching_lines.branch,
+          matching_lines.trace_id,
+          matching_lines.run_id,
+          matching_lines.run_attempt,
+          matching_lines.workflow_name,
+          matching_lines.job_name,
+          matching_lines.step_number,
+          matching_lines.step_name,
+          matching_lines.step_conclusion,
+          rc.run_conclusion,
+          matching_lines.step_duration,
+          max(matching_lines.matched_at) OVER (
+            PARTITION BY matching_lines.branch, matching_lines.trace_id, matching_lines.job_name, matching_lines.step_number
+          ) as timestamp,
+          count(*) OVER (
+            PARTITION BY matching_lines.branch, matching_lines.trace_id, matching_lines.job_name, matching_lines.step_number
+          ) as match_count,
+          matching_lines.matched_line,
+          row_number() OVER (
+            PARTITION BY matching_lines.branch, matching_lines.trace_id, matching_lines.job_name, matching_lines.step_number
+            ORDER BY matching_lines.matched_at ASC, matching_lines.matched_line ASC
+          ) as line_rank
+        FROM (${buildMatchingLinesSql(traceWhereClause, logWhereClause)}) AS matching_lines
+        INNER JOIN (${buildRunConclusionsSql()}) AS rc
+          ON rc.trace_id = matching_lines.trace_id
+        WHERE matching_lines.branch IN {branches:Array(String)}
+      ) AS lines_with_occurrence_stats
+    ) AS ranked_lines
+    WHERE occurrence_rank <= {occurrenceLimit:UInt32}
+      AND line_rank <= {lineLimit:UInt32}
     ORDER BY branch ASC, timestamp DESC, trace_id ASC, job_name ASC, toUInt32OrZero(step_number) ASC, line_rank ASC
   `;
 }
@@ -436,10 +449,14 @@ export const getGrepMatches = createAuthenticatedServerFn({
     }
 
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-    const { params, whereClause } = buildGrepSqlParts(data, fromISO, toISO);
+    const { params, traceWhereClause, logWhereClause } = buildGrepSqlParts(
+      data,
+      fromISO,
+      toISO,
+    );
 
     const branchRows = await clickhouse.query<GrepBranchRow>(
-      buildBranchSummarySql(whereClause),
+      buildBranchSummarySql(traceWhereClause, logWhereClause),
       {
         ...params,
         limit: data.limit ?? 20,
@@ -453,7 +470,7 @@ export const getGrepMatches = createAuthenticatedServerFn({
 
     const branches = branchRows.map((row) => row.branch);
     const detailRows = await clickhouse.query<GrepDetailRow>(
-      buildOccurrenceDetailsSql(whereClause),
+      buildOccurrenceDetailsSql(traceWhereClause, logWhereClause),
       {
         ...params,
         branches,

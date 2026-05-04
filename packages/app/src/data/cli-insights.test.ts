@@ -45,6 +45,9 @@ describe("getSlowestTests", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("test_full_name");
+    expect(mockedQuery.mock.calls[0]?.[0]).not.toMatch(
+      /\bWITH\s+\w+\s+AS\s*\(/i,
+    );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "lowerUTF8(SpanAttributes['everr.test.is_suite']) IN ('false', '0')",
     );
@@ -122,6 +125,9 @@ describe("getSlowestJobs", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("job_executions");
+    expect(mockedQuery.mock.calls[0]?.[0]).not.toMatch(
+      /\bWITH\s+\w+\s+AS\s*\(/i,
+    );
     expect(mockedQuery.mock.calls[0]?.[0]).toContain(
       "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
     );
