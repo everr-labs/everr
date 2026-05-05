@@ -15,7 +15,7 @@ import {
 import { Separator } from "@everr/ui/components/separator";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import AnsiImport from "ansi-to-react";
 import {
@@ -39,6 +39,7 @@ import {
   logRepoFilterOptions,
   logServiceFilterOptions,
   logsExplorerInfiniteOptions,
+  logsHistogramOptions,
 } from "@/data/logs-explorer/options";
 import type {
   LogExplorerRow,
@@ -122,8 +123,12 @@ export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
     services: z.array(z.string()).default([]),
     repos: z.array(z.string()).default([]),
     traceId: z.string().optional(),
+    showVolume: z.boolean().default(true),
   }),
-  loaderDeps: ({ search }) => withTimeRange(search),
+  loaderDeps: ({ search }) => {
+    const { showVolume: _showVolume, ...logsSearch } = search;
+    return withTimeRange(logsSearch);
+  },
   loader: async ({ context: { queryClient }, deps }) => {
     await queryClient.prefetchInfiniteQuery(
       logsExplorerInfiniteOptions({
@@ -144,7 +149,9 @@ export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
 
 function LogsExplorerPage() {
   const deps = Route.useLoaderDeps();
+  const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const showVolume = search.showVolume;
   const [selectedLogState, setSelectedLogState] = useState<{
     log: LogExplorerRow;
     key: string;
@@ -160,6 +167,15 @@ function LogsExplorerPage() {
     limit: PAGE_SIZE,
     histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
   };
+  const histogramInput = {
+    timeRange: deps.timeRange,
+    query: deps.q,
+    levels: deps.levels,
+    services: deps.services,
+    repos: deps.repos,
+    traceId: deps.traceId,
+    histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
+  };
   const {
     data,
     fetchNextPage,
@@ -168,6 +184,11 @@ function LogsExplorerPage() {
     isPending,
     isError,
   } = useInfiniteQuery(logsExplorerInfiniteOptions(input));
+  const { data: histogram = [], isPending: isHistogramPending } = useQuery({
+    ...logsHistogramOptions(histogramInput),
+    enabled: showVolume,
+    staleTime: 60_000,
+  });
 
   const pages = data?.pages ?? [];
   const summary = pages[0];
@@ -306,23 +327,18 @@ function LogsExplorerPage() {
 
           <main className="min-h-0 min-w-0 border-b xl:border-b-0">
             <div className="flex h-full min-h-0 flex-col">
-              <div className="border-b px-3 py-2">
-                {isPending ? (
-                  <Skeleton className="h-[104px] w-full" />
-                ) : summary?.histogram.length ? (
-                  <LogHistogram
-                    data={summary.histogram}
-                    onSelectRange={({ from, to }) => {
-                      setSelectedLogState(null);
-                      updateSearch({ from, to });
-                    }}
-                  />
-                ) : (
-                  <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-sm">
-                    No log volume in this range
-                  </div>
-                )}
-              </div>
+              <LogVolumePanel
+                isExpanded={showVolume}
+                isPending={isHistogramPending}
+                histogram={histogram}
+                onExpandedChange={(isExpanded) =>
+                  updateSearch({ showVolume: isExpanded ? undefined : false })
+                }
+                onSelectRange={({ from, to }) => {
+                  setSelectedLogState(null);
+                  updateSearch({ from, to });
+                }}
+              />
 
               <div className="min-h-0 flex-1">
                 {isPending ? (
@@ -449,6 +465,55 @@ const histogramStack = [
   "warning",
   "error",
 ] as const satisfies readonly LogLevel[];
+
+function LogVolumePanel({
+  isExpanded,
+  isPending,
+  histogram,
+  onExpandedChange,
+  onSelectRange,
+}: {
+  isExpanded: boolean;
+  isPending: boolean;
+  histogram: LogHistogramBucket[];
+  onExpandedChange: (isExpanded: boolean) => void;
+  onSelectRange: (range: { from: string; to: string }) => void;
+}) {
+  return (
+    <section className="border-b bg-background">
+      <button
+        type="button"
+        className="group flex h-9 w-full items-center px-3 text-left text-xs transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
+        aria-expanded={isExpanded}
+        onClick={() => onExpandedChange(!isExpanded)}
+      >
+        <span className="flex min-w-0 items-center gap-2 font-medium">
+          <ChevronRight
+            className={cn(
+              "text-muted-foreground size-3.5 transition-transform",
+              isExpanded && "rotate-90",
+            )}
+          />
+          <span>Log volume</span>
+        </span>
+      </button>
+
+      {isExpanded ? (
+        <div className="px-3 pb-2">
+          {isPending ? (
+            <Skeleton className="h-[104px] w-full" />
+          ) : histogram.length ? (
+            <LogHistogram data={histogram} onSelectRange={onSelectRange} />
+          ) : (
+            <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-sm">
+              No log volume in this range
+            </div>
+          )}
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 type HistogramMouseEvent = {
   activeTooltipIndex?: number | null;

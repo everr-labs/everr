@@ -2,14 +2,19 @@ import { queryOptions } from "@tanstack/react-query";
 import type { TimeRange } from "@/lib/time-range";
 import type {
   LogFilterOptions,
+  LogHistogramInput,
   LogsExplorerInput,
   LogsExplorerResult,
 } from "./schemas";
-import { getLogFilterOptions, getLogsExplorer } from "./server";
+import {
+  getLogFilterOptions,
+  getLogsExplorer,
+  getLogsHistogram,
+} from "./server";
 
 type LogsExplorerInfiniteInput = Omit<
   LogsExplorerInput,
-  "includeSummary" | "offset"
+  "includeSummary" | "includeHistogram" | "offset"
 >;
 
 export const logsExplorerOptions = (input: LogsExplorerInput) =>
@@ -28,6 +33,7 @@ export const logsExplorerInfiniteOptions = (
         ...input,
         offset: pageParam,
         includeSummary: pageParam === 0,
+        includeHistogram: false,
       },
     }),
   initialPageParam: 0,
@@ -44,6 +50,12 @@ export const logsExplorerInfiniteOptions = (
     return loadedCount;
   },
 });
+
+export const logsHistogramOptions = (input: LogHistogramInput) =>
+  queryOptions({
+    queryKey: ["logs", "histogram", input],
+    queryFn: () => getLogsHistogram({ data: input }),
+  });
 
 const logFilterOptionsBase = (input: { timeRange: TimeRange }) => ({
   queryKey: ["logs", "filterOptions", input.timeRange] as const,
