@@ -1,6 +1,6 @@
 ---
 name: local-debugging
-description: Use whenever a task asks to debug, diagnose, investigate, reproduce, or explain a local problem, bug, error, failure, slow behavior, flaky behavior, regression, missing signal, or runtime issue. Always check whether Everr/OpenTelemetry traces, logs, metrics, or wrapped command output can help before continuing with code-only debugging.
+description: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes. Always check whether Everr/OpenTelemetry traces, logs, metrics, or wrapped command output can help before continuing with code-only debugging.
 ---
 
 # Local Debugging With Everr
