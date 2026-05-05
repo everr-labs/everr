@@ -25,8 +25,8 @@ Do not make runtime traces or high-volume debug logs visible on stdout/stderr ju
 4. Start broad, then narrow by `ServiceName`, recent `Timestamp`, `SpanName`, `SeverityNumber`, `TraceId`, or attributes.
 5. Use traces for request flow and latency; use logs for errors and discrete facts.
 6. Pivot between logs and traces with `TraceId`.
-7. Fill missing information with more targeted OTel traces or logs before guessing. Ask for or collect the next specific signal needed to explain the failure.
-8. If data is empty or stale, treat setup as the bug: verify the app is running, exporters point at `everr telemetry endpoint`, and the collector is up.
+7. Fill missing information with more targeted OTel traces or logs before guessing. Ask for or collect the next specific signal needed to explain the failure. When instrumentation is absent or insufficient, invoke the `local-telemetry-setup` skill to add it before continuing.
+8. If data is empty or stale, treat setup as the bug: verify the app is running, exporters point at `everr telemetry endpoint`, and the collector is up. Invoke the `local-telemetry-setup` skill to fix collector, exporter, or `service.name` configuration.
 9. If telemetry cannot help, say why briefly, then continue with the best code, test, or configuration debugging path.
 
 ## Command Choice

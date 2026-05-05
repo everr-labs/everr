@@ -50,6 +50,17 @@ Use `everr wrap` only when the task is build or lint output capture and the comm
 - The wrapped command keeps its original exit code.
 - Do not use `everr wrap` as the main solution for runtime app debugging, server requests, UI interactions, or traces. Add real OTel instrumentation instead.
 
+## Dev-Only Telemetry
+
+- Use `debug` level for traces and logs that are only useful in development.
+- If a signal is not appropriate for production, emit it at debug level rather than info/warn/error.
+- Do not optimize for storage cost on dev-only signals. Favor rich, verbose information over trimming data — the local collector is cheap to fill.
+
+## Browser Apps
+
+- Browser code can export OTel logs and traces to the local collector at the OTLP/HTTP endpoint, the same as server runtimes.
+- Gate the browser exporter so it does not ship in the production bundle (e.g. behind `import.meta.env.DEV` or `process.env.NODE_ENV !== "production"`). The local collector URL must not appear in production builds.
+
 ## Integrated Example
 
 For "set up local telemetry for this app":
