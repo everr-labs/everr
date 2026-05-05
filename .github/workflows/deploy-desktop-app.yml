@@ -6,28 +6,11 @@ permissions:
   attestations: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 on:
   workflow_dispatch:
-
-  push:
-    branches: [main]
-    paths:
-      - .github/actions/everr-resource-usage/**
-      - .github/workflows/deploy-desktop-app.yml
-      - .nvmrc
-      - Cargo.toml
-      - Cargo.lock
-      - Makefile
-      - collector/**
-      - crates/everr-core/**
-      - package.json
-      - packages/desktop-app/**
-      - packages/ui/**
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
 
 jobs:
   build:
