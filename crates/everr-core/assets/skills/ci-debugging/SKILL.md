@@ -25,7 +25,7 @@ Use Everr from the repository root when investigating CI state, GitHub Actions f
 | Only failed jobs and steps | `everr ci show <trace_id> --failed` |
 | Logs for a known step | `everr ci logs <trace_id> --job-name <job> --step-number <n>` |
 | Logs for the first failed step in a job | `everr ci logs <trace_id> --job-name <job> --log-failed` |
-| Search similar failures on other branches | `everr cloud grep --pattern <text>` |
+| Search similar failures on other branches | `everr ci grep --pattern <text>` |
 
 Useful flags:
 - `everr ci status --commit <sha>` targets another commit.
@@ -40,5 +40,5 @@ For "CI is failing on this branch":
 1. Run `everr ci status`.
 2. If a run failed, copy its `trace_id` and run `everr ci show <trace_id> --failed`.
 3. For the failing job, run `everr ci logs <trace_id> --job-name <job> --log-failed`.
-4. If the error looks familiar but unclear, search history with `everr cloud grep --pattern <distinct error text>`.
+4. If the error looks familiar but unclear, search history with `everr ci grep --pattern <distinct error text>`.
 5. Explain the failure signal, make or recommend the smallest fix, then use `everr ci watch --fail-fast` to verify.

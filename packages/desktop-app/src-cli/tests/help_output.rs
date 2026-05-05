@@ -46,6 +46,7 @@ fn ci_help_lists_pipeline_subcommands() {
         .stdout(contains("watch"))
         .stdout(contains("runs"))
         .stdout(contains("show"))
+        .stdout(contains("grep"))
         .stdout(contains("logs"));
 }
 
@@ -59,7 +60,7 @@ fn cloud_help_lists_cloud_subcommands() {
         .success()
         .stdout(contains("login"))
         .stdout(contains("logout"))
-        .stdout(contains("grep"))
+        .stdout(predicates::str::contains("\n  grep").not())
         .stdout(predicates::str::contains("\n  logs").not());
 }
 
@@ -68,7 +69,7 @@ fn grep_help_lists_job_name_and_step_number_filters() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["cloud", "grep", "--help"])
+        .args(["ci", "grep", "--help"])
         .assert()
         .success()
         .stdout(contains("--job-name <JOB_NAME>"))

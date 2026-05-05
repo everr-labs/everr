@@ -2,7 +2,7 @@
 
 ### Breaking changes - CLI command groups
 
-- Moved commands under grouped namespaces: `everr cloud login/logout/grep`, `everr ci status/watch/runs/show/logs`, and `everr local start/status/query/endpoint`.
+- Moved commands under grouped namespaces: `everr cloud login/logout`, `everr ci status/watch/runs/show/logs/grep`, and `everr local start/status/query/endpoint`.
 - Removed the retired CLI commands `everr test-history`, `everr slowest-tests`, `everr slowest-jobs`, and `everr workflows`, along with their `/api/cli/*` backend routes.
 
 ### Breaking changes - `everr local`

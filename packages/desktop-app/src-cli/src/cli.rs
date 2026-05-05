@@ -25,7 +25,7 @@ pub struct Cli {
 pub enum Commands {
     /// Remove local Everr setup artifacts
     Uninstall,
-    /// Work with Everr Cloud auth and cloud-backed CI data
+    /// Manage Everr Cloud authentication
     Cloud(CloudArgs),
     /// Inspect GitHub Actions CI runs
     Ci(CiArgs),
@@ -55,8 +55,6 @@ pub enum CloudSubcommand {
     Login(LoginArgs),
     /// Log out and clear the local session
     Logout,
-    /// Search failing step logs on other branches
-    Grep(GrepArgs),
 }
 
 #[derive(Args, Debug)]
@@ -77,6 +75,8 @@ pub enum CiSubcommand {
     Show(ShowRunArgs),
     /// Show step logs for a run
     Logs(GetLogsArgs),
+    /// Search failing step logs on other branches
+    Grep(GrepArgs),
 }
 
 #[derive(Args, Debug)]
@@ -633,9 +633,17 @@ mod tests {
 
     #[test]
     fn validates_required_pattern_for_grep() {
-        let err = Cli::try_parse_from(["everr", "cloud", "grep"])
+        let err = Cli::try_parse_from(["everr", "ci", "grep"])
             .expect_err("grep should require --pattern");
         assert!(err.to_string().contains("--pattern"));
+    }
+
+    #[test]
+    fn cloud_grep_is_no_longer_accepted() {
+        let err = Cli::try_parse_from(["everr", "cloud", "grep", "--help"])
+            .expect_err("cloud grep should be moved to ci grep");
+
+        assert!(err.to_string().contains("grep"));
     }
 
     #[test]
@@ -674,14 +682,14 @@ mod tests {
 
     #[test]
     fn grep_limit_defaults_to_twenty() {
-        let cli = Cli::try_parse_from(["everr", "cloud", "grep", "--pattern", "panic"])
+        let cli = Cli::try_parse_from(["everr", "ci", "grep", "--pattern", "panic"])
             .expect("valid grep command");
 
-        let Commands::Cloud(cloud) = cli.command else {
-            panic!("expected cloud command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
         };
-        let CloudSubcommand::Grep(args) = cloud.command else {
-            panic!("expected cloud grep command");
+        let CiSubcommand::Grep(args) = ci.command else {
+            panic!("expected ci grep command");
         };
 
         assert_eq!(args.limit, 20);
@@ -692,7 +700,7 @@ mod tests {
     fn grep_limit_must_be_in_range() {
         let err = Cli::try_parse_from([
             "everr",
-            "cloud",
+            "ci",
             "grep",
             "--pattern",
             "panic",
@@ -706,14 +714,14 @@ mod tests {
 
     #[test]
     fn grep_job_and_step_filters_are_optional() {
-        let cli = Cli::try_parse_from(["everr", "cloud", "grep", "--pattern", "panic"])
+        let cli = Cli::try_parse_from(["everr", "ci", "grep", "--pattern", "panic"])
             .expect("valid grep command");
 
-        let Commands::Cloud(cloud) = cli.command else {
-            panic!("expected cloud command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
         };
-        let CloudSubcommand::Grep(args) = cloud.command else {
-            panic!("expected cloud grep command");
+        let CiSubcommand::Grep(args) = ci.command else {
+            panic!("expected ci grep command");
         };
         let super::GrepArgs {
             job_name,
@@ -729,7 +737,7 @@ mod tests {
     fn grep_job_name_requires_step_number() {
         let err = Cli::try_parse_from([
             "everr",
-            "cloud",
+            "ci",
             "grep",
             "--pattern",
             "panic",
@@ -745,7 +753,7 @@ mod tests {
     fn grep_step_number_requires_job_name() {
         let err = Cli::try_parse_from([
             "everr",
-            "cloud",
+            "ci",
             "grep",
             "--pattern",
             "panic",

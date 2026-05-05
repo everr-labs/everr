@@ -109,7 +109,7 @@ fn grep_defaults_repo_from_git_and_excludes_current_branch() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "cloud",
+            "ci",
             "grep",
             "--job-name",
             "integration",
@@ -154,7 +154,7 @@ fn grep_uses_explicit_branch_instead_of_auto_excluding_current_branch() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
-            "cloud",
+            "ci",
             "grep",
             "--pattern",
             "panic",
@@ -178,7 +178,7 @@ fn grep_requires_repo_when_git_context_is_missing() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&env.home_dir)
-        .args(["cloud", "grep", "--pattern", "panic"])
+        .args(["ci", "grep", "--pattern", "panic"])
         .assert()
         .failure()
         .stderr(contains("failed to resolve repository; provide --repo"));

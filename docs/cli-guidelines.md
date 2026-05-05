@@ -36,7 +36,7 @@ Commands that help an agent understand or investigate CI/local telemetry must be
 
 | Category | Commands |
 |---|---|
-| Agent-useful (document in a skill) | `ci status`, `ci watch`, `cloud grep`, `ci runs`, `ci show`, `ci logs`, `local query`, `local endpoint`, `wrap` |
+| Agent-useful (document in a skill) | `ci status`, `ci watch`, `ci grep`, `ci runs`, `ci show`, `ci logs`, `local query`, `local endpoint`, `wrap` |
 | Human-only (exclude from skills) | `setup`, `init`, `cloud login`, `cloud logout`, `uninstall` |
 
 **Why:** Skills are the source of truth for what an agent can use. Including setup/auth commands adds noise and risks an agent attempting to run interactive flows.
