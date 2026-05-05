@@ -34,6 +34,29 @@ export async function query<T>(
   return result.json<T>();
 }
 
+export async function queryWithClickHouseSettings<T>(
+  query: string,
+  organizationId: string,
+  clickhouseSettings: Record<string, unknown>,
+  query_params?: Record<string, unknown>,
+): Promise<T[]> {
+  if (typeof organizationId !== "string" || !organizationId) {
+    throw new Error("Missing ClickHouse tenant context");
+  }
+
+  const result = await clickhouse.query({
+    query,
+    query_params,
+    format: "JSONEachRow",
+    clickhouse_settings: {
+      ...clickhouseSettings,
+      SQL_everr_tenant_id: organizationId,
+    },
+  });
+
+  return result.json<T>();
+}
+
 export function createClickhouseQuery(organizationId: string) {
   return async <T>(sql: string, params?: Record<string, unknown>) =>
     query<T>(sql, organizationId, params);
