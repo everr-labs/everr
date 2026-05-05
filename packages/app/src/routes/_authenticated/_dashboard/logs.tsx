@@ -705,57 +705,45 @@ function LogStream({
       {logs.map((log, index) => {
         const rowKey = `${log.id}:${index}`;
         return (
-          <button
+          <div
             key={rowKey}
-            type="button"
             className={cn(
-              "group grid w-full grid-cols-[86px_minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30",
+              "relative group grid w-full grid-cols-[86px_minmax(0,1fr)] items-start py-0.5 text-left transition-colors hover:bg-muted/50 md:grid-cols-[112px_minmax(0,1fr)]",
               selectedLogKey === rowKey && "bg-muted/70 hover:bg-muted/70",
             )}
-            onClick={() => onSelect(log, rowKey)}
           >
-            <div className="flex min-w-0 flex-col gap-1">
-              <span className="font-mono text-muted-foreground tabular-nums">
+            <div
+              className={cn(
+                "self-stretch absolute left-0 top-px bottom-px w-[3px]",
+                levelAccentClassName(log.level),
+              )}
+            />
+
+            <div className="px-3">
+              <span className="block select-none font-mono text-[0.75rem] leading-4 text-muted-foreground tabular-nums">
                 {formatTimestampTimeOfDay(log.timestamp)}
               </span>
-              <Badge
-                variant="outline"
-                className={cn("capitalize", levelBadgeClassName(log.level))}
-              >
-                {log.level}
-              </Badge>
             </div>
 
-            <div className="min-w-0">
-              <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
-                <span className="flex min-w-0 items-center gap-1">
-                  <Server className="size-3 shrink-0" />
-                  <span className="truncate">
-                    {log.serviceName || "unknown"}
-                  </span>
-                </span>
-                <span className="hidden min-w-0 items-center gap-1 sm:flex">
-                  <Boxes className="size-3 shrink-0" />
-                  <span className="truncate">{log.repo || "default"}</span>
-                </span>
-              </div>
-              <div className="max-h-10 overflow-hidden whitespace-pre-wrap break-words font-mono text-[0.75rem] leading-5">
+            <div className="min-w-0 px-3 pr-9">
+              <div className="select-text whitespace-pre-wrap break-words font-mono text-[0.75rem] leading-4 text-foreground">
                 <Ansi useClasses>{log.body}</Ansi>
               </div>
             </div>
 
-            <div className="hidden min-w-0 flex-col items-end text-muted-foreground md:flex">
-              <span className="truncate font-mono">
-                {shortIdentifier(log.traceId) || "no trace"}
-              </span>
-              <span className="truncate font-mono">
-                {shortIdentifier(log.spanId) || "no span"}
-              </span>
+            <div className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Open log details"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onSelect(log, rowKey)}
+              >
+                <ChevronRight />
+              </Button>
             </div>
-
-            <ChevronRight className="text-muted-foreground mt-1 size-4 opacity-0 transition-opacity group-hover:opacity-100" />
-          </button>
+          </div>
         );
       })}
       <div className="text-muted-foreground flex h-12 items-center justify-center border-b px-3 text-xs">
@@ -938,12 +926,6 @@ function severityLabel(log: LogExplorerRow) {
   return "N/A";
 }
 
-function shortIdentifier(value?: string) {
-  if (!value) return "";
-  if (value.length <= 12) return value;
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
-}
-
 function hasCiContext(log: LogExplorerRow) {
   return Boolean(
     log.branch ||
@@ -957,6 +939,10 @@ function hasCiContext(log: LogExplorerRow) {
 
 function levelBadgeClassName(level: LogLevel) {
   return LOG_LEVEL_META[level].badgeClassName;
+}
+
+function levelAccentClassName(level: LogLevel) {
+  return LOG_LEVEL_META[level].dotClassName;
 }
 
 function levelDotClassName(level: LogLevel) {
