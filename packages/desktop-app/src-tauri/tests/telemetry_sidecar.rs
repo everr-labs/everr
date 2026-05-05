@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use everr_app_lib::telemetry::sidecar::{
-    TelemetryState, spawn_cli_collector_detached, wait_for_disabled_state,
+    spawn_cli_collector_detached, wait_for_disabled_state, TelemetryState,
 };
 use everr_core::build::HEALTHCHECK_PORT;
 use tempfile::TempDir;

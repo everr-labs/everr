@@ -3,7 +3,7 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use nix::errno::Errno;
-use nix::sys::signal::{Signal, killpg};
+use nix::sys::signal::{killpg, Signal};
 use nix::unistd::Pid;
 use tauri::AppHandle;
 use tokio::process::{Child, Command};

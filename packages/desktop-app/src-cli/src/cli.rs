@@ -25,34 +25,12 @@ pub struct Cli {
 pub enum Commands {
     /// Remove local Everr setup artifacts
     Uninstall,
-    /// Log in and persist a local session
-    Login(LoginArgs),
-    /// Log out and clear the local session
-    Logout,
-    /// Show all pipeline runs for a specific commit
-    Status(StatusArgs),
-    /// Search failing step logs on other branches
-    Grep(GrepArgs),
-    /// Watch the current commit until pipeline runs complete
-    Watch(WatchArgs),
-    /// Show historical executions for a specific test
-    TestHistory(TestHistoryArgs),
-    /// Show the slowest tests in the selected time range, repo-wide by default
-    SlowestTests(SlowestTestsArgs),
-    /// Show the slowest jobs in the selected time range, repo-wide by default
-    SlowestJobs(SlowestJobsArgs),
-    /// List recent runs
-    #[command(name = "runs")]
-    RunsList(ListRunsArgs),
-    /// Show run details
-    #[command(name = "show")]
-    RunsShow(ShowRunArgs),
-    /// Show step logs for a run
-    #[command(name = "logs")]
-    RunsLogs(GetLogsArgs),
-    /// List workflows and their jobs for a repository
-    #[command(name = "workflows")]
-    WorkflowsList(WorkflowsListArgs),
+    /// Work with Everr Cloud auth and cloud-backed CI data
+    Cloud(CloudArgs),
+    /// Inspect GitHub Actions CI runs
+    Ci(CiArgs),
+    /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
+    Local(LocalArgs),
     /// Run a command and send its stdout/stderr logs to the local collector
     Wrap(WrapArgs),
     /// Run the full setup wizard (login + org + import + skills installation)
@@ -60,22 +38,55 @@ pub enum Commands {
     Setup,
     /// Initialize the current repository by importing recent runs
     Init,
-    /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
-    #[command(name = "telemetry")]
-    Telemetry(TelemetryArgs),
     /// Manage bundled Everr agent skills
     #[command(name = "skills")]
     Skills(SkillsArgs),
 }
 
 #[derive(Args, Debug)]
-pub struct TelemetryArgs {
+pub struct CloudArgs {
     #[command(subcommand)]
-    pub command: TelemetrySubcommand,
+    pub command: CloudSubcommand,
 }
 
 #[derive(Subcommand, Debug)]
-pub enum TelemetrySubcommand {
+pub enum CloudSubcommand {
+    /// Log in and persist a local session
+    Login(LoginArgs),
+    /// Log out and clear the local session
+    Logout,
+    /// Search failing step logs on other branches
+    Grep(GrepArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct CiArgs {
+    #[command(subcommand)]
+    pub command: CiSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CiSubcommand {
+    /// Show all pipeline runs for a specific commit
+    Status(StatusArgs),
+    /// Watch the current commit until pipeline runs complete
+    Watch(WatchArgs),
+    /// List recent runs
+    Runs(ListRunsArgs),
+    /// Show run details
+    Show(ShowRunArgs),
+    /// Show step logs for a run
+    Logs(GetLogsArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct LocalArgs {
+    #[command(subcommand)]
+    pub command: LocalSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum LocalSubcommand {
     /// Start the local collector in the foreground.
     Start(TelemetryStartArgs),
     /// Run a SQL query against local telemetry.
@@ -261,56 +272,6 @@ pub struct WatchArgs {
     pub fail_fast: bool,
 }
 
-#[derive(Args, Debug)]
-pub struct TestHistoryArgs {
-    #[arg(long)]
-    pub repo: Option<String>,
-    #[arg(long)]
-    pub test_name: Option<String>,
-    #[arg(long = "module")]
-    pub test_module: Option<String>,
-    #[arg(long)]
-    pub from: Option<String>,
-    #[arg(long)]
-    pub to: Option<String>,
-    #[arg(long, default_value_t = 100, value_parser = clap::value_parser!(u32).range(1..=100))]
-    pub limit: u32,
-    #[arg(long, default_value_t = 0)]
-    pub offset: u32,
-}
-
-#[derive(Args, Debug)]
-pub struct SlowestTestsArgs {
-    #[arg(long)]
-    pub repo: Option<String>,
-    #[arg(long)]
-    pub branch: Option<String>,
-    #[arg(long)]
-    pub from: Option<String>,
-    #[arg(long)]
-    pub to: Option<String>,
-    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u32).range(1..=100))]
-    pub limit: u32,
-    #[arg(long, default_value_t = 0)]
-    pub offset: u32,
-}
-
-#[derive(Args, Debug)]
-pub struct SlowestJobsArgs {
-    #[arg(long)]
-    pub repo: Option<String>,
-    #[arg(long)]
-    pub branch: Option<String>,
-    #[arg(long)]
-    pub from: Option<String>,
-    #[arg(long)]
-    pub to: Option<String>,
-    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u32).range(1..=100))]
-    pub limit: u32,
-    #[arg(long, default_value_t = 0)]
-    pub offset: u32,
-}
-
 #[derive(Args, Debug, Default)]
 pub struct ListRunsArgs {
     #[arg(long)]
@@ -389,15 +350,6 @@ pub struct GetLogsArgs {
 }
 
 #[derive(Args, Debug, Default)]
-pub struct WorkflowsListArgs {
-    #[arg(long)]
-    pub repo: Option<String>,
-
-    #[arg(long)]
-    pub branch: Option<String>,
-}
-
-#[derive(Args, Debug, Default)]
 pub struct WrapArgs {
     /// Command and arguments to run
     #[arg(
@@ -432,17 +384,21 @@ pub struct LogPagingArgs {
 mod tests {
     use clap::Parser;
 
-    use super::{
-        Cli, Commands, GrepArgs, SlowestJobsArgs, SlowestTestsArgs, TestHistoryArgs, WatchArgs,
-    };
+    use super::{CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, WatchArgs};
 
     #[test]
     fn parses_top_level_commands() {
-        let login = Cli::try_parse_from(["everr", "login"]).expect("login command");
-        assert!(matches!(login.command, Commands::Login(_)));
+        let login = Cli::try_parse_from(["everr", "cloud", "login"]).expect("login command");
+        let Commands::Cloud(login) = login.command else {
+            panic!("expected cloud command");
+        };
+        assert!(matches!(login.command, CloudSubcommand::Login(_)));
 
-        let logout = Cli::try_parse_from(["everr", "logout"]).expect("logout command");
-        assert!(matches!(logout.command, Commands::Logout));
+        let logout = Cli::try_parse_from(["everr", "cloud", "logout"]).expect("logout command");
+        let Commands::Cloud(logout) = logout.command else {
+            panic!("expected cloud command");
+        };
+        assert!(matches!(logout.command, CloudSubcommand::Logout));
 
         let uninstall = Cli::try_parse_from(["everr", "uninstall"]).expect("uninstall command");
         assert!(matches!(uninstall.command, Commands::Uninstall));
@@ -453,11 +409,18 @@ mod tests {
         let wrap =
             Cli::try_parse_from(["everr", "wrap", "--", "cargo", "test"]).expect("wrap command");
         assert!(matches!(wrap.command, Commands::Wrap(_)));
+
+        let local = Cli::try_parse_from(["everr", "local", "endpoint"]).expect("local command");
+        let Commands::Local(local) = local.command else {
+            panic!("expected local command");
+        };
+        assert!(matches!(local.command, LocalSubcommand::Endpoint));
     }
 
     #[test]
     fn validates_required_trace_id_for_runs_show() {
-        let err = Cli::try_parse_from(["everr", "show"]).expect_err("show should require trace_id");
+        let err =
+            Cli::try_parse_from(["everr", "ci", "show"]).expect_err("show should require trace_id");
         let err_string = err.to_string();
         assert!(
             err_string.contains("TRACE_ID")
@@ -470,6 +433,7 @@ mod tests {
     fn status_accepts_repo_branch_and_commit() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "status",
             "--repo",
             "everr-labs/everr",
@@ -480,8 +444,11 @@ mod tests {
         ])
         .expect("valid status command");
 
-        let Commands::Status(args) = cli.command else {
-            panic!("expected status command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Status(args) = ci.command else {
+            panic!("expected ci status command");
         };
 
         assert_eq!(args.repo.as_deref(), Some("everr-labs/everr"));
@@ -521,7 +488,7 @@ mod tests {
 
     #[test]
     fn validates_required_arguments_for_runs_logs() {
-        let err = Cli::try_parse_from(["everr", "logs", "trace-1", "--job-name", "build"])
+        let err = Cli::try_parse_from(["everr", "ci", "logs", "trace-1", "--job-name", "build"])
             .expect_err("logs should require --step-number or --log-failed");
         let err_string = err.to_string();
         assert!(
@@ -534,6 +501,7 @@ mod tests {
     fn logs_accepts_log_failed_without_step_number() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -542,8 +510,11 @@ mod tests {
         ])
         .expect("valid logs command with --log-failed");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
 
         assert_eq!(args.job_name.as_deref(), Some("build"));
@@ -553,12 +524,22 @@ mod tests {
 
     #[test]
     fn logs_accepts_job_id_with_log_failed() {
-        let cli =
-            Cli::try_parse_from(["everr", "logs", "trace-1", "--job-id", "42", "--log-failed"])
-                .expect("valid logs command with --job-id and --log-failed");
+        let cli = Cli::try_parse_from([
+            "everr",
+            "ci",
+            "logs",
+            "trace-1",
+            "--job-id",
+            "42",
+            "--log-failed",
+        ])
+        .expect("valid logs command with --job-id and --log-failed");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
 
         assert_eq!(args.job_id.as_deref(), Some("42"));
@@ -570,6 +551,7 @@ mod tests {
     fn logs_accepts_job_id_with_step_number() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-id",
@@ -579,8 +561,11 @@ mod tests {
         ])
         .expect("valid logs command with --job-id and --step-number");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
 
         assert_eq!(args.job_id.as_deref(), Some("42"));
@@ -592,6 +577,7 @@ mod tests {
     fn logs_rejects_both_job_name_and_job_id() {
         let err = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -609,6 +595,7 @@ mod tests {
     fn logs_rejects_both_step_number_and_log_failed() {
         let err = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -627,7 +614,7 @@ mod tests {
 
     #[test]
     fn logs_requires_job_identifier() {
-        let err = Cli::try_parse_from(["everr", "logs", "trace-1", "--step-number", "1"])
+        let err = Cli::try_parse_from(["everr", "ci", "logs", "trace-1", "--step-number", "1"])
             .expect_err("logs should require --job-name or --job-id");
         let err_string = err.to_string();
         assert!(
@@ -637,9 +624,17 @@ mod tests {
     }
 
     #[test]
+    fn cloud_logs_is_no_longer_accepted() {
+        let err = Cli::try_parse_from(["everr", "cloud", "logs", "--help"])
+            .expect_err("cloud logs should be moved to ci logs");
+
+        assert!(err.to_string().contains("logs"));
+    }
+
+    #[test]
     fn validates_required_pattern_for_grep() {
-        let err =
-            Cli::try_parse_from(["everr", "grep"]).expect_err("grep should require --pattern");
+        let err = Cli::try_parse_from(["everr", "cloud", "grep"])
+            .expect_err("grep should require --pattern");
         assert!(err.to_string().contains("--pattern"));
     }
 
@@ -658,6 +653,7 @@ mod tests {
     fn runs_logs_defaults_to_no_paging() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -667,19 +663,25 @@ mod tests {
         ])
         .expect("valid logs command");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
         assert_eq!(args.paging(), None);
     }
 
     #[test]
     fn grep_limit_defaults_to_twenty() {
-        let cli = Cli::try_parse_from(["everr", "grep", "--pattern", "panic"])
+        let cli = Cli::try_parse_from(["everr", "cloud", "grep", "--pattern", "panic"])
             .expect("valid grep command");
 
-        let Commands::Grep(args) = cli.command else {
-            panic!("expected grep command");
+        let Commands::Cloud(cloud) = cli.command else {
+            panic!("expected cloud command");
+        };
+        let CloudSubcommand::Grep(args) = cloud.command else {
+            panic!("expected cloud grep command");
         };
 
         assert_eq!(args.limit, 20);
@@ -688,25 +690,36 @@ mod tests {
 
     #[test]
     fn grep_limit_must_be_in_range() {
-        let err = Cli::try_parse_from(["everr", "grep", "--pattern", "panic", "--limit", "101"])
-            .expect_err("grep should reject out-of-range limit");
+        let err = Cli::try_parse_from([
+            "everr",
+            "cloud",
+            "grep",
+            "--pattern",
+            "panic",
+            "--limit",
+            "101",
+        ])
+        .expect_err("grep should reject out-of-range limit");
 
         assert!(err.to_string().contains("--limit"));
     }
 
     #[test]
     fn grep_job_and_step_filters_are_optional() {
-        let cli = Cli::try_parse_from(["everr", "grep", "--pattern", "panic"])
+        let cli = Cli::try_parse_from(["everr", "cloud", "grep", "--pattern", "panic"])
             .expect("valid grep command");
 
-        let Commands::Grep(GrepArgs {
+        let Commands::Cloud(cloud) = cli.command else {
+            panic!("expected cloud command");
+        };
+        let CloudSubcommand::Grep(args) = cloud.command else {
+            panic!("expected cloud grep command");
+        };
+        let super::GrepArgs {
             job_name,
             step_number,
             ..
-        }) = cli.command
-        else {
-            panic!("expected grep command");
-        };
+        } = args;
 
         assert!(job_name.is_none());
         assert!(step_number.is_none());
@@ -716,6 +729,7 @@ mod tests {
     fn grep_job_name_requires_step_number() {
         let err = Cli::try_parse_from([
             "everr",
+            "cloud",
             "grep",
             "--pattern",
             "panic",
@@ -729,9 +743,16 @@ mod tests {
 
     #[test]
     fn grep_step_number_requires_job_name() {
-        let err =
-            Cli::try_parse_from(["everr", "grep", "--pattern", "panic", "--step-number", "5"])
-                .expect_err("grep should require --job-name when --step-number is set");
+        let err = Cli::try_parse_from([
+            "everr",
+            "cloud",
+            "grep",
+            "--pattern",
+            "panic",
+            "--step-number",
+            "5",
+        ])
+        .expect_err("grep should require --job-name when --step-number is set");
 
         assert!(err.to_string().contains("--job-name"));
     }
@@ -740,6 +761,7 @@ mod tests {
     fn runs_logs_limit_enables_paging_mode() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -751,8 +773,11 @@ mod tests {
         ])
         .expect("valid paged logs command");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
 
         assert_eq!(
@@ -765,6 +790,7 @@ mod tests {
     fn runs_logs_offset_alone_uses_tail_mode() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -776,8 +802,11 @@ mod tests {
         ])
         .expect("valid logs command");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
 
         assert_eq!(args.paging(), None);
@@ -788,6 +817,7 @@ mod tests {
     fn runs_logs_limit_rejects_values_over_maximum() {
         let err = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -827,17 +857,20 @@ mod tests {
 
     #[test]
     fn watch_parses_without_arguments() {
-        let cli = Cli::try_parse_from(["everr", "watch"]).expect("watch command");
+        let cli = Cli::try_parse_from(["everr", "ci", "watch"]).expect("watch command");
 
-        let Commands::Watch(WatchArgs {
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Watch(WatchArgs {
             repo,
             branch,
             commit,
             attempt: _,
             fail_fast: _,
-        }) = cli.command
+        }) = ci.command
         else {
-            panic!("expected watch command");
+            panic!("expected ci watch command");
         };
 
         assert_eq!(repo, None);
@@ -854,160 +887,43 @@ mod tests {
     }
 
     #[test]
-    fn test_history_requires_filter_inputs() {
-        let cli =
-            Cli::try_parse_from(["everr", "test-history"]).expect("test-history command parses");
-        let Commands::TestHistory(TestHistoryArgs {
-            test_name,
-            test_module,
-            ..
-        }) = cli.command
-        else {
-            panic!("expected test-history command");
-        };
-        assert_eq!(test_name, None);
-        assert_eq!(test_module, None);
+    fn moved_top_level_commands_are_rejected() {
+        for command in [
+            "login",
+            "logout",
+            "status",
+            "grep",
+            "watch",
+            "runs",
+            "show",
+            "logs",
+            "telemetry",
+        ] {
+            let err = Cli::try_parse_from(["everr", command])
+                .expect_err("moved top-level command should be rejected");
+            assert!(err.to_string().contains(command));
+        }
     }
 
     #[test]
-    fn test_history_parses_optional_filters() {
-        let cli = Cli::try_parse_from([
-            "everr",
-            "test-history",
-            "--repo",
-            "everr-labs/everr",
-            "--module",
-            "suite",
-            "--test-name",
-            "test",
-            "--from",
-            "now-7d",
-            "--to",
-            "now",
-            "--limit",
-            "25",
-            "--offset",
-            "50",
-        ])
-        .expect("test-history command");
-
-        let Commands::TestHistory(TestHistoryArgs {
-            repo,
-            test_name,
-            test_module,
-            from,
-            to,
-            limit,
-            offset,
-        }) = cli.command
-        else {
-            panic!("expected test-history command");
-        };
-
-        assert_eq!(repo.as_deref(), Some("everr-labs/everr"));
-        assert_eq!(test_name.as_deref(), Some("test"));
-        assert_eq!(test_module.as_deref(), Some("suite"));
-        assert_eq!(from.as_deref(), Some("now-7d"));
-        assert_eq!(to.as_deref(), Some("now"));
-        assert_eq!(limit, 25);
-        assert_eq!(offset, 50);
-    }
-
-    #[test]
-    fn test_history_allows_test_name_without_module() {
-        let cli = Cli::try_parse_from(["everr", "test-history", "--test-name", "my-test"])
-            .expect("test-history command");
-
-        let Commands::TestHistory(TestHistoryArgs {
-            test_name,
-            test_module,
-            ..
-        }) = cli.command
-        else {
-            panic!("expected test-history command");
-        };
-
-        assert_eq!(test_name.as_deref(), Some("my-test"));
-        assert_eq!(test_module, None);
-    }
-
-    #[test]
-    fn test_history_allows_module_without_test_name() {
-        let cli = Cli::try_parse_from(["everr", "test-history", "--module", "suite"])
-            .expect("test-history command");
-
-        let Commands::TestHistory(TestHistoryArgs {
-            test_name,
-            test_module,
-            ..
-        }) = cli.command
-        else {
-            panic!("expected test-history command");
-        };
-
-        assert_eq!(test_name, None);
-        assert_eq!(test_module.as_deref(), Some("suite"));
-    }
-
-    #[test]
-    fn slowest_tests_parses_optional_filters() {
-        let cli = Cli::try_parse_from([
-            "everr",
-            "slowest-tests",
-            "--repo",
-            "everr-labs/everr",
-            "--branch",
-            "main",
-            "--from",
-            "now-24h",
-            "--to",
-            "now",
-            "--limit",
-            "25",
-            "--offset",
-            "10",
-        ])
-        .expect("slowest-tests command");
-
-        let Commands::SlowestTests(SlowestTestsArgs {
-            repo,
-            branch,
-            from,
-            to,
-            limit,
-            offset,
-        }) = cli.command
-        else {
-            panic!("expected slowest-tests command");
-        };
-
-        assert_eq!(repo.as_deref(), Some("everr-labs/everr"));
-        assert_eq!(branch.as_deref(), Some("main"));
-        assert_eq!(from.as_deref(), Some("now-24h"));
-        assert_eq!(to.as_deref(), Some("now"));
-        assert_eq!(limit, 25);
-        assert_eq!(offset, 10);
-    }
-
-    #[test]
-    fn slowest_jobs_defaults_to_limit_ten() {
-        let cli = Cli::try_parse_from(["everr", "slowest-jobs"]).expect("slowest-jobs command");
-
-        let Commands::SlowestJobs(SlowestJobsArgs { limit, offset, .. }) = cli.command else {
-            panic!("expected slowest-jobs command");
-        };
-
-        assert_eq!(limit, 10);
-        assert_eq!(offset, 0);
+    fn retired_commands_are_rejected() {
+        for command in ["test-history", "slowest-tests", "slowest-jobs", "workflows"] {
+            let err = Cli::try_parse_from(["everr", command])
+                .expect_err("retired command should be rejected");
+            assert!(err.to_string().contains(command));
+        }
     }
 
     #[test]
     fn runs_list_parses_limit_and_offset() {
-        let cli = Cli::try_parse_from(["everr", "runs", "--limit", "15", "--offset", "30"])
+        let cli = Cli::try_parse_from(["everr", "ci", "runs", "--limit", "15", "--offset", "30"])
             .expect("runs command");
 
-        let Commands::RunsList(args) = cli.command else {
-            panic!("expected runs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Runs(args) = ci.command else {
+            panic!("expected ci runs command");
         };
 
         assert_eq!(args.limit, 15);
@@ -1016,10 +932,13 @@ mod tests {
 
     #[test]
     fn runs_list_defaults_to_limit_twenty_and_offset_zero() {
-        let cli = Cli::try_parse_from(["everr", "runs"]).expect("runs command");
+        let cli = Cli::try_parse_from(["everr", "ci", "runs"]).expect("runs command");
 
-        let Commands::RunsList(args) = cli.command else {
-            panic!("expected runs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Runs(args) = ci.command else {
+            panic!("expected ci runs command");
         };
 
         assert_eq!(args.limit, 20);
@@ -1040,10 +959,14 @@ mod tests {
 
     #[test]
     fn watch_parses_fail_fast_flag() {
-        let cli = Cli::try_parse_from(["everr", "watch", "--fail-fast"]).expect("watch command");
+        let cli =
+            Cli::try_parse_from(["everr", "ci", "watch", "--fail-fast"]).expect("watch command");
 
-        let Commands::Watch(WatchArgs { fail_fast, .. }) = cli.command else {
-            panic!("expected watch command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Watch(WatchArgs { fail_fast, .. }) = ci.command else {
+            panic!("expected ci watch command");
         };
 
         assert!(fail_fast);
@@ -1051,10 +974,13 @@ mod tests {
 
     #[test]
     fn watch_fail_fast_defaults_to_false() {
-        let cli = Cli::try_parse_from(["everr", "watch"]).expect("watch command");
+        let cli = Cli::try_parse_from(["everr", "ci", "watch"]).expect("watch command");
 
-        let Commands::Watch(WatchArgs { fail_fast, .. }) = cli.command else {
-            panic!("expected watch command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Watch(WatchArgs { fail_fast, .. }) = ci.command else {
+            panic!("expected ci watch command");
         };
 
         assert!(!fail_fast);
@@ -1064,6 +990,7 @@ mod tests {
     fn runs_logs_accepts_egrep_pattern() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -1075,8 +1002,11 @@ mod tests {
         ])
         .expect("valid logs command with egrep");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
 
         assert_eq!(args.egrep.as_deref(), Some("Error.*timeout"));
@@ -1086,6 +1016,7 @@ mod tests {
     fn runs_logs_egrep_defaults_to_none() {
         let cli = Cli::try_parse_from([
             "everr",
+            "ci",
             "logs",
             "trace-1",
             "--job-name",
@@ -1095,8 +1026,11 @@ mod tests {
         ])
         .expect("valid logs command");
 
-        let Commands::RunsLogs(args) = cli.command else {
-            panic!("expected logs command");
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Logs(args) = ci.command else {
+            panic!("expected ci logs command");
         };
 
         assert!(args.egrep.is_none());

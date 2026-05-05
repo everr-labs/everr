@@ -10,7 +10,7 @@ Every data-returning command must include a top-level field (e.g. `filters`) in 
 
 **Why:** Output must be self-describing. AIs and scripts cannot reliably infer applied filters from context. Echoing them makes responses pipeable and auditable without re-running the command.
 
-**Example:** `everr runs` already does this correctly:
+**Example:** `everr ci runs` already does this correctly:
 ```json
 {
   "filters": {
@@ -24,7 +24,7 @@ Every data-returning command must include a top-level field (e.g. `filters`) in 
 }
 ```
 
-`everr status` does not yet — it returns data without any filter envelope.
+`everr ci status` does not yet — it returns data without any filter envelope.
 
 **Checklist:** When adding or modifying a data command, verify the JSON response includes all applied filter values.
 
@@ -36,8 +36,8 @@ Commands that help an agent understand or investigate CI/local telemetry must be
 
 | Category | Commands |
 |---|---|
-| Agent-useful (document in a skill) | `status`, `watch`, `grep`, `runs`, `show`, `logs`, `workflows`, `test-history`, `slowest-tests`, `slowest-jobs`, `telemetry query`, `telemetry endpoint`, `wrap` |
-| Human-only (exclude from skills) | `setup`, `init`, `login`, `logout`, `uninstall` |
+| Agent-useful (document in a skill) | `ci status`, `ci watch`, `cloud grep`, `ci runs`, `ci show`, `ci logs`, `local query`, `local endpoint`, `wrap` |
+| Human-only (exclude from skills) | `setup`, `init`, `cloud login`, `cloud logout`, `uninstall` |
 
 **Why:** Skills are the source of truth for what an agent can use. Including setup/auth commands adds noise and risks an agent attempting to run interactive flows.
 
@@ -61,6 +61,6 @@ Each command solves one well-defined problem. Its output must be bounded to that
 
 **Why:** When a command returns more than its stated goal requires, the useful signal gets buried. An AI or person looking for high-level run status shouldn't have to parse job/step details — that's what `show` is for. Focused output means faster decisions and cleaner drill-down paths.
 
-**Example:** `everr runs` returns high-level metadata for recent runs. It must not include job or step details — use `everr show <trace_id>` to go deeper. The CLI has a natural drill-down path: `runs` → `show` → `logs`.
+**Example:** `everr ci runs` returns high-level metadata for recent runs. It must not include job or step details — use `everr ci show <trace_id>` to go deeper. The CLI has a natural drill-down path: `ci runs` → `ci show` → `ci logs`.
 
 **Checklist:** When designing a command, write its one-sentence goal. If the output contains fields that belong to a different command's stated goal, move them there. If the response can exceed 30KB under normal usage, the command is doing too much.

@@ -1,5 +1,5 @@
 ---
-title: Telemetry
+title: Local Telemetry
 description: Start and query the local Everr OpenTelemetry collector.
 ---
 
@@ -11,12 +11,12 @@ Any locally running service or app you instrument with OpenTelemetry and point a
 
 ## Commands
 
-### `everr telemetry start`
+### `everr local start`
 
 Starts the local collector in the foreground.
 
 ```shell
-everr telemetry start
+everr local start
 ```
 
 Keep this command running while your local service exports telemetry. Stop it with `Ctrl+C`.
@@ -25,34 +25,34 @@ Useful flags:
 
 - `--quiet` — suppress collector URL output after startup.
 
-### `everr telemetry status`
+### `everr local status`
 
 Checks whether the local collector healthcheck is reachable.
 
 ```shell
-everr telemetry status
+everr local status
 ```
 
 It exits with code `0` when the collector is running and code `2` when it is stopped.
 
-### `everr telemetry query`
+### `everr local query`
 
 Runs read-only SQL against local telemetry.
 
 ```shell
-everr telemetry query "SELECT Timestamp, ServiceName, SpanName FROM otel_traces ORDER BY Timestamp DESC LIMIT 20"
+everr local query "SELECT Timestamp, ServiceName, SpanName FROM otel_traces ORDER BY Timestamp DESC LIMIT 20"
 ```
 
 Useful flags:
 
 - `--format <table|json|ndjson>` — default `table` on TTY, `ndjson` otherwise.
 
-### `everr telemetry endpoint`
+### `everr local endpoint`
 
 Prints the collector URL for the current build.
 
 ```shell
-everr telemetry endpoint
+everr local endpoint
 ```
 
 ### `everr wrap`
@@ -72,8 +72,8 @@ The local collector must already be running. If the collector is unavailable, `e
 Find a log of interest, grab its `TraceId`, and query the matching trace:
 
 ```shell
-everr telemetry query "SELECT Timestamp, TraceId, ServiceName, SeverityText, Body FROM otel_logs WHERE SeverityNumber >= 17 ORDER BY Timestamp DESC LIMIT 1" --format json
-everr telemetry query "SELECT Timestamp, SpanName, Duration, StatusCode, StatusMessage FROM otel_traces WHERE TraceId = '<id>' ORDER BY Timestamp ASC"
+everr local query "SELECT Timestamp, TraceId, ServiceName, SeverityText, Body FROM otel_logs WHERE SeverityNumber >= 17 ORDER BY Timestamp DESC LIMIT 1" --format json
+everr local query "SELECT Timestamp, SpanName, Duration, StatusCode, StatusMessage FROM otel_traces WHERE TraceId = '<id>' ORDER BY Timestamp ASC"
 ```
 
 ## Everr skills

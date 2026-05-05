@@ -752,15 +752,15 @@ function CodeAssistantViz() {
           report any failing workflow/job details.
         </p>
         <p className="text-fd-muted-foreground">
-          Background terminal finished with everr status
+          Background terminal finished with everr ci status
         </p>
         <p>
-          CI is currently failing. `everr status` already returned the failing
-          step and log arguments, so I&apos;m pulling that step&apos;s logs
-          directly.
+          CI is currently failing. `everr ci status` already returned the
+          failing step and log arguments, so I&apos;m pulling that step&apos;s
+          logs directly.
         </p>
         <p className="truncate text-fd-muted-foreground">
-          Background terminal finished with everr runs logs --trace-id
+          Background terminal finished with everr ci logs
           c929f40ec0632c976134b35d0b87699a --job-name "E2E tests" --step-number
           12
         </p>

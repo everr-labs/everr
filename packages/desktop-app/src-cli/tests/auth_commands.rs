@@ -9,7 +9,7 @@ fn auth_login_rejects_removed_token_flag() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["login", "--token", "token-123"])
+        .args(["cloud", "login", "--token", "token-123"])
         .assert()
         .failure()
         .stderr(contains("unexpected argument '--token'"));
@@ -21,7 +21,7 @@ fn auth_logout_removes_existing_session() {
     env.write_session("https://app.everr.dev", "token-123");
 
     env.command()
-        .args(["logout"])
+        .args(["cloud", "logout"])
         .assert()
         .success()
         .stdout(contains("Logged out."));
@@ -34,7 +34,7 @@ fn auth_logout_without_session_is_idempotent() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["logout"])
+        .args(["cloud", "logout"])
         .assert()
         .success()
         .stdout(contains("No active session."));
@@ -46,10 +46,10 @@ fn mismatched_saved_session_is_rejected_without_clearing() {
     env.write_session("https://app.everr.dev", "token-123");
 
     env.command()
-        .args(["status"])
+        .args(["ci", "status"])
         .assert()
         .failure()
-        .stderr(contains("no active session; run `everr login`"));
+        .stderr(contains("no active session; run `everr cloud login`"));
 
     assert!(env.session_path().exists());
 }
@@ -73,11 +73,11 @@ fn expired_session_prompts_reauthentication_without_clearing_saved_session() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["runs"])
+        .args(["ci", "runs"])
         .assert()
         .failure()
         .stderr(contains(
-            "Session expired. Run `everr login` to re-authenticate.",
+            "Session expired. Run `everr cloud login` to re-authenticate.",
         ));
 
     mock.assert();

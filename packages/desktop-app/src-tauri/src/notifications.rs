@@ -598,9 +598,7 @@ fn notification_window_is_visible(window: &WebviewWindow) -> Result<bool> {
     #[cfg(target_os = "macos")]
     {
         return with_notification_native_objects(window, |_, _| {
-            Ok(notification_panel()
-                .map(|p| p.isVisible())
-                .unwrap_or(false))
+            Ok(notification_panel().map(|p| p.isVisible()).unwrap_or(false))
         });
     }
 

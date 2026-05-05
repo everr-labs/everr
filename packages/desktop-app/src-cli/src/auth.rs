@@ -97,7 +97,7 @@ pub fn resolve_auth_config() -> Result<AuthConfig> {
 }
 
 fn login_command_hint() -> String {
-    format!("{} login", command_name())
+    format!("{} cloud login", command_name())
 }
 
 fn command_name() -> String {

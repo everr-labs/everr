@@ -159,13 +159,10 @@ fn parse_iso_to_epoch_secs(s: &str) -> Option<i64> {
 /// Returns (hour, minute, second, tz_offset_seconds)
 fn parse_time_and_tz(s: &str) -> Option<(u32, u32, u32, i64)> {
     // Find timezone marker: Z, +, or - (but not the first char for negative)
-    let tz_start = s
-        .find('Z')
-        .or_else(|| s.rfind('+'))
-        .or_else(|| {
-            // Find last '-' that's a timezone marker (after position 2 to skip time digits)
-            s[2..].rfind('-').map(|i| i + 2)
-        });
+    let tz_start = s.find('Z').or_else(|| s.rfind('+')).or_else(|| {
+        // Find last '-' that's a timezone marker (after position 2 to skip time digits)
+        s[2..].rfind('-').map(|i| i + 2)
+    });
 
     let (time_part, tz_offset) = if let Some(pos) = tz_start {
         let tz_str = &s[pos..];
