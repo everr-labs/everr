@@ -480,7 +480,7 @@ function LogVolumePanel({
   onSelectRange: (range: { from: string; to: string }) => void;
 }) {
   return (
-    <section className="border-b bg-background">
+    <section className="relative z-10 border-b bg-background">
       <button
         type="button"
         className="group flex h-9 w-full items-center px-3 text-left text-xs transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
@@ -621,8 +621,11 @@ function LogHistogram({
           }
         />
         <ChartTooltip
+          cursor={false}
+          wrapperStyle={{ zIndex: 50 }}
           content={
             <ChartTooltipContent
+              className="z-50 bg-popover text-popover-foreground"
               labelFormatter={(_value, payload) =>
                 payload?.[0]?.payload?.rangeLabel
               }
