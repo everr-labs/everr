@@ -6,6 +6,7 @@ import {
   type LogExplorerRow,
   type LogFilterOptions,
   type LogHistogramBucket,
+  LogHistogramInputSchema,
   type LogLevel,
   LogsExplorerInputSchema,
   type LogsExplorerResult,
@@ -254,6 +255,7 @@ export const getLogsExplorer = createAuthenticatedServerFn({
     const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(
       data.timeRange,
     );
+    const includeHistogram = data.includeHistogram !== false;
     const whereClause = buildWhereClause(data);
     const facetWhereClause = buildWhereClause({
       ...data,
@@ -357,36 +359,38 @@ export const getLogsExplorer = createAuthenticatedServerFn({
         `,
         queryParams,
       ),
-      clickhouse.query<{
-        bucket: string;
-        total: string;
-        error: string;
-        warning: string;
-        info: string;
-        debug: string;
-        trace: string;
-        unknown: string;
-      }>(
-        `
-        SELECT
-          toStartOfInterval(TimestampTime, INTERVAL ${intervalSeconds} SECOND) AS bucket,
-          count() AS total,
-          countIf(level = 'error') AS error,
-          countIf(level = 'warning') AS warning,
-          countIf(level = 'info') AS info,
-          countIf(level = 'debug') AS debug,
-          countIf(level = 'trace') AS trace,
-          countIf(level = 'unknown') AS unknown
-        FROM (
-          SELECT TimestampTime, ${LOG_LEVEL_EXPR} AS level
-          FROM logs
-          WHERE ${whereClause}
-        )
-        GROUP BY bucket
-        ORDER BY bucket ASC
-        `,
-        queryParams,
-      ),
+      includeHistogram
+        ? clickhouse.query<{
+            bucket: string;
+            total: string;
+            error: string;
+            warning: string;
+            info: string;
+            debug: string;
+            trace: string;
+            unknown: string;
+          }>(
+            `
+            SELECT
+              toStartOfInterval(TimestampTime, INTERVAL ${intervalSeconds} SECOND) AS bucket,
+              count() AS total,
+              countIf(level = 'error') AS error,
+              countIf(level = 'warning') AS warning,
+              countIf(level = 'info') AS info,
+              countIf(level = 'debug') AS debug,
+              countIf(level = 'trace') AS trace,
+              countIf(level = 'unknown') AS unknown
+            FROM (
+              SELECT TimestampTime, ${LOG_LEVEL_EXPR} AS level
+              FROM logs
+              WHERE ${whereClause}
+            )
+            GROUP BY bucket
+            ORDER BY bucket ASC
+            `,
+            queryParams,
+          )
+        : Promise.resolve([]),
     ]);
 
     const countsRow = counts[0];
@@ -401,14 +405,69 @@ export const getLogsExplorer = createAuthenticatedServerFn({
     return {
       logs: rows.map(mapLogRow),
       totalCount: Number(countsRow?.total ?? 0),
-      histogram: fillHistogramBuckets(
-        histogram,
-        fromDate,
-        toDate,
-        intervalSeconds,
-      ),
+      histogram: includeHistogram
+        ? fillHistogramBuckets(histogram, fromDate, toDate, intervalSeconds)
+        : [],
       levelCounts,
     } satisfies LogsExplorerResult;
+  });
+
+export const getLogsHistogram = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(LogHistogramInputSchema)
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(
+      data.timeRange,
+    );
+    const whereClause = buildWhereClause(data);
+    const intervalSeconds = bucketSeconds(
+      fromDate,
+      toDate,
+      data.histogramBuckets,
+    );
+    const queryParams = {
+      fromTime: fromISO,
+      toTime: toISO,
+      query: data.query,
+      levels: data.levels,
+      services: data.services,
+      repos: data.repos,
+      traceId: data.traceId,
+    };
+
+    const histogram = await clickhouse.query<{
+      bucket: string;
+      total: string;
+      error: string;
+      warning: string;
+      info: string;
+      debug: string;
+      trace: string;
+      unknown: string;
+    }>(
+      `
+      SELECT
+        toStartOfInterval(TimestampTime, INTERVAL ${intervalSeconds} SECOND) AS bucket,
+        count() AS total,
+        countIf(level = 'error') AS error,
+        countIf(level = 'warning') AS warning,
+        countIf(level = 'info') AS info,
+        countIf(level = 'debug') AS debug,
+        countIf(level = 'trace') AS trace,
+        countIf(level = 'unknown') AS unknown
+      FROM (
+        SELECT TimestampTime, ${LOG_LEVEL_EXPR} AS level
+        FROM logs
+        WHERE ${whereClause}
+      )
+      GROUP BY bucket
+      ORDER BY bucket ASC
+      `,
+      queryParams,
+    );
+
+    return fillHistogramBuckets(histogram, fromDate, toDate, intervalSeconds);
   });
 
 export const getLogFilterOptions = createAuthenticatedServerFn({

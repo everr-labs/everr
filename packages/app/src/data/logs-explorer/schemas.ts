@@ -23,9 +23,22 @@ export const LogsExplorerInputSchema = z.object({
   offset: z.number().int().min(0).default(0),
   histogramBuckets: z.number().int().min(12).max(240).default(80),
   includeSummary: z.boolean().default(true),
+  includeHistogram: z.boolean().default(true),
 });
 
 export type LogsExplorerInput = z.infer<typeof LogsExplorerInputSchema>;
+
+export const LogHistogramInputSchema = LogsExplorerInputSchema.pick({
+  timeRange: true,
+  query: true,
+  levels: true,
+  services: true,
+  repos: true,
+  traceId: true,
+  histogramBuckets: true,
+});
+
+export type LogHistogramInput = z.infer<typeof LogHistogramInputSchema>;
 
 export interface LogExplorerRow {
   id: string;

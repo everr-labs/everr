@@ -5,7 +5,11 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { query } from "@/lib/clickhouse";
-import { getLogFilterOptions, getLogsExplorer } from "./server";
+import {
+  getLogFilterOptions,
+  getLogsExplorer,
+  getLogsHistogram,
+} from "./server";
 
 const mockedQuery = vi.mocked(query);
 
@@ -172,6 +176,64 @@ describe("getLogsExplorer", () => {
     expect(result.totalCount).toBe(0);
     expect(result.histogram).toEqual([]);
   });
+
+  it("can fetch summary counts without the histogram query", async () => {
+    mockedQuery
+      .mockResolvedValueOnce([
+        {
+          timestamp: "2026-03-09 12:00:01",
+          serviceName: "api",
+          level: "warning",
+          severityText: "WARN",
+          severityNumber: "13",
+          body: "slow response",
+          traceId: "trace-3",
+          spanId: "span-3",
+          repo: "",
+          branch: "",
+          workflowName: "",
+          runId: "",
+          jobId: "",
+          jobName: "",
+          stepNumber: "",
+        },
+      ])
+      .mockResolvedValueOnce([{ total: "9" }])
+      .mockResolvedValueOnce([
+        {
+          error: "0",
+          warning: "9",
+          info: "0",
+          debug: "0",
+          trace: "0",
+          unknown: "0",
+        },
+      ]);
+
+    const result = await getLogsExplorer({
+      data: {
+        timeRange: {
+          from: "2026-03-09T11:00:00.000Z",
+          to: "2026-03-09T13:00:00.000Z",
+        },
+        levels: [],
+        services: [],
+        repos: [],
+        limit: 200,
+        offset: 0,
+        includeHistogram: false,
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(3);
+    for (const call of mockedQuery.mock.calls) {
+      expect(call[0]).not.toContain("toStartOfInterval");
+    }
+    expect(result.logs).toHaveLength(1);
+    expect(result.totalCount).toBe(9);
+    expect(result.levelCounts.warning).toBe(9);
+    expect(result.histogram).toEqual([]);
+  });
 });
 
 describe("getLogFilterOptions", () => {
@@ -199,6 +261,57 @@ describe("getLogFilterOptions", () => {
     expect(result).toEqual({
       services: ["github-actions"],
       repos: ["everr-labs/everr"],
+    });
+  });
+});
+
+describe("getLogsHistogram", () => {
+  it("fetches only log volume buckets", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        bucket: "2026-03-09 12:00:00",
+        total: "3",
+        error: "1",
+        warning: "1",
+        info: "1",
+        debug: "0",
+        trace: "0",
+        unknown: "0",
+      },
+    ]);
+
+    const result = await getLogsHistogram({
+      data: {
+        timeRange: {
+          from: "2026-03-09T11:00:00.000Z",
+          to: "2026-03-09T13:00:00.000Z",
+        },
+        query: "timeout",
+        levels: ["error", "warning"],
+        services: ["github-actions"],
+        repos: ["everr-labs/everr"],
+        traceId: "trace-1",
+        histogramBuckets: 24,
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    expect(sql).toContain("toStartOfInterval");
+    expect(sql).toContain("INTERVAL 300 SECOND");
+    expect(sql).toContain("TimestampTime >=");
+    expect(sql).toContain("positionCaseInsensitive(Body, {query:String}) > 0");
+    expect(sql).toContain("IN {levels:Array(String)}");
+    expect(sql).not.toContain("LIMIT {limit:UInt32}");
+    expect(sql).not.toContain("PREWHERE");
+    expect(sql).not.toContain("SQL_everr_tenant_id");
+    expect(result.find((bucket) => bucket.total === 3)).toMatchObject({
+      timestamp: "2026-03-09T12:00:00.000Z",
+      endTimestamp: "2026-03-09T12:05:00.000Z",
+      total: 3,
+      error: 1,
+      warning: 1,
+      info: 1,
     });
   });
 });
