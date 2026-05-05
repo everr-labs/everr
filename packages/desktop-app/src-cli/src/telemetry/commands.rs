@@ -14,18 +14,38 @@ pub async fn run(args: TelemetryArgs) -> Result<()> {
         TelemetrySubcommand::Query(q) => tokio::task::spawn_blocking(move || run_query(q))
             .await
             .context("telemetry query task failed")?,
+        TelemetrySubcommand::Status => run_status().await,
         TelemetrySubcommand::Endpoint => run_endpoint(),
-        TelemetrySubcommand::AiInstructions => run_ai_instructions(),
     }
+}
+
+async fn run_status() -> Result<()> {
+    let health_endpoint = format!(
+        "{}/",
+        everr_core::build::healthcheck_origin().trim_end_matches('/')
+    );
+    let running = everr_core::collector::wait_healthcheck(
+        &health_endpoint,
+        std::time::Duration::from_secs(1),
+    )
+    .await;
+
+    if running {
+        println!("collector: running");
+        println!("otlp: {}", everr_core::build::otlp_http_origin());
+        println!("sql: {}", everr_core::build::sql_http_origin());
+        return Ok(());
+    }
+
+    println!("collector: stopped");
+    eprintln!(
+        "telemetry collector isn't running - run `everr telemetry start` or open Everr Desktop"
+    );
+    std::process::exit(2);
 }
 
 fn run_endpoint() -> Result<()> {
     println!("{}", everr_core::build::otlp_http_origin());
-    Ok(())
-}
-
-fn run_ai_instructions() -> Result<()> {
-    print!("{}", everr_core::assistant::render_telemetry_ai_instructions());
     Ok(())
 }
 

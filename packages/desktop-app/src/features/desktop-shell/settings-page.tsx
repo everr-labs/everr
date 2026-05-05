@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { invokeCommand } from "@/lib/tauri";
-import { AssistantsSection } from "../assistants/assistants";
 import { AuthSettingsSection } from "../auth/auth";
 import { NotificationEmailsSection } from "../notifications/notification-emails-section";
 import { SettingsSection } from "./ui";
@@ -44,7 +43,7 @@ export function SettingsPage() {
             Settings
           </h1>
           <p className="m-0 max-w-[52ch] text-[0.92rem] leading-6 text-[var(--settings-text-muted)]">
-            Manage your desktop connection and assistant integrations.
+            Manage your desktop connection, notifications, and release info.
           </p>
         </div>
       </div>
@@ -52,7 +51,6 @@ export function SettingsPage() {
         <div className="pt-0">
           <AuthSettingsSection />
         </div>
-        <AssistantsSection />
         <NotificationEmailsSection />
         <BuildInfoSection />
       </div>

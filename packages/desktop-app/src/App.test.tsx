@@ -19,11 +19,8 @@ import {
 import { createQueryClient } from "./lib/query-client";
 import { router } from "./router";
 
-const SETTINGS_CHANGED_EVENT = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT = "everr://notification-changed";
 const NOTIFICATION_AUTO_DISMISS_MS = 40_000;
-
-type AssistantKind = "codex" | "claude" | "cursor";
 
 type AuthStatus = {
   status: "signed_in" | "signed_out";
@@ -42,17 +39,6 @@ type SignInResponse =
   | PendingSignIn
   | { status: "signed_in"; session_path: string }
   | { status: "denied" | "expired" };
-
-type AssistantStatus = {
-  assistant: AssistantKind;
-  detected: boolean;
-  configured: boolean;
-  path: string;
-};
-
-type AssistantSetup = {
-  assistant_statuses: AssistantStatus[];
-};
 
 type FailedJobInfo = {
   jobName: string;
@@ -95,10 +81,8 @@ type MainCommand =
   | "poll_sign_in"
   | "open_sign_in_browser"
   | "sign_out"
-  | "get_assistant_setup"
   | "get_notification_emails"
   | "set_notification_emails"
-  | "configure_assistants"
   | "reset_dev_onboarding"
   | "trigger_test_notification"
   | "get_build_info"
@@ -112,8 +96,6 @@ type MainCommand =
 type RenderMainOptions = {
   signedIn?: boolean;
   notificationEmails?: string[];
-  configuredAssistants?: AssistantKind[];
-  assistantStatuses?: AssistantStatus[];
   testNotification?: TestNotificationResponse;
   pendingSignIn?: PendingSignIn | null;
   runs?: RunListItem[];
@@ -132,18 +114,6 @@ function renderWithProviders(
   );
 
   return queryClient;
-}
-
-function createDeferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-
-  const promise = new Promise<T>((innerResolve, innerReject) => {
-    resolve = innerResolve;
-    reject = innerReject;
-  });
-
-  return { promise, resolve, reject };
 }
 
 function createNotification(
@@ -178,54 +148,11 @@ function createRun(overrides: Partial<RunListItem> = {}): RunListItem {
   };
 }
 
-function defaultAssistantStatuses(
-  configuredAssistants: AssistantKind[] = [],
-): AssistantStatus[] {
-  return [
-    {
-      assistant: "codex",
-      detected: true,
-      configured: configuredAssistants.includes("codex"),
-      path: "/tmp/.codex/AGENTS.md",
-    },
-    {
-      assistant: "claude",
-      detected: false,
-      configured: configuredAssistants.includes("claude"),
-      path: "/tmp/.claude/CLAUDE.md",
-    },
-    {
-      assistant: "cursor",
-      detected: true,
-      configured: configuredAssistants.includes("cursor"),
-      path: "/tmp/.cursor/rules/everr.mdc",
-    },
-  ];
-}
-
-function createAssistantSetup({
-  configuredAssistants = [],
-  assistantStatuses = defaultAssistantStatuses(configuredAssistants),
-}: {
-  configuredAssistants?: AssistantKind[];
-  assistantStatuses?: AssistantStatus[];
-} = {}): AssistantSetup {
-  return {
-    assistant_statuses: assistantStatuses,
-  };
-}
-
 function renderMainApp(options: RenderMainOptions = {}) {
   let authStatus: AuthStatus = {
     status: options.signedIn === false ? "signed_out" : "signed_in",
     session_path: "/tmp/everr/session.json",
   };
-  let assistantSetup = createAssistantSetup({
-    configuredAssistants: options.configuredAssistants ?? [],
-    assistantStatuses:
-      options.assistantStatuses ??
-      defaultAssistantStatuses(options.configuredAssistants ?? []),
-  });
   let notificationEmails = options.notificationEmails ?? ["user@example.com"];
   let pendingSignIn: PendingSignIn | null = options.pendingSignIn ?? null;
   const openSignInBrowserSpy = vi.fn(() => null);
@@ -256,7 +183,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
   mockIPC(
     (cmd, args) => {
       const payload = (args ?? {}) as {
-        assistants?: AssistantKind[];
         enabled?: boolean;
         emails?: string[];
       };
@@ -294,26 +220,11 @@ function renderMainApp(options: RenderMainOptions = {}) {
           };
           pendingSignIn = null;
           return authStatus;
-        case "get_assistant_setup":
-          return assistantSetup;
         case "get_notification_emails":
           return notificationEmails;
         case "set_notification_emails":
           notificationEmails = payload.emails ?? [];
           return null;
-        case "configure_assistants": {
-          const selected = payload.assistants ?? [];
-          assistantSetup = {
-            ...assistantSetup,
-            assistant_statuses: assistantSetup.assistant_statuses.map(
-              (status) => ({
-                ...status,
-                configured: selected.includes(status.assistant),
-              }),
-            ),
-          };
-          return assistantSetup;
-        }
         case "reset_dev_onboarding":
           return resetDevOnboardingSpy();
         case "trigger_test_notification":
@@ -351,9 +262,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
     triggerTestNotificationSpy,
     markAllRunsSeenSpy,
     markRunSeenSpy,
-    setAssistantSetup(next: AssistantSetup) {
-      assistantSetup = next;
-    },
     setRuns(next: RunListItem[]) {
       runs = next;
     },
@@ -493,31 +401,6 @@ describe("desktop window", () => {
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
   });
 
-  it("loads settings sections independently", async () => {
-    const assistantSetupDeferred = createDeferred<AssistantSetup>();
-
-    renderMainApp({
-      commandOverrides: {
-        get_assistant_setup: () => assistantSetupDeferred.promise,
-      },
-    });
-
-    await act(async () => {
-      await router.navigate({ to: "/settings" });
-    });
-
-    expect(
-      await screen.findByRole("heading", { name: "Settings" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Loading assistant integrations..."),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
-
-    assistantSetupDeferred.resolve(createAssistantSetup());
-    await screen.findByRole("button", { name: "Save integrations" });
-  });
-
   it("renders the sign-in screen when not authenticated", async () => {
     renderMainApp({
       signedIn: false,
@@ -531,52 +414,6 @@ describe("desktop window", () => {
       await screen.findByText("Authenticate your Everr account"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-  });
-
-  it("preserves assistant draft across invalidation and resets after save", async () => {
-    const harness = renderMainApp({
-      configuredAssistants: ["codex"],
-      assistantStatuses: defaultAssistantStatuses(["codex"]),
-    });
-
-    await act(async () => {
-      await router.navigate({ to: "/settings" });
-    });
-
-    const claudeCheckbox = await screen.findByRole("checkbox", {
-      name: /claude/i,
-    });
-
-    fireEvent.click(claudeCheckbox);
-    expect(claudeCheckbox).toBeChecked();
-
-    await act(async () => {
-      await emit(SETTINGS_CHANGED_EVENT);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(screen.getByRole("checkbox", { name: /claude/i })).toBeChecked();
-
-    fireEvent.click(screen.getByRole("button", { name: "Save integrations" }));
-    await waitFor(() => {
-      expect(screen.getByRole("checkbox", { name: /claude/i })).toBeChecked();
-    });
-
-    harness.setAssistantSetup(
-      createAssistantSetup({
-        configuredAssistants: ["codex"],
-        assistantStatuses: defaultAssistantStatuses(["codex"]),
-      }),
-    );
-    await act(async () => {
-      await emit(SETTINGS_CHANGED_EVENT);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(screen.getByRole("checkbox", { name: /codex/i })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: /claude/i })).not.toBeChecked();
   });
 
   it("triggers a test notification from the settings view", async () => {

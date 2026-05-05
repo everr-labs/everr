@@ -1,10 +1,10 @@
 mod api;
-mod assistant;
 mod auth;
 mod cli;
 mod core;
 mod init;
 mod onboarding;
+mod skills;
 mod telemetry;
 mod uninstall;
 mod wrap;
@@ -21,8 +21,6 @@ async fn main() -> Result<()> {
         Commands::Uninstall => uninstall::run_uninstall()?,
         Commands::Login(login) => auth::login(login).await?,
         Commands::Logout => auth::logout()?,
-        Commands::SetupAssistant => assistant::print_repo_instructions(),
-        Commands::AiInstructions => assistant::print_ai_instructions(),
         Commands::Status(args) => core::status(args).await?,
         Commands::Grep(args) => core::grep(args).await?,
         Commands::TestHistory(args) => core::test_history(args).await?,
@@ -37,6 +35,7 @@ async fn main() -> Result<()> {
         Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,
         Commands::Telemetry(args) => telemetry::commands::run(args).await?,
+        Commands::Skills(args) => skills::run(args)?,
     }
 
     Ok(())

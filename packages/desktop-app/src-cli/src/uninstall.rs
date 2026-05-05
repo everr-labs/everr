@@ -4,7 +4,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::assistant;
 use crate::auth;
 
 pub fn run_uninstall() -> Result<()> {
@@ -13,7 +12,6 @@ pub fn run_uninstall() -> Result<()> {
     print_uninstall_effects(&cli_path);
     wait_for_enter()?;
 
-    assistant::remove_managed_prompts()?;
     auth::state_store().wipe()?;
 
     println!();
@@ -25,7 +23,6 @@ pub fn run_uninstall() -> Result<()> {
 
 fn print_uninstall_effects(cli_path: &Path) {
     println!("The uninstall command will:");
-    println!("- Removes Everr-managed assistant instructions from Codex/Claude/Cursor files.");
     println!("- Removes all local Everr state (session, settings, notification emails).");
     println!(
         "- Does not remove the CLI binary automatically: {}",

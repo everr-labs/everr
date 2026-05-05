@@ -5,12 +5,13 @@ use std::process::Command as ProcessCommand;
 
 use anyhow::{Context, Result, bail};
 use everr_core::api::ApiClient;
-use everr_core::assistant::{self as core_assistant, AssistantKind};
 use everr_core::auth::login_with_prompt;
 use everr_core::build;
+use everr_core::skills::{self as core_skills, InstallMode, SkillProvider, SkillScope};
 use everr_core::state::Session;
 
 use crate::auth;
+use crate::skills as cli_skills;
 
 const LOGO_LINES: &[&str] = &["⢠⡾⢻⣦⡀", "⣿⠁⣾⣉⣻⣦⡀", "⣿ ⣿⣉⣽⢿⡿⣦⡀", "⠘⣧⡈⠻⣧⣼⣧⡼⠿⣦", " ⠈⠛⠶⣤⣤⣤⣴⠾⠋"];
 const WORDMARK_LINES: &[&str] = &[
@@ -23,6 +24,7 @@ const WORDMARK_LINES: &[&str] = &[
 const LOGO_COLUMN_WIDTH: usize = 10;
 const BANNER_COLOR: &str = "\x1b[38;2;223;255;0m";
 const ANSI_RESET: &str = "\x1b[0m";
+const INSTALL_SKILLS_DEFAULT: bool = true;
 
 pub async fn run() -> Result<()> {
     println!();
@@ -34,7 +36,7 @@ pub async fn run() -> Result<()> {
     step_rename_org(&session).await?;
     step_import_repos(&session).await?;
     step_configure_notification_emails(&session).await?;
-    let assistants_configured = step_configure_assistants()?;
+    let skills_installed = step_install_skills()?;
     let desktop_installed = step_install_desktop_app().await?;
 
     auth::state_store().update_state(|state| {
@@ -43,7 +45,7 @@ pub async fn run() -> Result<()> {
             .mark_setup_complete(build::default_api_base_url());
     })?;
 
-    cliclack::outro(outro_message(assistants_configured, desktop_installed))?;
+    cliclack::outro(outro_message(skills_installed, desktop_installed))?;
     Ok(())
 }
 
@@ -136,7 +138,7 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
     match client.start_import_repos(&to_import).await {
         Ok(_) => cliclack::log::remark(
-            "Import started — your data will appear gradually on the CLI results.",
+            "Import started - your data will appear gradually on the CLI results.",
         )?,
         Err(_) => cliclack::log::warning("Could not start import, skipping.")?,
     }
@@ -238,82 +240,111 @@ async fn step_configure_notification_emails(session: &Session) -> Result<()> {
     Ok(())
 }
 
-fn step_configure_assistants() -> Result<bool> {
+fn step_install_skills() -> Result<bool> {
     let interactive = std::io::stdin().is_terminal();
-    let statuses = core_assistant::assistant_statuses()?;
-
-    let all_configured = statuses.iter().all(|s| !s.detected || s.configured);
-
-    if all_configured && statuses.iter().any(|s| s.configured) {
-        let configured_list: Vec<String> = statuses
-            .iter()
-            .filter(|s| s.configured)
-            .map(|s| format!("{} ({})", display_name(s.assistant), s.path))
-            .collect();
-        cliclack::log::success(format!(
-            "Assistants already configured:\n{}",
-            configured_list.join("\n")
-        ))?;
-
-        if !interactive {
-            return Ok(true);
-        }
-
-        let reconfigure: bool = cliclack::confirm("Re-configure assistants?")
-            .initial_value(false)
-            .interact()?;
-
-        if !reconfigure {
-            return Ok(true);
-        }
-    }
+    let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
+    let provider_statuses = core_skills::provider_statuses(&home_dir);
 
     if interactive {
         cliclack::note(
-            "Agent integrations",
-            "Each selected assistant gets a small instruction block added to its global context file.",
+            "Everr skills",
+            "Everr can install skills that teach compatible agents how to debug CI and local telemetry.",
         )?;
+
+        let install: bool = cliclack::confirm("Install Everr skills?")
+            .initial_value(INSTALL_SKILLS_DEFAULT)
+            .interact()?;
+        if !install {
+            cliclack::log::remark("Skipping Everr skills.")?;
+            return Ok(false);
+        }
     }
 
-    let selected_assistants: Vec<AssistantKind> = if interactive {
-        let mut prompt = cliclack::multiselect("Select assistants to configure");
-        for (i, s) in statuses.iter().enumerate() {
-            let label = display_name(s.assistant);
-            let hint = &s.path;
+    let scope = if interactive {
+        let global: bool = cliclack::confirm("Install skills globally instead of in this project?")
+            .initial_value(false)
+            .interact()?;
+        if global {
+            SkillScope::Global
+        } else {
+            SkillScope::Project
+        }
+    } else {
+        SkillScope::Project
+    };
+
+    let selected_providers: Vec<SkillProvider> = if interactive {
+        let mut prompt = cliclack::multiselect("Select providers");
+        for (i, status) in provider_statuses.iter().enumerate() {
+            let label = status.provider.display_name();
+            let hint = if status.detected {
+                "detected"
+            } else {
+                "not detected"
+            };
             prompt = prompt.item(i, label, hint);
         }
-        prompt = prompt.initial_values(
-            statuses
-                .iter()
-                .enumerate()
-                .filter(|(_, s)| s.detected)
-                .map(|(i, _)| i)
-                .collect(),
-        );
+        let mut defaults: Vec<usize> = provider_statuses
+            .iter()
+            .enumerate()
+            .filter(|(_, status)| status.detected)
+            .map(|(i, _)| i)
+            .collect();
+        if defaults.is_empty() {
+            defaults = (0..provider_statuses.len()).collect();
+        }
+        prompt = prompt.initial_values(defaults);
 
         let selected_indices: Vec<usize> = prompt.interact()?;
         selected_indices
             .iter()
-            .map(|&i| statuses[i].assistant)
+            .map(|&i| provider_statuses[i].provider)
             .collect()
     } else {
-        statuses
+        let detected: Vec<SkillProvider> = provider_statuses
             .iter()
-            .filter(|s| s.detected)
-            .map(|s| s.assistant)
-            .collect()
+            .filter(|status| status.detected)
+            .map(|status| status.provider)
+            .collect();
+        if detected.is_empty() {
+            SkillProvider::ALL.to_vec()
+        } else {
+            detected
+        }
     };
 
-    if selected_assistants.is_empty() {
-        cliclack::log::remark("No assistants selected.")?;
+    if selected_providers.is_empty() {
+        cliclack::log::remark("No providers selected.")?;
         return Ok(false);
     }
 
-    core_assistant::sync_discovery_assistants(&selected_assistants, build::command_name())?;
+    let mode = if interactive {
+        let copy: bool = cliclack::confirm("Copy skills instead of symlinking provider folders?")
+            .initial_value(false)
+            .interact()?;
+        if copy {
+            InstallMode::Copy
+        } else {
+            InstallMode::Symlink
+        }
+    } else {
+        InstallMode::Symlink
+    };
 
-    cliclack::log::success("Assistants configured")?;
+    cli_skills::install_all_for_setup(scope, selected_providers, mode, false)?;
+    cliclack::log::success("Everr skills installed")?;
 
     Ok(true)
+}
+
+fn outro_message(skills_installed: bool, desktop_installed: bool) -> &'static str {
+    if skills_installed && desktop_installed {
+        "Everr skills are installed - ask your agent about CI pipelines, failing jobs, workflow logs, or local telemetry.\nOr break something in CI - Everr will notify you with a ready-to-use fix prompt."
+    } else if skills_installed {
+        "Everr skills are installed - ask your agent about CI pipelines, failing jobs, workflow logs, or local telemetry."
+    } else {
+        "Run `everr skills install --all` in a repo to install Everr skills later."
+    }
 }
 
 async fn step_install_desktop_app() -> Result<bool> {
@@ -356,10 +387,7 @@ async fn step_install_desktop_app() -> Result<bool> {
         let spinner = cliclack::spinner();
         spinner.start("Resolving latest desktop app...");
 
-        let manifest_url = format!(
-            "{}/everr-app/latest.json",
-            build::default_docs_base_url()
-        );
+        let manifest_url = format!("{}/everr-app/latest.json", build::default_docs_base_url());
         let manifest: serde_json::Value = reqwest::get(&manifest_url)
             .await
             .context("failed to fetch latest.json")?
@@ -425,24 +453,6 @@ async fn step_install_desktop_app() -> Result<bool> {
     Ok(true)
 }
 
-fn outro_message(assistants_configured: bool, desktop_installed: bool) -> &'static str {
-    if assistants_configured && desktop_installed {
-        "Your AI assistant is set up for Everr — ask it about CI pipelines, failing jobs, or workflow logs.\nOr break something in CI — Everr will notify you with a ready-to-use fix prompt."
-    } else if assistants_configured {
-        "Your AI assistant is set up for Everr — ask it about CI pipelines, failing jobs, or workflow logs."
-    } else {
-        "Run `everr init` in a repo to setup the agents instructions."
-    }
-}
-
-fn display_name(kind: AssistantKind) -> &'static str {
-    match kind {
-        AssistantKind::Claude => "Claude Code",
-        AssistantKind::Codex => "Codex",
-        AssistantKind::Cursor => "Cursor",
-    }
-}
-
 fn print_banner() {
     let banner = render_banner();
     if should_use_color() {
@@ -494,22 +504,27 @@ mod tests {
     }
 
     #[test]
-    fn outro_message_with_assistants_and_desktop() {
+    fn outro_message_with_skills_and_desktop() {
         let msg = super::outro_message(true, true);
-        assert!(msg.contains("AI assistant"));
+        assert!(msg.contains("Everr skills"));
         assert!(msg.contains("break something in CI"));
     }
 
     #[test]
-    fn outro_message_with_assistants_no_desktop() {
+    fn outro_message_with_skills_no_desktop() {
         let msg = super::outro_message(true, false);
-        assert!(msg.contains("AI assistant"));
+        assert!(msg.contains("Everr skills"));
         assert!(!msg.contains("break something in CI"));
     }
 
     #[test]
-    fn outro_message_without_assistants_configured() {
-        assert!(super::outro_message(false, false).contains("everr init"));
+    fn outro_message_without_skills_installed() {
+        assert!(super::outro_message(false, false).contains("everr skills install --all"));
+    }
+
+    #[test]
+    fn setup_defaults_to_installing_skills() {
+        assert!(super::INSTALL_SKILLS_DEFAULT);
     }
 
     #[test]

@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use everr_core::api::FailureNotification;
-use everr_core::assistant::AssistantStatus;
 use everr_core::auth::{AuthConfig, DeviceAuthorization};
 use everr_core::build;
 use everr_core::notifier::FailureTracker;
@@ -31,13 +30,12 @@ mod tray;
 mod tests;
 
 use commands::{
-    configure_assistants, copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt,
-    dismiss_active_notification, get_active_notification, get_assistant_setup, get_auth_status,
-    get_build_info, get_notification_emails, get_pending_sign_in, get_runs_list,
-    get_unseen_trace_ids, get_user_profile, get_wizard_status, mark_all_runs_seen, mark_run_seen,
-    open_notification_target, open_run_in_browser, open_sign_in_browser, poll_sign_in,
-    reset_dev_onboarding, set_notification_emails, sign_out, start_sign_in,
-    trigger_test_notification,
+    copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt, dismiss_active_notification,
+    get_active_notification, get_auth_status, get_build_info, get_notification_emails,
+    get_pending_sign_in, get_runs_list, get_unseen_trace_ids, get_user_profile, get_wizard_status,
+    mark_all_runs_seen, mark_run_seen, open_notification_target, open_run_in_browser,
+    open_sign_in_browser, poll_sign_in, reset_dev_onboarding, set_notification_emails, sign_out,
+    start_sign_in, trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -130,12 +128,6 @@ impl From<PendingAuthResponse> for SignInResponse {
             poll_interval_seconds: value.poll_interval_seconds,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "snake_case")]
-struct AssistantSetupResponse {
-    assistant_statuses: Vec<AssistantStatus>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -273,7 +265,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_auth_status,
-            get_assistant_setup,
             get_wizard_status,
             get_active_notification,
             start_sign_in,
@@ -282,7 +273,6 @@ pub fn run() {
             open_sign_in_browser,
             sign_out,
             reset_dev_onboarding,
-            configure_assistants,
             dismiss_active_notification,
             open_notification_target,
             copy_notification_auto_fix_prompt,

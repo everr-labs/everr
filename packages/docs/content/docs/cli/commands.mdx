@@ -10,7 +10,12 @@ description: Reference for all Everr CLI commands.
 
 ## Setup
 
-- `everr init` — import runs and write assistant instructions for the current repository
+- `everr setup` — run the guided setup wizard, including optional skills installation
+- `everr init` — import runs for the current repository
+- `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]` — list bundled Everr skills
+- `everr skills install [SKILL]... [--all] [--project|--global] [--agent ...] [--copy] [--force] [--dry-run]` — install bundled skills; omitting `SKILL` in a terminal opens an interactive installer
+- `everr skills update [SKILL]... [--project|--global] [--agent ...] [--dry-run]` — update installed bundled skills
+- `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent ...] [--yes] [--dry-run]` — uninstall bundled skills
 
 ## CI/CD Status
 
@@ -49,6 +54,7 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
 ## Local Telemetry
 
 - `everr telemetry start` — start the local OpenTelemetry collector
+- `everr telemetry status` — check whether the local OpenTelemetry collector is running
 - `everr telemetry query "<SQL>"` — query local telemetry with read-only SQL
 - `everr telemetry endpoint` — print the current local collector URL
 - `everr wrap -- <command>` — run a command normally and mirror stdout/stderr into local telemetry
@@ -65,5 +71,4 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
 
 ## Other
 
-- `everr ai-instructions` — print the full CLI usage reference for AI assistants
 - `everr uninstall` — remove all config files, log out, and print the command to remove the CLI binary

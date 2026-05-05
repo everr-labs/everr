@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use everr_core::api::{FailedJobInfo, FailureNotification};
-use everr_core::assistant::{AssistantKind, AssistantStatus};
 use everr_core::state::{AppSettings, AppStateStore, WizardState};
 use everr_core::state_watcher::StateWatcher;
 use tempfile::tempdir;
@@ -13,7 +12,7 @@ use crate::notifications::{active_notification_auto_fix_prompt, reset_notifier_r
 use crate::notifications::{
     notification_hover_uses_native_panel_geometry, notification_window_uses_native_panel,
 };
-use crate::settings::{build_assistant_setup_response, build_wizard_status_response};
+use crate::settings::build_wizard_status_response;
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
     NotificationQueue, NotifierState, RuntimeState, APP_NAME, DEV_APP_NAME,
@@ -208,36 +207,6 @@ fn notification_window_uses_native_panel_on_macos() {
 #[test]
 fn notification_hover_uses_native_panel_geometry_on_macos() {
     assert!(notification_hover_uses_native_panel_geometry());
-}
-
-#[test]
-fn assistant_setup_response_returns_detected_and_configured_statuses() {
-    let response = build_assistant_setup_response(vec![
-        AssistantStatus {
-            assistant: AssistantKind::Codex,
-            detected: true,
-            configured: false,
-            path: "/tmp/.codex/AGENTS.md".to_string(),
-        },
-        AssistantStatus {
-            assistant: AssistantKind::Claude,
-            detected: true,
-            configured: true,
-            path: "/tmp/.claude/CLAUDE.md".to_string(),
-        },
-    ]);
-
-    assert_eq!(response.assistant_statuses.len(), 2);
-    assert_eq!(
-        response.assistant_statuses[0].assistant,
-        AssistantKind::Codex
-    );
-    assert!(!response.assistant_statuses[0].configured);
-    assert_eq!(
-        response.assistant_statuses[1].assistant,
-        AssistantKind::Claude
-    );
-    assert!(response.assistant_statuses[1].configured);
 }
 
 #[test]

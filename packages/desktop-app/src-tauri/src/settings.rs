@@ -1,25 +1,12 @@
 use anyhow::{anyhow, Result};
-use everr_core::assistant::{self, AssistantStatus};
 use everr_core::state::{AppSettings, AppState, WizardState};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::auth::{auth_status_response, clear_pending_auth};
 use crate::{
-    current_base_url, AssistantSetupResponse, DevResetResponse, RuntimeState, WizardStatusResponse,
-    AUTH_CHANGED_EVENT, SETTINGS_CHANGED_EVENT,
+    current_base_url, DevResetResponse, RuntimeState, WizardStatusResponse, AUTH_CHANGED_EVENT,
+    SETTINGS_CHANGED_EVENT,
 };
-
-pub(crate) fn assistant_setup_response(_state: &RuntimeState) -> Result<AssistantSetupResponse> {
-    Ok(build_assistant_setup_response(
-        assistant::assistant_statuses()?,
-    ))
-}
-
-pub(crate) fn build_assistant_setup_response(
-    assistant_statuses: Vec<AssistantStatus>,
-) -> AssistantSetupResponse {
-    AssistantSetupResponse { assistant_statuses }
-}
 
 pub(crate) fn wizard_status_response(state: &RuntimeState) -> Result<WizardStatusResponse> {
     let wizard_state = current_settings(state)?.wizard_state;

@@ -2,7 +2,6 @@ use std::process::Command as ProcessCommand;
 
 use anyhow::{Context, Result, bail};
 use everr_core::api::ApiClient;
-use everr_core::assistant as core_assistant;
 use everr_core::build;
 
 use crate::auth;
@@ -50,12 +49,6 @@ pub async fn run() -> Result<()> {
                 cliclack::log::remark("Skipping import.")?;
             }
         }
-    }
-
-    // Step 4: write assistant instructions
-    let written = core_assistant::init_repo_instructions_auto(&cwd, build::command_name())?;
-    for path in &written {
-        cliclack::log::success(format!("Updated {}", path.display()))?;
     }
 
     cliclack::outro(format!("{} init complete.", build::command_name()))?;
