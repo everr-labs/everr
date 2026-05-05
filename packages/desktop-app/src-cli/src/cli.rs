@@ -124,13 +124,7 @@ pub struct SkillScopeArgs {
 }
 
 #[derive(Args, Debug, Default)]
-pub struct SkillsListArgs {
-    #[command(flatten)]
-    pub scope: SkillScopeArgs,
-    /// Provider to inspect
-    #[arg(long = "agent", value_enum)]
-    pub agents: Vec<SkillAgentArg>,
-}
+pub struct SkillsListArgs {}
 
 #[derive(Args, Debug, Default)]
 pub struct SkillsInstallArgs {

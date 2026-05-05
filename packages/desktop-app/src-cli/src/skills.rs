@@ -23,28 +23,9 @@ pub fn run(args: SkillsArgs) -> Result<()> {
     }
 }
 
-fn run_list(args: SkillsListArgs) -> Result<()> {
-    let scope = resolve_scope(&args.scope);
-    let providers = resolve_providers(&args.agents);
+fn run_list(_args: SkillsListArgs) -> Result<()> {
     let skills = bundled_skills()?;
-    let scope_label = match scope {
-        SkillScope::Project => "project",
-        SkillScope::Global => "global",
-    };
-    let provider_label = if providers.is_empty() {
-        "all providers".to_string()
-    } else {
-        providers
-            .iter()
-            .map(|provider| provider.display_name())
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
-
-    println!(
-        "{} bundled Everr skill(s) for {scope_label} scope ({provider_label}):",
-        skills.len()
-    );
+    println!("{} bundled Everr skill(s):", skills.len());
     for skill in skills {
         println!("- {} - {}", skill.name, skill.description);
     }
