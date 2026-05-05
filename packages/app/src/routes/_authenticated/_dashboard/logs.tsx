@@ -708,12 +708,25 @@ function LogStream({
       {logs.map((log, index) => {
         const rowKey = `${log.id}:${index}`;
         return (
+          // biome-ignore lint/a11y/useSemanticElements: Native buttons prevent selecting log text for copy.
           <div
             key={rowKey}
+            role="button"
+            tabIndex={0}
             className={cn(
-              "relative group grid w-full grid-cols-[86px_minmax(0,1fr)] items-start py-0.5 text-left transition-colors hover:bg-muted/50 md:grid-cols-[112px_minmax(0,1fr)]",
+              "relative group grid w-full cursor-default grid-cols-[86px_minmax(0,1fr)] items-start py-0.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 md:grid-cols-[112px_minmax(0,1fr)]",
               selectedLogKey === rowKey && "bg-muted/70 hover:bg-muted/70",
             )}
+            onClick={() => {
+              if (hasActiveTextSelection()) return;
+              onSelect(log, rowKey);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect(log, rowKey);
+              }
+            }}
           >
             <div
               className={cn(
@@ -734,18 +747,10 @@ function LogStream({
               </div>
             </div>
 
-            <div className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Open log details"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onSelect(log, rowKey)}
-              >
-                <ChevronRight />
-              </Button>
-            </div>
+            <ChevronRight
+              aria-hidden="true"
+              className="absolute top-1/2 right-2 size-3 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            />
           </div>
         );
       })}
@@ -768,6 +773,11 @@ function LogStream({
       </div>
     </div>
   );
+}
+
+function hasActiveTextSelection() {
+  const selection = window.getSelection();
+  return Boolean(selection && !selection.isCollapsed);
 }
 
 function LogInspectorPanel({
