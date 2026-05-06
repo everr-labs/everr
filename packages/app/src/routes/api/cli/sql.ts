@@ -10,7 +10,7 @@ const CLOUD_SQL_LIMITS = {
   // Query-level SETTINGS do not need app-side parsing: ClickHouse enforces
   // readonly=1 users cannot change settings at query time unless explicit
   // constraints mark a setting as changeable.
-  // https://clickhouse.com/blog/building-single-page-applications-with-clickhouse-and-http
+  // https://clickhouse.com/docs/operations/settings/permissions-for-queries#readonly
   readonly: 1,
 } as const;
 
