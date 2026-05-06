@@ -6,6 +6,7 @@ const CLOUD_SQL_LIMITS = {
   max_result_bytes: 5_000_000,
   max_result_rows: 500,
   max_rows_to_read: 50_000,
+  readonly: 1,
 } as const;
 
 function toNdjson(rows: Array<Record<string, unknown>>): string {

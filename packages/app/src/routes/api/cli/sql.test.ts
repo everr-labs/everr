@@ -56,6 +56,7 @@ describe("/api/cli/sql", () => {
         max_result_bytes: 5_000_000,
         max_result_rows: 500,
         max_rows_to_read: 50_000,
+        readonly: 1,
       },
     );
     expect(await response.text()).toBe('{"ok":1}\n');
@@ -134,6 +135,7 @@ describe("/api/cli/sql", () => {
         max_result_bytes: 5_000_000,
         max_result_rows: 500,
         max_rows_to_read: 50_000,
+        readonly: 1,
       },
     );
   });
