@@ -21,12 +21,14 @@ vi.mock("@/env", () => ({
     CLICKHOUSE_DATABASE: "default",
     CLICKHOUSE_RETENTION_USERNAME: "retention",
     CLICKHOUSE_RETENTION_PASSWORD: "retention-password",
+    CLICKHOUSE_SQL_API_USERNAME: "sql_api_user",
+    CLICKHOUSE_SQL_API_PASSWORD: "sql-api-password",
   },
 }));
 
 vi.unmock("@/lib/clickhouse");
 
-import { queryWithClickHouseSettings } from "./clickhouse";
+import { querySqlApi } from "./clickhouse";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -34,21 +36,24 @@ beforeEach(() => {
   mockQuery.mockResolvedValue({ json: mockJson });
 });
 
-describe("queryWithClickHouseSettings", () => {
-  it("does not allow clickhouseSettings to override tenant context", async () => {
-    await queryWithClickHouseSettings("SELECT 1", "org-42", {
-      max_result_rows: 500,
-      SQL_everr_tenant_id: "org-override",
-    });
+describe("querySqlApi", () => {
+  it("injects only the tenant id and forwards query params", async () => {
+    await querySqlApi("SELECT {n:UInt8}", "org-42", { n: 1 });
 
     expect(mockQuery).toHaveBeenCalledWith({
-      query: "SELECT 1",
-      query_params: undefined,
+      query: "SELECT {n:UInt8}",
+      query_params: { n: 1 },
       format: "JSONEachRow",
       clickhouse_settings: {
-        max_result_rows: 500,
         SQL_everr_tenant_id: "org-42",
       },
     });
+  });
+
+  it("rejects when tenant id is missing", async () => {
+    await expect(querySqlApi("SELECT 1", "")).rejects.toThrow(
+      /tenant context/i,
+    );
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 });
