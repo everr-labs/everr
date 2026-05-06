@@ -14,7 +14,6 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
       COLLECTOR_RW_PASSWORD: collector-dev
       APP_RO_PASSWORD: app-dev
-      APP_CLI_SQL_PASSWORD: app-cli-sql-dev
       APP_RETENTION_PASSWORD: app-retention-dev
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse
