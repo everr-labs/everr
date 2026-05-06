@@ -57,9 +57,11 @@ function HeroSection() {
         className="animate-fade-up mx-auto mt-6 max-w-2xl text-lg text-fd-muted-foreground sm:text-xl md:mt-10"
         style={{ animationDelay: "0.3s" }}
       >
-        Everr transforms CI/CD pipelines into{" "}
-        <strong className="text-fd-foreground">observable systems</strong>.
-        Detect failures, explain root causes, and resolve issues - for{" "}
+        AI makes code generation cheap.{" "}
+        <strong className="text-fd-foreground">
+          Validation is the bottleneck
+        </strong>
+        . Everr gives every code change a runtime feedback loop — for{" "}
         <strong className="text-fd-foreground">developers</strong> and{" "}
         <strong className="text-fd-foreground">AI agents</strong>.
       </p>
@@ -187,21 +189,21 @@ function ProductVisualization() {
 const PROBLEMS = [
   {
     num: "01",
-    title: "Black box pipelines",
+    title: "Telemetry stops at production",
     description:
-      "Pipeline data is fragmented across systems, unstructured, and impossible for AI agents to reason about.",
+      "Existing observability tools cover deployed systems. Local runs, tests, CI, and preview environments stay invisible.",
   },
   {
     num: "02",
-    title: "Hours lost debugging",
+    title: "Disconnected from the code",
     description:
-      "When pipelines fail, developers context-switch between dashboards, logs, and code. Teams lose hours every week.",
+      "Logs, traces, and test output exist - but none of them know which commit, PR, or branch caused them. Root cause is left to the developer.",
   },
   {
     num: "03",
-    title: "Raw data, no understanding",
+    title: "Invisible to AI agents",
     description:
-      "Existing tools expose raw logs and metrics but don't derive actionable signals or provide real understanding.",
+      "Coding agents can't reason about runtime behavior they can't see. Without structured signals, they ship code without knowing what it does.",
   },
 ];
 
@@ -213,12 +215,13 @@ function ProblemSection() {
           The problem
         </p>
         <h2 className="font-heading text-3xl uppercase leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
-          CI/CD is critical infrastructure with zero visibility
+          Anything before production is a black box
         </h2>
         <p className="mt-4 max-w-3xl text-lg text-fd-muted-foreground">
-          AI coding tools are accelerating code production dramatically.
-          Validation and delivery pipelines are becoming the{" "}
-          <strong className="text-fd-foreground">new bottleneck</strong>.
+          Every code change creates a question:{" "}
+          <strong className="text-fd-foreground">did we break anything?</strong>{" "}
+          Today the answer is scattered across local runs, tests, CI, preview
+          environments, and dashboards.
         </p>
 
         <div className="mt-16 grid grid-cols-1 gap-10 md:mt-20 md:grid-cols-3 md:gap-0">
@@ -272,12 +275,13 @@ function MissingLayerSection() {
           </span>
         </h2>
         <p className="mt-4 max-w-3xl text-lg text-fd-muted-foreground">
-          Everr turns your CI/CD pipelines into{" "}
+          Everr is the{" "}
           <strong className="text-fd-foreground">
-            fully observable systems
-          </strong>
-          . Structured data, actionable signals, and deep context - available to
-          your team and your AI tools.
+            missing observability layer
+          </strong>{" "}
+          between code creation and production systems. Telemetry from every
+          step, correlated with the change that caused it - for your team and
+          your AI tools.
         </p>
 
         {/* What Everr does - four pillars */}
@@ -285,13 +289,13 @@ function MissingLayerSection() {
           {[
             {
               label: "Structured telemetry",
-              heading: "Every run, fully traced",
-              body: "Workflow runs become OpenTelemetry traces. Steps, jobs, durations, and outcomes - all in a structured, queryable format.",
+              heading: "Every step, fully traced",
+              body: "CI runs, tests, and pipelines become OpenTelemetry traces. Steps, jobs, durations, and outcomes - all structured and queryable.",
             },
             {
-              label: "Enriched context",
-              heading: "From telemetry to context",
-              body: "Data is automatically enriched with commit info, branch context, and environment metadata.",
+              label: "Code-aware context",
+              heading: "Every signal linked to the change",
+              body: "Telemetry correlated with commit, branch, PR, and test. Know exactly which code change caused which behavior.",
             },
             {
               label: "Derived signals",
@@ -843,9 +847,8 @@ function WhySection() {
           Questions you shouldn't have to ask
         </h2>
         <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
-          AI-assisted development compresses release cycles, but broken
-          pipelines still break your flow. Everr gives you the signals to fix
-          them fast.
+          AI compresses release cycles. Validation can't keep up. Everr gives
+          every code change the runtime feedback developers and agents need.
         </p>
 
         <div className="mt-16 grid gap-10 md:mt-20 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:gap-12">
