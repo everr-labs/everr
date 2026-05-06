@@ -52,6 +52,7 @@ describe("/api/cli/sql", () => {
       "SELECT 1 AS ok",
       "org-42",
       {
+        allow_ddl: 0,
         max_execution_time: 30,
         max_memory_usage: 200_000_000,
         max_result_bytes: 5_000_000,
@@ -104,6 +105,7 @@ describe("/api/cli/sql", () => {
       sql,
       "org-42",
       {
+        allow_ddl: 0,
         max_execution_time: 30,
         max_memory_usage: 200_000_000,
         max_result_bytes: 5_000_000,

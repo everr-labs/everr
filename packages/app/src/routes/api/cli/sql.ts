@@ -7,10 +7,11 @@ const CLOUD_SQL_LIMITS = {
   max_result_bytes: 5_000_000,
   max_result_rows: 500,
   max_rows_to_read: 50_000,
-  // Query-level SETTINGS do not need app-side parsing: ClickHouse enforces
-  // readonly=1 users cannot change settings at query time unless explicit
-  // constraints mark a setting as changeable.
+  // Query-level SETTINGS do not need app-side parsing. ClickHouse docs say
+  // readonly=1 permits only read queries and blocks changing settings, while
+  // allow_ddl=0 explicitly denies DDL.
   // https://clickhouse.com/docs/operations/settings/permissions-for-queries#readonly
+  allow_ddl: 0,
   readonly: 1,
 } as const;
 
