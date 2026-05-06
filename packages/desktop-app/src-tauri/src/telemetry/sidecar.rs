@@ -12,6 +12,8 @@ use tokio::time::{sleep, timeout};
 
 use crate::telemetry::ports::{HEALTHCHECK_PORT, OTLP_HTTP_PORT};
 
+pub const COLLECTOR_START_ARGS: [&str; 3] = ["local", "start", "--quiet"];
+
 #[derive(Debug, Clone)]
 pub enum TelemetryState {
     Starting,
@@ -262,7 +264,7 @@ async fn spawn_cli_collector_with(
 ) -> std::io::Result<Child> {
     let mut command = Command::new(binary);
     command
-        .args(["telemetry", "start", "--quiet"])
+        .args(COLLECTOR_START_ARGS)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);

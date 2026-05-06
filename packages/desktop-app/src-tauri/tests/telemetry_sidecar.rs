@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use everr_app_lib::telemetry::sidecar::{
-    spawn_cli_collector_detached, wait_for_disabled_state, TelemetryState,
+    spawn_cli_collector_detached, wait_for_disabled_state, TelemetryState, COLLECTOR_START_ARGS,
 };
 use everr_core::build::HEALTHCHECK_PORT;
 use tempfile::TempDir;
@@ -23,6 +23,11 @@ fn cli_path() -> Option<PathBuf> {
         }
     }
     None
+}
+
+#[test]
+fn sidecar_invokes_local_start_command() {
+    assert_eq!(COLLECTOR_START_ARGS, ["local", "start", "--quiet"]);
 }
 
 #[tokio::test]
