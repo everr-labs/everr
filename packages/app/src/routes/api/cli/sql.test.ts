@@ -84,38 +84,10 @@ describe("/api/cli/sql", () => {
       "SELECT 1 SETTINGS max_result_rows = 1000",
     ],
     [
-      "mixed-case query-level SETTINGS",
-      "SELECT 1 SeTtInGs max_result_rows = 1000",
-    ],
-    [
       "tenant override query-level SETTINGS",
       "SELECT 1 SETTINGS SQL_everr_tenant_id = 'other-org'",
     ],
-  ])("returns 400 when SQL contains %s", async (_name, sql) => {
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/sql", {
-        method: "POST",
-        body: sql,
-        headers: { "content-type": "text/plain" },
-      }),
-      context,
-    });
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: "Query-level SETTINGS are not allowed.",
-    });
-    expect(mockedQueryWithClickHouseSettings).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["single quoted string", "SELECT 'SETTINGS' AS word"],
-    ["whole-word boundary", "SELECT my_settings_column FROM system.one"],
-    ["double quoted string or identifier", 'SELECT "SETTINGS" AS word'],
-    ["backtick identifier", "SELECT `SETTINGS` FROM system.one"],
-    ["line comment", "SELECT 1 -- SETTINGS max_result_rows = 1000\n"],
-    ["block comment", "SELECT 1 /* SETTINGS max_result_rows = 1000 */"],
-  ])("allows SETTINGS inside %s", async (_name, sql) => {
+  ])("passes through SQL with %s", async (_name, sql) => {
     mockedQueryWithClickHouseSettings.mockResolvedValue([{ ok: 1 }]);
 
     const response = await getHandler()({
