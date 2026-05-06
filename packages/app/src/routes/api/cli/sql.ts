@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { queryWithClickHouseSettings } from "@/lib/clickhouse";
 
 const CLOUD_SQL_LIMITS = {
+  max_execution_time: 30,
   max_memory_usage: 200_000_000,
   max_result_bytes: 5_000_000,
   max_result_rows: 500,
