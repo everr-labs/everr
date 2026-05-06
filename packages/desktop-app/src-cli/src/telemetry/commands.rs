@@ -84,7 +84,7 @@ fn is_connect_error(err: &anyhow::Error) -> bool {
     })
 }
 
-fn render(rows: &Rows, format: TelemetryFormat) {
+pub(crate) fn render(rows: &Rows, format: TelemetryFormat) {
     match format {
         TelemetryFormat::Ndjson => {
             for row in &rows.values {

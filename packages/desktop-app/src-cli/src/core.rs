@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 use anyhow::{Context, Result, bail};
 use everr_core::git::{resolve_git_context, run_git};
@@ -12,8 +12,10 @@ use crate::api::{
 };
 use crate::auth;
 use crate::cli::{
-    GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, WatchArgs,
+    GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
+    TelemetryQueryArgs, WatchArgs,
 };
+use crate::telemetry;
 
 fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
     match explicit {
@@ -79,6 +81,22 @@ pub async fn grep(args: GrepArgs) -> Result<()> {
 
     let payload = client.get_grep(&query).await?;
     print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn cloud_query(args: TelemetryQueryArgs) -> Result<()> {
+    let session = auth::require_session_with_refresh().await?;
+    let client = ApiClient::from_session(&session)?;
+    let body = client.post_sql(&args.sql).await?;
+    let rows = telemetry::client::parse_ndjson(&body)?;
+    let format = args.format.unwrap_or_else(|| {
+        if io::stdout().is_terminal() {
+            TelemetryFormat::Table
+        } else {
+            TelemetryFormat::Ndjson
+        }
+    });
+    telemetry::commands::render(&rows, format);
     Ok(())
 }
 

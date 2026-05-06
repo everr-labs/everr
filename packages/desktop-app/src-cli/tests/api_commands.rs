@@ -527,6 +527,55 @@ fn runs_logs_egrep_exits_one_when_no_lines_match() {
 }
 
 #[test]
+fn cloud_query_posts_sql_and_renders_ndjson_rows() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-sql");
+
+    let mock = server
+        .mock("POST", "/api/cli/sql")
+        .match_header("authorization", "Bearer token-sql")
+        .match_header("content-type", Matcher::Regex("^text/plain(;.*)?$".into()))
+        .match_body("SELECT 1 AS ok")
+        .with_status(200)
+        .with_header("content-type", "application/x-ndjson")
+        .with_body("{\"ok\":1}\n")
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["cloud", "query", "SELECT 1 AS ok", "--format", "ndjson"])
+        .assert()
+        .success()
+        .stdout(predicate::str::diff("{\"ok\":1}\n"))
+        .stderr(predicate::str::is_empty());
+
+    mock.assert();
+}
+
+#[test]
+fn cloud_query_surfaces_error_envelope() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-sql");
+
+    let mock = server
+        .mock("POST", "/api/cli/sql")
+        .with_status(400)
+        .with_body(r#"{ "error": "Syntax error near nope" }"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["cloud", "query", "SELECT nope"])
+        .assert()
+        .failure()
+        .stderr(contains("Syntax error near nope"));
+
+    mock.assert();
+}
+
+#[test]
 fn api_errors_are_reported_to_the_user() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();

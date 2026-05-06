@@ -65,6 +65,29 @@ fn cloud_help_lists_cloud_subcommands() {
 }
 
 #[test]
+fn cloud_help_lists_query_subcommand() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["cloud", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("query"));
+}
+
+#[test]
+fn cloud_query_help_lists_format_option() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["cloud", "query", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("<SQL>"))
+        .stdout(contains("--format <FORMAT>"));
+}
+
+#[test]
 fn grep_help_lists_job_name_and_step_number_filters() {
     let env = CliTestEnv::new();
 

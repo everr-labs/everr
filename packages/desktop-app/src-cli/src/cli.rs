@@ -55,6 +55,8 @@ pub enum CloudSubcommand {
     Login(LoginArgs),
     /// Log out and clear the local session
     Logout,
+    /// Run a read-only SQL query against cloud CI data
+    Query(TelemetryQueryArgs),
 }
 
 #[derive(Args, Debug)]

@@ -4,6 +4,7 @@ set -e
 : "${COLLECTOR_RW_PASSWORD:?COLLECTOR_RW_PASSWORD is required}"
 : "${APP_RO_PASSWORD:?APP_RO_PASSWORD is required}"
 : "${APP_RETENTION_PASSWORD:?APP_RETENTION_PASSWORD is required}"
+: "${SQL_API_PASSWORD:?SQL_API_PASSWORD is required}"
 
 clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery <<SQL
 CREATE DATABASE IF NOT EXISTS otel;
@@ -12,6 +13,9 @@ CREATE DATABASE IF NOT EXISTS app;
 CREATE USER IF NOT EXISTS collector_rw IDENTIFIED WITH sha256_password BY '${COLLECTOR_RW_PASSWORD}';
 CREATE USER IF NOT EXISTS app_ro IDENTIFIED WITH sha256_password BY '${APP_RO_PASSWORD}';
 CREATE USER IF NOT EXISTS app_retention IDENTIFIED WITH sha256_password BY '${APP_RETENTION_PASSWORD}';
+-- sql_api_user is granted its role/profile/quota in 15-create-sql-api-role.sql
+-- (those don't exist yet at this point in the boot order).
+CREATE USER IF NOT EXISTS sql_api_user IDENTIFIED WITH sha256_password BY '${SQL_API_PASSWORD}';
 
 -- Collector writes raw telemetry into otel schema.
 GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;

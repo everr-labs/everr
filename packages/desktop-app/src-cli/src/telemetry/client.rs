@@ -66,7 +66,7 @@ impl QueryClient {
     }
 }
 
-fn parse_ndjson(body: &str) -> Result<Rows> {
+pub fn parse_ndjson(body: &str) -> Result<Rows> {
     let mut values = Vec::new();
     for line in body.lines() {
         if line.is_empty() {
