@@ -98,12 +98,12 @@ mod tests {
 
     #[test]
     fn render_config_substitutes_runtime_values() {
-        let rendered = render_config(Path::new("/tmp/everr telemetry"));
+        let rendered = render_config(Path::new("/tmp/everr local"));
 
         assert!(rendered.contains(&format!("127.0.0.1:{OTLP_HTTP_PORT}")));
         assert!(rendered.contains(&format!("127.0.0.1:{HEALTHCHECK_PORT}")));
         assert!(rendered.contains(&format!("127.0.0.1:{SQL_HTTP_PORT}")));
-        assert!(rendered.contains(r#""/tmp/everr telemetry/chdb""#));
+        assert!(rendered.contains(r#""/tmp/everr local/chdb""#));
         assert!(!rendered.contains("{TELEMETRY_DIR}"));
     }
 

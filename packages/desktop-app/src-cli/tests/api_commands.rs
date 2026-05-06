@@ -35,7 +35,7 @@ fn status_command_sends_commit_query_to_runs_endpoint() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["status"])
+        .args(["ci", "status"])
         .assert()
         .success()
         .stdout(contains("\"state\": \"completed\""));
@@ -70,7 +70,7 @@ fn status_uses_explicit_commit_when_provided() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["status", "--commit", &head_sha])
+        .args(["ci", "status", "--commit", &head_sha])
         .assert()
         .success()
         .stdout(contains("\"state\": \"completed\""));
@@ -109,6 +109,7 @@ fn grep_defaults_repo_from_git_and_excludes_current_branch() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
+            "ci",
             "grep",
             "--job-name",
             "integration",
@@ -153,6 +154,7 @@ fn grep_uses_explicit_branch_instead_of_auto_excluding_current_branch() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
+            "ci",
             "grep",
             "--pattern",
             "panic",
@@ -176,7 +178,7 @@ fn grep_requires_repo_when_git_context_is_missing() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&env.home_dir)
-        .args(["grep", "--pattern", "panic"])
+        .args(["ci", "grep", "--pattern", "panic"])
         .assert()
         .failure()
         .stderr(contains("failed to resolve repository; provide --repo"));
@@ -215,6 +217,7 @@ fn runs_list_sends_filter_query_params() {
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
         .args([
+            "ci",
             "runs",
             "--branch",
             "feature/tests",
@@ -264,7 +267,7 @@ fn runs_list_does_not_default_branch_without_current_branch_flag() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["runs"])
+        .args(["ci", "runs"])
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));
@@ -299,7 +302,7 @@ fn runs_list_uses_current_branch_when_flag_is_passed() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["runs", "--current-branch"])
+        .args(["ci", "runs", "--current-branch"])
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));
@@ -322,7 +325,7 @@ fn runs_show_calls_trace_id_endpoint() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["show", "trace-123"])
+        .args(["ci", "show", "trace-123"])
         .assert()
         .success()
         .stdout(contains("\"traceId\": \"trace-123\""));
@@ -353,6 +356,7 @@ fn runs_logs_prints_plain_text() {
 
     env.command_with_api_base_url(&server.url())
         .args([
+            "ci",
             "logs",
             "trace-123",
             "--job-name",
@@ -390,6 +394,7 @@ fn runs_logs_offset_without_limit_uses_tail_mode() {
 
     env.command_with_api_base_url(&server.url())
         .args([
+            "ci",
             "logs",
             "trace-123",
             "--job-name",
@@ -431,6 +436,7 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
 
     env.command_with_api_base_url(&server.url())
         .args([
+            "ci",
             "logs",
             "trace-123",
             "--job-name",
@@ -471,6 +477,7 @@ fn runs_logs_egrep_passes_pattern_as_query_param() {
 
     env.command_with_api_base_url(&server.url())
         .args([
+            "ci",
             "logs",
             "trace-123",
             "--job-name",
@@ -503,6 +510,7 @@ fn runs_logs_egrep_exits_one_when_no_lines_match() {
 
     env.command_with_api_base_url(&server.url())
         .args([
+            "ci",
             "logs",
             "trace-123",
             "--job-name",
@@ -519,323 +527,6 @@ fn runs_logs_egrep_exits_one_when_no_lines_match() {
 }
 
 #[test]
-fn test_history_sends_expected_query_and_auth_header() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.init_git_repo(
-        "repo",
-        "feature/test-history",
-        "git@github.com:everr-labs/everr.git",
-    );
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-xyz");
-
-    let mock = server
-        .mock("GET", "/api/cli/test-history")
-        .match_header("authorization", "Bearer token-xyz")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("testModule".into(), "suite".into()),
-            Matcher::UrlEncoded("testName".into(), "test".into()),
-            Matcher::UrlEncoded("from".into(), "now-7d".into()),
-            Matcher::UrlEncoded("to".into(), "now".into()),
-            Matcher::UrlEncoded("limit".into(), "100".into()),
-            Matcher::UrlEncoded("offset".into(), "0".into()),
-        ]))
-        .with_status(200)
-        .with_body(r#"[{"traceId":"trace-1","testResult":"pass"}]"#)
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&repo_dir)
-        .args([
-            "test-history",
-            "--module",
-            "suite",
-            "--test-name",
-            "test",
-            "--from",
-            "now-7d",
-            "--to",
-            "now",
-        ])
-        .assert()
-        .success()
-        .stdout(contains("\"traceId\": \"trace-1\""));
-
-    mock.assert();
-}
-
-#[test]
-fn test_history_supports_test_name_without_module() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.init_git_repo(
-        "repo",
-        "feature/test-history-no-module",
-        "git@github.com:everr-labs/everr.git",
-    );
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-xyz");
-
-    let mock = server
-        .mock("GET", "/api/cli/test-history")
-        .match_header("authorization", "Bearer token-xyz")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("testName".into(), "my-test".into()),
-            Matcher::UrlEncoded("limit".into(), "100".into()),
-            Matcher::UrlEncoded("offset".into(), "0".into()),
-        ]))
-        .with_status(200)
-        .with_body(r#"[]"#)
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&repo_dir)
-        .args(["test-history", "--test-name", "my-test"])
-        .assert()
-        .success()
-        .stdout(contains("[]"));
-
-    mock.assert();
-}
-
-#[test]
-fn test_history_supports_module_without_test_name() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.init_git_repo(
-        "repo",
-        "feature/test-history-module-only",
-        "git@github.com:everr-labs/everr.git",
-    );
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-xyz");
-
-    let mock = server
-        .mock("GET", "/api/cli/test-history")
-        .match_header("authorization", "Bearer token-xyz")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("testModule".into(), "suite".into()),
-            Matcher::UrlEncoded("limit".into(), "100".into()),
-            Matcher::UrlEncoded("offset".into(), "0".into()),
-        ]))
-        .with_status(200)
-        .with_body(r#"[]"#)
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&repo_dir)
-        .args(["test-history", "--module", "suite"])
-        .assert()
-        .success()
-        .stdout(contains("[]"));
-
-    mock.assert();
-}
-
-#[test]
-fn test_history_requires_at_least_one_filter() {
-    let env = CliTestEnv::new();
-    let server = mock_api_server();
-    env.write_session(&server.url(), "token-xyz");
-
-    env.command_with_api_base_url(&server.url())
-        .args(["test-history", "--repo", "everr-labs/everr"])
-        .assert()
-        .failure()
-        .stderr(contains(
-            "provide at least one test filter: --module or --test-name",
-        ));
-}
-
-#[test]
-fn test_history_requires_repo_when_git_context_is_missing() {
-    let env = CliTestEnv::new();
-    let server = mock_api_server();
-    env.write_session(&server.url(), "token-xyz");
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&env.home_dir)
-        .args(["test-history", "--test-name", "suite/test"])
-        .assert()
-        .failure()
-        .stderr(contains("failed to resolve repository; provide --repo"));
-}
-
-#[test]
-fn slowest_tests_defaults_to_repo_wide_query_and_auth_header() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.init_git_repo(
-        "repo",
-        "feature/slow-tests",
-        "git@github.com:everr-labs/everr.git",
-    );
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-slow");
-
-    let mock = server
-        .mock("GET", "/api/cli/slowest-tests")
-        .match_header("authorization", "Bearer token-slow")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("from".into(), "now-24h".into()),
-            Matcher::UrlEncoded("to".into(), "now".into()),
-            Matcher::UrlEncoded("limit".into(), "15".into()),
-            Matcher::UrlEncoded("offset".into(), "0".into()),
-        ]))
-        .with_status(200)
-        .with_body(
-            r#"{"repo":"everr-labs/everr","branch":null,"timeRange":{"from":"now-24h","to":"now"},"limit":15,"items":[{"testFullName":"suite/test","avgDurationSeconds":12.5}]}"#,
-        )
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&repo_dir)
-        .args([
-            "slowest-tests",
-            "--from",
-            "now-24h",
-            "--to",
-            "now",
-            "--limit",
-            "15",
-        ])
-        .assert()
-        .success()
-        .stdout(contains("\"testFullName\": \"suite/test\""));
-
-    mock.assert();
-}
-
-#[test]
-fn slowest_tests_requires_repo_when_git_context_is_missing() {
-    let env = CliTestEnv::new();
-    let server = mock_api_server();
-    env.write_session(&server.url(), "token-slow");
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&env.home_dir)
-        .args(["slowest-tests"])
-        .assert()
-        .failure()
-        .stderr(contains("failed to resolve repository; provide --repo"));
-}
-
-#[test]
-fn slowest_tests_respects_explicit_branch_filter() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.init_git_repo(
-        "repo",
-        "feature/slow-tests",
-        "git@github.com:everr-labs/everr.git",
-    );
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-slow-branch");
-
-    let mock = server
-        .mock("GET", "/api/cli/slowest-tests")
-        .match_header("authorization", "Bearer token-slow-branch")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("branch".into(), "main".into()),
-            Matcher::UrlEncoded("limit".into(), "10".into()),
-            Matcher::UrlEncoded("offset".into(), "0".into()),
-        ]))
-        .with_status(200)
-        .with_body(
-            r#"{"repo":"everr-labs/everr","branch":"main","timeRange":{"from":"now-7d","to":"now"},"limit":10,"items":[]}"#,
-        )
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&repo_dir)
-        .args(["slowest-tests", "--branch", "main"])
-        .assert()
-        .success()
-        .stdout(contains("\"branch\": \"main\""));
-
-    mock.assert();
-}
-
-#[test]
-fn slowest_jobs_defaults_to_repo_wide_query_and_auth_header() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.init_git_repo(
-        "repo",
-        "feature/slow-jobs",
-        "git@github.com:everr-labs/everr.git",
-    );
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-jobs");
-
-    let mock = server
-        .mock("GET", "/api/cli/slowest-jobs")
-        .match_header("authorization", "Bearer token-jobs")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("limit".into(), "5".into()),
-            Matcher::UrlEncoded("offset".into(), "0".into()),
-        ]))
-        .with_status(200)
-        .with_body(
-            r#"{"repo":"everr-labs/everr","branch":null,"timeRange":{"from":"now-7d","to":"now"},"limit":5,"items":[{"workflowName":"CI","jobName":"integration","avgDurationSeconds":420.0}]}"#,
-        )
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&repo_dir)
-        .args(["slowest-jobs", "--limit", "5"])
-        .assert()
-        .success()
-        .stdout(contains("\"jobName\": \"integration\""));
-
-    mock.assert();
-}
-
-#[test]
-fn slowest_jobs_respects_explicit_branch_filter() {
-    let env = CliTestEnv::new();
-    let repo_dir = env.init_git_repo(
-        "repo",
-        "feature/slow-jobs",
-        "git@github.com:everr-labs/everr.git",
-    );
-    let mut server = mock_api_server();
-
-    env.write_session(&server.url(), "token-jobs-branch");
-
-    let mock = server
-        .mock("GET", "/api/cli/slowest-jobs")
-        .match_header("authorization", "Bearer token-jobs-branch")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("repo".into(), "everr-labs/everr".into()),
-            Matcher::UrlEncoded("branch".into(), "release".into()),
-            Matcher::UrlEncoded("limit".into(), "10".into()),
-            Matcher::UrlEncoded("offset".into(), "0".into()),
-        ]))
-        .with_status(200)
-        .with_body(
-            r#"{"repo":"everr-labs/everr","branch":"release","timeRange":{"from":"now-7d","to":"now"},"limit":10,"items":[]}"#,
-        )
-        .create();
-
-    env.command_with_api_base_url(&server.url())
-        .current_dir(&repo_dir)
-        .args(["slowest-jobs", "--branch", "release"])
-        .assert()
-        .success()
-        .stdout(contains("\"branch\": \"release\""));
-
-    mock.assert();
-}
-
-#[test]
 fn api_errors_are_reported_to_the_user() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
@@ -849,7 +540,7 @@ fn api_errors_are_reported_to_the_user() {
         .create();
 
     env.command_with_api_base_url(&server.url())
-        .args(["show", "trace-123"])
+        .args(["ci", "show", "trace-123"])
         .assert()
         .failure()
         .stderr(contains("CLI API request failed with 500"))
@@ -924,7 +615,7 @@ fn watch_prints_job_and_run_event_lines_until_completion() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch"])
+        .args(["ci", "watch"])
         .assert()
         .success()
         .stdout(contains("CI → lint  in_progress"))
@@ -1002,7 +693,7 @@ fn watch_shows_waiting_for_after_initial_backfill_when_runs_active() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch"])
+        .args(["ci", "watch"])
         .assert()
         .success()
         .stdout(contains("Run completed: Lint  success"))
@@ -1043,7 +734,7 @@ fn watch_exits_immediately_when_already_completed() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch"])
+        .args(["ci", "watch"])
         .assert()
         .success();
 
@@ -1104,7 +795,7 @@ fn watch_polls_status_on_stream_close_to_handle_race() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch"])
+        .args(["ci", "watch"])
         .assert()
         .success();
 
@@ -1172,7 +863,7 @@ fn watch_uses_explicit_commit_when_provided() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch", "--commit", &head_sha])
+        .args(["ci", "watch", "--commit", &head_sha])
         .assert()
         .success()
         .stdout(contains("Run completed: CI  success"));
@@ -1240,7 +931,7 @@ fn watch_resolves_short_commit_sha_to_full() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch", "--commit", short_sha])
+        .args(["ci", "watch", "--commit", short_sha])
         .assert()
         .success()
         .stdout(contains("Run completed: CI  success"));
@@ -1311,7 +1002,7 @@ fn watch_exits_non_zero_when_run_fails() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch"])
+        .args(["ci", "watch"])
         .assert()
         .failure()
         .stdout(contains("Run completed: CI  failure"))
@@ -1371,7 +1062,7 @@ fn watch_fail_fast_exits_immediately_on_first_failed_run() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch", "--fail-fast"])
+        .args(["ci", "watch", "--fail-fast"])
         .assert()
         .failure()
         .stdout(contains("Run completed: CI  failure"))
@@ -1422,7 +1113,7 @@ fn watch_fails_on_sse_connection_error() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch"])
+        .args(["ci", "watch"])
         .assert()
         .failure()
         .stderr(contains("SSE connection failed"));
@@ -1495,7 +1186,7 @@ fn watch_waits_for_first_run_when_initial_state_is_pending() {
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo_dir)
-        .args(["watch"])
+        .args(["ci", "watch"])
         .assert()
         .success()
         .stdout(contains("Run completed: CI  success"));
@@ -1523,8 +1214,8 @@ fn commands_require_existing_session() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["runs"])
+        .args(["ci", "runs"])
         .assert()
         .failure()
-        .stderr(contains("no active session; run `everr login`"));
+        .stderr(contains("no active session; run `everr cloud login`"));
 }

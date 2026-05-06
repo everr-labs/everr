@@ -222,7 +222,9 @@ mod tests {
             head.push_str("\r\n");
         }
         head.push_str("\r\n");
-        stream.write_all(head.as_bytes()).expect("write response head");
+        stream
+            .write_all(head.as_bytes())
+            .expect("write response head");
         stream
             .write_all(response.body.as_bytes())
             .expect("write response body");

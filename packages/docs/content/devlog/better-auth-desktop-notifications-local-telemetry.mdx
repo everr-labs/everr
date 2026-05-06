@@ -29,9 +29,9 @@ The most important new path in this batch is the first version of a local observ
 
 Our services are already OpenTelemetry-instrumented, but local debugging still had a hole in it. You could either send data to a full observability backend or try to piece things together from logs and intuition. That's bad for humans, and even worse for coding assistants that only see whatever happens to be pasted into the prompt.
 
-`everr telemetry` is our first answer to that. It starts a local collector, receives OTLP from local services, and exposes `logs` and `traces` commands so you can inspect what's happening on your machine from the CLI. Metrics aren't wired up yet — that's next.
+`everr local` is our first answer to that. It starts a local collector, receives OTLP from local services, and exposes query commands so you can inspect what's happening on your machine from the CLI. Metrics aren't wired up yet — that's next.
 
-That's useful on its own, but the bigger reason we built it is what it opens up for Everr. It gives coding assistants a way to get runtime context about the local stack directly, instead of making the developer manually copy logs or trace snippets into the prompt every time. That copy-paste step is exactly the kind of useless-human-in-the-loop work we want to cut — the assistant should fetch what it needs on its own. `everr telemetry ai-instructions` is an early version of that idea: a path for an assistant to discover how to inspect local behavior without custom hand-holding every time.
+That's useful on its own, but the bigger reason we built it is what it opens up for Everr. It gives coding assistants a way to get runtime context about the local stack directly, instead of making the developer manually copy logs or trace snippets into the prompt every time. That copy-paste step is exactly the kind of useless-human-in-the-loop work we want to cut — the assistant should fetch what it needs on its own.
 
 This is still version one, but it opens a new direction for Everr beyond CI alone: improving the way people and agents work locally by making the running system observable in a lightweight, queryable way.
 
@@ -57,9 +57,9 @@ We also made onboarding more resilient. Organization name editing and repo impor
 
 ## Other improvements in the same direction
 
-**`everr watch` redesign.** We rewrote `everr watch` as an event-driven, append-only stream. That makes it easier for humans to follow and much easier for coding assistants to reason about, because they don't need to re-parse a constantly repainting terminal line. ANSI escape codes in imported logs are also stripped by default, which makes pasting a failure into a chat or an agent's context actually readable.
+**`everr ci watch` redesign.** We rewrote `everr ci watch` as an event-driven, append-only stream. That makes it easier for humans to follow and much easier for coding assistants to reason about, because they don't need to re-parse a constantly repainting terminal line. ANSI escape codes in imported logs are also stripped by default, which makes pasting a failure into a chat or an agent's context actually readable.
 
-**Log search improvements.** The `logs` command now supports `--egrep`, validated against the same regex engine ClickHouse uses, plus `--log-failed` and `--job-id` for the common "show me the failing logs" workflows.
+**Log search improvements.** The `everr ci logs` command now supports `--egrep`, validated against the same regex engine ClickHouse uses, plus `--log-failed` and `--job-id` for the common "show me the failing logs" workflows.
 
 **Notification improvements.** Failure notifications now include all failed jobs in a run instead of one at a time, and the tray resets failure state on a successful workflow run. Identity matching also works across multiple commit emails, and cancelled or skipped jobs are no longer treated like failures.
 
@@ -75,6 +75,6 @@ We also made onboarding more resilient. Organization name editing and repo impor
 
 ## What's next
 
-Next up, we want to keep pushing on both fronts. On the CI side, that means richer desktop run monitoring, better notification content, and the Vercel log drain integration we mentioned last time. On the local side, it means making `everr telemetry` and related commands even more useful for assistant-driven debugging, with outputs and workflows that are easier for agents to consume directly.
+Next up, we want to keep pushing on both fronts. On the CI side, that means richer desktop run monitoring, better notification content, and the Vercel log drain integration we mentioned last time. On the local side, it means making `everr local` and related commands even more useful for assistant-driven debugging, with outputs and workflows that are easier for agents to consume directly.
 
 Two weeks in, the pattern holds: every friction we hit in daily use becomes a PR that week. That's still the part of building Everr that feels most right.

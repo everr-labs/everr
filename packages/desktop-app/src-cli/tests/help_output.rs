@@ -14,35 +14,54 @@ fn root_help_lists_main_commands() {
         .success()
         .stdout(contains("Usage: everr <COMMAND>"))
         .stdout(predicates::str::contains("\n  install").not())
-        .stdout(contains("login"))
-        .stdout(contains("logout"))
+        .stdout(predicates::str::contains("\n  login").not())
+        .stdout(predicates::str::contains("\n  logout").not())
         .stdout(predicates::str::contains("setup-assistant").not())
         .stdout(predicates::str::contains("ai-instructions").not())
-        .stdout(contains("status"))
-        .stdout(contains("grep"))
-        .stdout(contains("slowest-tests"))
-        .stdout(contains("slowest-jobs"))
-        .stdout(contains("watch"))
+        .stdout(contains("cloud"))
+        .stdout(contains("ci"))
+        .stdout(contains("local"))
+        .stdout(predicates::str::contains("\n  status").not())
+        .stdout(predicates::str::contains("\n  grep").not())
+        .stdout(predicates::str::contains("slowest-tests").not())
+        .stdout(predicates::str::contains("slowest-jobs").not())
+        .stdout(predicates::str::contains("\n  watch").not())
         .stdout(predicates::str::contains("wait-pipeline").not())
-        .stdout(contains("runs"))
-        .stdout(contains("show"))
-        .stdout(contains("logs"))
+        .stdout(predicates::str::contains("\n  runs").not())
+        .stdout(predicates::str::contains("\n  show").not())
+        .stdout(predicates::str::contains("\n  logs").not())
         .stdout(contains("wrap"))
-        .stdout(contains("telemetry"))
         .stdout(contains("skills"));
 }
 
 #[test]
-fn runs_help_lists_pipeline_subcommands() {
+fn ci_help_lists_pipeline_subcommands() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["--help"])
+        .args(["ci", "--help"])
         .assert()
         .success()
+        .stdout(contains("status"))
+        .stdout(contains("watch"))
         .stdout(contains("runs"))
         .stdout(contains("show"))
+        .stdout(contains("grep"))
         .stdout(contains("logs"));
+}
+
+#[test]
+fn cloud_help_lists_cloud_subcommands() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["cloud", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("login"))
+        .stdout(contains("logout"))
+        .stdout(predicates::str::contains("\n  grep").not())
+        .stdout(predicates::str::contains("\n  logs").not());
 }
 
 #[test]
@@ -50,7 +69,7 @@ fn grep_help_lists_job_name_and_step_number_filters() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["grep", "--help"])
+        .args(["ci", "grep", "--help"])
         .assert()
         .success()
         .stdout(contains("--job-name <JOB_NAME>"))
@@ -65,7 +84,7 @@ fn runs_list_help_lists_limit_and_offset() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["runs", "--help"])
+        .args(["ci", "runs", "--help"])
         .assert()
         .success()
         .stdout(contains("--limit <LIMIT>"))
@@ -77,7 +96,7 @@ fn runs_logs_help_lists_paging_flags_and_default_page_size() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["logs", "--help"])
+        .args(["ci", "logs", "--help"])
         .assert()
         .success()
         .stdout(contains("--tail"))
@@ -92,7 +111,7 @@ fn telemetry_help_lists_start_command() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["telemetry", "--help"])
+        .args(["local", "--help"])
         .assert()
         .success()
         .stdout(contains("start"))
@@ -101,7 +120,7 @@ fn telemetry_help_lists_start_command() {
         .stdout(contains("endpoint"));
 
     env.command()
-        .args(["telemetry", "start", "--help"])
+        .args(["local", "start", "--help"])
         .assert()
         .success()
         .stdout(contains("--quiet"));
@@ -126,7 +145,7 @@ fn status_help_lists_commit_based_options() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["status", "--help"])
+        .args(["ci", "status", "--help"])
         .assert()
         .success()
         .stdout(contains("--repo <REPO>"))
@@ -157,7 +176,7 @@ fn auth_login_help_does_not_list_removed_config_flags() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args(["login", "--help"])
+        .args(["cloud", "login", "--help"])
         .assert()
         .success()
         .stdout(predicates::str::contains("--token").not());

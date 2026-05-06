@@ -245,6 +245,7 @@ impl OtlpLogServer {
             while std::time::Instant::now() < deadline {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        stream.set_nonblocking(false).expect("set stream blocking");
                         if let Some(body) = read_request_body(&mut stream) {
                             if !is_probe_body(&body) {
                                 if let Some(delay) = response_delay_non_probe {

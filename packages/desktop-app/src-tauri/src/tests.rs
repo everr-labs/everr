@@ -124,7 +124,7 @@ fn notification_prompt_builder_formats_single_failure_with_exact_logs_command() 
     assert!(prompt.contains("Investigate and fix this CI pipeline failure."));
     assert!(prompt.contains("Failure details:"));
     assert!(prompt.contains("workflow CI | trace trace-one | failing steps: test #2 (Run suite)"));
-    assert!(prompt.contains("everr logs trace-one --job-name \"test\" --step-number 2"));
+    assert!(prompt.contains("everr ci logs trace-one --job-name \"test\" --step-number 2"));
     assert!(prompt.contains("Step 2"));
     assert!(prompt.contains("Step 3"));
 }
@@ -160,11 +160,11 @@ fn notification_prompt_lists_all_failed_jobs() {
         "prompt should list all failed jobs, got: {prompt}"
     );
     assert!(
-        prompt.contains("everr logs trace-multi --job-name \"test\" --step-number 3"),
+        prompt.contains("everr ci logs trace-multi --job-name \"test\" --step-number 3"),
         "prompt should include logs command for first job"
     );
     assert!(
-        prompt.contains("everr logs trace-multi --job-name \"lint\" --step-number 2"),
+        prompt.contains("everr ci logs trace-multi --job-name \"lint\" --step-number 2"),
         "prompt should include logs command for second job"
     );
 }

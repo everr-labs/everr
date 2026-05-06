@@ -38,7 +38,7 @@ fn old_ai_instruction_commands_are_removed() {
     env.command().arg("ai-instructions").assert().failure();
 
     env.command()
-        .args(["telemetry", "ai-instructions"])
+        .args(["local", "ai-instructions"])
         .assert()
         .failure();
 

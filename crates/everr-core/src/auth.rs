@@ -72,10 +72,7 @@ pub async fn start_device_authorization(
     config: &AuthConfig,
 ) -> Result<DeviceAuthorization> {
     let authorization_response = client
-        .post(format!(
-            "{}/api/auth/device/code",
-            config.api_base_url
-        ))
+        .post(format!("{}/api/auth/device/code", config.api_base_url))
         .header(CONTENT_TYPE, "application/json")
         .body("{\"client_id\":\"everr-desktop\",\"scope\":\"openid\"}")
         .send()
@@ -104,10 +101,7 @@ pub async fn poll_device_authorization(
     config: &AuthConfig,
     authorization: &DeviceAuthorization,
 ) -> Result<DevicePollStatus> {
-    let poll_url = format!(
-        "{}/api/auth/device/token",
-        config.api_base_url
-    );
+    let poll_url = format!("{}/api/auth/device/token", config.api_base_url);
     let token_response = client
         .post(&poll_url)
         .header(CONTENT_TYPE, "application/json")
@@ -151,10 +145,7 @@ pub async fn login_with_device_authorization(
     let client = build_http_client()?;
     let token = complete_device_authorization_with_url(
         &client,
-        &format!(
-            "{}/api/auth/device/token",
-            config.api_base_url
-        ),
+        &format!("{}/api/auth/device/token", config.api_base_url),
         authorization,
     )
     .await?;
