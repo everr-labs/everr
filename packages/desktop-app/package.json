@@ -27,7 +27,7 @@
     "@everr/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "1.169.1",
-    "@tauri-apps/api": "^2.10.3",
+    "@tauri-apps/api": "^2.11.0",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
