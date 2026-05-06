@@ -5,6 +5,7 @@ interface PaginationProps {
   page: number;
   totalCount: number;
   pageSize: number;
+  itemLabel?: string;
   onPageChange: (page: number) => void;
 }
 
@@ -12,13 +13,16 @@ export function Pagination({
   page,
   totalCount,
   pageSize,
+  itemLabel = "runs",
   onPageChange,
 }: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
     <div className="flex items-center justify-between">
-      <p className="text-muted-foreground text-sm">{totalCount} total runs</p>
+      <p className="text-muted-foreground text-sm">
+        {totalCount} total {itemLabel}
+      </p>
       <div className="flex items-center gap-2">
         <Button
           variant="outline"

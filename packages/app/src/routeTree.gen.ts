@@ -36,6 +36,7 @@ import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './rou
 import { Route as AuthenticatedDashboardTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/tests-overview'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
 import { Route as AuthenticatedDashboardReposRouteImport } from './routes/_authenticated/_dashboard/repos'
+import { Route as AuthenticatedDashboardLogsRouteImport } from './routes/_authenticated/_dashboard/logs'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
@@ -196,6 +197,12 @@ const AuthenticatedDashboardReposRoute =
     path: '/repos',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardLogsRoute =
+  AuthenticatedDashboardLogsRouteImport.update({
+    id: '/logs',
+    path: '/logs',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardCostAnalysisRoute =
   AuthenticatedDashboardCostAnalysisRouteImport.update({
     id: '/cost-analysis',
@@ -338,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/logs': typeof AuthenticatedDashboardLogsRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
@@ -386,6 +394,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/logs': typeof AuthenticatedDashboardLogsRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
@@ -436,6 +445,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
   '/_authenticated/_dashboard/billing': typeof AuthenticatedDashboardBillingRoute
   '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/_authenticated/_dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/_authenticated/_dashboard/repos': typeof AuthenticatedDashboardReposRoute
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/_authenticated/_dashboard/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
@@ -487,6 +497,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/billing'
     | '/cost-analysis'
+    | '/logs'
     | '/repos'
     | '/runs'
     | '/tests-overview'
@@ -535,6 +546,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/billing'
     | '/cost-analysis'
+    | '/logs'
     | '/repos'
     | '/tests-overview'
     | '/users-management'
@@ -584,6 +596,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/account'
     | '/_authenticated/_dashboard/billing'
     | '/_authenticated/_dashboard/cost-analysis'
+    | '/_authenticated/_dashboard/logs'
     | '/_authenticated/_dashboard/repos'
     | '/_authenticated/_dashboard/runs'
     | '/_authenticated/_dashboard/tests-overview'
@@ -827,6 +840,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardReposRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/_dashboard/logs': {
+      id: '/_authenticated/_dashboard/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AuthenticatedDashboardLogsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/_dashboard/cost-analysis': {
       id: '/_authenticated/_dashboard/cost-analysis'
       path: '/cost-analysis'
@@ -1066,6 +1086,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
   AuthenticatedDashboardBillingRoute: typeof AuthenticatedDashboardBillingRoute
   AuthenticatedDashboardCostAnalysisRoute: typeof AuthenticatedDashboardCostAnalysisRoute
+  AuthenticatedDashboardLogsRoute: typeof AuthenticatedDashboardLogsRoute
   AuthenticatedDashboardReposRoute: typeof AuthenticatedDashboardReposRoute
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
   AuthenticatedDashboardTestsOverviewRoute: typeof AuthenticatedDashboardTestsOverviewRoute
@@ -1082,6 +1103,7 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
     AuthenticatedDashboardBillingRoute: AuthenticatedDashboardBillingRoute,
     AuthenticatedDashboardCostAnalysisRoute:
       AuthenticatedDashboardCostAnalysisRoute,
+    AuthenticatedDashboardLogsRoute: AuthenticatedDashboardLogsRoute,
     AuthenticatedDashboardReposRoute: AuthenticatedDashboardReposRoute,
     AuthenticatedDashboardRunsRoute:
       AuthenticatedDashboardRunsRouteWithChildren,

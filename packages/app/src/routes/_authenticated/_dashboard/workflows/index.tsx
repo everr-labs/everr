@@ -124,6 +124,7 @@ function WorkflowsListPage() {
         page={page}
         totalCount={listResult.totalCount}
         pageSize={20}
+        itemLabel="workflows"
         onPageChange={(p) =>
           navigate({ search: (prev) => ({ ...prev, page: p }) })
         }
