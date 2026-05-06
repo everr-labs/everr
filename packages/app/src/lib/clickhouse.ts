@@ -8,6 +8,13 @@ export const clickhouse = createClient({
   database: env.CLICKHOUSE_DATABASE,
 });
 
+const clickhouseCliSql = createClient({
+  url: env.CLICKHOUSE_URL,
+  username: env.CLICKHOUSE_CLI_SQL_USERNAME,
+  password: env.CLICKHOUSE_CLI_SQL_PASSWORD,
+  database: env.CLICKHOUSE_DATABASE,
+});
+
 export type ClickhouseQuery = <T>(
   sql: string,
   params?: Record<string, unknown>,
@@ -44,7 +51,7 @@ export async function queryWithClickHouseSettings<T>(
     throw new Error("Missing ClickHouse tenant context");
   }
 
-  const result = await clickhouse.query({
+  const result = await clickhouseCliSql.query({
     query,
     query_params,
     format: "JSONEachRow",
