@@ -56,7 +56,6 @@ GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
 GRANT SELECT ON app.metrics_gauge TO sql_api_role;
 GRANT SELECT ON app.metrics_sum   TO sql_api_role;
-GRANT dictGet  ON app.tenant_retention TO sql_api_role;
 
 -- Quota: per-user limits.
 CREATE QUOTA IF NOT EXISTS sql_api_quota
@@ -69,5 +68,22 @@ CREATE QUOTA IF NOT EXISTS sql_api_quota
 -- 00-setup.sh (so it can read $SQL_API_PASSWORD); the role/profile referenced
 -- below only exist after this file runs, hence the split.
 GRANT sql_api_role TO sql_api_user;
-ALTER USER sql_api_user DEFAULT ROLE sql_api_role;
+-- DEFAULT ROLE NONE is load-bearing: the app activates exactly two roles per
+-- query via the URL `role=` parameter — `sql_api_role` plus the per-org role
+-- `sql_api_org_<id>`. If no role is activated, the user has no grants and the
+-- query fails closed. If two org roles were active simultaneously, their row
+-- policies would OR-combine and leak rows from both tenants.
+ALTER USER sql_api_user DEFAULT ROLE NONE;
 ALTER USER sql_api_user SETTINGS PROFILE 'sql_api_profile';
+
+-- Default-deny row policies for sql_api_role. Per-org row policies created at
+-- runtime by web_app_admin OR-combine with these to expose exactly one
+-- tenant's rows per query.
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces
+  ON app.traces        FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
+  ON app.logs          FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_gauge
+  ON app.metrics_gauge FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_sum
+  ON app.metrics_sum   FOR SELECT USING 0 TO sql_api_role;
