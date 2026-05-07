@@ -92,11 +92,17 @@ export async function querySqlApi<T>(
   }
   assertSafeOrgId(organizationId);
 
+  const orgRole = sqlApiOrgRoleName(organizationId);
   const result = await clickhouseSqlApi.query({
     query,
     query_params,
     format: "JSONEachRow",
-    role: ["sql_api_role", sqlApiOrgRoleName(organizationId)],
+    role: ["sql_api_role", orgRole],
+    // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so
+    // every org gets its own counters despite sharing sql_api_user. The
+    // value is server-derived from session.activeOrganizationId — never
+    // forwarded from CLI input.
+    http_headers: { "X-ClickHouse-Quota": orgRole },
   });
 
   return result.json<T>();

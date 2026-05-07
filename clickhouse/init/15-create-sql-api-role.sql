@@ -57,11 +57,17 @@ GRANT SELECT ON app.logs          TO sql_api_role;
 GRANT SELECT ON app.metrics_gauge TO sql_api_role;
 GRANT SELECT ON app.metrics_sum   TO sql_api_role;
 
--- Quota: per-user limits.
-CREATE QUOTA IF NOT EXISTS sql_api_quota
-  KEYED BY user_name
-  FOR INTERVAL 1 minute MAX queries = 600, errors = 50,
-  FOR INTERVAL 1 hour   MAX queries = 20000, read_rows = 50000000000, execution_time = 1800
+-- Quota: per-tenant limits. Keyed by client_key so each org gets its own
+-- bucket even though every query authenticates as the shared sql_api_user.
+-- The web app sets X-ClickHouse-Quota to the per-org hashed role name
+-- (querySqlApi in packages/app/src/lib/clickhouse.ts). The CH client never
+-- propagates a header from user input, so the key is not attacker-controlled.
+-- OR REPLACE so the keying change applies on fresh init even when the quota
+-- name was already created by an earlier image.
+CREATE OR REPLACE QUOTA sql_api_quota
+  KEYED BY client_key
+  FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
+  FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
   TO sql_api_role;
 
 -- Bind the user to the role + profile. The user itself is created in
