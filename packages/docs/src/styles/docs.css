@@ -16,37 +16,6 @@
   }
 }
 
-.product-perspective {
-  perspective: min(1400px, 100vw);
-  perspective-origin: 50% 40%;
-}
-
-.product-tilt {
-  transform: rotateX(48deg) rotateY(0deg) rotateZ(0deg);
-  transform-origin: 0px 2%;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 2px solid var(--color-fd-border);
-  background: var(--color-fd-card, transparent);
-  position: relative;
-  box-shadow: 6px 6px 0 0 var(--color-fd-border);
-  mask-image: linear-gradient(
-    black 50%,
-    rgba(0, 0, 0, 0.5) 75%,
-    transparent 100%
-  );
-}
-
-@keyframes terminal-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
 ::view-transition-group(*) {
   animation-duration: 300ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -59,5 +28,21 @@
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
+  }
+}
+
+@theme inline {
+  --animate-orbit: orbit calc(var(--duration) * 1s) linear infinite;
+
+  @keyframes orbit {
+    0% {
+      transform: rotate(calc(var(--angle) * 1deg))
+        translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
+    }
+    100% {
+      transform: rotate(calc(var(--angle) * 1deg + 360deg))
+        translateY(calc(var(--radius) * 1px))
+        rotate(calc((var(--angle) * -1deg) - 360deg));
+    }
   }
 }
