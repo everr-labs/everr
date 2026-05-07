@@ -36,6 +36,9 @@ import {
   querySqlApi,
 } from "./clickhouse";
 
+const ORG42_ROLE =
+  "sql_api_org_e57e356a802a92d3abc46b1ee4546567f787933f3db939fc7d623b8f6889ca65";
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockJson.mockReturnValue([]);
@@ -51,7 +54,7 @@ describe("querySqlApi", () => {
       query: "SELECT {n:UInt8}",
       query_params: { n: 1 },
       format: "JSONEachRow",
-      role: ["sql_api_role", "sql_api_org_org42"],
+      role: ["sql_api_role", ORG42_ROLE],
     });
   });
 
@@ -71,17 +74,17 @@ describe("querySqlApi", () => {
 });
 
 describe("provisionSqlApiOrgRole", () => {
-  it("creates the role, the per-table policies, and grants the role to sql_api_user", async () => {
+  it("creates the opaque role, the per-table policies, and grants the role to sql_api_user", async () => {
     await provisionSqlApiOrgRole("org42");
 
     const calls = mockCommand.mock.calls.map(([args]) => args.query);
     expect(calls).toEqual([
-      "CREATE ROLE IF NOT EXISTS `sql_api_org_org42`",
-      "CREATE ROW POLICY IF NOT EXISTS `sql_api_org_org42_traces` ON app.`traces` FOR SELECT USING tenant_id = 'org42' TO `sql_api_org_org42`",
-      "CREATE ROW POLICY IF NOT EXISTS `sql_api_org_org42_logs` ON app.`logs` FOR SELECT USING tenant_id = 'org42' TO `sql_api_org_org42`",
-      "CREATE ROW POLICY IF NOT EXISTS `sql_api_org_org42_metrics_gauge` ON app.`metrics_gauge` FOR SELECT USING tenant_id = 'org42' TO `sql_api_org_org42`",
-      "CREATE ROW POLICY IF NOT EXISTS `sql_api_org_org42_metrics_sum` ON app.`metrics_sum` FOR SELECT USING tenant_id = 'org42' TO `sql_api_org_org42`",
-      "GRANT `sql_api_org_org42` TO sql_api_user",
+      `CREATE ROLE IF NOT EXISTS \`${ORG42_ROLE}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_traces\` ON app.\`traces\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_logs\` ON app.\`logs\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_metrics_gauge\` ON app.\`metrics_gauge\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_metrics_sum\` ON app.\`metrics_sum\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
+      `GRANT \`${ORG42_ROLE}\` TO sql_api_user`,
     ]);
   });
 
@@ -94,16 +97,16 @@ describe("provisionSqlApiOrgRole", () => {
 });
 
 describe("deprovisionSqlApiOrgRole", () => {
-  it("drops the per-table policies, then the role", async () => {
+  it("drops the per-table policies, then the opaque role", async () => {
     await deprovisionSqlApiOrgRole("org42");
 
     const calls = mockCommand.mock.calls.map(([args]) => args.query);
     expect(calls).toEqual([
-      "DROP ROW POLICY IF EXISTS `sql_api_org_org42_traces` ON app.`traces`",
-      "DROP ROW POLICY IF EXISTS `sql_api_org_org42_logs` ON app.`logs`",
-      "DROP ROW POLICY IF EXISTS `sql_api_org_org42_metrics_gauge` ON app.`metrics_gauge`",
-      "DROP ROW POLICY IF EXISTS `sql_api_org_org42_metrics_sum` ON app.`metrics_sum`",
-      "DROP ROLE IF EXISTS `sql_api_org_org42`",
+      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_traces\` ON app.\`traces\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_logs\` ON app.\`logs\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_metrics_gauge\` ON app.\`metrics_gauge\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_metrics_sum\` ON app.\`metrics_sum\``,
+      `DROP ROLE IF EXISTS \`${ORG42_ROLE}\``,
     ]);
   });
 });

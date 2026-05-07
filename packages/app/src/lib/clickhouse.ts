@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createClient } from "@clickhouse/client";
 import { env } from "@/env";
 
@@ -55,11 +56,14 @@ function assertSafeOrgId(organizationId: string): void {
 }
 
 function sqlApiOrgRoleName(organizationId: string): string {
-  return `sql_api_org_${organizationId}`;
+  const roleSuffix = createHash("sha256")
+    .update(organizationId, "utf8")
+    .digest("hex");
+  return `sql_api_org_${roleSuffix}`;
 }
 
 function sqlApiOrgPolicyName(organizationId: string, table: string): string {
-  return `sql_api_org_${organizationId}_${table}`;
+  return `${sqlApiOrgRoleName(organizationId)}_${table}`;
 }
 
 // Dedicated client for the /sql API. Connects as sql_api_user, whose
