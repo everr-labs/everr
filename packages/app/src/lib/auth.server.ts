@@ -15,7 +15,11 @@ import { invitation, member, user } from "@/db/schema";
 import { env } from "@/env";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
-import { upsertTenantRetention } from "@/lib/clickhouse";
+import {
+  deprovisionSqlApiOrgUser,
+  provisionSqlApiOrgUser,
+  upsertTenantRetention,
+} from "@/lib/clickhouse";
 import {
   sendInvitationEmail,
   sendPasswordResetEmail,
@@ -209,6 +213,29 @@ export const auth = betterAuth({
             });
           } catch (error) {
             console.error("[retention] failed to seed retention for org", {
+              orgId: organization.id,
+              error,
+            });
+          }
+
+          // Provision the per-org ClickHouse user + row policies that back
+          // the /api/cli/sql endpoint's tenant isolation. Each /sql query
+          // authenticates as exactly this org's user; without provisioning,
+          // the org's users couldn't authenticate at all. Idempotent.
+          try {
+            await provisionSqlApiOrgUser(organization.id);
+          } catch (error) {
+            console.error("[sql-api] failed to provision org user", {
+              orgId: organization.id,
+              error,
+            });
+          }
+        },
+        afterDeleteOrganization: async ({ organization }) => {
+          try {
+            await deprovisionSqlApiOrgUser(organization.id);
+          } catch (error) {
+            console.error("[sql-api] failed to deprovision org user", {
               orgId: organization.id,
               error,
             });

@@ -26,6 +26,7 @@ Use Everr from the repository root when investigating CI state, GitHub Actions f
 | Logs for a known step | `everr ci logs <trace_id> --job-name <job> --step-number <n>` |
 | Logs for the first failed step in a job | `everr ci logs <trace_id> --job-name <job> --log-failed` |
 | Search similar failures on other branches | `everr ci grep --pattern <text>` |
+| Advanced read-only custom cloud SQL investigation | `everr cloud query "<SQL>"` |
 
 Useful flags:
 - `everr ci status --commit <sha>` targets another commit.
@@ -33,6 +34,49 @@ Useful flags:
 - `everr ci logs --job-id <id>` is safer than `--job-name` when a job id is available.
 - `everr ci logs --egrep <pattern>` filters logs with a re2 regex; exit code 1 means no matching lines.
 - `everr ci logs --tail <n>`, `--limit <n>`, and `--offset <n>` page large logs.
+
+## Cloud SQL
+
+Use `everr cloud query "<SQL>"` only when focused commands do not answer the question.
+
+Starting tables:
+- `traces`: workflow runs, jobs, steps, and test spans
+- `logs`: step logs
+- `metrics_gauge` and `metrics_sum`: resource metrics when needed
+
+Standards:
+- https://opentelemetry.io/docs/specs/semconv/cicd/
+- https://opentelemetry.io/docs/specs/semconv/cicd/cicd-spans/
+- https://opentelemetry.io/docs/specs/semconv/resource/cicd/
+- https://opentelemetry.io/docs/specs/semconv/registry/attributes/test/
+
+Common Everr-specific fields:
+- `SpanAttributes['everr.github.workflow_job_step.number']`
+- `ResourceAttributes['everr.github.workflow_job.run_attempt']`
+- `SpanAttributes['everr.test.name']`
+- `SpanAttributes['everr.test.result']`
+- `SpanAttributes['everr.test.duration_seconds']`
+- `SpanAttributes['everr.test.package']`
+- `SpanAttributes['everr.test.parent_test']`
+
+Simple test filtering example:
+```sql
+SELECT
+  Timestamp,
+  ResourceAttributes['vcs.repository.name'] AS repo,
+  ResourceAttributes['vcs.ref.head.name'] AS branch,
+  ResourceAttributes['cicd.pipeline.run.id'] AS run_id,
+  SpanAttributes['everr.test.name'] AS test_name,
+  SpanAttributes['everr.test.result'] AS result
+FROM traces
+WHERE Timestamp > now() - INTERVAL 7 DAY
+  AND SpanAttributes['everr.test.name'] != ''
+  AND SpanAttributes['everr.test.result'] IN ('pass', 'fail')
+ORDER BY Timestamp DESC
+LIMIT 50
+```
+
+Always include a time filter. Add repo, branch, run id, job, or test filters when known. Tenant filtering is automatic; do not filter on `tenant_id`.
 
 ## Integrated Example
 

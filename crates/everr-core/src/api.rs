@@ -82,6 +82,31 @@ impl ApiClient {
         self.get_json(&path, query).await
     }
 
+    pub async fn post_sql(&self, sql: &str) -> Result<String> {
+        let response = self
+            .http
+            .post(format!("{}/sql", self.base_endpoint))
+            .header(CONTENT_TYPE, "text/plain")
+            .body(sql.to_string())
+            .send()
+            .await
+            .context("CLI SQL request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "CLI SQL request"));
+        }
+
+        response
+            .text()
+            .await
+            .context("failed to read CLI SQL response body")
+    }
+
     pub async fn get_step_logs(
         &self,
         trace_id: &str,

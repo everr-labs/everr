@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
+import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
 import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
@@ -107,6 +108,11 @@ const ApiEventsStreamRoute = ApiEventsStreamRouteImport.update({
   id: '/api/events/stream',
   path: '/api/events/stream',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCliSqlRoute = ApiCliSqlRouteImport.update({
+  id: '/sql',
+  path: '/sql',
+  getParentRoute: () => ApiCliRoute,
 } as any)
 const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
   id: '/runs',
@@ -326,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByTo {
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -416,6 +424,7 @@ export interface FileRoutesById {
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
+  '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -463,6 +472,7 @@ export interface FileRouteTypes {
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/runs'
+    | '/api/cli/sql'
     | '/api/events/stream'
     | '/runs/$traceId'
     | '/auth/forgot-password'
@@ -506,6 +516,7 @@ export interface FileRouteTypes {
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/runs'
+    | '/api/cli/sql'
     | '/api/events/stream'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -552,6 +563,7 @@ export interface FileRouteTypes {
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/runs'
+    | '/api/cli/sql'
     | '/api/events/stream'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
@@ -666,6 +678,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/events/stream'
       preLoaderRoute: typeof ApiEventsStreamRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/cli/sql': {
+      id: '/api/cli/sql'
+      path: '/sql'
+      fullPath: '/api/cli/sql'
+      preLoaderRoute: typeof ApiCliSqlRouteImport
+      parentRoute: typeof ApiCliRoute
     }
     '/api/cli/runs': {
       id: '/api/cli/runs'
@@ -1086,6 +1105,7 @@ interface ApiCliRouteChildren {
   ApiCliOrgRoute: typeof ApiCliOrgRouteWithChildren
   ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
+  ApiCliSqlRoute: typeof ApiCliSqlRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
@@ -1096,6 +1116,7 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliOrgRoute: ApiCliOrgRouteWithChildren,
   ApiCliReposRoute: ApiCliReposRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
+  ApiCliSqlRoute: ApiCliSqlRoute,
 }
 
 const ApiCliRouteWithChildren =
