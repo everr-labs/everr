@@ -96,13 +96,12 @@ describe("querySqlApi", () => {
 });
 
 describe("provisionSqlApiOrgUser", () => {
-  it("creates/alters the org user, grants sql_api_role, and creates per-table row policies", async () => {
+  it("creates the org user, grants sql_api_role, and creates per-table row policies", async () => {
     await provisionSqlApiOrgUser(ORG);
 
     const calls = mockCommand.mock.calls.map(([args]) => args.query);
     expect(calls).toEqual([
-      `CREATE USER IF NOT EXISTS \`${ORG_USER}\` IDENTIFIED WITH sha256_password BY '${ORG_PASSWORD}'`,
-      `ALTER USER \`${ORG_USER}\` IDENTIFIED WITH sha256_password BY '${ORG_PASSWORD}' SETTINGS PROFILE 'sql_api_profile'`,
+      `CREATE USER IF NOT EXISTS \`${ORG_USER}\` IDENTIFIED WITH sha256_password BY '${ORG_PASSWORD}' SETTINGS PROFILE 'sql_api_profile'`,
       `GRANT sql_api_role TO \`${ORG_USER}\``,
       `ALTER USER \`${ORG_USER}\` DEFAULT ROLE sql_api_role`,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_traces\` ON app.\`traces\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,

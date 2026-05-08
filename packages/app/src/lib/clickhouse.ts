@@ -127,8 +127,7 @@ export async function upsertTenantRetention(row: {
 
 // Create the per-org ClickHouse user, set its profile + default role, grant
 // sql_api_role, and create the per-table row policies that pin the tenant id
-// in as a constant. Idempotent: re-running updates the password (so a master
-// key rotation is applied by re-provisioning) and re-creates the policies.
+// in as a constant.
 export async function provisionSqlApiOrgUser(
   organizationId: string,
 ): Promise<void> {
@@ -137,11 +136,7 @@ export async function provisionSqlApiOrgUser(
   const tenantLiteral = `'${organizationId}'`;
 
   await clickhouseAdmin.command({
-    query: `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}'`,
-  });
-  // ALTER applies password rotation and pins the profile when re-provisioning.
-  await clickhouseAdmin.command({
-    query: `ALTER USER \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
+    query: `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
   });
   await clickhouseAdmin.command({
     query: `GRANT sql_api_role TO \`${username}\``,
