@@ -4,7 +4,6 @@ set -e
 : "${COLLECTOR_RW_PASSWORD:?COLLECTOR_RW_PASSWORD is required}"
 : "${APP_RO_PASSWORD:?APP_RO_PASSWORD is required}"
 : "${WEB_APP_ADMIN_PASSWORD:?WEB_APP_ADMIN_PASSWORD is required}"
-: "${SQL_API_PASSWORD:?SQL_API_PASSWORD is required}"
 
 clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --multiquery <<SQL
 CREATE DATABASE IF NOT EXISTS otel;
@@ -14,12 +13,9 @@ CREATE USER IF NOT EXISTS collector_rw IDENTIFIED WITH sha256_password BY '${COL
 CREATE USER IF NOT EXISTS app_ro IDENTIFIED WITH sha256_password BY '${APP_RO_PASSWORD}';
 -- web_app_admin holds every privilege the web-app process needs that goes
 -- beyond app_ro's read-only data access: writing per-tenant retention rows,
--- and provisioning per-org access entities (roles + row policies) for the
+-- and provisioning per-org access entities (users + row policies) for the
 -- /sql API. See the GRANT block below for the exact split.
 CREATE USER IF NOT EXISTS web_app_admin IDENTIFIED WITH sha256_password BY '${WEB_APP_ADMIN_PASSWORD}';
--- sql_api_user is granted its role/profile/quota in 15-create-sql-api-role.sql
--- (those don't exist yet at this point in the boot order).
-CREATE USER IF NOT EXISTS sql_api_user IDENTIFIED WITH sha256_password BY '${SQL_API_PASSWORD}';
 
 -- Collector writes raw telemetry into otel schema.
 GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
@@ -39,17 +35,14 @@ GRANT dictGet ON app.tenant_retention TO collector_rw;
 GRANT dictGet ON app.tenant_retention TO app_ro;
 
 -- Access-management grants for /sql API per-org provisioning:
---   CREATE/DROP ROLE: needed to make per-org roles. CH does not allow scoping
---     role creation by name pattern.
+--   CREATE/ALTER/DROP USER: needed to make per-org users \`sql_api_org_<id>\`.
+--     CH does not allow scoping user creation by name pattern.
 --   CREATE/DROP ROW POLICY ON app.*: scoped to the app database. Means a
 --     compromised web app could drop tenant filters — but not an escalation
 --     beyond what app_ro already gives a compromised app process, since app_ro
 --     can override SQL_everr_tenant_id (no readonly profile).
---   ROLE ADMIN ON *.*: required by CH to grant/revoke any role at all. Despite
---     the *.* wildcard, the user can only grant roles where it has admin option,
---     which CH grants implicitly to a role's creator. Pre-existing roles like
---     sql_api_role remain untouchable by this user.
-GRANT CREATE ROLE, DROP ROLE ON *.* TO web_app_admin;
+-- The ADMIN OPTION on sql_api_role is granted in 15-create-sql-api-role.sql
+-- once the role exists, so web_app_admin can grant it to per-org users.
+GRANT CREATE USER, ALTER USER, DROP USER ON *.* TO web_app_admin;
 GRANT CREATE ROW POLICY, DROP ROW POLICY ON app.* TO web_app_admin;
-GRANT ROLE ADMIN ON *.* TO web_app_admin;
 SQL

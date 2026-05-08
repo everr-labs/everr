@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { createClient } from "@clickhouse/client";
 import { env } from "@/env";
 
@@ -44,44 +44,25 @@ const SQL_API_TENANT_TABLES = [
   "metrics_sum",
 ] as const;
 
-// Org IDs are session-derived (better-auth nanoid-style), but the provisioner
-// builds DDL by string concat, so guard against any non-conforming value
-// reaching ClickHouse identifiers.
-const ORG_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-
-function assertSafeOrgId(organizationId: string): void {
-  if (!ORG_ID_PATTERN.test(organizationId)) {
-    throw new Error(`Unsafe organization id for ClickHouse: ${organizationId}`);
-  }
+function sqlApiOrgUserName(organizationId: string): string {
+  return `sql_api_org_${organizationId}`;
 }
 
-function sqlApiOrgRoleName(organizationId: string): string {
-  const roleSuffix = createHash("sha256")
+function sqlApiOrgPassword(organizationId: string): string {
+  return createHmac("sha256", env.CLICKHOUSE_SQL_API_MASTER_KEY)
     .update(organizationId, "utf8")
     .digest("hex");
-  return `sql_api_org_${roleSuffix}`;
 }
 
 function sqlApiOrgPolicyName(organizationId: string, table: string): string {
-  return `${sqlApiOrgRoleName(organizationId)}_${table}`;
+  return `${sqlApiOrgUserName(organizationId)}_${table}`;
 }
 
-// Dedicated client for the /sql API. Connects as sql_api_user, whose
-// sql_api_role/sql_api_profile/sql_api_quota enforce all readonly + resource
-// caps server-side. The app does not inject any per-query SETTINGS here.
-const clickhouseSqlApi = createClient({
-  url: env.CLICKHOUSE_URL,
-  username: env.CLICKHOUSE_SQL_API_USERNAME,
-  password: env.CLICKHOUSE_SQL_API_PASSWORD,
-  database: env.CLICKHOUSE_DATABASE,
-});
-
-// Tenant context is the active role set on the connection, not a settable
-// value: the per-org role's row policy bakes the tenant id in as a constant,
-// so user SQL cannot override it via SETTINGS or any other channel. The app
-// activates exactly two roles per query — `sql_api_role` (grants + caps) plus
-// the org-specific role (tenant filter). DEFAULT ROLE NONE on sql_api_user
-// guarantees a missing role= param fails closed.
+// Tenant context is the authenticated user, not a settable value: each org has
+// its own ClickHouse user `sql_api_org_<id>` with a row policy bound directly
+// to that user, so user SQL cannot override the tenant filter via SETTINGS or
+// any other channel. The query authenticates with HMAC-derived credentials per
+// query and reuses the shared `clickhouse` HTTP client.
 export async function querySqlApi<T>(
   query: string,
   organizationId: string,
@@ -90,19 +71,19 @@ export async function querySqlApi<T>(
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
   }
-  assertSafeOrgId(organizationId);
 
-  const orgRole = sqlApiOrgRoleName(organizationId);
-  const result = await clickhouseSqlApi.query({
+  const username = sqlApiOrgUserName(organizationId);
+  const password = sqlApiOrgPassword(organizationId);
+
+  const result = await clickhouse.query({
     query,
     query_params,
     format: "JSONEachRow",
-    role: ["sql_api_role", orgRole],
-    // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so
-    // every org gets its own counters despite sharing sql_api_user. The
-    // value is server-derived from session.activeOrganizationId — never
-    // forwarded from CLI input.
-    http_headers: { "X-ClickHouse-Quota": orgRole },
+    auth: { username, password },
+    // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
+    // org gets its own counters. The header value is server-derived from
+    // session.activeOrganizationId — never forwarded from CLI input.
+    http_headers: { "X-ClickHouse-Quota": username },
   });
 
   return result.json<T>();
@@ -115,7 +96,7 @@ export function createClickhouseQuery(organizationId: string) {
 
 // web_app_admin client: holds all privileges the web-app process needs that
 // go beyond app_ro's read-only access — writing per-tenant retention rows,
-// and provisioning per-org access entities (roles + row policies) for the
+// and provisioning per-org access entities (users + row policies) for the
 // /sql API. Grants are pinned in clickhouse/init/00-setup.sh.
 const clickhouseAdmin = createClient({
   url: env.CLICKHOUSE_URL,
@@ -144,39 +125,47 @@ export async function upsertTenantRetention(row: {
   });
 }
 
-// Create the per-org role, the per-table row policies that pin the tenant id
-// in as a constant, and grant the role to sql_api_user. Idempotent: safe to
-// call repeatedly (e.g. in a backfill or after a transient failure).
-export async function provisionSqlApiOrgRole(
+// Create the per-org ClickHouse user, set its profile + default role, grant
+// sql_api_role, and create the per-table row policies that pin the tenant id
+// in as a constant. Idempotent: re-running updates the password (so a master
+// key rotation is applied by re-provisioning) and re-creates the policies.
+export async function provisionSqlApiOrgUser(
   organizationId: string,
 ): Promise<void> {
-  assertSafeOrgId(organizationId);
-  const role = sqlApiOrgRoleName(organizationId);
-  const tenantLiteral = `'${organizationId}'`; // org id pre-validated above
+  const username = sqlApiOrgUserName(organizationId);
+  const password = sqlApiOrgPassword(organizationId);
+  const tenantLiteral = `'${organizationId}'`;
 
   await clickhouseAdmin.command({
-    query: `CREATE ROLE IF NOT EXISTS \`${role}\``,
+    query: `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}'`,
+  });
+  // ALTER applies password rotation and pins the profile when re-provisioning.
+  await clickhouseAdmin.command({
+    query: `ALTER USER \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
+  });
+  await clickhouseAdmin.command({
+    query: `GRANT sql_api_role TO \`${username}\``,
+  });
+  // DEFAULT ROLE has to come after the GRANT — CH validates the role is
+  // already granted to the user before it can be the default.
+  await clickhouseAdmin.command({
+    query: `ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`,
   });
 
   for (const table of SQL_API_TENANT_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
     await clickhouseAdmin.command({
-      query: `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${role}\``,
+      query: `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
     });
   }
-
-  await clickhouseAdmin.command({
-    query: `GRANT \`${role}\` TO sql_api_user`,
-  });
 }
 
-// Reverse of provisionSqlApiOrgRole. Order is important: drop the policies
-// before the role so DROP ROLE doesn't fail with "role is referenced".
-export async function deprovisionSqlApiOrgRole(
+// Reverse of provisionSqlApiOrgUser. Order is important: drop the policies
+// before the user so DROP USER doesn't fail with "user is referenced".
+export async function deprovisionSqlApiOrgUser(
   organizationId: string,
 ): Promise<void> {
-  assertSafeOrgId(organizationId);
-  const role = sqlApiOrgRoleName(organizationId);
+  const username = sqlApiOrgUserName(organizationId);
 
   for (const table of SQL_API_TENANT_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
@@ -186,6 +175,6 @@ export async function deprovisionSqlApiOrgRole(
   }
 
   await clickhouseAdmin.command({
-    query: `DROP ROLE IF EXISTS \`${role}\``,
+    query: `DROP USER IF EXISTS \`${username}\``,
   });
 }

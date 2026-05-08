@@ -15,7 +15,6 @@ services:
       COLLECTOR_RW_PASSWORD: collector-dev
       APP_RO_PASSWORD: app-dev
       WEB_APP_ADMIN_PASSWORD: web-app-admin-dev
-      SQL_API_PASSWORD: sql-api-dev
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse
 

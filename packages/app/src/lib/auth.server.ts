@@ -16,8 +16,8 @@ import { env } from "@/env";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
 import {
-  deprovisionSqlApiOrgRole,
-  provisionSqlApiOrgRole,
+  deprovisionSqlApiOrgUser,
+  provisionSqlApiOrgUser,
   upsertTenantRetention,
 } from "@/lib/clickhouse";
 import {
@@ -218,14 +218,14 @@ export const auth = betterAuth({
             });
           }
 
-          // Provision the per-org ClickHouse role + row policies that back
+          // Provision the per-org ClickHouse user + row policies that back
           // the /api/cli/sql endpoint's tenant isolation. Each /sql query
-          // activates exactly this org's role; without provisioning, the
-          // org's users would see zero rows. Idempotent.
+          // authenticates as exactly this org's user; without provisioning,
+          // the org's users couldn't authenticate at all. Idempotent.
           try {
-            await provisionSqlApiOrgRole(organization.id);
+            await provisionSqlApiOrgUser(organization.id);
           } catch (error) {
-            console.error("[sql-api] failed to provision org role", {
+            console.error("[sql-api] failed to provision org user", {
               orgId: organization.id,
               error,
             });
@@ -233,9 +233,9 @@ export const auth = betterAuth({
         },
         afterDeleteOrganization: async ({ organization }) => {
           try {
-            await deprovisionSqlApiOrgRole(organization.id);
+            await deprovisionSqlApiOrgUser(organization.id);
           } catch (error) {
-            console.error("[sql-api] failed to deprovision org role", {
+            console.error("[sql-api] failed to deprovision org user", {
               orgId: organization.id,
               error,
             });

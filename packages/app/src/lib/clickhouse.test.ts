@@ -1,14 +1,18 @@
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockQuery, mockInsert, mockCommand, mockJson } = vi.hoisted(() => ({
-  mockQuery: vi.fn(),
-  mockInsert: vi.fn(),
-  mockCommand: vi.fn(),
-  mockJson: vi.fn(),
-}));
+const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(
+  () => ({
+    mockQuery: vi.fn(),
+    mockInsert: vi.fn(),
+    mockCommand: vi.fn(),
+    mockJson: vi.fn(),
+    MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
+  }),
+);
 
 vi.mock("@clickhouse/client", () => ({
   createClient: vi.fn(() => ({
@@ -26,21 +30,22 @@ vi.mock("@/env", () => ({
     CLICKHOUSE_DATABASE: "default",
     CLICKHOUSE_ADMIN_USERNAME: "web_app_admin",
     CLICKHOUSE_ADMIN_PASSWORD: "web-app-admin-password",
-    CLICKHOUSE_SQL_API_USERNAME: "sql_api_user",
-    CLICKHOUSE_SQL_API_PASSWORD: "sql-api-password",
+    CLICKHOUSE_SQL_API_MASTER_KEY: MASTER_KEY,
   },
 }));
 
 vi.unmock("@/lib/clickhouse");
 
 import {
-  deprovisionSqlApiOrgRole,
-  provisionSqlApiOrgRole,
+  deprovisionSqlApiOrgUser,
+  provisionSqlApiOrgUser,
   querySqlApi,
 } from "./clickhouse";
 
-const ORG42_ROLE =
-  "sql_api_org_e57e356a802a92d3abc46b1ee4546567f787933f3db939fc7d623b8f6889ca65";
+const ORG = "org42";
+const ORG_USER = `sql_api_org_${ORG}`;
+const ORG_PASSWORD = createHmac("sha256", MASTER_KEY).update(ORG).digest("hex");
+
 const CURRENT_DIR = dirname(fileURLToPath(import.meta.url));
 const SQL_API_BACKFILL_SQL = readFileSync(
   resolve(CURRENT_DIR, "../../../../clickhouse/backfill-sql-api-access.sql"),
@@ -55,19 +60,31 @@ beforeEach(() => {
 });
 
 describe("querySqlApi", () => {
-  it("activates sql_api_role + the per-org role and forwards query params", async () => {
-    await querySqlApi("SELECT {n:UInt8}", "org42", { n: 1 });
+  it("authenticates per-query as the org user and forwards query params", async () => {
+    await querySqlApi("SELECT {n:UInt8}", ORG, { n: 1 });
 
     expect(mockQuery).toHaveBeenCalledWith({
       query: "SELECT {n:UInt8}",
       query_params: { n: 1 },
       format: "JSONEachRow",
-      role: ["sql_api_role", ORG42_ROLE],
-      http_headers: { "X-ClickHouse-Quota": ORG42_ROLE },
+      auth: { username: ORG_USER, password: ORG_PASSWORD },
+      http_headers: { "X-ClickHouse-Quota": ORG_USER },
     });
-    // Per-org role provisioning happens at org creation (auth.server.ts) and
+    // Per-org user provisioning happens at org creation (auth.server.ts) and
     // in the startup backfill — never on the read path.
     expect(mockCommand).not.toHaveBeenCalled();
+  });
+
+  it("derives a deterministic password from the tenant id and the master key", async () => {
+    await querySqlApi("SELECT 1", ORG);
+    const firstAuth = mockQuery.mock.calls[0][0].auth;
+
+    mockQuery.mockClear();
+    await querySqlApi("SELECT 1", ORG);
+    const secondAuth = mockQuery.mock.calls[0][0].auth;
+
+    expect(firstAuth).toEqual(secondAuth);
+    expect(firstAuth.password).toBe(ORG_PASSWORD);
   });
 
   it("rejects when tenant id is missing", async () => {
@@ -76,49 +93,37 @@ describe("querySqlApi", () => {
     );
     expect(mockQuery).not.toHaveBeenCalled();
   });
-
-  it("rejects an organization id that wouldn't be safe in an identifier", async () => {
-    await expect(
-      querySqlApi("SELECT 1", "org`; DROP ROLE sql_api_role; --"),
-    ).rejects.toThrow(/unsafe organization id/i);
-    expect(mockQuery).not.toHaveBeenCalled();
-  });
 });
 
-describe("provisionSqlApiOrgRole", () => {
-  it("creates the opaque role, the per-table policies, and grants the role to sql_api_user", async () => {
-    await provisionSqlApiOrgRole("org42");
+describe("provisionSqlApiOrgUser", () => {
+  it("creates/alters the org user, grants sql_api_role, and creates per-table row policies", async () => {
+    await provisionSqlApiOrgUser(ORG);
 
     const calls = mockCommand.mock.calls.map(([args]) => args.query);
     expect(calls).toEqual([
-      `CREATE ROLE IF NOT EXISTS \`${ORG42_ROLE}\``,
-      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_traces\` ON app.\`traces\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
-      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_logs\` ON app.\`logs\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
-      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_metrics_gauge\` ON app.\`metrics_gauge\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
-      `CREATE ROW POLICY IF NOT EXISTS \`${ORG42_ROLE}_metrics_sum\` ON app.\`metrics_sum\` FOR SELECT USING tenant_id = 'org42' TO \`${ORG42_ROLE}\``,
-      `GRANT \`${ORG42_ROLE}\` TO sql_api_user`,
+      `CREATE USER IF NOT EXISTS \`${ORG_USER}\` IDENTIFIED WITH sha256_password BY '${ORG_PASSWORD}'`,
+      `ALTER USER \`${ORG_USER}\` IDENTIFIED WITH sha256_password BY '${ORG_PASSWORD}' SETTINGS PROFILE 'sql_api_profile'`,
+      `GRANT sql_api_role TO \`${ORG_USER}\``,
+      `ALTER USER \`${ORG_USER}\` DEFAULT ROLE sql_api_role`,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_traces\` ON app.\`traces\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_logs\` ON app.\`logs\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
     ]);
   });
-
-  it("rejects an unsafe organization id before any DDL runs", async () => {
-    await expect(provisionSqlApiOrgRole("evil id")).rejects.toThrow(
-      /unsafe organization id/i,
-    );
-    expect(mockCommand).not.toHaveBeenCalled();
-  });
 });
 
-describe("deprovisionSqlApiOrgRole", () => {
-  it("drops the per-table policies, then the opaque role", async () => {
-    await deprovisionSqlApiOrgRole("org42");
+describe("deprovisionSqlApiOrgUser", () => {
+  it("drops the per-table policies before dropping the user", async () => {
+    await deprovisionSqlApiOrgUser(ORG);
 
     const calls = mockCommand.mock.calls.map(([args]) => args.query);
     expect(calls).toEqual([
-      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_traces\` ON app.\`traces\``,
-      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_logs\` ON app.\`logs\``,
-      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_metrics_gauge\` ON app.\`metrics_gauge\``,
-      `DROP ROW POLICY IF EXISTS \`${ORG42_ROLE}_metrics_sum\` ON app.\`metrics_sum\``,
-      `DROP ROLE IF EXISTS \`${ORG42_ROLE}\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_traces\` ON app.\`traces\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_logs\` ON app.\`logs\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\``,
+      `DROP USER IF EXISTS \`${ORG_USER}\``,
     ]);
   });
 });
@@ -127,9 +132,6 @@ describe("manual SQL API access backfill SQL", () => {
   it("creates missing users, role/profile/quota, grants, and default-deny policies", () => {
     expect(SQL_API_BACKFILL_SQL).toMatch(
       /\bCREATE USER IF NOT EXISTS web_app_admin\b/i,
-    );
-    expect(SQL_API_BACKFILL_SQL).toMatch(
-      /\bCREATE USER IF NOT EXISTS sql_api_user\b/i,
     );
     expect(SQL_API_BACKFILL_SQL).toMatch(
       /\bCREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile\b/i,
@@ -144,15 +146,21 @@ describe("manual SQL API access backfill SQL", () => {
       /\bCREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces\b/i,
     );
     expect(SQL_API_BACKFILL_SQL).toMatch(
-      /\bGRANT CREATE ROLE, DROP ROLE ON \*\.\* TO web_app_admin\b/i,
+      /\bGRANT CREATE USER, ALTER USER, DROP USER ON \*\.\* TO web_app_admin\b/i,
     );
     expect(SQL_API_BACKFILL_SQL).toMatch(
-      /\bGRANT sql_api_role TO sql_api_user\b/i,
+      /\bGRANT sql_api_role TO web_app_admin WITH ADMIN OPTION\b/i,
     );
   });
 
-  it("keeps the passwords as manual replacement placeholders", () => {
+  it("no longer references the shared sql_api_user or its password placeholder", () => {
+    expect(SQL_API_BACKFILL_SQL).not.toMatch(/\bsql_api_user\b/);
+    expect(SQL_API_BACKFILL_SQL).not.toContain("<SQL_API_PASSWORD>");
+  });
+
+  it("keeps the remaining password placeholders for manual replacement", () => {
+    expect(SQL_API_BACKFILL_SQL).toContain("<COLLECTOR_RW_PASSWORD>");
+    expect(SQL_API_BACKFILL_SQL).toContain("<APP_RO_PASSWORD>");
     expect(SQL_API_BACKFILL_SQL).toContain("<WEB_APP_ADMIN_PASSWORD>");
-    expect(SQL_API_BACKFILL_SQL).toContain("<SQL_API_PASSWORD>");
   });
 });

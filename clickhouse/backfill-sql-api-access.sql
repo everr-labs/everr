@@ -1,15 +1,15 @@
 -- Manual backfill for ClickHouse volumes created before the /sql API access
 -- entities existed.
 --
--- Before running, replace the password placeholders below. Then run with an
+-- Before running, replace the password placeholder below. Then run with an
 -- access-management admin user, for example:
 --
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
 --     < clickhouse/backfill-sql-api-access.sql
 --
--- This file intentionally does not create per-org sql_api_org_* roles. Those
+-- This file intentionally does not create per-org sql_api_org_* users. Those
 -- are provisioned at org creation (auth.server.ts) and re-provisioned for any
--- pre-existing orgs by the startup backfill in sql-api-org-role-backfill.ts.
+-- pre-existing orgs by the startup backfill in sql-api-org-user-backfill.ts.
 
 CREATE DATABASE IF NOT EXISTS otel;
 CREATE DATABASE IF NOT EXISTS app;
@@ -17,7 +17,6 @@ CREATE DATABASE IF NOT EXISTS app;
 CREATE USER IF NOT EXISTS collector_rw IDENTIFIED WITH sha256_password BY '<COLLECTOR_RW_PASSWORD>';
 CREATE USER IF NOT EXISTS app_ro IDENTIFIED WITH sha256_password BY '<APP_RO_PASSWORD>';
 CREATE USER IF NOT EXISTS web_app_admin IDENTIFIED WITH sha256_password BY '<WEB_APP_ADMIN_PASSWORD>';
-CREATE USER IF NOT EXISTS sql_api_user IDENTIFIED WITH sha256_password BY '<SQL_API_PASSWORD>';
 
 -- Collector writes raw telemetry into otel schema.
 GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
@@ -28,9 +27,8 @@ GRANT SELECT ON app.* TO app_ro;
 -- App admin writes retention rows and provisions per-org access entities for
 -- the /sql API.
 GRANT INSERT, SELECT ON app.tenant_retention_source TO web_app_admin;
-GRANT CREATE ROLE, DROP ROLE ON *.* TO web_app_admin;
+GRANT CREATE USER, ALTER USER, DROP USER ON *.* TO web_app_admin;
 GRANT CREATE ROW POLICY, DROP ROW POLICY ON app.* TO web_app_admin;
-GRANT ROLE ADMIN ON *.* TO web_app_admin;
 
 -- dictGet is needed wherever the TTL expression evaluates dictGetOrDefault.
 GRANT dictGet ON app.tenant_retention TO collector_rw;
@@ -61,7 +59,8 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
   allow_ddl = 0 READONLY,
   allow_introspection_functions = 0 READONLY;
 
--- Role: SELECT only on tenant-scoped read tables.
+-- Role: SELECT only on tenant-scoped read tables. Per-org users are granted
+-- this role at provision time.
 CREATE ROLE IF NOT EXISTS sql_api_role SETTINGS PROFILE 'sql_api_profile';
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
@@ -74,22 +73,21 @@ GRANT SELECT ON app.metrics_sum   TO sql_api_role;
 REVOKE SELECT ON system.tables FROM sql_api_role;
 REVOKE SELECT ON system.quota_usage FROM sql_api_role;
 
+-- web_app_admin needs ADMIN OPTION on sql_api_role to grant it to the per-org
+-- users it provisions.
+GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
+
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
--- bucket even though every query authenticates as the shared sql_api_user.
+-- bucket via the X-ClickHouse-Quota header set by querySqlApi.
 CREATE QUOTA OR REPLACE sql_api_quota
   KEYED BY client_key
   FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
   TO sql_api_role;
 
--- Bind the user to the role + profile. DEFAULT ROLE NONE is important: the app
--- activates sql_api_role plus exactly one per-org role for each /sql query.
-GRANT sql_api_role TO sql_api_user;
-ALTER USER sql_api_user DEFAULT ROLE NONE;
-ALTER USER sql_api_user SETTINGS PROFILE 'sql_api_profile';
-
--- Default-deny row policies for sql_api_role. Per-org row policies created by
--- web_app_admin OR-combine with these to expose exactly one tenant's rows.
+-- Default-deny row policies for sql_api_role. Per-org row policies attached
+-- to each sql_api_org_<id> user OR-combine with these to expose exactly one
+-- tenant's rows per query.
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces
   ON app.traces        FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs

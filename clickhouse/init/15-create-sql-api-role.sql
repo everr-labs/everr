@@ -51,6 +51,7 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
 -- Role: SELECT only on the four tenant-scoped read tables. We deliberately
 -- avoid `app.*` so future internal tables (and app.tenant_retention_source,
 -- which is cross-tenant and has no RLS) don't auto-expand the surface area.
+-- Per-org users `sql_api_org_<id>` are granted this role at provision time.
 CREATE ROLE IF NOT EXISTS sql_api_role SETTINGS PROFILE 'sql_api_profile';
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
@@ -63,34 +64,27 @@ GRANT SELECT ON app.metrics_sum   TO sql_api_role;
 REVOKE SELECT ON system.tables FROM sql_api_role;
 REVOKE SELECT ON system.quota_usage FROM sql_api_role;
 
+-- web_app_admin needs ADMIN OPTION on sql_api_role to grant it to the per-org
+-- users it provisions. Granted here (not in 00-setup.sh) because the role
+-- doesn't exist yet at that point in the boot order.
+GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
+
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
--- bucket even though every query authenticates as the shared sql_api_user.
--- The web app sets X-ClickHouse-Quota to the per-org hashed role name
--- (querySqlApi in packages/app/src/lib/clickhouse.ts). The CH client never
--- propagates a header from user input, so the key is not attacker-controlled.
--- OR REPLACE so the keying change applies on fresh init even when the quota
--- name was already created by an earlier image.
+-- bucket via the X-ClickHouse-Quota header (querySqlApi in
+-- packages/app/src/lib/clickhouse.ts sets it to the per-org username). The CH
+-- client never propagates a header from user input, so the key is not
+-- attacker-controlled. OR REPLACE so the keying change applies on fresh init
+-- even when the quota name was already created by an earlier image.
 CREATE QUOTA OR REPLACE sql_api_quota
   KEYED BY client_key
   FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
   TO sql_api_role;
 
--- Bind the user to the role + profile. The user itself is created in
--- 00-setup.sh (so it can read $SQL_API_PASSWORD); the role/profile referenced
--- below only exist after this file runs, hence the split.
-GRANT sql_api_role TO sql_api_user;
--- DEFAULT ROLE NONE is load-bearing: the app activates exactly two roles per
--- query via the URL `role=` parameter — `sql_api_role` plus the per-org role
--- `sql_api_org_<id>`. If no role is activated, the user has no grants and the
--- query fails closed. If two org roles were active simultaneously, their row
--- policies would OR-combine and leak rows from both tenants.
-ALTER USER sql_api_user DEFAULT ROLE NONE;
-ALTER USER sql_api_user SETTINGS PROFILE 'sql_api_profile';
-
--- Default-deny row policies for sql_api_role. Per-org row policies created at
--- runtime by web_app_admin OR-combine with these to expose exactly one
--- tenant's rows per query.
+-- Default-deny row policies for sql_api_role. Per-org row policies attached
+-- to each `sql_api_org_<id>` user OR-combine with these to expose exactly
+-- one tenant's rows per query. Defense in depth: if provisioning ever skips
+-- the per-org policy step, the user sees zero rows rather than all rows.
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces
   ON app.traces        FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
