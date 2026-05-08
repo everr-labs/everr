@@ -36,15 +36,15 @@ export function Hero() {
           className="prose animate-fade-up mb-6 mt-6 max-w-3xl text-base text-fd-muted-foreground sm:text-lg md:mt-10 md:mb-4"
           style={{ animationDelay: "0.5s" }}
         >
-          <p>
-            Everr gives you — and your AI agents — direct access to the signals
-            that matter. Wherever your code runs: locally, in CI, inside remote
-            sandboxes.
-          </p>
           <p className="hidden sm:block">
             Observability today is trapped behind dashboards, and most "AI
             integrations" are just legacy tooling with a ChatGPT wrapper slapped
             on top.
+          </p>
+          <p>
+            Everr gives you — and your AI agents — direct access to the signals
+            that matter. Wherever your code runs: locally, in CI, inside remote
+            sandboxes.
           </p>
           <p className="hidden sm:block">
             No context switching. No black boxes. Just observability built for
