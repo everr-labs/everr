@@ -14,9 +14,7 @@ export function Footer() {
               <span className="text-2xl">Everr</span>
             </div>
             <p className="mt-4 text-sm text-fd-muted-foreground">
-              OpenTelemetry-native CI/CD observability
-              <br />
-              for humans and AI agents
+              The AI-native observability platform.
             </p>
             <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
               <a
