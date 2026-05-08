@@ -1,23 +1,23 @@
 import { Button } from "@everr/ui/components/button";
 import { Link } from "@tanstack/react-router";
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+// import { Check, Copy } from "lucide-react";
+// import { useState } from "react";
 import { HexagonPattern } from "./hexagon-pattern";
 
-const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
+// const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
 
 export function Hero() {
-  const [copied, setCopied] = useState(false);
+  // const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(INSTALL_COMMAND);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore
-    }
-  };
+  // const handleCopy = async () => {
+  //   try {
+  //     await navigator.clipboard.writeText(INSTALL_COMMAND);
+  //     setCopied(true);
+  //     setTimeout(() => setCopied(false), 2000);
+  //   } catch {
+  //     // ignore
+  //   }
+  // };
 
   return (
     <div className="relative overflow-hidden md:flex md:min-h-[100svh] md:items-end">
@@ -52,10 +52,9 @@ export function Hero() {
           </p>
         </div>
 
-        {/* Mobile-only CTA — phones can't run the install command, send them
-            to the waitlist instead. */}
+        {/* CTAs — waitlist + docs. Stacks full-width on mobile, sits inline on desktop. */}
         <div
-          className="animate-fade-up md:hidden"
+          className="flex animate-fade-up flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4"
           style={{ animationDelay: "0.8s" }}
         >
           <Button
@@ -63,13 +62,24 @@ export function Hero() {
             size="xl"
             nativeButton={false}
             render={<Link to="/waitlist" />}
-            className="w-full"
+            className="w-full sm:w-auto"
           >
             Join the waitlist
           </Button>
+          <Button
+            variant="outline"
+            size="xl"
+            nativeButton={false}
+            render={<Link to="/docs/$" params={{ _splat: "" }} />}
+            className="w-full sm:w-auto"
+          >
+            Documentation
+          </Button>
         </div>
 
-        {/* Desktop install command */}
+        {/* Pre-launch: install command box is hidden until we ship.
+            Uncomment when ready to launch.
+
         <div
           className="hidden w-full max-w-xl animate-fade-up items-center gap-3 rounded-md border-2 border-fd-border bg-fd-card px-4 py-3.5 md:flex"
           style={{ animationDelay: "0.8s" }}
@@ -97,6 +107,8 @@ export function Hero() {
             <span>{copied ? "Copied" : "Copy"}</span>
           </button>
         </div>
+
+        */}
       </div>
       <HexagonPattern
         gap={6}

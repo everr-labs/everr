@@ -1,23 +1,23 @@
 import { Button } from "@everr/ui/components/button";
 import { Link } from "@tanstack/react-router";
-import { Check, Copy } from "lucide-react";
+// import { Check, Copy } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+// import { useState } from "react";
 
-const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
+// const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
 
 export function FinalCTA() {
-  const [copied, setCopied] = useState(false);
+  // const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(INSTALL_COMMAND);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore
-    }
-  };
+  // const handleCopy = async () => {
+  //   try {
+  //     await navigator.clipboard.writeText(INSTALL_COMMAND);
+  //     setCopied(true);
+  //     setTimeout(() => setCopied(false), 2000);
+  //   } catch {
+  //     // ignore
+  //   }
+  // };
 
   return (
     <section className="relative">
@@ -33,6 +33,9 @@ export function FinalCTA() {
           <br />
           Start observing.
         </motion.h2>
+
+        {/* Pre-launch: install command box is hidden until we ship.
+            Uncomment when ready to launch.
 
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -69,16 +72,18 @@ export function FinalCTA() {
           </button>
         </motion.div>
 
+        */}
+
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-20% 0px" }}
           transition={{
             duration: 0.7,
-            delay: 0.45,
+            delay: 0.15,
             ease: [0.22, 1, 0.36, 1],
           }}
-          className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4"
+          className="mt-12 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4"
         >
           <Button
             variant="cta"
