@@ -21,7 +21,7 @@ fn build_logs_instructions(failure: &FailureNotification) -> String {
         .filter_map(|job| {
             let escaped = serde_json::to_string(&job.job_name).ok()?;
             Some(format!(
-                "`everr logs {} --job-name {} --step-number {}`",
+                "`everr ci logs {} --job-name {} --step-number {}`",
                 failure.trace_id, escaped, job.step_number
             ))
         })

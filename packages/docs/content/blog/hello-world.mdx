@@ -46,12 +46,12 @@ Most developer tools are built for humans. Everr is built for humans *and* AI ag
 **For AI agents**, there's a CLI that returns structured, context-rich data from the terminal. An agent can check CI status, pull failure logs, identify flaky tests, and surface root causes — all without leaving the repo context.
 
 ```bash
-$ everr status
+$ everr ci status
 Run ci/build-and-test — failed
   Job: E2E tests — step 12 failed
   Duration: 4m 23s (p95: 3m 10s — +40% regression)
 
-$ everr runs logs --trace-id c929f40e --job-name "E2E tests" --step-number 12
+$ everr ci logs c929f40e --job-name "E2E tests" --step-number 12
   Error: Timed out waiting 300000ms for config.webServer
   First seen: commit f92e4d1 (3 days ago)
   Frequency: 4/7 runs on main — likely flaky

@@ -17,7 +17,7 @@ const FLUSH_INTERVAL: Duration = Duration::from_millis(200);
 const EXPORT_TIMEOUT: Duration = Duration::from_secs(5);
 const EXPORT_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
 const COLLECTOR_UNAVAILABLE: &str =
-    "telemetry collector isn't running — run `everr telemetry start` or open Everr Desktop";
+    "telemetry collector isn't running — run `everr local start` or open Everr Desktop";
 
 pub async fn run(args: WrapArgs) -> Result<()> {
     let command = WrappedCommand::new(args.command)?;

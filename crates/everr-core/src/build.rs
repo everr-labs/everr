@@ -107,7 +107,7 @@ pub fn healthcheck_origin() -> String {
 }
 
 /// Origin for the local telemetry SQL HTTP endpoint served by the collector
-/// sidecar's `sqlhttp` extension. The `everr telemetry` CLI targets this.
+/// sidecar's `sqlhttp` extension. The `everr local` CLI targets this.
 pub fn sql_http_origin() -> String {
     #[cfg(debug_assertions)]
     if let Ok(origin) = std::env::var("EVERR_SQL_HTTP_ORIGIN") {

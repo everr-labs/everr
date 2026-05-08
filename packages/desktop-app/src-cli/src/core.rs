@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 use anyhow::{Context, Result, bail};
 use everr_core::git::{resolve_git_context, run_git};
@@ -12,9 +12,10 @@ use crate::api::{
 };
 use crate::auth;
 use crate::cli::{
-    GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, SlowestJobsArgs,
-    SlowestTestsArgs, StatusArgs, TestHistoryArgs, WatchArgs, WorkflowsListArgs,
+    GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
+    TelemetryQueryArgs, WatchArgs,
 };
+use crate::telemetry;
 
 fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
     match explicit {
@@ -80,6 +81,22 @@ pub async fn grep(args: GrepArgs) -> Result<()> {
 
     let payload = client.get_grep(&query).await?;
     print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn cloud_query(args: TelemetryQueryArgs) -> Result<()> {
+    let session = auth::require_session_with_refresh().await?;
+    let client = ApiClient::from_session(&session)?;
+    let body = client.post_sql(&args.sql).await?;
+    let rows = telemetry::client::parse_ndjson(&body)?;
+    let format = args.format.unwrap_or_else(|| {
+        if io::stdout().is_terminal() {
+            TelemetryFormat::Table
+        } else {
+            TelemetryFormat::Ndjson
+        }
+    });
+    telemetry::commands::render(&rows, format);
     Ok(())
 }
 
@@ -157,88 +174,6 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     if args.egrep.is_some() && response.logs.is_empty() {
         std::process::exit(1);
     }
-    Ok(())
-}
-
-pub async fn test_history(args: TestHistoryArgs) -> Result<()> {
-    let session = auth::require_session_with_refresh().await?;
-    let client = ApiClient::from_session(&session)?;
-    let cwd = std::env::current_dir()?;
-    let git = resolve_git_context(&cwd);
-    let repo = args.repo.or(git.repo).ok_or_else(|| {
-        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
-    })?;
-    if args.test_module.is_none() && args.test_name.is_none() {
-        bail!("provide at least one test filter: --module or --test-name");
-    }
-    let mut query: Vec<(&str, String)> = vec![("repo", repo)];
-    push_opt(&mut query, "testModule", args.test_module);
-    push_opt(&mut query, "testName", args.test_name);
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-    push_pagination(&mut query, args.limit, args.offset);
-
-    let payload = client.get_test_history(&query).await?;
-    print_json(&payload)?;
-    Ok(())
-}
-
-pub async fn slowest_tests(args: SlowestTestsArgs) -> Result<()> {
-    let session = auth::require_session_with_refresh().await?;
-    let client = ApiClient::from_session(&session)?;
-    let cwd = std::env::current_dir()?;
-    let git = resolve_git_context(&cwd);
-    let repo = args.repo.or(git.repo).ok_or_else(|| {
-        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
-    })?;
-
-    let mut query: Vec<(&str, String)> = vec![("repo", repo)];
-    push_pagination(&mut query, args.limit, args.offset);
-    push_opt(&mut query, "branch", args.branch);
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-
-    let payload = client.get_slowest_tests(&query).await?;
-    print_json(&payload)?;
-    Ok(())
-}
-
-pub async fn slowest_jobs(args: SlowestJobsArgs) -> Result<()> {
-    let session = auth::require_session_with_refresh().await?;
-    let client = ApiClient::from_session(&session)?;
-    let cwd = std::env::current_dir()?;
-    let git = resolve_git_context(&cwd);
-    let repo = args.repo.or(git.repo).ok_or_else(|| {
-        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
-    })?;
-
-    let mut query: Vec<(&str, String)> = vec![("repo", repo)];
-    push_pagination(&mut query, args.limit, args.offset);
-    push_opt(&mut query, "branch", args.branch);
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-
-    let payload = client.get_slowest_jobs(&query).await?;
-    print_json(&payload)?;
-    Ok(())
-}
-
-pub async fn workflows_list(args: WorkflowsListArgs) -> Result<()> {
-    let session = auth::require_session_with_refresh().await?;
-    let client = ApiClient::from_session(&session)?;
-    let cwd = std::env::current_dir()?;
-    let git = resolve_git_context(&cwd);
-    let repo = args.repo.or(git.repo).ok_or_else(|| {
-        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
-    })?;
-
-    let mut query: Vec<(&str, String)> = vec![("repo", repo)];
-    push_opt(&mut query, "branch", args.branch);
-
-    let payload = client.get_workflows_list(&query).await?;
-
-    print_json(&payload)?;
-
     Ok(())
 }
 
@@ -441,12 +376,12 @@ fn print_watch_summary(completed: &[WatchRun]) {
                     job.name, step.step_number, step.step_name
                 );
                 println!(
-                    "  everr logs {} --job-name {:?} --step-number {}",
+                    "  everr ci logs {} --job-name {:?} --step-number {}",
                     run.trace_id, job.name, step.step_number
                 );
             } else {
                 println!("  {}", job.name);
-                println!("  everr logs {} --job-name {:?}", run.trace_id, job.name);
+                println!("  everr ci logs {} --job-name {:?}", run.trace_id, job.name);
             }
         }
     }

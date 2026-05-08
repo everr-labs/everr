@@ -19,7 +19,7 @@ impl fmt::Display for ReauthenticationRequired {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Session expired. Run `{} login` to re-authenticate.",
+            "Session expired. Run `{} cloud login` to re-authenticate.",
             build::command_name()
         )
     }
@@ -77,28 +77,34 @@ impl ApiClient {
         self.get("/me", &[]).await
     }
 
-    pub async fn get_test_history(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/test-history", query).await
-    }
-
-    pub async fn get_slowest_tests(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/slowest-tests", query).await
-    }
-
-    pub async fn get_slowest_jobs(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/slowest-jobs", query).await
-    }
-
-    pub async fn get_workflows_list(
-        &self,
-        query: &[(&str, String)],
-    ) -> Result<WorkflowsListResponse> {
-        self.get("/workflows-list", query).await
-    }
-
     pub async fn get_run_details(&self, trace_id: &str, query: &[(&str, String)]) -> Result<Value> {
         let path = format!("/runs/{trace_id}");
         self.get_json(&path, query).await
+    }
+
+    pub async fn post_sql(&self, sql: &str) -> Result<String> {
+        let response = self
+            .http
+            .post(format!("{}/sql", self.base_endpoint))
+            .header(CONTENT_TYPE, "text/plain")
+            .body(sql.to_string())
+            .send()
+            .await
+            .context("CLI SQL request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "CLI SQL request"));
+        }
+
+        response
+            .text()
+            .await
+            .context("failed to read CLI SQL response body")
     }
 
     pub async fn get_step_logs(
@@ -354,17 +360,6 @@ pub struct MeResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct WorkflowsListResponse {
-    pub workflows: Vec<WorkflowWithJobs>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct WorkflowWithJobs {
-    pub name: String,
-    pub jobs: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct FailureNotification {
     pub dedupe_key: String,
@@ -443,8 +438,8 @@ where
 #[cfg(test)]
 mod api_client_tests {
     use super::*;
-    use futures_util::pin_mut;
     use futures_util::StreamExt;
+    use futures_util::pin_mut;
 
     fn make_session(base_url: &str) -> crate::state::Session {
         crate::state::Session {
@@ -545,7 +540,7 @@ mod api_client_tests {
         assert!(is_reauthentication_required(&error));
         assert_eq!(
             error.to_string(),
-            "Session expired. Run `everr login` to re-authenticate."
+            "Session expired. Run `everr cloud login` to re-authenticate."
         );
         mock.assert_async().await;
     }
@@ -573,7 +568,7 @@ mod api_client_tests {
         assert!(is_reauthentication_required(&error));
         assert_eq!(
             error.to_string(),
-            "Session expired. Run `everr login` to re-authenticate."
+            "Session expired. Run `everr cloud login` to re-authenticate."
         );
         mock.assert_async().await;
     }

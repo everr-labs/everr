@@ -79,10 +79,7 @@ service:
         .stderr(Stdio::piped())
         .spawn()
         .expect("spawn collector");
-    let mut collector_stderr = collector_process
-        .stderr
-        .take()
-        .expect("collector stderr");
+    let mut collector_stderr = collector_process.stderr.take().expect("collector stderr");
     let mut collector = CollectorGuard::spawn(collector_process);
 
     if !wait_for_health(&mut collector.child, &mut collector_stderr, health_port) {
@@ -101,7 +98,7 @@ service:
             format!("http://127.0.0.1:{sql_port}"),
         )
         .args([
-            "telemetry",
+            "local",
             "query",
             "SELECT count() AS c FROM otel_logs",
             "--format",
@@ -119,10 +116,7 @@ service:
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(r#""c":1"#),
-        "unexpected stdout: {stdout}"
-    );
+    assert!(stdout.contains(r#""c":1"#), "unexpected stdout: {stdout}");
 }
 
 fn resolve_collector_binary() -> Option<PathBuf> {
@@ -136,7 +130,10 @@ fn copy_everr_dev_binary() -> DevBinary {
     let dir = TempDir::new().expect("create cli binary tempdir");
     let target = dir.path().join("everr-dev");
     fs::copy(&source, &target).expect("copy everr binary");
-    DevBinary { _dir: dir, path: target }
+    DevBinary {
+        _dir: dir,
+        path: target,
+    }
 }
 
 fn pick_free_port() -> u16 {
@@ -172,9 +169,7 @@ fn wait_for_health(
                 );
                 return false;
             }
-            panic!(
-                "collector exited before health check succeeded: {status}\nstderr={stderr}"
-            );
+            panic!("collector exited before health check succeeded: {status}\nstderr={stderr}");
         }
 
         for url in &urls {

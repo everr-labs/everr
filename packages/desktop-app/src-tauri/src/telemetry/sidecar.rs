@@ -3,7 +3,7 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use nix::errno::Errno;
-use nix::sys::signal::{Signal, killpg};
+use nix::sys::signal::{killpg, Signal};
 use nix::unistd::Pid;
 use tauri::AppHandle;
 use tokio::process::{Child, Command};
@@ -11,6 +11,8 @@ use tokio::sync::watch;
 use tokio::time::{sleep, timeout};
 
 use crate::telemetry::ports::{HEALTHCHECK_PORT, OTLP_HTTP_PORT};
+
+pub const COLLECTOR_START_ARGS: [&str; 3] = ["local", "start", "--quiet"];
 
 #[derive(Debug, Clone)]
 pub enum TelemetryState {
@@ -262,7 +264,7 @@ async fn spawn_cli_collector_with(
 ) -> std::io::Result<Child> {
     let mut command = Command::new(binary);
     command
-        .args(["telemetry", "start", "--quiet"])
+        .args(COLLECTOR_START_ARGS)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);

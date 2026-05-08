@@ -20,10 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
-import { Route as ApiCliWorkflowsListRouteImport } from './routes/api/cli/workflows-list'
-import { Route as ApiCliTestHistoryRouteImport } from './routes/api/cli/test-history'
-import { Route as ApiCliSlowestTestsRouteImport } from './routes/api/cli/slowest-tests'
-import { Route as ApiCliSlowestJobsRouteImport } from './routes/api/cli/slowest-jobs'
+import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
 import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
@@ -112,24 +109,9 @@ const ApiEventsStreamRoute = ApiEventsStreamRouteImport.update({
   path: '/api/events/stream',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCliWorkflowsListRoute = ApiCliWorkflowsListRouteImport.update({
-  id: '/workflows-list',
-  path: '/workflows-list',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliTestHistoryRoute = ApiCliTestHistoryRouteImport.update({
-  id: '/test-history',
-  path: '/test-history',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliSlowestTestsRoute = ApiCliSlowestTestsRouteImport.update({
-  id: '/slowest-tests',
-  path: '/slowest-tests',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliSlowestJobsRoute = ApiCliSlowestJobsRouteImport.update({
-  id: '/slowest-jobs',
-  path: '/slowest-jobs',
+const ApiCliSqlRoute = ApiCliSqlRouteImport.update({
+  id: '/sql',
+  path: '/sql',
   getParentRoute: () => ApiCliRoute,
 } as any)
 const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
@@ -350,10 +332,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
-  '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
-  '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
-  '/api/cli/test-history': typeof ApiCliTestHistoryRoute
-  '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
+  '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
@@ -397,10 +376,7 @@ export interface FileRoutesByTo {
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
-  '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
-  '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
-  '/api/cli/test-history': typeof ApiCliTestHistoryRoute
-  '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
+  '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -448,10 +424,7 @@ export interface FileRoutesById {
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
-  '/api/cli/slowest-jobs': typeof ApiCliSlowestJobsRoute
-  '/api/cli/slowest-tests': typeof ApiCliSlowestTestsRoute
-  '/api/cli/test-history': typeof ApiCliTestHistoryRoute
-  '/api/cli/workflows-list': typeof ApiCliWorkflowsListRoute
+  '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -499,10 +472,7 @@ export interface FileRouteTypes {
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/runs'
-    | '/api/cli/slowest-jobs'
-    | '/api/cli/slowest-tests'
-    | '/api/cli/test-history'
-    | '/api/cli/workflows-list'
+    | '/api/cli/sql'
     | '/api/events/stream'
     | '/runs/$traceId'
     | '/auth/forgot-password'
@@ -546,10 +516,7 @@ export interface FileRouteTypes {
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/runs'
-    | '/api/cli/slowest-jobs'
-    | '/api/cli/slowest-tests'
-    | '/api/cli/test-history'
-    | '/api/cli/workflows-list'
+    | '/api/cli/sql'
     | '/api/events/stream'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -596,10 +563,7 @@ export interface FileRouteTypes {
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/runs'
-    | '/api/cli/slowest-jobs'
-    | '/api/cli/slowest-tests'
-    | '/api/cli/test-history'
-    | '/api/cli/workflows-list'
+    | '/api/cli/sql'
     | '/api/events/stream'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
@@ -715,32 +679,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEventsStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cli/workflows-list': {
-      id: '/api/cli/workflows-list'
-      path: '/workflows-list'
-      fullPath: '/api/cli/workflows-list'
-      preLoaderRoute: typeof ApiCliWorkflowsListRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/test-history': {
-      id: '/api/cli/test-history'
-      path: '/test-history'
-      fullPath: '/api/cli/test-history'
-      preLoaderRoute: typeof ApiCliTestHistoryRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/slowest-tests': {
-      id: '/api/cli/slowest-tests'
-      path: '/slowest-tests'
-      fullPath: '/api/cli/slowest-tests'
-      preLoaderRoute: typeof ApiCliSlowestTestsRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/slowest-jobs': {
-      id: '/api/cli/slowest-jobs'
-      path: '/slowest-jobs'
-      fullPath: '/api/cli/slowest-jobs'
-      preLoaderRoute: typeof ApiCliSlowestJobsRouteImport
+    '/api/cli/sql': {
+      id: '/api/cli/sql'
+      path: '/sql'
+      fullPath: '/api/cli/sql'
+      preLoaderRoute: typeof ApiCliSqlRouteImport
       parentRoute: typeof ApiCliRoute
     }
     '/api/cli/runs': {
@@ -1162,10 +1105,7 @@ interface ApiCliRouteChildren {
   ApiCliOrgRoute: typeof ApiCliOrgRouteWithChildren
   ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
-  ApiCliSlowestJobsRoute: typeof ApiCliSlowestJobsRoute
-  ApiCliSlowestTestsRoute: typeof ApiCliSlowestTestsRoute
-  ApiCliTestHistoryRoute: typeof ApiCliTestHistoryRoute
-  ApiCliWorkflowsListRoute: typeof ApiCliWorkflowsListRoute
+  ApiCliSqlRoute: typeof ApiCliSqlRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
@@ -1176,10 +1116,7 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliOrgRoute: ApiCliOrgRouteWithChildren,
   ApiCliReposRoute: ApiCliReposRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
-  ApiCliSlowestJobsRoute: ApiCliSlowestJobsRoute,
-  ApiCliSlowestTestsRoute: ApiCliSlowestTestsRoute,
-  ApiCliTestHistoryRoute: ApiCliTestHistoryRoute,
-  ApiCliWorkflowsListRoute: ApiCliWorkflowsListRoute,
+  ApiCliSqlRoute: ApiCliSqlRoute,
 }
 
 const ApiCliRouteWithChildren =

@@ -5,8 +5,8 @@ description: Reference for all Everr CLI commands.
 
 ## Authentication
 
-- `everr login` — authenticate with your Everr account
-- `everr logout` — sign out
+- `everr cloud login` — authenticate with your Everr account
+- `everr cloud logout` — sign out
 
 ## Setup
 
@@ -19,55 +19,44 @@ description: Reference for all Everr CLI commands.
 
 ## CI/CD Status
 
-- `everr status` — show the current commit's pipeline state (`state`, `active`, `completed`)
+- `everr ci status` — show the current commit's pipeline state (`state`, `active`, `completed`)
   - `--commit <sha>` target a specific commit
   - `--branch <name>` / `--repo <repo>` override repository context
 
-- `everr watch` — wait until the current `HEAD` commit finishes; exits non-zero if any run fails
+- `everr ci watch` — wait until the current `HEAD` commit finishes; exits non-zero if any run fails
   - `--commit <sha>` target a specific commit
   - `--attempt <n>` target a specific retry attempt
   - `--fail-fast` exit immediately when any run fails
 
-- `everr runs` — list recent runs
+- `everr ci runs` — list recent runs
   - `--branch <name>` / `--current-branch` filter by branch
   - `--conclusion <success|failure|cancellation>` filter by outcome
   - `--workflow-name <name>` filter by workflow
   - `--run-id <id>` fetch a specific run
 
-- `everr show <trace_id>` — show jobs and steps for a run
+- `everr ci show <trace_id>` — show jobs and steps for a run
   - `--failed` show only failed jobs and their failed steps
 
-- `everr logs <trace_id>` — print step logs (last 1000 lines by default)
+- `everr ci logs <trace_id>` — print step logs (last 1000 lines by default)
   - `--job-name <job>` / `--step-number <n>` target a specific step
   - `--tail <n>` how many lines from the bottom
   - `--limit <n>` / `--offset <n>` raw paging
 
-- `everr grep --pattern <text>` — search failing step logs for a literal, case-insensitive pattern across the last 7 days, excluding the current branch
+- `everr ci grep --pattern <text>` — search failing step logs for a literal, case-insensitive pattern across the last 7 days, excluding the current branch
   - `--job-name <job>` / `--step-number <n>` target a specific step
   - `--branch <name>` scope to a branch
-
-- `everr workflows` — list workflows and their jobs
-  - `--repo` / `--branch` filter results
 
 Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination.
 
 ## Local Telemetry
 
-- `everr telemetry start` — start the local OpenTelemetry collector
-- `everr telemetry status` — check whether the local OpenTelemetry collector is running
-- `everr telemetry query "<SQL>"` — query local telemetry with read-only SQL
-- `everr telemetry endpoint` — print the current local collector URL
+- `everr local start` — start the local OpenTelemetry collector
+- `everr local status` — check whether the local OpenTelemetry collector is running
+- `everr local query "<SQL>"` — query local telemetry with read-only SQL
+- `everr local endpoint` — print the current local collector URL
 - `everr wrap -- <command>` — run a command normally and mirror stdout/stderr into local telemetry
   - Requires a running collector; if unavailable, the command is not run
   - Preserves the wrapped command's non-zero exit code
-
-## Test Analytics
-
-- `everr test-history --test-name <name>` — show historical executions for a specific test
-  - `--module` disambiguate between tests with the same name
-
-- `everr slowest-tests` — list the slowest tests repo-wide
-  - `--branch <name>` scope to a branch
 
 ## Other
 
