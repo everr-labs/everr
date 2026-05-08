@@ -57,6 +57,12 @@ GRANT SELECT ON app.logs          TO sql_api_role;
 GRANT SELECT ON app.metrics_gauge TO sql_api_role;
 GRANT SELECT ON app.metrics_sum   TO sql_api_role;
 
+-- Clean up accidental/manual system grants. SHOW TABLES handles schema
+-- discovery without exposing storage counters from system.tables or the
+-- shared quota counter from system.quota_usage.
+REVOKE SELECT ON system.tables FROM sql_api_role;
+REVOKE SELECT ON system.quota_usage FROM sql_api_role;
+
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
 -- bucket even though every query authenticates as the shared sql_api_user.
 -- The web app sets X-ClickHouse-Quota to the per-org hashed role name
@@ -64,7 +70,7 @@ GRANT SELECT ON app.metrics_sum   TO sql_api_role;
 -- propagates a header from user input, so the key is not attacker-controlled.
 -- OR REPLACE so the keying change applies on fresh init even when the quota
 -- name was already created by an earlier image.
-CREATE OR REPLACE QUOTA sql_api_quota
+CREATE QUOTA OR REPLACE sql_api_quota
   KEYED BY client_key
   FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
