@@ -93,6 +93,8 @@ export async function querySqlApi<T>(
   assertSafeOrgId(organizationId);
 
   const orgRole = sqlApiOrgRoleName(organizationId);
+  await provisionSqlApiOrgRole(organizationId);
+
   const result = await clickhouseSqlApi.query({
     query,
     query_params,
