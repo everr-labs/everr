@@ -49,9 +49,11 @@ function sqlApiOrgUserName(organizationId: string): string {
 }
 
 function sqlApiOrgPassword(organizationId: string): string {
-  return createHmac("sha256", env.CLICKHOUSE_SQL_API_MASTER_KEY)
-    .update(organizationId, "utf8")
-    .digest("hex");
+  return (
+    createHmac("sha256", env.CLICKHOUSE_SQL_API_MASTER_KEY)
+      .update(organizationId, "utf8")
+      .digest("hex") + "A!"
+  ); // CH requires at least an uppercase and a special char
 }
 
 function sqlApiOrgPolicyName(organizationId: string, table: string): string {
