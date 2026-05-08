@@ -7,8 +7,9 @@
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
 --     < clickhouse/backfill-sql-api-access.sql
 --
--- This file intentionally does not create per-org sql_api_org_* roles. The app
--- now creates those lazily from querySqlApi() for the org making the query.
+-- This file intentionally does not create per-org sql_api_org_* roles. Those
+-- are provisioned at org creation (auth.server.ts) and re-provisioned for any
+-- pre-existing orgs by the startup backfill in sql-api-org-role-backfill.ts.
 
 CREATE DATABASE IF NOT EXISTS otel;
 CREATE DATABASE IF NOT EXISTS app;

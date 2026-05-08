@@ -58,9 +58,6 @@ describe("querySqlApi", () => {
   it("activates sql_api_role + the per-org role and forwards query params", async () => {
     await querySqlApi("SELECT {n:UInt8}", "org42", { n: 1 });
 
-    expect(mockCommand).toHaveBeenCalledWith({
-      query: `CREATE ROLE IF NOT EXISTS \`${ORG42_ROLE}\``,
-    });
     expect(mockQuery).toHaveBeenCalledWith({
       query: "SELECT {n:UInt8}",
       query_params: { n: 1 },
@@ -68,6 +65,9 @@ describe("querySqlApi", () => {
       role: ["sql_api_role", ORG42_ROLE],
       http_headers: { "X-ClickHouse-Quota": ORG42_ROLE },
     });
+    // Per-org role provisioning happens at org creation (auth.server.ts) and
+    // in the startup backfill — never on the read path.
+    expect(mockCommand).not.toHaveBeenCalled();
   });
 
   it("rejects when tenant id is missing", async () => {
