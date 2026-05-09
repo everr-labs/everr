@@ -68,6 +68,47 @@ ORDER BY Timestamp DESC
 LIMIT 50
 ```
 
+Suspicious failure clustering example:
+```sql
+SELECT
+  repo,
+  test_package,
+  test_name,
+  countIf(result = 'fail') AS failures,
+  countIf(result = 'pass') AS passes,
+  uniqExactIf(branch, result = 'fail') AS failing_branches,
+  uniqExactIf(run_id, result = 'fail') AS failing_runs,
+  round(avgIf(duration_seconds, result = 'fail'), 2) AS avg_failure_seconds,
+  maxIf(Timestamp, result = 'fail') AS last_failure
+FROM
+(
+  SELECT
+    Timestamp,
+    ResourceAttributes['vcs.repository.name'] AS repo,
+    ResourceAttributes['vcs.ref.head.name'] AS branch,
+    ResourceAttributes['cicd.pipeline.run.id'] AS run_id,
+    SpanAttributes['everr.test.package'] AS test_package,
+    SpanAttributes['everr.test.name'] AS test_name,
+    SpanAttributes['everr.test.result'] AS result,
+    toFloat64OrZero(SpanAttributes['everr.test.duration_seconds']) AS duration_seconds
+  FROM traces
+  WHERE Timestamp > now() - INTERVAL 7 DAY
+    AND SpanAttributes['everr.test.name'] != ''
+    AND SpanAttributes['everr.test.result'] IN ('pass', 'fail')
+)
+GROUP BY
+  repo,
+  test_package,
+  test_name
+HAVING failures >= 3
+  AND (passes > 0 OR failing_branches >= 2 OR failing_runs >= 2)
+ORDER BY
+  failing_branches DESC,
+  failures DESC,
+  last_failure DESC
+LIMIT 50
+```
+
 Always include a time filter and a limit under 1k. Add repo, branch, run id, job, or test filters when known.
 
 ## Integrated Example
@@ -76,4 +117,5 @@ For "CI is failing on this branch":
 1. Run `everr ci runs --current-branch`.
 2. If a run failed, copy its `trace_id` and run `everr ci show <trace_id> --failed`.
 3. For the failing job, run `everr ci logs <trace_id> --job-name <job> --log-failed`.
-4. Explain the failure signal, make or recommend the smallest fix, then use `everr ci watch --fail-fast` to verify.
+4. If the error looks flaky, use `everr cloud query "<SQL>"` with a targeted query like the suspicious failure clustering example.
+5. Explain the failure signal, make or recommend the smallest fix, then use `everr ci watch --fail-fast` to verify.
