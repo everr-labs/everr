@@ -282,6 +282,9 @@ importers:
       '@everr/datemath':
         specifier: workspace:*
         version: link:../datemath
+      '@everr/logs-explorer':
+        specifier: workspace:*
+        version: link:../logs-explorer
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui
