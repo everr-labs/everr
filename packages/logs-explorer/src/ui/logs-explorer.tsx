@@ -558,7 +558,7 @@ export function LogsExplorer({
           </main>
 
           {selectedLogState ? (
-            <aside className="bg-muted/10 min-h-0 min-w-0 xl:border-l">
+            <aside className="bg-muted/10 min-h-0 min-w-0 lg:border-l">
               <LogInspectorPanel
                 repo={repo}
                 log={selectedLogState.log}
