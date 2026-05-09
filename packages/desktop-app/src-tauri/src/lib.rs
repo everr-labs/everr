@@ -286,7 +286,8 @@ pub fn run() {
             mark_run_seen,
             mark_all_runs_seen,
             open_run_in_browser,
-            copy_run_auto_fix_prompt
+            copy_run_auto_fix_prompt,
+            telemetry::query::telemetry_sql_query
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
