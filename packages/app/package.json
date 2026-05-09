@@ -19,6 +19,7 @@
     "@better-auth/api-key": "^1.6.10",
     "@clickhouse/client": "^1.18.4",
     "@everr/datemath": "workspace:*",
+    "@everr/logs-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@icons-pack/react-simple-icons": "catalog:",
     "@octokit/webhooks-methods": "^6.0.0",
