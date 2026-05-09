@@ -77,13 +77,19 @@ REVOKE SELECT ON system.quota_usage FROM sql_api_role;
 -- users it provisions.
 GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
 
+-- Keep sql_api_role out of web_app_admin's default roles so sql_api_profile
+-- (readonly=1, allow_ddl=0, ...) is never auto-applied to its sessions.
+-- ADMIN OPTION still lets it GRANT the role to per-org users; web_app_admin's
+-- own work is covered by direct grants on the user.
+ALTER USER web_app_admin DEFAULT ROLE NONE;
+
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
 -- bucket via the X-ClickHouse-Quota header set by querySqlApi.
 CREATE QUOTA OR REPLACE sql_api_quota
   KEYED BY client_key
   FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
-  TO sql_api_role;
+  TO sql_api_role EXCEPT web_app_admin;
 
 -- Default-deny row policies for sql_api_role. Per-org row policies attached
 -- to each sql_api_org_<id> user OR-combine with these to expose exactly one

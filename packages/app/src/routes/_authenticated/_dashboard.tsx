@@ -5,6 +5,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@everr/ui/components/sidebar";
+import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
   Outlet,
@@ -13,7 +14,6 @@ import {
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
-
 import { z } from "zod";
 import { RefreshPicker, TimeRangePicker } from "@/components/analytics";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -61,9 +61,13 @@ function RouteComponent() {
 
   const matches = useMatches();
   let hideTimeRangePicker = false;
+  let fullBleed = false;
   for (const match of matches) {
     if (match.staticData?.hideTimeRangePicker !== undefined) {
       hideTimeRangePicker = match.staticData.hideTimeRangePicker;
+    }
+    if (match.staticData?.fullBleed !== undefined) {
+      fullBleed = match.staticData.fullBleed;
     }
   }
 
@@ -90,7 +94,12 @@ function RouteComponent() {
             </div>
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-auto",
+            fullBleed ? "gap-0 p-0" : "gap-3 p-3",
+          )}
+        >
           {search.github_install === "linked" ? (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               GitHub installation linked successfully.

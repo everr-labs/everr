@@ -66,6 +66,26 @@ function NavItemFlyout({ item }: { item: NavItem }) {
   );
 }
 
+function NavDirectItem({ item }: { item: NavItem }) {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip={item.title}
+        render={
+          <Link
+            to={item.url}
+            activeOptions={{ exact: item.url === "/" }}
+            activeProps={{ "data-active": true }}
+          />
+        }
+      >
+        {item.icon && <item.icon />}
+        <span>{item.title}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 export function NavMain({ items }: { items: NavItem[] }) {
   const { state, isMobile } = useSidebar();
   const isIconOnly = state === "collapsed" && !isMobile;
@@ -75,7 +95,9 @@ export function NavMain({ items }: { items: NavItem[] }) {
       <SidebarGroupLabel>Platform</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) =>
-          isIconOnly && item.items?.length ? (
+          !item.items?.length ? (
+            <NavDirectItem key={item.title} item={item} />
+          ) : isIconOnly ? (
             <NavItemFlyout key={item.title} item={item} />
           ) : (
             <Collapsible
