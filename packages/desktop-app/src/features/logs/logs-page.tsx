@@ -91,7 +91,7 @@ export function LogsPage() {
   }, [search.refresh, queryClient]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
         <div
           data-tauri-drag-region
@@ -111,7 +111,7 @@ export function LogsPage() {
           />
         </div>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <LogsExplorer
           repo={repo}
           timeRange={timeRange}
