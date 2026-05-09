@@ -252,35 +252,50 @@ export const auth = betterAuth({
           {
             matcher: (context) => context.path === "/device/approve",
             handler: createAuthMiddleware(async (context) => {
-              const browserSession = await getSessionFromCtx(context);
-              const activeOrganizationId =
-                getActiveOrganizationIdFromAuthSession(browserSession);
               const userCode = getStringBodyField(context, "userCode")?.replace(
                 /-/g,
                 "",
               );
-
-              if (!activeOrganizationId || !userCode) {
+              if (!userCode) {
                 return { context };
               }
 
-              const deviceCodeRecord = await db
-                .select({ id: deviceCode.id, scope: deviceCode.scope })
-                .from(deviceCode)
-                .where(eq(deviceCode.userCode, userCode))
-                .limit(1);
-
-              const record = deviceCodeRecord[0];
-              if (!record) {
+              const browserSession = await getSessionFromCtx(context);
+              const activeOrganizationId =
+                getActiveOrganizationIdFromAuthSession(browserSession);
+              if (!activeOrganizationId) {
                 return { context };
               }
 
-              await db
-                .update(deviceCode)
-                .set({
-                  scope: withDeviceOrgScope(record.scope, activeOrganizationId),
-                })
-                .where(eq(deviceCode.id, record.id));
+              try {
+                const deviceCodeRecord = await db
+                  .select({ id: deviceCode.id, scope: deviceCode.scope })
+                  .from(deviceCode)
+                  .where(eq(deviceCode.userCode, userCode))
+                  .limit(1);
+
+                const record = deviceCodeRecord[0];
+                if (!record) {
+                  return { context };
+                }
+
+                await db
+                  .update(deviceCode)
+                  .set({
+                    scope: withDeviceOrgScope(
+                      record.scope,
+                      activeOrganizationId,
+                    ),
+                  })
+                  .where(eq(deviceCode.id, record.id));
+              } catch (error) {
+                // Marking the device code with the active org is purely an
+                // enhancement; never let a DB failure break /device/approve.
+                console.error(
+                  "[cli-device-organization] failed to mark device code",
+                  { error },
+                );
+              }
 
               return { context };
             }),

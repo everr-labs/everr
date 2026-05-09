@@ -45,12 +45,12 @@ pub async fn run() -> Result<()> {
 
     if !should_skip_org_setup_steps(setup_context.org.as_ref()) {
         step_rename_org(&session, setup_context.org.as_ref()).await?;
-        if should_show_runs_import_step(setup_context.org.as_ref()) {
+        if OrgResponse::can_manage_runs_import_or_default(setup_context.org.as_ref()) {
             step_import_repos(&session).await?;
         }
     }
 
-    step_configure_notification_emails(&session, setup_context.me.as_ref()).await?;
+    step_configure_notification_emails(setup_context.me.as_ref()).await?;
     let skills_installed = step_install_skills()?;
     let desktop_installed = step_install_desktop_app().await?;
     step_mark_cloud_onboarding_complete(&session, setup_context.org.as_ref()).await?;
@@ -70,9 +70,10 @@ async fn load_setup_context(session: &Session) -> SetupContext {
         return SetupContext::default();
     };
 
+    let (me, org) = tokio::join!(client.get_me(), client.get_org());
     SetupContext {
-        me: client.get_me().await.ok(),
-        org: client.get_org().await.ok(),
+        me: me.ok(),
+        org: org.ok(),
     }
 }
 
@@ -95,10 +96,6 @@ fn should_skip_org_setup_steps(org: Option<&OrgResponse>) -> bool {
     org.is_some_and(|org| org.onboarding_completed)
 }
 
-fn should_show_runs_import_step(org: Option<&OrgResponse>) -> bool {
-    org.map(|org| org.can_manage_runs_import()).unwrap_or(true)
-}
-
 async fn step_authenticate() -> Result<Session> {
     let store = auth::state_store();
     let config = auth::resolve_auth_config()?;
@@ -116,21 +113,13 @@ async fn step_authenticate() -> Result<Session> {
     }
 }
 
-async fn step_rename_org(session: &Session, known_org: Option<&OrgResponse>) -> Result<()> {
+async fn step_rename_org(session: &Session, org: Option<&OrgResponse>) -> Result<()> {
     let interactive = std::io::stdin().is_terminal();
     if !interactive {
         return Ok(());
     }
 
-    let client = ApiClient::from_session(session)?;
-    let org = match known_org.cloned() {
-        Some(org) => org,
-        None => match client.get_org().await {
-            Ok(org) => org,
-            Err(_) => return Ok(()), // non-fatal: skip if API unavailable
-        },
-    };
-
+    let Some(org) = org else { return Ok(()) };
     if org.onboarding_completed || !org.is_only_member {
         return Ok(());
     }
@@ -144,7 +133,10 @@ async fn step_rename_org(session: &Session, known_org: Option<&OrgResponse>) -> 
         return Ok(());
     }
 
-    if let Err(_) = client.patch_org_name(&new_name).await {
+    let Ok(client) = ApiClient::from_session(session) else {
+        return Ok(());
+    };
+    if client.patch_org_name(&new_name).await.is_err() {
         return Ok(());
     }
     cliclack::log::success(format!("Organization name set to \"{new_name}\""))?;
@@ -195,10 +187,7 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
 const ADD_EMAIL_SENTINEL: &str = "__add_email__";
 
-async fn step_configure_notification_emails(
-    session: &Session,
-    known_me: Option<&MeResponse>,
-) -> Result<()> {
+async fn step_configure_notification_emails(me: Option<&MeResponse>) -> Result<()> {
     let store = auth::state_store();
     let saved: Vec<String> = store
         .load_state()
@@ -206,7 +195,7 @@ async fn step_configure_notification_emails(
         .unwrap_or_default();
     let mut detected: Vec<String> = Vec::new();
 
-    if let Some(me) = known_me {
+    if let Some(me) = me {
         detected.push(me.email.clone());
         store.update_state(|state| {
             state.settings.user_profile = Some(everr_core::state::UserProfile {
@@ -215,17 +204,6 @@ async fn step_configure_notification_emails(
                 profile_url: me.profile_url.clone(),
             });
         })?;
-    } else if let Ok(client) = everr_core::api::ApiClient::from_session(session) {
-        if let Ok(me) = client.get_me().await {
-            detected.push(me.email.clone());
-            store.update_state(|state| {
-                state.settings.user_profile = Some(everr_core::state::UserProfile {
-                    email: me.email,
-                    name: me.name,
-                    profile_url: me.profile_url,
-                });
-            })?;
-        }
     }
 
     if let Ok(cwd) = std::env::current_dir() {
@@ -300,10 +278,8 @@ async fn step_mark_cloud_onboarding_complete(
     session: &Session,
     org: Option<&OrgResponse>,
 ) -> Result<()> {
-    if org
-        .map(|org| org.onboarding_completed || !org.can_manage_runs_import())
-        .unwrap_or(true)
-    {
+    let Some(org) = org else { return Ok(()) };
+    if org.onboarding_completed || !org.can_manage_runs_import() {
         return Ok(());
     }
 
@@ -624,30 +600,6 @@ mod tests {
         };
 
         assert!(!super::should_skip_org_setup_steps(Some(&org)));
-    }
-
-    #[test]
-    fn member_org_does_not_show_runs_import_step() {
-        let org = everr_core::api::OrgResponse {
-            name: "Acme".to_string(),
-            is_only_member: false,
-            onboarding_completed: false,
-            role: Some("member".to_string()),
-        };
-
-        assert!(!super::should_show_runs_import_step(Some(&org)));
-    }
-
-    #[test]
-    fn admin_org_shows_runs_import_step() {
-        let org = everr_core::api::OrgResponse {
-            name: "Acme".to_string(),
-            is_only_member: false,
-            onboarding_completed: false,
-            role: Some("admin".to_string()),
-        };
-
-        assert!(super::should_show_runs_import_step(Some(&org)));
     }
 
     #[test]
