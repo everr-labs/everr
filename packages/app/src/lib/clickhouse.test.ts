@@ -44,7 +44,9 @@ import {
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
-const ORG_PASSWORD = createHmac("sha256", MASTER_KEY).update(ORG).digest("hex");
+const ORG_PASSWORD = `${createHmac("sha256", MASTER_KEY)
+  .update(ORG)
+  .digest("hex")}A!`;
 
 const CURRENT_DIR = dirname(fileURLToPath(import.meta.url));
 const SQL_API_BACKFILL_SQL = readFileSync(
