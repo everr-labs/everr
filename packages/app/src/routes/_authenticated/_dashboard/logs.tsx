@@ -54,6 +54,7 @@ import type {
   LogHistogramBucket,
   LogLevel,
 } from "@/data/logs-explorer/schemas";
+import { runJobsOptions } from "@/data/runs/options";
 import { formatRelativeTime, formatTimestampTimeOfDay } from "@/lib/formatting";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
@@ -133,36 +134,10 @@ export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
     traceId: z.string().optional(),
     showVolume: z.boolean().default(true),
   }),
-  loaderDeps: ({ search }) => {
-    const { showVolume: _showVolume, ...logsSearch } = search;
-    return withTimeRange(logsSearch);
-  },
-  loader: async ({ context: { queryClient }, deps }) => {
-    const filterInput = {
-      timeRange: deps.timeRange,
-      query: deps.q,
-      levels: deps.levels,
-      services: deps.services,
-      repos: deps.repos,
-      traceId: deps.traceId,
-    };
-    void queryClient.prefetchQuery(logsTotalsOptions(filterInput));
-    void queryClient.prefetchQuery(
-      logsHistogramOptions({
-        ...filterInput,
-        histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
-      }),
-    );
-    await queryClient.prefetchInfiniteQuery(
-      logsExplorerInfiniteOptions({ ...filterInput, limit: PAGE_SIZE }),
-    );
-  },
-  pendingComponent: LogsExplorerSkeleton,
   component: LogsExplorerPage,
 });
 
 function LogsExplorerPage() {
-  const deps = Route.useLoaderDeps();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const showVolume = search.showVolume;
@@ -171,13 +146,38 @@ function LogsExplorerPage() {
     key: string;
   } | null>(null);
 
+  const { showVolume: _showVolume, ...rest } = search;
+  const urlDeps = withTimeRange(rest);
+
+  // Optimistic local mirror of the URL filter state. Filter toggles update this
+  // synchronously so the UI feels instant; the navigate() call sync to URL runs
+  // alongside without blocking the visual feedback.
+  const [filters, setFilters] = useState(() => ({
+    q: urlDeps.q,
+    levels: urlDeps.levels,
+    services: urlDeps.services,
+    repos: urlDeps.repos,
+    traceId: urlDeps.traceId,
+  }));
+
+  // Sync from URL when it changes externally (back/forward, link nav, time range).
+  useEffect(() => {
+    setFilters({
+      q: urlDeps.q,
+      levels: urlDeps.levels,
+      services: urlDeps.services,
+      repos: urlDeps.repos,
+      traceId: urlDeps.traceId,
+    });
+  }, [search]);
+
   const filterInput = {
-    timeRange: deps.timeRange,
-    query: deps.q,
-    levels: deps.levels,
-    services: deps.services,
-    repos: deps.repos,
-    traceId: deps.traceId,
+    timeRange: urlDeps.timeRange,
+    query: filters.q,
+    levels: filters.levels,
+    services: filters.services,
+    repos: filters.repos,
+    traceId: filters.traceId,
   };
   const {
     data,
@@ -186,16 +186,21 @@ function LogsExplorerPage() {
     isFetchingNextPage,
     isPending,
     isError,
-  } = useInfiniteQuery(
-    logsExplorerInfiniteOptions({ ...filterInput, limit: PAGE_SIZE }),
-  );
-  const { data: totals } = useQuery(logsTotalsOptions(filterInput));
+  } = useInfiniteQuery({
+    ...logsExplorerInfiniteOptions({ ...filterInput, limit: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
+  });
+  const { data: totals } = useQuery({
+    ...logsTotalsOptions(filterInput),
+    placeholderData: keepPreviousData,
+  });
   const { data: histogram = [], isPending: isHistogramPending } = useQuery({
     ...logsHistogramOptions({
       ...filterInput,
       histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
     }),
     enabled: showVolume,
+    placeholderData: keepPreviousData,
   });
 
   const pages = data?.pages ?? [];
@@ -211,11 +216,16 @@ function LogsExplorerPage() {
     });
   };
 
+  const applyFilters = (updates: Partial<typeof filters>) => {
+    setFilters((prev) => ({ ...prev, ...updates }));
+    updateSearch(updates);
+  };
+
   const toggleLevel = (level: LogLevel) => {
-    const levels = deps.levels.includes(level)
-      ? deps.levels.filter((item) => item !== level)
-      : [...deps.levels, level];
-    updateSearch({ levels });
+    const levels = filters.levels.includes(level)
+      ? filters.levels.filter((item) => item !== level)
+      : [...filters.levels, level];
+    applyFilters({ levels });
   };
 
   const totalCount = totals?.totalCount;
@@ -238,7 +248,7 @@ function LogsExplorerPage() {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
               const q = String(form.get("q") ?? "").trim();
-              updateSearch({ q: q || undefined });
+              applyFilters({ q: q || undefined });
             }}
           >
             <label htmlFor="logs-search" className="sr-only">
@@ -250,17 +260,17 @@ function LogsExplorerPage() {
               </InputGroupAddon>
               <InputGroupInput
                 id="logs-search"
-                key={deps.q ?? ""}
+                key={filters.q ?? ""}
                 name="q"
-                defaultValue={deps.q ?? ""}
+                defaultValue={filters.q ?? ""}
                 placeholder="Search messages, errors, IDs"
               />
               <InputGroupAddon align="inline-end">
-                {deps.q ? (
+                {filters.q ? (
                   <InputGroupButton
                     size="icon-xs"
                     aria-label="Clear query"
-                    onClick={() => updateSearch({ q: undefined })}
+                    onClick={() => applyFilters({ q: undefined })}
                   >
                     <X />
                   </InputGroupButton>
@@ -293,7 +303,7 @@ function LogsExplorerPage() {
                     type="button"
                     className={cn(
                       "flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-                      deps.levels.includes(level) &&
+                      filters.levels.includes(level) &&
                         "bg-background font-medium shadow-xs ring-1 ring-border",
                     )}
                     onClick={() => toggleLevel(level)}
@@ -318,25 +328,27 @@ function LogsExplorerPage() {
 
               <FilterCombobox
                 label="Service"
-                values={deps.services}
-                onChange={(services) => updateSearch({ services })}
-                options={logServiceFilterOptions({ timeRange: deps.timeRange })}
+                values={filters.services}
+                onChange={(services) => applyFilters({ services })}
+                options={logServiceFilterOptions({
+                  timeRange: urlDeps.timeRange,
+                })}
                 placeholder="All services"
                 searchPlaceholder="Search services..."
                 className="w-full"
               />
               <FilterCombobox
                 label="Source"
-                values={deps.repos}
-                onChange={(repos) => updateSearch({ repos })}
-                options={logRepoFilterOptions({ timeRange: deps.timeRange })}
+                values={filters.repos}
+                onChange={(repos) => applyFilters({ repos })}
+                options={logRepoFilterOptions({ timeRange: urlDeps.timeRange })}
                 placeholder="All sources"
                 searchPlaceholder="Search sources..."
                 className="w-full"
               />
               <TraceFilter
-                traceId={deps.traceId}
-                onChange={(traceId) => updateSearch({ traceId })}
+                traceId={filters.traceId}
+                onChange={(traceId) => applyFilters({ traceId })}
               />
             </div>
           </aside>
@@ -1132,6 +1144,14 @@ function LogInspectorPanel({
 
 function LogInspectorDetails({ detail }: { detail: LogDetail }) {
   const ciFields = extractCiContext(detail);
+  const { data: jobs } = useQuery({
+    ...runJobsOptions(detail.traceId),
+    enabled: Boolean(detail.traceId && ciFields.jobName),
+  });
+  const resolvedJobId =
+    ciFields.jobId ||
+    jobs?.find((job) => job.name === ciFields.jobName)?.jobId ||
+    "";
 
   return (
     <>
@@ -1175,7 +1195,7 @@ function LogInspectorDetails({ detail }: { detail: LogDetail }) {
           <DetailItem label="Execution ID" value={ciFields.runId} mono />
           <DetailItem label="Task" value={ciFields.jobName || ciFields.jobId} />
           <DetailItem label="Step" value={ciFields.stepNumber} />
-          {detail.traceId ? (
+          {detail.traceId && resolvedJobId && ciFields.stepNumber && (
             <Button
               variant="outline"
               size="sm"
@@ -1183,15 +1203,19 @@ function LogInspectorDetails({ detail }: { detail: LogDetail }) {
               nativeButton={false}
               render={
                 <Link
-                  to="/runs/$traceId"
-                  params={{ traceId: detail.traceId }}
+                  to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+                  params={{
+                    traceId: detail.traceId,
+                    jobId: resolvedJobId,
+                    stepNumber: ciFields.stepNumber,
+                  }}
                 />
               }
             >
               <FileSearch data-icon="inline-start" />
-              Open trace detail
+              Open in CI View
             </Button>
-          ) : null}
+          )}
         </DetailSection>
       ) : null}
 
@@ -1345,40 +1369,6 @@ function LogRowsSkeleton() {
           <Skeleton className="h-4 w-4" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function LogsExplorerSkeleton() {
-  return (
-    <div className="min-h-0 flex-1 overflow-hidden">
-      <section className="flex h-full min-h-[720px] flex-col overflow-hidden">
-        <div className="border-b px-3 py-2">
-          <Skeleton className="mb-2 h-8 w-64" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_360px]">
-          <div className="border-b p-3 lg:border-r lg:border-b-0">
-            <Skeleton className="mb-3 h-5 w-24" />
-            <div className="space-y-2">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <Skeleton key={index} className="h-8 w-full" />
-              ))}
-            </div>
-          </div>
-          <div className="min-h-0">
-            <div className="border-b p-3">
-              <Skeleton className="mb-2 h-8 w-full" />
-              <Skeleton className="h-[104px] w-full" />
-            </div>
-            <LogRowsSkeleton />
-          </div>
-          <div className="hidden border-l p-3 xl:block">
-            <Skeleton className="mb-3 h-10 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
