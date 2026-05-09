@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use everr_core::api::ApiClient;
 use everr_core::auth::{AuthConfig, login_with_prompt};
 use everr_core::build;
 use everr_core::state::{AppStateStore, Session};
@@ -10,12 +11,41 @@ const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
 pub async fn login(_args: LoginArgs) -> Result<()> {
     let config = resolve_auth_config()?;
     let store = state_store();
-    login_with_prompt(&config, &store, open_browser_immediately).await?;
+    let session = login_with_prompt(&config, &store, open_browser_immediately).await?;
+    print_session_identity(&session).await?;
     println!(
         "Logged in. Session saved at {}",
         store.session_file_path()?.display()
     );
     Ok(())
+}
+
+pub(crate) async fn print_session_identity(session: &Session) -> Result<()> {
+    let Ok(client) = ApiClient::from_session(session) else {
+        return Ok(());
+    };
+
+    let me = client.get_me().await.ok();
+    let org = client.get_org().await.ok();
+    for line in identity_summary_lines(
+        me.as_ref().map(|me| me.email.as_str()),
+        org.as_ref().map(|org| org.name.as_str()),
+    ) {
+        cliclack::log::success(line)?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn identity_summary_lines(email: Option<&str>, org_name: Option<&str>) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Some(email) = email {
+        lines.push(format!("Logged in as {email}"));
+    }
+    if let Some(org_name) = org_name {
+        lines.push(format!("Using organization: {org_name}"));
+    }
+    lines
 }
 
 pub fn show_device_sign_in_prompt(verification_url: String, user_code: &str) {
@@ -146,5 +176,16 @@ mod tests {
     fn auth_config_uses_current_build_default_base_url() {
         let config = super::resolve_auth_config().expect("auth config");
         assert_eq!(config.api_base_url, build::default_api_base_url());
+    }
+
+    #[test]
+    fn identity_summary_lines_include_email_and_org() {
+        assert_eq!(
+            super::identity_summary_lines(Some("user@example.com"), Some("Acme")),
+            vec![
+                "Logged in as user@example.com".to_string(),
+                "Using organization: Acme".to_string(),
+            ]
+        );
     }
 }

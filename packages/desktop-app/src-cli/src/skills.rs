@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use everr_core::skills::{
-    self as core_skills, InstallMode, SkillOperationOptions, SkillOperationSummary,
-    SkillPathAction, SkillProvider, SkillScope, bundled_skills, install_bundled_skills,
-    uninstall_bundled_skills, update_bundled_skills,
+    self as core_skills, SkillOperationOptions, SkillOperationSummary, SkillPathAction,
+    SkillProvider, SkillScope, bundled_skills, install_bundled_skills, uninstall_bundled_skills,
+    update_bundled_skills,
 };
 use std::io::IsTerminal;
 
@@ -63,7 +63,6 @@ fn run_install(args: SkillsInstallArgs) -> Result<()> {
         bail!("provide at least one skill name or use --all");
     }
 
-    let full_interactive_install = interactive && !args.all && args.skills.is_empty();
     let home_dir = resolve_home_dir()?;
     let skill_names = if !args.all && args.skills.is_empty() {
         prompt_skills_to_install()?
@@ -86,21 +85,12 @@ fn run_install(args: SkillsInstallArgs) -> Result<()> {
     } else {
         resolve_providers(&args.agents)
     };
-    let mode = if args.copy {
-        InstallMode::Copy
-    } else if full_interactive_install {
-        prompt_install_mode()?
-    } else {
-        InstallMode::Symlink
-    };
-
     let options = operation_options(
         scope,
         home_dir,
         providers,
         skill_names,
         args.all,
-        mode,
         args.force,
         args.dry_run,
     )?;
@@ -124,7 +114,6 @@ fn run_update(args: SkillsUpdateArgs) -> Result<()> {
         providers,
         args.skills,
         false,
-        InstallMode::Symlink,
         true,
         args.dry_run,
     )?;
@@ -153,7 +142,6 @@ fn update_installed_scopes(
             providers.clone(),
             Vec::new(),
             false,
-            InstallMode::Symlink,
             true,
             dry_run,
         )?;
@@ -246,7 +234,6 @@ fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {
         resolve_providers(&args.agents),
         args.skills,
         args.all,
-        InstallMode::Symlink,
         false,
         args.dry_run,
     )?;
@@ -258,7 +245,6 @@ fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {
 pub(crate) fn install_all_for_setup(
     scope: SkillScope,
     providers: Vec<SkillProvider>,
-    mode: InstallMode,
     force: bool,
 ) -> Result<()> {
     let cwd = std::env::current_dir().context("could not determine current directory")?;
@@ -270,7 +256,6 @@ pub(crate) fn install_all_for_setup(
         providers,
         skill_names: Vec::new(),
         all: true,
-        mode,
         force,
         dry_run: false,
     };
@@ -285,7 +270,6 @@ fn operation_options(
     providers: Vec<SkillProvider>,
     skills: Vec<String>,
     all: bool,
-    mode: InstallMode,
     force: bool,
     dry_run: bool,
 ) -> Result<SkillOperationOptions> {
@@ -296,7 +280,6 @@ fn operation_options(
         providers,
         skill_names: skills,
         all,
-        mode,
         force,
         dry_run,
     })
@@ -393,17 +376,6 @@ fn prompt_providers(home_dir: &PathBuf) -> Result<Vec<SkillProvider>> {
     Ok(providers)
 }
 
-fn prompt_install_mode() -> Result<InstallMode> {
-    let copy: bool = cliclack::confirm("Copy skills instead of symlinking provider folders?")
-        .initial_value(false)
-        .interact()?;
-    if copy {
-        Ok(InstallMode::Copy)
-    } else {
-        Ok(InstallMode::Symlink)
-    }
-}
-
 fn print_summary(done: &str, dry_run: &str, summary: &everr_core::skills::SkillOperationSummary) {
     let verb = if summary.dry_run { dry_run } else { done };
     let suffix = if summary.skills.len() == 1 { "" } else { "s" };
@@ -424,8 +396,6 @@ fn print_summary(done: &str, dry_run: &str, summary: &everr_core::skills::SkillO
             SkillPathAction::Missing => "missing",
             SkillPathAction::WouldLink => "would link",
             SkillPathAction::Linked => "linked",
-            SkillPathAction::WouldCopy => "would copy",
-            SkillPathAction::Copied => "copied",
             SkillPathAction::Unchanged => "unchanged",
         };
         match change.provider {

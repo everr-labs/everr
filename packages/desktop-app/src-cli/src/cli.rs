@@ -155,9 +155,6 @@ pub struct SkillsInstallArgs {
     /// Provider to install for
     #[arg(long = "agent", value_enum)]
     pub agents: Vec<SkillAgentArg>,
-    /// Copy into provider directories instead of symlinking
-    #[arg(long)]
-    pub copy: bool,
     /// Overwrite existing differing skill files
     #[arg(long)]
     pub force: bool,
@@ -744,9 +741,15 @@ mod tests {
         .expect("skills install command");
 
         assert!(matches!(cli.command, Commands::Skills(_)));
-        let err = Cli::try_parse_from(["everr", "skills", "install", "everr-ci-debugging", "--json"])
-            .expect_err("skills install should not accept --json");
+        let err =
+            Cli::try_parse_from(["everr", "skills", "install", "everr-ci-debugging", "--json"])
+                .expect_err("skills install should not accept --json");
         assert!(err.to_string().contains("--json"));
+
+        let err =
+            Cli::try_parse_from(["everr", "skills", "install", "everr-ci-debugging", "--copy"])
+                .expect_err("skills install should not accept --copy");
+        assert!(err.to_string().contains("--copy"));
     }
 
     #[test]
