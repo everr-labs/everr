@@ -7,67 +7,9 @@ Use local telemetry when you want traces, logs, or errors from a service running
 
 The Everr CLI starts a local OpenTelemetry collector. Your app sends OTLP/HTTP telemetry to that collector, and you query the data with `everr local query`.
 
-## 1. Start the collector
+See [Local Telemetry](/docs/cli/telemetry) for collector startup and endpoint commands.
 
-Check whether the collector is already running:
-
-```bash
-everr local status
-```
-
-If it is stopped, start it in a separate terminal:
-
-```bash
-everr local start
-```
-
-Keep this command running while your app exports telemetry. Stop it with `Ctrl+C`.
-
-## 2. Get the OTLP endpoint
-
-Print the collector URL:
-
-```bash
-everr local endpoint
-```
-
-The local endpoint usually looks like this:
-
-```text
-http://127.0.0.1:54318
-```
-
-Use this base URL in your OpenTelemetry exporter.
-
-If your SDK asks for signal-specific URLs, use these paths:
-
-```text
-http://127.0.0.1:54318/v1/traces
-http://127.0.0.1:54318/v1/logs
-http://127.0.0.1:54318/v1/metrics
-```
-
-## 3. Point your app at the collector
-
-Set a clear service name and the OTLP endpoint before starting your app:
-
-```bash
-export OTEL_SERVICE_NAME=my-local-app
-export OTEL_EXPORTER_OTLP_ENDPOINT="$(everr local endpoint)"
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-```
-
-Then start your app normally.
-
-For Node.js apps, load OpenTelemetry before the app imports HTTP clients, database clients, or framework code. A common dev startup shape is:
-
-```bash
-NODE_OPTIONS="--import ./instrumentation.node.mjs ${NODE_OPTIONS:-}" npm run dev
-```
-
-For browser apps, keep local telemetry dev-only. Do not ship the local collector URL in a production browser bundle.
-
-## 4. Capture runtime errors
+## 1. Capture runtime errors
 
 Runtime errors should be sent as structured OpenTelemetry logs, not only printed to the terminal.
 
@@ -85,7 +27,7 @@ For browser apps:
 - include useful attributes like route, URL, exception type, message, and stacktrace
 - redact tokens, passwords, emails, and request bodies before export
 
-## 5. Query fresh telemetry
+## 2. Query fresh telemetry
 
 After triggering the local code path, check recent traces:
 
