@@ -499,7 +499,8 @@ export function LogsExplorer({
         <div
           className={cn(
             "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]",
-            selectedLogState && "xl:grid-cols-[260px_minmax(0,1fr)_360px]",
+            selectedLogState &&
+              "lg:grid-cols-[220px_minmax(0,1fr)_320px] xl:grid-cols-[260px_minmax(0,1fr)_360px]",
           )}
         >
           <aside className="bg-muted/15 min-h-0 border-b lg:border-r lg:border-b-0">
