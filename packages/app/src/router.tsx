@@ -3,6 +3,10 @@ import { createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { routeTree } from "./routeTree.gen";
 
+if (typeof window !== "undefined" && import.meta.env.DEV) {
+  void import("./telemetry/browser");
+}
+
 export interface RouterContext {
   queryClient: QueryClient;
 }
