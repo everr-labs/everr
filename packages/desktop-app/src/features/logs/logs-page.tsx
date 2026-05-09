@@ -92,10 +92,15 @@ export function LogsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
-        <span className="text-sm font-medium text-[var(--settings-text)]">
-          Logs
-        </span>
+      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
+        <div
+          data-tauri-drag-region
+          className="flex flex-1 items-center self-stretch"
+        >
+          <span className="text-sm font-medium text-[var(--settings-text)]">
+            Logs
+          </span>
+        </div>
         <div className="flex items-center gap-1.5">
           <TimeRangePicker value={timeRange} onChange={setTimeRange} />
           <RefreshPicker
