@@ -30,7 +30,9 @@ export function buildWhereClause(input: WhereInput): string {
     );
   }
   if (input.traceId) {
-    clauses.push("TraceId = {traceId:String}");
+    clauses.push(
+      "(TraceId = {traceId:String} OR LogAttributes['trace_id'] = {traceId:String})",
+    );
   }
   return clauses.join("\n      AND ");
 }

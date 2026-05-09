@@ -55,5 +55,6 @@ describe("buildWhereClause", () => {
       repos: [],
     });
     expect(sql).toContain("TraceId = {traceId:String}");
+    expect(sql).toContain("LogAttributes['trace_id'] = {traceId:String}");
   });
 });
