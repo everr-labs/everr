@@ -1,9 +1,9 @@
 import {
   ChartLine,
-  FileText,
   FlaskConical,
   GitBranch,
   type LucideIcon,
+  ScrollText,
 } from "lucide-react";
 
 export type NavItem = {
@@ -41,7 +41,7 @@ export const navMain: NavItem[] = [
   {
     title: "Logs",
     url: "/logs",
-    icon: FileText,
+    icon: ScrollText,
   },
   {
     title: "Testing",
