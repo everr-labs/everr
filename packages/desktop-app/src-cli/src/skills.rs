@@ -14,6 +14,8 @@ use crate::cli::{
     SkillsUninstallArgs, SkillsUpdateArgs,
 };
 
+pub(crate) const GLOBAL_SKILL_SCOPE_DEFAULT: bool = true;
+
 pub fn run(args: SkillsArgs) -> Result<()> {
     match args.command {
         SkillsSubcommand::List(args) => run_list(args),
@@ -350,7 +352,7 @@ fn prompt_skills_to_install() -> Result<Vec<String>> {
 
 fn prompt_scope() -> Result<SkillScope> {
     let global: bool = cliclack::confirm("Install skills globally instead of in this project?")
-        .initial_value(false)
+        .initial_value(GLOBAL_SKILL_SCOPE_DEFAULT)
         .interact()?;
     if global {
         Ok(SkillScope::Global)
@@ -436,5 +438,13 @@ fn print_summary(done: &str, dry_run: &str, summary: &everr_core::skills::SkillO
             ),
             None => println!("- {} {}: {}", change.skill, action, change.path),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn skills_install_defaults_to_global_scope() {
+        assert!(super::GLOBAL_SKILL_SCOPE_DEFAULT);
     }
 }

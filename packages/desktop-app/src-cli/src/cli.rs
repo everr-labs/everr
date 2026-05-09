@@ -77,8 +77,6 @@ pub enum CiSubcommand {
     Show(ShowRunArgs),
     /// Show step logs for a run
     Logs(GetLogsArgs),
-    /// Search failing step logs on other branches
-    Grep(GrepArgs),
 }
 
 #[derive(Args, Debug)]
@@ -236,28 +234,6 @@ pub struct StatusArgs {
     pub branch: Option<String>,
     #[arg(long)]
     pub commit: Option<String>,
-}
-
-#[derive(Args, Debug)]
-pub struct GrepArgs {
-    #[arg(long)]
-    pub repo: Option<String>,
-    #[arg(long, requires = "step_number")]
-    pub job_name: Option<String>,
-    #[arg(long, requires = "job_name")]
-    pub step_number: Option<String>,
-    #[arg(long)]
-    pub pattern: String,
-    #[arg(long)]
-    pub branch: Option<String>,
-    #[arg(long)]
-    pub from: Option<String>,
-    #[arg(long)]
-    pub to: Option<String>,
-    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u32).range(1..=100))]
-    pub limit: u32,
-    #[arg(long, default_value_t = 0)]
-    pub offset: u32,
 }
 
 #[derive(Args, Debug, Default)]
@@ -634,16 +610,9 @@ mod tests {
     }
 
     #[test]
-    fn validates_required_pattern_for_grep() {
-        let err = Cli::try_parse_from(["everr", "ci", "grep"])
-            .expect_err("grep should require --pattern");
-        assert!(err.to_string().contains("--pattern"));
-    }
-
-    #[test]
-    fn cloud_grep_is_no_longer_accepted() {
-        let err = Cli::try_parse_from(["everr", "cloud", "grep", "--help"])
-            .expect_err("cloud grep should be moved to ci grep");
+    fn ci_grep_is_no_longer_accepted() {
+        let err = Cli::try_parse_from(["everr", "ci", "grep", "--help"])
+            .expect_err("ci grep should be removed");
 
         assert!(err.to_string().contains("grep"));
     }
@@ -680,91 +649,6 @@ mod tests {
             panic!("expected ci logs command");
         };
         assert_eq!(args.paging(), None);
-    }
-
-    #[test]
-    fn grep_limit_defaults_to_twenty() {
-        let cli = Cli::try_parse_from(["everr", "ci", "grep", "--pattern", "panic"])
-            .expect("valid grep command");
-
-        let Commands::Ci(ci) = cli.command else {
-            panic!("expected ci command");
-        };
-        let CiSubcommand::Grep(args) = ci.command else {
-            panic!("expected ci grep command");
-        };
-
-        assert_eq!(args.limit, 20);
-        assert_eq!(args.offset, 0);
-    }
-
-    #[test]
-    fn grep_limit_must_be_in_range() {
-        let err = Cli::try_parse_from([
-            "everr",
-            "ci",
-            "grep",
-            "--pattern",
-            "panic",
-            "--limit",
-            "101",
-        ])
-        .expect_err("grep should reject out-of-range limit");
-
-        assert!(err.to_string().contains("--limit"));
-    }
-
-    #[test]
-    fn grep_job_and_step_filters_are_optional() {
-        let cli = Cli::try_parse_from(["everr", "ci", "grep", "--pattern", "panic"])
-            .expect("valid grep command");
-
-        let Commands::Ci(ci) = cli.command else {
-            panic!("expected ci command");
-        };
-        let CiSubcommand::Grep(args) = ci.command else {
-            panic!("expected ci grep command");
-        };
-        let super::GrepArgs {
-            job_name,
-            step_number,
-            ..
-        } = args;
-
-        assert!(job_name.is_none());
-        assert!(step_number.is_none());
-    }
-
-    #[test]
-    fn grep_job_name_requires_step_number() {
-        let err = Cli::try_parse_from([
-            "everr",
-            "ci",
-            "grep",
-            "--pattern",
-            "panic",
-            "--job-name",
-            "integration",
-        ])
-        .expect_err("grep should require --step-number when --job-name is set");
-
-        assert!(err.to_string().contains("--step-number"));
-    }
-
-    #[test]
-    fn grep_step_number_requires_job_name() {
-        let err = Cli::try_parse_from([
-            "everr",
-            "ci",
-            "grep",
-            "--pattern",
-            "panic",
-            "--step-number",
-            "5",
-        ])
-        .expect_err("grep should require --job-name when --step-number is set");
-
-        assert!(err.to_string().contains("--job-name"));
     }
 
     #[test]

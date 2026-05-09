@@ -27,7 +27,6 @@ import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
 import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
-import { Route as ApiCliGrepRouteImport } from './routes/api/cli/grep'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './routes/_authenticated/_dashboard/users-management'
 import { Route as AuthenticatedDashboardTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/tests-overview'
@@ -142,11 +141,6 @@ const ApiCliMeRoute = ApiCliMeRouteImport.update({
 const ApiCliImportRoute = ApiCliImportRouteImport.update({
   id: '/import',
   path: '/import',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliGrepRoute = ApiCliGrepRouteImport.update({
-  id: '/grep',
-  path: '/grep',
   getParentRoute: () => ApiCliRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -325,7 +319,6 @@ export interface FileRoutesByFullPath {
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -369,7 +362,6 @@ export interface FileRoutesByTo {
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -417,7 +409,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/_authenticated/_dashboard/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/grep': typeof ApiCliGrepRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -465,7 +456,6 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/api/auth/$'
-    | '/api/cli/grep'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -509,7 +499,6 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/api/auth/$'
-    | '/api/cli/grep'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -556,7 +545,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/tests-overview'
     | '/_authenticated/_dashboard/users-management'
     | '/api/auth/$'
-    | '/api/cli/grep'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -726,13 +714,6 @@ declare module '@tanstack/react-router' {
       path: '/import'
       fullPath: '/api/cli/import'
       preLoaderRoute: typeof ApiCliImportRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/grep': {
-      id: '/api/cli/grep'
-      path: '/grep'
-      fullPath: '/api/cli/grep'
-      preLoaderRoute: typeof ApiCliGrepRouteImport
       parentRoute: typeof ApiCliRoute
     }
     '/api/auth/$': {
@@ -1098,7 +1079,6 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 )
 
 interface ApiCliRouteChildren {
-  ApiCliGrepRoute: typeof ApiCliGrepRoute
   ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliNotificationRoute: typeof ApiCliNotificationRoute
@@ -1109,7 +1089,6 @@ interface ApiCliRouteChildren {
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
-  ApiCliGrepRoute: ApiCliGrepRoute,
   ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
   ApiCliNotificationRoute: ApiCliNotificationRoute,

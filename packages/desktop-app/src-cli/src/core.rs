@@ -12,7 +12,7 @@ use crate::api::{
 };
 use crate::auth;
 use crate::cli::{
-    GetLogsArgs, GrepArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
+    GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
     TelemetryQueryArgs, WatchArgs,
 };
 use crate::telemetry;
@@ -55,31 +55,6 @@ pub async fn status(args: StatusArgs) -> Result<()> {
 
     let query = vec![("repo", repo), ("branch", branch), ("commit", commit)];
     let payload = client.get_status(&query).await?;
-    print_json(&payload)?;
-    Ok(())
-}
-
-pub async fn grep(args: GrepArgs) -> Result<()> {
-    let session = auth::require_session_with_refresh().await?;
-    let client = ApiClient::from_session(&session)?;
-    let cwd = std::env::current_dir()?;
-    let git = resolve_git_context(&cwd);
-    let repo = args.repo.or(git.repo).ok_or_else(|| {
-        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
-    })?;
-    let branch = args.branch;
-    let exclude_branch = if branch.is_some() { None } else { git.branch };
-
-    let mut query: Vec<(&str, String)> = vec![("repo", repo), ("pattern", args.pattern)];
-    push_pagination(&mut query, args.limit, args.offset);
-    push_opt(&mut query, "jobName", args.job_name);
-    push_opt(&mut query, "stepNumber", args.step_number);
-    push_opt(&mut query, "branch", branch);
-    push_opt(&mut query, "excludeBranch", exclude_branch);
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-
-    let payload = client.get_grep(&query).await?;
     print_json(&payload)?;
     Ok(())
 }

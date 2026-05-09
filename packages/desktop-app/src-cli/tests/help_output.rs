@@ -46,7 +46,6 @@ fn ci_help_lists_pipeline_subcommands() {
         .stdout(contains("watch"))
         .stdout(contains("runs"))
         .stdout(contains("show"))
-        .stdout(contains("grep"))
         .stdout(contains("logs"));
 }
 
@@ -85,21 +84,6 @@ fn cloud_query_help_lists_format_option() {
         .success()
         .stdout(contains("<SQL>"))
         .stdout(contains("--format <FORMAT>"));
-}
-
-#[test]
-fn grep_help_lists_job_name_and_step_number_filters() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["ci", "grep", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("--job-name <JOB_NAME>"))
-        .stdout(contains("--limit <LIMIT>"))
-        .stdout(contains("--offset <OFFSET>"))
-        .stdout(contains("--step-number <STEP_NUMBER>"))
-        .stdout(predicates::str::contains("--step <STEP>").not());
 }
 
 #[test]

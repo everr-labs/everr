@@ -262,7 +262,7 @@ fn step_install_skills() -> Result<bool> {
 
     let scope = if interactive {
         let global: bool = cliclack::confirm("Install skills globally instead of in this project?")
-            .initial_value(false)
+            .initial_value(cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT)
             .interact()?;
         if global {
             SkillScope::Global
@@ -525,6 +525,11 @@ mod tests {
     #[test]
     fn setup_defaults_to_installing_skills() {
         assert!(super::INSTALL_SKILLS_DEFAULT);
+    }
+
+    #[test]
+    fn setup_defaults_to_global_skill_scope() {
+        assert!(super::cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT);
     }
 
     #[test]
