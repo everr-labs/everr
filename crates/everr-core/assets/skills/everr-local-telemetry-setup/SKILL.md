@@ -1,6 +1,6 @@
 ---
 name: everr-local-telemetry-setup
-description: Use when a task mentions setting up Everr local telemetry, collector status, OTLP/HTTP exporters, missing OpenTelemetry instrumentation, service.name, local collector endpoints, telemetry verification, or wrapping build and lint commands.
+description: Use when a task mentions setting up local telemetry, OTLP/HTTP exporters, missing OpenTelemetry instrumentation, service.name, telemetry verification
 ---
 
 # Local Telemetry Setup With Everr

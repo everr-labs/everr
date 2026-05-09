@@ -1,32 +1,24 @@
 ---
 name: everr-ci-debugging
-description: Use when a task mentions CI failures, GitHub Actions, pipeline status, workflow logs, failing jobs or steps, branch comparisons, or validating a CI fix with Everr.
+description: Use when working on failures, investigations and optimizations related to CI or Github Actions or Everr is mentioned in CI context.
 ---
 
 # CI Debugging With Everr
 
 Use Everr from the repository root when investigating CI state, GitHub Actions failures, workflow logs, or CI test performance.
 
-## Default Workflow
-
-1. Start with `everr ci status` unless the user already provided a `trace_id`, `run_id`, job id, or exact step.
-2. Copy exact identifiers from Everr output. Do not guess `trace_id`, job names, job ids, or step numbers.
-3. Prefer the narrowest command that answers the question; fetch targeted logs instead of broad dumps.
-4. After a fix, suggest `everr ci watch --fail-fast` to confirm the current commit.
-
 ## Command Choice
 
 | Need | Command |
 | --- | --- |
-| Current commit pipeline state | `everr ci status` |
-| Wait for the current commit | `everr ci watch --fail-fast` |
+| Read-only custom cloud SQL | `everr cloud query "<SQL>"` |
+| Current commit pipeline state. Reads the current branch/repo from git context | `everr ci status` |
+| Wait for the current commit on the current branch/repo | `everr ci watch --fail-fast` |
 | Recent or filtered runs | `everr ci runs` |
 | Jobs and steps for one run | `everr ci show <trace_id>` |
 | Only failed jobs and steps | `everr ci show <trace_id> --failed` |
 | Logs for a known step | `everr ci logs <trace_id> --job-name <job> --step-number <n>` |
 | Logs for the first failed step in a job | `everr ci logs <trace_id> --job-name <job> --log-failed` |
-| Search similar failures on other branches | `everr ci grep --pattern <text>` |
-| Advanced read-only custom cloud SQL investigation | `everr cloud query "<SQL>"` |
 
 Useful flags:
 - `everr ci status --commit <sha>` targets another commit.
@@ -37,7 +29,7 @@ Useful flags:
 
 ## Cloud SQL
 
-Use `everr cloud query "<SQL>"` only when focused commands do not answer the question.
+Use `everr cloud query "<SQL>"` for investigations
 
 Starting tables:
 - `traces`: workflow runs, jobs, steps, and test spans
@@ -76,13 +68,12 @@ ORDER BY Timestamp DESC
 LIMIT 50
 ```
 
-Always include a time filter. Add repo, branch, run id, job, or test filters when known. Tenant filtering is automatic; do not filter on `tenant_id`.
+Always include a time filter and a limit under 1k. Add repo, branch, run id, job, or test filters when known.
 
 ## Integrated Example
 
 For "CI is failing on this branch":
-1. Run `everr ci status`.
+1. Run `everr ci runs --current-branch`.
 2. If a run failed, copy its `trace_id` and run `everr ci show <trace_id> --failed`.
 3. For the failing job, run `everr ci logs <trace_id> --job-name <job> --log-failed`.
-4. If the error looks familiar but unclear, search history with `everr ci grep --pattern <distinct error text>`.
-5. Explain the failure signal, make or recommend the smallest fix, then use `everr ci watch --fail-fast` to verify.
+4. Explain the failure signal, make or recommend the smallest fix, then use `everr ci watch --fail-fast` to verify.
