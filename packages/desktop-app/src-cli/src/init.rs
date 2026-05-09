@@ -17,7 +17,7 @@ pub async fn run() -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let org = client.get_org().await.ok();
 
-    if !should_show_runs_import_step(org.as_ref()) {
+    if !OrgResponse::can_manage_runs_import_or_default(org.as_ref()) {
         cliclack::log::remark("Only organization admins can import workflow history; skipping.")?;
         cliclack::outro(format!("{} init complete.", build::command_name()))?;
         return Ok(());
@@ -117,13 +117,10 @@ async fn has_existing_runs(client: &ApiClient, repo_full_name: &str) -> bool {
     }
 }
 
-fn should_show_runs_import_step(org: Option<&OrgResponse>) -> bool {
-    org.map(|org| org.can_manage_runs_import()).unwrap_or(true)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{parse_repo_from_remote, should_show_runs_import_step};
+    use super::parse_repo_from_remote;
+    use everr_core::api::OrgResponse;
 
     #[test]
     fn parses_https_remote() {
@@ -164,25 +161,30 @@ mod tests {
 
     #[test]
     fn member_org_does_not_show_runs_import_step() {
-        let org = everr_core::api::OrgResponse {
+        let org = OrgResponse {
             name: "Acme".to_string(),
             is_only_member: false,
             onboarding_completed: false,
             role: Some("member".to_string()),
         };
 
-        assert!(!should_show_runs_import_step(Some(&org)));
+        assert!(!OrgResponse::can_manage_runs_import_or_default(Some(&org)));
     }
 
     #[test]
     fn owner_org_shows_runs_import_step() {
-        let org = everr_core::api::OrgResponse {
+        let org = OrgResponse {
             name: "Acme".to_string(),
             is_only_member: false,
             onboarding_completed: false,
             role: Some("owner".to_string()),
         };
 
-        assert!(should_show_runs_import_step(Some(&org)));
+        assert!(OrgResponse::can_manage_runs_import_or_default(Some(&org)));
+    }
+
+    #[test]
+    fn missing_org_defaults_to_showing_runs_import_step() {
+        assert!(OrgResponse::can_manage_runs_import_or_default(None));
     }
 }

@@ -417,6 +417,10 @@ impl OrgResponse {
             None => true,
         }
     }
+
+    pub fn can_manage_runs_import_or_default(org: Option<&Self>) -> bool {
+        org.map(Self::can_manage_runs_import).unwrap_or(true)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
