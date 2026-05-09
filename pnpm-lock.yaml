@@ -180,6 +180,9 @@ importers:
         specifier: 'catalog:'
         version: 4.4.2
     devDependencies:
+      '@opentelemetry/api':
+        specifier: 1.9.1
+        version: 1.9.1
       '@opentelemetry/api-logs':
         specifier: 0.216.0
         version: 0.216.0
