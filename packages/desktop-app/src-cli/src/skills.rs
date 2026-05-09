@@ -405,7 +405,11 @@ fn prompt_install_mode() -> Result<InstallMode> {
 fn print_summary(done: &str, dry_run: &str, summary: &everr_core::skills::SkillOperationSummary) {
     let verb = if summary.dry_run { dry_run } else { done };
     let suffix = if summary.skills.len() == 1 { "" } else { "s" };
-    println!("{verb} {} skill{suffix}", summary.skills.len());
+    println!(
+        "{verb} {} skill{suffix}: {}",
+        summary.skills.len(),
+        summary.skills.join(", ")
+    );
     for change in &summary.changes {
         if change.action == SkillPathAction::Unchanged {
             continue;

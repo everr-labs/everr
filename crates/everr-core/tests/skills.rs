@@ -35,7 +35,7 @@ fn installs_project_skills_to_canonical_agents_dir_and_symlinks_claude() {
             SkillProvider::ClaudeCode,
             SkillProvider::Cursor,
         ],
-        skill_names: vec!["ci-debugging".to_string()],
+        skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: false,
@@ -44,17 +44,17 @@ fn installs_project_skills_to_canonical_agents_dir_and_symlinks_claude() {
 
     install_bundled_skills(&options).expect("install project skill");
 
-    let canonical = repo.path().join(".agents/skills/ci-debugging");
+    let canonical = repo.path().join(".agents/skills/everr-ci-debugging");
     assert!(canonical.join("SKILL.md").is_file());
     assert!(
         repo.path()
-            .join(".agents/skills/ci-debugging/SKILL.md")
+            .join(".agents/skills/everr-ci-debugging/SKILL.md")
             .is_file()
     );
-    assert!(!repo.path().join(".codex/skills/ci-debugging").exists());
-    assert!(!repo.path().join(".cursor/skills/ci-debugging").exists());
+    assert!(!repo.path().join(".codex/skills/everr-ci-debugging").exists());
+    assert!(!repo.path().join(".cursor/skills/everr-ci-debugging").exists());
     #[cfg(unix)]
-    assert_symlink_to(&repo.path().join(".claude/skills/ci-debugging"), &canonical);
+    assert_symlink_to(&repo.path().join(".claude/skills/everr-ci-debugging"), &canonical);
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn installs_global_skills_to_agents_dir_and_symlinks_providers() {
             SkillProvider::ClaudeCode,
             SkillProvider::Cursor,
         ],
-        skill_names: vec!["local-debugging".to_string()],
+        skill_names: vec!["everr-local-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: false,
@@ -79,20 +79,20 @@ fn installs_global_skills_to_agents_dir_and_symlinks_providers() {
 
     install_bundled_skills(&options).expect("install global skill");
 
-    let canonical = home.path().join(".agents/skills/local-debugging");
+    let canonical = home.path().join(".agents/skills/everr-local-debugging");
     assert!(canonical.join("SKILL.md").is_file());
     #[cfg(unix)]
     {
         assert_symlink_to(
-            &home.path().join(".codex/skills/local-debugging"),
+            &home.path().join(".codex/skills/everr-local-debugging"),
             &canonical,
         );
         assert_symlink_to(
-            &home.path().join(".claude/skills/local-debugging"),
+            &home.path().join(".claude/skills/everr-local-debugging"),
             &canonical,
         );
         assert_symlink_to(
-            &home.path().join(".cursor/skills/local-debugging"),
+            &home.path().join(".cursor/skills/everr-local-debugging"),
             &canonical,
         );
     }
@@ -107,7 +107,7 @@ fn dry_run_reports_changes_without_writing_files() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::Codex],
-        skill_names: vec!["ci-debugging".to_string()],
+        skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: false,
@@ -129,8 +129,8 @@ fn dry_run_reports_changes_without_writing_files() {
             .iter()
             .any(|change| change.action == SkillPathAction::WouldLink)
     );
-    assert!(!home.path().join(".agents/skills/ci-debugging").exists());
-    assert!(!home.path().join(".codex/skills/ci-debugging").exists());
+    assert!(!home.path().join(".agents/skills/everr-ci-debugging").exists());
+    assert!(!home.path().join(".codex/skills/everr-ci-debugging").exists());
 }
 
 #[test]
@@ -142,14 +142,14 @@ fn update_rewrites_modified_installed_skill() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::Codex],
-        skill_names: vec!["ci-debugging".to_string()],
+        skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: false,
         dry_run: false,
     };
     install_bundled_skills(&options).expect("install skill");
-    let skill_doc = repo.path().join(".agents/skills/ci-debugging/SKILL.md");
+    let skill_doc = repo.path().join(".agents/skills/everr-ci-debugging/SKILL.md");
     fs::write(&skill_doc, "local edits").expect("edit skill");
 
     let update_options = SkillOperationOptions {
@@ -159,7 +159,7 @@ fn update_rewrites_modified_installed_skill() {
     update_bundled_skills(&update_options).expect("update skill");
 
     let content = fs::read_to_string(skill_doc).expect("read updated skill");
-    assert!(content.contains("name: ci-debugging"));
+    assert!(content.contains("name: everr-ci-debugging"));
     assert!(!content.contains("local edits"));
 }
 
@@ -172,7 +172,7 @@ fn copy_mode_writes_provider_copy_but_keeps_canonical_copy() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::ClaudeCode],
-        skill_names: vec!["local-telemetry-setup".to_string()],
+        skill_names: vec!["everr-local-telemetry-setup".to_string()],
         all: false,
         mode: InstallMode::Copy,
         force: false,
@@ -181,8 +181,8 @@ fn copy_mode_writes_provider_copy_but_keeps_canonical_copy() {
 
     install_bundled_skills(&options).expect("install copied skill");
 
-    let canonical = repo.path().join(".agents/skills/local-telemetry-setup");
-    let claude = repo.path().join(".claude/skills/local-telemetry-setup");
+    let canonical = repo.path().join(".agents/skills/everr-local-telemetry-setup");
+    let claude = repo.path().join(".claude/skills/everr-local-telemetry-setup");
     assert!(canonical.join("SKILL.md").is_file());
     assert!(claude.join("SKILL.md").is_file());
     assert!(
@@ -197,7 +197,7 @@ fn copy_mode_writes_provider_copy_but_keeps_canonical_copy() {
 fn install_refuses_to_overwrite_modified_skill_without_force() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");
-    let canonical = repo.path().join(".agents/skills/ci-debugging");
+    let canonical = repo.path().join(".agents/skills/everr-ci-debugging");
     fs::create_dir_all(&canonical).expect("create existing skill");
     fs::write(canonical.join("SKILL.md"), "local edits").expect("write local edits");
 
@@ -206,7 +206,7 @@ fn install_refuses_to_overwrite_modified_skill_without_force() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::Codex],
-        skill_names: vec!["ci-debugging".to_string()],
+        skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: false,
@@ -223,7 +223,7 @@ fn force_replaces_existing_provider_symlink() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");
     let wrong_target = tempdir().expect("wrong target tempdir");
-    let provider_link = home.path().join(".claude/skills/ci-debugging");
+    let provider_link = home.path().join(".claude/skills/everr-ci-debugging");
     fs::create_dir_all(provider_link.parent().expect("provider parent")).expect("create parent");
     std::os::unix::fs::symlink(wrong_target.path(), &provider_link).expect("create wrong link");
 
@@ -232,7 +232,7 @@ fn force_replaces_existing_provider_symlink() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::ClaudeCode],
-        skill_names: vec!["ci-debugging".to_string()],
+        skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: true,
@@ -243,7 +243,7 @@ fn force_replaces_existing_provider_symlink() {
 
     assert_symlink_to(
         &provider_link,
-        &home.path().join(".agents/skills/ci-debugging"),
+        &home.path().join(".agents/skills/everr-ci-debugging"),
     );
 }
 
@@ -252,7 +252,7 @@ fn force_replaces_existing_provider_symlink() {
 fn force_removes_dangling_provider_symlink() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");
-    let provider_link = home.path().join(".cursor/skills/local-debugging");
+    let provider_link = home.path().join(".cursor/skills/everr-local-debugging");
     fs::create_dir_all(provider_link.parent().expect("provider parent")).expect("create parent");
     std::os::unix::fs::symlink(home.path().join("missing-target"), &provider_link)
         .expect("create dangling link");
@@ -262,7 +262,7 @@ fn force_removes_dangling_provider_symlink() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::Cursor],
-        skill_names: vec!["local-debugging".to_string()],
+        skill_names: vec!["everr-local-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: true,
@@ -273,7 +273,7 @@ fn force_removes_dangling_provider_symlink() {
 
     assert_symlink_to(
         &provider_link,
-        &home.path().join(".agents/skills/local-debugging"),
+        &home.path().join(".agents/skills/everr-local-debugging"),
     );
 }
 
@@ -286,7 +286,7 @@ fn uninstall_removes_canonical_and_provider_links() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::Codex, SkillProvider::ClaudeCode],
-        skill_names: vec!["ci-debugging".to_string()],
+        skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
         mode: InstallMode::Symlink,
         force: false,
@@ -296,7 +296,7 @@ fn uninstall_removes_canonical_and_provider_links() {
     install_bundled_skills(&options).expect("install skill");
     uninstall_bundled_skills(&options).expect("uninstall skill");
 
-    assert!(!home.path().join(".agents/skills/ci-debugging").exists());
-    assert!(!home.path().join(".codex/skills/ci-debugging").exists());
-    assert!(!home.path().join(".claude/skills/ci-debugging").exists());
+    assert!(!home.path().join(".agents/skills/everr-ci-debugging").exists());
+    assert!(!home.path().join(".codex/skills/everr-ci-debugging").exists());
+    assert!(!home.path().join(".claude/skills/everr-ci-debugging").exists());
 }
