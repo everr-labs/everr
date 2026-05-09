@@ -7,7 +7,7 @@ export type TenantRetention = {
 };
 
 const RETENTION_BY_TIER: Record<Tier, TenantRetention> = {
-  free: { tracesDays: 30, logsDays: 30, metricsDays: 30 },
+  free: { tracesDays: 7, logsDays: 7, metricsDays: 14 },
   // Metrics retention is "13 months" — Datadog/industry convention, stored
   // here as 395 days (~13 × 30.4).
   pro: { tracesDays: 90, logsDays: 90, metricsDays: 395 },
