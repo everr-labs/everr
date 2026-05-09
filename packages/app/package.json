@@ -50,6 +50,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@opentelemetry/api": "1.9.1",
     "@opentelemetry/api-logs": "0.216.0",
     "@opentelemetry/auto-instrumentations-node": "^0.74.0",
     "@opentelemetry/exporter-logs-otlp-proto": "^0.216.0",
