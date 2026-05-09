@@ -1,4 +1,4 @@
 {
   "title": "CLI",
-  "pages": ["index", "commands", "telemetry", "setup-local-telemetry"]
+  "pages": ["index", "commands", "telemetry"]
 }
