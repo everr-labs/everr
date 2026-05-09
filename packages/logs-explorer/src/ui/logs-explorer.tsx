@@ -516,7 +516,7 @@ export function LogsExplorer({
             />
           </aside>
 
-          <main className="min-h-0 min-w-0 border-b xl:border-b-0">
+          <main className="min-h-0 min-w-0">
             <div className="flex h-full min-h-0 flex-col">
               <LogHistogram
                 buckets={histogram}
