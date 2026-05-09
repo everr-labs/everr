@@ -35,7 +35,8 @@ import {
   Server,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Virtuoso } from "react-virtuoso";
 import { Bar, BarChart, ReferenceArea, XAxis } from "recharts";
 import { z } from "zod";
 import { FilterCombobox } from "@/components/filter-combobox";
@@ -219,6 +220,13 @@ function LogsExplorerPage() {
 
   const totalCount = totals?.totalCount;
   const levelCounts = totals?.levelCounts;
+  const handleLoadMore = useCallback(() => {
+    fetchNextPage();
+  }, [fetchNextPage]);
+  const handleSelectLog = useCallback(
+    (log: LogExplorerRow, key: string) => setSelectedLogState({ log, key }),
+    [],
+  );
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
@@ -362,8 +370,8 @@ function LogsExplorerPage() {
                     totalCount={totalCount}
                     hasNextPage={hasNextPage}
                     isFetchingNextPage={isFetchingNextPage}
-                    onLoadMore={() => fetchNextPage()}
-                    onSelect={(log, key) => setSelectedLogState({ log, key })}
+                    onLoadMore={handleLoadMore}
+                    onSelect={handleSelectLog}
                   />
                 ) : (
                   <div className="text-muted-foreground flex h-full min-h-80 items-center justify-center text-sm">
@@ -681,6 +689,8 @@ function LogHistogram({
   );
 }
 
+type RangeSelection = { startIndex: number; endIndex: number };
+
 function LogStream({
   logs,
   selectedLogKey,
@@ -698,93 +708,331 @@ function LogStream({
   onLoadMore: () => void;
   onSelect: (log: LogExplorerRow, key: string) => void;
 }) {
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    if (!hasNextPage || isFetchingNextPage) return;
-    const target = event.currentTarget;
-    const distanceToBottom =
-      target.scrollHeight - target.scrollTop - target.clientHeight;
-    if (distanceToBottom < 480) {
-      onLoadMore();
-    }
-  };
+  const scrollerRef = useRef<HTMLElement | null>(null);
+  const [rangeSelection, setRangeSelection] = useState<RangeSelection | null>(
+    null,
+  );
+
+  const dragRef = useRef<{
+    active: boolean;
+    startIndex: number | null;
+    crossed: boolean;
+  }>({ active: false, startIndex: null, crossed: false });
+
+  // Document mouse listeners: drag tracking, auto-scroll, outside-click clear, Escape.
+  useEffect(() => {
+    let rafId: number | null = null;
+    let scrollSpeed = 0;
+    let lastClientY = 0;
+
+    const updateRange = () => {
+      if (!dragRef.current.active || dragRef.current.startIndex === null) {
+        return;
+      }
+      const index = findRowIndexAtY(lastClientY, scrollerRef.current);
+      if (index === null) return;
+      if (index !== dragRef.current.startIndex) {
+        dragRef.current.crossed = true;
+        window.getSelection()?.removeAllRanges();
+      }
+      if (!dragRef.current.crossed) return;
+      const startIndex = dragRef.current.startIndex;
+      setRangeSelection((prev) =>
+        prev && prev.startIndex === startIndex && prev.endIndex === index
+          ? prev
+          : { startIndex, endIndex: index },
+      );
+    };
+
+    const tick = () => {
+      const scroller = scrollerRef.current;
+      if (!scroller || scrollSpeed === 0) {
+        rafId = null;
+        return;
+      }
+      scroller.scrollTop += scrollSpeed;
+      updateRange();
+      rafId = requestAnimationFrame(tick);
+    };
+
+    const stopAutoScroll = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      scrollSpeed = 0;
+    };
+
+    const onMove = (event: MouseEvent) => {
+      if (!dragRef.current.active) return;
+      lastClientY = event.clientY;
+      updateRange();
+
+      const scroller = scrollerRef.current;
+      if (!scroller) return;
+      const rect = scroller.getBoundingClientRect();
+      const SCROLL_ZONE = 40;
+      const distFromTop = event.clientY - rect.top;
+      const distFromBottom = rect.bottom - event.clientY;
+      if (distFromTop < SCROLL_ZONE) {
+        scrollSpeed = -Math.max(2, (SCROLL_ZONE - distFromTop) * 0.6);
+      } else if (distFromBottom < SCROLL_ZONE) {
+        scrollSpeed = Math.max(2, (SCROLL_ZONE - distFromBottom) * 0.6);
+      } else {
+        scrollSpeed = 0;
+      }
+      if (scrollSpeed !== 0 && rafId === null) {
+        rafId = requestAnimationFrame(tick);
+      } else if (scrollSpeed === 0) {
+        stopAutoScroll();
+      }
+    };
+
+    const onUp = () => {
+      dragRef.current.active = false;
+      dragRef.current.startIndex = null;
+      stopAutoScroll();
+    };
+
+    const onDocMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && scrollerRef.current?.contains(target)) return;
+      setRangeSelection(null);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRangeSelection(null);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onKey);
+      stopAutoScroll();
+    };
+  }, []);
+
+  // Clear range selection when the query result changes (filter/search), but not
+  // when infinite scroll appends older pages. logs[0] is the newest row and only
+  // changes when the underlying query does.
+  const firstLogId = logs[0]?.id;
+  useEffect(() => {
+    setRangeSelection(null);
+  }, [firstLogId]);
+
+  // Copy handler — assemble selected rows' text from logs[].
+  useEffect(() => {
+    if (!rangeSelection) return;
+    const onCopy = (event: ClipboardEvent) => {
+      const min = Math.min(rangeSelection.startIndex, rangeSelection.endIndex);
+      const max = Math.max(rangeSelection.startIndex, rangeSelection.endIndex);
+      const text = logs
+        .slice(min, max + 1)
+        .map((log) => stripAnsi(log.body))
+        .join("\n");
+      event.clipboardData?.setData("text/plain", text);
+      event.preventDefault();
+    };
+    document.addEventListener("copy", onCopy);
+    return () => document.removeEventListener("copy", onCopy);
+  }, [rangeSelection, logs]);
+
+  const handleRowMouseDown = useCallback((index: number) => {
+    dragRef.current = { active: true, startIndex: index, crossed: false };
+    setRangeSelection(null);
+  }, []);
+
+  const handleRowClick = useCallback(
+    (log: LogExplorerRow, key: string) => {
+      if (dragRef.current.crossed) return;
+      if (hasActiveTextSelection()) return;
+      onSelect(log, key);
+    },
+    [onSelect],
+  );
+
+  const endReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) onLoadMore();
+  }, [hasNextPage, isFetchingNextPage, onLoadMore]);
+
+  const minSelected = rangeSelection
+    ? Math.min(rangeSelection.startIndex, rangeSelection.endIndex)
+    : -1;
+  const maxSelected = rangeSelection
+    ? Math.max(rangeSelection.startIndex, rangeSelection.endIndex)
+    : -1;
+
+  const itemContent = useCallback(
+    (index: number, log: LogExplorerRow) => {
+      const rowKey = `${log.id}:${index}`;
+      const inRange = index >= minSelected && index <= maxSelected;
+      return (
+        <LogRow
+          index={index}
+          log={log}
+          rowKey={rowKey}
+          isSelected={selectedLogKey === rowKey}
+          isInRange={inRange}
+          onMouseDown={handleRowMouseDown}
+          onSelect={handleRowClick}
+        />
+      );
+    },
+    [
+      selectedLogKey,
+      handleRowClick,
+      handleRowMouseDown,
+      minSelected,
+      maxSelected,
+    ],
+  );
+
+  const components = useMemo(
+    () => ({
+      Footer: () => (
+        <div className="text-muted-foreground flex h-12 items-center justify-center border-b px-3 text-xs">
+          {isFetchingNextPage ? (
+            <span className="flex items-center gap-2">
+              <Skeleton className="size-2 rounded-full" />
+              Loading more events
+            </span>
+          ) : hasNextPage ? (
+            <span>
+              Showing {logs.length.toLocaleString()}
+              {totalCount !== undefined
+                ? ` of ${totalCount.toLocaleString()}`
+                : ""}{" "}
+              events
+            </span>
+          ) : (
+            <span>
+              Showing all {logs.length.toLocaleString()} matching events
+            </span>
+          )}
+        </div>
+      ),
+    }),
+    [isFetchingNextPage, hasNextPage, totalCount, logs.length],
+  );
 
   return (
-    <div
-      className="h-full min-h-0 overflow-auto bg-background"
-      onScroll={handleScroll}
-    >
-      {logs.map((log, index) => {
-        const rowKey = `${log.id}:${index}`;
-        return (
-          // biome-ignore lint/a11y/useSemanticElements: Native buttons prevent selecting log text for copy.
-          <div
-            key={rowKey}
-            role="button"
-            tabIndex={0}
-            className={cn(
-              "relative group grid w-full cursor-default grid-cols-[86px_minmax(0,1fr)] items-start py-0.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 md:grid-cols-[112px_minmax(0,1fr)]",
-              selectedLogKey === rowKey && "bg-muted/70 hover:bg-muted/70",
-            )}
-            onClick={() => {
-              if (hasActiveTextSelection()) return;
-              onSelect(log, rowKey);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelect(log, rowKey);
-              }
-            }}
-          >
-            <div
-              className={cn(
-                "self-stretch absolute left-0 top-px bottom-px w-[3px]",
-                levelAccentClassName(log.level),
-              )}
-            />
-
-            <div className="px-3">
-              <span className="block select-none font-mono text-[0.75rem] leading-4 text-muted-foreground tabular-nums">
-                {formatTimestampTimeOfDay(log.timestamp)}
-              </span>
-            </div>
-
-            <div className="min-w-0 px-3 pr-9">
-              <div className="select-text whitespace-pre-wrap break-words font-mono text-[0.75rem] leading-4 text-foreground">
-                <Ansi useClasses>{log.body}</Ansi>
-              </div>
-            </div>
-
-            <ChevronRight
-              aria-hidden="true"
-              className="absolute top-1/2 right-2 size-3 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-            />
-          </div>
-        );
-      })}
-      <div className="text-muted-foreground flex h-12 items-center justify-center border-b px-3 text-xs">
-        {isFetchingNextPage ? (
-          <span className="flex items-center gap-2">
-            <Skeleton className="size-2 rounded-full" />
-            Loading more events
-          </span>
-        ) : hasNextPage ? (
-          <span>
-            Showing {logs.length.toLocaleString()}
-            {totalCount !== undefined
-              ? ` of ${totalCount.toLocaleString()}`
-              : ""}{" "}
-            events
-          </span>
-        ) : (
-          <span>
-            Showing all {logs.length.toLocaleString()} matching events
-          </span>
-        )}
-      </div>
-    </div>
+    <Virtuoso
+      data={logs}
+      className="h-full min-h-0 bg-background"
+      scrollerRef={(el) => {
+        scrollerRef.current = el as HTMLElement | null;
+      }}
+      increaseViewportBy={VIRTUOSO_OVERSCAN}
+      endReached={endReached}
+      computeItemKey={computeRowKey}
+      itemContent={itemContent}
+      components={components}
+    />
   );
 }
+
+// Covers CSI (color/cursor), OSC (titles/hyperlinks), and single-char escapes.
+const ANSI_REGEX =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: required to match ANSI escapes
+  /\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[@-_])/g;
+
+function stripAnsi(input: string): string {
+  return input.replace(ANSI_REGEX, "");
+}
+
+function findRowIndexAtY(
+  clientY: number,
+  scroller: HTMLElement | null,
+): number | null {
+  if (!scroller) return null;
+  const rect = scroller.getBoundingClientRect();
+  // Probe a point inside the scroller, off the left edge to avoid the level accent bar.
+  const x = rect.left + 16;
+  const clampedY = Math.min(Math.max(clientY, rect.top + 1), rect.bottom - 1);
+  const target = document.elementFromPoint(x, clampedY);
+  const rowEl = target?.closest("[data-log-index]") as HTMLElement | null;
+  if (!rowEl) return null;
+  const value = rowEl.getAttribute("data-log-index");
+  if (!value) return null;
+  const index = Number(value);
+  return Number.isFinite(index) ? index : null;
+}
+
+const VIRTUOSO_OVERSCAN = { top: 400, bottom: 400 };
+
+function computeRowKey(index: number, log: LogExplorerRow) {
+  return `${log.id}:${index}`;
+}
+
+const LogRow = memo(function LogRow({
+  index,
+  log,
+  rowKey,
+  isSelected,
+  isInRange,
+  onMouseDown,
+  onSelect,
+}: {
+  index: number;
+  log: LogExplorerRow;
+  rowKey: string;
+  isSelected: boolean;
+  isInRange: boolean;
+  onMouseDown: (index: number) => void;
+  onSelect: (log: LogExplorerRow, key: string) => void;
+}) {
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: Native buttons prevent selecting log text for copy.
+    <div
+      role="button"
+      tabIndex={0}
+      data-log-index={index}
+      className={cn(
+        "relative group grid w-full cursor-default grid-cols-[86px_minmax(0,1fr)] items-start text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 md:grid-cols-[112px_minmax(0,1fr)]",
+        isSelected && "bg-muted/70 hover:bg-muted/70",
+      )}
+      onMouseDown={() => onMouseDown(index)}
+      onClick={() => onSelect(log, rowKey)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(log, rowKey);
+        }
+      }}
+    >
+      <div
+        className={cn(
+          "self-stretch absolute left-0 top-px bottom-px w-[3px]",
+          levelAccentClassName(log.level),
+        )}
+      />
+
+      <div className="px-3 py-0.5">
+        <span className="block select-none font-mono text-[0.75rem] leading-4 text-muted-foreground tabular-nums">
+          {formatTimestampTimeOfDay(log.timestamp)}
+        </span>
+      </div>
+
+      <div
+        className={cn("min-w-0 px-3 pr-9 py-0.5", isInRange && "bg-primary/20")}
+      >
+        <div className="select-text whitespace-pre-wrap break-words font-mono text-[0.75rem] leading-4 min-h-4 text-foreground">
+          <Ansi useClasses>{log.body}</Ansi>
+        </div>
+      </div>
+
+      <ChevronRight
+        aria-hidden="true"
+        className="absolute top-1/2 right-2 size-3 -translate-y-1/2 text-muted-foreground opacity-0 group-hover:opacity-100"
+      />
+    </div>
+  );
+});
 
 function useDelayedFlag(active: boolean, delayMs: number) {
   const [delayed, setDelayed] = useState(false);
