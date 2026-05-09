@@ -35,4 +35,10 @@ describe("substituteParams", () => {
       /missing parameter q/i,
     );
   });
+
+  it("rejects negative numbers for unsigned types", () => {
+    expect(() =>
+      substituteParams("LIMIT {limit:UInt32}", { limit: -1 }),
+    ).toThrow(/cannot be negative/i);
+  });
 });

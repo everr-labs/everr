@@ -21,6 +21,9 @@ function renderValue(type: string, raw: unknown, name: string): string {
     if (typeof raw !== "number" || !Number.isFinite(raw)) {
       throw new Error(`param ${name}: expected number for ${type}`);
     }
+    if (type.startsWith("UInt") && raw < 0) {
+      throw new Error(`param ${name}: ${type} cannot be negative (got ${raw})`);
+    }
     return String(Math.trunc(raw));
   }
   if (type === "Array(String)") {

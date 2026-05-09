@@ -8,8 +8,15 @@ use std::time::Duration;
 use crate::telemetry::ports::SQL_HTTP_PORT;
 
 pub async fn run_query(sql: String) -> Result<Vec<Value>> {
-    let url = format!("http://127.0.0.1:{SQL_HTTP_PORT}/sql");
-    post_sql(&url, &sql).await
+    run_query_against(&default_url(), &sql).await
+}
+
+fn default_url() -> String {
+    format!("http://127.0.0.1:{SQL_HTTP_PORT}/sql")
+}
+
+async fn run_query_against(url: &str, sql: &str) -> Result<Vec<Value>> {
+    post_sql(url, sql).await
 }
 
 async fn post_sql(url: &str, sql: &str) -> Result<Vec<Value>> {
@@ -85,5 +92,12 @@ mod tests {
         let url = spawn_server(503, "");
         let err = post_sql(&url, "SELECT 1").await.unwrap_err();
         assert!(err.to_string().contains("busy"));
+    }
+
+    #[tokio::test]
+    async fn run_query_against_url_returns_rows() {
+        let url = spawn_server(200, "{\"x\":1}\n");
+        let rows = run_query_against(&url, "SELECT 1").await.unwrap();
+        assert_eq!(rows.len(), 1);
     }
 }
