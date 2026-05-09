@@ -69,6 +69,15 @@ REVOKE SELECT ON system.quota_usage FROM sql_api_role;
 -- doesn't exist yet at that point in the boot order.
 GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
 
+-- Keep sql_api_role out of web_app_admin's default roles. Otherwise CH would
+-- auto-activate it on every connection and apply sql_api_profile (readonly=1,
+-- allow_ddl=0, etc.) to web_app_admin's sessions, which would break the
+-- CREATE USER / GRANT / CREATE ROW POLICY work it has to do. ADMIN OPTION
+-- doesn't require the role to be active, so per-org GRANT sql_api_role still
+-- works. web_app_admin's own table access is covered by direct grants in
+-- 00-setup.sh and above on app.tenant_retention_source.
+ALTER USER web_app_admin DEFAULT ROLE NONE;
+
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
 -- bucket via the X-ClickHouse-Quota header (querySqlApi in
 -- packages/app/src/lib/clickhouse.ts sets it to the per-org username). The CH
@@ -79,7 +88,7 @@ CREATE QUOTA OR REPLACE sql_api_quota
   KEYED BY client_key
   FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
-  TO sql_api_role;
+  TO sql_api_role EXCEPT web_app_admin;
 
 -- Default-deny row policies for sql_api_role. Per-org row policies attached
 -- to each `sql_api_org_<id>` user OR-combine with these to expose exactly
