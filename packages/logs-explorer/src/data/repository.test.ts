@@ -49,6 +49,24 @@ describe("LogsRepository.totals", () => {
   });
 });
 
+describe("LogsRepository with custom tableName", () => {
+  it("passes otel_logs table name to the SQL query", async () => {
+    const executeMock = vi.fn().mockResolvedValue([]);
+    const client: SqlClient = { execute: executeMock };
+    const repo = new LogsRepository(client, { tableName: "otel_logs" });
+    await repo.explorer({
+      timeRange: { from: "now-1h", to: "now" },
+      levels: [],
+      services: [],
+      repos: [],
+      limit: 50,
+      offset: 0,
+    }).catch(() => {});
+    const [capturedSql] = executeMock.mock.calls[0] as [string, unknown];
+    expect(capturedSql).toContain("FROM otel_logs");
+  });
+});
+
 describe("LogsRepository.detail", () => {
   it("throws when no row found", async () => {
     const repo = new LogsRepository(fakeClient([]));

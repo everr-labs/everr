@@ -6,6 +6,7 @@ import type {
 } from "../schemas";
 import { resolveTimeRange } from "../time-range";
 import { LOG_LEVEL_EXPR } from "./level-expr";
+import { validateTableName } from "./table";
 import { buildWhereClause } from "./where";
 
 export interface ExplorerRowRaw {
@@ -23,7 +24,12 @@ export interface BuiltQuery {
   params: Record<string, unknown>;
 }
 
-export function buildExplorerQuery(input: LogsExplorerInput): BuiltQuery {
+export function buildExplorerQuery(
+  input: LogsExplorerInput,
+  opts: { tableName?: string } = {},
+): BuiltQuery {
+  const tableName = opts.tableName ?? "logs";
+  validateTableName(tableName);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const whereClause = buildWhereClause(input);
   const sql = `
@@ -35,7 +41,7 @@ export function buildExplorerQuery(input: LogsExplorerInput): BuiltQuery {
         SpanId AS spanId,
         ServiceName AS serviceName,
         toString(cityHash64(Body)) AS bodyHash
-      FROM logs
+      FROM ${tableName}
       WHERE ${whereClause}
       ORDER BY Timestamp DESC
       LIMIT {limit:UInt32}

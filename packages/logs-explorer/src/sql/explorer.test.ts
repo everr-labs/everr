@@ -19,6 +19,38 @@ describe("buildExplorerQuery", () => {
     expect(built.params.offset).toBe(100);
     expect(built.params.levels).toEqual(["error"]);
   });
+
+  it("uses the provided table name", () => {
+    const built = buildExplorerQuery(
+      {
+        timeRange: { from: "now-1h", to: "now" },
+        levels: [],
+        services: [],
+        repos: [],
+        limit: 50,
+        offset: 0,
+      },
+      { tableName: "otel_logs" },
+    );
+    expect(built.sql).toContain("FROM otel_logs");
+    expect(built.sql).not.toContain("FROM logs\n");
+  });
+
+  it("rejects invalid table names", () => {
+    expect(() =>
+      buildExplorerQuery(
+        {
+          timeRange: { from: "now-1h", to: "now" },
+          levels: [],
+          services: [],
+          repos: [],
+          limit: 50,
+          offset: 0,
+        },
+        { tableName: "logs; DROP TABLE users; --" },
+      ),
+    ).toThrow(/invalid table name/i);
+  });
 });
 
 describe("mapExplorerRow", () => {

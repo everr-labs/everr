@@ -2,6 +2,7 @@ import type { LogHistogramBucket, LogHistogramInput } from "../schemas";
 import { resolveTimeRange } from "../time-range";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import { LOG_LEVEL_EXPR } from "./level-expr";
+import { validateTableName } from "./table";
 import { buildWhereClause } from "./where";
 import type { BuiltQuery } from "./explorer";
 
@@ -44,7 +45,12 @@ export interface HistogramBuilt extends BuiltQuery {
   toDate: Date;
 }
 
-export function buildHistogramQuery(input: LogHistogramInput): HistogramBuilt {
+export function buildHistogramQuery(
+  input: LogHistogramInput,
+  opts: { tableName?: string } = {},
+): HistogramBuilt {
+  const tableName = opts.tableName ?? "logs";
+  validateTableName(tableName);
   const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(input.timeRange);
   const whereClause = buildWhereClause(input);
   const intervalSeconds = bucketSeconds(fromDate, toDate, input.histogramBuckets);
@@ -60,7 +66,7 @@ export function buildHistogramQuery(input: LogHistogramInput): HistogramBuilt {
         countIf(level = 'unknown') AS unknown
       FROM (
         SELECT TimestampTime, ${LOG_LEVEL_EXPR} AS level
-        FROM logs
+        FROM ${tableName}
         WHERE ${whereClause}
       )
       GROUP BY bucket

@@ -4,6 +4,7 @@ export type { SqlClient } from "./data/client";
 export {
   LogsRepository,
   type LogsRepositoryLike,
+  type LogsRepositoryOptions,
 } from "./data/repository";
 export * from "./data/options";
 export { LogsExplorer } from "./ui/logs-explorer";

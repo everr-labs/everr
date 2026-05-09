@@ -1,5 +1,6 @@
 import type { LogFilterOptions } from "../schemas";
 import { resolveTimeRange, type TimeRange } from "../time-range";
+import { validateTableName } from "./table";
 import type { BuiltQuery } from "./explorer";
 
 export interface FilterOptionsRowRaw {
@@ -7,15 +8,18 @@ export interface FilterOptionsRowRaw {
   repos: string[];
 }
 
-export function buildFilterOptionsQuery(input: {
-  timeRange: TimeRange;
-}): BuiltQuery {
+export function buildFilterOptionsQuery(
+  input: { timeRange: TimeRange },
+  opts: { tableName?: string } = {},
+): BuiltQuery {
+  const tableName = opts.tableName ?? "logs";
+  validateTableName(tableName);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const sql = `
       SELECT
         (SELECT groupArray(v) FROM (
           SELECT DISTINCT ServiceName AS v
-          FROM logs
+          FROM ${tableName}
           WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
             AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
             AND ServiceName != ''
@@ -24,7 +28,7 @@ export function buildFilterOptionsQuery(input: {
         )) AS services,
         (SELECT groupArray(v) FROM (
           SELECT DISTINCT ResourceAttributes['vcs.repository.name'] AS v
-          FROM logs
+          FROM ${tableName}
           WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
             AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
             AND ResourceAttributes['vcs.repository.name'] != ''

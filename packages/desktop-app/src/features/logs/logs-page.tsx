@@ -26,7 +26,10 @@ export type LogsSearch = z.infer<typeof LogsSearchSchema>;
 export function LogsPage() {
   const search = useSearch({ strict: false }) as LogsSearch;
   const navigate = useNavigate();
-  const repo = useMemo(() => new LogsRepository(localSqlClient), []);
+  const repo = useMemo(
+    () => new LogsRepository(localSqlClient, { tableName: "otel_logs" }),
+    [],
+  );
 
   const timeRange = {
     from: search.from ?? DEFAULT_TIME_RANGE.from,

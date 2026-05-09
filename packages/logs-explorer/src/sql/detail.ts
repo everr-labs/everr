@@ -1,6 +1,7 @@
 import type { LogDetail, LogIdentity, LogLevel } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import { LOG_LEVEL_EXPR } from "./level-expr";
+import { validateTableName } from "./table";
 import type { BuiltQuery } from "./explorer";
 
 export interface DetailRowRaw {
@@ -16,7 +17,12 @@ export interface DetailRowRaw {
   scopeAttributes: Record<string, string> | null;
 }
 
-export function buildDetailQuery(identity: LogIdentity): BuiltQuery {
+export function buildDetailQuery(
+  identity: LogIdentity,
+  opts: { tableName?: string } = {},
+): BuiltQuery {
+  const tableName = opts.tableName ?? "logs";
+  validateTableName(tableName);
   const sql = `
       SELECT
         Timestamp AS timestampRaw,
@@ -29,7 +35,7 @@ export function buildDetailQuery(identity: LogIdentity): BuiltQuery {
         ResourceAttributes AS resourceAttributes,
         LogAttributes AS logAttributes,
         ScopeAttributes AS scopeAttributes
-      FROM logs
+      FROM ${tableName}
       WHERE TimestampTime = toDateTime(parseDateTime64BestEffort({timestampRaw:String}, 9))
         AND Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)
         AND ServiceName = {serviceName:String}

@@ -5,12 +5,18 @@ import type {
 } from "../schemas";
 import { resolveTimeRange } from "../time-range";
 import { LOG_LEVEL_EXPR, LOG_LEVELS } from "./level-expr";
+import { validateTableName } from "./table";
 import { buildWhereClause } from "./where";
 import type { BuiltQuery } from "./explorer";
 
 export type TotalsRowRaw = Record<LogLevel, string | number>;
 
-export function buildTotalsQuery(input: LogsTotalsInput): BuiltQuery {
+export function buildTotalsQuery(
+  input: LogsTotalsInput,
+  opts: { tableName?: string } = {},
+): BuiltQuery {
+  const tableName = opts.tableName ?? "logs";
+  validateTableName(tableName);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const facetWhereClause = buildWhereClause({ ...input, includeLevels: false });
   const sql = `
@@ -23,7 +29,7 @@ export function buildTotalsQuery(input: LogsTotalsInput): BuiltQuery {
         countIf(level = 'unknown') AS unknown
       FROM (
         SELECT ${LOG_LEVEL_EXPR} AS level
-        FROM logs
+        FROM ${tableName}
         WHERE ${facetWhereClause}
       )
       `;

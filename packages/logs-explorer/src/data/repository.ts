@@ -33,29 +33,40 @@ import {
 import { resolveTimeRange, type TimeRange } from "../time-range";
 import type { SqlClient } from "./client";
 
+export interface LogsRepositoryOptions {
+  tableName?: string;
+}
+
 export class LogsRepository {
-  constructor(private readonly client: SqlClient) {}
+  private readonly tableName: string;
+
+  constructor(
+    private readonly client: SqlClient,
+    options: LogsRepositoryOptions = {},
+  ) {
+    this.tableName = options.tableName ?? "logs";
+  }
 
   async explorer(input: LogsExplorerInput): Promise<LogsExplorerResult> {
-    const { sql, params } = buildExplorerQuery(input);
+    const { sql, params } = buildExplorerQuery(input, { tableName: this.tableName });
     const rows = await this.client.execute<ExplorerRowRaw>(sql, params);
     return { logs: rows.map(mapExplorerRow) };
   }
 
   async totals(input: LogsTotalsInput): Promise<LogsTotalsResult> {
-    const { sql, params } = buildTotalsQuery(input);
+    const { sql, params } = buildTotalsQuery(input, { tableName: this.tableName });
     const rows = await this.client.execute<TotalsRowRaw>(sql, params);
     return decodeTotalsRows(rows, input.levels);
   }
 
   async histogram(input: LogHistogramInput): Promise<LogHistogramBucket[]> {
-    const built = buildHistogramQuery(input);
+    const built = buildHistogramQuery(input, { tableName: this.tableName });
     const rows = await this.client.execute<HistogramRowRaw>(built.sql, built.params);
     return fillHistogramBuckets(rows, built.fromDate, built.toDate, built.intervalSeconds);
   }
 
   async detail(identity: LogIdentity): Promise<LogDetail> {
-    const { sql, params } = buildDetailQuery(identity);
+    const { sql, params } = buildDetailQuery(identity, { tableName: this.tableName });
     const rows = await this.client.execute<DetailRowRaw>(sql, params);
     const row = rows[0];
     if (!row) throw new Error("Log entry not found");
@@ -63,7 +74,7 @@ export class LogsRepository {
   }
 
   async filterOptions(input: { timeRange: TimeRange }): Promise<LogFilterOptions> {
-    const { sql, params } = buildFilterOptionsQuery(input);
+    const { sql, params } = buildFilterOptionsQuery(input, { tableName: this.tableName });
     const rows = await this.client.execute<FilterOptionsRowRaw>(sql, params);
     return decodeFilterOptionsRows(rows);
   }
