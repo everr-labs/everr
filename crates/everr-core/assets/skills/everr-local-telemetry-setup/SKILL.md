@@ -60,6 +60,16 @@ For browser apps:
 - Use HTTP/protobuf or HTTP/JSON exporters only. Browser gRPC export is not supported.
 - Check browser devtools for CORS or CSP errors when spans do not reach the collector.
 
+## JavaScript Dev Server Gotchas
+
+Do not assume the package script is the only startup path. Developers often run framework CLIs directly, such as `vite dev`, which bypasses `NODE_OPTIONS` set in `package.json` scripts.
+
+- Verify the actual running process with `ps` when telemetry is missing. Check for `NODE_OPTIONS`, `OTEL_*`, and the command that started the server.
+- If direct dev-server commands are common, add a framework startup hook too, such as a Vite config import or plugin, so local telemetry starts even when the package script is bypassed.
+- Loading instrumentation from framework config can be too late for some Node auto-instrumentations because the framework may have already imported HTTP internals. In that case, keep the preload path, and add a small dev-only framework middleware to create request spans.
+- Framework-handled 500s are usually not `uncaughtException` or `unhandledRejection`. Add response-level error logging for HTTP 500+ responses so local web-app failures appear in `otel_logs`.
+- Request activity belongs in `otel_traces`; `otel_logs` may stay empty until an error occurs or `everr wrap` is used. Query both before deciding setup is broken.
+
 ## JavaScript Errors
 
 Collect errors as structured telemetry, not just terminal output.
