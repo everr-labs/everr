@@ -299,7 +299,7 @@ function LogStream({
   const components = useMemo(
     () => ({
       Footer: () => (
-        <div className="text-muted-foreground flex h-12 items-center justify-center border-t px-3 text-xs">
+        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
           {isFetchingNextPage ? (
             <span className="flex items-center gap-2">
               <Skeleton className="size-2 rounded-full" />
