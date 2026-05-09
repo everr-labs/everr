@@ -540,6 +540,9 @@ importers:
       '@fontsource-variable/space-grotesk':
         specifier: ^5.2.10
         version: 5.2.10
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.100.9(react@19.2.6)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
