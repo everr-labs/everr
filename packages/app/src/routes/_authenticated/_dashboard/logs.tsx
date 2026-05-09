@@ -194,12 +194,13 @@ function LogsExplorerPage() {
   const summary = pages[0];
   const logs = useMemo(() => pages.flatMap((page) => page.logs), [pages]);
 
-  const updateSearch = (updates: Record<string, unknown>) => {
+  const updateSearch = (updates: Record<string, unknown>, replace = false) => {
     navigate({
       search: (prev) => ({
         ...prev,
         ...updates,
       }),
+      replace,
     });
   };
 
@@ -332,7 +333,7 @@ function LogsExplorerPage() {
                 isPending={isHistogramPending}
                 histogram={histogram}
                 onExpandedChange={(isExpanded) =>
-                  updateSearch({ showVolume: isExpanded ? undefined : false })
+                  updateSearch({ showVolume: isExpanded }, true)
                 }
                 onSelectRange={({ from, to }) => {
                   setSelectedLogState(null);
