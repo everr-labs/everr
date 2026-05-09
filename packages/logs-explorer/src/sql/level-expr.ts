@@ -16,11 +16,11 @@ export const LOG_LEVEL_EXPR = `
     SeverityNumber >= 9, 'info',
     SeverityNumber >= 5, 'debug',
     SeverityNumber >= 1, 'trace',
-    lowerUTF8(SeverityText) IN ('fatal', 'error', 'critical'), 'error',
-    lowerUTF8(SeverityText) IN ('warn', 'warning'), 'warning',
-    lowerUTF8(SeverityText) = 'info', 'info',
-    lowerUTF8(SeverityText) = 'debug', 'debug',
-    lowerUTF8(SeverityText) = 'trace', 'trace',
+    lower(SeverityText) IN ('fatal', 'error', 'critical'), 'error',
+    lower(SeverityText) IN ('warn', 'warning'), 'warning',
+    lower(SeverityText) = 'info', 'info',
+    lower(SeverityText) = 'debug', 'debug',
+    lower(SeverityText) = 'trace', 'trace',
     'unknown'
   )
 `;
