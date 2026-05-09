@@ -871,6 +871,7 @@ function LogInspectorPanel({
                 variant="outline"
                 size="sm"
                 className="mt-1 w-fit"
+                nativeButton={false}
                 render={
                   <Link to="/runs/$traceId" params={{ traceId: log.traceId }} />
                 }
