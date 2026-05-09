@@ -19,6 +19,7 @@ const loadBlogPosts = createServerFn({ method: "GET" }).handler(async () => {
       description: post.data.description,
       date: post.data.date,
       author: post.data.author,
+      draft: post.data.draft,
     }))
     .filter((post) => !post.draft);
 });
