@@ -852,7 +852,7 @@ mod tests {
             "everr",
             "skills",
             "install",
-            "ci-debugging",
+            "everr-ci-debugging",
             "--project",
             "--agent",
             "claude-code",
@@ -860,7 +860,7 @@ mod tests {
         .expect("skills install command");
 
         assert!(matches!(cli.command, Commands::Skills(_)));
-        let err = Cli::try_parse_from(["everr", "skills", "install", "ci-debugging", "--json"])
+        let err = Cli::try_parse_from(["everr", "skills", "install", "everr-ci-debugging", "--json"])
             .expect_err("skills install should not accept --json");
         assert!(err.to_string().contains("--json"));
     }

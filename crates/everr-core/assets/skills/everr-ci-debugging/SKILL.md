@@ -1,5 +1,5 @@
 ---
-name: ci-debugging
+name: everr-ci-debugging
 description: Use when a task mentions CI failures, GitHub Actions, pipeline status, workflow logs, failing jobs or steps, branch comparisons, or validating a CI fix with Everr.
 ---
 
