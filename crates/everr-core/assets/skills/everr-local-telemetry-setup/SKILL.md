@@ -27,6 +27,8 @@ Use this skill when a local app or command needs to emit telemetry into Everr be
 | Verify telemetry arrived | `everr local query "<SQL>"` |
 | Capture build or lint output | `everr wrap -- <command>` |
 
+`everr local query` accepts ClickHouse-style SQL against the local telemetry store.
+
 ## Runtime App Setup
 
 OpenTelemetry clients can export directly to the local collector. No Everr wrapper is needed for instrumented runtime services.
