@@ -3,13 +3,17 @@ import { normalizeTimestampToUtc } from "@/lib/formatting";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import {
+  type LogDetail,
   type LogExplorerRow,
   type LogFilterOptions,
   type LogHistogramBucket,
   LogHistogramInputSchema,
+  LogIdentitySchema,
   type LogLevel,
   LogsExplorerInputSchema,
   type LogsExplorerResult,
+  LogsTotalsInputSchema,
+  type LogsTotalsResult,
 } from "./schemas";
 
 const LOG_LEVEL_EXPR = `
@@ -111,47 +115,33 @@ function bucketSeconds(
 }
 
 function mapLogRow(row: {
-  timestamp: string;
-  serviceName: string;
+  timestampRaw: string;
   level: LogLevel;
-  severityText: string;
-  severityNumber: string | number;
   body: string;
   traceId: string;
   spanId: string;
-  repo: string;
-  branch: string;
-  workflowName: string;
-  runId: string;
-  jobId: string;
-  jobName: string;
-  stepNumber: string;
+  serviceName: string;
+  bodyHash: string;
 }): LogExplorerRow {
-  const timestamp = normalizeTimestampToUtc(row.timestamp);
-  return {
-    id: [
-      timestamp,
-      row.traceId,
-      row.spanId,
-      row.jobId,
-      row.stepNumber,
-      row.body.slice(0, 80),
-    ].join(":"),
-    timestamp,
-    serviceName: row.serviceName,
-    level: row.level,
-    severityText: row.severityText,
-    severityNumber: Number(row.severityNumber),
-    body: row.body,
+  const identity = {
+    timestampRaw: row.timestampRaw,
     traceId: row.traceId,
     spanId: row.spanId,
-    repo: row.repo,
-    branch: row.branch,
-    workflowName: row.workflowName,
-    runId: row.runId,
-    jobId: row.jobId,
-    jobName: row.jobName,
-    stepNumber: row.stepNumber,
+    serviceName: row.serviceName,
+    bodyHash: row.bodyHash,
+  };
+  return {
+    id: [
+      row.timestampRaw,
+      row.traceId,
+      row.spanId,
+      row.serviceName,
+      row.bodyHash,
+    ].join("|"),
+    identity,
+    timestamp: normalizeTimestampToUtc(row.timestampRaw),
+    level: row.level,
+    body: row.body,
   };
 }
 
@@ -252,20 +242,60 @@ export const getLogsExplorer = createAuthenticatedServerFn({
 })
   .inputValidator(LogsExplorerInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(
-      data.timeRange,
-    );
-    const includeHistogram = data.includeHistogram !== false;
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const whereClause = buildWhereClause(data);
+
+    const rows = await clickhouse.query<{
+      timestampRaw: string;
+      level: LogLevel;
+      body: string;
+      traceId: string;
+      spanId: string;
+      serviceName: string;
+      bodyHash: string;
+    }>(
+      `
+      SELECT
+        Timestamp AS timestampRaw,
+        ${LOG_LEVEL_EXPR} AS level,
+        Body AS body,
+        TraceId AS traceId,
+        SpanId AS spanId,
+        ServiceName AS serviceName,
+        toString(cityHash64(Body)) AS bodyHash
+      FROM logs
+      WHERE ${whereClause}
+      ORDER BY Timestamp DESC
+      LIMIT {limit:UInt32}
+      OFFSET {offset:UInt32}
+      `,
+      {
+        fromTime: fromISO,
+        toTime: toISO,
+        query: data.query,
+        levels: data.levels,
+        services: data.services,
+        repos: data.repos,
+        traceId: data.traceId,
+        limit: data.limit,
+        offset: data.offset,
+      },
+    );
+
+    return { logs: rows.map(mapLogRow) } satisfies LogsExplorerResult;
+  });
+
+export const getLogsTotals = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(LogsTotalsInputSchema)
+  .handler(async ({ data, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const facetWhereClause = buildWhereClause({
       ...data,
       includeLevels: false,
     });
-    const intervalSeconds = bucketSeconds(
-      fromDate,
-      toDate,
-      data.histogramBuckets,
-    );
+
     const queryParams = {
       fromTime: fromISO,
       toTime: toISO,
@@ -274,142 +304,101 @@ export const getLogsExplorer = createAuthenticatedServerFn({
       services: data.services,
       repos: data.repos,
       traceId: data.traceId,
-      limit: data.limit,
-      offset: data.offset,
     };
 
-    const rowsPromise = clickhouse.query<{
-      timestamp: string;
-      serviceName: string;
-      level: LogLevel;
-      severityText: string;
-      severityNumber: string;
-      body: string;
-      traceId: string;
-      spanId: string;
-      repo: string;
-      branch: string;
-      workflowName: string;
-      runId: string;
-      jobId: string;
-      jobName: string;
-      stepNumber: string;
-    }>(
+    const rows = await clickhouse.query<Record<LogLevel, string>>(
       `
       SELECT
-        Timestamp AS timestamp,
-        ServiceName AS serviceName,
-        ${LOG_LEVEL_EXPR} AS level,
-        SeverityText AS severityText,
-        SeverityNumber AS severityNumber,
-        Body AS body,
-        TraceId AS traceId,
-        SpanId AS spanId,
-        ResourceAttributes['vcs.repository.name'] AS repo,
-        ResourceAttributes['vcs.ref.head.name'] AS branch,
-        ResourceAttributes['cicd.pipeline.name'] AS workflowName,
-        ResourceAttributes['cicd.pipeline.run.id'] AS runId,
-        ResourceAttributes['cicd.pipeline.task.run.id'] AS jobId,
-        ScopeAttributes['cicd.pipeline.task.name'] AS jobName,
-        LogAttributes['everr.github.workflow_job_step.number'] AS stepNumber
-      FROM logs
-      WHERE ${whereClause}
-      ORDER BY Timestamp DESC
-      LIMIT {limit:UInt32}
-      OFFSET {offset:UInt32}
+        countIf(level = 'error') AS error,
+        countIf(level = 'warning') AS warning,
+        countIf(level = 'info') AS info,
+        countIf(level = 'debug') AS debug,
+        countIf(level = 'trace') AS trace,
+        countIf(level = 'unknown') AS unknown
+      FROM (
+        SELECT ${LOG_LEVEL_EXPR} AS level
+        FROM logs
+        WHERE ${facetWhereClause}
+      )
       `,
       queryParams,
     );
 
-    if (data.includeSummary === false) {
-      const rows = await rowsPromise;
-      return {
-        logs: rows.map(mapLogRow),
-        totalCount: 0,
-        histogram: [],
-        levelCounts: emptyLevelCounts(),
-      } satisfies LogsExplorerResult;
-    }
-
-    const [rows, counts, levelCountsRows, histogram] = await Promise.all([
-      rowsPromise,
-      clickhouse.query<{ total: string }>(
-        `
-        SELECT
-          count() AS total
-        FROM logs
-        WHERE ${whereClause}
-        `,
-        queryParams,
-      ),
-      clickhouse.query<Record<LogLevel, string>>(
-        `
-        SELECT
-          countIf(level = 'error') AS error,
-          countIf(level = 'warning') AS warning,
-          countIf(level = 'info') AS info,
-          countIf(level = 'debug') AS debug,
-          countIf(level = 'trace') AS trace,
-          countIf(level = 'unknown') AS unknown
-        FROM (
-          SELECT ${LOG_LEVEL_EXPR} AS level
-          FROM logs
-          WHERE ${facetWhereClause}
-        )
-        `,
-        queryParams,
-      ),
-      includeHistogram
-        ? clickhouse.query<{
-            bucket: string;
-            total: string;
-            error: string;
-            warning: string;
-            info: string;
-            debug: string;
-            trace: string;
-            unknown: string;
-          }>(
-            `
-            SELECT
-              toStartOfInterval(TimestampTime, INTERVAL ${intervalSeconds} SECOND) AS bucket,
-              count() AS total,
-              countIf(level = 'error') AS error,
-              countIf(level = 'warning') AS warning,
-              countIf(level = 'info') AS info,
-              countIf(level = 'debug') AS debug,
-              countIf(level = 'trace') AS trace,
-              countIf(level = 'unknown') AS unknown
-            FROM (
-              SELECT TimestampTime, ${LOG_LEVEL_EXPR} AS level
-              FROM logs
-              WHERE ${whereClause}
-            )
-            GROUP BY bucket
-            ORDER BY bucket ASC
-            `,
-            queryParams,
-          )
-        : Promise.resolve([]),
-    ]);
-
-    const countsRow = counts[0];
-    const levelCountsRow = levelCountsRows[0];
+    const row = rows[0];
     const levelCounts = emptyLevelCounts();
-    if (levelCountsRow) {
+    if (row) {
       for (const level of LOG_LEVELS) {
-        levelCounts[level] = Number(levelCountsRow[level] ?? 0);
+        levelCounts[level] = Number(row[level] ?? 0);
       }
     }
 
+    const selectedLevels: readonly LogLevel[] =
+      data.levels.length > 0 ? data.levels : LOG_LEVELS;
+    const totalCount = selectedLevels.reduce(
+      (sum, level) => sum + levelCounts[level],
+      0,
+    );
+
+    return { totalCount, levelCounts } satisfies LogsTotalsResult;
+  });
+
+export const getLogDetail = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(LogIdentitySchema)
+  .handler(async ({ data, context: { clickhouse } }): Promise<LogDetail> => {
+    const rows = await clickhouse.query<{
+      timestampRaw: string;
+      level: LogLevel;
+      severityText: string;
+      severityNumber: string;
+      serviceName: string;
+      traceId: string;
+      spanId: string;
+      resourceAttributes: Record<string, string>;
+      logAttributes: Record<string, string>;
+      scopeAttributes: Record<string, string>;
+    }>(
+      `
+      SELECT
+        Timestamp AS timestampRaw,
+        ${LOG_LEVEL_EXPR} AS level,
+        SeverityText AS severityText,
+        SeverityNumber AS severityNumber,
+        ServiceName AS serviceName,
+        TraceId AS traceId,
+        SpanId AS spanId,
+        ResourceAttributes AS resourceAttributes,
+        LogAttributes AS logAttributes,
+        ScopeAttributes AS scopeAttributes
+      FROM logs
+      WHERE TimestampTime = toDateTime(parseDateTime64BestEffort({timestampRaw:String}, 9))
+        AND Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)
+        AND ServiceName = {serviceName:String}
+        AND TraceId = {traceId:String}
+        AND SpanId = {spanId:String}
+        AND toString(cityHash64(Body)) = {bodyHash:String}
+      LIMIT 1
+      `,
+      data,
+    );
+
+    const row = rows[0];
+    if (!row) {
+      throw new Error("Log entry not found");
+    }
     return {
-      logs: rows.map(mapLogRow),
-      totalCount: Number(countsRow?.total ?? 0),
-      histogram: includeHistogram
-        ? fillHistogramBuckets(histogram, fromDate, toDate, intervalSeconds)
-        : [],
-      levelCounts,
-    } satisfies LogsExplorerResult;
+      timestamp: normalizeTimestampToUtc(row.timestampRaw),
+      level: row.level,
+      severityText: row.severityText,
+      severityNumber: Number(row.severityNumber),
+      serviceName: row.serviceName,
+      traceId: row.traceId,
+      spanId: row.spanId,
+      resourceAttributes: row.resourceAttributes ?? {},
+      logAttributes: row.logAttributes ?? {},
+      scopeAttributes: row.scopeAttributes ?? {},
+    };
   });
 
 export const getLogsHistogram = createAuthenticatedServerFn({

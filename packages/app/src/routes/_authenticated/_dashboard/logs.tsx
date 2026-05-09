@@ -15,7 +15,11 @@ import {
 import { Separator } from "@everr/ui/components/separator";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import AnsiImport from "ansi-to-react";
 import {
@@ -31,17 +35,20 @@ import {
   Server,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, ReferenceArea, XAxis } from "recharts";
 import { z } from "zod";
 import { FilterCombobox } from "@/components/filter-combobox";
 import {
+  logDetailOptions,
   logRepoFilterOptions,
   logServiceFilterOptions,
   logsExplorerInfiniteOptions,
   logsHistogramOptions,
+  logsTotalsOptions,
 } from "@/data/logs-explorer/options";
 import type {
+  LogDetail,
   LogExplorerRow,
   LogHistogramBucket,
   LogLevel,
@@ -54,8 +61,8 @@ const Ansi =
     ? AnsiImport
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
-const PAGE_SIZE = 200;
-const DEFAULT_HISTOGRAM_BUCKETS = 80;
+export const PAGE_SIZE = 200;
+export const DEFAULT_HISTOGRAM_BUCKETS = 80;
 const LOG_LEVELS = [
   "error",
   "warning",
@@ -130,17 +137,23 @@ export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
     return withTimeRange(logsSearch);
   },
   loader: async ({ context: { queryClient }, deps }) => {
-    await queryClient.prefetchInfiniteQuery(
-      logsExplorerInfiniteOptions({
-        timeRange: deps.timeRange,
-        query: deps.q,
-        levels: deps.levels,
-        services: deps.services,
-        repos: deps.repos,
-        traceId: deps.traceId,
-        limit: PAGE_SIZE,
+    const filterInput = {
+      timeRange: deps.timeRange,
+      query: deps.q,
+      levels: deps.levels,
+      services: deps.services,
+      repos: deps.repos,
+      traceId: deps.traceId,
+    };
+    void queryClient.prefetchQuery(logsTotalsOptions(filterInput));
+    void queryClient.prefetchQuery(
+      logsHistogramOptions({
+        ...filterInput,
         histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
       }),
+    );
+    await queryClient.prefetchInfiniteQuery(
+      logsExplorerInfiniteOptions({ ...filterInput, limit: PAGE_SIZE }),
     );
   },
   pendingComponent: LogsExplorerSkeleton,
@@ -157,24 +170,13 @@ function LogsExplorerPage() {
     key: string;
   } | null>(null);
 
-  const input = {
+  const filterInput = {
     timeRange: deps.timeRange,
     query: deps.q,
     levels: deps.levels,
     services: deps.services,
     repos: deps.repos,
     traceId: deps.traceId,
-    limit: PAGE_SIZE,
-    histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
-  };
-  const histogramInput = {
-    timeRange: deps.timeRange,
-    query: deps.q,
-    levels: deps.levels,
-    services: deps.services,
-    repos: deps.repos,
-    traceId: deps.traceId,
-    histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
   };
   const {
     data,
@@ -183,15 +185,19 @@ function LogsExplorerPage() {
     isFetchingNextPage,
     isPending,
     isError,
-  } = useInfiniteQuery(logsExplorerInfiniteOptions(input));
+  } = useInfiniteQuery(
+    logsExplorerInfiniteOptions({ ...filterInput, limit: PAGE_SIZE }),
+  );
+  const { data: totals } = useQuery(logsTotalsOptions(filterInput));
   const { data: histogram = [], isPending: isHistogramPending } = useQuery({
-    ...logsHistogramOptions(histogramInput),
+    ...logsHistogramOptions({
+      ...filterInput,
+      histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
+    }),
     enabled: showVolume,
-    staleTime: 60_000,
   });
 
   const pages = data?.pages ?? [];
-  const summary = pages[0];
   const logs = useMemo(() => pages.flatMap((page) => page.logs), [pages]);
 
   const updateSearch = (updates: Record<string, unknown>, replace = false) => {
@@ -211,7 +217,8 @@ function LogsExplorerPage() {
     updateSearch({ levels });
   };
 
-  const totalCount = summary?.totalCount ?? 0;
+  const totalCount = totals?.totalCount;
+  const levelCounts = totals?.levelCounts;
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
@@ -293,7 +300,7 @@ function LogsExplorerPage() {
                       <span className="truncate capitalize">{level}</span>
                     </span>
                     <span className="text-muted-foreground font-mono tabular-nums">
-                      {(summary?.levelCounts[level] ?? 0).toLocaleString()}
+                      {levelCounts ? levelCounts[level].toLocaleString() : "—"}
                     </span>
                   </button>
                 ))}
@@ -685,7 +692,7 @@ function LogStream({
 }: {
   logs: LogExplorerRow[];
   selectedLogKey?: string;
-  totalCount: number;
+  totalCount?: number;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
@@ -763,8 +770,11 @@ function LogStream({
           </span>
         ) : hasNextPage ? (
           <span>
-            Showing {logs.length.toLocaleString()} of{" "}
-            {totalCount.toLocaleString()} events
+            Showing {logs.length.toLocaleString()}
+            {totalCount !== undefined
+              ? ` of ${totalCount.toLocaleString()}`
+              : ""}{" "}
+            events
           </span>
         ) : (
           <span>
@@ -774,6 +784,19 @@ function LogStream({
       </div>
     </div>
   );
+}
+
+function useDelayedFlag(active: boolean, delayMs: number) {
+  const [delayed, setDelayed] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setDelayed(false);
+      return;
+    }
+    const id = setTimeout(() => setDelayed(true), delayMs);
+    return () => clearTimeout(id);
+  }, [active, delayMs]);
+  return delayed;
 }
 
 function hasActiveTextSelection() {
@@ -788,6 +811,17 @@ function LogInspectorPanel({
   log: LogExplorerRow;
   onClose: () => void;
 }) {
+  const {
+    data: detail,
+    isPending,
+    isError,
+    isPlaceholderData,
+  } = useQuery({
+    ...logDetailOptions(log.identity),
+    placeholderData: keepPreviousData,
+  });
+  const showSkeleton = useDelayedFlag(isPending, 250);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b p-3">
@@ -827,64 +861,131 @@ function LogInspectorPanel({
           </div>
         </div>
 
-        <DetailSection title="Event">
-          <DetailItem
-            icon={<Clock3 />}
-            label="Timestamp"
-            value={log.timestamp}
-          />
-          <DetailItem
-            icon={<Server />}
-            label="Service"
-            value={log.serviceName}
-          />
-          <DetailItem label="Severity" value={severityLabel(log)} />
-          <DetailItem
-            icon={<Boxes />}
-            label="Source"
-            value={log.repo || "default"}
-          />
-        </DetailSection>
-
-        <DetailSection title="Correlation">
-          <DetailItem
-            icon={<Fingerprint />}
-            label="Trace ID"
-            value={log.traceId}
-            mono
-          />
-          <DetailItem label="Span ID" value={log.spanId} mono />
-        </DetailSection>
-
-        {hasCiContext(log) ? (
-          <DetailSection title="CI/CD">
-            <DetailItem
-              icon={<GitBranch />}
-              label="Branch"
-              value={log.branch}
-            />
-            <DetailItem label="Pipeline" value={log.workflowName} />
-            <DetailItem label="Execution ID" value={log.runId} mono />
-            <DetailItem label="Task" value={log.jobName || log.jobId} />
-            <DetailItem label="Step" value={log.stepNumber} />
-            {log.traceId ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-1 w-fit"
-                nativeButton={false}
-                render={
-                  <Link to="/runs/$traceId" params={{ traceId: log.traceId }} />
-                }
-              >
-                <FileSearch data-icon="inline-start" />
-                Open trace detail
-              </Button>
-            ) : null}
-          </DetailSection>
+        {isError ? (
+          <div className="text-destructive rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
+            Failed to load log details
+          </div>
+        ) : detail ? (
+          <div
+            className={cn(
+              "transition-opacity",
+              isPlaceholderData && "opacity-50",
+            )}
+          >
+            <LogInspectorDetails detail={detail} />
+          </div>
+        ) : showSkeleton ? (
+          <LogInspectorSkeleton />
         ) : null}
       </div>
     </div>
+  );
+}
+
+function LogInspectorDetails({ detail }: { detail: LogDetail }) {
+  const ciFields = extractCiContext(detail);
+
+  return (
+    <>
+      <DetailSection title="Event">
+        <DetailItem
+          icon={<Clock3 />}
+          label="Timestamp"
+          value={detail.timestamp}
+        />
+        <DetailItem
+          icon={<Server />}
+          label="Service"
+          value={detail.serviceName}
+        />
+        <DetailItem label="Severity" value={severityLabel(detail)} />
+        <DetailItem
+          icon={<Boxes />}
+          label="Source"
+          value={ciFields.repo || "default"}
+        />
+      </DetailSection>
+
+      <DetailSection title="Correlation">
+        <DetailItem
+          icon={<Fingerprint />}
+          label="Trace ID"
+          value={detail.traceId}
+          mono
+        />
+        <DetailItem label="Span ID" value={detail.spanId} mono />
+      </DetailSection>
+
+      {ciFields.hasAny ? (
+        <DetailSection title="CI/CD">
+          <DetailItem
+            icon={<GitBranch />}
+            label="Branch"
+            value={ciFields.branch}
+          />
+          <DetailItem label="Pipeline" value={ciFields.workflowName} />
+          <DetailItem label="Execution ID" value={ciFields.runId} mono />
+          <DetailItem label="Task" value={ciFields.jobName || ciFields.jobId} />
+          <DetailItem label="Step" value={ciFields.stepNumber} />
+          {detail.traceId ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1 w-fit"
+              nativeButton={false}
+              render={
+                <Link
+                  to="/runs/$traceId"
+                  params={{ traceId: detail.traceId }}
+                />
+              }
+            >
+              <FileSearch data-icon="inline-start" />
+              Open trace detail
+            </Button>
+          ) : null}
+        </DetailSection>
+      ) : null}
+
+      <AttributeMap
+        title="Resource attributes"
+        map={detail.resourceAttributes}
+      />
+      <AttributeMap title="Log attributes" map={detail.logAttributes} />
+      <AttributeMap title="Scope attributes" map={detail.scopeAttributes} />
+    </>
+  );
+}
+
+function LogInspectorSkeleton() {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }).map((_, sectionIndex) => (
+        <div key={sectionIndex} className="space-y-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AttributeMap({
+  title,
+  map,
+}: {
+  title: string;
+  map: Record<string, string>;
+}) {
+  const entries = Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return null;
+  return (
+    <DetailSection title={title}>
+      {entries.map(([key, value]) => (
+        <DetailItem key={key} label={key} value={value} mono />
+      ))}
+    </DetailSection>
   );
 }
 
@@ -935,21 +1036,33 @@ function DetailItem({
   );
 }
 
-function severityLabel(log: LogExplorerRow) {
+function severityLabel(log: LogDetail) {
   if (log.severityText) return log.severityText;
   if (log.severityNumber > 0) return String(log.severityNumber);
   return "N/A";
 }
 
-function hasCiContext(log: LogExplorerRow) {
-  return Boolean(
-    log.branch ||
-      log.workflowName ||
-      log.runId ||
-      log.jobId ||
-      log.jobName ||
-      log.stepNumber,
-  );
+function extractCiContext(detail: LogDetail) {
+  const repo = detail.resourceAttributes["vcs.repository.name"] ?? "";
+  const branch = detail.resourceAttributes["vcs.ref.head.name"] ?? "";
+  const workflowName = detail.resourceAttributes["cicd.pipeline.name"] ?? "";
+  const runId = detail.resourceAttributes["cicd.pipeline.run.id"] ?? "";
+  const jobId = detail.resourceAttributes["cicd.pipeline.task.run.id"] ?? "";
+  const jobName = detail.scopeAttributes["cicd.pipeline.task.name"] ?? "";
+  const stepNumber =
+    detail.logAttributes["everr.github.workflow_job_step.number"] ?? "";
+  return {
+    repo,
+    branch,
+    workflowName,
+    runId,
+    jobId,
+    jobName,
+    stepNumber,
+    hasAny: Boolean(
+      branch || workflowName || runId || jobId || jobName || stepNumber,
+    ),
+  };
 }
 
 function levelBadgeClassName(level: LogLevel) {

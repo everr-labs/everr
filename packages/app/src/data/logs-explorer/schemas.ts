@@ -12,51 +12,63 @@ export const LogLevelSchema = z.enum([
 
 export type LogLevel = z.infer<typeof LogLevelSchema>;
 
-export const LogsExplorerInputSchema = z.object({
+const LogsFilterShape = {
   timeRange: TimeRangeSchema,
   query: z.string().trim().optional(),
   levels: z.array(LogLevelSchema).default([]),
   services: z.array(z.string()).default([]),
   repos: z.array(z.string()).default([]),
   traceId: z.string().trim().optional(),
+} as const;
+
+export const LogsExplorerInputSchema = z.object({
+  ...LogsFilterShape,
   limit: z.number().int().min(1).max(500).default(200),
   offset: z.number().int().min(0).default(0),
-  histogramBuckets: z.number().int().min(12).max(240).default(80),
-  includeSummary: z.boolean().default(true),
-  includeHistogram: z.boolean().default(true),
 });
 
 export type LogsExplorerInput = z.infer<typeof LogsExplorerInputSchema>;
 
-export const LogHistogramInputSchema = LogsExplorerInputSchema.pick({
-  timeRange: true,
-  query: true,
-  levels: true,
-  services: true,
-  repos: true,
-  traceId: true,
-  histogramBuckets: true,
+export const LogsTotalsInputSchema = z.object(LogsFilterShape);
+
+export type LogsTotalsInput = z.infer<typeof LogsTotalsInputSchema>;
+
+export const LogHistogramInputSchema = z.object({
+  ...LogsFilterShape,
+  histogramBuckets: z.number().int().min(12).max(240).default(80),
 });
 
 export type LogHistogramInput = z.infer<typeof LogHistogramInputSchema>;
 
+export const LogIdentitySchema = z.object({
+  timestampRaw: z.string(),
+  traceId: z.string(),
+  spanId: z.string(),
+  serviceName: z.string(),
+  bodyHash: z.string(),
+});
+
+export type LogIdentity = z.infer<typeof LogIdentitySchema>;
+
 export interface LogExplorerRow {
   id: string;
+  identity: LogIdentity;
   timestamp: string;
-  serviceName: string;
+  level: LogLevel;
+  body: string;
+}
+
+export interface LogDetail {
+  timestamp: string;
   level: LogLevel;
   severityText: string;
   severityNumber: number;
-  body: string;
+  serviceName: string;
   traceId: string;
   spanId: string;
-  repo: string;
-  branch: string;
-  workflowName: string;
-  runId: string;
-  jobId: string;
-  jobName: string;
-  stepNumber: string;
+  resourceAttributes: Record<string, string>;
+  logAttributes: Record<string, string>;
+  scopeAttributes: Record<string, string>;
 }
 
 export interface LogHistogramBucket {
@@ -75,8 +87,10 @@ export interface LogHistogramBucket {
 
 export interface LogsExplorerResult {
   logs: LogExplorerRow[];
+}
+
+export interface LogsTotalsResult {
   totalCount: number;
-  histogram: LogHistogramBucket[];
   levelCounts: Record<LogLevel, number>;
 }
 

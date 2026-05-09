@@ -3,53 +3,47 @@ import type { TimeRange } from "@/lib/time-range";
 import type {
   LogFilterOptions,
   LogHistogramInput,
+  LogIdentity,
   LogsExplorerInput,
-  LogsExplorerResult,
+  LogsTotalsInput,
 } from "./schemas";
 import {
+  getLogDetail,
   getLogFilterOptions,
   getLogsExplorer,
   getLogsHistogram,
+  getLogsTotals,
 } from "./server";
 
-type LogsExplorerInfiniteInput = Omit<
-  LogsExplorerInput,
-  "includeSummary" | "includeHistogram" | "offset"
->;
-
-export const logsExplorerOptions = (input: LogsExplorerInput) =>
-  queryOptions({
-    queryKey: ["logs", "explorer", input],
-    queryFn: () => getLogsExplorer({ data: input }),
-  });
+type LogsExplorerInfiniteInput = Omit<LogsExplorerInput, "offset">;
 
 export const logsExplorerInfiniteOptions = (
   input: LogsExplorerInfiniteInput,
 ) => ({
   queryKey: ["logs", "explorer", "infinite", input] as const,
   queryFn: ({ pageParam }: { pageParam: number }) =>
-    getLogsExplorer({
-      data: {
-        ...input,
-        offset: pageParam,
-        includeSummary: pageParam === 0,
-        includeHistogram: false,
-      },
-    }),
+    getLogsExplorer({ data: { ...input, offset: pageParam } }),
   initialPageParam: 0,
   getNextPageParam: (
-    _lastPage: LogsExplorerResult,
-    allPages: LogsExplorerResult[],
+    lastPage: { logs: unknown[] },
+    allPages: { logs: unknown[] }[],
   ) => {
-    const totalCount = allPages[0]?.totalCount ?? 0;
-    const loadedCount = allPages.reduce(
-      (count, page) => count + page.logs.length,
-      0,
-    );
-    if (loadedCount >= totalCount) return undefined;
-    return loadedCount;
+    if (lastPage.logs.length < input.limit) return undefined;
+    return allPages.reduce((count, page) => count + page.logs.length, 0);
   },
 });
+
+export const logsTotalsOptions = (input: LogsTotalsInput) =>
+  queryOptions({
+    queryKey: ["logs", "totals", input],
+    queryFn: () => getLogsTotals({ data: input }),
+  });
+
+export const logDetailOptions = (identity: LogIdentity) =>
+  queryOptions({
+    queryKey: ["logs", "detail", identity],
+    queryFn: () => getLogDetail({ data: identity }),
+  });
 
 export const logsHistogramOptions = (input: LogHistogramInput) =>
   queryOptions({

@@ -6,9 +6,11 @@ vi.mock("@/lib/clickhouse", () => ({
 
 import { query } from "@/lib/clickhouse";
 import {
+  getLogDetail,
   getLogFilterOptions,
   getLogsExplorer,
   getLogsHistogram,
+  getLogsTotals,
 } from "./server";
 
 const mockedQuery = vi.mocked(query);
@@ -19,53 +21,17 @@ beforeEach(() => {
 
 describe("getLogsExplorer", () => {
   it("queries time-bounded logs with parameterized filters", async () => {
-    mockedQuery
-      .mockResolvedValueOnce([
-        {
-          timestamp: "2026-03-09 12:00:03",
-          serviceName: "github-actions",
-          level: "error",
-          severityText: "ERROR",
-          severityNumber: "17",
-          body: "Error: timeout",
-          traceId: "trace-1",
-          spanId: "span-1",
-          repo: "everr-labs/everr",
-          branch: "main",
-          workflowName: "CI",
-          runId: "42",
-          jobId: "99",
-          jobName: "test",
-          stepNumber: "3",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          total: "1",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          error: "1",
-          warning: "2",
-          info: "0",
-          debug: "0",
-          trace: "0",
-          unknown: "0",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          bucket: "2026-03-09 12:00:00",
-          total: "1",
-          error: "1",
-          warning: "0",
-          info: "0",
-          debug: "0",
-          trace: "0",
-          unknown: "0",
-        },
-      ]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        timestampRaw: "2026-03-09 12:00:03",
+        level: "error",
+        body: "Error: timeout",
+        traceId: "trace-1",
+        spanId: "span-1",
+        serviceName: "github-actions",
+        bodyHash: "12345",
+      },
+    ]);
 
     const result = await getLogsExplorer({
       data: {
@@ -80,15 +46,11 @@ describe("getLogsExplorer", () => {
         traceId: "trace-1",
         limit: 50,
         offset: 100,
-        histogramBuckets: 24,
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(4);
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    const countSql = mockedQuery.mock.calls[1]?.[0] ?? "";
-    const levelCountsSql = mockedQuery.mock.calls[2]?.[0] ?? "";
-    const histogramSql = mockedQuery.mock.calls[3]?.[0] ?? "";
     expect(sql).toContain("FROM logs");
     expect(sql).toContain(
       "TimestampTime >= parseDateTimeBestEffort({fromTime:String})",
@@ -98,9 +60,11 @@ describe("getLogsExplorer", () => {
     expect(sql).toContain("TraceId = {traceId:String}");
     expect(sql).toContain("LIMIT {limit:UInt32}");
     expect(sql).toContain("IN {levels:Array(String)}");
-    expect(countSql).toContain("IN {levels:Array(String)}");
-    expect(levelCountsSql).not.toContain("IN {levels:Array(String)}");
-    expect(histogramSql).toContain("INTERVAL 300 SECOND");
+    expect(sql).not.toContain("count()");
+    expect(sql).not.toContain("toStartOfInterval");
+    expect(sql).not.toContain("ResourceAttributes['vcs.ref.head.name']");
+    expect(sql).not.toContain("cicd.pipeline.task.run.id");
+    expect(sql).toContain("toString(cityHash64(Body)) AS bodyHash");
     expect(sql).not.toContain("PREWHERE");
     expect(sql).not.toContain("SQL_everr_tenant_id");
     expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({
@@ -116,152 +80,147 @@ describe("getLogsExplorer", () => {
       timestamp: "2026-03-09T12:00:03.000Z",
       level: "error",
       body: "Error: timeout",
-    });
-    expect(result.totalCount).toBe(1);
-    expect(result.levelCounts.error).toBe(1);
-    expect(result.levelCounts.warning).toBe(2);
-    expect(result.histogram).toHaveLength(25);
-    expect(result.histogram.find((bucket) => bucket.total === 1)).toMatchObject(
-      {
-        timestamp: "2026-03-09T12:00:00.000Z",
-        endTimestamp: "2026-03-09T12:05:00.000Z",
-        rangeLabel: "12:00 PM - 12:05 PM",
-        total: 1,
-      },
-    );
-  });
-
-  it("can fetch additional log pages without summary queries", async () => {
-    mockedQuery.mockResolvedValueOnce([
-      {
-        timestamp: "2026-03-09 12:00:01",
-        serviceName: "api",
-        level: "info",
-        severityText: "INFO",
-        severityNumber: "9",
-        body: "loaded next page",
-        traceId: "trace-2",
-        spanId: "span-2",
-        repo: "",
-        branch: "",
-        workflowName: "",
-        runId: "",
-        jobId: "",
-        jobName: "",
-        stepNumber: "",
-      },
-    ]);
-
-    const result = await getLogsExplorer({
-      data: {
-        timeRange: {
-          from: "2026-03-09T11:00:00.000Z",
-          to: "2026-03-09T13:00:00.000Z",
-        },
-        levels: [],
-        services: [],
-        repos: [],
-        limit: 200,
-        offset: 200,
-        includeSummary: false,
+      identity: {
+        timestampRaw: "2026-03-09 12:00:03",
+        traceId: "trace-1",
+        spanId: "span-1",
+        serviceName: "github-actions",
+        bodyHash: "12345",
       },
     });
-
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({
-      limit: 200,
-      offset: 200,
-    });
-    expect(result.logs).toHaveLength(1);
-    expect(result.totalCount).toBe(0);
-    expect(result.histogram).toEqual([]);
-  });
-
-  it("can fetch summary counts without the histogram query", async () => {
-    mockedQuery
-      .mockResolvedValueOnce([
-        {
-          timestamp: "2026-03-09 12:00:01",
-          serviceName: "api",
-          level: "warning",
-          severityText: "WARN",
-          severityNumber: "13",
-          body: "slow response",
-          traceId: "trace-3",
-          spanId: "span-3",
-          repo: "",
-          branch: "",
-          workflowName: "",
-          runId: "",
-          jobId: "",
-          jobName: "",
-          stepNumber: "",
-        },
-      ])
-      .mockResolvedValueOnce([{ total: "9" }])
-      .mockResolvedValueOnce([
-        {
-          error: "0",
-          warning: "9",
-          info: "0",
-          debug: "0",
-          trace: "0",
-          unknown: "0",
-        },
-      ]);
-
-    const result = await getLogsExplorer({
-      data: {
-        timeRange: {
-          from: "2026-03-09T11:00:00.000Z",
-          to: "2026-03-09T13:00:00.000Z",
-        },
-        levels: [],
-        services: [],
-        repos: [],
-        limit: 200,
-        offset: 0,
-        includeHistogram: false,
-      },
-    });
-
-    expect(mockedQuery).toHaveBeenCalledTimes(3);
-    for (const call of mockedQuery.mock.calls) {
-      expect(call[0]).not.toContain("toStartOfInterval");
-    }
-    expect(result.logs).toHaveLength(1);
-    expect(result.totalCount).toBe(9);
-    expect(result.levelCounts.warning).toBe(9);
-    expect(result.histogram).toEqual([]);
   });
 });
 
-describe("getLogFilterOptions", () => {
-  it("returns distinct services and repositories for the time range", async () => {
+describe("getLogDetail", () => {
+  it("looks up a single row by identity tuple and returns full attribute maps", async () => {
     mockedQuery.mockResolvedValueOnce([
       {
-        services: ["github-actions"],
-        repos: ["everr-labs/everr"],
+        timestampRaw: "2026-03-09 12:00:03.123456789",
+        level: "error",
+        severityText: "ERROR",
+        severityNumber: "17",
+        serviceName: "github-actions",
+        traceId: "trace-1",
+        spanId: "span-1",
+        resourceAttributes: { "vcs.repository.name": "everr-labs/everr" },
+        logAttributes: { "everr.github.workflow_job_step.number": "3" },
+        scopeAttributes: { "cicd.pipeline.task.name": "test" },
       },
     ]);
 
-    const result = await getLogFilterOptions({
+    const result = await getLogDetail({
       data: {
-        timeRange: {
-          from: "now-1h",
-          to: "now",
-        },
+        timestampRaw: "2026-03-09 12:00:03.123456789",
+        traceId: "trace-1",
+        spanId: "span-1",
+        serviceName: "github-actions",
+        bodyHash: "12345",
       },
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "SELECT DISTINCT ServiceName",
+    const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    expect(sql).toContain(
+      "Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)",
     );
-    expect(result).toEqual({
-      services: ["github-actions"],
-      repos: ["everr-labs/everr"],
+    expect(sql).toContain("ServiceName = {serviceName:String}");
+    expect(sql).toContain("TraceId = {traceId:String}");
+    expect(sql).toContain("SpanId = {spanId:String}");
+    expect(sql).toContain("toString(cityHash64(Body)) = {bodyHash:String}");
+    expect(sql).toContain("ResourceAttributes AS resourceAttributes");
+    expect(sql).not.toContain("Body AS body");
+    expect(sql).toContain("LIMIT 1");
+    expect(result.resourceAttributes["vcs.repository.name"]).toBe(
+      "everr-labs/everr",
+    );
+    expect(result.scopeAttributes["cicd.pipeline.task.name"]).toBe("test");
+    expect(result.logAttributes["everr.github.workflow_job_step.number"]).toBe(
+      "3",
+    );
+    expect(result.severityNumber).toBe(17);
+  });
+
+  it("throws when the row cannot be found", async () => {
+    mockedQuery.mockResolvedValueOnce([]);
+    await expect(
+      getLogDetail({
+        data: {
+          timestampRaw: "2026-03-09 12:00:03",
+          traceId: "trace-x",
+          spanId: "span-x",
+          serviceName: "svc",
+          bodyHash: "0",
+        },
+      }),
+    ).rejects.toThrow("Log entry not found");
+  });
+});
+
+describe("getLogsTotals", () => {
+  it("returns the per-level breakdown ignoring the level filter, with totalCount summing only selected levels", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        error: "3",
+        warning: "5",
+        info: "20",
+        debug: "0",
+        trace: "0",
+        unknown: "1",
+      },
+    ]);
+
+    const result = await getLogsTotals({
+      data: {
+        timeRange: {
+          from: "2026-03-09T11:00:00.000Z",
+          to: "2026-03-09T13:00:00.000Z",
+        },
+        levels: ["error", "warning"],
+        services: [],
+        repos: [],
+      },
     });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    expect(sql).not.toContain("IN {levels:Array(String)}");
+    expect(sql).not.toContain("LIMIT");
+    expect(result.levelCounts).toEqual({
+      error: 3,
+      warning: 5,
+      info: 20,
+      debug: 0,
+      trace: 0,
+      unknown: 1,
+    });
+    expect(result.totalCount).toBe(8);
+  });
+
+  it("totalCount sums every level when no level filter is set", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        error: "1",
+        warning: "2",
+        info: "3",
+        debug: "4",
+        trace: "5",
+        unknown: "6",
+      },
+    ]);
+
+    const result = await getLogsTotals({
+      data: {
+        timeRange: {
+          from: "2026-03-09T11:00:00.000Z",
+          to: "2026-03-09T13:00:00.000Z",
+        },
+        levels: [],
+        services: [],
+        repos: [],
+      },
+    });
+
+    expect(result.totalCount).toBe(21);
   });
 });
 
@@ -312,6 +271,35 @@ describe("getLogsHistogram", () => {
       error: 1,
       warning: 1,
       info: 1,
+    });
+  });
+});
+
+describe("getLogFilterOptions", () => {
+  it("returns distinct services and repositories for the time range", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        services: ["github-actions"],
+        repos: ["everr-labs/everr"],
+      },
+    ]);
+
+    const result = await getLogFilterOptions({
+      data: {
+        timeRange: {
+          from: "now-1h",
+          to: "now",
+        },
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
+      "SELECT DISTINCT ServiceName",
+    );
+    expect(result).toEqual({
+      services: ["github-actions"],
+      repos: ["everr-labs/everr"],
     });
   });
 });
