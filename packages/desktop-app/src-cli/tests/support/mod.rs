@@ -54,10 +54,8 @@ impl CliTestEnv {
     }
 
     pub fn telemetry_dir(&self) -> PathBuf {
-        self.home_dir
-            .join("Library")
-            .join("Application Support")
-            .join("everr")
+        platform_data_dir(&self.home_dir)
+            .join(build::session_namespace())
             .join("telemetry-dev")
     }
 
@@ -115,6 +113,18 @@ fn platform_config_dir(home_dir: &Path) -> PathBuf {
     #[cfg(not(target_os = "macos"))]
     {
         home_dir.join(".config")
+    }
+}
+
+fn platform_data_dir(home_dir: &Path) -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        home_dir.join("Library").join("Application Support")
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        home_dir.join(".local").join("share")
     }
 }
 

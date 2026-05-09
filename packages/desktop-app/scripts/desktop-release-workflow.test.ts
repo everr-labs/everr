@@ -22,4 +22,16 @@ describe("desktop release workflow", () => {
       'spctl --assess --type open --context context:primary-signature --verbose "$dmg_path"',
     );
   });
+
+  it("builds Linux CLI artifacts before assembling the final release artifact", async () => {
+    const workflow = await readFile(workflowPath, "utf8");
+
+    expect(workflow).toContain("build-linux-cli:");
+    expect(workflow).toContain("blacksmith-2vcpu-ubuntu-2404");
+    expect(workflow).toContain("blacksmith-2vcpu-ubuntu-2404-arm");
+    expect(workflow).toContain("everr-linux-x64");
+    expect(workflow).toContain("everr-linux-arm64");
+    expect(workflow).toContain("finalize-desktop-release-artifacts.ts");
+    expect(workflow).toContain("name: everr-desktop-release-${{ github.sha }}");
+  });
 });

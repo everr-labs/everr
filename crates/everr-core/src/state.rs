@@ -114,7 +114,11 @@ impl AppStateStore {
 
     pub fn session_file_path(&self) -> Result<PathBuf> {
         let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
-        Ok(config_dir.join(&self.namespace).join(&self.state_file_name))
+        Ok(self.session_file_path_from_config_dir(&config_dir))
+    }
+
+    pub fn session_file_path_from_config_dir(&self, config_dir: &std::path::Path) -> PathBuf {
+        config_dir.join(&self.namespace).join(&self.state_file_name)
     }
 
     pub fn load_state(&self) -> Result<AppState> {
@@ -300,6 +304,18 @@ mod tests {
 
         assert_eq!(store.namespace(), "everr");
         assert_eq!(store.session_file_name(), "session-dev.json");
+    }
+
+    #[test]
+    fn session_file_path_uses_linux_config_home_layout() {
+        let store = AppStateStore::for_namespace("everr");
+        let path =
+            store.session_file_path_from_config_dir(std::path::Path::new("/home/alice/.config"));
+
+        assert_eq!(
+            path,
+            std::path::Path::new("/home/alice/.config/everr/session-dev.json")
+        );
     }
 
     #[test]

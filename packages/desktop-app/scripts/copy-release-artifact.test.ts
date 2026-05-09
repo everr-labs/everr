@@ -3,11 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  assertCliReleaseArtifactsPresent,
   buildPublicArtifactUrl,
   buildReleaseMetadata,
   buildUpdaterManifest,
   findReleaseArtifacts,
   getDesktopReleaseTarget,
+  refreshReleaseFilesIndex,
   resolveDmgNotarizationRequest,
   writeReleaseChecksums,
 } from "./copy-release-artifact";
@@ -202,6 +204,63 @@ describe("copy-release-artifact helpers", () => {
         "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e  nested/a.txt",
         "",
       ].join("\n"),
+    );
+  });
+
+  it("requires every platform CLI artifact before publishing the assembled release", async () => {
+    const releaseDir = await makeTempDir();
+    for (const name of [
+      "everr",
+      "everr.sha256",
+      "everr-macos-arm64",
+      "everr-macos-arm64.sha256",
+      "everr-linux-x64",
+      "everr-linux-x64.sha256",
+      "everr-linux-arm64",
+    ]) {
+      await writeFile(path.join(releaseDir, name), name);
+    }
+
+    await expect(assertCliReleaseArtifactsPresent(releaseDir)).rejects.toThrow(
+      /everr-linux-arm64\.sha256/,
+    );
+
+    await writeFile(path.join(releaseDir, "everr-linux-arm64.sha256"), "checksum");
+
+    await expect(assertCliReleaseArtifactsPresent(releaseDir)).resolves.toBeUndefined();
+  });
+
+  it("refreshes release metadata and checksums after adding Linux CLI files", async () => {
+    const releaseDir = await makeTempDir();
+    await writeFile(path.join(releaseDir, "everr-macos-arm64"), "mac cli");
+    await writeFile(path.join(releaseDir, "everr-macos-arm64.sha256"), "mac checksum");
+    await writeFile(path.join(releaseDir, "everr-linux-x64"), "linux cli");
+    await writeFile(path.join(releaseDir, "everr-linux-x64.sha256"), "linux checksum");
+    await mkdir(path.join(releaseDir, "everr-app"), { recursive: true });
+    await writeFile(path.join(releaseDir, "everr-app", "latest.json"), "{}");
+    await writeFile(
+      path.join(releaseDir, "release-metadata.json"),
+      buildReleaseMetadata({
+        platformVersion: "0.1.1264",
+        releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+        releaseShortSha: "82efe1c",
+        publicBaseUrl: "https://everr.dev/everr-app",
+        target: getDesktopReleaseTarget("macos", "arm64"),
+        createdAt: "2026-03-14T17:00:00.000Z",
+        files: [],
+      }),
+    );
+
+    await refreshReleaseFilesIndex(releaseDir);
+
+    const metadata = JSON.parse(
+      await readFile(path.join(releaseDir, "release-metadata.json"), "utf8"),
+    );
+    expect(metadata.files.map((file: { path: string }) => file.path)).toContain(
+      "everr-linux-x64",
+    );
+    await expect(readFile(path.join(releaseDir, "SHA256SUMS"), "utf8")).resolves.toContain(
+      "everr-linux-x64",
     );
   });
 });

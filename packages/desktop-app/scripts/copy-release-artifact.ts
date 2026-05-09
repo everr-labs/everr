@@ -14,7 +14,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "zx";
 import {
+  CLI_RELEASE_TARGETS,
   desktopReleaseDir,
+  LEGACY_CLI_RELEASE_BINARY_NAME,
   loadBuildEnvFile,
   resolveDesktopReleaseIdentity,
 } from "./build-support.ts";
@@ -56,6 +58,17 @@ type ReleaseFileEntry = {
   path: string;
   sha256: string;
   size: number;
+};
+
+type ReleaseMetadata = {
+  platform_version?: string;
+  release_sha?: string;
+  release_short_sha?: string;
+  public_base_url?: string;
+  target?: DesktopReleaseTarget;
+  build?: {
+    created_at?: string;
+  };
 };
 
 export function normalizePlatform(value: NodeJS.Platform) {
@@ -372,7 +385,20 @@ async function collectReleaseFiles(rootDir: string) {
 
 async function assertCliArtifactsPresent(rootDir: string) {
   const missing: string[] = [];
-  for (const name of ["everr", "everr.sha256"]) {
+  const macosCliTarget = CLI_RELEASE_TARGETS.find(
+    (target) => target.platform === "macos" && target.arch === "arm64",
+  );
+
+  if (!macosCliTarget) {
+    throw new Error("Could not resolve the macOS arm64 CLI release target.");
+  }
+
+  for (const name of [
+    LEGACY_CLI_RELEASE_BINARY_NAME,
+    `${LEGACY_CLI_RELEASE_BINARY_NAME}.sha256`,
+    macosCliTarget.binaryName,
+    macosCliTarget.checksumName,
+  ]) {
     if (!(await pathExists(path.join(rootDir, name)))) {
       missing.push(name);
     }
@@ -383,6 +409,57 @@ async function assertCliArtifactsPresent(rootDir: string) {
       `Missing staged CLI artifact(s): ${missing.join(", ")}. The desktop release build must run the release CLI sidecar preparation before staging artifacts.`,
     );
   }
+}
+
+export async function assertCliReleaseArtifactsPresent(rootDir = desktopReleaseDir) {
+  const missing: string[] = [];
+  const requiredNames = [
+    LEGACY_CLI_RELEASE_BINARY_NAME,
+    `${LEGACY_CLI_RELEASE_BINARY_NAME}.sha256`,
+    ...CLI_RELEASE_TARGETS.flatMap((target) => [target.binaryName, target.checksumName]),
+  ];
+
+  for (const name of requiredNames) {
+    if (!(await pathExists(path.join(rootDir, name)))) {
+      missing.push(name);
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing release CLI artifact(s): ${missing.join(", ")}. Build every supported CLI target before publishing the desktop release artifact.`,
+    );
+  }
+}
+
+export async function refreshReleaseFilesIndex(rootDir = desktopReleaseDir) {
+  const metadataPath = path.join(rootDir, RELEASE_METADATA_NAME);
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as ReleaseMetadata;
+
+  if (
+    !metadata.platform_version ||
+    !metadata.release_sha ||
+    !metadata.release_short_sha ||
+    !metadata.public_base_url ||
+    !metadata.target
+  ) {
+    throw new Error(`Could not refresh release metadata from ${metadataPath}.`);
+  }
+
+  const files = await collectReleaseFiles(rootDir);
+  await writeFile(
+    metadataPath,
+    buildReleaseMetadata({
+      platformVersion: metadata.platform_version,
+      releaseSha: metadata.release_sha,
+      releaseShortSha: metadata.release_short_sha,
+      publicBaseUrl: metadata.public_base_url,
+      target: metadata.target,
+      createdAt: metadata.build?.created_at ?? new Date().toISOString(),
+      files,
+    }),
+  );
+  await writeReleaseChecksums(rootDir);
 }
 
 export async function writeReleaseChecksums(rootDir: string) {

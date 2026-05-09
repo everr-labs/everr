@@ -113,11 +113,20 @@ async fn wait_for_shutdown_signal() -> Result<()> {
 }
 
 fn ensure_supported_platform() -> Result<()> {
-    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+    if is_supported_embedded_collector_target(std::env::consts::OS, std::env::consts::ARCH) {
         return Ok(());
     }
 
-    bail!("embedded local collector is currently supported only on macOS arm64");
+    bail!(
+        "embedded local collector is currently supported only on macOS arm64 and Linux x64/arm64"
+    );
+}
+
+fn is_supported_embedded_collector_target(os: &str, arch: &str) -> bool {
+    matches!(
+        (os, arch),
+        ("macos", "aarch64") | ("linux", "x86_64") | ("linux", "aarch64")
+    )
 }
 
 async fn spawn_collector(assets: &ExtractedAssets, config_path: &Path) -> Result<Child> {
@@ -190,10 +199,9 @@ fn kill_orphaned_collector() {
 }
 
 fn extract_embedded_assets() -> Result<ExtractedAssets> {
-    let cache_root = dirs::cache_dir()
-        .context("failed to resolve user cache directory")?
-        .join(everr_core::build::session_namespace())
-        .join("collector-assets");
+    let cache_root = asset_cache_root_from_cache_dir(
+        &dirs::cache_dir().context("failed to resolve user cache directory")?,
+    );
     extract_assets_to_cache(
         &cache_root,
         COLLECTOR_GZ,
@@ -201,6 +209,12 @@ fn extract_embedded_assets() -> Result<ExtractedAssets> {
         COLLECTOR_GZ_SHA256,
         CHDB_GZ_SHA256,
     )
+}
+
+fn asset_cache_root_from_cache_dir(cache_dir: &Path) -> PathBuf {
+    cache_dir
+        .join(everr_core::build::session_namespace())
+        .join("collector-assets")
 }
 
 fn extract_assets_to_cache(
@@ -331,6 +345,19 @@ mod tests {
     use flate2::write::GzEncoder;
 
     use super::*;
+
+    #[test]
+    fn embedded_collector_supports_linux_targets() {
+        assert!(is_supported_embedded_collector_target("linux", "x86_64"));
+        assert!(is_supported_embedded_collector_target("linux", "aarch64"));
+    }
+
+    #[test]
+    fn asset_cache_root_uses_linux_cache_home_layout() {
+        let dir = asset_cache_root_from_cache_dir(Path::new("/home/alice/.cache"));
+
+        assert_eq!(dir, Path::new("/home/alice/.cache/everr/collector-assets"));
+    }
 
     #[test]
     fn extraction_requires_embedded_assets() {

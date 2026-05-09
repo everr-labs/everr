@@ -133,7 +133,7 @@ pub fn telemetry_dir() -> anyhow::Result<PathBuf> {
     }
 
     let base = dirs::data_local_dir().context("failed to resolve user local data dir")?;
-    Ok(base.join(SESSION_NAMESPACE).join(TELEMETRY_SUBDIR))
+    Ok(telemetry_dir_from_data_local_dir(&base))
 }
 
 /// Resolve the sibling telemetry directory — used by the CLI for the
@@ -141,11 +141,19 @@ pub fn telemetry_dir() -> anyhow::Result<PathBuf> {
 /// build is debug, and vice versa.
 pub fn telemetry_dir_sibling() -> anyhow::Result<PathBuf> {
     let base = dirs::data_local_dir().context("failed to resolve user local data dir")?;
+    Ok(telemetry_dir_sibling_from_data_local_dir(&base))
+}
+
+pub fn telemetry_dir_from_data_local_dir(base: &std::path::Path) -> PathBuf {
+    base.join(SESSION_NAMESPACE).join(TELEMETRY_SUBDIR)
+}
+
+pub fn telemetry_dir_sibling_from_data_local_dir(base: &std::path::Path) -> PathBuf {
     #[cfg(debug_assertions)]
     let sibling = "telemetry";
     #[cfg(not(debug_assertions))]
     let sibling = "telemetry-dev";
-    Ok(base.join(SESSION_NAMESPACE).join(sibling))
+    base.join(SESSION_NAMESPACE).join(sibling)
 }
 
 #[cfg(test)]
@@ -175,6 +183,18 @@ mod tests {
         // On debug builds the last two components are `everr` then `telemetry-dev`.
         assert_eq!(components[0], "telemetry-dev");
         assert_eq!(components[1], "everr");
+    }
+
+    #[test]
+    fn telemetry_dir_uses_linux_data_home_layout() {
+        let dir = super::telemetry_dir_from_data_local_dir(std::path::Path::new(
+            "/home/alice/.local/share",
+        ));
+
+        assert_eq!(
+            dir,
+            std::path::Path::new("/home/alice/.local/share/everr/telemetry-dev")
+        );
     }
 
     #[test]

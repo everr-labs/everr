@@ -7,9 +7,11 @@ import {
   CHDB_LIB_ASSET_NAME,
   CHDB_RELEASE_VERSION,
   chdbReleaseAssetUrl,
+  getCliReleaseTarget,
   defaultDesktopVersionPaths,
   publishCliArtifact,
   readDesktopTauriConfigVersion,
+  resolveChdbLibAsset,
   resolveDesktopReleaseIdentity,
   sha256File,
   type DesktopVersionPaths,
@@ -172,6 +174,20 @@ describe("build-support chDB helpers", () => {
     );
   });
 
+  it("uses the official Linux x64 chDB release asset", () => {
+    expect(resolveChdbLibAsset("linux", "x64")).toEqual({
+      assetName: "linux-x86_64-libchdb.tar.gz",
+      archiveSha256: "fb722f81c61c1fb2eb3511f17a5adc85b231f6bbc2415de6aea3ad9b73bb272e",
+    });
+  });
+
+  it("uses the official Linux arm64 chDB release asset", () => {
+    expect(resolveChdbLibAsset("linux", "arm64")).toEqual({
+      assetName: "linux-aarch64-libchdb.tar.gz",
+      archiveSha256: "ed43e29314f8337f858420354d88d5db4cce9c38155aff43f7816d1112cd7465",
+    });
+  });
+
   it("calculates sha256 for downloaded archives", async () => {
     const rootDir = await makeTempDir();
     const archivePath = path.join(rootDir, "archive.tar.gz");
@@ -184,16 +200,68 @@ describe("build-support chDB helpers", () => {
 });
 
 describe("build-support CLI artifact helpers", () => {
-  it("publishes one CLI binary and its checksum", async () => {
+  it("resolves supported CLI release artifact names", () => {
+    expect(getCliReleaseTarget("darwin", "arm64")).toEqual({
+      platform: "macos",
+      arch: "arm64",
+      binaryName: "everr-macos-arm64",
+      checksumName: "everr-macos-arm64.sha256",
+    });
+    expect(getCliReleaseTarget("linux", "x64")).toEqual({
+      platform: "linux",
+      arch: "x64",
+      binaryName: "everr-linux-x64",
+      checksumName: "everr-linux-x64.sha256",
+    });
+    expect(getCliReleaseTarget("linux", "arm64")).toEqual({
+      platform: "linux",
+      arch: "arm64",
+      binaryName: "everr-linux-arm64",
+      checksumName: "everr-linux-arm64.sha256",
+    });
+  });
+
+  it("rejects unsupported CLI release targets", () => {
+    expect(() => getCliReleaseTarget("darwin", "x64")).toThrow(/Unsupported CLI release target/);
+    expect(() => getCliReleaseTarget("linux", "arm")).toThrow(/Unsupported CLI release target/);
+  });
+
+  it("publishes a target-named CLI binary and its checksum", async () => {
     const rootDir = await makeTempDir();
     const sourceBin = path.join(rootDir, "built-everr");
     const outputDir = path.join(rootDir, "release");
 
     await writeFile(sourceBin, "cli bytes");
 
-    await expect(publishCliArtifact(sourceBin, { outputDir })).resolves.toEqual({
-      outputBin: path.join(outputDir, "everr"),
-      outputSha: path.join(outputDir, "everr.sha256"),
+    await expect(
+      publishCliArtifact(sourceBin, {
+        outputDir,
+        target: getCliReleaseTarget("linux", "x64"),
+      }),
+    ).resolves.toEqual({
+      outputBin: path.join(outputDir, "everr-linux-x64"),
+      outputSha: path.join(outputDir, "everr-linux-x64.sha256"),
+    });
+
+    await expect(readFile(path.join(outputDir, "everr-linux-x64"), "utf8")).resolves.toBe(
+      "cli bytes",
+    );
+    await expect(readFile(path.join(outputDir, "everr-linux-x64.sha256"), "utf8")).resolves.toBe(
+      "178893fed67c46f50c58cd77b698bb27649bee32019baa1e72b5142f9676e7a2  everr-linux-x64\n",
+    );
+  });
+
+  it("can publish legacy macOS CLI aliases for the existing install URL", async () => {
+    const rootDir = await makeTempDir();
+    const sourceBin = path.join(rootDir, "built-everr");
+    const outputDir = path.join(rootDir, "release");
+
+    await writeFile(sourceBin, "cli bytes");
+
+    await publishCliArtifact(sourceBin, {
+      outputDir,
+      target: getCliReleaseTarget("darwin", "arm64"),
+      writeLegacyAlias: true,
     });
 
     await expect(readFile(path.join(outputDir, "everr"), "utf8")).resolves.toBe("cli bytes");

@@ -2,22 +2,59 @@
 set -euo pipefail
 
 DOWNLOAD_BASE_URL="http://localhost:3000/everr-app"
-BINARY_NAME="everr"
 INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_PATH="${INSTALL_DIR}/everr"
 
-os="$(uname -s)"
-arch="$(uname -m)"
+detect_target() {
+  local os="$1"
+  local arch="$2"
 
-if [ "${os}" != "Darwin" ]; then
-  echo "everr install script currently supports macOS only (detected: ${os})." >&2
-  exit 1
-fi
+  case "${os}" in
+    Darwin)
+      case "${arch}" in
+        arm64|aarch64) printf '%s\n' "macos-arm64" ;;
+        *)
+          echo "everr install script unsupported architecture for macOS: ${arch}." >&2
+          return 1
+          ;;
+      esac
+      ;;
+    Linux)
+      case "${arch}" in
+        x86_64|amd64) printf '%s\n' "linux-x64" ;;
+        aarch64|arm64) printf '%s\n' "linux-arm64" ;;
+        *)
+          echo "everr install script unsupported architecture for Linux: ${arch}." >&2
+          return 1
+          ;;
+      esac
+      ;;
+    *)
+      echo "everr install script unsupported operating system: ${os}." >&2
+      return 1
+      ;;
+  esac
+}
 
-if [ "${arch}" != "arm64" ]; then
-  echo "everr install script currently supports macOS arm64 only (detected: ${arch})." >&2
-  exit 1
-fi
+verify_checksum() {
+  local checksum_file="$1"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "${checksum_file}" > /dev/null
+    return
+  fi
+
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -c "${checksum_file}" > /dev/null
+    return
+  fi
+
+  echo "everr install script needs sha256sum or shasum to verify the download." >&2
+  return 1
+}
+
+target="$(detect_target "$(uname -s)" "$(uname -m)")"
+binary_name="everr-${target}"
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
@@ -25,20 +62,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
-binary_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}"
-checksum_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}.sha256"
+binary_url="${DOWNLOAD_BASE_URL%/}/${binary_name}"
+checksum_url="${DOWNLOAD_BASE_URL%/}/${binary_name}.sha256"
 
 echo "Downloading Everr CLI..."
-curl -fsSL "${binary_url}" -o "${tmp_dir}/${BINARY_NAME}"
-curl -fsSL "${checksum_url}" -o "${tmp_dir}/${BINARY_NAME}.sha256"
+curl -fsSL "${binary_url}" -o "${tmp_dir}/${binary_name}"
+curl -fsSL "${checksum_url}" -o "${tmp_dir}/${binary_name}.sha256"
 
 (
   cd "${tmp_dir}"
-  shasum -a 256 -c "${BINARY_NAME}.sha256" > /dev/null
+  verify_checksum "${binary_name}.sha256"
 )
 
 mkdir -p "${INSTALL_DIR}"
-mv "${tmp_dir}/${BINARY_NAME}" "${INSTALL_PATH}"
+mv "${tmp_dir}/${binary_name}" "${INSTALL_PATH}"
 chmod +x "${INSTALL_PATH}"
 
 echo "  Installed to ${INSTALL_PATH}"

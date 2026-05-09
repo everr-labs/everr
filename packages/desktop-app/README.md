@@ -18,7 +18,8 @@ pnpm build:desktop
 
 That release command always builds both the macOS `app` and `dmg` bundle targets so Tauri can emit the signed updater archive alongside the DMG.
 It also runs the Tauri bundle step with `CI=true` so DMG generation skips Finder AppleScript setup and works reliably from the terminal.
-It stages the release DMG, updater archive, updater signature, `latest.json`, release metadata, checksums, and signed CLI files into `target/desktop-release/`.
+It stages the release DMG, updater archive, updater signature, `latest.json`, release metadata, checksums, and signed macOS CLI files into `target/desktop-release/`.
+The release workflow then adds Linux x64 and Linux arm64 CLI files before publishing the final artifact.
 
 CI uses the same release path through:
 

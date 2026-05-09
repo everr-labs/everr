@@ -37,6 +37,55 @@ export const CHDB_LIB_ARCHIVE_SHA256 =
   "54b4da9c4d71f09b8a37e823a7addba392c4789a7034192a4863a1edd452f9e8";
 export const LOCAL_COLLECTOR_BIN_NAME = "everr-local-collector";
 export const CHDB_LIB_FILE_NAME = "libchdb.so";
+export const LEGACY_CLI_RELEASE_BINARY_NAME = "everr";
+
+export type ChdbLibAsset = {
+  assetName: string;
+  archiveSha256: string;
+};
+
+export type CliReleaseTarget = {
+  platform: "macos" | "linux";
+  arch: "arm64" | "x64";
+  binaryName: string;
+  checksumName: string;
+};
+
+export const CLI_RELEASE_TARGETS: CliReleaseTarget[] = [
+  {
+    platform: "macos",
+    arch: "arm64",
+    binaryName: "everr-macos-arm64",
+    checksumName: "everr-macos-arm64.sha256",
+  },
+  {
+    platform: "linux",
+    arch: "x64",
+    binaryName: "everr-linux-x64",
+    checksumName: "everr-linux-x64.sha256",
+  },
+  {
+    platform: "linux",
+    arch: "arm64",
+    binaryName: "everr-linux-arm64",
+    checksumName: "everr-linux-arm64.sha256",
+  },
+];
+
+const CHDB_LIB_ASSETS_BY_TARGET: Record<string, ChdbLibAsset> = {
+  "darwin:arm64": {
+    assetName: CHDB_LIB_ASSET_NAME,
+    archiveSha256: CHDB_LIB_ARCHIVE_SHA256,
+  },
+  "linux:x64": {
+    assetName: "linux-x86_64-libchdb.tar.gz",
+    archiveSha256: "fb722f81c61c1fb2eb3511f17a5adc85b231f6bbc2415de6aea3ad9b73bb272e",
+  },
+  "linux:arm64": {
+    assetName: "linux-aarch64-libchdb.tar.gz",
+    archiveSha256: "ed43e29314f8337f858420354d88d5db4cce9c38155aff43f7816d1112cd7465",
+  },
+};
 
 let didLoadEnvFile = false;
 
@@ -65,6 +114,56 @@ export function chdbReleaseAssetUrl(
   assetName = CHDB_LIB_ASSET_NAME,
 ) {
   return `https://github.com/chdb-io/chdb/releases/download/${version}/${assetName}`;
+}
+
+export function resolveChdbLibAsset(
+  platform = process.platform,
+  arch = process.arch,
+): ChdbLibAsset {
+  const asset = CHDB_LIB_ASSETS_BY_TARGET[`${platform}:${arch}`];
+  if (!asset) {
+    throw new Error(
+      `Bundled chDB resources are not supported on ${platform}/${arch}. Supported targets are macOS arm64, Linux x64, and Linux arm64.`,
+    );
+  }
+
+  return asset;
+}
+
+function normalizeCliReleasePlatform(platform: string) {
+  return platform === "darwin" ? "macos" : platform;
+}
+
+function normalizeCliReleaseArch(arch: string) {
+  switch (arch) {
+    case "amd64":
+    case "x86_64":
+      return "x64";
+    case "aarch64":
+      return "arm64";
+    default:
+      return arch;
+  }
+}
+
+export function getCliReleaseTarget(
+  platform = process.platform,
+  arch = process.arch,
+): CliReleaseTarget {
+  const normalizedPlatform = normalizeCliReleasePlatform(platform);
+  const normalizedArch = normalizeCliReleaseArch(arch);
+  const target = CLI_RELEASE_TARGETS.find(
+    (candidate) =>
+      candidate.platform === normalizedPlatform && candidate.arch === normalizedArch,
+  );
+
+  if (!target) {
+    throw new Error(
+      `Unsupported CLI release target: ${platform}/${arch}. Supported targets are macOS arm64, Linux x64, and Linux arm64.`,
+    );
+  }
+
+  return target;
 }
 
 export async function sha256File(filePath: string) {
@@ -98,16 +197,19 @@ async function findFileByName(rootDir: string, fileName: string): Promise<string
   return undefined;
 }
 
-async function downloadChdbArchive(archivePath: string) {
+async function downloadChdbArchive(archivePath: string, asset: ChdbLibAsset) {
   await mkdir(path.dirname(archivePath), { recursive: true });
   const tmpPath = `${archivePath}.tmp`;
   await rm(tmpPath, { force: true });
-  await $`curl --fail --location --silent --show-error --output ${tmpPath} ${chdbReleaseAssetUrl()}`;
+  await $`curl --fail --location --silent --show-error --output ${tmpPath} ${chdbReleaseAssetUrl(
+    CHDB_RELEASE_VERSION,
+    asset.assetName,
+  )}`;
   const digest = await sha256File(tmpPath);
-  if (digest !== CHDB_LIB_ARCHIVE_SHA256) {
+  if (digest !== asset.archiveSha256) {
     await rm(tmpPath, { force: true });
     throw new Error(
-      `Downloaded ${CHDB_LIB_ASSET_NAME} has sha256 ${digest}; expected ${CHDB_LIB_ARCHIVE_SHA256}.`,
+      `Downloaded ${asset.assetName} has sha256 ${digest}; expected ${asset.archiveSha256}.`,
     );
   }
   await rm(archivePath, { force: true });
@@ -115,18 +217,18 @@ async function downloadChdbArchive(archivePath: string) {
   await rm(tmpPath, { force: true });
 }
 
-async function ensureChdbArchive(archivePath: string) {
+async function ensureChdbArchive(archivePath: string, asset: ChdbLibAsset) {
   if (await pathExists(archivePath)) {
     const digest = await sha256File(archivePath);
-    if (digest === CHDB_LIB_ARCHIVE_SHA256) {
+    if (digest === asset.archiveSha256) {
       return;
     }
     console.error(
-      `Ignoring cached ${archivePath} because sha256 is ${digest}; expected ${CHDB_LIB_ARCHIVE_SHA256}.`,
+      `Ignoring cached ${archivePath} because sha256 is ${digest}; expected ${asset.archiveSha256}.`,
     );
   }
 
-  await downloadChdbArchive(archivePath);
+  await downloadChdbArchive(archivePath, asset);
 }
 
 export async function prepareChdbLibResource(mode: string) {
@@ -138,25 +240,20 @@ async function prepareChdbLibAt(mode: string, destLib: string) {
     throw new Error(`Unsupported mode: ${mode}`);
   }
 
-  if (process.platform !== "darwin") {
-    throw new Error("Bundled chDB resources are currently only supported on macOS.");
-  }
-  if (process.arch !== "arm64") {
-    throw new Error("Bundled chDB resources are currently only supported on macOS arm64.");
-  }
+  const chdbAsset = resolveChdbLibAsset();
 
   const chdbCacheDir = path.join(repoDir, "target", "chdb");
-  const archivePath = path.join(chdbCacheDir, `${CHDB_RELEASE_VERSION}-${CHDB_LIB_ASSET_NAME}`);
+  const archivePath = path.join(chdbCacheDir, `${CHDB_RELEASE_VERSION}-${chdbAsset.assetName}`);
   const extractDir = path.join(chdbCacheDir, `${CHDB_RELEASE_VERSION}-extract`);
 
-  await ensureChdbArchive(archivePath);
+  await ensureChdbArchive(archivePath, chdbAsset);
   await rm(extractDir, { recursive: true, force: true });
   await mkdir(extractDir, { recursive: true });
   await $`tar -xzf ${archivePath} -C ${extractDir}`;
 
   const extractedLib = await findFileByName(extractDir, "libchdb.so");
   if (!extractedLib) {
-    throw new Error(`${CHDB_LIB_ASSET_NAME} did not contain libchdb.so.`);
+    throw new Error(`${chdbAsset.assetName} did not contain libchdb.so.`);
   }
 
   const extractedStat = await stat(extractedLib);
@@ -294,6 +391,8 @@ export async function signBinaryIfNeeded(binaryPath: string) {
 
 export type PublishCliArtifactOptions = {
   outputDir?: string;
+  target?: CliReleaseTarget;
+  writeLegacyAlias?: boolean;
 };
 
 export async function publishCliArtifact(
@@ -303,20 +402,34 @@ export async function publishCliArtifact(
   loadBuildEnvFile();
 
   const outputDir = options.outputDir ?? docsPublicDir;
-  const outputBin = path.join(outputDir, "everr");
-  const outputSha = path.join(outputDir, "everr.sha256");
+  const target = options.target ?? getCliReleaseTarget();
+  const outputBin = path.join(outputDir, target.binaryName);
+  const outputSha = path.join(outputDir, target.checksumName);
 
   await mkdir(outputDir, { recursive: true });
   await copyFile(sourceBin, outputBin);
   await chmod(outputBin, 0o755);
 
-  await signBinaryIfNeeded(outputBin);
+  if (target.platform === "macos") {
+    await signBinaryIfNeeded(outputBin);
+  }
 
   const digest = createHash("sha256")
     .update(await readFile(outputBin))
     .digest("hex");
 
-  await writeFile(outputSha, `${digest}  everr\n`);
+  await writeFile(outputSha, `${digest}  ${target.binaryName}\n`);
+
+  if (options.writeLegacyAlias) {
+    const legacyBin = path.join(outputDir, LEGACY_CLI_RELEASE_BINARY_NAME);
+    const legacySha = path.join(outputDir, `${LEGACY_CLI_RELEASE_BINARY_NAME}.sha256`);
+
+    await copyFile(outputBin, legacyBin);
+    await chmod(legacyBin, 0o755);
+    await writeFile(legacySha, `${digest}  ${LEGACY_CLI_RELEASE_BINARY_NAME}\n`);
+    console.log(`Wrote ${legacyBin}`);
+    console.log(`Wrote ${legacySha}`);
+  }
 
   console.log(`Wrote ${outputBin}`);
   console.log(`Wrote ${outputSha}`);

@@ -4,6 +4,12 @@ const DEFAULT_DESKTOP_RELEASE_PUBLIC_BASE_URL =
 export const allowedDesktopReleasePaths = new Set([
   "everr",
   "everr.sha256",
+  "everr-macos-arm64",
+  "everr-macos-arm64.sha256",
+  "everr-linux-x64",
+  "everr-linux-x64.sha256",
+  "everr-linux-arm64",
+  "everr-linux-arm64.sha256",
   "latest.json",
   "everr-macos-arm64.dmg",
   "everr-macos-arm64.app.tar.gz",

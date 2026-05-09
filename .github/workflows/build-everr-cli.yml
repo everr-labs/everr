@@ -12,22 +12,26 @@ on:
     paths:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
-      - packages/desktop-app/scripts/build-cli.sh
+      - packages/desktop-app/scripts/build-cli.ts
+      - packages/desktop-app/scripts/build-support.ts
       - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
+      - packages/docs/public/install-dev.sh
       - packages/docs/content/docs/cli/**
   push:
     branches: [main]
     paths:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
-      - packages/desktop-app/scripts/build-cli.sh
+      - packages/desktop-app/scripts/build-cli.ts
+      - packages/desktop-app/scripts/build-support.ts
       - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
+      - packages/docs/public/install-dev.sh
       - packages/docs/content/docs/cli/**
 
 jobs:

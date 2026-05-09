@@ -165,7 +165,7 @@ jobs:
 
           app_path="$(find target/release/bundle/macos packages/desktop-app/src-tauri/target/release/bundle/macos -maxdepth 1 -name 'Everr.app' -print -quit 2>/dev/null || true)"
           dmg_path="target/desktop-release/everr-app/everr-macos-arm64.dmg"
-          cli_path="target/desktop-release/everr"
+          cli_path="target/desktop-release/everr-macos-arm64"
 
           if [[ -z "$app_path" ]]; then
             echo "Could not find the built Everr.app bundle."
@@ -178,6 +178,128 @@ jobs:
           spctl --assess --type open --context context:primary-signature --verbose "$dmg_path"
           xcrun stapler validate "$app_path"
           xcrun stapler validate "$dmg_path"
+
+      - name: Upload macOS release artifact
+        id: upload-macos-release
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-desktop-release-macos-${{ github.sha }}
+          path: target/desktop-release
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Delete temporary keychain
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${APPLE_KEYCHAIN_PATH:-}" && -f "$APPLE_KEYCHAIN_PATH" ]]; then
+            security delete-keychain "$APPLE_KEYCHAIN_PATH"
+          fi
+
+  build-linux-cli:
+    name: Build Linux CLI (${{ matrix.asset }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset: everr-linux-x64
+            runner: blacksmith-2vcpu-ubuntu-2404
+          - asset: everr-linux-arm64
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-resource-usage
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache-dependency-path: |
+            collector/**/go.sum
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release CLI
+        run: pnpm --dir packages/desktop-app build:cli:release
+
+      - name: Verify staged CLI artifact
+        run: |
+          set -euo pipefail
+          test -x "packages/docs/public/${{ matrix.asset }}"
+          test -f "packages/docs/public/${{ matrix.asset }}.sha256"
+
+      - name: Upload Linux CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-cli-${{ matrix.asset }}
+          path: |
+            packages/docs/public/${{ matrix.asset }}
+            packages/docs/public/${{ matrix.asset }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  assemble-release:
+    name: Assemble Release Artifact
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs:
+      - build
+      - build-linux-cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download macOS release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: everr-desktop-release-macos-${{ github.sha }}
+          path: target/desktop-release
+
+      - name: Download Linux CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: everr-cli-everr-linux-*
+          path: target/desktop-release
+          merge-multiple: true
+
+      - name: Finalize release metadata
+        run: node packages/desktop-app/scripts/finalize-desktop-release-artifacts.ts
 
       - name: Attest release artifact checksums
         uses: actions/attest@v4
@@ -207,18 +329,10 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Delete temporary keychain
-        if: always()
-        run: |
-          set -euo pipefail
-          if [[ -n "${APPLE_KEYCHAIN_PATH:-}" && -f "$APPLE_KEYCHAIN_PATH" ]]; then
-            security delete-keychain "$APPLE_KEYCHAIN_PATH"
-          fi
-
   notify-deploy:
     name: Notify Deploy Repo
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: build
+    needs: assemble-release
     steps:
       - name: Generate GitHub App token
         id: app-token

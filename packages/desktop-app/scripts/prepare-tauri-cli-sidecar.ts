@@ -41,7 +41,10 @@ await chmod(destBin, 0o755);
 
 if (mode === "release") {
   await signBinaryIfNeeded(destBin);
-  await publishCliArtifact(sourceBin, { outputDir: desktopReleaseDir });
+  await publishCliArtifact(sourceBin, {
+    outputDir: desktopReleaseDir,
+    writeLegacyAlias: true,
+  });
 }
 
 console.log(`Prepared bundled CLI resource at ${destBin}`);

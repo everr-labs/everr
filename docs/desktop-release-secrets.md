@@ -120,6 +120,12 @@ It contains:
 ```text
 everr
 everr.sha256
+everr-macos-arm64
+everr-macos-arm64.sha256
+everr-linux-x64
+everr-linux-x64.sha256
+everr-linux-arm64
+everr-linux-arm64.sha256
 SHA256SUMS
 release-metadata.json
 everr-app/latest.json
@@ -128,8 +134,8 @@ everr-app/everr-macos-arm64.app.tar.gz
 everr-app/everr-macos-arm64.app.tar.gz.sig
 ```
 
-During deploy, the CLI files are published under `everr-app/everr` and `everr-app/everr.sha256`.
-The public installer still stays at `https://everr.dev/install.sh`, but it downloads those release-managed CLI files through the docs redirect route.
+During deploy, the CLI files are published under `everr-app/`.
+The public installer still stays at `https://everr.dev/install.sh`, but it chooses the matching release-managed CLI file for the current OS and CPU architecture through the docs redirect route.
 
 ## Pull From The Deploy Repo
 

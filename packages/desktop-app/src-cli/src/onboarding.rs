@@ -348,6 +348,13 @@ fn outro_message(skills_installed: bool, desktop_installed: bool) -> &'static st
 }
 
 async fn step_install_desktop_app() -> Result<bool> {
+    if !is_desktop_app_install_supported(std::env::consts::OS) {
+        cliclack::log::remark(
+            "Everr desktop app install is currently available on macOS. On Linux, use `everr local start` to run the local collector.",
+        )?;
+        return Ok(false);
+    }
+
     let interactive = std::io::stdin().is_terminal();
     let app_path = Path::new("/Applications/Everr.app");
     let already_installed = app_path.exists();
@@ -453,6 +460,10 @@ async fn step_install_desktop_app() -> Result<bool> {
     Ok(true)
 }
 
+fn is_desktop_app_install_supported(os: &str) -> bool {
+    os == "macos"
+}
+
 fn print_banner() {
     let banner = render_banner();
     if should_use_color() {
@@ -520,6 +531,11 @@ mod tests {
     #[test]
     fn outro_message_without_skills_installed() {
         assert!(super::outro_message(false, false).contains("everr skills install --all"));
+    }
+
+    #[test]
+    fn desktop_app_install_is_skipped_on_linux() {
+        assert!(!super::is_desktop_app_install_supported("linux"));
     }
 
     #[test]
