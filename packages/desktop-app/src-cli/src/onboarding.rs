@@ -61,6 +61,7 @@ pub async fn run() -> Result<()> {
             .mark_setup_complete(build::default_api_base_url());
     })?;
 
+    print_next_steps()?;
     cliclack::outro(outro_message(skills_installed, desktop_installed))?;
     Ok(())
 }
@@ -375,6 +376,42 @@ fn step_install_skills() -> Result<bool> {
     Ok(true)
 }
 
+fn print_next_steps() -> Result<()> {
+    let Some(home_dir) = dirs::home_dir() else {
+        return Ok(());
+    };
+
+    let detected_agents: Vec<&'static str> = core_skills::provider_statuses(&home_dir)
+        .into_iter()
+        .filter(|status| status.detected)
+        .map(|status| status.provider.display_name())
+        .collect();
+
+    cliclack::note("Try it out", next_steps_message(&detected_agents))?;
+    Ok(())
+}
+
+fn next_steps_message(detected_agents: &[&str]) -> String {
+    let cmd = build::command_name();
+    if detected_agents.is_empty() {
+        format!("Run `{cmd} ci runs` to view your imported runs.")
+    } else {
+        format!(
+            "Run `{cmd} ci runs` to view your imported runs.\nOr ask {} to summarize them.",
+            format_agent_list(detected_agents),
+        )
+    }
+}
+
+fn format_agent_list(agents: &[&str]) -> String {
+    match agents {
+        [] => String::new(),
+        [a] => (*a).to_string(),
+        [a, b] => format!("{a} or {b}"),
+        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
+    }
+}
+
 fn outro_message(skills_installed: bool, desktop_installed: bool) -> &'static str {
     if skills_installed && desktop_installed {
         "Everr skills are installed - ask your agent about CI pipelines, failing jobs, workflow logs, or local telemetry.\nOr break something in CI - Everr will notify you with a ready-to-use fix prompt."
@@ -558,6 +595,32 @@ mod tests {
     #[test]
     fn outro_message_without_skills_installed() {
         assert!(super::outro_message(false, false).contains("everr skills install --all"));
+    }
+
+    #[test]
+    fn next_steps_without_agents_only_suggests_cli_command() {
+        let msg = super::next_steps_message(&[]);
+        assert!(msg.contains("ci runs"));
+        assert!(!msg.contains("ask "));
+    }
+
+    #[test]
+    fn next_steps_with_one_agent_names_it() {
+        let msg = super::next_steps_message(&["Claude Code"]);
+        assert!(msg.contains("ci runs"));
+        assert!(msg.contains("ask Claude Code"));
+    }
+
+    #[test]
+    fn next_steps_with_two_agents_joins_with_or() {
+        let msg = super::next_steps_message(&["Claude Code", "Codex"]);
+        assert!(msg.contains("ask Claude Code or Codex"));
+    }
+
+    #[test]
+    fn next_steps_with_three_agents_uses_oxford_comma() {
+        let msg = super::next_steps_message(&["Codex", "Claude Code", "Cursor"]);
+        assert!(msg.contains("ask Codex, Claude Code, or Cursor"));
     }
 
     #[test]
