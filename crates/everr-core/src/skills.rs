@@ -42,12 +42,6 @@ pub enum SkillScope {
     Global,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum InstallMode {
-    Symlink,
-    Copy,
-}
-
 #[derive(Clone, Debug)]
 pub struct SkillOperationOptions {
     pub scope: SkillScope,
@@ -56,7 +50,6 @@ pub struct SkillOperationOptions {
     pub providers: Vec<SkillProvider>,
     pub skill_names: Vec<String>,
     pub all: bool,
-    pub mode: InstallMode,
     pub force: bool,
     pub dry_run: bool,
 }
@@ -72,8 +65,6 @@ pub enum SkillPathAction {
     Missing,
     WouldLink,
     Linked,
-    WouldCopy,
-    Copied,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -166,39 +157,15 @@ pub fn install_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOp
                 continue;
             }
 
-            match options.mode {
-                InstallMode::Symlink => {
-                    link_provider_dir(
-                        *provider,
-                        skill_name,
-                        &canonical_dir,
-                        &provider_dir,
-                        options.force,
-                        options.dry_run,
-                        &mut changes,
-                    )?;
-                }
-                InstallMode::Copy => {
-                    let before = changes.len();
-                    sync_bundled_skill_dir(
-                        dir,
-                        &provider_dir,
-                        options.force,
-                        options.dry_run,
-                        skill_name,
-                        &mut changes,
-                    )?;
-                    for change in &mut changes[before..] {
-                        change.provider = Some(*provider);
-                        change.canonical_path = Some(canonical_dir.display().to_string());
-                        change.action = match change.action {
-                            SkillPathAction::Written => SkillPathAction::Copied,
-                            SkillPathAction::WouldWrite => SkillPathAction::WouldCopy,
-                            ref other => other.clone(),
-                        };
-                    }
-                }
-            }
+            link_provider_dir(
+                *provider,
+                skill_name,
+                &canonical_dir,
+                &provider_dir,
+                options.force,
+                options.dry_run,
+                &mut changes,
+            )?;
         }
 
         if canonical_changed {
@@ -604,7 +571,7 @@ fn link_provider_dir(
     if provider_dir.exists() || fs::symlink_metadata(provider_dir).is_ok() {
         if !force {
             bail!(
-                "destination differs: {} (use --force to overwrite or --copy to avoid symlinks)",
+                "destination differs: {} (use --force to overwrite)",
                 provider_dir.display()
             );
         }
@@ -620,7 +587,7 @@ fn link_provider_dir(
         fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
         create_dir_symlink(canonical_dir, provider_dir).with_context(|| {
             format!(
-                "create symlink {} -> {} (rerun with --copy if symlinks are unavailable)",
+                "create symlink {} -> {}",
                 provider_dir.display(),
                 canonical_dir.display()
             )

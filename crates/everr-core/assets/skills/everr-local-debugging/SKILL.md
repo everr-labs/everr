@@ -37,6 +37,7 @@ If the collector is down, ask the user to start it with `everr local start` or b
 | Inspect log columns | `everr local query "DESCRIBE TABLE otel_logs"` |
 
 Query rules:
+- `everr local query` accepts ClickHouse-style SQL against the local telemetry store.
 - Allowed statements: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
 - Include a recent time window and `LIMIT` for diagnostic queries.
 - Freshness checks and schema discovery may omit the time window.

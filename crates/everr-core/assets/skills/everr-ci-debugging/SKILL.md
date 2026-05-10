@@ -29,7 +29,7 @@ Useful flags:
 
 ## Cloud SQL
 
-Use `everr cloud query "<SQL>"` for investigations
+Use `everr cloud query "<SQL>"` for investigations. It accepts read-only ClickHouse-style SQL, matching the query shape used by `everr local query`.
 
 Starting tables:
 - `traces`: workflow runs, jobs, steps, and test spans

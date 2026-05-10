@@ -184,6 +184,26 @@ impl ApiClient {
         self.get("/org", &[]).await
     }
 
+    pub async fn complete_org_onboarding(&self) -> Result<()> {
+        let response = self
+            .http
+            .patch(format!("{}/org", self.base_endpoint))
+            .send()
+            .await
+            .context("PATCH org onboarding request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "PATCH org onboarding"));
+        }
+
+        Ok(())
+    }
+
     pub async fn patch_org_name(&self, name: &str) -> Result<()> {
         let response = self
             .http
@@ -383,6 +403,24 @@ pub struct FailedJobInfo {
 pub struct OrgResponse {
     pub name: String,
     pub is_only_member: bool,
+    #[serde(default)]
+    pub onboarding_completed: bool,
+    #[serde(default)]
+    pub role: Option<String>,
+}
+
+impl OrgResponse {
+    pub fn can_manage_runs_import(&self) -> bool {
+        match self.role.as_deref() {
+            Some("admin" | "owner") => true,
+            Some(_) => false,
+            None => true,
+        }
+    }
+
+    pub fn can_manage_runs_import_or_default(org: Option<&Self>) -> bool {
+        org.map(Self::can_manage_runs_import).unwrap_or(true)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -451,7 +489,9 @@ mod api_client_tests {
             .mock("GET", "/api/cli/org")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"{"name":"Test Org","isOnlyMember":true}"#)
+            .with_body(
+                r#"{"name":"Test Org","isOnlyMember":true,"onboardingCompleted":true,"role":"admin"}"#,
+            )
             .create_async()
             .await;
 
@@ -460,6 +500,51 @@ mod api_client_tests {
 
         assert_eq!(org.name, "Test Org");
         assert!(org.is_only_member);
+        assert!(org.onboarding_completed);
+        assert_eq!(org.role.as_deref(), Some("admin"));
+        mock.assert_async().await;
+    }
+
+    #[test]
+    fn org_response_allows_imports_for_admins_and_owners() {
+        for role in ["admin", "owner"] {
+            let org = OrgResponse {
+                name: "Acme".to_string(),
+                is_only_member: false,
+                onboarding_completed: false,
+                role: Some(role.to_string()),
+            };
+
+            assert!(org.can_manage_runs_import());
+        }
+    }
+
+    #[test]
+    fn org_response_blocks_imports_for_members() {
+        let org = OrgResponse {
+            name: "Acme".to_string(),
+            is_only_member: false,
+            onboarding_completed: false,
+            role: Some("member".to_string()),
+        };
+
+        assert!(!org.can_manage_runs_import());
+    }
+
+    #[tokio::test]
+    async fn complete_org_onboarding_sends_patch() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("PATCH", "/api/cli/org")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"ok":true}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        client.complete_org_onboarding().await.unwrap();
+
         mock.assert_async().await;
     }
 

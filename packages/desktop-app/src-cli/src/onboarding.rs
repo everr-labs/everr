@@ -4,10 +4,9 @@ use std::path::Path;
 use std::process::Command as ProcessCommand;
 
 use anyhow::{Context, Result, bail};
-use everr_core::api::ApiClient;
-use everr_core::auth::login_with_prompt;
+use everr_core::api::{ApiClient, MeResponse, OrgResponse};
 use everr_core::build;
-use everr_core::skills::{self as core_skills, InstallMode, SkillProvider, SkillScope};
+use everr_core::skills::{self as core_skills, SkillProvider, SkillScope};
 use everr_core::state::Session;
 
 use crate::auth;
@@ -25,6 +24,13 @@ const LOGO_COLUMN_WIDTH: usize = 10;
 const BANNER_COLOR: &str = "\x1b[38;2;223;255;0m";
 const ANSI_RESET: &str = "\x1b[0m";
 const INSTALL_SKILLS_DEFAULT: bool = true;
+const NOTIFICATION_EMAILS_NOTE: &str = "These emails are used to detect your own runs.";
+
+#[derive(Default)]
+struct SetupContext {
+    me: Option<MeResponse>,
+    org: Option<OrgResponse>,
+}
 
 pub async fn run() -> Result<()> {
     println!();
@@ -33,11 +39,20 @@ pub async fn run() -> Result<()> {
     cliclack::intro("Setup")?;
 
     let session = step_authenticate().await?;
-    step_rename_org(&session).await?;
-    step_import_repos(&session).await?;
-    step_configure_notification_emails(&session).await?;
+    let setup_context = load_setup_context(&session).await;
+    print_setup_identity(&setup_context)?;
+
+    if !should_skip_org_setup_steps(setup_context.org.as_ref()) {
+        step_rename_org(&session, setup_context.org.as_ref()).await?;
+        if OrgResponse::can_manage_runs_import_or_default(setup_context.org.as_ref()) {
+            step_import_repos(&session).await?;
+        }
+    }
+
+    step_configure_notification_emails(setup_context.me.as_ref()).await?;
     let skills_installed = step_install_skills()?;
-    let desktop_installed = step_install_desktop_app().await?;
+    step_install_desktop_app().await?;
+    step_mark_cloud_onboarding_complete(&session, setup_context.org.as_ref()).await?;
 
     auth::state_store().update_state(|state| {
         state
@@ -45,12 +60,40 @@ pub async fn run() -> Result<()> {
             .mark_setup_complete(build::default_api_base_url());
     })?;
 
-    cliclack::outro(outro_message(skills_installed, desktop_installed))?;
+    print_next_steps()?;
+    cliclack::outro(outro_message(skills_installed))?;
+    Ok(())
+}
+
+async fn load_setup_context(session: &Session) -> SetupContext {
+    let Ok(client) = ApiClient::from_session(session) else {
+        return SetupContext::default();
+    };
+
+    let (me, org) = tokio::join!(client.get_me(), client.get_org());
+    SetupContext {
+        me: me.ok(),
+        org: org.ok(),
+    }
+}
+
+fn print_setup_identity(context: &SetupContext) -> Result<()> {
+    for line in auth::identity_summary_lines(
+        context.me.as_ref().map(|me| me.email.as_str()),
+        context.org.as_ref().map(|org| org.name.as_str()),
+    ) {
+        cliclack::log::success(line)?;
+    }
+
     Ok(())
 }
 
 pub(crate) fn clean_org_name(name: &str) -> String {
     name.trim().to_string()
+}
+
+fn should_skip_org_setup_steps(org: Option<&OrgResponse>) -> bool {
+    org.is_some_and(|org| org.onboarding_completed)
 }
 
 async fn step_authenticate() -> Result<Session> {
@@ -63,27 +106,20 @@ async fn step_authenticate() -> Result<Session> {
             Ok(session)
         }
         Err(_) => {
-            let session =
-                login_with_prompt(&config, &store, auth::show_device_sign_in_prompt).await?;
-            cliclack::log::success("Logged in.")?;
+            let session = auth::login_with_enter_to_open_browser(&config, &store).await?;
             Ok(session)
         }
     }
 }
 
-async fn step_rename_org(session: &Session) -> Result<()> {
+async fn step_rename_org(session: &Session, org: Option<&OrgResponse>) -> Result<()> {
     let interactive = std::io::stdin().is_terminal();
     if !interactive {
         return Ok(());
     }
 
-    let client = ApiClient::from_session(session)?;
-    let org = match client.get_org().await {
-        Ok(org) => org,
-        Err(_) => return Ok(()), // non-fatal: skip if API unavailable
-    };
-
-    if !org.is_only_member {
+    let Some(org) = org else { return Ok(()) };
+    if org.onboarding_completed || !org.is_only_member {
         return Ok(());
     }
 
@@ -96,7 +132,10 @@ async fn step_rename_org(session: &Session) -> Result<()> {
         return Ok(());
     }
 
-    if let Err(_) = client.patch_org_name(&new_name).await {
+    let Ok(client) = ApiClient::from_session(session) else {
+        return Ok(());
+    };
+    if client.patch_org_name(&new_name).await.is_err() {
         return Ok(());
     }
     cliclack::log::success(format!("Organization name set to \"{new_name}\""))?;
@@ -105,6 +144,9 @@ async fn step_rename_org(session: &Session) -> Result<()> {
 
 async fn step_import_repos(session: &Session) -> Result<()> {
     let interactive = std::io::stdin().is_terminal();
+    if !interactive {
+        return Ok(());
+    }
 
     let client = ApiClient::from_session(session)?;
     let repos = match client.get_repos().await {
@@ -116,14 +158,12 @@ async fn step_import_repos(session: &Session) -> Result<()> {
         return Ok(());
     }
 
-    if !interactive {
-        return Ok(());
-    }
-
     const MAX_REPOS: usize = 3;
 
-    let mut prompt =
-        cliclack::multiselect("Select repositories to import (up to 3)").required(false);
+    let mut prompt = cliclack::multiselect("Select repositories to import (up to 3)")
+        .required(false)
+        .max_rows(10)
+        .filter_mode();
     for repo in &repos {
         prompt = prompt.item(repo.full_name.clone(), repo.full_name.clone(), "");
     }
@@ -148,7 +188,7 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
 const ADD_EMAIL_SENTINEL: &str = "__add_email__";
 
-async fn step_configure_notification_emails(session: &Session) -> Result<()> {
+async fn step_configure_notification_emails(me: Option<&MeResponse>) -> Result<()> {
     let store = auth::state_store();
     let saved: Vec<String> = store
         .load_state()
@@ -156,17 +196,15 @@ async fn step_configure_notification_emails(session: &Session) -> Result<()> {
         .unwrap_or_default();
     let mut detected: Vec<String> = Vec::new();
 
-    if let Ok(client) = everr_core::api::ApiClient::from_session(session) {
-        if let Ok(me) = client.get_me().await {
-            detected.push(me.email.clone());
-            store.update_state(|state| {
-                state.settings.user_profile = Some(everr_core::state::UserProfile {
-                    email: me.email,
-                    name: me.name,
-                    profile_url: me.profile_url,
-                });
-            })?;
-        }
+    if let Some(me) = me {
+        detected.push(me.email.clone());
+        store.update_state(|state| {
+            state.settings.user_profile = Some(everr_core::state::UserProfile {
+                email: me.email.clone(),
+                name: me.name.clone(),
+                profile_url: me.profile_url.clone(),
+            });
+        })?;
     }
 
     if let Ok(cwd) = std::env::current_dir() {
@@ -202,10 +240,7 @@ async fn step_configure_notification_emails(session: &Session) -> Result<()> {
         return Ok(());
     }
 
-    cliclack::note(
-        "Notification emails",
-        "These emails are used to detect which updates are related to you, we never send them to our servers because the logic is applied locally.",
-    )?;
+    cliclack::note("Notification emails", NOTIFICATION_EMAILS_NOTE)?;
 
     let mut prompt = cliclack::multiselect("Select notification emails");
     for email in &all_emails {
@@ -237,6 +272,23 @@ async fn step_configure_notification_emails(session: &Session) -> Result<()> {
     })?;
 
     cliclack::log::success("Notification emails configured")?;
+    Ok(())
+}
+
+async fn step_mark_cloud_onboarding_complete(
+    session: &Session,
+    org: Option<&OrgResponse>,
+) -> Result<()> {
+    let Some(org) = org else { return Ok(()) };
+    if org.onboarding_completed {
+        return Ok(());
+    }
+
+    let Ok(client) = ApiClient::from_session(session) else {
+        return Ok(());
+    };
+
+    let _ = client.complete_org_onboarding().await;
     Ok(())
 }
 
@@ -274,7 +326,7 @@ fn step_install_skills() -> Result<bool> {
     };
 
     let selected_providers: Vec<SkillProvider> = if interactive {
-        let mut prompt = cliclack::multiselect("Select providers");
+        let mut prompt = cliclack::multiselect("Select providers").required(false);
         for (i, status) in provider_statuses.iter().enumerate() {
             let label = status.provider.display_name();
             let hint = if status.detected {
@@ -318,30 +370,51 @@ fn step_install_skills() -> Result<bool> {
         return Ok(false);
     }
 
-    let mode = if interactive {
-        let copy: bool = cliclack::confirm("Copy skills instead of symlinking provider folders?")
-            .initial_value(false)
-            .interact()?;
-        if copy {
-            InstallMode::Copy
-        } else {
-            InstallMode::Symlink
-        }
-    } else {
-        InstallMode::Symlink
-    };
-
-    cli_skills::install_all_for_setup(scope, selected_providers, mode, false)?;
+    cli_skills::install_all_for_setup(scope, selected_providers, false)?;
     cliclack::log::success("Everr skills installed")?;
 
     Ok(true)
 }
 
-fn outro_message(skills_installed: bool, desktop_installed: bool) -> &'static str {
-    if skills_installed && desktop_installed {
-        "Everr skills are installed - ask your agent about CI pipelines, failing jobs, workflow logs, or local telemetry.\nOr break something in CI - Everr will notify you with a ready-to-use fix prompt."
-    } else if skills_installed {
-        "Everr skills are installed - ask your agent about CI pipelines, failing jobs, workflow logs, or local telemetry."
+fn print_next_steps() -> Result<()> {
+    let Some(home_dir) = dirs::home_dir() else {
+        return Ok(());
+    };
+
+    let detected_agents: Vec<&'static str> = core_skills::provider_statuses(&home_dir)
+        .into_iter()
+        .filter(|status| status.detected)
+        .map(|status| status.provider.display_name())
+        .collect();
+
+    cliclack::note("Try it out", next_steps_message(&detected_agents))?;
+    Ok(())
+}
+
+fn next_steps_message(detected_agents: &[&str]) -> String {
+    let cmd = build::command_name();
+    if detected_agents.is_empty() {
+        format!("From an imported repo, run `{cmd} ci runs` to view your imported runs.")
+    } else {
+        format!(
+            "From an imported repo, run `{cmd} ci runs` to view your imported runs.\nOr ask {} to summarize them.",
+            format_agent_list(detected_agents),
+        )
+    }
+}
+
+fn format_agent_list(agents: &[&str]) -> String {
+    match agents {
+        [] => String::new(),
+        [a] => (*a).to_string(),
+        [a, b] => format!("{a} or {b}"),
+        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
+    }
+}
+
+fn outro_message(skills_installed: bool) -> &'static str {
+    if skills_installed {
+        "Completed"
     } else {
         "Run `everr skills install --all` in a repo to install Everr skills later."
     }
@@ -504,22 +577,39 @@ mod tests {
     }
 
     #[test]
-    fn outro_message_with_skills_and_desktop() {
-        let msg = super::outro_message(true, true);
-        assert!(msg.contains("Everr skills"));
-        assert!(msg.contains("break something in CI"));
-    }
-
-    #[test]
-    fn outro_message_with_skills_no_desktop() {
-        let msg = super::outro_message(true, false);
-        assert!(msg.contains("Everr skills"));
-        assert!(!msg.contains("break something in CI"));
+    fn outro_message_with_skills_installed() {
+        assert_eq!(super::outro_message(true), "Completed");
     }
 
     #[test]
     fn outro_message_without_skills_installed() {
-        assert!(super::outro_message(false, false).contains("everr skills install --all"));
+        assert!(super::outro_message(false).contains("everr skills install --all"));
+    }
+
+    #[test]
+    fn next_steps_without_agents_only_suggests_cli_command() {
+        let msg = super::next_steps_message(&[]);
+        assert!(msg.contains("ci runs"));
+        assert!(!msg.contains("ask "));
+    }
+
+    #[test]
+    fn next_steps_with_one_agent_names_it() {
+        let msg = super::next_steps_message(&["Claude Code"]);
+        assert!(msg.contains("ci runs"));
+        assert!(msg.contains("ask Claude Code"));
+    }
+
+    #[test]
+    fn next_steps_with_two_agents_joins_with_or() {
+        let msg = super::next_steps_message(&["Claude Code", "Codex"]);
+        assert!(msg.contains("ask Claude Code or Codex"));
+    }
+
+    #[test]
+    fn next_steps_with_three_agents_uses_oxford_comma() {
+        let msg = super::next_steps_message(&["Codex", "Claude Code", "Cursor"]);
+        assert!(msg.contains("ask Codex, Claude Code, or Cursor"));
     }
 
     #[test]
@@ -530,6 +620,38 @@ mod tests {
     #[test]
     fn setup_defaults_to_global_skill_scope() {
         assert!(super::cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT);
+    }
+
+    #[test]
+    fn email_note_says_emails_detect_own_runs() {
+        assert_eq!(
+            super::NOTIFICATION_EMAILS_NOTE,
+            "These emails are used to detect your own runs."
+        );
+    }
+
+    #[test]
+    fn onboarded_org_skips_org_setup_steps() {
+        let org = everr_core::api::OrgResponse {
+            name: "Acme".to_string(),
+            is_only_member: true,
+            onboarding_completed: true,
+            role: Some("admin".to_string()),
+        };
+
+        assert!(super::should_skip_org_setup_steps(Some(&org)));
+    }
+
+    #[test]
+    fn not_onboarded_org_runs_org_setup_steps() {
+        let org = everr_core::api::OrgResponse {
+            name: "Acme".to_string(),
+            is_only_member: true,
+            onboarding_completed: false,
+            role: Some("admin".to_string()),
+        };
+
+        assert!(!super::should_skip_org_setup_steps(Some(&org)));
     }
 
     #[test]

@@ -1,8 +1,8 @@
 use std::fs;
 
 use everr_core::skills::{
-    InstallMode, SkillOperationOptions, SkillPathAction, SkillProvider, SkillScope,
-    install_bundled_skills, uninstall_bundled_skills, update_bundled_skills,
+    SkillOperationOptions, SkillPathAction, SkillProvider, SkillScope, install_bundled_skills,
+    uninstall_bundled_skills, update_bundled_skills,
 };
 use tempfile::tempdir;
 
@@ -37,7 +37,6 @@ fn installs_project_skills_to_canonical_agents_dir_and_symlinks_claude() {
         ],
         skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: false,
         dry_run: false,
     };
@@ -51,10 +50,23 @@ fn installs_project_skills_to_canonical_agents_dir_and_symlinks_claude() {
             .join(".agents/skills/everr-ci-debugging/SKILL.md")
             .is_file()
     );
-    assert!(!repo.path().join(".codex/skills/everr-ci-debugging").exists());
-    assert!(!repo.path().join(".cursor/skills/everr-ci-debugging").exists());
+    assert!(
+        !repo
+            .path()
+            .join(".codex/skills/everr-ci-debugging")
+            .exists()
+    );
+    assert!(
+        !repo
+            .path()
+            .join(".cursor/skills/everr-ci-debugging")
+            .exists()
+    );
     #[cfg(unix)]
-    assert_symlink_to(&repo.path().join(".claude/skills/everr-ci-debugging"), &canonical);
+    assert_symlink_to(
+        &repo.path().join(".claude/skills/everr-ci-debugging"),
+        &canonical,
+    );
 }
 
 #[test]
@@ -72,7 +84,6 @@ fn installs_global_skills_to_agents_dir_and_symlinks_providers() {
         ],
         skill_names: vec!["everr-local-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: false,
         dry_run: false,
     };
@@ -109,7 +120,6 @@ fn dry_run_reports_changes_without_writing_files() {
         providers: vec![SkillProvider::Codex],
         skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: false,
         dry_run: true,
     };
@@ -129,8 +139,18 @@ fn dry_run_reports_changes_without_writing_files() {
             .iter()
             .any(|change| change.action == SkillPathAction::WouldLink)
     );
-    assert!(!home.path().join(".agents/skills/everr-ci-debugging").exists());
-    assert!(!home.path().join(".codex/skills/everr-ci-debugging").exists());
+    assert!(
+        !home
+            .path()
+            .join(".agents/skills/everr-ci-debugging")
+            .exists()
+    );
+    assert!(
+        !home
+            .path()
+            .join(".codex/skills/everr-ci-debugging")
+            .exists()
+    );
 }
 
 #[test]
@@ -144,12 +164,13 @@ fn update_rewrites_modified_installed_skill() {
         providers: vec![SkillProvider::Codex],
         skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: false,
         dry_run: false,
     };
     install_bundled_skills(&options).expect("install skill");
-    let skill_doc = repo.path().join(".agents/skills/everr-ci-debugging/SKILL.md");
+    let skill_doc = repo
+        .path()
+        .join(".agents/skills/everr-ci-debugging/SKILL.md");
     fs::write(&skill_doc, "local edits").expect("edit skill");
 
     let update_options = SkillOperationOptions {
@@ -161,36 +182,6 @@ fn update_rewrites_modified_installed_skill() {
     let content = fs::read_to_string(skill_doc).expect("read updated skill");
     assert!(content.contains("name: everr-ci-debugging"));
     assert!(!content.contains("local edits"));
-}
-
-#[test]
-fn copy_mode_writes_provider_copy_but_keeps_canonical_copy() {
-    let repo = tempdir().expect("repo tempdir");
-    let home = tempdir().expect("home tempdir");
-    let options = SkillOperationOptions {
-        scope: SkillScope::Project,
-        cwd: repo.path().to_path_buf(),
-        home_dir: home.path().to_path_buf(),
-        providers: vec![SkillProvider::ClaudeCode],
-        skill_names: vec!["everr-local-telemetry-setup".to_string()],
-        all: false,
-        mode: InstallMode::Copy,
-        force: false,
-        dry_run: false,
-    };
-
-    install_bundled_skills(&options).expect("install copied skill");
-
-    let canonical = repo.path().join(".agents/skills/everr-local-telemetry-setup");
-    let claude = repo.path().join(".claude/skills/everr-local-telemetry-setup");
-    assert!(canonical.join("SKILL.md").is_file());
-    assert!(claude.join("SKILL.md").is_file());
-    assert!(
-        !fs::symlink_metadata(&claude)
-            .expect("read claude skill metadata")
-            .file_type()
-            .is_symlink()
-    );
 }
 
 #[test]
@@ -208,7 +199,6 @@ fn install_refuses_to_overwrite_modified_skill_without_force() {
         providers: vec![SkillProvider::Codex],
         skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: false,
         dry_run: false,
     };
@@ -234,7 +224,6 @@ fn force_replaces_existing_provider_symlink() {
         providers: vec![SkillProvider::ClaudeCode],
         skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: true,
         dry_run: false,
     };
@@ -264,7 +253,6 @@ fn force_removes_dangling_provider_symlink() {
         providers: vec![SkillProvider::Cursor],
         skill_names: vec!["everr-local-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: true,
         dry_run: false,
     };
@@ -288,7 +276,6 @@ fn uninstall_removes_canonical_and_provider_links() {
         providers: vec![SkillProvider::Codex, SkillProvider::ClaudeCode],
         skill_names: vec!["everr-ci-debugging".to_string()],
         all: false,
-        mode: InstallMode::Symlink,
         force: false,
         dry_run: false,
     };
@@ -296,7 +283,22 @@ fn uninstall_removes_canonical_and_provider_links() {
     install_bundled_skills(&options).expect("install skill");
     uninstall_bundled_skills(&options).expect("uninstall skill");
 
-    assert!(!home.path().join(".agents/skills/everr-ci-debugging").exists());
-    assert!(!home.path().join(".codex/skills/everr-ci-debugging").exists());
-    assert!(!home.path().join(".claude/skills/everr-ci-debugging").exists());
+    assert!(
+        !home
+            .path()
+            .join(".agents/skills/everr-ci-debugging")
+            .exists()
+    );
+    assert!(
+        !home
+            .path()
+            .join(".codex/skills/everr-ci-debugging")
+            .exists()
+    );
+    assert!(
+        !home
+            .path()
+            .join(".claude/skills/everr-ci-debugging")
+            .exists()
+    );
 }

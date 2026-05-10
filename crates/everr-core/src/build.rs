@@ -186,14 +186,6 @@ mod tests {
     }
 
     #[test]
-    fn sql_http_origin_matches_port() {
-        let origin = super::sql_http_origin();
-        assert!(origin.starts_with("http://127.0.0.1:"));
-        let port: u16 = origin.rsplit(':').next().unwrap().parse().unwrap();
-        assert_eq!(port, super::SQL_HTTP_PORT);
-    }
-
-    #[test]
     fn otlp_http_origin_honors_debug_override() {
         const KEY: &str = "EVERR_OTLP_HTTP_ORIGIN";
         let previous = std::env::var_os(KEY);

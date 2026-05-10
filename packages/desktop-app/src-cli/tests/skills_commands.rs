@@ -65,7 +65,10 @@ fn skills_install_project_creates_canonical_skill_and_provider_symlink() {
         .success()
         .stdout(contains("Installed 1 skill: everr-ci-debugging"));
 
-    assert!(repo.join(".agents/skills/everr-ci-debugging/SKILL.md").is_file());
+    assert!(
+        repo.join(".agents/skills/everr-ci-debugging/SKILL.md")
+            .is_file()
+    );
     #[cfg(unix)]
     assert_symlink(&repo.join(".claude/skills/everr-ci-debugging"));
 }
@@ -82,7 +85,7 @@ fn skills_install_without_selection_requires_interactive_terminal() {
 }
 
 #[test]
-fn skills_install_global_copy_writes_provider_copy() {
+fn skills_install_global_creates_provider_symlink() {
     let env = CliTestEnv::new();
 
     env.command()
@@ -93,7 +96,6 @@ fn skills_install_global_copy_writes_provider_copy() {
             "--global",
             "--agent",
             "codex",
-            "--copy",
         ])
         .assert()
         .success()
@@ -106,12 +108,8 @@ fn skills_install_global_copy_writes_provider_copy() {
     );
     let codex_skill = env.home_dir.join(".codex/skills/everr-local-debugging");
     assert!(codex_skill.join("SKILL.md").is_file());
-    assert!(
-        !fs::symlink_metadata(&codex_skill)
-            .expect("read codex skill metadata")
-            .file_type()
-            .is_symlink()
-    );
+    #[cfg(unix)]
+    assert_symlink(&codex_skill);
 }
 
 #[test]
@@ -132,7 +130,9 @@ fn skills_update_without_scope_checks_global_skills() {
         .assert()
         .success();
 
-    let skill_doc = env.home_dir.join(".agents/skills/everr-local-debugging/SKILL.md");
+    let skill_doc = env
+        .home_dir
+        .join(".agents/skills/everr-local-debugging/SKILL.md");
     fs::write(&skill_doc, "local edits").expect("edit global skill");
 
     env.command()
@@ -162,7 +162,10 @@ fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
         .success()
         .stderr(contains("Already logged in"));
 
-    assert!(repo.join(".agents/skills/everr-ci-debugging/SKILL.md").is_file());
+    assert!(
+        repo.join(".agents/skills/everr-ci-debugging/SKILL.md")
+            .is_file()
+    );
     assert!(
         repo.join(".agents/skills/everr-local-telemetry-setup/SKILL.md")
             .is_file()
@@ -173,4 +176,223 @@ fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
     );
     #[cfg(unix)]
     assert_symlink(&repo.join(".claude/skills/everr-ci-debugging"));
+}
+
+#[test]
+fn setup_authenticates_without_enter_when_polling_succeeds() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+
+    let mut server = support::mock_api_server();
+    let code_mock = server
+        .mock("POST", "/api/auth/device/code")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"device_code":"device-123","user_code":"CODE-123","verification_uri":"https://example.com/device","expires_in":60,"interval":0}"#,
+        )
+        .create();
+    let token_mock = server
+        .mock("POST", "/api/auth/device/token")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"access_token":"token-123"}"#)
+        .create();
+    let me_mock = server
+        .mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"email":"user@example.com","name":"Test User","profileUrl":null}"#)
+        .create();
+    let org_mock = server
+        .mock("GET", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"name":"Acme","isOnlyMember":true,"onboardingCompleted":true}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo)
+        .arg("setup")
+        .assert()
+        .success()
+        .stderr(contains("Press Enter to open in your browser"))
+        .stderr(contains("Logged in as user@example.com"))
+        .stderr(contains("Using organization: Acme"));
+
+    code_mock.assert();
+    token_mock.assert();
+    me_mock.assert();
+    org_mock.assert();
+    let session = fs::read_to_string(env.session_path()).expect("read saved session");
+    assert!(session.contains("token-123"));
+}
+
+#[test]
+fn setup_outputs_identity_and_skips_org_setup_when_org_already_onboarded() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+
+    let mut server = support::mock_api_server();
+    env.write_session(&server.url(), "token-123");
+
+    let me_mock = server
+        .mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"email":"user@example.com","name":"Test User","profileUrl":null}"#)
+        .create();
+    let org_mock = server
+        .mock("GET", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"name":"Acme","isOnlyMember":true,"onboardingCompleted":true}"#)
+        .create();
+    let repos_mock = server.mock("GET", "/api/cli/repos").expect(0).create();
+    let onboarding_mock = server.mock("PATCH", "/api/cli/org").expect(0).create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo)
+        .arg("setup")
+        .assert()
+        .success()
+        .stderr(contains("Logged in as user@example.com"))
+        .stderr(contains("Using organization: Acme"));
+
+    me_mock.assert();
+    org_mock.assert();
+    repos_mock.assert();
+    onboarding_mock.assert();
+}
+
+#[test]
+fn setup_marks_cloud_onboarding_complete_when_org_was_not_onboarded() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+
+    let mut server = support::mock_api_server();
+    env.write_session(&server.url(), "token-123");
+
+    let me_mock = server
+        .mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"email":"user@example.com","name":"Test User","profileUrl":null}"#)
+        .create();
+    let org_mock = server
+        .mock("GET", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"name":"Acme","isOnlyMember":true,"onboardingCompleted":false}"#)
+        .create();
+    let onboarding_mock = server
+        .mock("PATCH", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"ok":true}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo)
+        .arg("setup")
+        .assert()
+        .success()
+        .stderr(contains("Logged in as user@example.com"))
+        .stderr(contains("Using organization: Acme"));
+
+    me_mock.assert();
+    org_mock.assert();
+    onboarding_mock.assert();
+}
+
+#[test]
+fn setup_marks_cloud_onboarding_complete_for_non_admin_member() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+
+    let mut server = support::mock_api_server();
+    env.write_session(&server.url(), "token-123");
+
+    let me_mock = server
+        .mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"email":"user@example.com","name":"Test User","profileUrl":null}"#)
+        .create();
+    let org_mock = server
+        .mock("GET", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"name":"Acme","isOnlyMember":false,"onboardingCompleted":false,"role":"member"}"#,
+        )
+        .create();
+    let repos_mock = server.mock("GET", "/api/cli/repos").expect(0).create();
+    let onboarding_mock = server
+        .mock("PATCH", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"ok":true}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo)
+        .arg("setup")
+        .assert()
+        .success()
+        .stderr(contains("Logged in as user@example.com"))
+        .stderr(contains("Using organization: Acme"));
+
+    me_mock.assert();
+    org_mock.assert();
+    repos_mock.assert();
+    onboarding_mock.assert();
+}
+
+#[test]
+fn init_skips_runs_import_step_for_non_admin_member() {
+    let env = CliTestEnv::new();
+    let repo = env.init_git_repo("repo", "feature", "https://github.com/acme/api.git");
+
+    let mut server = support::mock_api_server();
+    env.write_session(&server.url(), "token-123");
+
+    let org_mock = server
+        .mock("GET", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"name":"Acme","isOnlyMember":false,"onboardingCompleted":false,"role":"member"}"#,
+        )
+        .create();
+    let repos_mock = server.mock("GET", "/api/cli/repos").expect(0).create();
+    let import_mock = server.mock("POST", "/api/cli/import").expect(0).create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo)
+        .arg("init")
+        .assert()
+        .success()
+        .stderr(contains(
+            "Only organization admins can import workflow history",
+        ));
+
+    org_mock.assert();
+    repos_mock.assert();
+    import_mock.assert();
 }
