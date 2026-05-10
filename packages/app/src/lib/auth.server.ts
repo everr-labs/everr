@@ -17,6 +17,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { deviceCode, invitation, member, user } from "@/db/schema";
 import { env } from "@/env";
+import {
+  getDeviceApprovalUserCode,
+  getDeviceTokenCode,
+} from "@/lib/auth-context-body";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
 import {
@@ -48,31 +52,11 @@ type PolarSubscriptionPayload = {
   customer: { externalId?: string | null };
 };
 
-type AuthContextLike = {
-  path?: string;
-  body?: unknown;
-};
-
-function getStringBodyField(context: unknown, field: string) {
-  const body = (context as AuthContextLike | null)?.body;
-  if (typeof body !== "object" || body === null) {
-    return null;
-  }
-
-  const value = (body as Record<string, unknown>)[field];
-  return typeof value === "string" ? value : null;
-}
-
 async function getMarkedDeviceOrganizationId(
   session: { userId: string },
   context: unknown,
 ) {
-  const path = (context as AuthContextLike | null)?.path;
-  if (path !== "/device/token") {
-    return null;
-  }
-
-  const deviceCodeValue = getStringBodyField(context, "device_code");
+  const deviceCodeValue = getDeviceTokenCode(context);
   if (!deviceCodeValue) {
     return null;
   }
@@ -252,10 +236,7 @@ export const auth = betterAuth({
           {
             matcher: (context) => context.path === "/device/approve",
             handler: createAuthMiddleware(async (context) => {
-              const userCode = getStringBodyField(context, "userCode")?.replace(
-                /-/g,
-                "",
-              );
+              const userCode = getDeviceApprovalUserCode(context);
               if (!userCode) {
                 return { context };
               }
