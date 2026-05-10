@@ -6,6 +6,11 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import { SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import {
+  buildOtlpSignalUrl,
+  getExceptionAttributes,
+  normalizeOtlpOrigin,
+} from "./telemetry/shared.ts";
 
 const DEFAULT_COLLECTOR_ENDPOINT = "http://127.0.0.1:54318";
 const instrumentationStateKey = Symbol.for("everr.web.node.otel.state");
@@ -106,57 +111,4 @@ function startNodeInstrumentation() {
   }
 
   return { sdk };
-}
-
-function normalizeOtlpOrigin(origin) {
-  return origin.replace(/\/+$/, "");
-}
-
-function buildOtlpSignalUrl(origin, signal) {
-  return `${normalizeOtlpOrigin(origin)}/v1/${signal}`;
-}
-
-function getExceptionAttributes(reason) {
-  if (reason instanceof Error) {
-    return removeUndefinedAttributes({
-      "exception.type": reason.name || "Error",
-      "exception.message": redactSensitiveText(reason.message),
-      "exception.stacktrace": reason.stack
-        ? redactSensitiveText(reason.stack)
-        : undefined,
-    });
-  }
-
-  return {
-    "exception.type": "NonErrorException",
-    "exception.message": redactSensitiveText(stringifyReason(reason)),
-  };
-}
-
-function redactSensitiveText(value) {
-  return value
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [REDACTED]")
-    .replace(
-      /\b(token|password|passwd|secret|api[_-]?key|authorization)=\S+/gi,
-      "$1=[REDACTED]",
-    )
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED]");
-}
-
-function stringifyReason(reason) {
-  if (typeof reason === "string") {
-    return reason;
-  }
-
-  try {
-    return JSON.stringify(reason);
-  } catch {
-    return String(reason);
-  }
-}
-
-function removeUndefinedAttributes(attributes) {
-  return Object.fromEntries(
-    Object.entries(attributes).filter(([, value]) => value !== undefined),
-  );
 }

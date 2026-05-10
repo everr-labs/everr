@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getExceptionAttributes } from "./errors";
+import { getExceptionAttributes as getSharedExceptionAttributes } from "./shared.ts";
 
 describe("getExceptionAttributes", () => {
   it("captures useful fields from Error values", () => {
@@ -18,5 +19,13 @@ describe("getExceptionAttributes", () => {
       "exception.message": "plain failure",
       "exception.type": "NonErrorException",
     });
+  });
+
+  it("shares redaction with Node instrumentation", () => {
+    const error = new Error("bad Bearer abc123 token=secret a@example.com");
+
+    expect(getSharedExceptionAttributes(error)).toEqual(
+      getExceptionAttributes(error),
+    );
   });
 });
