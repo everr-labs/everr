@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import { OrgMetadataSchema } from "@/common/org-metadata";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import { auth } from "@/lib/auth.server";
 import {
@@ -51,11 +52,18 @@ export const updateOrganizationName = createAuthenticatedServerFn({
 export const markOnboardingComplete = createAuthenticatedServerFn({
   method: "POST",
 }).handler(async ({ context: { session } }) => {
+  const headers = getRequestHeaders();
+  const org = await auth.api.getFullOrganization({
+    query: { organizationId: session.session.activeOrganizationId },
+    headers,
+  });
+  const metadata = OrgMetadataSchema.parse(org?.metadata);
+
   await auth.api.updateOrganization({
     body: {
       organizationId: session.session.activeOrganizationId,
-      data: { metadata: { onboardingCompleted: true } },
+      data: { metadata: { ...metadata, onboardingCompleted: true } },
     },
-    headers: getRequestHeaders(),
+    headers,
   });
 });
