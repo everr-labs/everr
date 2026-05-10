@@ -5,22 +5,15 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 
-const DEFAULT_LOCAL_OTEL_ENDPOINT = "http://127.0.0.1:54318";
-
 const config = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const browserTelemetryEnabled = mode === "development";
-  const browserTelemetryEndpoint = browserTelemetryEnabled
-    ? env.VITE_OTEL_EXPORTER_OTLP_ENDPOINT ||
-      env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-      DEFAULT_LOCAL_OTEL_ENDPOINT
-    : "";
 
   return {
     define: {
       __EVERR_BROWSER_OTEL__: JSON.stringify({
         enabled: browserTelemetryEnabled,
-        endpoint: browserTelemetryEndpoint,
+        endpoint: "http://127.0.0.1:54318",
         serviceName: "everr-web-browser",
         serviceVersion: env.npm_package_version || "0.1.0",
       }),
