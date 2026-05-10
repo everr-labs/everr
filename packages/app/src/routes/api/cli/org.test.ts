@@ -89,6 +89,22 @@ describe("/api/cli/org", () => {
     });
   });
 
+  it("parses metadata when better-auth returns it as a JSON string", async () => {
+    await mockGetFullOrganization({
+      name: "Test Org",
+      members: [{ userId: "user_abc", role: "admin" }],
+      metadata: JSON.stringify({ onboardingCompleted: true }),
+    });
+
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/org"),
+      context,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ onboardingCompleted: true });
+  });
+
   it("returns the current user's role in the active org", async () => {
     await mockGetFullOrganization({
       name: "Test Org",
@@ -159,6 +175,32 @@ describe("/api/cli/org", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
+    expect(auth.api.updateOrganization).toHaveBeenCalledWith({
+      headers: expect.any(Headers),
+      body: {
+        organizationId: "org_xyz",
+        data: {
+          metadata: { plan: "free", onboardingCompleted: true },
+        },
+      },
+    });
+  });
+
+  it("preserves existing metadata keys when better-auth returns it as a JSON string", async () => {
+    await mockGetFullOrganization({
+      name: "Test Org",
+      members: [{ userId: "user_abc", role: "admin" }],
+      metadata: JSON.stringify({ plan: "free", onboardingCompleted: false }),
+    });
+    const { auth } = await import("@/lib/auth.server");
+
+    await patchHandler()({
+      request: new Request("http://localhost/api/cli/org", {
+        method: "PATCH",
+      }),
+      context,
+    });
+
     expect(auth.api.updateOrganization).toHaveBeenCalledWith({
       headers: expect.any(Headers),
       body: {

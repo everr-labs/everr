@@ -24,6 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { OrgMetadataSchema } from "@/common/org-metadata";
 import {
   CreateOrganizationInputSchema,
   OrganizationNameSchema,
@@ -109,7 +110,8 @@ export const Route = createFileRoute("/onboarding")({
       return { session, organization };
     }
 
-    if (organization.metadata?.onboardingCompleted === true) {
+    const metadata = OrgMetadataSchema.parse(organization.metadata);
+    if (metadata.onboardingCompleted === true) {
       throw redirect({ to: "/" });
     }
 

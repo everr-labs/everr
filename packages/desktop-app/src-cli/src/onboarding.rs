@@ -5,7 +5,6 @@ use std::process::Command as ProcessCommand;
 
 use anyhow::{Context, Result, bail};
 use everr_core::api::{ApiClient, MeResponse, OrgResponse};
-use everr_core::auth::login_with_prompt;
 use everr_core::build;
 use everr_core::skills::{self as core_skills, SkillProvider, SkillScope};
 use everr_core::state::Session;
@@ -52,7 +51,7 @@ pub async fn run() -> Result<()> {
 
     step_configure_notification_emails(setup_context.me.as_ref()).await?;
     let skills_installed = step_install_skills()?;
-    let desktop_installed = step_install_desktop_app().await?;
+    step_install_desktop_app().await?;
     step_mark_cloud_onboarding_complete(&session, setup_context.org.as_ref()).await?;
 
     auth::state_store().update_state(|state| {
@@ -62,7 +61,7 @@ pub async fn run() -> Result<()> {
     })?;
 
     print_next_steps()?;
-    cliclack::outro(outro_message(skills_installed, desktop_installed))?;
+    cliclack::outro(outro_message(skills_installed))?;
     Ok(())
 }
 
@@ -107,8 +106,7 @@ async fn step_authenticate() -> Result<Session> {
             Ok(session)
         }
         Err(_) => {
-            let session =
-                login_with_prompt(&config, &store, auth::show_device_sign_in_prompt).await?;
+            let session = auth::login_with_enter_to_open_browser(&config, &store).await?;
             Ok(session)
         }
     }
@@ -162,8 +160,10 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
     const MAX_REPOS: usize = 3;
 
-    let mut prompt =
-        cliclack::multiselect("Select repositories to import (up to 3)").required(false);
+    let mut prompt = cliclack::multiselect("Select repositories to import (up to 3)")
+        .required(false)
+        .max_rows(10)
+        .filter_mode();
     for repo in &repos {
         prompt = prompt.item(repo.full_name.clone(), repo.full_name.clone(), "");
     }
@@ -280,7 +280,7 @@ async fn step_mark_cloud_onboarding_complete(
     org: Option<&OrgResponse>,
 ) -> Result<()> {
     let Some(org) = org else { return Ok(()) };
-    if org.onboarding_completed || !org.can_manage_runs_import() {
+    if org.onboarding_completed {
         return Ok(());
     }
 
@@ -326,7 +326,7 @@ fn step_install_skills() -> Result<bool> {
     };
 
     let selected_providers: Vec<SkillProvider> = if interactive {
-        let mut prompt = cliclack::multiselect("Select providers");
+        let mut prompt = cliclack::multiselect("Select providers").required(false);
         for (i, status) in provider_statuses.iter().enumerate() {
             let label = status.provider.display_name();
             let hint = if status.detected {
@@ -394,10 +394,10 @@ fn print_next_steps() -> Result<()> {
 fn next_steps_message(detected_agents: &[&str]) -> String {
     let cmd = build::command_name();
     if detected_agents.is_empty() {
-        format!("Run `{cmd} ci runs` to view your imported runs.")
+        format!("From an imported repo, run `{cmd} ci runs` to view your imported runs.")
     } else {
         format!(
-            "Run `{cmd} ci runs` to view your imported runs.\nOr ask {} to summarize them.",
+            "From an imported repo, run `{cmd} ci runs` to view your imported runs.\nOr ask {} to summarize them.",
             format_agent_list(detected_agents),
         )
     }
@@ -412,11 +412,9 @@ fn format_agent_list(agents: &[&str]) -> String {
     }
 }
 
-fn outro_message(skills_installed: bool, desktop_installed: bool) -> &'static str {
-    if skills_installed && desktop_installed {
-        "Everr skills are installed - ask your agent about CI pipelines, failing jobs, workflow logs, or local telemetry.\nOr break something in CI - Everr will notify you with a ready-to-use fix prompt."
-    } else if skills_installed {
-        "Everr skills are installed - ask your agent about CI pipelines, failing jobs, workflow logs, or local telemetry."
+fn outro_message(skills_installed: bool) -> &'static str {
+    if skills_installed {
+        "Completed"
     } else {
         "Run `everr skills install --all` in a repo to install Everr skills later."
     }
@@ -579,22 +577,13 @@ mod tests {
     }
 
     #[test]
-    fn outro_message_with_skills_and_desktop() {
-        let msg = super::outro_message(true, true);
-        assert!(msg.contains("Everr skills"));
-        assert!(msg.contains("break something in CI"));
-    }
-
-    #[test]
-    fn outro_message_with_skills_no_desktop() {
-        let msg = super::outro_message(true, false);
-        assert!(msg.contains("Everr skills"));
-        assert!(!msg.contains("break something in CI"));
+    fn outro_message_with_skills_installed() {
+        assert_eq!(super::outro_message(true), "Completed");
     }
 
     #[test]
     fn outro_message_without_skills_installed() {
-        assert!(super::outro_message(false, false).contains("everr skills install --all"));
+        assert!(super::outro_message(false).contains("everr skills install --all"));
     }
 
     #[test]

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { OrgMetadataSchema } from "@/common/org-metadata";
 import { auth } from "@/lib/auth.server";
 
 export const Route = createFileRoute("/api/cli/org")({
@@ -22,12 +23,12 @@ export const Route = createFileRoute("/api/cli/org")({
         const isOnlyMember =
           org.members.length === 1 && org.members[0].userId === user.id;
         const currentMember = org.members.find((m) => m.userId === user.id);
+        const metadata = OrgMetadataSchema.parse(org.metadata);
 
         return Response.json({
           name: org.name,
           isOnlyMember,
-          onboardingCompleted:
-            isRecord(org.metadata) && org.metadata.onboardingCompleted === true,
+          onboardingCompleted: metadata.onboardingCompleted === true,
           role: currentMember?.role ?? null,
         });
       },
@@ -46,7 +47,7 @@ export const Route = createFileRoute("/api/cli/org")({
           );
         }
 
-        const metadata = isRecord(org.metadata) ? org.metadata : {};
+        const metadata = OrgMetadataSchema.parse(org.metadata);
 
         await auth.api.updateOrganization({
           headers: request.headers,
@@ -63,7 +64,3 @@ export const Route = createFileRoute("/api/cli/org")({
     },
   },
 });
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}

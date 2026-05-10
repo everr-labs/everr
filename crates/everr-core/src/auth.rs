@@ -50,21 +50,32 @@ pub enum DevicePollStatus {
     Expired,
 }
 
-pub async fn login_with_prompt<F>(
+pub async fn login_with_prompt<F, Fut>(
     config: &AuthConfig,
     store: &AppStateStore,
     show_prompt: F,
 ) -> Result<Session>
 where
-    F: FnOnce(String, &str),
+    F: FnOnce(String, String) -> Fut,
+    Fut: std::future::Future<Output = ()>,
 {
     let client = build_http_client()?;
     let authorization = start_device_authorization(&client, config).await?;
+
+    // Run the prompt to completion before polling so we never have a
+    // concurrent stdin reader fighting later prompts for keystrokes.
     show_prompt(
         authorization.verification_url.clone(),
-        &authorization.user_code,
-    );
-    login_with_device_authorization(config, store, authorization).await
+        authorization.user_code.clone(),
+    )
+    .await;
+
+    let poll_url = format!("{}/api/auth/device/token", config.api_base_url);
+    let token = complete_device_authorization_with_url(&client, &poll_url, authorization).await?;
+
+    let session = session_from_device_token(config, token)?;
+    store.save_session(&session)?;
+    Ok(session)
 }
 
 pub async fn start_device_authorization(

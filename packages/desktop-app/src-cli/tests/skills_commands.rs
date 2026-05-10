@@ -179,6 +179,59 @@ fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
 }
 
 #[test]
+fn setup_authenticates_without_enter_when_polling_succeeds() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+
+    let mut server = support::mock_api_server();
+    let code_mock = server
+        .mock("POST", "/api/auth/device/code")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"device_code":"device-123","user_code":"CODE-123","verification_uri":"https://example.com/device","expires_in":60,"interval":0}"#,
+        )
+        .create();
+    let token_mock = server
+        .mock("POST", "/api/auth/device/token")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"access_token":"token-123"}"#)
+        .create();
+    let me_mock = server
+        .mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"email":"user@example.com","name":"Test User","profileUrl":null}"#)
+        .create();
+    let org_mock = server
+        .mock("GET", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"name":"Acme","isOnlyMember":true,"onboardingCompleted":true}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo)
+        .arg("setup")
+        .assert()
+        .success()
+        .stderr(contains("Press Enter to open in your browser"))
+        .stderr(contains("Logged in as user@example.com"))
+        .stderr(contains("Using organization: Acme"));
+
+    code_mock.assert();
+    token_mock.assert();
+    me_mock.assert();
+    org_mock.assert();
+    let session = fs::read_to_string(env.session_path()).expect("read saved session");
+    assert!(session.contains("token-123"));
+}
+
+#[test]
 fn setup_outputs_identity_and_skips_org_setup_when_org_already_onboarded() {
     let env = CliTestEnv::new();
     let repo = env.home_dir.join("repo");
@@ -263,7 +316,7 @@ fn setup_marks_cloud_onboarding_complete_when_org_was_not_onboarded() {
 }
 
 #[test]
-fn setup_does_not_complete_cloud_onboarding_for_non_admin_member() {
+fn setup_marks_cloud_onboarding_complete_for_non_admin_member() {
     let env = CliTestEnv::new();
     let repo = env.home_dir.join("repo");
     fs::create_dir_all(&repo).expect("create repo");
@@ -288,7 +341,13 @@ fn setup_does_not_complete_cloud_onboarding_for_non_admin_member() {
         )
         .create();
     let repos_mock = server.mock("GET", "/api/cli/repos").expect(0).create();
-    let onboarding_mock = server.mock("PATCH", "/api/cli/org").expect(0).create();
+    let onboarding_mock = server
+        .mock("PATCH", "/api/cli/org")
+        .match_header("authorization", "Bearer token-123")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"ok":true}"#)
+        .create();
 
     env.command_with_api_base_url(&server.url())
         .current_dir(&repo)
