@@ -1,4 +1,8 @@
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
+import {
+  type LogAttributes,
+  logs,
+  SeverityNumber,
+} from "@opentelemetry/api-logs";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -14,9 +18,14 @@ import {
 
 const DEFAULT_COLLECTOR_ENDPOINT = "http://127.0.0.1:54318";
 const instrumentationStateKey = Symbol.for("everr.web.node.otel.state");
+type NodeInstrumentationState = ReturnType<typeof startNodeInstrumentation>;
 
-if (!globalThis[instrumentationStateKey]) {
-  globalThis[instrumentationStateKey] = startNodeInstrumentation();
+const instrumentationGlobal = globalThis as typeof globalThis & {
+  [instrumentationStateKey]?: NodeInstrumentationState;
+};
+
+if (!instrumentationGlobal[instrumentationStateKey]) {
+  instrumentationGlobal[instrumentationStateKey] = startNodeInstrumentation();
 }
 
 function startNodeInstrumentation() {
@@ -61,12 +70,15 @@ function startNodeInstrumentation() {
   process.once("unhandledRejection", handleUnhandledRejection);
   process.once("uncaughtException", handleUncaughtException);
 
-  function handleUnhandledRejection(reason) {
+  function handleUnhandledRejection(reason: unknown) {
     emitNodeError(reason, "process.unhandledRejection");
     crashAfterFlush(reason);
   }
 
-  function handleUncaughtException(error, origin) {
+  function handleUncaughtException(
+    error: Error,
+    origin: NodeJS.UncaughtExceptionOrigin,
+  ) {
     emitNodeError(error, "process.uncaughtException", {
       "exception.origin": origin,
     });
@@ -74,7 +86,7 @@ function startNodeInstrumentation() {
     crashAfterFlush(error);
   }
 
-  function crashAfterFlush(reason) {
+  function crashAfterFlush(reason: unknown) {
     if (fatalErrorInProgress) {
       return;
     }
@@ -94,7 +106,11 @@ function startNodeInstrumentation() {
     });
   }
 
-  function emitNodeError(reason, source, extraAttributes = {}) {
+  function emitNodeError(
+    reason: unknown,
+    source: string,
+    extraAttributes: LogAttributes = {},
+  ) {
     const attributes = getExceptionAttributes(reason);
 
     errorLogger.emit({

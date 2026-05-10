@@ -6,16 +6,8 @@ import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 
 const DEFAULT_LOCAL_OTEL_ENDPOINT = "http://127.0.0.1:54318";
-const NODE_INSTRUMENTATION_MODULE = new URL(
-  "src/instrumentation.node.mjs",
-  import.meta.url,
-).href;
 
-const config = defineConfig(async ({ command, mode }) => {
-  if (command === "serve" && mode === "development") {
-    await import(NODE_INSTRUMENTATION_MODULE);
-  }
-
+const config = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const browserTelemetryEnabled = mode === "development";
   const browserTelemetryEndpoint = browserTelemetryEnabled

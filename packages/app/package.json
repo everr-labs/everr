@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS=\"--import ./src/instrumentation.node.mjs ${NODE_OPTIONS:-}\" vite dev",
-    "watch": "NODE_OPTIONS=\"--import ./src/instrumentation.node.mjs ${NODE_OPTIONS:-}\" vite dev",
+    "dev": "NODE_OPTIONS=\"--import ./src/instrumentation.node.ts ${NODE_OPTIONS:-}\" vite dev",
+    "watch": "NODE_OPTIONS=\"--import ./src/instrumentation.node.ts ${NODE_OPTIONS:-}\" vite dev",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --coverage",
