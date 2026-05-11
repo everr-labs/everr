@@ -87,9 +87,6 @@ type MainCommand =
   | "trigger_test_notification"
   | "get_build_info"
   | "get_runs_list"
-  | "get_unseen_trace_ids"
-  | "mark_all_runs_seen"
-  | "mark_run_seen"
   | "open_run_in_browser"
   | "copy_run_auto_fix_prompt";
 
@@ -99,7 +96,6 @@ type RenderMainOptions = {
   testNotification?: TestNotificationResponse;
   pendingSignIn?: PendingSignIn | null;
   runs?: RunListItem[];
-  unseenTraceIds?: string[];
   commandOverrides?: Partial<Record<MainCommand, (args: unknown) => unknown>>;
 };
 
@@ -169,15 +165,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
     () => options.testNotification ?? { status: "shown" },
   );
   let runs = options.runs ?? [];
-  let unseenTraceIds = options.unseenTraceIds ?? [];
-  const markRunSeenSpy = vi.fn((payload: { traceId?: string }) => {
-    unseenTraceIds = unseenTraceIds.filter((id) => id !== payload.traceId);
-    return null;
-  });
-  const markAllRunsSeenSpy = vi.fn(() => {
-    unseenTraceIds = [];
-    return null;
-  });
 
   mockWindows("main");
   mockIPC(
@@ -237,12 +224,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
           };
         case "get_runs_list":
           return runs;
-        case "get_unseen_trace_ids":
-          return unseenTraceIds;
-        case "mark_all_runs_seen":
-          return markAllRunsSeenSpy();
-        case "mark_run_seen":
-          return markRunSeenSpy(payload as { traceId?: string });
         case "open_run_in_browser":
           return null;
         case "copy_run_auto_fix_prompt":
@@ -260,13 +241,8 @@ function renderMainApp(options: RenderMainOptions = {}) {
     openSignInBrowserSpy,
     resetDevOnboardingSpy,
     triggerTestNotificationSpy,
-    markAllRunsSeenSpy,
-    markRunSeenSpy,
     setRuns(next: RunListItem[]) {
       runs = next;
-    },
-    setUnseenTraceIds(next: string[]) {
-      unseenTraceIds = next;
     },
   };
 }
@@ -663,37 +639,6 @@ describe("runs list", () => {
     expect(screen.getByText("release/v2")).toBeInTheDocument();
     expect(screen.getByText("failure")).toBeInTheDocument();
     expect(screen.getByText("success")).toBeInTheDocument();
-  });
-
-  it("shows 'Mark all as read' button when there are unseen runs", async () => {
-    const run = createRun({ traceId: "trace-unseen" });
-    const harness = renderMainApp({
-      runs: [run],
-      unseenTraceIds: ["trace-unseen"],
-    });
-
-    const markAllButton = await screen.findByRole("button", {
-      name: "Mark all as read",
-    });
-    expect(markAllButton).toBeInTheDocument();
-
-    fireEvent.click(markAllButton);
-
-    await waitFor(() => {
-      expect(harness.markAllRunsSeenSpy).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("does not show 'Mark all as read' when all runs are seen", async () => {
-    renderMainApp({
-      runs: [createRun()],
-      unseenTraceIds: [],
-    });
-
-    await screen.findByText("CI");
-    expect(
-      screen.queryByRole("button", { name: "Mark all as read" }),
-    ).not.toBeInTheDocument();
   });
 });
 
