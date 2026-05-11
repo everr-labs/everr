@@ -1,13 +1,8 @@
-if (process.env.NODE_ENV === "development") {
-  await import("./instrumentation");
-}
-
 import {
   createStartHandler,
   defaultStreamHandler,
   defineHandlerCallback,
 } from "@tanstack/react-start/server";
-import { createServerEntry } from "@tanstack/react-start/server-entry";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "@/db/client";
 
@@ -19,6 +14,8 @@ const handler = defineHandlerCallback((ctx) => {
   return defaultStreamHandler(ctx);
 });
 
-const fetch = createStartHandler(handler);
+const startFetch = createStartHandler(handler);
 
-export default createServerEntry({ fetch });
+export default {
+  fetch: (...args: Parameters<typeof startFetch>) => startFetch(...args),
+};

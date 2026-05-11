@@ -2,7 +2,11 @@ import { apiKey } from "@better-auth/api-key";
 import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 import {
   bearer,
   deviceAuthorization,
@@ -11,8 +15,12 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { invitation, member, user } from "@/db/schema";
+import { deviceCode, invitation, member, user } from "@/db/schema";
 import { env } from "@/env";
+import {
+  getDeviceApprovalUserCode,
+  getDeviceTokenCode,
+} from "@/lib/auth-context-body";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
 import {
@@ -20,6 +28,11 @@ import {
   provisionSqlApiOrgUser,
   upsertTenantRetention,
 } from "@/lib/clickhouse";
+import {
+  getActiveOrganizationIdFromAuthSession,
+  getDeviceOrgIdFromScope,
+  withDeviceOrgScope,
+} from "@/lib/device-org-scope";
 import {
   sendInvitationEmail,
   sendPasswordResetEmail,
@@ -38,6 +51,40 @@ type PolarSubscriptionPayload = {
   createdAt: Date;
   customer: { externalId?: string | null };
 };
+
+async function getMarkedDeviceOrganizationId(
+  session: { userId: string },
+  context: unknown,
+) {
+  const deviceCodeValue = getDeviceTokenCode(context);
+  if (!deviceCodeValue) {
+    return null;
+  }
+
+  const deviceCodeRecord = await db
+    .select({ scope: deviceCode.scope })
+    .from(deviceCode)
+    .where(eq(deviceCode.deviceCode, deviceCodeValue))
+    .limit(1);
+
+  const organizationId = getDeviceOrgIdFromScope(deviceCodeRecord[0]?.scope);
+  if (!organizationId) {
+    return null;
+  }
+
+  const membership = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(
+      and(
+        eq(member.userId, session.userId),
+        eq(member.organizationId, organizationId),
+      ),
+    )
+    .limit(1);
+
+  return membership[0]?.organizationId ?? null;
+}
 
 async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
   const orgId = data.customer.externalId;
@@ -109,18 +156,25 @@ export const auth = betterAuth({
     },
     session: {
       create: {
-        before: async (session) => {
-          // Look for an existing membership to set as active org.
-          const existingMembership = await db
-            .select({
-              organizationId: member.organizationId,
-            })
-            .from(member)
-            .where(eq(member.userId, session.userId))
-            .limit(1);
+        before: async (session, context) => {
+          let activeOrganizationId = await getMarkedDeviceOrganizationId(
+            session,
+            context,
+          );
 
-          let activeOrganizationId =
-            existingMembership[0]?.organizationId ?? null;
+          // Look for an existing membership to set as active org.
+          if (!activeOrganizationId) {
+            const existingMembership = await db
+              .select({
+                organizationId: member.organizationId,
+              })
+              .from(member)
+              .where(eq(member.userId, session.userId))
+              .limit(1);
+
+            activeOrganizationId =
+              existingMembership[0]?.organizationId ?? null;
+          }
 
           // If the user has no org (fresh signup, not via invite),
           // create a personal org so the session starts with one.
@@ -175,6 +229,61 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    {
+      id: "cli-device-organization",
+      hooks: {
+        before: [
+          {
+            matcher: (context) => context.path === "/device/approve",
+            handler: createAuthMiddleware(async (context) => {
+              const userCode = getDeviceApprovalUserCode(context);
+              if (!userCode) {
+                return { context };
+              }
+
+              const browserSession = await getSessionFromCtx(context);
+              const activeOrganizationId =
+                getActiveOrganizationIdFromAuthSession(browserSession);
+              if (!activeOrganizationId) {
+                return { context };
+              }
+
+              try {
+                const deviceCodeRecord = await db
+                  .select({ id: deviceCode.id, scope: deviceCode.scope })
+                  .from(deviceCode)
+                  .where(eq(deviceCode.userCode, userCode))
+                  .limit(1);
+
+                const record = deviceCodeRecord[0];
+                if (!record) {
+                  return { context };
+                }
+
+                await db
+                  .update(deviceCode)
+                  .set({
+                    scope: withDeviceOrgScope(
+                      record.scope,
+                      activeOrganizationId,
+                    ),
+                  })
+                  .where(eq(deviceCode.id, record.id));
+              } catch (error) {
+                // Marking the device code with the active org is purely an
+                // enhancement; never let a DB failure break /device/approve.
+                console.error(
+                  "[cli-device-organization] failed to mark device code",
+                  { error },
+                );
+              }
+
+              return { context };
+            }),
+          },
+        ],
+      },
+    },
     organizationPlugin({
       sendInvitationEmail: async (data) => {
         sendInvitationEmail({

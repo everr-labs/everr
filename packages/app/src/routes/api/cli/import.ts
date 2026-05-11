@@ -3,12 +3,14 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
+import { auth } from "@/lib/auth.server";
 import {
   backfillRepo,
   listInstallationRepos,
 } from "@/server/github-events/backfill";
 
 const BodySchema = z.object({ repos: z.array(z.string().min(1)).min(1) });
+const IMPORT_MANAGER_ROLES = new Set(["admin", "owner"]);
 
 export const Route = createFileRoute("/api/cli/import")({
   server: {
@@ -22,6 +24,19 @@ export const Route = createFileRoute("/api/cli/import")({
           );
         }
 
+        const { session, user } = context.session;
+        const org = await auth.api.getFullOrganization({
+          headers: request.headers,
+          query: { organizationId: session.activeOrganizationId },
+        });
+        const currentMember = org?.members.find((m) => m.userId === user.id);
+        if (!IMPORT_MANAGER_ROLES.has(currentMember?.role ?? "")) {
+          return Response.json(
+            { error: "only organization admins can import workflow history" },
+            { status: 403 },
+          );
+        }
+
         const installations = await db
           .select({
             installationId:
@@ -32,7 +47,7 @@ export const Route = createFileRoute("/api/cli/import")({
           .where(
             eq(
               githubInstallationOrganizations.organizationId,
-              context.session.session.activeOrganizationId,
+              session.activeOrganizationId,
             ),
           );
         const activeInstallation = installations.find(
@@ -57,7 +72,7 @@ export const Route = createFileRoute("/api/cli/import")({
             try {
               for await (const _ of backfillRepo(
                 activeInstallation.installationId,
-                context.session.session.activeOrganizationId,
+                session.activeOrganizationId,
                 repo,
               )) {
               }

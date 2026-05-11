@@ -13,7 +13,7 @@ Use this skill when a local app or command needs to emit telemetry into Everr be
 2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
 3. Run `everr local endpoint` and use that OTLP/HTTP URL in exporters.
 4. Check whether the app already has OpenTelemetry before adding packages.
-5. Add the smallest standard OTel setup for the stack when instrumentation is missing.
+5. Add the smallest standard OTel setup for the stack when instrumentation is missing, including automatic error capture for JavaScript runtimes.
 6. Trigger the instrumented path and verify fresh rows with `everr local query`.
 7. Do not claim setup works until Everr shows the new signal.
 
@@ -27,6 +27,8 @@ Use this skill when a local app or command needs to emit telemetry into Everr be
 | Verify telemetry arrived | `everr local query "<SQL>"` |
 | Capture build or lint output | `everr wrap -- <command>` |
 
+`everr local query` accepts ClickHouse-style SQL against the local telemetry store.
+
 ## Runtime App Setup
 
 OpenTelemetry clients can export directly to the local collector. No Everr wrapper is needed for instrumented runtime services.
@@ -35,14 +37,14 @@ Do not configure runtime traces or high-volume debug logs to print to stdout/std
 
 When OpenTelemetry is missing:
 - Inspect the app framework and dependencies first.
-- Add the SDK, `service.name`, auto-instrumentations when available, and an OTLP/HTTP exporter.
+- Add the SDK, `service.name`, auto-instrumentations when available, automatic error capture, and an OTLP/HTTP exporter.
 - Configure the exporter endpoint from `everr local endpoint`.
 - Add spans around entry points and I/O boundaries when auto-instrumentation is not enough.
 - Trigger the instrumented path, then verify rows with `everr local query`.
 
 ## JavaScript Auto-Instrumentation
 
-Use auto-instrumentation first for JavaScript, then add manual spans or logs only where the automatic spans do not answer the debugging question.
+Use auto-instrumentation first for JavaScript. Treat runtime error capture as part of that baseline setup: uncaught exceptions, unhandled rejections, and browser global errors should emit structured OTel logs by default. Then add manual spans or logs only where the automatic spans and error logs do not answer the debugging question.
 
 For Node.js services:
 - Prefer `@opentelemetry/auto-instrumentations-node` with `@opentelemetry/sdk-node`.
@@ -50,13 +52,21 @@ For Node.js services:
 - Set `OTEL_SERVICE_NAME=<clear-local-service-name>` and `OTEL_EXPORTER_OTLP_ENDPOINT=<endpoint-from-everr-local-endpoint>` when using environment configuration.
 - If configuring exporters in code, send traces to `<endpoint>/v1/traces`, logs to `<endpoint>/v1/logs`, and metrics to `<endpoint>/v1/metrics`.
 - Disable noisy instrumentations, such as filesystem spans, when they bury the request or job signal.
+- Include structured error logging for `uncaughtException` and `unhandledRejection`. Flush before preserving crash behavior; do not swallow fatal errors.
 
 For browser apps:
 - Browser OpenTelemetry is less mature than Node.js. Keep the setup dev/test gated and do not ship the local collector URL in production bundles.
 - Use `@opentelemetry/sdk-trace-web`, an OTLP HTTP exporter, `BatchSpanProcessor`, `@opentelemetry/instrumentation`, and `registerInstrumentations`.
 - Start with document load, user interaction, XHR, and fetch instrumentation when relevant to the app. Add `@opentelemetry/context-zone` when browser async context needs to propagate across callbacks.
+- Include structured error logging for `window.error` and `window.unhandledrejection` in the same dev/test bootstrap.
 - Use HTTP/protobuf or HTTP/JSON exporters only. Browser gRPC export is not supported.
 - Check browser devtools for CORS or CSP errors when spans do not reach the collector.
+
+## Dev Start Feedback Loop
+
+Verify telemetry with the default dev start commands for the project. A setup is not done just because instrumentation was added or a custom startup command works.
+
+Keep the feedback loop tight: start the app normally, trigger the relevant path, query fresh `otel_traces` or `otel_logs`, and adjust the setup until data arrives.
 
 ## JavaScript Errors
 
