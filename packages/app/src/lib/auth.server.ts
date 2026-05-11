@@ -356,9 +356,15 @@ export const auth = betterAuth({
     // schema declares `schema` non-optional, so calling deviceAuthorization()
     // without args fails parse with "expected nonoptional, received undefined".
     deviceAuthorization({ schema: {} }),
-    apiKey({
-      references: "user",
-    }),
+    apiKey([
+      { configId: "cli", references: "user", defaultPrefix: "cli_" },
+      {
+        configId: "ingest",
+        references: "organization",
+        defaultPrefix: "ek_",
+        requireName: true,
+      },
+    ]),
     bearer(),
     polar({
       client: polarClient,

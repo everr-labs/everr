@@ -5,9 +5,17 @@ import { clickhouseEnv } from "./clickhouse";
 import { dbEnv } from "./db";
 import { githubEnv } from "./github";
 import { githubEventsEnv } from "./github-events";
+import { ingestEnv } from "./ingest";
 
 export const env = createEnv({
-  extends: [dbEnv, clickhouseEnv, githubEnv, authEnv, githubEventsEnv],
+  extends: [
+    dbEnv,
+    clickhouseEnv,
+    githubEnv,
+    authEnv,
+    githubEventsEnv,
+    ingestEnv,
+  ],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
     // TODO: Resend API key is required only in production, so we should make it optional in non-production environments by using createFinalSchema
