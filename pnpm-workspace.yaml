@@ -7,7 +7,7 @@ catalog:
   '@icons-pack/react-simple-icons': ^13.13.0
   '@t3-oss/env-core': ^0.13.11
   '@tailwindcss/vite': ^4.3.0
-  '@tanstack/react-query': ^5.100.9
+  '@tanstack/react-query': ^5.100.10
   '@types/react': ^19.2.14
   '@types/react-dom': ^19.2.3
   '@vitejs/plugin-react': ^6.0.1
@@ -19,7 +19,7 @@ catalog:
   recharts: "^2.15.4"
   tailwindcss: ^4.3.0
   typescript: ^6.0.3
-  vite: ^8.0.11
+  vite: ^8.0.12
   zod: ^4.4.3
 
 onlyBuiltDependencies:

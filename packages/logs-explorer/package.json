@@ -16,12 +16,12 @@
     "@everr/datemath": "workspace:*",
     "@everr/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
-    "@tanstack/react-router": "1.169.2",
+    "@tanstack/react-router": "1.169.8",
     "ansi-to-react": "^6.2.6",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-virtuoso": "^4.18.6",
+    "react-virtuoso": "^4.18.7",
     "recharts": "catalog:",
     "zod": "catalog:"
   },
@@ -32,6 +32,6 @@
     "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.6"
   }
 }

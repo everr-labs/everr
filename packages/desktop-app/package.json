@@ -27,7 +27,7 @@
     "@everr/logs-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
-    "@tanstack/react-router": "1.169.2",
+    "@tanstack/react-router": "1.169.8",
     "@tauri-apps/api": "^2.11.0",
     "lucide-react": "catalog:",
     "react": "catalog:",
@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
-    "@tanstack/react-router-devtools": "1.166.13",
+    "@tanstack/react-router-devtools": "1.166.19",
     "@tauri-apps/cli": "^2.11.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
