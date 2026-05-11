@@ -5,11 +5,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
-import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "@tanstack/react-router";
 import { Bell, CircleUser, Code, LogOut, Settings } from "lucide-react";
-import { invokeCommand, SEEN_RUNS_CHANGED_EVENT } from "@/lib/tauri";
-import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { useAuthStatusQuery, useSignOutMutation } from "../auth/auth";
 
 export function AppShell() {
@@ -60,19 +57,6 @@ function SidebarLink({
 }
 
 function NotificationsLink() {
-  useInvalidateOnTauriEvent(SEEN_RUNS_CHANGED_EVENT, (queryClient) => {
-    void queryClient.invalidateQueries({
-      queryKey: ["desktop-app", "unseen-trace-ids"],
-    });
-  });
-
-  const unseenQuery = useQuery({
-    queryKey: ["desktop-app", "unseen-trace-ids"] as const,
-    queryFn: () => invokeCommand<string[]>("get_unseen_trace_ids"),
-  });
-
-  const unreadCount = unseenQuery.data?.length ?? 0;
-
   return (
     <Link
       to="/"
@@ -80,11 +64,6 @@ function NotificationsLink() {
       className="relative flex size-9 items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)] [&.active]:bg-white/[0.08] [&.active]:text-[var(--settings-text)]"
     >
       <Bell className="size-[18px]" />
-      {unreadCount > 0 && (
-        <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[0.6rem] font-semibold leading-none text-primary-foreground">
-          {unreadCount > 9 ? "9+" : unreadCount}
-        </span>
-      )}
     </Link>
   );
 }

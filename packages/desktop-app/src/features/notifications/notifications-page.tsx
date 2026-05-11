@@ -1,5 +1,4 @@
 import { resolve } from "@everr/datemath";
-import { Button } from "@everr/ui/components/button";
 import {
   Empty,
   EmptyDescription,
@@ -20,14 +19,10 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Clipboard, Workflow } from "lucide-react";
 import { useRef, useState } from "react";
-import {
-  invokeCommand,
-  NOTIFIER_CHECKED_EVENT,
-  SEEN_RUNS_CHANGED_EVENT,
-} from "@/lib/tauri";
+import { invokeCommand, NOTIFIER_CHECKED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { formatNotificationRelativeTime } from "../../notification-time";
-import { runsListQueryKey, unseenTraceIdsQueryKey } from "./query-keys";
+import { runsListQueryKey } from "./query-keys";
 
 type RunListItem = {
   traceId: string;
@@ -55,14 +50,6 @@ function getRunsList(timeRange: TimeRange) {
   });
 }
 
-function getUnseenTraceIds() {
-  return invokeCommand<string[]>("get_unseen_trace_ids");
-}
-
-function markAllRunsSeen() {
-  return invokeCommand<void>("mark_all_runs_seen");
-}
-
 export function NotificationsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>({
     from: "now-1h",
@@ -72,29 +59,13 @@ export function NotificationsPage() {
     void qc.invalidateQueries({ queryKey: runsListQueryKey });
   });
 
-  useInvalidateOnTauriEvent(SEEN_RUNS_CHANGED_EVENT, (qc) => {
-    void qc.invalidateQueries({ queryKey: unseenTraceIdsQueryKey });
-  });
-
   const runsQuery = useQuery({
     queryKey: [...runsListQueryKey, timeRange.from, timeRange.to],
     queryFn: () => getRunsList(timeRange),
     refetchOnWindowFocus: true,
   });
 
-  const unseenQuery = useQuery({
-    queryKey: unseenTraceIdsQueryKey,
-    queryFn: getUnseenTraceIds,
-    refetchOnWindowFocus: true,
-  });
-
-  const markAllReadMutation = useMutation({
-    mutationFn: markAllRunsSeen,
-  });
-
   const runs = runsQuery.data ?? [];
-  const unseenSet = new Set(unseenQuery.data ?? []);
-  const hasUnread = unseenSet.size > 0;
 
   return (
     <div className="pt-8">
@@ -108,15 +79,6 @@ export function NotificationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {hasUnread && (
-            <Button
-              variant="outline"
-              disabled={markAllReadMutation.isPending}
-              onClick={() => void markAllReadMutation.mutateAsync()}
-            >
-              Mark all as read
-            </Button>
-          )}
           <TimeRangePicker value={timeRange} onChange={setTimeRange} />
         </div>
       </div>
@@ -147,8 +109,7 @@ export function NotificationsPage() {
           <table className="w-full text-left text-[0.78rem] table-fixed">
             <thead>
               <tr className="border-b border-white/[0.06] text-[0.7rem] font-medium uppercase tracking-wider text-[var(--settings-text-muted)]">
-                <th className="w-8 py-2 pl-5 pr-1 font-medium" />
-                <th className="py-2 px-2 font-medium">Workflow</th>
+                <th className="py-2 pl-5 pr-2 font-medium">Workflow</th>
                 <th className="py-2 px-2 font-medium">Repository</th>
                 <th className="py-2 px-2 font-medium">Branch</th>
                 <th className="py-2 px-2 font-medium">Commit</th>
@@ -159,11 +120,7 @@ export function NotificationsPage() {
             </thead>
             <tbody>
               {runs.map((run) => (
-                <RunRow
-                  key={run.traceId}
-                  run={run}
-                  unseen={unseenSet.has(run.traceId)}
-                />
+                <RunRow key={run.traceId} run={run} />
               ))}
             </tbody>
           </table>
@@ -186,7 +143,7 @@ function conclusionBadgeClass(conclusion: string): string {
   }
 }
 
-function RunRow({ run, unseen }: { run: RunListItem; unseen: boolean }) {
+function RunRow({ run }: { run: RunListItem }) {
   const relativeTime = formatNotificationRelativeTime(run.timestamp);
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -206,26 +163,9 @@ function RunRow({ run, unseen }: { run: RunListItem; unseen: boolean }) {
       invokeCommand<void>("open_run_in_browser", { traceId: run.traceId }),
   });
 
-  const markSeenMutation = useMutation({
-    mutationFn: () =>
-      invokeCommand<void>("mark_run_seen", { traceId: run.traceId }),
-  });
-
   return (
-    <tr
-      className="border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]"
-      onMouseEnter={() => {
-        if (unseen) void markSeenMutation.mutateAsync();
-      }}
-    >
-      <td className="py-2 pl-5 pr-1">
-        {unseen ? (
-          <span className="block size-2 rounded-full bg-red-500" />
-        ) : (
-          <span className="block size-2" />
-        )}
-      </td>
-      <td className="py-2 px-2 font-medium truncate">
+    <tr className="border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]">
+      <td className="py-2 pl-5 pr-2 font-medium truncate">
         <button
           type="button"
           className="cursor-pointer truncate max-w-full text-left text-[var(--settings-text)] hover:underline disabled:opacity-50 disabled:no-underline"

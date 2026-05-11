@@ -23,7 +23,6 @@ import {
 import {
   notificationEmailsQueryKey,
   runsListQueryKey,
-  unseenTraceIdsQueryKey,
   userProfileQueryKey,
 } from "../notifications/query-keys";
 
@@ -113,7 +112,6 @@ function clearNotificationSettingsCache(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: notificationEmailsQueryKey });
   queryClient.removeQueries({ queryKey: userProfileQueryKey });
   queryClient.removeQueries({ queryKey: runsListQueryKey });
-  queryClient.removeQueries({ queryKey: unseenTraceIdsQueryKey });
 }
 
 export function useAuthStatusQuery() {
