@@ -12,12 +12,9 @@ const Ansi =
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 export interface LogRowProps {
-  index: number;
   log: LogExplorerRow;
   rowKey: string;
   isSelected: boolean;
-  isInRange: boolean;
-  onMouseDown: (index: number) => void;
   onSelect: (log: LogExplorerRow, key: string) => void;
 }
 
@@ -26,12 +23,9 @@ function levelAccentClassName(level: LogExplorerRow["level"]) {
 }
 
 export const LogRow = memo(function LogRow({
-  index,
   log,
   rowKey,
   isSelected,
-  isInRange,
-  onMouseDown,
   onSelect,
 }: LogRowProps) {
   return (
@@ -39,12 +33,10 @@ export const LogRow = memo(function LogRow({
     <div
       role="button"
       tabIndex={0}
-      data-log-index={index}
       className={cn(
         "relative group grid w-full cursor-default grid-cols-[86px_minmax(0,1fr)] items-start text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 md:grid-cols-[112px_minmax(0,1fr)]",
         isSelected && "bg-muted/70 hover:bg-muted/70",
       )}
-      onMouseDown={() => onMouseDown(index)}
       onClick={() => onSelect(log, rowKey)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -66,9 +58,7 @@ export const LogRow = memo(function LogRow({
         </span>
       </div>
 
-      <div
-        className={cn("min-w-0 px-3 pr-9 py-0.5", isInRange && "bg-primary/20")}
-      >
+      <div className="min-w-0 px-3 pr-9 py-0.5">
         <div className="select-text whitespace-pre-wrap break-words font-mono text-[0.75rem] leading-4 min-h-4 text-foreground">
           <Ansi useClasses>{log.body}</Ansi>
         </div>
