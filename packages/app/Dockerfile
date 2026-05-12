@@ -8,6 +8,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/app/package.json ./packages/app/
 COPY packages/datemath/package.json ./packages/datemath/
 COPY packages/ui/package.json ./packages/ui/
+COPY packages/logs-explorer/package.json ./packages/logs-explorer/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
 
@@ -15,6 +16,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 FROM deps AS build
 COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
+COPY packages/logs-explorer ./packages/logs-explorer
 COPY packages/app ./packages/app
 RUN pnpm --filter @everr/app build
 
