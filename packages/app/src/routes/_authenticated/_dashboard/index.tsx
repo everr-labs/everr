@@ -11,20 +11,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
   ChartLine,
-  Check,
   ChevronRight,
-  Copy,
   Download,
   FileText,
   FlaskConical,
   GitBranch,
   Terminal,
 } from "lucide-react";
-import { type ComponentType, type ReactNode, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
 import {
   DESKTOP_DOWNLOAD_URL,
   INSTALL_COMMAND,
 } from "@/common/install-command";
+import { InstallCommandBlock } from "@/components/install-command-block";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/")({
   staticData: { breadcrumb: "Home", hideTimeRangePicker: true },
@@ -47,80 +46,59 @@ function HomePage() {
       <InstallEverrCard />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <SectionCard
-          title="Runs"
-          description="Browse every workflow run"
-          icon={Activity}
+        <Link
+          to="/runs"
+          search={{
+            page: 1,
+            repos: [],
+            branches: [],
+            conclusions: [],
+            workflowNames: [],
+            runId: undefined,
+          }}
+          className="block h-full"
         >
-          <Link
-            to="/runs"
-            search={{
-              page: 1,
-              repos: [],
-              branches: [],
-              conclusions: [],
-              workflowNames: [],
-              runId: undefined,
-            }}
-            className="absolute inset-0"
-            aria-label="Go to Runs"
+          <SectionCard
+            title="Runs"
+            description="Browse every workflow run"
+            icon={Activity}
           />
-        </SectionCard>
-        <SectionCard
-          title="Workflows"
-          description="Drill into workflows by repo"
-          icon={GitBranch}
-        >
-          <Link
-            to="/workflows"
-            className="absolute inset-0"
-            aria-label="Go to Workflows"
+        </Link>
+        <Link to="/workflows" className="block h-full">
+          <SectionCard
+            title="Workflows"
+            description="Drill into workflows by repo"
+            icon={GitBranch}
           />
-        </SectionCard>
-        <SectionCard
-          title="Repositories"
-          description="Health and stats per repository"
-          icon={SiGithub}
-        >
-          <Link
-            to="/repos"
-            className="absolute inset-0"
-            aria-label="Go to Repositories"
+        </Link>
+        <Link to="/repos" className="block h-full">
+          <SectionCard
+            title="Repositories"
+            description="Health and stats per repository"
+            icon={SiGithub}
           />
-        </SectionCard>
-        <SectionCard
-          title="Logs"
-          description="Search logs across runs"
-          icon={FileText}
-        >
-          <Link
-            to="/logs"
-            className="absolute inset-0"
-            aria-label="Go to Logs"
+        </Link>
+        <Link to="/logs" className="block h-full">
+          <SectionCard
+            title="Logs"
+            description="Search logs across runs"
+            icon={FileText}
           />
-        </SectionCard>
-        <SectionCard
-          title="Tests"
-          description="Spot flaky and slow tests"
-          icon={FlaskConical}
-        >
-          <Link
-            to="/tests-overview"
-            className="absolute inset-0"
-            aria-label="Go to Tests"
+        </Link>
+        <Link to="/tests-overview" className="block h-full">
+          <SectionCard
+            title="Tests"
+            description="Spot flaky and slow tests"
+            icon={FlaskConical}
           />
-        </SectionCard>
-        <SectionCard
-          title="Cost analysis"
-          description="See where CI minutes go"
-          icon={ChartLine}
-        >
-          <Link
-            to="/cost-analysis"
-            className="absolute inset-0"
-            aria-label="Go to Cost Analysis"
+        </Link>
+        <Link to="/cost-analysis" className="block h-full">
+          <SectionCard
+            title="Cost analysis"
+            description="See where CI minutes go"
+            icon={ChartLine}
           />
-        </SectionCard>
+        </Link>
       </div>
     </div>
   );
@@ -130,15 +108,13 @@ function SectionCard({
   title,
   description,
   icon: Icon,
-  children,
 }: {
   title: string;
   description: string;
   icon: ComponentType<{ className?: string }>;
-  children: ReactNode;
 }) {
   return (
-    <Card className="group relative h-full transition-colors hover:bg-muted/30">
+    <Card className="group h-full transition-colors hover:bg-muted/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Icon className="size-4 text-primary" />
@@ -149,7 +125,6 @@ function SectionCard({
       <CardContent className="mt-auto flex items-center justify-end pt-2">
         <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
       </CardContent>
-      {children}
     </Card>
   );
 }
@@ -165,70 +140,52 @@ function InstallEverrCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 md:grid-cols-2">
-        <DesktopOption />
-        <CliOption />
+        <InstallOption
+          icon={Download}
+          title="Desktop app"
+          description="Native menu-bar app for macOS (Apple Silicon)."
+        >
+          <Button
+            size="sm"
+            className="self-start"
+            nativeButton={false}
+            // biome-ignore lint/a11y/useAnchorContent: content is supplied by Button's children via base-ui render prop
+            render={<a href={DESKTOP_DOWNLOAD_URL} />}
+          >
+            Download .dmg
+          </Button>
+        </InstallOption>
+        <InstallOption
+          icon={Terminal}
+          title="CLI"
+          description="Cross-platform. Run in your terminal:"
+        >
+          <InstallCommandBlock command={INSTALL_COMMAND} />
+        </InstallOption>
       </CardContent>
     </Card>
   );
 }
 
-function DesktopOption() {
+function InstallOption({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-4">
       <div className="flex items-center gap-2">
-        <Download className="size-4 text-primary" />
-        <span className="text-sm font-medium">Desktop app</span>
+        <Icon className="size-4 text-primary" />
+        <span className="text-sm font-medium">{title}</span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Native menu-bar app for macOS (Apple Silicon).
-      </p>
-      <Button
-        size="sm"
-        className="self-start"
-        nativeButton={false}
-        // biome-ignore lint/a11y/useAnchorContent: content is supplied by Button's children via base-ui render prop
-        render={<a href={DESKTOP_DOWNLOAD_URL} />}
-      >
-        Download .dmg
-      </Button>
-    </div>
-  );
-}
-
-function CliOption() {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    void navigator.clipboard.writeText(INSTALL_COMMAND).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-4">
-      <div className="flex items-center gap-2">
-        <Terminal className="size-4 text-primary" />
-        <span className="text-sm font-medium">CLI</span>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Cross-platform. Run in your terminal:
-      </p>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 font-mono">
-        <code className="flex-1 truncate text-xs">{INSTALL_COMMAND}</code>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Copy install command"
-        >
-          {copied ? (
-            <Check className="size-4 text-green-500" />
-          ) : (
-            <Copy className="size-4" />
-          )}
-        </button>
-      </div>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      {children}
     </div>
   );
 }

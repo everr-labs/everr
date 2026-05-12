@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Bell,
   Check,
-  Copy,
   Loader2,
   SparklesIcon,
   Terminal,
@@ -31,6 +30,7 @@ import {
   OrganizationNameSchema,
 } from "@/common/organization-name";
 import { GithubInstallStep } from "@/components/github-install-step";
+import { InstallCommandBlock } from "@/components/install-command-block";
 import {
   activeOrganizationOptions,
   markOnboardingComplete,
@@ -827,15 +827,6 @@ function AppStep({
   onBack: () => void;
   onFinish: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard.writeText(INSTALL_COMMAND).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
   return (
     <StepContainer title="Install Everr" index={4}>
       <motion.section
@@ -878,19 +869,8 @@ function AppStep({
           <p className="text-xs font-medium tracking-wide text-muted-foreground">
             Run in your terminal
           </p>
-          <div className="mt-3 flex items-center gap-2 border border-border bg-muted/50 px-4 py-3 font-mono text-sm rounded-md">
-            <code className="flex-1 truncate text-xs">{INSTALL_COMMAND}</code>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {copied ? (
-                <Check className="size-4 text-green-400" />
-              ) : (
-                <Copy className="size-4" />
-              )}
-            </button>
+          <div className="mt-3">
+            <InstallCommandBlock command={INSTALL_COMMAND} />
           </div>
         </div>
 
