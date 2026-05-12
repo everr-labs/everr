@@ -6,7 +6,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { SiGithub } from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -69,13 +68,6 @@ function HomePage() {
             title="Workflows"
             description="Drill into workflows by repo"
             icon={GitBranch}
-          />
-        </Link>
-        <Link to="/repos" className="block h-full">
-          <SectionCard
-            title="Repositories"
-            description="Health and stats per repository"
-            icon={SiGithub}
           />
         </Link>
         <Link to="/logs" className="block h-full">
