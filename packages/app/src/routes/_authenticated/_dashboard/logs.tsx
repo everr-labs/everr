@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { FileSearch } from "lucide-react";
 import { z } from "zod";
-import { remoteRepo } from "@/data/logs-explorer/options";
+import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { runJobsOptions } from "@/data/runs/options";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 

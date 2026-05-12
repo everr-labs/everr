@@ -21,7 +21,7 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-virtuoso": "^4.18.7",
+    "react-virtuoso": "^4.18.6",
     "recharts": "catalog:",
     "zod": "catalog:"
   },
@@ -32,6 +32,6 @@
     "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.5"
   }
 }

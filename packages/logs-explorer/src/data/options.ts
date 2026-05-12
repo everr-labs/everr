@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions,infiniteQueryOptions } from "@tanstack/react-query";
 import type {
   LogFilterOptions,
   LogHistogramInput,
@@ -15,7 +15,7 @@ export function logsExplorerInfiniteOptions(
   repo: LogsRepositoryLike,
   input: LogsExplorerInfiniteInput,
 ) {
-  return {
+  return infiniteQueryOptions({
     queryKey: ["logs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
       repo.explorer({ ...input, offset: pageParam }),
@@ -27,7 +27,7 @@ export function logsExplorerInfiniteOptions(
       if (lastPage.logs.length < input.limit) return undefined;
       return allPages.reduce((count, page) => count + page.logs.length, 0);
     },
-  };
+  });
 }
 
 export function logsTotalsOptions(

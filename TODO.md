@@ -11,6 +11,7 @@
 - [**hide-import-for-repos-with-runs**](todo/issues/hide-import-for-repos-with-runs.md) — The everr setup should not show the import option for repositories where we already have runs.
 - [**logs-unavailable-for-in-progress-runs**](todo/issues/logs-unavailable-for-in-progress-runs.md) — —
 - [**migrate-fs2-to-fd-lock**](todo/issues/migrate-fs2-to-fd-lock.md) — —
+- [**move-time-range-schema-out-of-ui-package**](todo/issues/move-time-range-schema-out-of-ui-package.md) — `TimeRangeSchema`, `resolveTimeRange`, and `toClickHouseDateTime` currently live in `packages/ui/src/lib/time-range.ts`. `@everr/ui` is a UI component package and the wrong long-term home for a zod schema and ClickHouse-flavored date helpers — they were parked there to fix a duplication between `packages/app` and `packages/logs-explorer` that arose during the logs-explorer extraction.
 - [**notifications-fire-for-non-pr-jobs**](todo/issues/notifications-fire-for-non-pr-jobs.md) — Notifications are sent for jobs that are not associated with a pull request or merge — only PR/merge jobs should trigger notifications.
 - [**show-logged-in-user-info-desktop**](todo/issues/show-logged-in-user-info-desktop.md) — Display the logged-in user's name and email somewhere in the desktop app UI.
 - [**store-installation-repo-list-in-db**](todo/issues/store-installation-repo-list-in-db.md) — Store the list of installation repositories in the database.
