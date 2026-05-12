@@ -8,6 +8,7 @@ import { AuthenticatedGuard } from "./features/desktop-shell/authenticated-guard
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
 import { SettingsPage } from "./features/desktop-shell/settings-page";
 import { DeveloperPage } from "./features/developer/developer-page";
+import { LogsPage, LogsSearchSchema } from "./features/logs/logs-page";
 import { NotificationsPage } from "./features/notifications/notifications-page";
 import { OnboardingPage } from "./features/onboarding/onboarding-page";
 
@@ -52,12 +53,20 @@ const developerRoute = createRoute({
   component: DeveloperPage,
 });
 
+const logsRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "/logs",
+  validateSearch: LogsSearchSchema,
+  component: LogsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   onboardingRoute,
   authenticatedRoute.addChildren([
     notificationsRoute,
     settingsRoute,
     developerRoute,
+    logsRoute,
   ]),
 ]);
 

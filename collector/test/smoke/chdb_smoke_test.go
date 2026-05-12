@@ -109,6 +109,89 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
+	binary := resolveCollectorBinary(t)
+	if _, err := os.Stat(binary); err != nil {
+		t.Skipf("collector binary not built: %v", err)
+	}
+
+	otlpPort := freeTCPPort(t)
+	healthPort := freeTCPPort(t)
+	sqlPort := freeTCPPort(t)
+	chdbDir := filepath.Join(t.TempDir(), "chdb")
+	cfgPath := filepath.Join(t.TempDir(), "collector.yaml")
+	writeCollectorConfigWithSQL(t, cfgPath, chdbDir, otlpPort, healthPort, sqlPort)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binary, "--config", cfgPath)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start collector: %v", err)
+	}
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+
+	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/", healthPort), 10*time.Second)
+	waitForCollectorLogs(t, otlpPort, cmd, &output)
+
+	// Wait for the row to land before issuing the parameterized query.
+	waitForSQLResponse(
+		t,
+		fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort),
+		`SELECT count() AS c FROM otel_logs`,
+		10*time.Second,
+		func(body string) bool { return strings.Contains(body, `"c":1`) },
+	)
+
+	// Body matches via String param, severity matches via Array(String) param.
+	// Both placeholders must be substituted server-side; chdb must accept the
+	// rendered literal output.
+	sqlURL := fmt.Sprintf(
+		"http://127.0.0.1:%d/sql?param_body=%%22hello%%22&param_levels=%%5B%%22INFO%%22%%5D",
+		sqlPort,
+	)
+	resp, err := http.Post(
+		sqlURL,
+		"text/plain",
+		strings.NewReader(
+			`SELECT count() AS c FROM otel_logs WHERE Body = {body:String} AND SeverityText IN {levels:Array(String)}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("parameterized request: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("parameterized status = %d, body = %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), `"c":1`) {
+		t.Fatalf("expected c:1, got: %s", body)
+	}
+
+	// Missing param surfaces as 400.
+	respMissing, err := http.Post(
+		fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort),
+		"text/plain",
+		strings.NewReader(`SELECT {missing:String}`),
+	)
+	if err != nil {
+		t.Fatalf("missing-param request: %v", err)
+	}
+	_ = respMissing.Body.Close()
+	if respMissing.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing param, got %d", respMissing.StatusCode)
+	}
+}
+
 func resolveCollectorBinary(t *testing.T) string {
 	t.Helper()
 	if env := os.Getenv("EVERR_COLLECTOR_BIN"); env != "" {

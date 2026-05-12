@@ -5,7 +5,7 @@ OS := $(shell uname | tr '[:upper:]' '[:lower:]')
 ARCH := $(shell uname -m)
 
 # Arguments for getting directories & executing commands against them
-PKG_DIRS = $(shell find ./* -not -path "./build/*" -not -path "./tmp/*" -type f -name "go.mod" -exec dirname {} \; | sort | grep -E '^./')
+PKG_DIRS = $(shell find ./* -not -path "./build/*" -not -path "./build-local/*" -not -path "./tmp/*" -type f -name "go.mod" -exec dirname {} \; | sort | grep -E '^./')
 CHECKS = generate fmt-all tidy-all lint-all test-all crosslink
 
 # set ARCH var based on output

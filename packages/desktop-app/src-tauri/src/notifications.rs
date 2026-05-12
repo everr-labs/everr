@@ -40,6 +40,32 @@ macro_rules! dbg_notifier {
     };
 }
 
+/// Build a tracing span whose OTel TraceId is set from the given remote trace
+/// ID hex. Logs emitted while this span is entered are stamped with TraceId at
+/// the OTel layer instead of being shoved into LogAttributes['trace_id'].
+fn span_with_remote_trace(name: &'static str, trace_id_hex: &str) -> tracing::Span {
+    use opentelemetry::trace::{
+        SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState,
+    };
+    use opentelemetry::Context as OtelContext;
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+    let span = tracing::info_span!(target: "notifier", "remote_trace", otel.name = name);
+    if let Ok(trace_id) = TraceId::from_hex(trace_id_hex) {
+        if trace_id != TraceId::INVALID {
+            let span_context = SpanContext::new(
+                trace_id,
+                SpanId::INVALID,
+                TraceFlags::SAMPLED,
+                true,
+                TraceState::default(),
+            );
+            let _ = span.set_parent(OtelContext::new().with_remote_span_context(span_context));
+        }
+    }
+    span
+}
+
 #[cfg(test)]
 pub(crate) fn notification_window_uses_native_panel() -> bool {
     cfg!(target_os = "macos")
@@ -278,11 +304,12 @@ async fn handle_notify_event(
     client: &ApiClient,
     event: NotifyPayload,
 ) -> Result<()> {
+    let span = span_with_remote_trace("notifier.handle_event", &event.trace_id);
+    let _enter = span.enter();
     dbg_notifier!(
         event_type = %event.event_type,
         status = %event.status,
         conclusion = ?event.conclusion,
-        trace_id = %event.trace_id,
         branch = %event.branch,
         workflow = %event.workflow_name,
         "event received"
@@ -324,8 +351,9 @@ pub(crate) fn enqueue_notification(
     state: &RuntimeState,
     notification: FailureNotification,
 ) -> Result<()> {
+    let span = span_with_remote_trace("notifier.enqueue", &notification.trace_id);
+    let _enter = span.enter();
     dbg_notifier!(
-        trace_id = %notification.trace_id,
         repo = %notification.repo,
         workflow = %notification.workflow_name,
         "notification fired"

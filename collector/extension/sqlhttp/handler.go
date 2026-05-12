@@ -7,12 +7,26 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/everr-labs/chdbexporter/chdbhandle"
 	"go.uber.org/zap"
 )
+
+// extractParams returns a name→raw-JSON map for `param_<name>` URL query args.
+func extractParams(values url.Values) map[string]string {
+	out := map[string]string{}
+	for key, vs := range values {
+		if !strings.HasPrefix(key, paramPrefix) || len(vs) == 0 {
+			continue
+		}
+		out[strings.TrimPrefix(key, paramPrefix)] = vs[0]
+	}
+	return out
+}
 
 const maxRequestBody = 64 << 10
 
@@ -57,6 +71,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := ValidateReadOnly(sql); err != nil {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+
+	params := extractParams(r.URL.Query())
+	if len(params) > 0 {
+		substituted, err := substituteParams(sql, params)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		sql = substituted
 	}
 
 	exec := h.exec

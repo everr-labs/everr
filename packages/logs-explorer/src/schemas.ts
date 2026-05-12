@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TimeRangeSchema } from "@/lib/time-range";
+import { TimeRangeSchema } from "./time-range";
 
 export const LogLevelSchema = z.enum([
   "error",
@@ -26,18 +26,15 @@ export const LogsExplorerInputSchema = z.object({
   limit: z.number().int().min(1).max(500).default(200),
   offset: z.number().int().min(0).default(0),
 });
-
 export type LogsExplorerInput = z.infer<typeof LogsExplorerInputSchema>;
 
 export const LogsTotalsInputSchema = z.object(LogsFilterShape);
-
 export type LogsTotalsInput = z.infer<typeof LogsTotalsInputSchema>;
 
 export const LogHistogramInputSchema = z.object({
   ...LogsFilterShape,
   histogramBuckets: z.number().int().min(12).max(240).default(80),
 });
-
 export type LogHistogramInput = z.infer<typeof LogHistogramInputSchema>;
 
 export const LogIdentitySchema = z.object({
@@ -47,7 +44,6 @@ export const LogIdentitySchema = z.object({
   serviceName: z.string(),
   bodyHash: z.string(),
 });
-
 export type LogIdentity = z.infer<typeof LogIdentitySchema>;
 
 export interface LogExplorerRow {

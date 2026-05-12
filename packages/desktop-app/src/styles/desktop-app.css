@@ -1,6 +1,7 @@
 @import "@everr/ui/src/styles/global.css";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
+@source "../../../logs-explorer/src/**/*.{ts,tsx}";
 
 @layer base {
   html,

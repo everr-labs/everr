@@ -73,6 +73,53 @@ func TestHandlerRejectsNonPOST(t *testing.T) {
 	}
 }
 
+func TestHandlerSubstitutesParams(t *testing.T) {
+	h := newTestHandler()
+	var seen string
+	h.exec = func(ctx context.Context, sql string) ([]byte, error) {
+		seen = sql
+		return []byte("{}\n"), nil
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		`/sql?param_q=%22hello%22&param_levels=%5B%22error%22%5D`,
+		strings.NewReader("SELECT * WHERE Body = {q:String} AND Level IN {levels:Array(String)}"),
+	)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (body=%s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	want := "SELECT * WHERE Body = 'hello' AND Level IN ['error']"
+	if seen != want {
+		t.Fatalf("sql = %q, want %q", seen, want)
+	}
+}
+
+func TestHandlerReturnsBadRequestOnMissingParam(t *testing.T) {
+	h := newTestHandler()
+	h.exec = func(ctx context.Context, sql string) ([]byte, error) {
+		t.Fatalf("exec should not be called")
+		return nil, nil
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/sql?param_a=42",
+		strings.NewReader("SELECT {missing:String}"),
+	)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 func TestHandlerHappyPath(t *testing.T) {
 	h := newTestHandler()
 	h.exec = func(ctx context.Context, sql string) ([]byte, error) {
