@@ -8,23 +8,11 @@ use std::time::Duration;
 
 use crate::telemetry::ports::SQL_HTTP_PORT;
 
-pub async fn run_query(sql: String, params: HashMap<String, Value>) -> Result<Vec<Value>> {
-    run_query_against(&default_url(), &sql, &params).await
-}
-
 fn default_url() -> String {
     format!("http://127.0.0.1:{SQL_HTTP_PORT}/sql")
 }
 
-async fn run_query_against(
-    url: &str,
-    sql: &str,
-    params: &HashMap<String, Value>,
-) -> Result<Vec<Value>> {
-    post_sql(url, sql, params).await
-}
-
-async fn post_sql(
+pub async fn post_sql(
     url: &str,
     sql: &str,
     params: &HashMap<String, Value>,
@@ -46,7 +34,7 @@ async fn post_sql(
         .await
         .with_context(|| format!("POST {url}"))?;
     let status = resp.status();
-    let body = resp.text().await.unwrap_or_default();
+    let body = resp.text().await.with_context(|| format!("read response body from {url}"))?;
     match status {
         StatusCode::OK => parse_ndjson(&body),
         StatusCode::SERVICE_UNAVAILABLE => {
@@ -72,7 +60,7 @@ pub async fn telemetry_sql_query(
     sql: String,
     params: Option<HashMap<String, Value>>,
 ) -> Result<Vec<Value>, String> {
-    run_query(sql, params.unwrap_or_default())
+    post_sql(&default_url(), &sql, &params.unwrap_or_default())
         .await
         .map_err(|e| format!("{e:#}"))
 }
@@ -113,15 +101,6 @@ mod tests {
         let (url, _) = spawn_server(503, "");
         let err = post_sql(&url, "SELECT 1", &HashMap::new()).await.unwrap_err();
         assert!(err.to_string().contains("busy"));
-    }
-
-    #[tokio::test]
-    async fn run_query_against_url_returns_rows() {
-        let (url, _) = spawn_server(200, "{\"x\":1}\n");
-        let rows = run_query_against(&url, "SELECT 1", &HashMap::new())
-            .await
-            .unwrap();
-        assert_eq!(rows.len(), 1);
     }
 
     #[tokio::test]
