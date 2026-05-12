@@ -24,6 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { INSTALL_COMMAND } from "@/common/install-command";
 import { OrgMetadataSchema } from "@/common/org-metadata";
 import {
   CreateOrganizationInputSchema,
@@ -533,11 +534,6 @@ function GitHubStep({
     </StepContainer>
   );
 }
-
-const INSTALL_URL = import.meta.env.DEV
-  ? "http://localhost:3000/install-dev.sh"
-  : "https://everr.dev/install.sh";
-const INSTALL_COMMAND = `curl -fsSL ${INSTALL_URL} | sh`;
 
 const APP_FEATURES = [
   {

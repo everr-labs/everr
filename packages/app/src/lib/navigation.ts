@@ -20,14 +20,10 @@ export type NavItem = {
 export const navMain: NavItem[] = [
   {
     title: "CI/CD",
-    url: "/",
+    url: "/runs",
     icon: GitBranch,
     isActive: true,
     items: [
-      {
-        title: "Overview",
-        url: "/",
-      },
       {
         title: "Runs",
         url: "/runs",
