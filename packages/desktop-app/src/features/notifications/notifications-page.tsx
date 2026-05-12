@@ -18,7 +18,7 @@ import {
 } from "@everr/ui/components/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Clipboard, Workflow } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invokeCommand, NOTIFIER_CHECKED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { formatNotificationRelativeTime } from "../../notification-time";
@@ -50,6 +50,15 @@ function getRunsList(timeRange: TimeRange) {
   });
 }
 
+function useNow(tickMs: number) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), tickMs);
+    return () => window.clearInterval(id);
+  }, [tickMs]);
+  return now;
+}
+
 export function NotificationsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>({
     from: "now-1h",
@@ -63,9 +72,12 @@ export function NotificationsPage() {
     queryKey: [...runsListQueryKey, timeRange.from, timeRange.to],
     queryFn: () => getRunsList(timeRange),
     refetchOnWindowFocus: true,
+    staleTime: 0,
+    refetchInterval: 30_000,
   });
 
   const runs = runsQuery.data ?? [];
+  const now = useNow(30_000);
 
   return (
     <div className="pt-8">
@@ -120,7 +132,7 @@ export function NotificationsPage() {
             </thead>
             <tbody>
               {runs.map((run) => (
-                <RunRow key={run.traceId} run={run} />
+                <RunRow key={run.traceId} run={run} now={now} />
               ))}
             </tbody>
           </table>
@@ -143,8 +155,8 @@ function conclusionBadgeClass(conclusion: string): string {
   }
 }
 
-function RunRow({ run }: { run: RunListItem }) {
-  const relativeTime = formatNotificationRelativeTime(run.timestamp);
+function RunRow({ run, now }: { run: RunListItem; now: Date }) {
+  const relativeTime = formatNotificationRelativeTime(run.timestamp, { now });
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
