@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use everr_core::api::{ApiClient, FailureNotification};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use crate::auth::{
     auth_status_response, clear_pending_auth, open_sign_in_browser_inner, pending_auth_response,
@@ -13,7 +13,6 @@ use crate::notifications::{
     dismiss_active_notification_inner, enqueue_notification, open_notification_target_inner,
     reset_notification_state,
 };
-use crate::seen_runs;
 use crate::settings::{
     current_app_state, emit_auth_changed, emit_settings_changed, reset_dev_onboarding_inner,
     update_persisted_state, update_settings, wizard_status_response,
@@ -21,7 +20,7 @@ use crate::settings::{
 use crate::{
     current_base_url, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
     PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
-    WizardStatusResponse, SEEN_RUNS_CHANGED_EVENT,
+    WizardStatusResponse,
 };
 
 #[tauri::command]
@@ -287,49 +286,15 @@ pub(crate) async fn get_runs_list(
 }
 
 #[tauri::command]
-pub(crate) fn get_unseen_trace_ids(state: State<'_, RuntimeState>) -> CommandResult<Vec<String>> {
-    seen_runs::unseen_trace_ids(state.inner()).into_command_result()
-}
-
-#[tauri::command]
-pub(crate) fn mark_run_seen(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-    trace_id: String,
-) -> CommandResult<()> {
-    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
-    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
-    Ok(())
-}
-
-#[tauri::command]
-pub(crate) fn mark_all_runs_seen(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-) -> CommandResult<()> {
-    seen_runs::mark_all_seen(state.inner()).into_command_result()?;
-    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
-    Ok(())
-}
-
-#[tauri::command]
-pub(crate) async fn open_run_in_browser(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-    trace_id: String,
-) -> CommandResult<()> {
+pub(crate) async fn open_run_in_browser(trace_id: String) -> CommandResult<()> {
     let base_url = current_base_url().trim_end_matches('/');
     let url = format!("{}/runs/{}", base_url, trace_id);
     webbrowser::open(&url).map_err(|e| format!("failed to open browser: {e}"))?;
-
-    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
-    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) async fn copy_run_auto_fix_prompt(
-    app: AppHandle,
     state: State<'_, RuntimeState>,
     trace_id: String,
 ) -> CommandResult<()> {
@@ -353,8 +318,6 @@ pub(crate) async fn copy_run_auto_fix_prompt(
         .set_text(prompt)
         .map_err(|e| format!("failed to copy to clipboard: {e}"))?;
 
-    seen_runs::mark_seen(state.inner(), &trace_id).into_command_result()?;
-    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
     Ok(())
 }
 

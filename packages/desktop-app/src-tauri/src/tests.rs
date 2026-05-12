@@ -1,8 +1,5 @@
-use std::sync::{Arc, Mutex};
-
 use everr_core::api::{FailedJobInfo, FailureNotification};
-use everr_core::state::{AppSettings, AppStateStore, WizardState};
-use everr_core::state_watcher::StateWatcher;
+use everr_core::state::{AppSettings, WizardState};
 use tempfile::tempdir;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
@@ -15,25 +12,8 @@ use crate::notifications::{
 use crate::settings::build_wizard_status_response;
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
-    NotificationQueue, NotifierState, RuntimeState, APP_NAME, DEV_APP_NAME,
+    NotificationQueue, APP_NAME, DEV_APP_NAME,
 };
-
-pub(crate) fn test_runtime_state() -> RuntimeState {
-    let temp = tempdir().expect("tempdir");
-    let store = AppStateStore::for_namespace_with_file_name(
-        temp.path().to_str().unwrap(),
-        "test-session.json",
-    );
-    let watcher = StateWatcher::start(store.clone()).expect("state watcher");
-    // Keep tempdir alive by leaking it — tests are short-lived
-    let _ = Box::leak(Box::new(temp));
-    RuntimeState {
-        store,
-        watcher: Arc::new(watcher),
-        notifier: Arc::new(Mutex::new(NotifierState::default())),
-        pending_auth: Arc::new(Mutex::new(None)),
-    }
-}
 
 fn failure(dedupe_key: &str) -> FailureNotification {
     FailureNotification {

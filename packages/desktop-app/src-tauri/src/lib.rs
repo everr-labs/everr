@@ -20,7 +20,6 @@ mod cli;
 mod commands;
 mod crash_log;
 mod notifications;
-mod seen_runs;
 mod settings;
 mod startup;
 pub mod telemetry;
@@ -32,10 +31,10 @@ mod tests;
 use commands::{
     copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt, dismiss_active_notification,
     get_active_notification, get_auth_status, get_build_info, get_notification_emails,
-    get_pending_sign_in, get_runs_list, get_unseen_trace_ids, get_user_profile, get_wizard_status,
-    mark_all_runs_seen, mark_run_seen, open_notification_target, open_run_in_browser,
-    open_sign_in_browser, poll_sign_in, reset_dev_onboarding, set_notification_emails, sign_out,
-    start_sign_in, trigger_test_notification,
+    get_pending_sign_in, get_runs_list, get_user_profile, get_wizard_status,
+    open_notification_target, open_run_in_browser, open_sign_in_browser, poll_sign_in,
+    reset_dev_onboarding, set_notification_emails, sign_out, start_sign_in,
+    trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -47,7 +46,6 @@ const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_HOVER_EVENT: &str = "everr://notification-hover";
-const SEEN_RUNS_CHANGED_EVENT: &str = "everr://seen-runs-changed";
 const NOTIFICATION_EXIT_EVENT: &str = "everr://notification-exit";
 const NOTIFICATION_WINDOW_LABEL: &str = "notification";
 const NOTIFICATION_WINDOW_WIDTH: f64 = 420.0;
@@ -282,9 +280,6 @@ pub fn run() {
             get_build_info,
             get_user_profile,
             get_runs_list,
-            get_unseen_trace_ids,
-            mark_run_seen,
-            mark_all_runs_seen,
             open_run_in_browser,
             copy_run_auto_fix_prompt,
             telemetry::query::telemetry_sql_query

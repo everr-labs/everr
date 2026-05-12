@@ -29,7 +29,7 @@ use crate::{
     current_base_url, NotificationQueue, NotifierState, RuntimeState, NOTIFICATION_CHANGED_EVENT,
     NOTIFICATION_EXIT_EVENT, NOTIFICATION_HOVER_EVENT, NOTIFICATION_WINDOW_HEIGHT,
     NOTIFICATION_WINDOW_INSET, NOTIFICATION_WINDOW_LABEL, NOTIFICATION_WINDOW_MARGIN,
-    NOTIFICATION_WINDOW_WIDTH, SEEN_RUNS_CHANGED_EVENT,
+    NOTIFICATION_WINDOW_WIDTH,
 };
 
 macro_rules! dbg_notifier {
@@ -358,8 +358,6 @@ pub(crate) fn enqueue_notification(
         workflow = %notification.workflow_name,
         "notification fired"
     );
-    crate::seen_runs::add_seen_run(state, &notification.trace_id)?;
-    let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
 
     let active_changed = {
         let mut notifier = state
@@ -380,19 +378,6 @@ pub(crate) fn dismiss_active_notification_inner(
     app: &AppHandle,
     state: &RuntimeState,
 ) -> Result<()> {
-    let dismissed_trace_id = {
-        let notifier = state
-            .notifier
-            .lock()
-            .map_err(|_| anyhow!("failed to lock notifier state"))?;
-        notifier.queue.active().map(|n| n.trace_id.clone())
-    };
-
-    if let Some(trace_id) = &dismissed_trace_id {
-        let _ = crate::seen_runs::mark_seen(state, trace_id);
-        let _ = app.emit(SEEN_RUNS_CHANGED_EVENT, ());
-    }
-
     let active_changed = {
         let mut notifier = state
             .notifier
