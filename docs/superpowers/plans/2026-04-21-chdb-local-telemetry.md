@@ -16,39 +16,39 @@
 
 ### New files — everr repo
 
-| Path | Responsibility |
-|---|---|
-| `collector/extension/sqlhttp/go.mod` | Go module for the extension (OCB loads each component as a module). |
-| `collector/extension/sqlhttp/factory.go` | `NewFactory()` + `createExtension()`. Registers config struct + defaults. |
-| `collector/extension/sqlhttp/config.go` | `Config{ Endpoint string }`. |
-| `collector/extension/sqlhttp/extension.go` | Extension type — opens `chdbhandle`, starts HTTP server, wires the handler, clean shutdown. |
-| `collector/extension/sqlhttp/handler.go` | `POST /sql` handler: read body, run lexer, call `Handle.Do`, cap result at 16 MiB, write response. |
-| `collector/extension/sqlhttp/lexer.go` | Single-pass SQL lexer + `ValidateReadOnly(string) error`. |
-| `collector/extension/sqlhttp/lexer_test.go` | Table-driven tests for the allowlist, `;` guard, string-literal/comment handling, canary injections. |
-| `collector/extension/sqlhttp/handler_test.go` | Handler unit tests with a fake `chdbhandle`. |
-| `collector/extension/sqlhttp/README.md` | One paragraph describing the extension. |
-| `collector/test/smoke/chdb_smoke_test.go` | End-to-end smoke: boot sidecar, POST OTLP, `SELECT` via `/sql`. |
-| `packages/desktop-app/src-cli/src/telemetry/client.rs` | HTTP client — `query(sql, limit) -> Result<Vec<Value>>`. |
-| `packages/desktop-app/src-cli/src/telemetry/sibling.rs` | `.last_flush`-based staleness detection. |
-| `packages/desktop-app/src-cli/tests/telemetry_query_e2e.rs` | CLI e2e: spawn sidecar on random ports, push OTLP, query via CLI. |
-| `packages/desktop-app/src-tauri/src/telemetry/sql_http.rs` | (optional) Helper that surfaces the SQL endpoint to the UI bridge. |
-| `crates/everr-core/build/ai_instructions_schema.md` | Committed artifact generated from `DESCRIBE TABLE` output. |
-| `collector/cmd/genaischema/main.go` | Build-time generator: call `DESCRIBE TABLE FORMAT JSONEachRow` via `/sql`, render as markdown. |
-| (drift check piggybacks on existing collector macOS workflow — no new file) | Regenerate schema, diff against committed copy. See Task 6.3. |
+| Path                                                                        | Responsibility                                                                                       |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `collector/extension/sqlhttp/go.mod`                                        | Go module for the extension (OCB loads each component as a module).                                  |
+| `collector/extension/sqlhttp/factory.go`                                    | `NewFactory()` + `createExtension()`. Registers config struct + defaults.                            |
+| `collector/extension/sqlhttp/config.go`                                     | `Config{ Endpoint string }`.                                                                         |
+| `collector/extension/sqlhttp/extension.go`                                  | Extension type — opens `chdbhandle`, starts HTTP server, wires the handler, clean shutdown.          |
+| `collector/extension/sqlhttp/handler.go`                                    | `POST /sql` handler: read body, run lexer, call `Handle.Do`, cap result at 16 MiB, write response.   |
+| `collector/extension/sqlhttp/lexer.go`                                      | Single-pass SQL lexer + `ValidateReadOnly(string) error`.                                            |
+| `collector/extension/sqlhttp/lexer_test.go`                                 | Table-driven tests for the allowlist, `;` guard, string-literal/comment handling, canary injections. |
+| `collector/extension/sqlhttp/handler_test.go`                               | Handler unit tests with a fake `chdbhandle`.                                                         |
+| `collector/extension/sqlhttp/README.md`                                     | One paragraph describing the extension.                                                              |
+| `collector/test/smoke/chdb_smoke_test.go`                                   | End-to-end smoke: boot sidecar, POST OTLP, `SELECT` via `/sql`.                                      |
+| `packages/desktop-app/src-cli/src/telemetry/client.rs`                      | HTTP client — `query(sql, limit) -> Result<Vec<Value>>`.                                             |
+| `packages/desktop-app/src-cli/src/telemetry/sibling.rs`                     | `.last_flush`-based staleness detection.                                                             |
+| `packages/desktop-app/src-cli/tests/telemetry_query_e2e.rs`                 | CLI e2e: spawn sidecar on random ports, push OTLP, query via CLI.                                    |
+| `packages/desktop-app/src-tauri/src/telemetry/sql_http.rs`                  | (optional) Helper that surfaces the SQL endpoint to the UI bridge.                                   |
+| `crates/everr-core/build/ai_instructions_schema.md`                         | Committed artifact generated from `DESCRIBE TABLE` output.                                           |
+| `collector/cmd/genaischema/main.go`                                         | Build-time generator: call `DESCRIBE TABLE FORMAT JSONEachRow` via `/sql`, render as markdown.       |
+| (drift check piggybacks on existing collector macOS workflow — no new file) | Regenerate schema, diff against committed copy. See Task 6.3.                                        |
 
 ### Modified files — everr repo
 
-| Path | Change |
-|---|---|
-| `collector/config/manifest.local.yaml` | Drop `fileexporter` at Stage 7. Add `chdbexporter` (Stage 2) + `sqlhttp` (Stage 3). |
-| `packages/desktop-app/src-tauri/src/telemetry/collector.yaml.tmpl` | Replace `file` exporter with `chdb`, add `sqlhttp` extension. |
-| `packages/desktop-app/src-tauri/src/telemetry/ports.rs` | Export new `SQL_HTTP_PORT`. |
-| `crates/everr-core/src/build.rs` | Add `SQL_HTTP_PORT` constants + `sql_http_origin()`. |
-| `packages/desktop-app/src-cli/src/cli.rs` | Replace `TelemetrySubcommand::{Traces,Logs}` + all filter flags with `Query(TelemetryQueryArgs)`. |
-| `packages/desktop-app/src-cli/src/telemetry/mod.rs` | Drop `otlp`/`store`/`query` modules; add `client`/`sibling`. |
-| `packages/desktop-app/src-cli/src/telemetry/commands.rs` | Rewrite against `client` + `sibling`. |
-| `CHANGELOG.md` | Entry describing the CLI break (Stage 4+5). |
-| `crates/everr-core/src/assistant.rs` | Inline the generated schema block into the ai-instructions output. |
+| Path                                                               | Change                                                                                            |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `collector/config/manifest.local.yaml`                             | Drop `fileexporter` at Stage 7. Add `chdbexporter` (Stage 2) + `sqlhttp` (Stage 3).               |
+| `packages/desktop-app/src-tauri/src/telemetry/collector.yaml.tmpl` | Replace `file` exporter with `chdb`, add `sqlhttp` extension.                                     |
+| `packages/desktop-app/src-tauri/src/telemetry/ports.rs`            | Export new `SQL_HTTP_PORT`.                                                                       |
+| `crates/everr-core/src/build.rs`                                   | Add `SQL_HTTP_PORT` constants + `sql_http_origin()`.                                              |
+| `packages/desktop-app/src-cli/src/cli.rs`                          | Replace `TelemetrySubcommand::{Traces,Logs}` + all filter flags with `Query(TelemetryQueryArgs)`. |
+| `packages/desktop-app/src-cli/src/telemetry/mod.rs`                | Drop `otlp`/`store`/`query` modules; add `client`/`sibling`.                                      |
+| `packages/desktop-app/src-cli/src/telemetry/commands.rs`           | Rewrite against `client` + `sibling`.                                                             |
+| `CHANGELOG.md`                                                     | Entry describing the CLI break (Stage 4+5).                                                       |
+| `crates/everr-core/src/assistant.rs`                               | Inline the generated schema block into the ai-instructions output.                                |
 
 ### Deleted files — everr repo (Stage 4+5)
 
@@ -61,16 +61,16 @@
 
 ### New files — `chdbexporter` fork repo (separate)
 
-| Path | Responsibility |
-|---|---|
-| `go.mod` | Module root. |
-| `UPSTREAM.md` | Records upstream SHA + sync notes. |
-| `factory.go`, `config.go`, `exporter.go` | Copied from upstream `clickhouseexporter`, rewired to `chdb-go` via `chdbhandle`. |
-| `internal/schema/*.go` | Copied unchanged from upstream. |
-| `chdbhandle/handle.go` | Process-wide worker + bounded queue wrapping `chdb.Session`. |
-| `chdbhandle/handle_test.go` | Queue behavior, path-invariant, worker lifecycle, Close-under-load. |
-| `exporter_traces_test.go`, `exporter_logs_test.go`, `exporter_metrics_test.go` | Per-signal push round-trip tests against a real chdb tempdir session. |
-| `exporter_table_names_test.go` | Custom `table_names` override flows through DDL + INSERT. |
+| Path                                                                           | Responsibility                                                                    |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `go.mod`                                                                       | Module root.                                                                      |
+| `UPSTREAM.md`                                                                  | Records upstream SHA + sync notes.                                                |
+| `factory.go`, `config.go`, `exporter.go`                                       | Copied from upstream `clickhouseexporter`, rewired to `chdb-go` via `chdbhandle`. |
+| `internal/schema/*.go`                                                         | Copied unchanged from upstream.                                                   |
+| `chdbhandle/handle.go`                                                         | Process-wide worker + bounded queue wrapping `chdb.Session`.                      |
+| `chdbhandle/handle_test.go`                                                    | Queue behavior, path-invariant, worker lifecycle, Close-under-load.               |
+| `exporter_traces_test.go`, `exporter_logs_test.go`, `exporter_metrics_test.go` | Per-signal push round-trip tests against a real chdb tempdir session.             |
+| `exporter_table_names_test.go`                                                 | Custom `table_names` override flows through DDL + INSERT.                         |
 
 Rationale for putting `chdbhandle` in the fork repo rather than `collector/internal/chdbhandle/`: OCB components are loaded as independent Go modules, and `internal/` visibility would prevent the extension from importing it. Hosting it in the fork repo (which both components already depend on transitively) is the least-friction option.
 
@@ -85,6 +85,7 @@ Venue: a throwaway scratch directory outside the everr repo (e.g. `~/scratch/chd
 ### Task 0.1: Bootstrap the spike module
 
 **Files:**
+
 - Create: `~/scratch/chdbstress/go.mod`
 - Create: `~/scratch/chdbstress/main.go`
 
@@ -352,6 +353,7 @@ Venue: a separate repo (`github.com/everr-labs/chdbexporter`). **Not** the everr
 ### Task 1.1: Bootstrap the fork repo
 
 **Files:**
+
 - Create: `chdbexporter/UPSTREAM.md`
 - Create: `chdbexporter/go.mod` (via copy)
 - Create: `chdbexporter/factory.go`, `config.go`, `exporter.go`, `internal/**` (via copy)
@@ -418,6 +420,7 @@ git add . && git commit -m "initial fork of clickhouseexporter at SHA <sha>"
 ### Task 1.2: Build the `chdbhandle` package
 
 **Files:**
+
 - Create: `chdbexporter/chdbhandle/handle.go`
 - Create: `chdbexporter/chdbhandle/handle_test.go`
 
@@ -814,6 +817,7 @@ git add chdbhandle && git commit -m "chdbhandle: single worker + bounded queue"
 ### Task 1.3: Rewire exporter storage to `chdbhandle`
 
 **Files:**
+
 - Modify: `chdbexporter/exporter.go`
 - Modify: `chdbexporter/factory.go`, `config.go`
 
@@ -954,6 +958,7 @@ git add . && git commit -m "exporter: rewire storage to chdbhandle"
 ### Task 1.4: Traces-pipeline unit test
 
 **Files:**
+
 - Create: `chdbexporter/exporter_traces_test.go`
 
 - [ ] **Step 1: Write the failing test**
@@ -1027,6 +1032,7 @@ git add exporter_traces_test.go && git commit -m "test: traces pipeline round-tr
 ### Task 1.5: Logs-pipeline unit test
 
 **Files:**
+
 - Create: `chdbexporter/exporter_logs_test.go`
 
 - [ ] **Step 1: Write the failing test**
@@ -1042,6 +1048,7 @@ go test ./... -run TestPushLogs -v && git add exporter_logs_test.go && git commi
 ### Task 1.6: Metrics-pipeline unit tests
 
 **Files:**
+
 - Create: `chdbexporter/exporter_metrics_test.go`
 
 - [ ] **Step 1: One sub-test per metric kind — sum, gauge, histogram, exponential-histogram, summary**
@@ -1059,6 +1066,7 @@ go test ./... -run TestPushMetrics -v && git add exporter_metrics_test.go && git
 The spec keeps `Config.TableNames` as a per-signal override so ops can rename tables if they ever clash. We don't ship non-default values, but the field is part of the public config surface and must actually flow into DDL + INSERT — otherwise it's dead code. This test exercises a custom table name end-to-end.
 
 **Files:**
+
 - Create: `chdbexporter/exporter_table_names_test.go`
 
 - [ ] **Step 1: Write the failing test**
@@ -1215,6 +1223,7 @@ This is the version Stage 2 vendors. If you're iterating on fork code before a r
 ### Task 2.1: Update `manifest.local.yaml`
 
 **Files:**
+
 - Modify: `collector/config/manifest.local.yaml`
 
 - [ ] **Step 1: Add the fork to the exporters list**
@@ -1265,6 +1274,7 @@ git commit -m "collector: vendor chdbexporter fork"
 ### Task 2.2: Smoke test in everr repo
 
 **Files:**
+
 - Create: `collector/test/smoke/chdb_smoke_test.go`
 
 - [ ] **Step 1: Write the failing test**
@@ -1408,6 +1418,7 @@ Accepted compromise: if the exporter's DDL itself fails (e.g. permissions), the 
 ### Task 3.1: Scaffold the extension module
 
 **Files:**
+
 - Create: `collector/extension/sqlhttp/go.mod`
 - Create: `collector/extension/sqlhttp/config.go`
 - Create: `collector/extension/sqlhttp/factory.go`
@@ -1690,6 +1701,7 @@ git commit -m "sqlhttp: scaffold extension"
 ### Task 3.2: Read-only lexer
 
 **Files:**
+
 - Create: `collector/extension/sqlhttp/lexer.go`
 - Create: `collector/extension/sqlhttp/lexer_test.go`
 
@@ -1916,6 +1928,7 @@ git commit -m "sqlhttp: read-only lexer"
 ### Task 3.3: Request handler
 
 **Files:**
+
 - Modify: `collector/extension/sqlhttp/handler.go`
 - Create: `collector/extension/sqlhttp/handler_test.go`
 
@@ -2215,6 +2228,7 @@ git commit -m "sqlhttp: handler with read-only check + buffered response"
 ### Task 3.4: Wire `sqlhttp` into `manifest.local.yaml`
 
 **Files:**
+
 - Modify: `collector/config/manifest.local.yaml`
 
 - [ ] **Step 1: Add the extension**
@@ -2249,6 +2263,7 @@ git commit -m "collector: register sqlhttp extension"
 ### Task 3.5: Integration test for `/sql` round-trip
 
 **Files:**
+
 - Modify: `collector/test/smoke/chdb_smoke_test.go`
 
 - [ ] **Step 1: Extend the smoke test to POST `/sql`**
@@ -2353,7 +2368,7 @@ git commit -m "test: /sql round-trip + read-only enforcement"
 
 **Merge strategy (bisect hygiene):**
 
-Internal task commits in this stage are *not* individually buildable — e.g. between Task 4.3 (template flipped → collector writes chdb, no JSON files) and Task 4.7 (old CLI modules deleted), intermediate `HEAD`s have the CLI compiled against `otlp.rs`/`store.rs`/`query.rs` pointing at data that no longer exists. `git bisect` would trip over them.
+Internal task commits in this stage are _not_ individually buildable — e.g. between Task 4.3 (template flipped → collector writes chdb, no JSON files) and Task 4.7 (old CLI modules deleted), intermediate `HEAD`s have the CLI compiled against `otlp.rs`/`store.rs`/`query.rs` pointing at data that no longer exists. `git bisect` would trip over them.
 
 Two-part mitigation, both required:
 
@@ -2365,6 +2380,7 @@ Per-task commits below remain as-is — they make each reviewer step small. The 
 ### Task 4.1: `everr-core`: add `SQL_HTTP_PORT` and `sql_http_origin()`
 
 **Files:**
+
 - Modify: `crates/everr-core/src/build.rs`
 
 - [ ] **Step 1: Write failing test**
@@ -2421,6 +2437,7 @@ git commit -m "everr-core: expose SQL_HTTP_PORT and sql_http_origin"
 ### Task 4.2: Tauri ports re-export
 
 **Files:**
+
 - Modify: `packages/desktop-app/src-tauri/src/telemetry/ports.rs`
 
 - [ ] **Step 1: Add `SQL_HTTP_PORT` to the re-export**
@@ -2449,6 +2466,7 @@ git commit -m "tauri: re-export SQL_HTTP_PORT"
 ### Task 4.3: Flip `collector.yaml.tmpl`
 
 **Files:**
+
 - Modify: `packages/desktop-app/src-tauri/src/telemetry/collector.yaml.tmpl`
 - Modify: `packages/desktop-app/src-tauri/src/telemetry/sidecar.rs`
 
@@ -2483,8 +2501,8 @@ extensions:
 service:
   extensions: [health_check, sqlhttp]
   pipelines:
-    traces:  { receivers: [otlp], processors: [batch], exporters: [chdb] }
-    logs:    { receivers: [otlp], processors: [batch], exporters: [chdb] }
+    traces: { receivers: [otlp], processors: [batch], exporters: [chdb] }
+    logs: { receivers: [otlp], processors: [batch], exporters: [chdb] }
     metrics: { receivers: [otlp], processors: [batch], exporters: [chdb] }
   telemetry:
     metrics:
@@ -2538,6 +2556,7 @@ git commit -m "tauri: collector config uses chdb exporter and sqlhttp extension"
 ### Task 4.4: CLI cli.rs — new surface
 
 **Files:**
+
 - Modify: `packages/desktop-app/src-cli/src/cli.rs`
 
 - [ ] **Step 1: Replace `TelemetrySubcommand` enum**
@@ -2590,6 +2609,7 @@ Defer the commit to the end of Task 4.6.
 ### Task 4.5: Build `client.rs`
 
 **Files:**
+
 - Create: `packages/desktop-app/src-cli/src/telemetry/client.rs`
 - Modify: `packages/desktop-app/src-cli/src/telemetry/mod.rs`
 
@@ -2760,6 +2780,7 @@ Expected: PASS.
 ### Task 4.6: Rewrite `commands.rs`
 
 **Files:**
+
 - Modify: `packages/desktop-app/src-cli/src/telemetry/commands.rs`
 
 - [ ] **Step 1: Replace the whole file**
@@ -2888,6 +2909,7 @@ git commit -m "cli: rewrite telemetry around sqlhttp"
 ### Task 4.7: Sibling-staleness detection via `.last_flush`
 
 **Files:**
+
 - Create: `packages/desktop-app/src-cli/src/telemetry/sibling.rs`
 - Delete: `packages/desktop-app/src-cli/src/telemetry/otlp.rs`
 - Delete: `packages/desktop-app/src-cli/src/telemetry/store.rs`
@@ -3010,6 +3032,7 @@ git commit -m "cli: sibling-staleness via .last_flush; drop legacy modules"
 ### Task 4.8: `.last_flush` sentinel in the exporter
 
 **Files:**
+
 - Modify: `chdbexporter/exporter.go` (in the fork repo)
 
 - [ ] **Step 1: Restructure each `push*` function to capture err, then touch the sentinel**
@@ -3042,7 +3065,7 @@ func (e *chdbExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
 }
 ```
 
-Apply the same pattern to `pushLogs` and every `pushMetrics*` — the sentinel reflects "we committed *some* data to chdb recently," so every signal touches it.
+Apply the same pattern to `pushLogs` and every `pushMetrics*` — the sentinel reflects "we committed _some_ data to chdb recently," so every signal touches it.
 
 Where `touchSentinel` is:
 
@@ -3120,6 +3143,7 @@ git commit -m "collector: bump chdbexporter to v0.2.0 (sentinel)"
 ### Task 4.9: CLI e2e test
 
 **Files:**
+
 - Create: `packages/desktop-app/src-cli/tests/telemetry_query_e2e.rs`
 - Delete: `packages/desktop-app/src-cli/tests/telemetry_e2e.rs`
 
@@ -3279,6 +3303,7 @@ git commit -m "cli: e2e query against live collector"
 ### Task 4.10: CHANGELOG entry
 
 **Files:**
+
 - Modify: `CHANGELOG.md`
 
 - [ ] **Step 1: Add the break-note**
@@ -3327,6 +3352,7 @@ git commit -m "changelog: document telemetry CLI break"
 ### Task 6.1: Build the generator
 
 **Files:**
+
 - Create: `collector/cmd/genaischema/main.go`
 
 We deliberately avoid parsing `SHOW CREATE TABLE` output. CODEC clauses, `Map(LowCardinality(String), String)`, and other nested types make the DDL syntax hostile to quick-and-dirty regex parsing. Instead we issue `DESCRIBE TABLE <name>` (the `/sql` handler forces the `JSONEachRow` output format server-side) — ClickHouse returns one row per column with clean `name`/`type` fields, and we render those directly as markdown.
@@ -3569,12 +3595,13 @@ The current `render_telemetry_ai_instructions()` returns a `&'static str` that
 `include_str!`s `crates/everr-core/assets/telemetry-instructions.md`. That file
 describes the about-to-be-removed `everr telemetry traces` / `everr telemetry logs`
 commands, so we can't just reuse it. Migrate it in two halves — a hand-written
-*header* (intro + instrumentation guidance, rewritten around
-`everr telemetry query`) and a hand-written *examples* file (SQL recipes that
+_header_ (intro + instrumentation guidance, rewritten around
+`everr telemetry query`) and a hand-written _examples_ file (SQL recipes that
 mirror the old filter flags). The auto-generated schema (Task 6.1) slots between
 them.
 
 **Files:**
+
 - Create: `crates/everr-core/build/ai_instructions_header.md`
 - Create: `crates/everr-core/build/ai_instructions_examples.md`
 - Delete: `crates/everr-core/assets/telemetry-instructions.md`
@@ -3594,13 +3621,14 @@ or verify that instrumentation changes produce the expected spans/logs. Data is
 stored in an embedded ClickHouse (chdb) database owned by the local collector
 sidecar; it exists only while the Everr Desktop app is running.
 
-Also use Everr telemetry as the output target when *adding* new instrumentation
+Also use Everr telemetry as the output target when _adding_ new instrumentation
 to diagnose slowness, errors, or regressions. Emit OTLP spans/events to the
 local collector instead of ad-hoc `eprintln!` / `console.log` /
 `tracing-subscriber fmt` output — the query command below then becomes your
 inspection loop, and you iterate in the same tool you'd use to verify.
 
 Command:
+
 - `everr telemetry query "<SQL>"`: runs a read-only SQL statement against the
   collector's embedded ClickHouse and returns rows as JSON. Only `SELECT`,
   `WITH`, `EXPLAIN`, `DESCRIBE`, and `SHOW` statements are accepted — writes,
@@ -3612,10 +3640,11 @@ Command:
   your SDK's OTLP HTTP exporter at that value — do NOT hardcode a port.
 
 Investigation playbook:
+
 - Start broad, then narrow: filter by `ServiceName` first, then add a time
   window (`Timestamp > now() - INTERVAL 1 HOUR`), then `SeverityNumber` /
   `SpanName` / message predicates once you know where to look.
-- Use `otel_logs` for *what* happened, `otel_traces` for *why it was slow* or
+- Use `otel_logs` for _what_ happened, `otel_traces` for _why it was slow_ or
   how a request flowed.
 - Pivot from a log to its trace: `SELECT TraceId FROM otel_logs WHERE ...` and
   feed the result into a `SELECT * FROM otel_traces WHERE TraceId = '...'`.
@@ -3624,6 +3653,7 @@ Investigation playbook:
   collector.
 
 Adding new instrumentation:
+
 - The collector runs only on the local machine and only while the Everr
   Desktop app is running.
 - Get the collector's OTLP HTTP origin with `everr telemetry endpoint` and
@@ -3638,6 +3668,7 @@ Adding new instrumentation:
   isolate your output from other services sharing the collector.
 
 After modifying instrumented code, verify the change landed:
+
 - Trigger the code path you edited in the running service
 - `everr telemetry query "SELECT Timestamp, Body FROM otel_logs WHERE ScopeName = '<module>' AND Timestamp > now() - INTERVAL 2 MINUTE ORDER BY Timestamp DESC LIMIT 20"`
   to confirm new log output
@@ -3810,6 +3841,7 @@ All we need is an extra step that runs the generator against the just-built bina
 Path filter: only trigger when something that actually affects generated DDL changes. That's the fork version pin, the generator, or the committed schema artifact — NOT the entire `collector/**` tree.
 
 **Files:**
+
 - Modify: `.github/workflows/collector.yml` (or whatever the existing macOS collector job is named)
 
 - [ ] **Step 1: Locate the existing macOS collector workflow**
@@ -3825,17 +3857,17 @@ Expected: a single workflow that already builds the collector on macOS. If there
 In the existing collector macOS job, after `make build-local`, append:
 
 ```yaml
-      - name: Check ai-instructions schema drift
-        # Only run when something that affects DDL changed.
-        if: |
-          contains(github.event.pull_request.changed_files, 'collector/cmd/genaischema/') ||
-          contains(github.event.pull_request.changed_files, 'collector/config/manifest.local.yaml') ||
-          contains(github.event.pull_request.changed_files, 'crates/everr-core/build/ai_instructions_schema.md')
-        run: |
-          go run ./collector/cmd/genaischema \
-            --binary collector/build-local/everr-local-collector \
-            --out /tmp/new-schema.md
-          diff -u crates/everr-core/build/ai_instructions_schema.md /tmp/new-schema.md
+- name: Check ai-instructions schema drift
+  # Only run when something that affects DDL changed.
+  if: |
+    contains(github.event.pull_request.changed_files, 'collector/cmd/genaischema/') ||
+    contains(github.event.pull_request.changed_files, 'collector/config/manifest.local.yaml') ||
+    contains(github.event.pull_request.changed_files, 'crates/everr-core/build/ai_instructions_schema.md')
+  run: |
+    go run ./collector/cmd/genaischema \
+      --binary collector/build-local/everr-local-collector \
+      --out /tmp/new-schema.md
+    diff -u crates/everr-core/build/ai_instructions_schema.md /tmp/new-schema.md
 ```
 
 Note: `if` uses `contains(...)` on the GH payload rather than workflow-level `paths:` because we're gating a single step, not the whole workflow. If the job's existing `paths:` is already narrow enough, drop the `if`.
@@ -3858,6 +3890,7 @@ Run only after the chdb path has been on `main` for at least one week without te
 ### Task 7.1: Drop `fileexporter` from the manifest
 
 **Files:**
+
 - Modify: `collector/config/manifest.local.yaml`
 
 - [ ] **Step 1: Remove the line**
