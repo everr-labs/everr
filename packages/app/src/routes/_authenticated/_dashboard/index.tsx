@@ -7,7 +7,6 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { SiGithub } from "@icons-pack/react-simple-icons";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -26,23 +25,16 @@ import {
   DESKTOP_DOWNLOAD_URL,
   INSTALL_COMMAND,
 } from "@/common/install-command";
-import { cliEverApprovedOptions } from "@/data/home";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/")({
   staticData: { breadcrumb: "Home", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Home" }],
   }),
-  loader: async ({ context: { queryClient } }) => {
-    await queryClient.ensureQueryData(cliEverApprovedOptions());
-  },
   component: HomePage,
 });
 
 function HomePage() {
-  const { data } = useQuery(cliEverApprovedOptions());
-  const cliEverApproved = data?.cliEverApproved ?? false;
-
   return (
     <div className="space-y-6">
       <div>
@@ -52,7 +44,7 @@ function HomePage() {
         </p>
       </div>
 
-      {!cliEverApproved && <InstallEverrCard />}
+      <InstallEverrCard />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SectionCard
