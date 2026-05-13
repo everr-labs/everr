@@ -245,11 +245,19 @@ func normalizeJSONValue(value any) any {
 	case time.Time:
 		return formatTimestamp(value)
 	case []time.Time:
-		out := make([]string, 0, len(value))
+		out := make([]int64, 0, len(value))
 		for _, item := range value {
 			out = append(out, formatTimestamp(item))
 		}
 		return out
+	case json.RawMessage:
+		return append(json.RawMessage(nil), value...)
+	case []byte:
+		raw := append(json.RawMessage(nil), value...)
+		if json.Valid(raw) {
+			return raw
+		}
+		return string(value)
 	case column.IterableOrderedMap:
 		out := map[string]any{}
 		iter := value.Iterator()
@@ -286,8 +294,8 @@ func normalizeJSONValue(value any) any {
 	return value
 }
 
-func formatTimestamp(t time.Time) string {
-	return t.UTC().Format("2006-01-02 15:04:05.999999999")
+func formatTimestamp(t time.Time) int64 {
+	return t.UTC().UnixNano()
 }
 
 func touchSentinel(path string) error {
