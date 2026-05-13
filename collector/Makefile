@@ -26,8 +26,9 @@ build-debug: install-tools
 	$(OCB) --config config/manifest-debug.yaml
 
 .PHONY: build-local
-build-local: $(addprefix $(TOOLS_BIN_DIR)/, builder)
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 $(OCB) --config config/manifest.local.yaml
+build-local:
+	mkdir -p build-local
+	cd cmd/everr-local-collector && GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -trimpath -o ../../build-local/everr-local-collector .
 
 .PHONY: run
 run: build

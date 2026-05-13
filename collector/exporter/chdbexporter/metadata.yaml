@@ -1,5 +1,5 @@
-type: clickhouse
-display_name: ClickHouse Exporter
+type: chdb
+display_name: chDB Exporter
 
 status:
   class: exporter

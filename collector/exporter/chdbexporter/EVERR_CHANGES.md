@@ -12,6 +12,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 ## Local chDB runtime
 
 - Added `NewFactoryWithHandle(handle)` so the gateway can inject the shared process-wide chDB handle.
+- Changed the local component type from upstream `clickhouse` to `chdb`.
 - Kept `NewFactory()` for normal component factory shape, but exporters started from it now fail clearly with `chdb handle is required`.
 - Replaced runtime ClickHouse network connections with a local `internal.ChDBConn` adapter.
 - The adapter runs DDL and queries through the shared chDB handle, and converts upstream prepared-batch inserts into `JSONEachRow` inserts for chDB.

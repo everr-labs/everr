@@ -38,7 +38,7 @@ func TestLoadConfig(t *testing.T) {
 	defaultCfg := createDefaultConfig()
 	defaultCfg.(*Config).Endpoint = defaultEndpoint
 
-	storageID := component.MustNewIDWithName("file_storage", "clickhouse")
+	storageID := component.MustNewIDWithName("file_storage", "chdb")
 
 	tests := []struct {
 		id       component.ID
@@ -617,7 +617,7 @@ func TestTableEngineConfigParsing(t *testing.T) {
 		},
 		{
 			id:       component.NewIDWithName(metadata.Type, "table-engine-full"),
-			expected: "ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/table_name', '{replica}', ver)",
+			expected: "ReplicatedReplacingMergeTree('/chdb/tables/{shard}/table_name', '{replica}', ver)",
 		},
 		{
 			id:       component.NewIDWithName(metadata.Type, "table-engine-params-only"),
