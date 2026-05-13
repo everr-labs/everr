@@ -28,6 +28,7 @@ build-debug: install-tools
 .PHONY: build-local
 build-local:
 	mkdir -p build-local
+	rm -f build-local/*.go build-local/go.mod build-local/go.sum
 	cd cmd/everr-local-collector && GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -trimpath -o ../../build-local/everr-local-collector .
 
 .PHONY: run
