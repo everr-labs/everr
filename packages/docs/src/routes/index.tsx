@@ -6,7 +6,6 @@ import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
-import { Pricing } from "@/components/pricing";
 import { Species } from "@/components/species";
 import { ToolsExplainer } from "@/components/tools-explainer";
 
@@ -22,7 +21,6 @@ function RouteComponent() {
       <ToolsExplainer />
       <HowItWorks />
       <Examples />
-      <Pricing />
       <FAQ />
       <Community />
       <FinalCTA />
