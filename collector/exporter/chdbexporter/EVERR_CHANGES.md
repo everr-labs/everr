@@ -6,6 +6,8 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 
 - Copied upstream `exporter/clickhouseexporter` from tag `v0.152.0`.
 - Changed the Go module path to `github.com/everr-labs/everr/collector/exporter/chdbexporter`.
+- Renamed the Go package to `chdbexporter` so OTel `mdatagen` output matches this repository's directory/module name.
+- Changed the local `go:generate` directive to call this repository's checked-in `collector/.tools/mdatagen` binary.
 - Removed upstream local-monorepo `replace` directives from `go.mod` so this repo resolves published OTel Contrib packages.
 - Added a local `internal/traceutil` helper because Go does not allow this package to import upstream's `internal/coreinternal/traceutil`.
 

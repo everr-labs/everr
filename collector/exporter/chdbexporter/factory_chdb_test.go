@@ -1,4 +1,4 @@
-package clickhouseexporter
+package chdbexporter
 
 import (
 	"path/filepath"

@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package clickhouseexporter // import "github.com/everr-labs/everr/collector/exporter/chdbexporter"
+package chdbexporter // import "github.com/everr-labs/everr/collector/exporter/chdbexporter"
 
 import (
 	"context"

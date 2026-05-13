@@ -1,9 +1,9 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate make mdatagen
+//go:generate ../../.tools/mdatagen metadata.yaml
 
-package clickhouseexporter // import "github.com/everr-labs/everr/collector/exporter/chdbexporter"
+package chdbexporter // import "github.com/everr-labs/everr/collector/exporter/chdbexporter"
 
 import (
 	"context"

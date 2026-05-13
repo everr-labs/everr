@@ -3,7 +3,7 @@
 
 //go:build integration
 
-package clickhouseexporter
+package chdbexporter
 
 import (
 	"context"
