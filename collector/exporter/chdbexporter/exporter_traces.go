@@ -17,18 +17,25 @@ import (
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/traceutil"
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 type tracesExporter struct {
 	db        driver.Conn
+	handle    *chdb.Handle
 	insertSQL string
 
 	logger *zap.Logger
 	cfg    *Config
 }
 
-func newTracesExporter(logger *zap.Logger, cfg *Config) *tracesExporter {
+func newTracesExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *tracesExporter {
+	var handle *chdb.Handle
+	if len(handles) > 0 {
+		handle = handles[0]
+	}
 	return &tracesExporter{
+		handle:    handle,
 		insertSQL: renderInsertTracesSQL(cfg),
 		logger:    logger,
 		cfg:       cfg,
@@ -36,15 +43,11 @@ func newTracesExporter(logger *zap.Logger, cfg *Config) *tracesExporter {
 }
 
 func (e *tracesExporter) start(ctx context.Context, _ component.Host) error {
-	opt, err := e.cfg.buildClickHouseOptions()
+	db, err := internal.NewChDBConn(e.handle)
 	if err != nil {
 		return err
 	}
-
-	e.db, err = internal.NewClickhouseClientFromOptions(opt)
-	if err != nil {
-		return err
-	}
+	e.db = db
 
 	if e.cfg.shouldCreateSchema() {
 		if err := internal.CreateDatabase(ctx, e.db, e.cfg.database(), e.cfg.clusterString()); err != nil {

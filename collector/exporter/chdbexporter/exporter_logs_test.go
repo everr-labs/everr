@@ -27,7 +27,7 @@ func TestLogsExporter_New(t *testing.T) {
 	}{
 		"no dsn": {
 			config: withDefaultConfig(),
-			want:   failWithMsg("parse dsn address failed"),
+			want:   failWithMsg("chdb handle is required"),
 		},
 	}
 

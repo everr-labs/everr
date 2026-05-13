@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metadata"
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 // Deprecated: Use the `json` config option instead. This feature gate will be removed in a future version.
@@ -27,12 +28,23 @@ var featureGateJSON = featuregate.GlobalRegistry().MustRegister(
 
 // NewFactory creates a factory for the ClickHouse exporter.
 func NewFactory() exporter.Factory {
+	return NewFactoryWithHandle(nil)
+}
+
+// NewFactoryWithHandle creates a factory for the local chDB exporter.
+func NewFactoryWithHandle(handle *chdb.Handle) exporter.Factory {
 	return exporter.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
-		exporter.WithLogs(createLogsExporter, metadata.LogsStability),
-		exporter.WithTraces(createTracesExporter, metadata.TracesStability),
-		exporter.WithMetrics(createMetricExporter, metadata.MetricsStability),
+		exporter.WithLogs(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
+			return createLogsExporter(ctx, set, cfg, handle)
+		}, metadata.LogsStability),
+		exporter.WithTraces(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {
+			return createTracesExporter(ctx, set, cfg, handle)
+		}, metadata.TracesStability),
+		exporter.WithMetrics(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Metrics, error) {
+			return createMetricExporter(ctx, set, cfg, handle)
+		}, metadata.MetricsStability),
 	)
 }
 
@@ -40,15 +52,16 @@ func createLogsExporter(
 	ctx context.Context,
 	set exporter.Settings,
 	cfg component.Config,
+	handle *chdb.Handle,
 ) (exporter.Logs, error) {
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
 
 	var exp anyLogsExporter
 	if useJSON(set.Logger, c) {
-		exp = newLogsJSONExporter(set.Logger, c)
+		exp = newLogsJSONExporter(set.Logger, c, handle)
 	} else {
-		exp = newLogsExporter(set.Logger, c)
+		exp = newLogsExporter(set.Logger, c, handle)
 	}
 
 	return exporterhelper.NewLogs(
@@ -68,15 +81,16 @@ func createTracesExporter(
 	ctx context.Context,
 	set exporter.Settings,
 	cfg component.Config,
+	handle *chdb.Handle,
 ) (exporter.Traces, error) {
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
 
 	var exp anyTracesExporter
 	if useJSON(set.Logger, c) {
-		exp = newTracesJSONExporter(set.Logger, c)
+		exp = newTracesJSONExporter(set.Logger, c, handle)
 	} else {
-		exp = newTracesExporter(set.Logger, c)
+		exp = newTracesExporter(set.Logger, c, handle)
 	}
 
 	return exporterhelper.NewTraces(
@@ -104,10 +118,11 @@ func createMetricExporter(
 	ctx context.Context,
 	set exporter.Settings,
 	cfg component.Config,
+	handle *chdb.Handle,
 ) (exporter.Metrics, error) {
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
-	exp := newMetricsExporter(set.Logger, c)
+	exp := newMetricsExporter(set.Logger, c, handle)
 
 	return exporterhelper.NewMetrics(
 		ctx,

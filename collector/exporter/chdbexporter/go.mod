@@ -1,10 +1,11 @@
 module github.com/everr-labs/everr/collector/exporter/chdbexporter
 
-go 1.25.0
+go 1.25.6
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/cenkalti/backoff/v5 v5.0.3
+	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.42.0
 	go.opentelemetry.io/collector/component v1.58.0
@@ -33,6 +34,7 @@ require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/chdb-io/chdb-go v1.11.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -122,6 +124,8 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/everr-labs/everr/collector/internal/localgateway/chdb => ../../internal/localgateway/chdb
 
 retract (
 	v0.76.2

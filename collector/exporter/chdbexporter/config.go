@@ -108,7 +108,6 @@ const (
 )
 
 var (
-	errConfigNoEndpoint      = errors.New("endpoint must be specified")
 	errConfigInvalidEndpoint = errors.New("endpoint must be url format")
 )
 
@@ -123,7 +122,7 @@ func createDefaultConfig() component.Config {
 		Database:         defaultDatabase,
 		LogsTableName:    "otel_logs",
 		TracesTableName:  "otel_traces",
-		TTL:              0,
+		TTL:              7 * 24 * time.Hour,
 		CreateSchema:     true,
 		AsyncInsert:      true,
 		MetricsTables: MetricTablesConfig{
@@ -138,21 +137,19 @@ func createDefaultConfig() component.Config {
 
 // Validate the ClickHouse server configuration.
 func (cfg *Config) Validate() (err error) {
-	if cfg.Endpoint == "" {
-		err = errors.Join(err, errConfigNoEndpoint)
-	}
-
-	dsn, e := cfg.buildDSN()
-	if e != nil {
-		err = errors.Join(err, e)
-	}
-
 	cfg.buildMetricTableNames()
 
-	// Validate DSN with clickhouse driver.
-	// Last chance to catch invalid config.
-	if _, e := clickhouse.ParseDSN(dsn); e != nil {
-		err = errors.Join(err, e)
+	if cfg.Endpoint != "" {
+		dsn, e := cfg.buildDSN()
+		if e != nil {
+			err = errors.Join(err, e)
+		}
+
+		// Validate DSN with clickhouse driver.
+		// Last chance to catch invalid config.
+		if _, e := clickhouse.ParseDSN(dsn); e != nil {
+			err = errors.Join(err, e)
+		}
 	}
 
 	return err
@@ -290,6 +287,10 @@ func (cfg *Config) tableEngineString() string {
 func (cfg *Config) database() string {
 	if cfg.Database != "" && cfg.Database != defaultDatabase {
 		return cfg.Database
+	}
+
+	if cfg.Endpoint == "" {
+		return defaultDatabase
 	}
 
 	dsn, err := cfg.buildDSN()

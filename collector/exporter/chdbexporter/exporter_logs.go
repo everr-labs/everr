@@ -19,10 +19,12 @@ import (
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/traceutil"
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 type logsExporter struct {
 	db             driver.Conn
+	handle         *chdb.Handle
 	insertSQL      string
 	schemaFeatures struct {
 		EventName bool
@@ -32,23 +34,24 @@ type logsExporter struct {
 	cfg    *Config
 }
 
-func newLogsExporter(logger *zap.Logger, cfg *Config) *logsExporter {
+func newLogsExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *logsExporter {
+	var handle *chdb.Handle
+	if len(handles) > 0 {
+		handle = handles[0]
+	}
 	return &logsExporter{
+		handle: handle,
 		logger: logger,
 		cfg:    cfg,
 	}
 }
 
 func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
-	opt, err := e.cfg.buildClickHouseOptions()
+	db, err := internal.NewChDBConn(e.handle)
 	if err != nil {
 		return err
 	}
-
-	e.db, err = internal.NewClickhouseClientFromOptions(opt)
-	if err != nil {
-		return err
-	}
+	e.db = db
 
 	if e.cfg.shouldCreateSchema() {
 		if createDBErr := internal.CreateDatabase(ctx, e.db, e.cfg.database(), e.cfg.clusterString()); createDBErr != nil {

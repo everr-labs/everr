@@ -18,6 +18,7 @@ import (
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 // anyLogsExporter is an interface that satisfies both the default map logsExporter and the logsJSONExporter
@@ -31,6 +32,7 @@ type logsJSONExporter struct {
 	cfg            *Config
 	logger         *zap.Logger
 	db             driver.Conn
+	handle         *chdb.Handle
 	insertSQL      string
 	schemaFeatures struct {
 		AttributeKeys bool
@@ -38,23 +40,24 @@ type logsJSONExporter struct {
 	}
 }
 
-func newLogsJSONExporter(logger *zap.Logger, cfg *Config) *logsJSONExporter {
+func newLogsJSONExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *logsJSONExporter {
+	var handle *chdb.Handle
+	if len(handles) > 0 {
+		handle = handles[0]
+	}
 	return &logsJSONExporter{
 		cfg:    cfg,
 		logger: logger,
+		handle: handle,
 	}
 }
 
 func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
-	opt, err := e.cfg.buildClickHouseOptions()
+	db, err := internal.NewChDBConn(e.handle)
 	if err != nil {
 		return err
 	}
-
-	e.db, err = internal.NewClickhouseClientFromOptions(opt)
-	if err != nil {
-		return err
-	}
+	e.db = db
 
 	if e.cfg.shouldCreateSchema() {
 		if createDBErr := internal.CreateDatabase(ctx, e.db, e.cfg.database(), e.cfg.clusterString()); createDBErr != nil {

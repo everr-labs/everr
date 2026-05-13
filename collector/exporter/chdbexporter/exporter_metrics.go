@@ -14,22 +14,29 @@ import (
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metrics"
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 type metricsExporter struct {
-	db driver.Conn
+	db     driver.Conn
+	handle *chdb.Handle
 
 	logger       *zap.Logger
 	cfg          *Config
 	tablesConfig metrics.MetricTablesConfigMapper
 }
 
-func newMetricsExporter(logger *zap.Logger, cfg *Config) *metricsExporter {
+func newMetricsExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *metricsExporter {
 	tablesConfig := generateMetricTablesConfigMapper(cfg)
+	var handle *chdb.Handle
+	if len(handles) > 0 {
+		handle = handles[0]
+	}
 
 	return &metricsExporter{
 		logger:       logger,
 		cfg:          cfg,
+		handle:       handle,
 		tablesConfig: tablesConfig,
 	}
 }
@@ -37,15 +44,11 @@ func newMetricsExporter(logger *zap.Logger, cfg *Config) *metricsExporter {
 func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 	metrics.SetLogger(e.logger)
 
-	opt, err := e.cfg.buildClickHouseOptions()
+	db, err := internal.NewChDBConn(e.handle)
 	if err != nil {
 		return err
 	}
-
-	e.db, err = internal.NewClickhouseClientFromOptions(opt)
-	if err != nil {
-		return err
-	}
+	e.db = db
 
 	if e.cfg.shouldCreateSchema() {
 		database := e.cfg.database()
