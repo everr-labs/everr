@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
@@ -39,17 +38,10 @@ type handler struct {
 	maxBytes       int64
 	logger         *zap.Logger
 
-	ready atomic.Bool
-	exec  func(ctx context.Context, sql string) ([]byte, error)
+	exec func(ctx context.Context, sql string) ([]byte, error)
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !h.ready.Load() {
-		w.Header().Set("Retry-After", "1")
-		httpError(w, http.StatusServiceUnavailable, "collector starting")
-		return
-	}
-
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		httpError(w, http.StatusMethodNotAllowed, "only POST allowed")
@@ -146,7 +138,7 @@ func (h *handler) execReal(ctx context.Context, sql string) ([]byte, error) {
 }
 
 func resultTooBigMessage(maxBytes int64) string {
-	if maxBytes == defaultMaxResultBytes {
+	if maxBytes == DefaultMaxResultBytes {
 		return "result exceeded 16 MiB; add LIMIT or narrow the WHERE"
 	}
 	return fmt.Sprintf("result exceeded %d bytes; add LIMIT or narrow the WHERE", maxBytes)

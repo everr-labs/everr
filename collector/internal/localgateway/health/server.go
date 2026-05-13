@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const readHeaderTimeout = 5 * time.Second
+
 type Server struct {
 	endpoint string
 	listener net.Listener
@@ -31,7 +33,7 @@ func (s *Server) Start() error {
 	s.listener = ln
 	s.server = &http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: s.readHeaderTimeout(),
+		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
 	go func() { _ = s.server.Serve(ln) }()
@@ -65,8 +67,4 @@ func (s *Server) handle(w http.ResponseWriter, _ *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-}
-
-func (s *Server) readHeaderTimeout() time.Duration {
-	return 5 * time.Second
 }

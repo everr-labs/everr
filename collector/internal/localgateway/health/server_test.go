@@ -4,7 +4,6 @@ import (
 	"io"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -26,9 +25,4 @@ func TestHealthServerReportsReadiness(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Contains(t, string(body), "ok")
-}
-
-func TestHealthServerHasReadHeaderTimeout(t *testing.T) {
-	server := NewServer("127.0.0.1:0")
-	require.Equal(t, 5*time.Second, server.readHeaderTimeout())
 }

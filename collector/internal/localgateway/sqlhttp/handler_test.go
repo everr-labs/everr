@@ -3,9 +3,7 @@ package sqlhttp
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,46 +15,11 @@ import (
 )
 
 func newTestHandler() *handler {
-	h := &handler{
+	return &handler{
 		queryTimeout:   5 * time.Second,
 		enqueueTimeout: 2 * time.Second,
 		maxBytes:       16 << 20,
 		logger:         zap.NewNop(),
-	}
-	h.ready.Store(true)
-	return h
-}
-
-func decodeErrorEnvelope(t *testing.T, body io.Reader) string {
-	t.Helper()
-
-	var payload map[string]string
-	if err := json.NewDecoder(body).Decode(&payload); err != nil {
-		t.Fatalf("decode error envelope: %v", err)
-	}
-	return payload["error"]
-}
-
-func TestHandlerReturns503BeforeReady(t *testing.T) {
-	h := newTestHandler()
-	h.ready.Store(false)
-
-	req := httptest.NewRequest(http.MethodPost, "/sql", strings.NewReader("SELECT 1"))
-	rec := httptest.NewRecorder()
-
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
-	}
-	if got := rec.Header().Get("Retry-After"); got != "1" {
-		t.Fatalf("Retry-After = %q, want %q", got, "1")
-	}
-	if got := rec.Header().Get("Content-Type"); got != "application/json" {
-		t.Fatalf("Content-Type = %q, want %q", got, "application/json")
-	}
-	if got := decodeErrorEnvelope(t, rec.Body); got != "collector starting" {
-		t.Fatalf("error = %q, want %q", got, "collector starting")
 	}
 }
 

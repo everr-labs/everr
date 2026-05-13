@@ -28,10 +28,12 @@ func ParseEndpoint(raw string) (Endpoint, error) {
 		return Endpoint{}, fmt.Errorf("endpoint %q must use http", raw)
 	}
 	host := u.Hostname()
-	if host != "localhost" && net.ParseIP(host) == nil {
+	ip := net.ParseIP(host)
+	switch {
+	case host == "localhost":
+	case ip == nil:
 		return Endpoint{}, fmt.Errorf("endpoint %q must use localhost or loopback", raw)
-	}
-	if ip := net.ParseIP(host); ip != nil && !ip.IsLoopback() {
+	case !ip.IsLoopback():
 		return Endpoint{}, fmt.Errorf("endpoint %q must use localhost or loopback", raw)
 	}
 	if u.Port() == "" {

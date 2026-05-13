@@ -38,7 +38,6 @@ func (s *Server) Start() error {
 		maxBytes:       s.cfg.MaxResultBytes,
 		logger:         s.logger,
 	}
-	handler.ready.Store(true)
 
 	mux := http.NewServeMux()
 	mux.Handle("/sql", handler)
