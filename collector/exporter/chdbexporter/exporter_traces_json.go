@@ -286,7 +286,7 @@ func (e *tracesJSONExporter) renderInsertTracesJSONSQL() {
 		featureColumnNames.WriteString(", ")
 		featureColumnNames.WriteString(tracesJSONColumnSpanAttributesKeys)
 
-		featureColumnPositions.WriteString(", ?, ?, ?")
+		featureColumnPositions.WriteString(", ?, ?")
 	}
 
 	e.insertSQL = fmt.Sprintf(sqltemplates.TracesJSONInsert, e.cfg.database(), e.cfg.TracesTableName, featureColumnNames.String(), featureColumnPositions.String())
