@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -56,7 +58,8 @@ func parseOptions(args []string) (options, error) {
 	healthEndpoint := fs.String("health-http-endpoint", defaultHealthEndpoint, "HTTP readiness endpoint")
 	sqlEndpoint := fs.String("sql-http-endpoint", defaultSQLEndpoint, "SQL HTTP endpoint")
 	chdbPath := fs.String("chdb-path", defaultChDBPath, "chDB database path")
-	ttl := fs.Duration("ttl", defaultTTL, "local telemetry TTL")
+	ttl := defaultTTL
+	fs.Var(ttlFlag{value: &ttl}, "ttl", "local telemetry TTL")
 
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
@@ -77,7 +80,7 @@ func parseOptions(args []string) (options, error) {
 	if *chdbPath == "" {
 		return options{}, fmt.Errorf("chdb path must be specified")
 	}
-	if *ttl <= 0 {
+	if ttl <= 0 {
 		return options{}, fmt.Errorf("ttl must be greater than zero")
 	}
 
@@ -86,8 +89,42 @@ func parseOptions(args []string) (options, error) {
 		Health:   healthEndpointParsed,
 		SQL:      sql,
 		ChDBPath: *chdbPath,
-		TTL:      *ttl,
+		TTL:      ttl,
 	}, nil
+}
+
+type ttlFlag struct {
+	value *time.Duration
+}
+
+func (f ttlFlag) Set(raw string) error {
+	ttl, err := parseTTL(raw)
+	if err != nil {
+		return err
+	}
+	*f.value = ttl
+	return nil
+}
+
+func (f ttlFlag) String() string {
+	if f.value == nil {
+		return ""
+	}
+	if *f.value%(24*time.Hour) == 0 {
+		return fmt.Sprintf("%dd", *f.value/(24*time.Hour))
+	}
+	return f.value.String()
+}
+
+func parseTTL(raw string) (time.Duration, error) {
+	if strings.HasSuffix(raw, "d") {
+		days, err := strconv.Atoi(strings.TrimSuffix(raw, "d"))
+		if err != nil {
+			return 0, fmt.Errorf("parse ttl days: %w", err)
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	return time.ParseDuration(raw)
 }
 
 func run(ctx context.Context, args []string) error {

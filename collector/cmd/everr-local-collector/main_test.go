@@ -33,3 +33,16 @@ func TestParseOptionsRejectsNonLocalEndpoints(t *testing.T) {
 
 	require.ErrorContains(t, err, "localhost or loopback")
 }
+
+func TestParseOptionsAcceptsDayTTL(t *testing.T) {
+	opts, err := parseOptions([]string{
+		"--otlp-http-endpoint", "http://127.0.0.1:54318",
+		"--health-http-endpoint", "http://127.0.0.1:54319",
+		"--sql-http-endpoint", "http://127.0.0.1:54320",
+		"--chdb-path", "/tmp/everr/chdb",
+		"--ttl", "7d",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 7*24*time.Hour, opts.TTL)
+}

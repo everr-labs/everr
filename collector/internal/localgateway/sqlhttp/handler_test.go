@@ -120,6 +120,23 @@ func TestHandlerReturnsBadRequestOnMissingParam(t *testing.T) {
 	}
 }
 
+func TestHandlerReturnsBadRequestOnMissingParamWithoutAnyParams(t *testing.T) {
+	h := newTestHandler()
+	h.exec = func(ctx context.Context, sql string) ([]byte, error) {
+		t.Fatalf("exec should not be called")
+		return nil, nil
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/sql", strings.NewReader("SELECT {missing:String}"))
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 func TestHandlerHappyPath(t *testing.T) {
 	h := newTestHandler()
 	h.exec = func(ctx context.Context, sql string) ([]byte, error) {

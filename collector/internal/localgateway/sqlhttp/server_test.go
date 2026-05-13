@@ -1,6 +1,7 @@
 package sqlhttp
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -13,7 +14,7 @@ func TestServerStartsAndRoutesSQL(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := server.Shutdown(t.Context()); err != nil {
+		if err := server.Shutdown(context.Background()); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})

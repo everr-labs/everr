@@ -74,14 +74,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := extractParams(r.URL.Query())
-	if len(params) > 0 {
-		substituted, err := substituteParams(sql, params)
-		if err != nil {
-			httpError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		sql = substituted
+	substituted, err := substituteParams(sql, params)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+	sql = substituted
 
 	exec := h.exec
 	if exec == nil {
