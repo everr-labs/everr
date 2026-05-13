@@ -53,7 +53,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     kill_orphaned_collector();
 
     let mut child = spawn_collector(&assets, &telemetry_dir).await?;
-    let health_endpoint = format!("http://127.0.0.1:{}/", everr_core::build::HEALTHCHECK_PORT);
+    let health_endpoint = run_start_health_endpoint();
     if !everr_core::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await {
         if let Some(status) = child.try_wait().context("poll collector process")? {
             bail!("collector exited before it became ready: {status}");
@@ -84,6 +84,13 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
             }
         }
     }
+}
+
+fn run_start_health_endpoint() -> String {
+    format!(
+        "{}/",
+        everr_core::build::healthcheck_origin().trim_end_matches('/')
+    )
 }
 
 async fn wait_for_shutdown_signal() -> Result<()> {
@@ -434,6 +441,29 @@ mod tests {
                 & 0o777,
             0o644
         );
+    }
+
+    #[test]
+    fn run_start_health_endpoint_honors_debug_healthcheck_override() {
+        const KEY: &str = "EVERR_HEALTHCHECK_ORIGIN";
+        let previous = std::env::var_os(KEY);
+
+        unsafe {
+            std::env::set_var(KEY, "http://127.0.0.1:65531");
+        }
+
+        let endpoint = run_start_health_endpoint();
+
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var(KEY, value);
+            },
+            None => unsafe {
+                std::env::remove_var(KEY);
+            },
+        }
+
+        assert_eq!(endpoint, "http://127.0.0.1:65531/");
     }
 
     fn extract_test_assets_to_cache(
