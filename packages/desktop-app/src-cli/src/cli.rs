@@ -244,6 +244,8 @@ pub struct WatchArgs {
     #[arg(long)]
     pub attempt: Option<u32>,
     #[arg(long)]
+    pub run_id: Option<String>,
+    #[arg(long)]
     pub fail_fast: bool,
 }
 
@@ -764,6 +766,7 @@ mod tests {
             branch,
             commit,
             attempt: _,
+            run_id,
             fail_fast: _,
         }) = ci.command
         else {
@@ -773,6 +776,7 @@ mod tests {
         assert_eq!(repo, None);
         assert_eq!(branch, None);
         assert_eq!(commit, None);
+        assert_eq!(run_id, None);
     }
 
     #[test]
@@ -867,6 +871,21 @@ mod tests {
         };
 
         assert!(fail_fast);
+    }
+
+    #[test]
+    fn watch_parses_run_id_flag() {
+        let cli =
+            Cli::try_parse_from(["everr", "ci", "watch", "--run-id", "42"]).expect("watch command");
+
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Watch(WatchArgs { run_id, .. }) = ci.command else {
+            panic!("expected ci watch command");
+        };
+
+        assert_eq!(run_id, Some("42".to_string()));
     }
 
     #[test]

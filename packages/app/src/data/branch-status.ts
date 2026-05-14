@@ -36,8 +36,9 @@ type BranchStatusInput = {
   tenantId: string;
   repo: string;
   branch?: string;
-  commit: string;
+  commit?: string;
   attempt?: number;
+  runId?: string;
 };
 
 type WorkflowRunRow = {
@@ -50,6 +51,8 @@ type WorkflowRunRow = {
   completedAt: string | Date | null;
   lastEventAt: string | Date;
   attempts: number;
+  headSha: string;
+  branch: string;
 };
 
 type WorkflowJobRow = {
@@ -73,8 +76,18 @@ export async function getBranchStatus({
   branch,
   commit,
   attempt,
+  runId,
 }: BranchStatusInput): Promise<BranchStatusResponse> {
-  const matchingRunsParams: (string | number)[] = [tenantId, repo, commit];
+  if (!commit && !runId) {
+    throw new Error("getBranchStatus requires commit or runId");
+  }
+
+  const matchingRunsParams: (string | number)[] = [tenantId, repo];
+  let matchingRunsCommitClause = "";
+  if (commit) {
+    matchingRunsParams.push(commit);
+    matchingRunsCommitClause = `AND sha = $${matchingRunsParams.length}`;
+  }
   let matchingRunsBranchClause = "";
   if (branch) {
     matchingRunsParams.push(branch);
@@ -84,6 +97,11 @@ export async function getBranchStatus({
   if (attempt !== undefined) {
     matchingRunsParams.push(attempt);
     matchingRunsAttemptClause = `AND attempts = $${matchingRunsParams.length}`;
+  }
+  let matchingRunsRunIdClause = "";
+  if (runId) {
+    matchingRunsParams.push(runId);
+    matchingRunsRunIdClause = `AND run_id::text = $${matchingRunsParams.length}`;
   }
 
   const matchingRuns = await pool.query<WorkflowRunRow>(
@@ -97,13 +115,16 @@ export async function getBranchStatus({
         run_started_at AS "startedAt",
         run_completed_at AS "completedAt",
         last_event_at AS "lastEventAt",
-        attempts
+        attempts,
+        sha AS "headSha",
+        ref AS branch
       FROM workflow_runs
       WHERE organization_id = $1
         AND repository = $2
-        AND sha = $3
+        ${matchingRunsCommitClause}
         ${matchingRunsBranchClause}
         ${matchingRunsAttemptClause}
+        ${matchingRunsRunIdClause}
         AND last_event_at >= NOW() - ${WATCH_LOOKBACK_SQL}
       ORDER BY run_id ASC, attempts DESC, last_event_at DESC
     `,
@@ -111,11 +132,13 @@ export async function getBranchStatus({
   );
 
   const runs = latestRunAttempts(matchingRuns.rows);
+  const resolvedCommit = commit ?? runs[0]?.headSha ?? "";
+  const resolvedBranch = branch ?? runs[0]?.branch ?? null;
   if (runs.length === 0) {
     return {
       repo,
-      branch: branch ?? null,
-      commit,
+      branch: resolvedBranch,
+      commit: resolvedCommit,
       state: "pending",
       active: [],
       completed: [],
@@ -200,8 +223,8 @@ export async function getBranchStatus({
 
   return {
     repo,
-    branch: branch ?? null,
-    commit,
+    branch: resolvedBranch,
+    commit: resolvedCommit,
     state: active.length > 0 ? "running" : "completed",
     active,
     completed,

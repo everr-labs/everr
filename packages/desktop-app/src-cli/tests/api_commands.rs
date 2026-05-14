@@ -885,6 +885,67 @@ fn watch_resolves_short_commit_sha_to_full() {
 }
 
 #[test]
+fn watch_uses_run_id_without_commit() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let initial_body = r#"{"repo":"everr-labs/everr","branch":"feature/from-run-id","commit":"abc123","state":"running","active":[{"runId":"4242","traceId":"trace-run-id","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
+
+    let status_mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::Exact("repo=everr-labs%2Feverr&runId=4242".into()))
+        .with_status(200)
+        .with_body(initial_body)
+        .expect(1)
+        .create();
+
+    let sse_body = "event: message\ndata: {\"tenantId\":1,\"traceId\":\"trace-run-id\",\"runId\":\"4242\",\"sha\":\"abc123\",\"repo\":\"everr-labs/everr\",\"branch\":\"feature/from-run-id\",\"authorEmail\":null,\"workflowName\":\"CI\",\"name\":\"CI\",\"type\":\"run\",\"status\":\"completed\",\"conclusion\":\"success\",\"jobId\":null}\n\n";
+
+    let stream_mock = server
+        .mock("GET", "/api/events/stream")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("scope".into(), "trace".into()),
+            Matcher::UrlEncoded("key".into(), "trace-run-id".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "text/event-stream")
+        .with_body(sse_body)
+        .expect(1)
+        .create();
+
+    let final_status_body = r#"{"repo":"everr-labs/everr","branch":"feature/from-run-id","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"4242","traceId":"trace-run-id","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":53,"activeJobs":[]}]}"#;
+    let final_status_mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::Exact("repo=everr-labs%2Feverr&runId=4242".into()))
+        .with_status(200)
+        .with_body(final_status_body)
+        .expect(1)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "ci",
+            "watch",
+            "--repo",
+            "everr-labs/everr",
+            "--run-id",
+            "4242",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("Run completed: CI  success"));
+
+    status_mock.assert();
+    stream_mock.assert();
+    final_status_mock.assert();
+}
+
+#[test]
 fn watch_exits_non_zero_when_run_fails() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(
