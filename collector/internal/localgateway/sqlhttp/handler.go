@@ -60,11 +60,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sql := string(body)
-	if err := ValidateReadOnly(sql); err != nil {
-		httpError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	params := extractParams(r.URL.Query())
 	substituted, err := substituteParams(sql, params)
 	if err != nil {

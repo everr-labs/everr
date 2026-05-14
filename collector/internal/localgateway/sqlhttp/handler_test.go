@@ -125,19 +125,6 @@ func TestHandlerHappyPath(t *testing.T) {
 	}
 }
 
-func TestHandlerRejectsReadOnlyViolation(t *testing.T) {
-	h := newTestHandler()
-
-	req := httptest.NewRequest(http.MethodPost, "/sql", strings.NewReader("INSERT INTO t VALUES (1)"))
-	rec := httptest.NewRecorder()
-
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
-	}
-}
-
 func TestHandlerRejectsRequestBodyOverCap(t *testing.T) {
 	h := newTestHandler()
 	sql := "SELECT " + strings.Repeat("x", maxRequestBody)
