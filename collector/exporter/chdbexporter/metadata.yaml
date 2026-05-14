@@ -1,0 +1,17 @@
+type: chdb
+display_name: chDB Exporter
+
+status:
+  class: exporter
+  stability:
+    alpha: [metrics]
+    beta: [traces, logs]
+  distributions: [contrib]
+  codeowners:
+    active: [hanjm, Frapschen, SpencerTorres]
+    emeritus: [dmitryax]
+
+tests:
+  config:
+    endpoint: clickhouse://localhost:9000
+  skip_lifecycle: true

@@ -1,0 +1,6 @@
+github.com/chdb-io/chdb-go v1.11.0 h1:G6+Oy1onzNL3bSxncGfIdiB6beTpxwKztjfai7qLckE=
+github.com/chdb-io/chdb-go v1.11.0/go.mod h1:RkT+xLXhdBKtUtJJPwhQQR4p6qiXHisJNS712QldDg8=
+github.com/ebitengine/purego v0.8.2 h1:jPPGWs2sZ1UgOSgD2bClL0MJIqu58nOmIcBuXr62z1I=
+github.com/ebitengine/purego v0.8.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
+golang.org/x/sys v0.22.0 h1:RI27ohtqKCnwULzJLqkv897zojh5/DwS/ENaMzUOaWI=
+golang.org/x/sys v0.22.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
