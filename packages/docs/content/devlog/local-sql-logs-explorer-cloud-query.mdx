@@ -9,9 +9,9 @@ additions: 80752
 deletions: 38219
 ---
 
-Four weeks since the last devlog. The work in this batch all points in one direction: turning local and cloud telemetry into a real, queryable surface — for humans through a logs explorer, and for coding assistants through SQL and bundled skills.
+Four weeks since the last devlog. The work in this batch all points in one direction: turning local and cloud telemetry into a real, queryable surface, for humans through a logs explorer, and for coding assistants through SQL and bundled skills.
 
-Devlog #2 introduced the local observability stack as a v1 with a small set of canned queries. In daily use we kept wanting to ask both that and the cloud data more interesting questions — from scripts, from the CLI, and from inside the desktop app — and the bigger goal of letting an assistant debug on its own was bottlenecked on the same thing. So most of this cycle went into fixing that.
+Devlog #2 introduced the local observability stack as a v1 with a small set of canned queries. In daily use we kept wanting to ask both that and the cloud data more interesting questions, from scripts, from the CLI, and from inside the desktop app, and the bigger goal of letting an assistant debug on its own was bottlenecked on the same thing. So most of this cycle went into fixing that.
 
 Here's what shipped.
 
@@ -21,16 +21,16 @@ Here's what shipped.
 
 Making this safe took most of the work. Each org now gets its own ClickHouse role with hashed name, the `/sql` route enforces read-only mode, execution timeouts, query quotas, and per-tenant isolation through the existing row-level policy. We also backfilled access for existing tenants and dropped the dedicated SQL user in favor of role-based auth.
 
-It's a deliberately small surface — read-only, quota'd, no DDL — but it's enough for an assistant or a power user to answer questions like "show me flaky failures on `main` last week" without us having to ship a new endpoint for every shape of question.
+It's a deliberately small surface, read-only, quota'd, no DDL, but it's enough for an assistant or a power user to answer questions like "show me flaky failures on `main` last week" without us having to ship a new endpoint for every shape of question.
 
 ## A logs explorer in both the web app and the desktop app
 
-On top of that storage layer we built a logs explorer. It has a draggable histogram, level filters, fast text search, a detail panel, and the usual time-range and refresh controls. The point isn't the UI — there are plenty of log viewers in the world — it's that it works against both surfaces:
+On top of that storage layer we built a logs explorer. It has a draggable histogram, level filters, fast text search, a detail panel, and the usual time-range and refresh controls. The point isn't the UI, there are plenty of log viewers in the world, it's that it works against both surfaces:
 
 - In the web app, against our cloud ClickHouse, for CI and ingested workflow logs.
 - In the desktop app, against the local chDB instance, for whatever you've sent into your local collector.
 
-To make that possible without two implementations, the explorer lives in a shared `@everr/logs-explorer` workspace package, with a `SqlClient` interface and a `LogsRepository` that both surfaces wire up to their own backend. The web app talks to it through server functions; the desktop app talks to it through a Tauri command that calls the local SQL endpoint. Same UI, same query builders, same schemas — different transport.
+To make that possible without two implementations, the explorer lives in a shared `@everr/logs-explorer` workspace package, with a `SqlClient` interface and a `LogsRepository` that both surfaces wire up to their own backend. The web app talks to it through server functions; the desktop app talks to it through a Tauri command that calls the local SQL endpoint. Same UI, same query builders, same schemas, different transport.
 
 Day to day it means the logs view is no longer a CI-only feature. If you've pointed any local service at the collector, you can open the desktop app and watch its logs there.
 
@@ -38,7 +38,7 @@ Day to day it means the logs view is no longer a CI-only feature. If you've poin
 
 `everr wrap -- <command>` runs any command and mirrors its stdout/stderr into local telemetry while still printing it to your terminal. The command's exit code is preserved, so it slots into scripts and `Makefile`s without changing behavior, and it refuses to run if the local collector isn't up so you don't silently lose data.
 
-The motivating use case is the same as the rest of this work: getting more runtime context in front of agents. A test run, a dev server, a one-off script — wrap it and the output is queryable from the same place as your OpenTelemetry data, instead of being lost the moment the terminal scrolls.
+The motivating use case is the same as the rest of this work: getting more runtime context in front of agents. A test run, a dev server, a one-off script, wrap it and the output is queryable from the same place as your OpenTelemetry data, instead of being lost the moment the terminal scrolls.
 
 ## A consolidated local telemetry stack
 
@@ -50,9 +50,9 @@ The collector itself got a redesign to support this. We rebuilt the chDB exporte
 
 ## Bundled skills and an installer
 
-We moved away from injecting Everr's instructions into the project's `AGENTS.md` and shipped `everr skills` instead. It installs a small set of bundled skills (CI debugging, local telemetry setup, local debugging) into Claude Code, Codex, or Cursor — globally by default, or per project. `everr skills update` keeps them in sync as we improve them.
+We moved away from injecting Everr's instructions into the project's `AGENTS.md` and shipped `everr skills` instead. It installs a small set of bundled skills (CI debugging, local telemetry setup, local debugging) into Claude Code, Codex, or Cursor, globally by default, or per project. `everr skills update` keeps them in sync as we improve them.
 
-The change is deliberate. `AGENTS.md` content is always loaded into the assistant's context; skills activate only when their description matches what the assistant is actually doing, or when you invoke them explicitly. The result: skills fire less often overall, but they're available the moment you (or the assistant) hit a CI failure or a missing-trace situation — and the rest of the time, they're not eating into the context budget. We think that's a better DX in both directions: lighter by default, explicit when you need it.
+The change is deliberate. `AGENTS.md` content is always loaded into the assistant's context; skills activate only when their description matches what the assistant is actually doing, or when you invoke them explicitly. The result: skills fire less often overall, but they're available the moment you (or the assistant) hit a CI failure or a missing-trace situation, and the rest of the time, they're not eating into the context budget. We think that's a better DX in both directions: lighter by default, explicit when you need it.
 
 The skills themselves describe how to set up local telemetry when it's missing, how to read it once it's there, and how to drive `everr ci` from inside a debugging session. When an assistant hits a failing test in a repo with Everr installed, it has a path to runtime context that doesn't depend on a human pasting things into the prompt.
 
@@ -68,13 +68,13 @@ This isn't visible to users beyond "downloads work and updates are signed," but 
 
 **`everr ci watch --run-id` and `everr ci status --run-id`.** Both commands now accept a specific run id, not just the current HEAD commit. Useful when you're scripting against a known run or following up on a specific failure.
 
-**CLI reorganization.** We grouped commands under their domains — `everr ci status`, `everr ci watch`, `everr ci logs`, `everr cloud login`, `everr local query`, and so on — and removed the standalone `everr ci grep` command in favor of the more general `everr ci logs --egrep`. The CLI guidelines doc we wrote last cycle is now driving these calls.
+**CLI reorganization.** We grouped commands under their domains, `everr ci status`, `everr ci watch`, `everr ci logs`, `everr cloud login`, `everr local query`, and so on, and removed the standalone `everr ci grep` command in favor of the more general `everr ci logs --egrep`. The CLI guidelines doc we wrote last cycle is now driving these calls.
 
 **Removed unread tracking from the desktop app.** The unread badge and seen-runs tracking were more friction than signal in daily use, so we removed them. Notifications themselves stayed; the bookkeeping around "have you looked at this yet" went away.
 
 **Live "When" column.** The runs list now ticks its relative timestamps in real time and refetches in the background, so a tab that's been open for a while stays accurate instead of drifting until you click around.
 
-**Billing with Polar.** We integrated [Polar](https://polar.sh/) for subscriptions. Pricing isn't on the landing page right now — we pulled it for a narrative refresh — but the plumbing is in place behind the scenes.
+**Billing with Polar.** We integrated [Polar](https://polar.sh/) for subscriptions. Pricing isn't on the landing page right now, we pulled it for a narrative refresh, but the plumbing is in place behind the scenes.
 
 ## Under the hood
 
