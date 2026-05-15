@@ -120,7 +120,7 @@ function formatError(error: unknown): string {
   return String(error);
 }
 
-export function buildMetadata(
+function buildMetadata(
   metadata: PartialArtifactMetadata,
 ): ResourceUsageMetadata {
   const startedAt = parseDate(metadata.startedAt);

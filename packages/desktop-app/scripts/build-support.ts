@@ -20,23 +20,23 @@ import { $ } from "zx";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
-export const packageDir = path.resolve(scriptDir, "..");
+const packageDir = path.resolve(scriptDir, "..");
 export const repoDir = path.resolve(packageDir, "..", "..");
-export const cliDir = path.join(packageDir, "src-cli");
-export const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
-export const envFile = path.join(packageDir, ".env");
-export const desktopPackageJsonPath = path.join(packageDir, "package.json");
-export const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
-export const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
-export const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
+const cliDir = path.join(packageDir, "src-cli");
+const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
+const envFile = path.join(packageDir, ".env");
+const desktopPackageJsonPath = path.join(packageDir, "package.json");
+const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
+const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
+const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
 export const desktopReleaseDir = path.join(repoDir, "target", "desktop-release");
-export const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
+const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
 export const CHDB_RELEASE_VERSION = "v4.0.2";
 export const CHDB_LIB_ASSET_NAME = "macos-arm64-libchdb.tar.gz";
 export const CHDB_LIB_ARCHIVE_SHA256 =
   "54b4da9c4d71f09b8a37e823a7addba392c4789a7034192a4863a1edd452f9e8";
-export const LOCAL_COLLECTOR_BIN_NAME = "everr-local-collector";
-export const CHDB_LIB_FILE_NAME = "libchdb.so";
+const LOCAL_COLLECTOR_BIN_NAME = "everr-local-collector";
+const CHDB_LIB_FILE_NAME = "libchdb.so";
 
 let didLoadEnvFile = false;
 
@@ -127,10 +127,6 @@ async function ensureChdbArchive(archivePath: string) {
   }
 
   await downloadChdbArchive(archivePath);
-}
-
-export async function prepareChdbLibResource(mode: string) {
-  return prepareChdbLibAt(mode, path.join(desktopResourceDir, CHDB_LIB_FILE_NAME));
 }
 
 async function prepareChdbLibAt(mode: string, destLib: string) {
@@ -236,34 +232,6 @@ export function resolveCliBuild(mode: string) {
     default:
       throw new Error(`Unsupported mode: ${mode}`);
   }
-}
-
-export async function resolveTargetTriple() {
-  const envTriple = getEnv("TAURI_ENV_TARGET_TRIPLE");
-  if (envTriple) {
-    if (envTriple.includes("windows")) {
-      throw new Error("Windows targets are not supported by the desktop build scripts.");
-    }
-
-    return envTriple;
-  }
-
-  const output = await $`rustc -vV`;
-  const hostLine = output.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.startsWith("host: "));
-
-  const targetTriple = hostLine?.slice("host: ".length).trim();
-  if (!targetTriple) {
-    throw new Error("Could not resolve target triple.");
-  }
-
-  if (targetTriple.includes("windows")) {
-    throw new Error("Windows targets are not supported by the desktop build scripts.");
-  }
-
-  return targetTriple;
 }
 
 export async function signBinaryIfNeeded(binaryPath: string) {

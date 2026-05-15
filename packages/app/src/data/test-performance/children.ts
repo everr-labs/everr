@@ -9,7 +9,7 @@ import {
 import { testFullNameExpr } from "../sql-helpers";
 
 // Filter options (repos + branches that have test data)
-export interface TestPerfFilterOptions {
+interface TestPerfFilterOptions {
   repos: string[];
   branches: string[];
 }
@@ -18,7 +18,7 @@ const TestPerfFilterOptionsInputSchema = z.object({
   timeRange: TimeRangeSchema,
 });
 
-export const getTestPerfFilterOptions = createAuthenticatedServerFn({
+const getTestPerfFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerfFilterOptionsInputSchema)
@@ -90,7 +90,7 @@ const TestPerfChildrenInputSchema = z.object({
 
 export type TestPerfChildrenInput = z.infer<typeof TestPerfChildrenInputSchema>;
 
-export const getTestPerfChildren = createAuthenticatedServerFn({
+const getTestPerfChildren = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(TestPerfChildrenInputSchema)

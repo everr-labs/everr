@@ -26,7 +26,7 @@ import {
   userProfileQueryKey,
 } from "../notifications/query-keys";
 
-export type AuthStatus = {
+type AuthStatus = {
   status: "signed_in" | "signed_out";
   session_path: string;
 };
@@ -134,7 +134,7 @@ function usePendingSignInQuery(enabled: boolean) {
   });
 }
 
-export function useSignInMutation() {
+function useSignInMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -192,31 +192,6 @@ export function useSignOutMutation() {
       toast.error(toErrorMessageText(error));
     },
   });
-}
-
-export function AccountHeaderAction() {
-  const authStatusQuery = useAuthStatusQuery();
-  const signOutMutation = useSignOutMutation();
-  const signedIn = authStatusQuery.data?.status === "signed_in";
-
-  if (!signedIn) {
-    return null;
-  }
-
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      disabled={
-        signOutMutation.isPending ||
-        authStatusQuery.isPending ||
-        authStatusQuery.isError
-      }
-      onClick={() => void signOutMutation.mutateAsync()}
-    >
-      {signOutMutation.isPending ? "Logging out..." : "Logout"}
-    </Button>
-  );
 }
 
 function AuthContent({ layout }: { layout: "settings" | "standalone" }) {

@@ -30,7 +30,7 @@ import {
   decodeTotalsRows,
   type TotalsRowRaw,
 } from "../sql/totals";
-import { resolveTimeRange, type TimeRange } from "../time-range";
+import type { TimeRange } from "../time-range";
 import type { SqlClient } from "./client";
 
 export interface LogsRepositoryOptions {
@@ -84,5 +84,3 @@ export type LogsRepositoryLike = Pick<
   LogsRepository,
   "explorer" | "totals" | "histogram" | "detail" | "filterOptions"
 >;
-
-export { resolveTimeRange };

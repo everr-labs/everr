@@ -21,11 +21,6 @@ beforeEach(() => {
   });
 });
 
-// Mock the chart — Recharts won't render in jsdom
-vi.mock("./log-volume-chart", () => ({
-  LogVolumeChart: () => <div data-testid="log-volume-chart" />,
-}));
-
 // Mock Virtuoso — it doesn't render items in jsdom due to missing layout
 vi.mock("react-virtuoso", () => ({
   Virtuoso: ({

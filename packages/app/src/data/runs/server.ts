@@ -1,11 +1,8 @@
 import { z } from "zod";
-import { TimeRangeInputSchema } from "@/data/analytics/schemas";
 import { pool } from "@/db/client";
 import type { ClickhouseQuery } from "@/lib/clickhouse";
 import { normalizeTimestampToUtc } from "@/lib/formatting";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { resolveTimeRange } from "@/lib/time-range";
-import { runSummarySubquery } from "../run-query-helpers";
 import type { Job, LogEntry, Run, Span, Step } from "./schemas";
 
 const DEFAULT_LOG_PAGE_SIZE = 1000;
@@ -135,53 +132,6 @@ async function getRawStepLogs(
 
   return params.useTail ? logs.reverse() : logs;
 }
-
-export const getLatestRuns = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(TimeRangeInputSchema)
-  .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
-    const runSummarySql = runSummarySubquery({
-      whereClause: `ResourceAttributes['cicd.pipeline.run.id'] != ''
-				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['everr.test.name'] = ''
-				AND Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}`,
-      groupByExpr: "TraceId",
-      groupByAlias: "trace_id",
-      includeRunAttempt: true,
-    });
-
-    const sql = `
-      SELECT *
-      FROM (${runSummarySql})
-		ORDER BY timestamp DESC
-		LIMIT 10
-	`;
-
-    const result = await clickhouse.query<{
-      trace_id: string;
-      run_id: string;
-      run_attempt: string;
-      repo: string;
-      branch: string;
-      conclusion: string;
-      workflowName: string;
-      timestamp: string;
-    }>(sql, { fromTime: fromISO, toTime: toISO });
-
-    return result.map((row) => ({
-      traceId: row.trace_id,
-      runId: row.run_id,
-      runAttempt: Number(row.run_attempt),
-      repo: row.repo,
-      branch: row.branch,
-      conclusion: row.conclusion,
-      workflowName: row.workflowName || "Workflow",
-      timestamp: row.timestamp,
-    })) satisfies Run[];
-  });
 
 export const getRunDetails = createAuthenticatedServerFn({
   method: "GET",
@@ -317,45 +267,6 @@ export const getRunJobs = createAuthenticatedServerFn({
       }));
 
     return [...chJobs, ...pgOnlyJobs] satisfies Job[];
-  });
-
-export const getJobSteps = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
-  .handler(async ({ data: { traceId, jobId }, context: { clickhouse } }) => {
-    const sql = `
-			SELECT
-					SpanName as name,
-					SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
-					StatusMessage as conclusion,
-					Duration / 1000000 as duration,
-					toUnixTimestamp64Milli(Timestamp) as startTime,
-					toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime
-			FROM traces
-			WHERE TraceId = {traceId:String}
-				AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
-				AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
-			ORDER BY toUInt32OrZero(stepNumber)
-		`;
-
-    const result = await clickhouse.query<{
-      name: string;
-      stepNumber: string;
-      conclusion: string;
-      duration: string;
-      startTime: string;
-      endTime: string;
-    }>(sql, { traceId, jobId });
-
-    return result.map((row) => ({
-      stepNumber: row.stepNumber,
-      name: row.name,
-      conclusion: row.conclusion,
-      duration: Number(row.duration),
-      startTime: Number(row.startTime),
-      endTime: Number(row.endTime),
-    })) satisfies Step[];
   });
 
 export const getAllJobsSteps = createAuthenticatedServerFn({

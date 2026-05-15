@@ -1,20 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
   getAllJobsSteps,
-  getLatestRuns,
   getRunDetails,
   getRunJobs,
   getRunSpans,
 } from "./server";
 
 // Query options factories
-export const latestRunsOptions = ({ timeRange }: TimeRangeInput) =>
-  queryOptions({
-    queryKey: ["runs", "latest", timeRange],
-    queryFn: () => getLatestRuns({ data: { timeRange } }),
-  });
-
 export const runDetailsOptions = (traceId: string) =>
   queryOptions({
     queryKey: ["runs", "details", traceId],

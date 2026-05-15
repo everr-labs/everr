@@ -14,7 +14,7 @@ import { TerminalEventError } from "./types";
 
 let boss: PgBoss | undefined;
 
-export function getBoss(): PgBoss | undefined {
+function getBoss(): PgBoss | undefined {
   return boss;
 }
 
@@ -52,7 +52,7 @@ async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
 
 const WORK_OPTS = { localConcurrency: GH_EVENTS_CONFIG.workerCount };
 
-export async function startGitHubEventsRuntime(): Promise<PgBoss> {
+async function startGitHubEventsRuntime(): Promise<PgBoss> {
   if (boss) return boss;
 
   console.log("[startup] Starting GitHub events runtime...");
@@ -128,7 +128,7 @@ export async function enqueueWebhookEvent(
   );
 }
 
-export async function stopGitHubEventsRuntime(): Promise<void> {
+async function stopGitHubEventsRuntime(): Promise<void> {
   const b = boss;
   boss = undefined;
   await b?.stop();

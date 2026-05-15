@@ -44,8 +44,8 @@ function unwrapArray<T>(value: unknown, key: "members" | "invitations"): T[] {
   return [];
 }
 
-export const membersQueryKey = ["org", "members"] as const;
-export const invitationsQueryKey = ["org", "invitations"] as const;
+const membersQueryKey = ["org", "members"] as const;
+const invitationsQueryKey = ["org", "invitations"] as const;
 
 export function membersQueryOptions() {
   return queryOptions({
