@@ -67,7 +67,12 @@ function IngestKeysPage() {
         <p className="text-muted-foreground">
           Organization-scoped API keys for sending OpenTelemetry data to Everr.
           See{" "}
-          <a className="underline" href="/docs/sending-telemetry">
+          <a
+            className="underline"
+            href="https://everr.dev/docs/sending-telemetry"
+            target="_blank"
+            rel="noreferrer"
+          >
             SDK setup
           </a>
           .

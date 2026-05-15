@@ -79,6 +79,18 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(401);
   });
 
+  it("returns 401 when verified key has no referenceId", async () => {
+    // Defense: a key row with a null referenceId would otherwise stamp an
+    // empty tenant id onto every span sent with it.
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: { id: "ak_orphan", referenceId: null },
+    });
+    const res = await getHandler()({ request: makeRequest({ key: "k" }) });
+    expect(res.status).toBe(401);
+  });
+
   it("returns 200 with tenantId for a valid ingest key", async () => {
     await mockVerify({
       valid: true,

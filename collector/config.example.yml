@@ -104,9 +104,32 @@ service:
       processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
       exporters: [clickhouse, debug]
 
+  # Ship the collector's own telemetry (its logs, metrics, and internal
+  # traces) to the dev-machine's local everr collector so we can observe the
+  # collector itself the same way we observe everything else.
   telemetry:
-    metrics:
-      level: detailed
     logs:
       level: debug
-      encoding: "json"
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://host.docker.internal:54318
+                insecure: true
+    metrics:
+      readers:
+        - periodic:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://host.docker.internal:54318
+                insecure: true
+    traces:
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://host.docker.internal:54318
+                insecure: true

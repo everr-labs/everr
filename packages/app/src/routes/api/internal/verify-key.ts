@@ -40,12 +40,12 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         const result = await auth.api.verifyApiKey({
           body: { key, configId: INGEST_CONFIG_ID },
         });
-        if (!result.valid || !result.key) {
+        if (!result.valid || !result.key || !result.key.referenceId) {
           return new Response(null, { status: 401 });
         }
 
         const payload: VerifyKeyResponse = {
-          tenantId: result.key.referenceId ?? "",
+          tenantId: result.key.referenceId,
           keyId: result.key.id,
         };
 
