@@ -48,12 +48,6 @@ export const Route = createFileRoute(
       throw redirect({ to: "/" });
     }
   },
-  loader: async ({ context: { queryClient } }) => {
-    await Promise.all([
-      queryClient.ensureQueryData(membersQueryOptions()),
-      queryClient.ensureQueryData(invitationsQueryOptions()),
-    ]);
-  },
   component: UsersManagementPage,
 });
 
