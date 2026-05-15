@@ -40,6 +40,10 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+      - "4317:4317"
+      - "4318:4318"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./collector/config.yml:/etc/everr-collector/config.yaml:ro
       - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro

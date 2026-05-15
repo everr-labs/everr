@@ -19,6 +19,7 @@ import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
+import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
@@ -33,6 +34,7 @@ import { Route as AuthenticatedDashboardTestsOverviewRouteImport } from './route
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
 import { Route as AuthenticatedDashboardReposRouteImport } from './routes/_authenticated/_dashboard/repos'
 import { Route as AuthenticatedDashboardLogsRouteImport } from './routes/_authenticated/_dashboard/logs'
+import { Route as AuthenticatedDashboardIngestKeysRouteImport } from './routes/_authenticated/_dashboard/ingest-keys'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
@@ -104,6 +106,11 @@ const AuthenticatedDashboardIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
+  id: '/api/internal/verify-key',
+  path: '/api/internal/verify-key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEventsStreamRoute = ApiEventsStreamRouteImport.update({
   id: '/api/events/stream',
   path: '/api/events/stream',
@@ -177,6 +184,12 @@ const AuthenticatedDashboardLogsRoute =
   AuthenticatedDashboardLogsRouteImport.update({
     id: '/logs',
     path: '/logs',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardIngestKeysRoute =
+  AuthenticatedDashboardIngestKeysRouteImport.update({
+    id: '/ingest-keys',
+    path: '/ingest-keys',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthenticatedDashboardCostAnalysisRoute =
@@ -321,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/logs': typeof AuthenticatedDashboardLogsRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
@@ -335,6 +349,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
+  '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -366,6 +381,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/logs': typeof AuthenticatedDashboardLogsRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
@@ -379,6 +395,7 @@ export interface FileRoutesByTo {
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
+  '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
@@ -413,6 +430,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
   '/_authenticated/_dashboard/billing': typeof AuthenticatedDashboardBillingRoute
   '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/_authenticated/_dashboard/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/_authenticated/_dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/_authenticated/_dashboard/repos': typeof AuthenticatedDashboardReposRoute
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
@@ -427,6 +445,7 @@ export interface FileRoutesById {
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
+  '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/_auth/_guest/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
@@ -461,6 +480,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/billing'
     | '/cost-analysis'
+    | '/ingest-keys'
     | '/logs'
     | '/repos'
     | '/runs'
@@ -475,6 +495,7 @@ export interface FileRouteTypes {
     | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
+    | '/api/internal/verify-key'
     | '/runs/$traceId'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -506,6 +527,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/billing'
     | '/cost-analysis'
+    | '/ingest-keys'
     | '/logs'
     | '/repos'
     | '/tests-overview'
@@ -519,6 +541,7 @@ export interface FileRouteTypes {
     | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
+    | '/api/internal/verify-key'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
@@ -552,6 +575,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/account'
     | '/_authenticated/_dashboard/billing'
     | '/_authenticated/_dashboard/cost-analysis'
+    | '/_authenticated/_dashboard/ingest-keys'
     | '/_authenticated/_dashboard/logs'
     | '/_authenticated/_dashboard/repos'
     | '/_authenticated/_dashboard/runs'
@@ -566,6 +590,7 @@ export interface FileRouteTypes {
     | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
+    | '/api/internal/verify-key'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
     | '/_auth/_guest/auth/forgot-password'
@@ -597,6 +622,7 @@ export interface RootRouteChildren {
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
+  ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
 }
@@ -672,6 +698,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/api/internal/verify-key': {
+      id: '/api/internal/verify-key'
+      path: '/api/internal/verify-key'
+      fullPath: '/api/internal/verify-key'
+      preLoaderRoute: typeof ApiInternalVerifyKeyRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/events/stream': {
       id: '/api/events/stream'
@@ -769,6 +802,13 @@ declare module '@tanstack/react-router' {
       path: '/logs'
       fullPath: '/logs'
       preLoaderRoute: typeof AuthenticatedDashboardLogsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/ingest-keys': {
+      id: '/_authenticated/_dashboard/ingest-keys'
+      path: '/ingest-keys'
+      fullPath: '/ingest-keys'
+      preLoaderRoute: typeof AuthenticatedDashboardIngestKeysRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/cost-analysis': {
@@ -1010,6 +1050,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
   AuthenticatedDashboardBillingRoute: typeof AuthenticatedDashboardBillingRoute
   AuthenticatedDashboardCostAnalysisRoute: typeof AuthenticatedDashboardCostAnalysisRoute
+  AuthenticatedDashboardIngestKeysRoute: typeof AuthenticatedDashboardIngestKeysRoute
   AuthenticatedDashboardLogsRoute: typeof AuthenticatedDashboardLogsRoute
   AuthenticatedDashboardReposRoute: typeof AuthenticatedDashboardReposRoute
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
@@ -1027,6 +1068,8 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
     AuthenticatedDashboardBillingRoute: AuthenticatedDashboardBillingRoute,
     AuthenticatedDashboardCostAnalysisRoute:
       AuthenticatedDashboardCostAnalysisRoute,
+    AuthenticatedDashboardIngestKeysRoute:
+      AuthenticatedDashboardIngestKeysRoute,
     AuthenticatedDashboardLogsRoute: AuthenticatedDashboardLogsRoute,
     AuthenticatedDashboardReposRoute: AuthenticatedDashboardReposRoute,
     AuthenticatedDashboardRunsRoute:
@@ -1132,6 +1175,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
+  ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
 }

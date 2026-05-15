@@ -24,6 +24,7 @@ import {
   ChevronsUpDown,
   CreditCard,
   Download,
+  KeyRound,
   LogOut,
   Users,
 } from "lucide-react";
@@ -157,6 +158,13 @@ export function NavUser() {
                   >
                     <Users />
                     Users Management
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    render={<Link to="/ingest-keys" />}
+                    nativeButton={false}
+                  >
+                    <KeyRound />
+                    Ingest Keys
                   </DropdownMenuItem>
                 </>
               )}

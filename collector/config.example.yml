@@ -1,3 +1,11 @@
+extensions:
+  # Authenticates public OTLP ingest by exchanging a Bearer key with the
+  # everr app's internal verify endpoint. The shared secret guards that
+  # endpoint; rotate both sides together.
+  everr_apikey:
+    endpoint: ${env:INGEST_VERIFY_URL:-http://host.docker.internal:5173/api/internal/verify-key}
+    shared_secret: ${env:INGEST_VERIFY_SHARED_SECRET:-replace-with-a-long-random-value}
+
 receivers:
   githubactions:
     path: /webhook/github
@@ -8,8 +16,23 @@ receivers:
         app_id: 1234
         private_key_path: /etc/everr-collector/dev-everr-app.pem
 
+  # Public OTLP ingest. Authenticated via the everr_apikey extension; tenant
+  # is derived from the validated key, never from request headers/attrs.
+  otlp/public:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        auth:
+          authenticator: everr_apikey
+      grpc:
+        endpoint: 0.0.0.0:4317
+        auth:
+          authenticator: everr_apikey
+
 processors:
   batch:
+  # Internal pipeline (github webhook): tenant comes from a trusted header
+  # populated by the githubactions receiver after webhook-secret validation.
   resource:
     attributes:
       - action: upsert
@@ -18,6 +41,20 @@ processors:
       - action: convert
         key: everr.tenant.id
         converted_type: int
+
+  # Public pipeline: strip any client-supplied tenant attr from spans/logs/
+  # metric points so only the auth-derived value can land downstream.
+  attributes/strip_user_tenant:
+    actions:
+      - action: delete
+        key: everr.tenant.id
+
+  # Public pipeline: stamp tenant from the auth context onto the resource.
+  resource/public_tenant:
+    attributes:
+      - action: upsert
+        key: everr.tenant.id
+        from_context: auth.tenant_id
 
 exporters:
   debug:
@@ -34,7 +71,9 @@ connectors:
   testlogstotraces:
 
 service:
+  extensions: [everr_apikey]
   pipelines:
+    # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
       receivers: [githubactions, testlogstotraces]
       processors: [resource, batch]
@@ -48,9 +87,49 @@ service:
       processors: [resource, batch]
       exporters: [clickhouse, debug, testlogstotraces]
 
+    # Public pipelines: untrusted clients, tenant from authenticated key.
+    # Must NOT share the `resource` processor with the internal pipelines —
+    # that one trusts the x-everr-tenant-id header and would let OTLP clients
+    # spoof their tenant.
+    traces/public:
+      receivers: [otlp/public]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      exporters: [clickhouse, debug]
+    metrics/public:
+      receivers: [otlp/public]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      exporters: [clickhouse, debug]
+    logs/public:
+      receivers: [otlp/public]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      exporters: [clickhouse, debug]
+
+  # Ship the collector's own telemetry (its logs, metrics, and internal
+  # traces) to the dev-machine's local everr collector so we can observe the
+  # collector itself the same way we observe everything else.
   telemetry:
-    metrics:
-      level: detailed
     logs:
       level: debug
-      encoding: "json"
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://host.docker.internal:54318
+                insecure: true
+    metrics:
+      readers:
+        - periodic:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://host.docker.internal:54318
+                insecure: true
+    traces:
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://host.docker.internal:54318
+                insecure: true
