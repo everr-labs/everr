@@ -28,15 +28,6 @@ export function safeGetCurrentWindow() {
   }
 }
 
-export async function closeCurrentWindow() {
-  const appWindow = safeGetCurrentWindow();
-  if (!appWindow) {
-    return;
-  }
-
-  await appWindow.close();
-}
-
 export function toErrorMessageText(error: unknown): string {
   if (error instanceof Error) {
     return error.message;

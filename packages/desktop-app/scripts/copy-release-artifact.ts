@@ -58,7 +58,7 @@ type ReleaseFileEntry = {
   size: number;
 };
 
-export function normalizePlatform(value: NodeJS.Platform) {
+function normalizePlatform(value: NodeJS.Platform) {
   switch (value) {
     case "darwin":
       return "macos";
@@ -234,7 +234,7 @@ export function resolveDmgNotarizationRequest({
   };
 }
 
-export async function notarizeDmgIfConfigured(dmgPath: string) {
+async function notarizeDmgIfConfigured(dmgPath: string) {
   loadBuildEnvFile();
 
   const request = resolveDmgNotarizationRequest({ dmgPath });
@@ -485,8 +485,6 @@ export async function stageReleaseArtifacts() {
   );
   console.log(`Wrote updater manifest to ${path.join(appDestDir, "latest.json")}`);
 }
-
-export const copyReleaseArtifact = stageReleaseArtifacts;
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   await stageReleaseArtifacts();

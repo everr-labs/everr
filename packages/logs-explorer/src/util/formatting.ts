@@ -1,4 +1,4 @@
-function parseTimestampAsUTC(timestamp: string): Date | null {
+export function parseTimestampAsUTC(timestamp: string): Date | null {
   const normalized = timestamp.trim();
   if (!normalized) return null;
   const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized);

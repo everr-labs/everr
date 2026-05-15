@@ -210,7 +210,7 @@ function deriveSampleInterval(points: ResourceUsagePoint[]): number {
   return Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length);
 }
 
-export const getJobResourceUsage = createAuthenticatedServerFn({
+const getJobResourceUsage = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
@@ -234,7 +234,7 @@ export const getJobResourceUsage = createAuthenticatedServerFn({
       }>(identifierSql, { traceId, jobId });
 
       const ids = resolveJobIdentifiers(identifierRows);
-      if (!ids || !ids.runId || !ids.jobName) return null;
+      if (!ids?.runId || !ids.jobName) return null;
 
       const metricsSql = `
       SELECT

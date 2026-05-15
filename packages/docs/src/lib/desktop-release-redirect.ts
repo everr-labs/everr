@@ -1,7 +1,7 @@
 const DEFAULT_DESKTOP_RELEASE_PUBLIC_BASE_URL =
   "https://everr-dev-desktop-release-artifacts.s3.eu-central-1.amazonaws.com";
 
-export const allowedDesktopReleasePaths = new Set([
+const allowedDesktopReleasePaths = new Set([
   "everr",
   "everr.sha256",
   "latest.json",

@@ -47,8 +47,3 @@ export function subscribeAuthor(
     callback,
   );
 }
-
-export function shutdownHub(): void {
-  hub.shutdown();
-  started = false;
-}

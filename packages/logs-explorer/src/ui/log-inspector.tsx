@@ -66,13 +66,13 @@ function useDelayedFlag(active: boolean, delayMs: number) {
   return delayed;
 }
 
-export function severityLabel(log: LogDetail) {
+function severityLabel(log: LogDetail) {
   if (log.severityText) return log.severityText;
   if (log.severityNumber > 0) return String(log.severityNumber);
   return "N/A";
 }
 
-export function extractCiContext(detail: LogDetail) {
+function extractCiContext(detail: LogDetail) {
   const repo = detail.resourceAttributes["vcs.repository.name"] ?? "";
   const branch = detail.resourceAttributes["vcs.ref.head.name"] ?? "";
   const workflowName = detail.resourceAttributes["cicd.pipeline.name"] ?? "";
@@ -174,7 +174,7 @@ function LogInspectorSkeleton() {
   );
 }
 
-export function LogInspectorDetails({
+function LogInspectorDetails({
   detail,
   renderRunLink,
   resolveJobId,

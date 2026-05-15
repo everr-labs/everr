@@ -17,9 +17,8 @@ export interface LogGroup {
 }
 
 // Parse GitHub workflow command markers
-export const MARKER_REGEX =
-  /^##\[(group|endgroup|error|warning|notice|debug)\](.*)$/;
-export const COMMAND_REGEX = /^\[command\](.*)$/;
+const MARKER_REGEX = /^##\[(group|endgroup|error|warning|notice|debug)\](.*)$/;
+const COMMAND_REGEX = /^\[command\](.*)$/;
 
 export type MarkerType =
   | "group"
@@ -121,7 +120,7 @@ export function parseLogs(logs: LogEntry[]): {
   return { lines, groups };
 }
 
-export interface VisibleLine {
+interface VisibleLine {
   index: number;
   indentLevel: number;
   displayLine: number;
