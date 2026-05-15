@@ -14,6 +14,7 @@ Use Everr from the repository root when investigating CI state, GitHub Actions f
 | Read-only custom cloud SQL | `everr cloud query "<SQL>"` |
 | Current commit pipeline state. Reads the current branch/repo from git context | `everr ci status` |
 | Wait for the current commit on the current branch/repo | `everr ci watch --fail-fast` |
+| Wait for one known run id | `everr ci watch --run-id <id> --fail-fast` |
 | Recent or filtered runs | `everr ci runs` |
 | Jobs and steps for one run | `everr ci show <trace_id>` |
 | Only failed jobs and steps | `everr ci show <trace_id> --failed` |
@@ -22,6 +23,8 @@ Use Everr from the repository root when investigating CI state, GitHub Actions f
 
 Useful flags:
 - `everr ci status --commit <sha>` targets another commit.
+- `everr ci status --run-id <id>` targets one known run.
+- `everr ci watch --run-id <id>` targets one known run.
 - `everr ci runs --current-branch`, `--branch <name>`, `--conclusion <success|failure|cancellation>`, `--workflow-name <name>`, or `--run-id <id>` narrows run lists.
 - `everr ci logs --job-id <id>` is safer than `--job-name` when a job id is available.
 - `everr ci logs --egrep <pattern>` filters logs with a re2 regex; exit code 1 means no matching lines.

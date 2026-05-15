@@ -44,16 +44,36 @@ pub async fn status(args: StatusArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
-    let commit = resolve_commit(args.commit, &cwd)?;
+    let run_id_filter = args.run_id;
+    let resolve_from_git = run_id_filter.is_none();
+    let commit = if resolve_from_git {
+        Some(resolve_commit(args.commit, &cwd)?)
+    } else {
+        args.commit
+    };
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
-    let branch = args
-        .branch
-        .or(git.branch)
-        .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
+    let branch = if resolve_from_git {
+        Some(
+            args.branch
+                .or(git.branch)
+                .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?,
+        )
+    } else {
+        args.branch
+    };
 
-    let query = vec![("repo", repo), ("branch", branch), ("commit", commit)];
+    let mut query = vec![("repo", repo)];
+    if let Some(commit) = commit {
+        query.push(("commit", commit));
+    }
+    if let Some(branch) = branch {
+        query.push(("branch", branch));
+    }
+    if let Some(run_id) = run_id_filter {
+        query.push(("runId", run_id));
+    }
     let payload = client.get_status(&query).await?;
     print_json(&payload)?;
     Ok(())
@@ -160,11 +180,18 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
     let explicit_commit = args.commit.is_some();
-    let target_commit = resolve_commit(args.commit, &cwd)?;
+    let run_id_filter = args.run_id.clone();
+    let target_commit = if explicit_commit || run_id_filter.is_none() {
+        Some(resolve_commit(args.commit, &cwd)?)
+    } else {
+        None
+    };
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
-    let branch = if explicit_commit {
+    let branch = if target_commit.is_none() {
+        args.branch
+    } else if explicit_commit {
         args.branch
     } else {
         Some(
@@ -174,12 +201,18 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         )
     };
 
-    let mut query = vec![("repo", repo.clone()), ("commit", target_commit.clone())];
+    let mut query = vec![("repo", repo.clone())];
+    if let Some(ref commit) = target_commit {
+        query.push(("commit", commit.clone()));
+    }
     if let Some(ref b) = branch {
         query.push(("branch", b.clone()));
     }
     if let Some(attempt) = args.attempt {
         query.push(("attempt", attempt.to_string()));
+    }
+    if let Some(ref run_id) = run_id_filter {
+        query.push(("runId", run_id.clone()));
     }
 
     let initial = client.get_status(&query).await?;
@@ -193,8 +226,16 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
             .as_deref()
             .map(|b| format!("  branch: {b}"))
             .unwrap_or_default();
+        let commit_part = target_commit
+            .as_deref()
+            .map(|commit| format!("  commit: {commit}"))
+            .unwrap_or_default();
+        let run_id_part = run_id_filter
+            .as_deref()
+            .map(|run_id| format!("  run-id: {run_id}"))
+            .unwrap_or_default();
         println!(
-            "no runs found yet, waiting...  [repo: {repo}  commit: {target_commit}{branch_part}]"
+            "no runs found yet, waiting...  [repo: {repo}{commit_part}{branch_part}{run_id_part}]"
         );
     }
 
@@ -252,16 +293,45 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
         .map(|r| (r.trace_id.clone(), r.workflow_name.clone()))
         .collect();
 
-    let event_stream = client.events_stream("commit", Some(&target_commit)).await?;
+    let stream_trace_id = initial
+        .active
+        .first()
+        .or_else(|| initial.completed.first())
+        .map(|run| run.trace_id.clone());
+    let (stream_scope, stream_key) = match (run_id_filter.as_ref(), stream_trace_id, target_commit)
+    {
+        (Some(_), Some(trace_id), _) => ("trace", Some(trace_id)),
+        (Some(_), None, Some(commit)) => ("commit", Some(commit)),
+        (Some(_), None, None) => ("tenant", None),
+        (None, _, Some(commit)) => ("commit", Some(commit)),
+        (None, _, None) => {
+            bail!(
+                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
+            )
+        }
+    };
+    let event_stream = client
+        .events_stream(stream_scope, stream_key.as_deref())
+        .await?;
     pin!(event_stream);
 
     loop {
         match event_stream.next().await {
             Some(Ok(event)) => match event.event_type.as_str() {
                 "job" => {
+                    if run_id_filter.as_deref() != Some(event.run_id.as_str())
+                        && run_id_filter.is_some()
+                    {
+                        continue;
+                    }
                     println!("{}", format_watch_event_line(&event));
                 }
                 "run" => {
+                    if run_id_filter.as_deref() != Some(event.run_id.as_str())
+                        && run_id_filter.is_some()
+                    {
+                        continue;
+                    }
                     known.insert(event.trace_id.clone());
                     run_names.insert(event.trace_id.clone(), event.workflow_name.clone());
                     if event.status == "completed" {

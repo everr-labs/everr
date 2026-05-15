@@ -156,6 +156,60 @@ describe("getBranchStatus", () => {
     ]);
   });
 
+  it("filters by run id without requiring a commit", async () => {
+    mockedQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          runId: "4242",
+          traceId: "trace-run-id",
+          workflowName: "CI",
+          status: "completed",
+          conclusion: "success",
+          startedAt: "2026-03-06T10:00:00Z",
+          completedAt: "2026-03-06T10:01:00Z",
+          lastEventAt: "2026-03-06T10:01:00Z",
+          attempts: 1,
+          headSha: "abc123",
+          branch: "feature/from-run-id",
+        },
+      ],
+    });
+
+    const result = await getBranchStatus({
+      tenantId: "42",
+      repo: "everr-labs/everr",
+      runId: "4242",
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery.mock.calls[0]?.[0]).not.toContain("sha =");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("run_id::text = $3");
+    expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
+      "42",
+      "everr-labs/everr",
+      "4242",
+    ]);
+    expect(result).toEqual({
+      repo: "everr-labs/everr",
+      branch: "feature/from-run-id",
+      commit: "abc123",
+      state: "completed",
+      active: [],
+      completed: [
+        {
+          traceId: "trace-run-id",
+          runId: "4242",
+          workflowName: "CI",
+          conclusion: "success",
+          startedAt: "2026-03-06T10:00:00.000Z",
+          durationSeconds: 60,
+          activeJobs: [],
+          failingJobs: [],
+        },
+      ],
+    });
+  });
+
   it("keeps only the latest attempt per run and returns completed state", async () => {
     mockedQuery.mockResolvedValueOnce({
       rows: [

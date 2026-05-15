@@ -204,7 +204,41 @@ describe("/api/cli/runs/status", () => {
     });
   });
 
-  it("requires repo, branch, and commit", async () => {
+  it("passes runId through to getBranchStatus without requiring commit", async () => {
+    mockedGetBranchStatus.mockResolvedValue({
+      repo: "everr-labs/everr",
+      branch: null,
+      commit: "",
+      state: "pending",
+      active: [],
+      completed: [],
+    });
+
+    const response = await getHandler()({
+      request: new Request(
+        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&runId=4242",
+      ),
+      context: {
+        session: {
+          session: {
+            activeOrganizationId: "org-42",
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockedGetBranchStatus).toHaveBeenCalledWith({
+      tenantId: "org-42",
+      repo: "everr-labs/everr",
+      branch: undefined,
+      commit: undefined,
+      attempt: undefined,
+      runId: "4242",
+    });
+  });
+
+  it("requires repo and either commit or runId", async () => {
     const response = await getHandler()({
       request: new Request(
         "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr",
@@ -221,7 +255,7 @@ describe("/api/cli/runs/status", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error:
-        "Invalid query parameters for status. Required: repo, branch, commit.",
+        "Invalid query parameters for status. Required: repo and either commit or runId.",
     });
     expect(mockedGetBranchStatus).not.toHaveBeenCalled();
   });
