@@ -41,9 +41,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard/ingest-keys")({
       throw redirect({ to: "/" });
     }
   },
-  loader: async ({ context: { queryClient } }) => {
-    await queryClient.ensureQueryData(ingestKeysQueryOptions());
-  },
   component: IngestKeysPage,
 });
 
