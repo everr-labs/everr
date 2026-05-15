@@ -63,10 +63,6 @@ export function IngestKeysTable({ keys }: IngestKeysTableProps) {
         dimmedDate((row as { lastRequest?: string | null }).lastRequest),
     },
     {
-      header: "Requests",
-      cell: (row) => (row as { requestCount?: number }).requestCount ?? 0,
-    },
-    {
       header: <span className="sr-only">Actions</span>,
       cell: (row) => (
         <AlertDialog>

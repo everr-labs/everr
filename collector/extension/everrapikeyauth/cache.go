@@ -5,18 +5,10 @@ import (
 	"time"
 )
 
-// rateLimit is the per-key budget enforced inside the extension.
-type rateLimit struct {
-	enabled  bool
-	max      int
-	windowMs int64
-}
-
-// authResult is what the verify endpoint tells us, plus what we derive.
+// authResult is what the verify endpoint tells us.
 type authResult struct {
 	tenantID string
 	keyID    string
-	rl       rateLimit
 }
 
 // cacheEntry stores one verification outcome.
@@ -28,16 +20,9 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
-// rlState tracks token-bucket-ish counters per key for rate limiting.
-type rlState struct {
-	count       int
-	windowStart time.Time
-}
-
 type tokenCache struct {
 	mu      sync.Mutex
 	entries map[string]cacheEntry
-	rl      map[string]*rlState
 	maxSize int
 	posTTL  time.Duration
 	negTTL  time.Duration
@@ -47,7 +32,6 @@ type tokenCache struct {
 func newTokenCache(maxSize int, posTTL, negTTL time.Duration) *tokenCache {
 	return &tokenCache{
 		entries: make(map[string]cacheEntry),
-		rl:      make(map[string]*rlState),
 		maxSize: maxSize,
 		posTTL:  posTTL,
 		negTTL:  negTTL,
@@ -100,26 +84,4 @@ func (c *tokenCache) evictIfFull() {
 		delete(c.entries, k)
 		break
 	}
-}
-
-// allow consumes one unit from the per-key rate budget. Returns false when
-// over budget.
-func (c *tokenCache) allow(keyID string, rl rateLimit) bool {
-	if !rl.enabled || rl.max <= 0 || rl.windowMs <= 0 {
-		return true
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	now := c.now()
-	st, ok := c.rl[keyID]
-	window := time.Duration(rl.windowMs) * time.Millisecond
-	if !ok || now.Sub(st.windowStart) >= window {
-		c.rl[keyID] = &rlState{count: 1, windowStart: now}
-		return true
-	}
-	if st.count >= rl.max {
-		return false
-	}
-	st.count++
-	return true
 }

@@ -1,15 +1,7 @@
 # Manual smoke test for the public OTLP ingest pipeline
 
 This walks the end-to-end auth + tenant-stamping flow against a real
-collector binary. A proper Go-level e2e test against a wired-up OTLP
-receiver is tracked separately (Task 8 in the implementation plan).
-
-## Prereqs
-
-- Built collector: `make -C collector build`
-- A verify endpoint reachable from the collector. Use the everr app
-  (`pnpm -F app dev`) or stand up a fake one (see "Fake verify" below).
-- An OTLP-capable client (`otelcol` itself, `telemetrygen`, or a real SDK).
+collector binary.
 
 ## Steps
 
@@ -66,29 +58,3 @@ receiver is tracked separately (Task 8 in the implementation plan).
 6. **Rate limit**: with a key set to `rateLimitMax: 5, rateLimitTimeWindow: 60_000`,
    send 10 requests quickly. The first 5 succeed; the rest fail with the
    collector logging `rate limit exceeded`.
-
-## Fake verify (no app required)
-
-```go
-package main
-
-import (
-    "encoding/json"
-    "net/http"
-)
-
-func main() {
-    http.HandleFunc("/api/internal/verify-key", func(w http.ResponseWriter, r *http.Request) {
-        if r.Header.Get("x-internal-secret") != "test-secret-padded-to-32-chars-aaaaa" {
-            w.WriteHeader(http.StatusForbidden)
-            return
-        }
-        _ = json.NewEncoder(w).Encode(map[string]any{
-            "tenantId":  "org_42",
-            "keyId":     "ak_smoke",
-            "rateLimit": map[string]any{"enabled": true, "max": 5, "windowMs": 60000},
-        })
-    })
-    _ = http.ListenAndServe(":3000", nil)
-}
-```

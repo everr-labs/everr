@@ -43,8 +43,6 @@ services:
       - "4317:4317"
       - "4318:4318"
     environment:
-      INGEST_VERIFY_URL: ${INGEST_VERIFY_URL:-http://host.docker.internal:3000/api/internal/verify-key}
-      INGEST_VERIFY_SHARED_SECRET: ${INGEST_VERIFY_SHARED_SECRET:-"replace-with-a-long-random-value"}
       EVERR_DEV_OTLP_ENDPOINT: ${EVERR_DEV_OTLP_ENDPOINT:-http://host.docker.internal:54318}
     extra_hosts:
       - "host.docker.internal:host-gateway"

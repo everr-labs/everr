@@ -52,36 +52,3 @@ func TestCache_EvictsWhenFull(t *testing.T) {
 		t.Fatalf("size %d > 2", len(c.entries))
 	}
 }
-
-func TestRateLimit_Allow(t *testing.T) {
-	now := time.Unix(0, 0)
-	c := newTokenCache(10, time.Minute, time.Minute)
-	c.now = func() time.Time { return now }
-
-	rl := rateLimit{enabled: true, max: 3, windowMs: 1000}
-
-	for i := 0; i < 3; i++ {
-		if !c.allow("k", rl) {
-			t.Fatalf("request %d should be allowed", i)
-		}
-	}
-	if c.allow("k", rl) {
-		t.Fatal("4th request should be denied")
-	}
-
-	// Window rolls over.
-	now = now.Add(2 * time.Second)
-	if !c.allow("k", rl) {
-		t.Fatal("after window, should allow")
-	}
-}
-
-func TestRateLimit_Disabled(t *testing.T) {
-	c := newTokenCache(10, time.Minute, time.Minute)
-	rl := rateLimit{enabled: false, max: 1, windowMs: 1000}
-	for i := 0; i < 100; i++ {
-		if !c.allow("k", rl) {
-			t.Fatal("disabled rate limit should always allow")
-		}
-	}
-}

@@ -118,29 +118,6 @@ func TestAuthenticate_CacheHit_AvoidsSecondCall(t *testing.T) {
 	}
 }
 
-func TestAuthenticate_RateLimitExceeded(t *testing.T) {
-	max := 2
-	window := int64(60_000)
-	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
-		body := verifyResponse{TenantID: "org", KeyID: "k"}
-		body.RateLim.Enabled = true
-		body.RateLim.Max = &max
-		body.RateLim.WindowMs = &window
-		_ = json.NewEncoder(w).Encode(body)
-	})
-	defer srv.Close()
-	e := newTestExt(t, srv.URL)
-
-	for i := 0; i < max; i++ {
-		if _, err := e.Authenticate(context.Background(), authHeaders("k")); err != nil {
-			t.Fatalf("request %d should succeed: %v", i, err)
-		}
-	}
-	if _, err := e.Authenticate(context.Background(), authHeaders("k")); err == nil {
-		t.Fatal("expected rate limit error")
-	}
-}
-
 func TestAuthenticate_NegativeCache(t *testing.T) {
 	var calls int32
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {

@@ -8,16 +8,6 @@ vi.mock("@/env", () => ({
   },
 }));
 
-vi.mock("@/db/client", () => ({
-  db: {
-    query: {
-      apikey: {
-        findFirst: vi.fn(),
-      },
-    },
-  },
-}));
-
 vi.mock("@/lib/auth.server", () => ({
   auth: {
     api: {
@@ -52,11 +42,6 @@ function makeRequest(body: unknown, secret: string | null = SECRET): Request {
 async function mockVerify(result: unknown) {
   const { auth } = await import("@/lib/auth.server");
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
-}
-
-async function mockFindFirst(row: unknown) {
-  const { db } = await import("@/db/client");
-  vi.mocked(db.query.apikey.findFirst).mockResolvedValueOnce(row as never);
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -94,61 +79,17 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 when key configId is not ingest", async () => {
-    await mockVerify({ valid: true, key: { id: "ak_1" }, error: null });
-    await mockFindFirst({
-      id: "ak_1",
-      configId: "cli",
-      referenceId: "user_x",
-      enabled: true,
-      rateLimitEnabled: true,
-      rateLimitMax: 10,
-      rateLimitTimeWindow: 86400000,
-      remaining: null,
-    });
-    const res = await getHandler()({ request: makeRequest({ key: "k" }) });
-    expect(res.status).toBe(401);
-  });
-
-  it("returns 401 when key is disabled", async () => {
-    await mockVerify({ valid: true, key: { id: "ak_2" }, error: null });
-    await mockFindFirst({
-      id: "ak_2",
-      configId: "ingest",
-      referenceId: "org_x",
-      enabled: false,
-      rateLimitEnabled: true,
-      rateLimitMax: 10,
-      rateLimitTimeWindow: 86400000,
-      remaining: null,
-    });
-    const res = await getHandler()({ request: makeRequest({ key: "k" }) });
-    expect(res.status).toBe(401);
-  });
-
-  it("returns 200 with tenantId + rateLimit for a valid ingest key", async () => {
-    await mockVerify({ valid: true, key: { id: "ak_3" }, error: null });
-    await mockFindFirst({
-      id: "ak_3",
-      configId: "ingest",
-      referenceId: "org_42",
-      enabled: true,
-      rateLimitEnabled: true,
-      rateLimitMax: 600,
-      rateLimitTimeWindow: 60000,
-      remaining: null,
+  it("returns 200 with tenantId for a valid ingest key", async () => {
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: { id: "ak_3", referenceId: "org_42" },
     });
     const res = await getHandler()({ request: makeRequest({ key: "k" }) });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_3",
-      rateLimit: {
-        enabled: true,
-        max: 600,
-        windowMs: 60000,
-        remaining: null,
-      },
     });
   });
 });

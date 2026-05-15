@@ -23,18 +23,12 @@ var (
 	errMissingAuth   = errors.New("missing authorization header")
 	errInvalidScheme = errors.New("authorization scheme must be Bearer")
 	errUnauthorized  = errors.New("unauthorized")
-	errRateLimited   = errors.New("rate limit exceeded")
 )
 
 // verifyResponse mirrors VerifyKeyResponse on the app side.
 type verifyResponse struct {
 	TenantID string `json:"tenantId"`
 	KeyID    string `json:"keyId"`
-	RateLim  struct {
-		Enabled  bool   `json:"enabled"`
-		Max      *int   `json:"max"`
-		WindowMs *int64 `json:"windowMs"`
-	} `json:"rateLimit"`
 }
 
 type ext struct {
@@ -75,9 +69,9 @@ func (e *ext) Shutdown(_ context.Context) error {
 }
 
 // Authenticate implements extensionauth.Server. It extracts the bearer token
-// from the request headers, verifies it (with caching), enforces per-key rate
-// limits, and stamps tenant info into client.Info.Auth so downstream
-// processors can read `auth.tenant_id`.
+// from the request headers, verifies it (with caching), and stamps tenant
+// info into client.Info.Auth so downstream processors can read
+// `auth.tenant_id`.
 func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (context.Context, error) {
 	token, err := bearerFrom(headers)
 	if err != nil {
@@ -87,10 +81,6 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 	res, err := e.lookup(ctx, token)
 	if err != nil {
 		return ctx, err
-	}
-
-	if !e.cache.allow(res.keyID, res.rl) {
-		return ctx, errRateLimited
 	}
 
 	cl := client.FromContext(ctx)
@@ -164,14 +154,7 @@ func (e *ext) verify(ctx context.Context, token string) (*authResult, error) {
 		if err := json.NewDecoder(resp.Body).Decode(&vr); err != nil {
 			return nil, fmt.Errorf("decode verify response: %w", err)
 		}
-		rl := rateLimit{enabled: vr.RateLim.Enabled}
-		if vr.RateLim.Max != nil {
-			rl.max = *vr.RateLim.Max
-		}
-		if vr.RateLim.WindowMs != nil {
-			rl.windowMs = *vr.RateLim.WindowMs
-		}
-		return &authResult{tenantID: vr.TenantID, keyID: vr.KeyID, rl: rl}, nil
+		return &authResult{tenantID: vr.TenantID, keyID: vr.KeyID}, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return nil, errUnauthorized
 	default:

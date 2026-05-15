@@ -3,8 +3,8 @@ extensions:
   # everr app's internal verify endpoint. The shared secret guards that
   # endpoint; rotate both sides together.
   everr_apikey:
-    endpoint: ${env:INGEST_VERIFY_URL}
-    shared_secret: ${env:INGEST_VERIFY_SHARED_SECRET}
+    endpoint: http://host.docker.internal:5173/api/internal/verify-key
+    shared_secret: "replace-with-a-long-random-value"
 
 receivers:
   githubactions:
