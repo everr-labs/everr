@@ -48,14 +48,12 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     ensure_supported_platform()?;
 
     let telemetry_dir = everr_core::build::telemetry_dir()?;
-    let config_path =
-        everr_core::collector::write_config(&telemetry_dir).context("write collector config")?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
 
     kill_orphaned_collector();
 
-    let mut child = spawn_collector(&assets, &config_path).await?;
-    let health_endpoint = format!("http://127.0.0.1:{}/", everr_core::build::HEALTHCHECK_PORT);
+    let mut child = spawn_collector(&assets, &telemetry_dir).await?;
+    let health_endpoint = run_start_health_endpoint();
     if !everr_core::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await {
         if let Some(status) = child.try_wait().context("poll collector process")? {
             bail!("collector exited before it became ready: {status}");
@@ -86,6 +84,13 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
             }
         }
     }
+}
+
+fn run_start_health_endpoint() -> String {
+    format!(
+        "{}/",
+        everr_core::build::healthcheck_origin().trim_end_matches('/')
+    )
 }
 
 async fn wait_for_shutdown_signal() -> Result<()> {
@@ -120,10 +125,25 @@ fn ensure_supported_platform() -> Result<()> {
     bail!("embedded local collector is currently supported only on macOS arm64");
 }
 
-async fn spawn_collector(assets: &ExtractedAssets, config_path: &Path) -> Result<Child> {
+async fn spawn_collector(assets: &ExtractedAssets, telemetry_dir: &Path) -> Result<Child> {
+    let chdb_path = telemetry_dir.join("chdb");
+    fs::create_dir_all(&chdb_path)
+        .with_context(|| format!("create chdb dir {}", chdb_path.display()))?;
+    let otlp_endpoint = everr_core::build::otlp_http_origin();
+    let health_endpoint = everr_core::build::healthcheck_origin();
+    let sql_endpoint = everr_core::build::sql_http_origin();
+
     let mut child = Command::new(&assets.collector)
-        .arg("--config")
-        .arg(config_path)
+        .arg("--otlp-http-endpoint")
+        .arg(&otlp_endpoint)
+        .arg("--health-http-endpoint")
+        .arg(&health_endpoint)
+        .arg("--sql-http-endpoint")
+        .arg(&sql_endpoint)
+        .arg("--chdb-path")
+        .arg(&chdb_path)
+        .arg("--ttl")
+        .arg("7d")
         .env("CHDB_LIB_PATH", &assets.chdb_lib)
         .env("TZ", "UTC")
         .stdout(Stdio::piped())
@@ -421,6 +441,29 @@ mod tests {
                 & 0o777,
             0o644
         );
+    }
+
+    #[test]
+    fn run_start_health_endpoint_honors_debug_healthcheck_override() {
+        const KEY: &str = "EVERR_HEALTHCHECK_ORIGIN";
+        let previous = std::env::var_os(KEY);
+
+        unsafe {
+            std::env::set_var(KEY, "http://127.0.0.1:65531");
+        }
+
+        let endpoint = run_start_health_endpoint();
+
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var(KEY, value);
+            },
+            None => unsafe {
+                std::env::remove_var(KEY);
+            },
+        }
+
+        assert_eq!(endpoint, "http://127.0.0.1:65531/");
     }
 
     fn extract_test_assets_to_cache(

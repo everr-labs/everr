@@ -25,60 +25,24 @@ fn telemetry_query_happy_path() {
     let sql_port = pick_free_port();
     let health_port = pick_free_port();
 
-    let collector_config = collector_home.path().join("collector.yaml");
     let chdb_path = collector_home.path().join("chdb");
-    fs::create_dir_all(&chdb_path).expect("create chdb dir");
-    fs::write(
-        &collector_config,
-        format!(
-            r#"
-receivers:
-  otlp:
-    protocols:
-      http:
-        endpoint: 127.0.0.1:{otlp_port}
-
-processors:
-  batch:
-    timeout: 500ms
-
-exporters:
-  chdb:
-    path: "{chdb_path}"
-    ttl: 48h
-
-extensions:
-  health_check:
-    endpoint: 127.0.0.1:{health_port}
-  sqlhttp:
-    endpoint: 127.0.0.1:{sql_port}
-    path: "{chdb_path}"
-
-service:
-  extensions: [health_check, sqlhttp]
-  pipelines:
-    logs:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [chdb]
-  telemetry:
-    metrics:
-      level: none
-"#,
-            otlp_port = otlp_port,
-            sql_port = sql_port,
-            health_port = health_port,
-            chdb_path = chdb_path.display(),
-        ),
-    )
-    .expect("write collector config");
-
-    let mut collector_process = Command::new(&collector_binary)
-        .arg("--config")
-        .arg(&collector_config)
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn collector");
+    let mut collector_command = Command::new(&collector_binary);
+    collector_command
+        .arg("--otlp-http-endpoint")
+        .arg(format!("http://127.0.0.1:{otlp_port}"))
+        .arg("--health-http-endpoint")
+        .arg(format!("http://127.0.0.1:{health_port}"))
+        .arg("--sql-http-endpoint")
+        .arg(format!("http://127.0.0.1:{sql_port}"))
+        .arg("--chdb-path")
+        .arg(&chdb_path)
+        .arg("--ttl")
+        .arg("7d")
+        .stderr(Stdio::piped());
+    if let Some(chdb_lib) = resolve_chdb_lib() {
+        collector_command.env("CHDB_LIB_PATH", chdb_lib);
+    }
+    let mut collector_process = collector_command.spawn().expect("spawn collector");
     let mut collector_stderr = collector_process.stderr.take().expect("collector stderr");
     let mut collector = CollectorGuard::spawn(collector_process);
 
@@ -125,6 +89,12 @@ fn resolve_collector_binary() -> Option<PathBuf> {
     candidate.exists().then_some(candidate)
 }
 
+fn resolve_chdb_lib() -> Option<PathBuf> {
+    let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../target/chdb/v4.0.2-extract/libchdb.so");
+    candidate.exists().then_some(candidate)
+}
+
 fn copy_everr_dev_binary() -> DevBinary {
     let source = assert_cmd::cargo::cargo_bin!("everr");
     let dir = TempDir::new().expect("create cli binary tempdir");
@@ -162,9 +132,11 @@ fn wait_for_health(
             let _ = collector_stderr.read_to_string(&mut stderr);
             if stderr.contains("unknown type: \"chdb\"")
                 || stderr.contains("unknown type: \"sqlhttp\"")
+                || stderr.contains("unknown flag")
+                || stderr.contains("flag provided but not defined")
             {
                 eprintln!(
-                    "skipping: built collector binary does not include chdb/sqlhttp yet (exit: {status}). \
+                    "skipping: built collector binary does not include the gateway yet (exit: {status}). \
                      Rebuild collector/build-local/everr-local-collector from the current source tree."
                 );
                 return false;

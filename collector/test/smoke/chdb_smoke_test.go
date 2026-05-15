@@ -27,14 +27,15 @@ func TestChdbSmoke(t *testing.T) {
 	}
 
 	otlpPort := freeTCPPort(t)
+	healthPort := freeTCPPort(t)
+	sqlPort := freeTCPPort(t)
 	chdbDir := filepath.Join(t.TempDir(), "chdb")
-	cfgPath := filepath.Join(t.TempDir(), "collector.yaml")
-	writeCollectorConfig(t, cfgPath, chdbDir, otlpPort)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary, "--config", cfgPath)
+	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, healthPort, sqlPort)...)
+	withChDBLibEnv(t, cmd)
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
@@ -48,6 +49,7 @@ func TestChdbSmoke(t *testing.T) {
 		_ = cmd.Wait()
 	})
 
+	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/", healthPort), 10*time.Second)
 	waitForCollectorLogs(t, otlpPort, cmd, &output)
 
 	waitForPopulatedDir(t, chdbDir, 10*time.Second)
@@ -63,13 +65,12 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 	healthPort := freeTCPPort(t)
 	sqlPort := freeTCPPort(t)
 	chdbDir := filepath.Join(t.TempDir(), "chdb")
-	cfgPath := filepath.Join(t.TempDir(), "collector.yaml")
-	writeCollectorConfigWithSQL(t, cfgPath, chdbDir, otlpPort, healthPort, sqlPort)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary, "--config", cfgPath)
+	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, healthPort, sqlPort)...)
+	withChDBLibEnv(t, cmd)
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
@@ -119,13 +120,12 @@ func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 	healthPort := freeTCPPort(t)
 	sqlPort := freeTCPPort(t)
 	chdbDir := filepath.Join(t.TempDir(), "chdb")
-	cfgPath := filepath.Join(t.TempDir(), "collector.yaml")
-	writeCollectorConfigWithSQL(t, cfgPath, chdbDir, otlpPort, healthPort, sqlPort)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary, "--config", cfgPath)
+	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, healthPort, sqlPort)...)
+	withChDBLibEnv(t, cmd)
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
@@ -206,6 +206,32 @@ func resolveCollectorBinary(t *testing.T) string {
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "build-local", collectorBinaryName)
 }
 
+func gatewayArgs(chdbDir string, otlpPort, healthPort, sqlPort int) []string {
+	return []string{
+		"--otlp-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", otlpPort),
+		"--health-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", healthPort),
+		"--sql-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", sqlPort),
+		"--chdb-path", chdbDir,
+		"--ttl", "7d",
+	}
+}
+
+func withChDBLibEnv(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
+	if os.Getenv("CHDB_LIB_PATH") != "" {
+		return
+	}
+
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	candidate := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "target", "chdb", "v4.0.2-extract", "libchdb.so")
+	if _, err := os.Stat(candidate); err == nil {
+		cmd.Env = append(os.Environ(), "CHDB_LIB_PATH="+candidate)
+	}
+}
+
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
 
@@ -221,80 +247,6 @@ func freeTCPPort(t *testing.T) int {
 	}
 
 	return addr.Port
-}
-
-func writeCollectorConfig(t *testing.T, path, chdbDir string, otlpPort int) {
-	t.Helper()
-
-	cfg := fmt.Sprintf(`
-receivers:
-  otlp:
-    protocols:
-      http:
-        endpoint: 127.0.0.1:%d
-processors:
-  batch:
-    timeout: 250ms
-exporters:
-  chdb:
-    path: %q
-service:
-  pipelines:
-    logs:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [chdb]
-  telemetry:
-    metrics:
-      level: none
-`, otlpPort, chdbDir)
-
-	if err := os.WriteFile(path, []byte(cfg), 0o644); err != nil {
-		t.Fatalf("write collector config: %v", err)
-	}
-}
-
-func writeCollectorConfigWithSQL(
-	t *testing.T,
-	path, chdbDir string,
-	otlpPort, healthPort, sqlPort int,
-) {
-	t.Helper()
-
-	cfg := fmt.Sprintf(`
-receivers:
-  otlp:
-    protocols:
-      http:
-        endpoint: 127.0.0.1:%d
-processors:
-  batch:
-    timeout: 250ms
-exporters:
-  chdb:
-    path: %q
-    ttl: 48h
-extensions:
-  health_check:
-    endpoint: 127.0.0.1:%d
-  sqlhttp:
-    endpoint: 127.0.0.1:%d
-    path: %q
-service:
-  extensions: [health_check, sqlhttp]
-  pipelines:
-    logs:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [chdb]
-  telemetry:
-    metrics:
-      level: none
-`, otlpPort, chdbDir, healthPort, sqlPort, chdbDir)
-
-	if err := os.WriteFile(path, []byte(cfg), 0o644); err != nil {
-		t.Fatalf("write collector config: %v", err)
-	}
 }
 
 func waitForCollectorLogs(t *testing.T, port int, cmd *exec.Cmd, output *bytes.Buffer) {
