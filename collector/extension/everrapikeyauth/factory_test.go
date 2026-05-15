@@ -19,6 +19,9 @@ func TestCreateDefaultConfig(t *testing.T) {
 	if cfg.CacheSize != defaultCacheSize {
 		t.Errorf("CacheSize: got %d, want %d", cfg.CacheSize, defaultCacheSize)
 	}
+	if cfg.NegativeCacheSize != defaultNegativeCacheSize {
+		t.Errorf("NegativeCacheSize: got %d, want %d", cfg.NegativeCacheSize, defaultNegativeCacheSize)
+	}
 }
 
 func TestConfigValidate(t *testing.T) {

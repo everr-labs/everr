@@ -1,6 +1,7 @@
 package everrapikeyauth
 
 import (
+	"container/list"
 	"sync"
 	"time"
 )
@@ -20,68 +21,139 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
-type tokenCache struct {
-	mu      sync.Mutex
-	entries map[string]cacheEntry
-	maxSize int
-	posTTL  time.Duration
-	negTTL  time.Duration
-	now     func() time.Time
+// lruNode is what each LRU list element points at. The key is kept here so we
+// can drop the map index when an element is evicted from the list tail.
+type lruNode struct {
+	key   string
+	entry cacheEntry
 }
 
-func newTokenCache(maxSize int, posTTL, negTTL time.Duration) *tokenCache {
-	return &tokenCache{
-		entries: make(map[string]cacheEntry),
-		maxSize: maxSize,
-		posTTL:  posTTL,
-		negTTL:  negTTL,
-		now:     time.Now,
+// lru is a tiny TTL-aware LRU. Used twice inside tokenCache — once for
+// positives, once for negatives.
+type lru struct {
+	list  *list.List
+	index map[string]*list.Element
+	cap   int
+	ttl   time.Duration
+	now   func() time.Time
+}
+
+func newLRU(cap int, ttl time.Duration, now func() time.Time) *lru {
+	if cap < 1 {
+		cap = 1
 	}
+	return &lru{
+		list:  list.New(),
+		index: make(map[string]*list.Element, cap),
+		cap:   cap,
+		ttl:   ttl,
+		now:   now,
+	}
+}
+
+func (l *lru) get(key string) (cacheEntry, bool) {
+	el, ok := l.index[key]
+	if !ok {
+		return cacheEntry{}, false
+	}
+	n := el.Value.(*lruNode)
+	if l.now().After(n.entry.expiresAt) {
+		l.list.Remove(el)
+		delete(l.index, key)
+		return cacheEntry{}, false
+	}
+	l.list.MoveToFront(el)
+	return n.entry, true
+}
+
+func (l *lru) put(key string, entry cacheEntry) {
+	if el, ok := l.index[key]; ok {
+		el.Value.(*lruNode).entry = entry
+		l.list.MoveToFront(el)
+		return
+	}
+	if l.list.Len() >= l.cap {
+		back := l.list.Back()
+		if back != nil {
+			l.list.Remove(back)
+			delete(l.index, back.Value.(*lruNode).key)
+		}
+	}
+	el := l.list.PushFront(&lruNode{key: key, entry: entry})
+	l.index[key] = el
+}
+
+func (l *lru) len() int { return l.list.Len() }
+
+// tokenCache keeps positive and negative verification outcomes in separate
+// LRU caches so a flood of bad tokens can't push out entries for legitimate
+// keys.
+type tokenCache struct {
+	mu  sync.Mutex
+	pos *lru
+	neg *lru
+	now func() time.Time
+}
+
+func newTokenCache(posSize, negSize int, posTTL, negTTL time.Duration) *tokenCache {
+	now := time.Now
+	return &tokenCache{
+		pos: newLRU(posSize, posTTL, now),
+		neg: newLRU(negSize, negTTL, now),
+		now: now,
+	}
+}
+
+// setNow swaps the clock used by both LRUs. Test-only.
+func (c *tokenCache) setNow(now func() time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = now
+	c.pos.now = now
+	c.neg.now = now
 }
 
 // get returns the cached entry for token if still valid; ok==false otherwise.
+// Positives are checked first since they're the hot path.
 func (c *tokenCache) get(token string) (cacheEntry, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	e, found := c.entries[token]
-	if !found {
-		return cacheEntry{}, false
+	if e, ok := c.pos.get(token); ok {
+		return e, true
 	}
-	if c.now().After(e.expiresAt) {
-		delete(c.entries, token)
-		return cacheEntry{}, false
+	if e, ok := c.neg.get(token); ok {
+		return e, true
 	}
-	return e, true
+	return cacheEntry{}, false
 }
 
 func (c *tokenCache) putSuccess(token string, res *authResult) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.evictIfFull()
-	c.entries[token] = cacheEntry{
+	c.pos.put(token, cacheEntry{
 		result:    res,
-		expiresAt: c.now().Add(c.posTTL),
-	}
+		expiresAt: c.now().Add(c.pos.ttl),
+	})
 }
 
 func (c *tokenCache) putFailure(token string, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.evictIfFull()
-	c.entries[token] = cacheEntry{
+	c.neg.put(token, cacheEntry{
 		err:       err,
-		expiresAt: c.now().Add(c.negTTL),
-	}
+		expiresAt: c.now().Add(c.neg.ttl),
+	})
 }
 
-// evictIfFull drops one arbitrary entry when the map exceeds the bound. Cheap,
-// not LRU; fine for v1 given short TTLs.
-func (c *tokenCache) evictIfFull() {
-	if len(c.entries) < c.maxSize {
-		return
-	}
-	for k := range c.entries {
-		delete(c.entries, k)
-		break
-	}
+// posLen / negLen expose sizes for tests without leaking internals.
+func (c *tokenCache) posLen() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.pos.len()
+}
+
+func (c *tokenCache) negLen() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.neg.len()
 }

@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	defaultTimeout          = 2 * time.Second
-	defaultCacheTTL         = 30 * time.Second
-	defaultNegativeCacheTTL = 5 * time.Second
-	defaultCacheSize        = 10000
+	defaultTimeout           = 2 * time.Second
+	defaultCacheTTL          = 30 * time.Second
+	defaultNegativeCacheTTL  = 5 * time.Second
+	defaultCacheSize         = 10000
+	defaultNegativeCacheSize = 1024
 )
 
 // Config controls how the extension authenticates incoming requests against
@@ -35,8 +36,13 @@ type Config struct {
 	// retry storms from clients with bad keys.
 	NegativeCacheTTL time.Duration `mapstructure:"negative_cache_ttl"`
 
-	// CacheSize bounds the in-memory cache.
+	// CacheSize bounds the in-memory cache of successful verifications.
 	CacheSize int `mapstructure:"cache_size"`
+
+	// NegativeCacheSize bounds the in-memory cache of failed verifications.
+	// Kept separate from CacheSize so a flood of bad tokens can't push out
+	// entries for legitimate keys.
+	NegativeCacheSize int `mapstructure:"negative_cache_size"`
 }
 
 func (c *Config) Validate() error {
@@ -62,6 +68,9 @@ func (c *Config) applied() Config {
 	}
 	if out.CacheSize == 0 {
 		out.CacheSize = defaultCacheSize
+	}
+	if out.NegativeCacheSize == 0 {
+		out.NegativeCacheSize = defaultNegativeCacheSize
 	}
 	return out
 }

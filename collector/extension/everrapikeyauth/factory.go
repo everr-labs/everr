@@ -21,10 +21,11 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Timeout:          defaultTimeout,
-		CacheTTL:         defaultCacheTTL,
-		NegativeCacheTTL: defaultNegativeCacheTTL,
-		CacheSize:        defaultCacheSize,
+		Timeout:           defaultTimeout,
+		CacheTTL:          defaultCacheTTL,
+		NegativeCacheTTL:  defaultNegativeCacheTTL,
+		CacheSize:         defaultCacheSize,
+		NegativeCacheSize: defaultNegativeCacheSize,
 	}
 }
 

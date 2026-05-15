@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 // Errors returned by Authenticate.
@@ -35,21 +36,31 @@ type ext struct {
 	cfg    Config
 	logger *zap.Logger
 
-	httpClient *http.Client
-	cache      *tokenCache
+	httpClient   *http.Client
+	cache        *tokenCache
+	verifyFlight singleflight.Group
 
 	closeOnce sync.Once
 }
 
 func newExtension(cfg *Config, settings extension.Settings) *ext {
 	applied := cfg.applied()
+	logger := settings.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &ext{
 		cfg:    applied,
-		logger: settings.Logger,
+		logger: logger,
 		httpClient: &http.Client{
 			Timeout: applied.Timeout,
 		},
-		cache: newTokenCache(applied.CacheSize, applied.CacheTTL, applied.NegativeCacheTTL),
+		cache: newTokenCache(
+			applied.CacheSize,
+			applied.NegativeCacheSize,
+			applied.CacheTTL,
+			applied.NegativeCacheTTL,
+		),
 	}
 }
 
@@ -89,11 +100,15 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 }
 
 func bearerFrom(headers map[string][]string) (string, error) {
-	var raw string
-	for k, v := range headers {
-		if strings.EqualFold(k, "authorization") && len(v) > 0 {
-			raw = v[0]
-			break
+	// gRPC lowercases headers; net/http canonicalizes them. Probe both common
+	// shapes before falling back to a case-insensitive scan.
+	raw := firstNonEmpty(headers["authorization"], headers["Authorization"])
+	if raw == "" {
+		for k, v := range headers {
+			if len(v) > 0 && v[0] != "" && strings.EqualFold(k, "authorization") {
+				raw = v[0]
+				break
+			}
 		}
 	}
 	if raw == "" {
@@ -110,8 +125,21 @@ func bearerFrom(headers map[string][]string) (string, error) {
 	return tok, nil
 }
 
+func firstNonEmpty(slices ...[]string) string {
+	for _, s := range slices {
+		if len(s) > 0 && s[0] != "" {
+			return s[0]
+		}
+	}
+	return ""
+}
+
 // lookup returns the authResult for the given token, consulting the cache
-// first and falling back to the verify endpoint.
+// first and falling back to the verify endpoint. Concurrent misses for the
+// same token coalesce into a single verify call via singleflight; the rest
+// wait for that one answer. The shared verify call uses a detached context
+// with its own timeout so one caller's cancellation does not fail all the
+// waiters.
 func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
 	if cached, ok := e.cache.get(token); ok {
 		if cached.err != nil {
@@ -120,16 +148,38 @@ func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
 		return cached.result, nil
 	}
 
-	res, verr := e.verify(ctx, token)
-	if verr != nil {
-		// Only cache definitive 401/403; transient errors should be retryable.
-		if errors.Is(verr, errUnauthorized) {
-			e.cache.putFailure(token, verr)
+	ch := e.verifyFlight.DoChan(token, func() (any, error) {
+		// Re-check the cache: another goroutine may have populated it while
+		// we were queued behind singleflight.
+		if cached, ok := e.cache.get(token); ok {
+			if cached.err != nil {
+				return nil, cached.err
+			}
+			return cached.result, nil
 		}
-		return nil, verr
+		verifyCtx, cancel := context.WithTimeout(context.Background(), e.cfg.Timeout)
+		defer cancel()
+		res, err := e.verify(verifyCtx, token)
+		if err != nil {
+			// Only cache definitive 401/403; transient errors should be retryable.
+			if errors.Is(err, errUnauthorized) {
+				e.cache.putFailure(token, err)
+			}
+			return nil, err
+		}
+		e.cache.putSuccess(token, res)
+		return res, nil
+	})
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		if r.Err != nil {
+			return nil, r.Err
+		}
+		return r.Val.(*authResult), nil
 	}
-	e.cache.putSuccess(token, res)
-	return res, nil
 }
 
 func (e *ext) verify(ctx context.Context, token string) (*authResult, error) {
@@ -154,11 +204,21 @@ func (e *ext) verify(ctx context.Context, token string) (*authResult, error) {
 		if err := json.NewDecoder(resp.Body).Decode(&vr); err != nil {
 			return nil, fmt.Errorf("decode verify response: %w", err)
 		}
+		e.logger.Debug(
+			"verified ingest key",
+			zap.String("key_id", vr.KeyID),
+			zap.String("tenant_id", vr.TenantID),
+		)
 		return &authResult{tenantID: vr.TenantID, keyID: vr.KeyID}, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
+		e.logger.Debug("verify endpoint rejected key")
 		return nil, errUnauthorized
 	default:
 		_, _ = io.Copy(io.Discard, resp.Body)
+		e.logger.Warn(
+			"verify endpoint returned unexpected status",
+			zap.Int("status", resp.StatusCode),
+		)
 		return nil, fmt.Errorf("verify endpoint returned %d", resp.StatusCode)
 	}
 }

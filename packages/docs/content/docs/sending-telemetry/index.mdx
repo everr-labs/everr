@@ -15,10 +15,9 @@ In the Everr dashboard, open the user menu (top-left) and click **Ingest Keys**,
 
 ## Endpoints
 
-| Protocol  | URL                              |
-| --------- | -------------------------------- |
-| OTLP HTTP | `https://ingest.everr.dev/`      |
-| OTLP gRPC | `https://ingest.everr.dev:4317`  |
+| Protocol  | URL                         |
+| --------- | --------------------------- |
+| OTLP HTTP | `https://ingest.everr.dev/` |
 
 Send the key as a bearer token in the `Authorization` header:
 
@@ -26,10 +25,12 @@ Send the key as a bearer token in the `Authorization` header:
 Authorization: Bearer <your-ingest-key>
 ```
 
-Requests without a valid key return **401 Unauthorized**. Requests over the per-key rate limit return **429 Too Many Requests**.
+Requests without a valid key return **401 Unauthorized**.
 
 <Callout title="Tenant attribution">
-If you set an `everr.tenant.id` resource attribute in your SDK, it will be **stripped and overwritten** with the value derived from your key. Tenant identity comes from the key, not from the client.
+  If you set an `everr.tenant.id` resource attribute in your SDK, it will be
+  **stripped and overwritten** with the value derived from your key. Tenant
+  identity comes from the key, not from the client.
 </Callout>
 
 ## Node.js / TypeScript
