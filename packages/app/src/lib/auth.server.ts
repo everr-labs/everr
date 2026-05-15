@@ -12,6 +12,13 @@ import {
   deviceAuthorization,
   organization as organizationPlugin,
 } from "better-auth/plugins";
+import { createAccessControl } from "better-auth/plugins/access";
+import {
+  adminAc,
+  defaultStatements,
+  memberAc,
+  ownerAc,
+} from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -104,6 +111,32 @@ async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
     polarModifiedAt: data.modifiedAt ?? data.createdAt,
   });
 }
+
+// Extend the org plugin's default access-control statement with apiKey
+// permissions so admins (not just owners) can manage org-scoped ingest keys.
+// Without these, the apiKey plugin's permission check (`apiKey: [<action>]`)
+// resolves to false for admins because better-auth's default org roles have
+// no apiKey statement.
+const orgStatement = {
+  ...defaultStatements,
+  apiKey: ["create", "read", "update", "delete"],
+} as const;
+
+const orgAc = createAccessControl(orgStatement);
+
+const orgRoles = {
+  owner: orgAc.newRole({
+    ...ownerAc.statements,
+    apiKey: ["create", "read", "update", "delete"],
+  }),
+  admin: orgAc.newRole({
+    ...adminAc.statements,
+    apiKey: ["create", "read", "update", "delete"],
+  }),
+  member: orgAc.newRole({
+    ...memberAc.statements,
+  }),
+};
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -285,6 +318,8 @@ export const auth = betterAuth({
       },
     },
     organizationPlugin({
+      ac: orgAc,
+      roles: orgRoles,
       sendInvitationEmail: async (data) => {
         sendInvitationEmail({
           to: data.email,
@@ -363,6 +398,11 @@ export const auth = betterAuth({
         references: "organization",
         defaultPrefix: "ek_",
         requireName: true,
+        // The collector hits the verify endpoint on every cache miss; better-
+        // auth's default rate limit (10 / 24h) would quickly disable real
+        // keys. Rate limiting against abuse lives in the collector cache and
+        // the shared-secret-guarded verify endpoint, not here.
+        rateLimit: { enabled: false },
       },
     ]),
     bearer(),

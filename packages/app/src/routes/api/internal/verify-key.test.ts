@@ -97,11 +97,20 @@ describe("/api/internal/verify-key", () => {
       error: null,
       key: { id: "ak_3", referenceId: "org_42" },
     });
-    const res = await getHandler()({ request: makeRequest({ key: "k" }) });
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key" }),
+    });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_3",
+    });
+
+    // The configId pin is the sole guarantee that a CLI/user-scoped key
+    // can't be used for ingest — assert we still pass it.
+    const { auth } = await import("@/lib/auth.server");
+    expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
+      body: { key: "the-key", configId: "ingest" },
     });
   });
 });

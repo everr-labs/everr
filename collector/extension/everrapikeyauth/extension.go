@@ -161,9 +161,22 @@ func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
 		defer cancel()
 		res, err := e.verify(verifyCtx, token)
 		if err != nil {
-			// Only cache definitive 401/403; transient errors should be retryable.
 			if errors.Is(err, errUnauthorized) {
+				// Definitive rejection — cache the negative outcome.
 				e.cache.putFailure(token, err)
+				return nil, err
+			}
+			// Transient (network, 5xx). OTel auth maps any error we return to
+			// 401 client-side, so fall back to the last-known-good cache entry
+			// within a grace window so brief verify outages don't translate
+			// into client-visible auth failures for keys we recently accepted.
+			grace := e.cfg.CacheTTL
+			if stale, ok := e.cache.peekStalePositive(token, grace); ok {
+				e.logger.Warn(
+					"verify endpoint unavailable; serving stale cached auth",
+					zap.Error(err),
+				)
+				return stale, nil
 			}
 			return nil, err
 		}

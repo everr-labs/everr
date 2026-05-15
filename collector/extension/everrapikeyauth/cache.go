@@ -58,8 +58,9 @@ func (l *lru) get(key string) (cacheEntry, bool) {
 	}
 	n := el.Value.(*lruNode)
 	if l.now().After(n.entry.expiresAt) {
-		l.list.Remove(el)
-		delete(l.index, key)
+		// Expired: report a miss but leave the entry in place so
+		// peek-based fallbacks (e.g. transient verify outage) can still
+		// see it. Size-bounded LRU eviction will reclaim the slot.
 		return cacheEntry{}, false
 	}
 	l.list.MoveToFront(el)
@@ -84,6 +85,16 @@ func (l *lru) put(key string, entry cacheEntry) {
 }
 
 func (l *lru) len() int { return l.list.Len() }
+
+// peek returns the entry for key without touching LRU order or expiring it.
+// Used by the stale-cache fallback in lookup.
+func (l *lru) peek(key string) (cacheEntry, bool) {
+	el, ok := l.index[key]
+	if !ok {
+		return cacheEntry{}, false
+	}
+	return el.Value.(*lruNode).entry, true
+}
 
 // tokenCache keeps positive and negative verification outcomes in separate
 // LRU caches so a flood of bad tokens can't push out entries for legitimate
@@ -143,6 +154,23 @@ func (c *tokenCache) putFailure(token string, err error) {
 		err:       err,
 		expiresAt: c.now().Add(c.neg.ttl),
 	})
+}
+
+// peekStalePositive returns the last-known positive entry for token if it
+// exists and is still within `grace` of its expiry. Used as a fallback when
+// the verify endpoint is transiently unavailable so brief upstream outages
+// don't translate into client-visible 401s for keys we recently accepted.
+func (c *tokenCache) peekStalePositive(token string, grace time.Duration) (*authResult, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.pos.peek(token)
+	if !ok || e.result == nil {
+		return nil, false
+	}
+	if c.now().After(e.expiresAt.Add(grace)) {
+		return nil, false
+	}
+	return e.result, true
 }
 
 // posLen / negLen expose sizes for tests without leaking internals.

@@ -33,46 +33,6 @@ Requests without a valid key return **401 Unauthorized**.
   identity comes from the key, not from the client.
 </Callout>
 
-## Node.js / TypeScript
-
-```ts
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-
-const sdk = new NodeSDK({
-  traceExporter: new OTLPTraceExporter({
-    url: "https://ingest.everr.dev/v1/traces",
-    headers: { Authorization: `Bearer ${process.env.EVERR_INGEST_KEY}` },
-  }),
-});
-
-sdk.start();
-```
-
-## Python
-
-```python
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-import os
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
-    endpoint="https://ingest.everr.dev/v1/traces",
-    headers={"Authorization": f"Bearer {os.environ['EVERR_INGEST_KEY']}"},
-)))
-```
-
-## Environment-variable form
-
-Most OTel SDKs honour the standard env vars, so for many runtimes you don't need any code changes:
-
-```sh
-export OTEL_EXPORTER_OTLP_ENDPOINT="https://ingest.everr.dev"
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer ${EVERR_INGEST_KEY}"
-```
-
 ## Forwarding from your own collector
 
 If you already run an OpenTelemetry Collector, point its OTLP exporter at Everr:
