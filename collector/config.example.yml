@@ -50,7 +50,6 @@ processors:
         key: everr.tenant.id
 
   # Public pipeline: stamp tenant from the auth context onto the resource.
-  # tenant_id is a string (better-auth organization id), so no int conversion.
   resource/public_tenant:
     attributes:
       - action: upsert
@@ -74,8 +73,7 @@ connectors:
 service:
   extensions: [everr_apikey]
   pipelines:
-    # Internal pipelines: trusted receivers, tenant from receiver-populated
-    # metadata header.
+    # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
       receivers: [githubactions, testlogstotraces]
       processors: [resource, batch]
