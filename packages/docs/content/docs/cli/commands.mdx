@@ -21,6 +21,7 @@ description: Reference for all Everr CLI commands.
 
 - `everr ci status` — show the current commit's pipeline state (`state`, `active`, `completed`)
   - `--commit <sha>` target a specific commit
+  - `--run-id <id>` target a specific run
   - `--branch <name>` / `--repo <repo>` override repository context
 
 - `everr ci watch` — wait until the current `HEAD` commit finishes; exits non-zero if any run fails

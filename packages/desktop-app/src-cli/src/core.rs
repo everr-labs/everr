@@ -44,16 +44,36 @@ pub async fn status(args: StatusArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
-    let commit = resolve_commit(args.commit, &cwd)?;
+    let run_id_filter = args.run_id;
+    let resolve_from_git = run_id_filter.is_none();
+    let commit = if resolve_from_git {
+        Some(resolve_commit(args.commit, &cwd)?)
+    } else {
+        args.commit
+    };
     let repo = args.repo.or(git.repo).ok_or_else(|| {
         anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
     })?;
-    let branch = args
-        .branch
-        .or(git.branch)
-        .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?;
+    let branch = if resolve_from_git {
+        Some(
+            args.branch
+                .or(git.branch)
+                .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?,
+        )
+    } else {
+        args.branch
+    };
 
-    let query = vec![("repo", repo), ("branch", branch), ("commit", commit)];
+    let mut query = vec![("repo", repo)];
+    if let Some(commit) = commit {
+        query.push(("commit", commit));
+    }
+    if let Some(branch) = branch {
+        query.push(("branch", branch));
+    }
+    if let Some(run_id) = run_id_filter {
+        query.push(("runId", run_id));
+    }
     let payload = client.get_status(&query).await?;
     print_json(&payload)?;
     Ok(())

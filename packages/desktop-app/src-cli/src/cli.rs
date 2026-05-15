@@ -231,6 +231,8 @@ pub struct StatusArgs {
     pub branch: Option<String>,
     #[arg(long)]
     pub commit: Option<String>,
+    #[arg(long)]
+    pub run_id: Option<String>,
 }
 
 #[derive(Args, Debug, Default)]
@@ -361,7 +363,9 @@ pub struct LogPagingArgs {
 mod tests {
     use clap::Parser;
 
-    use super::{CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, WatchArgs};
+    use super::{
+        CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, StatusArgs, WatchArgs,
+    };
 
     #[test]
     fn parses_top_level_commands() {
@@ -431,6 +435,21 @@ mod tests {
         assert_eq!(args.repo.as_deref(), Some("everr-labs/everr"));
         assert_eq!(args.branch.as_deref(), Some("feature/tests"));
         assert_eq!(args.commit.as_deref(), Some("abc123def456"));
+    }
+
+    #[test]
+    fn status_parses_run_id_flag() {
+        let cli = Cli::try_parse_from(["everr", "ci", "status", "--run-id", "42"])
+            .expect("status command");
+
+        let Commands::Ci(ci) = cli.command else {
+            panic!("expected ci command");
+        };
+        let CiSubcommand::Status(StatusArgs { run_id, .. }) = ci.command else {
+            panic!("expected ci status command");
+        };
+
+        assert_eq!(run_id, Some("42".to_string()));
     }
 
     #[test]

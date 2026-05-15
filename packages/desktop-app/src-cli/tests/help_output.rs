@@ -158,6 +158,7 @@ fn status_help_lists_commit_based_options() {
         .stdout(contains("--repo <REPO>"))
         .stdout(contains("--branch <BRANCH>"))
         .stdout(contains("--commit <COMMIT>"))
+        .stdout(contains("--run-id <RUN_ID>"))
         .stdout(predicates::str::contains("--from").not())
         .stdout(predicates::str::contains("--to").not());
 }

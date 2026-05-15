@@ -79,6 +79,38 @@ fn status_uses_explicit_commit_when_provided() {
 }
 
 #[test]
+fn status_uses_run_id_without_commit() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("GET", "/api/cli/runs/status")
+        .match_header("authorization", "Bearer token-abc")
+        .match_query(Matcher::Exact("repo=everr-labs%2Feverr&runId=4242".into()))
+        .with_status(200)
+        .with_body(r#"{"repo":"everr-labs/everr","branch":"feature/from-run-id","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"4242","traceId":"trace-run-id","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":53,"activeJobs":[]}]}"#)
+        .expect(1)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "ci",
+            "status",
+            "--repo",
+            "everr-labs/everr",
+            "--run-id",
+            "4242",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("\"state\": \"completed\""));
+
+    mock.assert();
+}
+
+#[test]
 fn runs_list_sends_filter_query_params() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(

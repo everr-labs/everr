@@ -23,6 +23,7 @@ Use Everr from the repository root when investigating CI state, GitHub Actions f
 
 Useful flags:
 - `everr ci status --commit <sha>` targets another commit.
+- `everr ci status --run-id <id>` targets one known run.
 - `everr ci watch --run-id <id>` targets one known run.
 - `everr ci runs --current-branch`, `--branch <name>`, `--conclusion <success|failure|cancellation>`, `--workflow-name <name>`, or `--run-id <id>` narrows run lists.
 - `everr ci logs --job-id <id>` is safer than `--job-name` when a job id is available.
