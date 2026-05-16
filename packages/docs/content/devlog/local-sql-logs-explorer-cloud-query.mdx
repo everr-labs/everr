@@ -1,19 +1,31 @@
 ---
-title: "Devlog #3: A local SQL telemetry stack, a logs explorer, and cloud queries"
-description: "We embedded an in-process ClickHouse in the local collector, built a shared logs explorer on top of it, added `everr wrap` and `everr cloud query`, and shipped bundled skills so coding assistants can use the new surfaces."
-date: "2026-05-15"
+title: "Devlog #3: Production telemetry, cloud SQL, and a shared logs explorer"
+description: "We started accepting production OpenTelemetry data, opened up read-only SQL against both the cloud and local stacks, built a shared logs explorer on top of them, added `everr wrap`, and replaced AGENTS.md injection with bundled skills."
+date: "2026-05-16"
 author: Everr Team
-commits: 265
-prs: 35
-additions: 80752
-deletions: 38219
+commits: 278
+prs: 37
+additions: 82132
+deletions: 38804
 ---
 
-Four weeks since the last devlog. The work in this batch all points in one direction: turning local and cloud telemetry into a real, queryable surface, for humans through a logs explorer, and for coding assistants through SQL and bundled skills.
+Four weeks since the last devlog. This batch expands Everr in two directions: it now accepts production OpenTelemetry alongside CI data, and the data (cloud and local) is queryable through read-only SQL surfaces. A shared logs explorer sits on top of both, and bundled skills let coding assistants reach for the new surfaces on their own.
 
-Devlog #2 introduced the local observability stack as a v1 with a small set of canned queries. In daily use we kept wanting to ask both that and the cloud data more interesting questions, from scripts, from the CLI, and from inside the desktop app, and the bigger goal of letting an assistant debug on its own was bottlenecked on the same thing. So most of this cycle went into fixing that.
+Devlog #2 introduced the local observability stack as a v1 with a small set of canned queries. In daily use we kept wanting to ask both that and the cloud data more interesting questions, from scripts, from the CLI, and from inside the desktop app, and the bigger goal of letting an assistant debug on its own was bottlenecked on the same thing. So most of this cycle went into fixing that, plus opening up the cloud side to data that doesn't come from CI.
 
 Here's what shipped.
+
+## Production telemetry with ingest keys
+
+Until this cycle, Everr's cloud side was CI-only. The new ingest path opens it to production OpenTelemetry from any service that speaks OTLP. You mint an org-scoped ingest key from the dashboard (under **Ingest Keys** in the user menu), point your SDK or collector at `https://ingest.everr.dev`, and the data lands in the same ClickHouse tables you can already query with `everr cloud query` and the logs explorer.
+
+A few things worth calling out:
+
+- **Tenant identity comes from the key, not the client.** The `everr.tenant.id` resource attribute on incoming spans is stripped and overwritten with the value derived from your ingest key, so a misconfigured SDK can't accidentally write into the wrong org.
+- **Authentication is hot-path-aware.** Verification runs through a new `everrapikeyauth` collector extension that singleflights concurrent verifies, keeps an LRU positive cache, and uses a separate negative cache. Revocation propagates within about 30 seconds, which is the positive cache TTL.
+- **Standard OTLP, no client SDK required.** Any OpenTelemetry SDK or existing collector works. The common shape is forwarding from a collector you already run, as a second exporter alongside whatever's already feeding your existing observability tooling.
+
+Production data, CI data, and local data now all sit behind the same query surfaces, which is what makes the rest of this devlog work the way it does.
 
 ## `everr cloud query` for SQL access to your runs
 
@@ -88,6 +100,6 @@ This isn't visible to users beyond "downloads work and updates are signed," but 
 
 ## What's next
 
-We've now got the same SQL surface on the local collector and the cloud, a shared logs explorer that consumes both, a way to feed arbitrary commands into the local one, and skills that tell assistants how to use it all. The shape of the next batch is mostly about pushing on that loop: better skills, more queries surfaced as first-class CLI commands, and more of the desktop app rebuilt on top of the shared explorer so that local debugging stops feeling like a separate product from CI debugging.
+We've now got production OTel ingest, the same SQL surface on the local collector and the cloud, a shared logs explorer that consumes both, a way to feed arbitrary commands into the local stack, and skills that tell assistants how to use it all. The shape of the next batch is mostly about pushing on that loop: better skills, more queries surfaced as first-class CLI commands, more of the desktop app rebuilt on top of the shared explorer so that local debugging stops feeling like a separate product from CI debugging, and more of the cloud app reshaped around the idea that not everything it shows comes from CI.
 
 Same pattern as before: the things we hit in daily use keep turning into PRs the same week.
