@@ -137,7 +137,7 @@ jobs:
           VERSION_TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          changelog_path=".github/actions/everr-action/CHANGELOG.md"
+          changelog_path="${GITHUB_WORKSPACE}/.github/actions/everr-action/CHANGELOG.md"
           notes_args=()
           if [[ -f "$changelog_path" ]]; then
             notes_args+=(--notes-file "$changelog_path")
