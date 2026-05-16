@@ -82,16 +82,6 @@ This isn't visible to users beyond "downloads work and updates are signed," but 
 
 **Billing with Polar.** We integrated [Polar](https://polar.sh/) for subscriptions. Pricing isn't on the landing page right now, we pulled it for a narrative refresh, but the plumbing is in place behind the scenes.
 
-## Under the hood
-
-**Per-tenant retention.** Both the cloud and local stacks now apply retention policies per tenant, with cloud free tiers reduced and local defaults capped at 2GB and 14 days.
-
-**Dev-time telemetry.** Direct `vite` runs now emit OpenTelemetry by default, and we added TypeScript-side error tracking with the same wiring. We also added a TypeScript instrumentation preload so dev servers come up already instrumented, instead of relying on each entry point to remember.
-
-**SQL fixes that matter.** The logs explorer uses `lower()` instead of `lowerUTF8` (chDB doesn't support the latter), the logs table name is configurable so the same builder works against the cloud and local schemas, and we fixed an SSE leak on the watch endpoint that was leaving server state behind after disconnects.
-
-**Collector hardening.** The wrap path got partial-output forwarding and backpressure fixes, the collector handles healthcheck overrides correctly during startup, and JSON event payloads are normalized before insertion to avoid placeholder mismatches.
-
 ## What's next
 
 We've now got production OTel ingest, the same SQL surface on the local collector and the cloud, a shared logs explorer that consumes both, a way to feed arbitrary commands into the local stack, and skills that tell assistants how to use it all.
