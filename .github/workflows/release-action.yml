@@ -87,8 +87,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.EVERR_ACTION_BOT_APP_ID }}
-          private-key: ${{ secrets.EVERR_ACTION_BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
           owner: everr-labs
           repositories: everr-action
 

@@ -1,8 +1,7 @@
 name: Release PR
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,10 +16,23 @@ jobs:
     name: Open Version Packages PR or tag versions
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
+      # Tags and commits created by the default GITHUB_TOKEN cannot trigger
+      # other workflows (e.g. release-action.yml on tag push), so we mint a
+      # token from the everr-deploy GitHub App, which fires downstream events.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
+          owner: everr-labs
+          repositories: everr
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -42,4 +54,4 @@ jobs:
           title: "chore: version packages"
           commit: "chore: version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
