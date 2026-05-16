@@ -100,6 +100,13 @@ This isn't visible to users beyond "downloads work and updates are signed," but 
 
 ## What's next
 
-We've now got production OTel ingest, the same SQL surface on the local collector and the cloud, a shared logs explorer that consumes both, a way to feed arbitrary commands into the local stack, and skills that tell assistants how to use it all. The shape of the next batch is mostly about pushing on that loop: better skills, more queries surfaced as first-class CLI commands, more of the desktop app rebuilt on top of the shared explorer so that local debugging stops feeling like a separate product from CI debugging, and more of the cloud app reshaped around the idea that not everything it shows comes from CI.
+We've now got production OTel ingest, the same SQL surface on the local collector and the cloud, a shared logs explorer that consumes both, a way to feed arbitrary commands into the local stack, and skills that tell assistants how to use it all.
+
+The next batch is shaped around four threads:
+
+- **The collector inside CI.** The local collector is currently a developer-machine thing. We want it usable from inside CI runs too, so the wrap and SQL surfaces apply to whatever a job is actually executing.
+- **Traces and metrics views.** Logs got the explorer this cycle. Traces and metrics need the same treatment so the desktop and web apps cover the full OTel triad, not just one third of it.
+- **A simpler OTel setup.** Picking up OpenTelemetry for the first time can be overwhelming. We want the on-ramp to be short and obvious, both for spinning up the local collector and for pointing existing services at the cloud ingest endpoint.
+- **Pushing local telemetry to the cloud.** A way to forward a slice of local telemetry to the cloud, so a teammate can see what your local stack was actually doing, or a cloud agent can pick up the runtime context it needs to keep going.
 
 Same pattern as before: the things we hit in daily use keep turning into PRs the same week.
