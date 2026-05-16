@@ -92,5 +92,6 @@ The next batch is shaped around four threads:
 - **A simpler OTel setup.** Picking up OpenTelemetry for the first time can be overwhelming. We want the on-ramp to be short and obvious, both for spinning up the local collector and for pointing existing services at the cloud ingest endpoint.
 - **Pushing local telemetry to the cloud.** A way to forward a slice of local telemetry to the cloud, so a teammate can see what your local stack was actually doing, or a cloud agent can pick up the runtime context it needs to keep going.
 - **A collector inside the Everr GitHub Action.** Today, getting CI-time telemetry into Everr means standing up your own OTel collector inside the workflow. Bundling one into the Everr action would make that a one-liner. We also want to find out whether the same channel can push run updates to us faster than the GitHub webhook path we currently rely on.
+- **CD tracking.** With production telemetry landing this cycle, the missing piece is the deploys themselves: knowing when a version went out, where it ran, and being able to trace a production regression back through CI to the commit that caused it.
 
 Same pattern as before: the things we hit in daily use keep turning into PRs the same week.
