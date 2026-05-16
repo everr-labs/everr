@@ -2,6 +2,7 @@ name: Everr CLI CI
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,7 +43,6 @@ jobs:
         uses: ./.github/actions/everr-action
         with:
           resource-usage: "true"
-          check-run-id: ${{ job.check_run_id }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

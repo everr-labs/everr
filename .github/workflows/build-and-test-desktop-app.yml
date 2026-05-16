@@ -2,6 +2,7 @@ name: Build & Test Desktop App
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   # For pushes, this lets concurrent runs happen, so each push gets a result.
@@ -49,7 +50,6 @@ jobs:
         uses: ./.github/actions/everr-action
         with:
           resource-usage: "true"
-          check-run-id: ${{ job.check_run_id }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
