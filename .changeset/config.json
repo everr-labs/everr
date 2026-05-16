@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@everr/app",
+    "@everr/datemath",
+    "@everr/docs",
+    "@everr/logs-explorer",
+    "@everr/ui"
+  ],
+  "privatePackages": {
+    "version": true,
+    "tag": true
+  }
+}
