@@ -88,9 +88,9 @@ We've now got production OTel ingest, the same SQL surface on the local collecto
 
 The next batch is shaped around four threads:
 
-- **A collector inside the Everr GitHub Action.** Today, getting CI-time telemetry into Everr means standing up your own OTel collector inside the workflow. Bundling one into the Everr action would make that a one-liner. We also want to find out whether the same channel can push run updates to us faster than the GitHub webhook path we currently rely on.
 - **Traces and metrics views.** Logs got the explorer this cycle. Traces and metrics need the same treatment so the desktop and web apps cover the full OTel triad, not just one third of it.
 - **A simpler OTel setup.** Picking up OpenTelemetry for the first time can be overwhelming. We want the on-ramp to be short and obvious, both for spinning up the local collector and for pointing existing services at the cloud ingest endpoint.
 - **Pushing local telemetry to the cloud.** A way to forward a slice of local telemetry to the cloud, so a teammate can see what your local stack was actually doing, or a cloud agent can pick up the runtime context it needs to keep going.
+- **A collector inside the Everr GitHub Action.** Today, getting CI-time telemetry into Everr means standing up your own OTel collector inside the workflow. Bundling one into the Everr action would make that a one-liner. We also want to find out whether the same channel can push run updates to us faster than the GitHub webhook path we currently rely on.
 
 Same pattern as before: the things we hit in daily use keep turning into PRs the same week.
