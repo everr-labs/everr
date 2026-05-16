@@ -9,11 +9,16 @@ import {
   artifactNameForCheckRun,
   buildRuntimePaths,
   finalizeAndUploadResourceUsage,
+  isResourceUsageEnabled,
   normalizeCheckRunId,
   resolveActionRoot,
   resolveCheckRunIdInput,
   startResourceUsage,
 } from "./index.ts";
+
+function inputResolver(values: Record<string, string>): (name: string) => string {
+  return (name: string) => values[name] ?? "";
+}
 
 test("artifactNameForCheckRun uses the direct per-job naming contract", () => {
   assert.equal(artifactNameForCheckRun("123"), "everr-resource-usage-v2-123");
@@ -61,6 +66,34 @@ test("resolveCheckRunIdInput warns when the workflow does not provide a valid id
   assert.match(warnings[0], /missing or invalid check-run-id input/);
 });
 
+test("isResourceUsageEnabled accepts only the literal string 'true'", () => {
+  assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "true" })), true);
+  assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "TRUE" })), true);
+  assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": " true " })), true);
+  assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "false" })), false);
+  assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "1" })), false);
+  assert.equal(isResourceUsageEnabled(inputResolver({})), false);
+});
+
+test("startResourceUsage no-ops when resource-usage input is not enabled", async () => {
+  const savedState = new Map<string, string>();
+  const infoMessages: string[] = [];
+
+  const result = await startResourceUsage({
+    env: {
+      RUNNER_OS: "Linux",
+    },
+    getInput: inputResolver({ "resource-usage": "false", "check-run-id": "123" }),
+    saveState: (key: string, value: string) => savedState.set(key, value),
+    info: (message: string) => infoMessages.push(message),
+    warning: () => {},
+  });
+
+  assert.equal(result.enabled, false);
+  assert.equal(savedState.get("enabled"), "0");
+  assert.equal(infoMessages.length, 0);
+});
+
 test("startResourceUsage no-ops on non-linux runners", async () => {
   const savedState = new Map<string, string>();
   const infoMessages: string[] = [];
@@ -69,7 +102,7 @@ test("startResourceUsage no-ops on non-linux runners", async () => {
     env: {
       RUNNER_OS: "Windows",
     },
-    getInput: () => "123",
+    getInput: inputResolver({ "resource-usage": "true", "check-run-id": "123" }),
     saveState: (key: string, value: string) => savedState.set(key, value),
     info: (message: string) => infoMessages.push(message),
     warning: () => {},
@@ -88,7 +121,7 @@ test("startResourceUsage skips sampling when check-run-id is missing", async () 
     env: {
       RUNNER_OS: "Linux",
     },
-    getInput: () => "",
+    getInput: inputResolver({ "resource-usage": "true", "check-run-id": "" }),
     saveState: (key: string, value: string) => savedState.set(key, value),
     info: () => {},
     warning: (message: string) => warnings.push(message),
@@ -115,7 +148,7 @@ test("startResourceUsage downgrades sampler startup failures to warnings", async
         GITHUB_REPOSITORY: "everr-labs/everr",
         GITHUB_WORKSPACE: tempDir,
       },
-      getInput: () => "111",
+      getInput: inputResolver({ "resource-usage": "true", "check-run-id": "111" }),
       saveState: (key: string, value: string) => savedState.set(key, value),
       warning: (message: string) => warnings.push(message),
       spawnImpl: () => {
@@ -153,7 +186,7 @@ test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH", asyn
         GITHUB_REPOSITORY: "everr-labs/everr",
         GITHUB_WORKSPACE: tempDir,
       },
-      getInput: () => "222",
+      getInput: inputResolver({ "resource-usage": "true", "check-run-id": "222" }),
       saveState: (key: string, value: string) => savedState.set(key, value),
       info: () => {},
       warning: () => {},

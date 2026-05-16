@@ -35,6 +35,7 @@ jobs:
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
         with:
+          resource-usage: "true"
           check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
@@ -75,6 +76,7 @@ jobs:
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
         with:
+          resource-usage: "true"
           check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
@@ -134,6 +136,7 @@ jobs:
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
         with:
+          resource-usage: "true"
           check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
@@ -173,6 +176,7 @@ jobs:
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
         with:
+          resource-usage: "true"
           check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go

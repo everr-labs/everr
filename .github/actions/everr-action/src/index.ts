@@ -117,6 +117,10 @@ function resolveCheckRunIdInput({
   return checkRunId;
 }
 
+function isResourceUsageEnabled(getInput: GetInput): boolean {
+  return getInput("resource-usage").trim().toLowerCase() === "true";
+}
+
 async function startResourceUsage({
   env = process.env,
   fsModule = fs,
@@ -132,6 +136,11 @@ async function startResourceUsage({
   enabled: boolean;
   pid?: number;
 }> {
+  if (!isResourceUsageEnabled(getInput)) {
+    saveState("enabled", "0");
+    return { enabled: false };
+  }
+
   const actionRoot = resolveActionRoot();
 
   if (env.RUNNER_OS !== "Linux") {
@@ -439,6 +448,7 @@ export {
   ensureSamplesFile,
   finalizeAndUploadResourceUsage,
   formatError,
+  isResourceUsageEnabled,
   normalizeCheckRunId,
   resolveActionRoot,
   resolveCheckRunIdInput,
