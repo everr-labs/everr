@@ -221,6 +221,16 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: build
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read desktop app version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./packages/desktop-app/package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
@@ -241,5 +251,6 @@ jobs:
               "source_repo": "${{ github.repository }}",
               "run_id": "${{ github.run_id }}",
               "sha": "${{ github.sha }}",
+              "version": "${{ steps.version.outputs.version }}",
               "artifact_name": "everr-desktop-release-${{ github.sha }}"
             }

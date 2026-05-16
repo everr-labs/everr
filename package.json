@@ -12,7 +12,7 @@
     "check": "biome check",
     "check:fix": "biome check --fix",
     "changeset": "changeset",
-    "changeset:version": "changeset version",
+    "changeset:version": "changeset version && node scripts/sync-desktop-app-version.mjs",
     "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
     "test": "vitest",
