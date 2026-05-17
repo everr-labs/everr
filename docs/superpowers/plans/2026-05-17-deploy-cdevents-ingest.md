@@ -517,6 +517,8 @@ export function parseQueuedCollectorEvent(
 
 Change `installationIdFromQueuedEvent(...)` to accept `ParsedQueuedCollectorEvent` instead of only `ParsedQueuedWorkflowEvent`.
 
+No body change should be needed for `installationIdFromQueuedEvent(...)`: the existing `event.payload.installation?.id` logic works because the deployment schemas keep the same `installation: { id }` shape as workflow events.
+
 - [ ] **Step 5: Use collector parser only in collector worker**
 
 In `packages/app/src/server/github-events/runtime.ts`, import `parseQueuedCollectorEvent` and use it only in `processCollectorJob`.
@@ -532,6 +534,8 @@ The status worker remains:
 ```ts
 const parsed = parseQueuedWorkflowEvent(eventType, body);
 ```
+
+If this step is missed, deploy jobs still call `parseQueuedWorkflowEvent(...)` in `processCollectorJob`, throw `TerminalEventError("unsupported workflow event type \"deployment\"")`, and get dropped as terminal collector errors without reaching the collector.
 
 - [ ] **Step 6: Run app tests**
 
@@ -1356,8 +1360,57 @@ Expected: deploy mapper tests pass.
 
 - Modify: `collector/receiver/githubactionsreceiver/receiver.go`
 - Modify: `collector/receiver/githubactionsreceiver/receiver_test.go`
+- Inspect, and modify only if needed: `collector/config.yml`
+- Inspect, and modify only if needed: `collector/config.example.yml`
 
-- [ ] **Step 1: Add receiver test proving deploy path does not need GitHub API auth**
+- [ ] **Step 1: Verify tenant resource enrichment path**
+
+Before relying on `everr.tenant.id` from the data contract, verify the collector configuration that runs after the receiver:
+
+- `collector/config.yml` and `collector/config.example.yml` must define the internal `resource` processor with `everr.tenant.id` upserted from `metadata.x-everr-tenant-id`.
+- The same processor must convert `everr.tenant.id` to an integer.
+- `service.pipelines.logs.receivers` must include `githubactions`.
+- `service.pipelines.logs.processors` must include `resource` before `batch`.
+- The processor must not be scoped to workflow-only scope names; it must also apply to deploy logs with scope name `github-deployments`.
+
+The current receiver copies request headers into collector client metadata with `client.NewMetadata(r.Header)` before dispatch. The deploy path must stay after that metadata copy. A receiver unit test can assert that metadata propagation, but it cannot assert the final `ResourceAttributes['everr.tenant.id']` because processors run after the receiver.
+
+Add or keep this config validation as part of the collector verification:
+
+```bash
+python3 - <<'PY'
+import pathlib, yaml
+
+for path in [pathlib.Path("collector/config.yml"), pathlib.Path("collector/config.example.yml")]:
+    cfg = yaml.safe_load(path.read_text())
+    attrs = cfg["processors"]["resource"]["attributes"]
+    assert any(
+        item.get("action") == "upsert"
+        and item.get("key") == "everr.tenant.id"
+        and item.get("from_context") == "metadata.x-everr-tenant-id"
+        for item in attrs
+    ), f"{path}: missing everr.tenant.id metadata upsert"
+    assert any(
+        item.get("action") == "convert"
+        and item.get("key") == "everr.tenant.id"
+        and item.get("converted_type") == "int"
+        for item in attrs
+    ), f"{path}: missing everr.tenant.id integer conversion"
+    logs = cfg["service"]["pipelines"]["logs"]
+    assert "githubactions" in logs["receivers"], f"{path}: logs pipeline must receive githubactions"
+    processors = logs["processors"]
+    assert "resource" in processors, f"{path}: logs pipeline must run resource processor"
+    assert "batch" in processors, f"{path}: logs pipeline must run batch processor"
+    assert processors.index("resource") < processors.index("batch"), f"{path}: resource processor must run before batch"
+print("tenant resource processor covers githubactions logs")
+PY
+```
+
+This is the collector-level coverage for `ResourceAttributes['everr.tenant.id']`: the receiver test below proves the header survives as request metadata, and this config validation proves the logs pipeline turns that metadata into the resource attribute before ClickHouse export.
+
+If this validation fails, do not proceed with only mapper changes. Either fix the internal logs pipeline to apply the broad `resource` processor to GitHub receiver logs, or pass the tenant id from request metadata into `newDeploymentLogs(...)` and set `everr.tenant.id` directly on the deploy resource.
+
+- [ ] **Step 2: Add receiver test proving deploy path does not need GitHub API auth**
 
 Add a receiver test using a valid GitHub webhook signature and a `deployment_status` payload, but config with no GitHub API app id/private key. The logs consumer should receive logs and the response should be `202`.
 
@@ -1388,12 +1441,13 @@ func TestReceiverDeploymentStatusDoesNotRequireGitHubAPIClient(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, rec.Code)
 	require.Len(t, consumer.logs, 1)
 	require.Equal(t, 2, consumer.logs[0].LogRecordCount())
+	require.Contains(t, consumer.metadata.Get("x-everr-tenant-id"), "42")
 }
 ```
 
-Use existing receiver test helpers where possible. If helper names differ, keep the same assertions and use the existing test style in `receiver_test.go`.
+Use existing receiver test helpers where possible. If helper names differ, keep the same assertions and use the existing test style in `receiver_test.go`. The capturing logs consumer should record both the consumed logs and `client.FromContext(ctx).Metadata`, so this test proves deploy logs keep the tenant header metadata that the resource processor reads.
 
-- [ ] **Step 2: Run the failing receiver test**
+- [ ] **Step 3: Run the failing receiver test**
 
 Run:
 
@@ -1404,7 +1458,7 @@ go test ./... -run 'TestReceiverDeploymentStatusDoesNotRequireGitHubAPIClient' -
 
 Expected: failure because current receiver rejects unsupported event types or initializes GitHub API auth before logs.
 
-- [ ] **Step 3: Add deploy event detection**
+- [ ] **Step 4: Add deploy event detection**
 
 In `collector/receiver/githubactionsreceiver/receiver.go`, add:
 
@@ -1426,7 +1480,9 @@ case *github.DeploymentEvent, *github.DeploymentStatusEvent:
 	// Deploy events are mapped directly to logs below.
 ```
 
-- [ ] **Step 4: Dispatch deploy logs before installation client setup**
+This case must be added to the existing top-level `ServeHTTP` switch immediately after `github.ParseWebHook(...)`, where unsupported events currently hit the default branch and return `204`. Adding deployment handling anywhere later is not enough, because the current default branch exits before request metadata, deploy mapping, or workflow processing can run.
+
+- [ ] **Step 5: Dispatch deploy logs before installation client setup**
 
 After request metadata is copied into `client.Metadata`, add this block before `installationIDFromWebhookEvent(...)`:
 
@@ -1460,22 +1516,48 @@ if isDeploymentWebhookEvent(event) {
 
 Leave the workflow-run and workflow-job path unchanged.
 
-- [ ] **Step 5: Keep installation helper workflow-only**
+- [ ] **Step 6: Keep installation helper workflow-only**
 
 Do not add deployment cases to `installationIDFromWebhookEvent(...)`. The deploy path returns before that helper and does not need a GitHub API client.
 
-- [ ] **Step 6: Run collector tests**
+- [ ] **Step 7: Run collector tests**
 
 Run:
 
 ```bash
+python3 - <<'PY'
+import pathlib, yaml
+
+for path in [pathlib.Path("collector/config.yml"), pathlib.Path("collector/config.example.yml")]:
+    cfg = yaml.safe_load(path.read_text())
+    attrs = cfg["processors"]["resource"]["attributes"]
+    assert any(
+        item.get("action") == "upsert"
+        and item.get("key") == "everr.tenant.id"
+        and item.get("from_context") == "metadata.x-everr-tenant-id"
+        for item in attrs
+    ), f"{path}: missing everr.tenant.id metadata upsert"
+    assert any(
+        item.get("action") == "convert"
+        and item.get("key") == "everr.tenant.id"
+        and item.get("converted_type") == "int"
+        for item in attrs
+    ), f"{path}: missing everr.tenant.id integer conversion"
+    logs = cfg["service"]["pipelines"]["logs"]
+    processors = logs["processors"]
+    assert "githubactions" in logs["receivers"], f"{path}: logs pipeline must receive githubactions"
+    assert "resource" in processors, f"{path}: logs pipeline must run resource processor"
+    assert "batch" in processors, f"{path}: logs pipeline must run batch processor"
+    assert processors.index("resource") < processors.index("batch"), f"{path}: resource processor must run before batch"
+print("tenant resource processor covers githubactions logs")
+PY
 cd collector/receiver/githubactionsreceiver
 go test ./... -count=1
 ```
 
-Expected: all receiver tests pass.
+Expected: tenant resource config validation passes and all receiver tests pass.
 
-- [ ] **Step 7: Commit collector changes**
+- [ ] **Step 8: Commit collector changes**
 
 Run:
 
@@ -2041,7 +2123,7 @@ if command -v shellcheck >/dev/null; then
 else
   echo "shellcheck not installed; skipped"
 fi
-python - <<'PY'
+python3 - <<'PY'
 import pathlib, yaml
 for path in pathlib.Path(".github/workflows").glob("*.yml"):
     yaml.safe_load(path.read_text())
