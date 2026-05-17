@@ -66,12 +66,25 @@ Use `ServiceName = 'github-deployments'` for storage and `everr.deploy.service.n
 
 Use empty strings for optional missing values.
 
+## Resource Attributes
+
+Each deploy log must also set resource-level data:
+
+- `everr.tenant.id`: resolved tenant id from the GitHub App installation
+- `service.name`: `github-deployments`
+- `deployment.environment.name`
+- `vcs.provider.name`: `github`
+- `vcs.owner.name`
+- `vcs.repository.name`
+
+Set `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by the receiver. This matters because `app.logs_mv` reads the tenant from `ResourceAttributes['everr.tenant.id']`.
+
 ## Data Flow
 
 1. GitHub sends `deployment` or `deployment_status` to `/webhook/github`.
 2. The app verifies the webhook signature.
 3. The app resolves the tenant from `installation.id`.
-4. The raw webhook is queued and forwarded through the existing collector path.
+4. The raw webhook and resolved tenant id are queued and forwarded through the existing collector path.
 5. The collector accepts deploy webhooks and maps them into OTel logs.
 6. The collector exports those logs to ClickHouse.
 7. Deploy history is queried from `app.logs`.

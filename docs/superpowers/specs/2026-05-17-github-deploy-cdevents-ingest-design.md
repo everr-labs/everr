@@ -102,6 +102,21 @@ Use `ServiceName = 'github-deployments'` for the OTel resource service name and 
 
 Use empty strings for missing optional fields instead of nullable values.
 
+## Resource Attributes
+
+Every deploy log record must be emitted under an OTel resource. These attributes are required on `ResourceAttributes`, not just on individual log records:
+
+- `everr.tenant.id`: the tenant id resolved from the GitHub App installation. This is required because `app.logs_mv` copies `ResourceAttributes['everr.tenant.id']` into `app.logs.tenant_id`.
+- `service.name`: `github-deployments`. The ClickHouse exporter copies this into the `ServiceName` column, which deploy queries use for the primary filter.
+- `deployment.environment.name`: GitHub deployment environment name.
+- `vcs.provider.name`: `github`.
+- `vcs.owner.name`: repository owner or organization login.
+- `vcs.repository.name`: full repository name, such as `acme/api`.
+
+Set the `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by the receiver, for example `https://opentelemetry.io/schemas/1.38.0` while the receiver uses semconv v1.38.0.
+
+If one GitHub webhook emits multiple log records, such as `deployment_status: success`, put those records under the same resource so they share the tenant, storage service, environment, and repository identity.
+
 ## Data Flow
 
 1. GitHub sends `deployment` or `deployment_status` to Everr's existing `/webhook/github` route.
@@ -109,7 +124,7 @@ Use empty strings for missing optional fields instead of nullable values.
 3. The allowlist expands to accept `deployment` and `deployment_status`.
 4. The existing event queue stores the raw payload once and sends it to the worker path.
 5. The tenant resolver uses `installation.id`, the same as workflow events.
-6. The app forwards the raw webhook payload to the collector through the existing `gh-collector` path.
+6. The app forwards the raw webhook payload and resolved tenant id to the collector through the existing `gh-collector` path.
 7. The collector's GitHub Actions receiver accepts `deployment` and `deployment_status` events in addition to workflow events.
 8. A new deploy event mapper in the collector parses the GitHub payload and builds OTel log records.
 9. The collector exports the logs into ClickHouse.
@@ -143,7 +158,7 @@ LIMIT 100;
 
 The existing `app.logs` table orders by tenant, service, and time. That is a reasonable v1 fit if deploy logs use a stable service name such as `github-deployments`. It keeps deploy queries time-bounded and service-filtered.
 
-Per `schema-pk-filter-on-orderby`, keep deploy queries anchored on the existing `ORDER BY` prefix through the tenant row policy, `ServiceName`, and time. `EventName` is cheaper to read than `LogAttributes['event.name']`, but it is not part of the `ORDER BY`, so it should not replace the service and time filters. Per `query-index-skipping-indices`, do not add a skipping index for `EventName` in v1; consider it later only if real deploy queries are hot and `EXPLAIN indexes = 1` shows useful skipping.
+Per `query-mv-incremental`, remember that `app.logs_mv` transforms inserted `otel.otel_logs` rows as they arrive. That means `everr.tenant.id` must already be present on `ResourceAttributes` before insert time. Per `schema-pk-filter-on-orderby`, keep deploy queries anchored on the existing `ORDER BY` prefix through the tenant row policy, `ServiceName`, and time. `EventName` is cheaper to read than `LogAttributes['event.name']`, but it is not part of the `ORDER BY`, so it should not replace the service and time filters. Per `query-index-skipping-indices`, do not add a skipping index for `EventName` in v1; consider it later only if real deploy queries are hot and `EXPLAIN indexes = 1` shows useful skipping.
 
 Per `schema-pk-plan-before-creation`, avoid creating a custom deploy table until the query patterns are better proven, because ClickHouse `ORDER BY` is hard to change later. Per `schema-pk-prioritize-filters`, if a custom table is added later, its key should be driven by the most common filters: tenant, environment, service, repository, and time. Per `schema-types-lowcardinality`, repeated strings like environment, status, service, and event name should be LowCardinality if they become typed columns later. Per `schema-types-avoid-nullable`, optional fields should prefer empty defaults over nullable columns.
 
@@ -185,12 +200,15 @@ GitHub native deployment events do not provide phase detail like `migrate`, `can
   - maps `deployment_status: inactive` to `everr.deploy.superseded`, not service removed
   - preserves repository, SHA, environment, URL, and sender fields as log attributes
   - sets the OTel `EventName` field instead of writing `event.name` to `LogAttributes`
+  - sets resource attributes for tenant id, storage service name, environment, and repository identity
+  - sets `ResourceLogs.SchemaUrl`
 - Receiver dispatch tests:
   - deploy events use the deploy mapper before the workflow log path
   - deploy events do not require an installation GitHub client
   - deploy events do not call `GetWorkflowRunAttemptLogs`
 - ClickHouse query tests:
   - deploy logs can be selected from `app.logs` using service name, event name, environment, and time filters
+  - deploy logs include `app.logs.tenant_id` through `ResourceAttributes['everr.tenant.id']`
 - End-to-end smoke:
   - send signed GitHub-like deployment payloads to `/webhook/github`
   - verify deploy CDEvents-shaped logs appear in ClickHouse
