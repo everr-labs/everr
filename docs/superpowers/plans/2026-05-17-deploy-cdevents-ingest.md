@@ -119,8 +119,8 @@ Every deploy OTel log record:
   - `everr.github.delivery.id`
   - `cicd.pipeline.run.id`
   - `cicd.pipeline.name`
-  - `cicd.pipeline.run.state` for queued/started states
-  - `cicd.pipeline.result` for finished states
+  - `cicd.pipeline.run.state` for `pending` and `executing`
+  - `cicd.pipeline.result` for `success`, `failure`, and `error`
   - `vcs.ref.head.revision`
   - `vcs.ref.head.name`
   - `everr.deploy.id`
@@ -158,6 +158,8 @@ Trace linkage:
 - `everr.deploy.superseded`
 
 Do not map `inactive` to `service.removed`; GitHub can mark older deployments inactive when a newer successful deployment supersedes them.
+
+Skip `deployment_status: queued` and `deployment_status: pending` in v1. The `deployment` webhook already emits the queued pipeline record, so mapping those statuses as started would make waiting deploys look like they are already running.
 
 ## Tasks
 
@@ -585,6 +587,7 @@ const (
 	EverrGitHubRepositoryFullName     = "everr.github.repository.full_name"
 	EverrGitHubRepositoryOwnerLogin   = "everr.github.repository.owner.login"
 	EverrGitHubWorkflowRunID          = "everr.github.workflow_run.id"
+	EverrGitHubWorkflowRunRunAttempt  = "everr.github.workflow_run.run_attempt"
 )
 ```
 
@@ -756,7 +759,19 @@ func TestDeploymentStatusInactiveEmitsSuperseded(t *testing.T) {
 	require.Equal(t, "delivery-deploy-status-inactive-1", record.Attributes().AsRaw()[semconv.EverrGitHubDeliveryID])
 	require.NotContains(t, record.Attributes().AsRaw(), semconv.CDEventsType)
 	require.NotContains(t, record.Attributes().AsRaw(), semconv.CDEventsID)
+	require.NotContains(t, record.Attributes().AsRaw(), string(conventions.CICDPipelineResultKey))
 	require.NotContains(t, record.Body().Str(), "service.removed")
+}
+
+func TestDeploymentStatusQueuedAndPendingAreSkipped(t *testing.T) {
+	for _, state := range []string{"queued", "pending"} {
+		event := deploymentStatusEventWithState(t, state)
+
+		logs, err := deploymentEventToLogs(event, "delivery-deploy-status-"+state, zap.NewNop())
+
+		require.NoError(t, err)
+		require.Nil(t, logs)
+	}
 }
 
 func TestDeploymentStatusInProgressEmitsPipelineStarted(t *testing.T) {
@@ -795,6 +810,21 @@ func TestDeploymentLogTraceIDEmptyWithoutWorkflowRun(t *testing.T) {
 	require.NoError(t, err)
 	record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 	require.True(t, record.TraceID().IsEmpty())
+}
+
+func TestDeploymentLogUsesEmptyStringForMissingDeploymentID(t *testing.T) {
+	event := parseGitHubTestEvent[*github.DeploymentEvent](t, "testdata/deployment/deployment_created.json", "deployment")
+	event.Deployment.ID = nil
+
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-missing-id-1", zap.NewNop())
+
+	require.NoError(t, err)
+	record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+	attrs := record.Attributes().AsRaw()
+	require.Equal(t, "", attrs[string(conventions.CICDPipelineRunIDKey)])
+	require.Equal(t, "", attrs[semconv.EverrDeployID])
+	require.NotContains(t, attrs, semconv.EverrGitHubDeploymentID)
+	require.Contains(t, record.Body().Str(), `"deploymentId":""`)
 }
 ```
 
@@ -949,7 +979,7 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, deliveryID string, 
 	logs, records := newDeploymentLogs(e.GetRepo(), e.GetDeployment().GetEnvironment())
 
 	switch state {
-	case "in_progress", "queued", "pending":
+	case "in_progress":
 		record := records.AppendEmpty()
 		fillDeploymentLogRecord(record, deploymentLogInput{
 			EventType: cdeventsPipelineRunStarted,
@@ -961,6 +991,8 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, deliveryID string, 
 			URL: firstString(status.GetEnvironmentURL(), status.GetTargetURL(), status.GetLogURL()),
 			Time: firstNonZeroTime(status.GetCreatedAt().Time, status.GetUpdatedAt().Time),
 		})
+	case "queued", "pending":
+		logger.Debug("Skipping deployment_status state already represented by deployment event", zap.String("state", state))
 	case "success":
 		finished := records.AppendEmpty()
 		fillDeploymentLogRecord(finished, deploymentLogInput{
@@ -1005,7 +1037,6 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, deliveryID string, 
 			Repo: e.GetRepo(),
 			Deployment: e.GetDeployment(),
 			Status: status,
-			Result: "inactive",
 			URL: firstString(status.GetEnvironmentURL(), status.GetTargetURL(), status.GetLogURL()),
 			Time: firstNonZeroTime(status.GetCreatedAt().Time, status.GetUpdatedAt().Time),
 		})
@@ -1103,6 +1134,21 @@ func cdeventsID(input deploymentLogInput) string {
 	return input.DeliveryID
 }
 
+func githubIDString(id int64) string {
+	if id == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d", id)
+}
+
+func deploymentIDString(deployment *github.Deployment) string {
+	return githubIDString(deployment.GetID())
+}
+
+func deploymentStatusIDString(status *github.DeploymentStatus) string {
+	return githubIDString(status.GetID())
+}
+
 func cdeventsSubjectType(eventType string) string {
 	if eventType == cdeventsServiceDeployed {
 		return "service"
@@ -1114,7 +1160,10 @@ func cdeventsSubjectID(input deploymentLogInput) string {
 	if input.EventType == cdeventsServiceDeployed {
 		return deploymentServiceName(input.Deployment.GetTask())
 	}
-	return fmt.Sprintf("github-deployment-%d", input.Deployment.GetID())
+	if id := deploymentIDString(input.Deployment); id != "" {
+		return fmt.Sprintf("github-deployment-%s", id)
+	}
+	return "github-deployment"
 }
 
 func artifactID(repo *github.Repository, sha string) string {
@@ -1134,7 +1183,7 @@ func deploymentContent(input deploymentLogInput) map[string]any {
 			"id": input.Deployment.GetEnvironment(),
 			"name": input.Deployment.GetEnvironment(),
 		},
-		"deploymentId": fmt.Sprintf("%d", input.Deployment.GetID()),
+		"deploymentId": deploymentIDString(input.Deployment),
 		"repository": repoFullName,
 		"sha": input.Deployment.GetSHA(),
 		"ref": input.Deployment.GetRef(),
@@ -1192,16 +1241,28 @@ if input.EventType != everrDeploySuperseded {
 	attrs.PutStr(semconv.CDEventsID, cdeventsID(input))
 	attrs.PutStr(semconv.CDEventsSource, cdeventsSource(input.Repo))
 }
-attrs.PutStr(string(conventions.CICDPipelineRunIDKey), fmt.Sprintf("%d", input.Deployment.GetID()))
+deploymentID := deploymentIDString(input.Deployment)
+attrs.PutStr(string(conventions.CICDPipelineRunIDKey), deploymentID)
 attrs.PutStr(string(conventions.CICDPipelineNameKey), firstString(input.Deployment.GetTask(), "deploy"))
+if input.State != "" {
+	attrs.PutStr(string(conventions.CICDPipelineRunStateKey), input.State)
+}
+if input.Result != "" {
+	attrs.PutStr(string(conventions.CICDPipelineResultKey), input.Result)
+}
 attrs.PutStr(string(conventions.VCSRefHeadRevisionKey), input.Deployment.GetSHA())
 attrs.PutStr(string(conventions.VCSRefHeadNameKey), input.Deployment.GetRef())
-attrs.PutStr(semconv.EverrDeployID, fmt.Sprintf("%d", input.Deployment.GetID()))
+attrs.PutStr(semconv.EverrDeployID, deploymentID)
 attrs.PutStr(semconv.EverrDeployServiceName, deploymentServiceName(input.Deployment.GetTask()))
 attrs.PutStr(semconv.EverrDeployStatus, deploymentStatusValue(input))
-attrs.PutInt(semconv.EverrGitHubDeploymentID, input.Deployment.GetID())
+if input.URL != "" {
+	attrs.PutStr(semconv.EverrDeployURL, input.URL)
+}
+if input.Deployment.GetID() > 0 {
+	attrs.PutInt(semconv.EverrGitHubDeploymentID, input.Deployment.GetID())
+}
 attrs.PutStr(semconv.EverrGitHubDeploymentCreatorLogin, input.Deployment.GetCreator().GetLogin())
-if input.Status != nil {
+if input.Status != nil && input.Status.GetID() > 0 {
 	attrs.PutInt(semconv.EverrGitHubDeploymentStatusID, input.Status.GetID())
 }
 if input.WorkflowRun != nil {
@@ -1210,8 +1271,8 @@ if input.WorkflowRun != nil {
 }
 if input.EventType == everrDeploySuperseded {
 	bodyBytes, _ := json.Marshal(map[string]any{
-		"deploymentId": fmt.Sprintf("%d", input.Deployment.GetID()),
-		"deploymentStatusId": fmt.Sprintf("%d", input.Status.GetID()),
+		"deploymentId": deploymentIDString(input.Deployment),
+		"deploymentStatusId": deploymentStatusIDString(input.Status),
 		"environment": input.Deployment.GetEnvironment(),
 		"githubDeliveryId": input.DeliveryID,
 	})
@@ -1222,7 +1283,7 @@ if input.EventType == everrDeploySuperseded {
 }
 ```
 
-Set `cicd.pipeline.run.state` only for `pending` and `executing`. Set `cicd.pipeline.result` only for `success`, `failure`, `error`, and `inactive`.
+Set `cicd.pipeline.run.state` only for `pending` and `executing`. Set `cicd.pipeline.result` only for `success`, `failure`, and `error`. Keep `everr.deploy.status = inactive` on `everr.deploy.superseded`, but do not set `cicd.pipeline.result` for inactive.
 
 When building a CDEvents body, set `body.Context.ID = cdeventsID(input)` and `body.Context.Type = input.EventType`. The log attribute `cdevents.id` must always be copied from the same value used for `body.Context.ID`.
 
