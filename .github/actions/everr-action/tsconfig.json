@@ -1,9 +1,11 @@
 {
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmitOnError": true,
+    "rewriteRelativeImportExtensions": true,
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",

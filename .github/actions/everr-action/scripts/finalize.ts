@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 interface PartialArtifactMetadata {
   checkRunId?: string;
@@ -69,28 +68,6 @@ interface ResourceUsageSample {
     }>;
   };
   timestamp: string;
-}
-
-function parseArgs(argv: readonly string[]): Record<string, string> {
-  const args: Record<string, string> = {};
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index];
-    if (!token.startsWith("--")) {
-      continue;
-    }
-
-    const key = token.slice(2);
-    const value = argv[index + 1];
-    if (value === undefined || value.startsWith("--")) {
-      throw new Error(`missing value for --${key}`);
-    }
-
-    args[key] = value;
-    index += 1;
-  }
-
-  return args;
 }
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -310,33 +287,3 @@ export async function finalizePartialArtifact({
   return finalizedMetadata;
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-
-  await finalizePartialArtifact({
-    samplesPath: args["samples-path"],
-    outputDir: args["output-dir"],
-    metadata: {
-      checkRunId: args["check-run-id"],
-      repo: args.repo,
-      runId: args["run-id"],
-      runAttempt: args["run-attempt"],
-      githubJob: args["github-job"],
-      runnerName: args["runner-name"] ?? "",
-      runnerOs: args["runner-os"] ?? "",
-      runnerArch: args["runner-arch"] ?? "",
-      startedAt: args["started-at"],
-      completedAt: args["completed-at"],
-      filesystemDevice: args["filesystem-device"] ?? "",
-      filesystemMountpoint: args["filesystem-mountpoint"] ?? "",
-      filesystemType: args["filesystem-type"] ?? "",
-    },
-  });
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main().catch((error: unknown) => {
-    console.error(formatError(error));
-    process.exitCode = 1;
-  });
-}

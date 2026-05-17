@@ -27,8 +27,6 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
-        with:
-          resource-usage: "true"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

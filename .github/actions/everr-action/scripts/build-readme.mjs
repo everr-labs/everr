@@ -32,11 +32,20 @@ ${actionYml.description}
 ## Usage
 
 \`\`\`yaml
-- uses: everr-labs/everr-action@v0
-  with:
-    resource-usage: "true"
-    check-run-id: \${{ job.check_run_id }}
+permissions:
+  contents: read
+  actions: read
+
+steps:
+  - uses: everr-labs/everr-action@v0
 \`\`\`
+
+> The action needs \`actions: read\` so it can look up its own job via
+> the GitHub Jobs API to derive a \`check_run_id\`. The default
+> \`github-token\` input uses the workflow's GITHUB_TOKEN.
+>
+> Resource usage collection is on by default. To opt out, pass
+> \`resource-usage: "false"\`.
 
 ## Inputs
 

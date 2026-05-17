@@ -35,8 +35,6 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
-        with:
-          resource-usage: "true"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -75,8 +73,6 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
-        with:
-          resource-usage: "true"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -134,8 +130,6 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
-        with:
-          resource-usage: "true"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -173,8 +167,6 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
-        with:
-          resource-usage: "true"
 
       - name: Set up Go
         uses: actions/setup-go@v5
