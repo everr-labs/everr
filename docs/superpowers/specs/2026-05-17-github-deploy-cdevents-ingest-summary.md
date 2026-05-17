@@ -36,27 +36,33 @@ V1 tracks deploy history in ClickHouse only. It does not add a Postgres deploy t
 | `deployment_status` | `in_progress` | `dev.cdevents.pipelinerun.started.*` |
 | `deployment_status` | `success` | `dev.cdevents.pipelinerun.finished.*` plus `dev.cdevents.service.deployed.*` |
 | `deployment_status` | `failure` or `error` | `dev.cdevents.pipelinerun.finished.*` |
-| `deployment_status` | `inactive` | `dev.cdevents.service.removed.*` |
+| `deployment_status` | `inactive` | `everr.deploy.superseded` custom OTel log event |
 
 On successful deploys, emit both a pipeline finished event and a service deployed event. The first says the deploy process completed; the second says the service is now deployed.
+
+Do not map GitHub `inactive` to `service.removed`. GitHub usually marks an old deployment inactive when a newer one supersedes it, while the service can still be running.
 
 ## Query Attributes
 
 Each log should include these attributes so SQL queries do not need to parse JSON:
 
-- `event.name`
 - `cdevents.type`
 - `cdevents.id`
-- `deployment.id`
 - `deployment.environment.name`
-- `deployment.status`
-- `service.name`
 - `vcs.repository.name`
 - `vcs.ref.head.revision`
-- `url.full`
+- `everr.deploy.id`
+- `everr.deploy.service.name`
+- `everr.deploy.status`
+- `everr.deploy.url`
 - `everr.github.deployment_status.id`
-- `everr.github.deployment_status.environment_url`
 - `everr.github.deployment.creator.login`
+
+Set the OTel log record event name with `SetEventName(...)`. ClickHouse stores it in the dedicated `EventName` column, so do not duplicate it as `event.name` inside `LogAttributes`.
+
+Keep custom deploy fields under `everr.*`. Use standard OTel fields only when they already mean the same thing.
+
+Use `ServiceName = 'github-deployments'` for storage and `everr.deploy.service.name` for the service being deployed.
 
 Use empty strings for optional missing values.
 
@@ -69,6 +75,8 @@ Use empty strings for optional missing values.
 5. The collector accepts deploy webhooks and maps them into OTel logs.
 6. The collector exports those logs to ClickHouse.
 7. Deploy history is queried from `app.logs`.
+
+Implementation detail: deploy mapping must be a separate collector path from workflow log archive ingestion. The existing workflow log mapper expects a `workflow_run` event and fetches a GitHub Actions log archive with an installation client. Deploy events should map directly from webhook payload to logs and should not call the GitHub Actions log API.
 
 ## Non-Goals
 

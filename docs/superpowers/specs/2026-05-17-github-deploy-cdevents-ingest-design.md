@@ -69,7 +69,9 @@ The exact CDEvents event type depends on the GitHub event:
 | `deployment_status` | `in_progress` | `dev.cdevents.pipelinerun.started.*` |
 | `deployment_status` | `success` | `dev.cdevents.pipelinerun.finished.*` and `dev.cdevents.service.deployed.*` |
 | `deployment_status` | `failure` or `error` | `dev.cdevents.pipelinerun.finished.*` |
-| `deployment_status` | `inactive` | `dev.cdevents.service.removed.*` when GitHub marks an old environment deployment inactive |
+| `deployment_status` | `inactive` | `everr.deploy.superseded` custom OTel log event |
+
+Do not map GitHub `inactive` to `dev.cdevents.service.removed.*`. In GitHub, `inactive` usually means an older deployment was superseded by a newer one, not that the service stopped running.
 
 For `deployment_status: success`, emit both:
 
@@ -80,19 +82,23 @@ For `deployment_status: success`, emit both:
 
 The CDEvents JSON body is useful for portability, but common filters should not require JSON parsing. Duplicate important fields into OTel log attributes:
 
-- `event.name`
 - `cdevents.type`
 - `cdevents.id`
-- `deployment.id`
 - `deployment.environment.name`
-- `deployment.status`
-- `service.name`
 - `vcs.repository.name`
 - `vcs.ref.head.revision`
-- `url.full`
+- `everr.deploy.id`
+- `everr.deploy.service.name`
+- `everr.deploy.status`
+- `everr.deploy.url`
 - `everr.github.deployment_status.id`
-- `everr.github.deployment_status.environment_url`
 - `everr.github.deployment.creator.login`
+
+Set the OTel log record event name with `SetEventName(...)`, so ClickHouse stores it in the dedicated `EventName` column. Do not also write `event.name` into `LogAttributes`.
+
+Keep custom attributes under `everr.*`. Use standard OTel attributes only when the attribute already has the same meaning, such as `deployment.environment.name` and `vcs.ref.head.revision`.
+
+Use `ServiceName = 'github-deployments'` for the OTel resource service name and ClickHouse column. Use `everr.deploy.service.name` for the service being deployed.
 
 Use empty strings for missing optional fields instead of nullable values.
 
@@ -111,6 +117,8 @@ Use empty strings for missing optional fields instead of nullable values.
 
 The existing `gh-status` Postgres-writing path remains workflow-only. Deployment events do not create Postgres rows in v1.
 
+The collector dispatch must keep deploy mapping structurally separate from the existing workflow log path. `eventToLogs` is workflow-run specific: it expects a `WorkflowRunEvent` and fetches a GitHub Actions log archive with an installation GitHub client. Deploy webhooks do not have an archive to fetch. Add a deploy-specific mapper, for example `deploymentEventToLogs`, and dispatch `deployment` and `deployment_status` before the workflow trace, metric, and log archive logic. The deploy path must not call `getInstallationClient()` or `Actions.GetWorkflowRunAttemptLogs(...)`.
+
 ## ClickHouse Query Shape
 
 Deploy history queries read from `app.logs`:
@@ -118,21 +126,24 @@ Deploy history queries read from `app.logs`:
 ```sql
 SELECT
   TimestampTime,
-  LogAttributes['event.name'] AS event_name,
+  EventName AS event_name,
   LogAttributes['deployment.environment.name'] AS environment,
-  LogAttributes['deployment.status'] AS status,
-  LogAttributes['service.name'] AS service,
+  LogAttributes['everr.deploy.status'] AS status,
+  LogAttributes['everr.deploy.service.name'] AS service,
   LogAttributes['vcs.repository.name'] AS repository,
   LogAttributes['vcs.ref.head.revision'] AS sha,
   Body
-FROM logs
+FROM app.logs
 WHERE ServiceName = 'github-deployments'
   AND TimestampTime >= now() - INTERVAL 7 DAY
+  AND (startsWith(EventName, 'dev.cdevents.') OR EventName = 'everr.deploy.superseded')
 ORDER BY TimestampTime DESC
 LIMIT 100;
 ```
 
 The existing `app.logs` table orders by tenant, service, and time. That is a reasonable v1 fit if deploy logs use a stable service name such as `github-deployments`. It keeps deploy queries time-bounded and service-filtered.
+
+Per `schema-pk-filter-on-orderby`, keep deploy queries anchored on the existing `ORDER BY` prefix through the tenant row policy, `ServiceName`, and time. `EventName` is cheaper to read than `LogAttributes['event.name']`, but it is not part of the `ORDER BY`, so it should not replace the service and time filters. Per `query-index-skipping-indices`, do not add a skipping index for `EventName` in v1; consider it later only if real deploy queries are hot and `EXPLAIN indexes = 1` shows useful skipping.
 
 Per `schema-pk-plan-before-creation`, avoid creating a custom deploy table until the query patterns are better proven, because ClickHouse `ORDER BY` is hard to change later. Per `schema-pk-prioritize-filters`, if a custom table is added later, its key should be driven by the most common filters: tenant, environment, service, repository, and time. Per `schema-types-lowcardinality`, repeated strings like environment, status, service, and event name should be LowCardinality if they become typed columns later. Per `schema-types-avoid-nullable`, optional fields should prefer empty defaults over nullable columns.
 
@@ -171,9 +182,15 @@ GitHub native deployment events do not provide phase detail like `migrate`, `can
   - maps `deployment_status: in_progress` to pipeline started
   - maps `deployment_status: success` to pipeline finished plus service deployed
   - maps `deployment_status: failure` and `error` to pipeline finished with failure
+  - maps `deployment_status: inactive` to `everr.deploy.superseded`, not service removed
   - preserves repository, SHA, environment, URL, and sender fields as log attributes
+  - sets the OTel `EventName` field instead of writing `event.name` to `LogAttributes`
+- Receiver dispatch tests:
+  - deploy events use the deploy mapper before the workflow log path
+  - deploy events do not require an installation GitHub client
+  - deploy events do not call `GetWorkflowRunAttemptLogs`
 - ClickHouse query tests:
-  - deploy logs can be selected from `logs` using service name, event name, environment, and time filters
+  - deploy logs can be selected from `app.logs` using service name, event name, environment, and time filters
 - End-to-end smoke:
   - send signed GitHub-like deployment payloads to `/webhook/github`
   - verify deploy CDEvents-shaped logs appear in ClickHouse
