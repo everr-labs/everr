@@ -1,9 +1,11 @@
 package health
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -11,7 +13,11 @@ import (
 func TestHealthServerReportsReadiness(t *testing.T) {
 	server := NewServer("127.0.0.1:0")
 	require.NoError(t, server.Start())
-	t.Cleanup(func() { require.NoError(t, server.Shutdown(t.Context())) })
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
+	})
 
 	resp, err := http.Get(server.URL() + "/")
 	require.NoError(t, err)
