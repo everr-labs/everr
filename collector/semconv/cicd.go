@@ -50,20 +50,29 @@ const (
 
 // Everr — CDEvents and deployment attributes.
 //
-// OTel does define `deployment.id`, `deployment.name`, and `deployment.status`,
-// and `cloudevents.event_id` / `cloudevents.event_source` / `cloudevents.event_type`
-// (the last three could in principle alias the `cdevents.*` keys since CDEvents
-// builds on CloudEvents). All of these are at Development stability in OTel
-// semconv as of v1.41 / v1.38.0, which means their semantics and value spaces
-// may still change in a non-backward-compatible way.
+// REVIEW NOTE (2026-05-18, deploy-cdevents-ingest): a reviewer suggested
+// replacing these with OTel `deployment.id` / `deployment.name` /
+// `deployment.status` and CloudEvents `cloudevents.event_id` /
+// `cloudevents.event_source` / `cloudevents.event_type`. We deliberately
+// did not swap because, as of OTel semconv v1.41 / v1.38.0:
+//   - https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/
+//   - https://opentelemetry.io/docs/specs/semconv/registry/attributes/cloudevents/
+//
+// every one of those attributes is at Development stability — the same
+// stability bucket the deploy-cdevents-ingest design doc flagged as the
+// reason to avoid `deployment.*` in the first place. Switching now would
+// trade churn risk for no real interoperability gain.
 //
 // V1 of the deploy ingest pins the deploy run identifier to the stable
 // `cicd.pipeline.run.id` / `cicd.pipeline.name` / `cicd.pipeline.run.state` /
 // `cicd.pipeline.result` attributes, and uses `everr.deploy.*` / `cdevents.*` /
-// `everr.github.*` for fields with no stable equivalent. When the OTel
-// `deployment.*` and `cloudevents.*` attributes graduate to Stable, emit them
-// as aliases so OTel-native tooling can consume the deploy stream without
-// changing the existing query contract.
+// `everr.github.*` for fields with no stable equivalent.
+//
+// REVISIT when either OTel `deployment.*` or `cloudevents.*` graduate to
+// Stable: emit them as aliases so OTel-native tooling can consume the
+// deploy stream without changing the existing `cicd.*` query contract.
+// Check the URLs above before reopening this — if they still say
+// Development, the answer is still no.
 const (
 	CDEventsType   = "cdevents.type"
 	CDEventsID     = "cdevents.id"
