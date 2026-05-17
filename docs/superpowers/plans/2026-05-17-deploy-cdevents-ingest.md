@@ -36,6 +36,7 @@ Current `../everr-deploy` flow:
 ## Standards Locked For V1
 
 - GitHub Deployments are the user-facing source. GitHub says deployments are deploy requests, and statuses can be `error`, `failure`, `pending`, `in_progress`, `queued`, or `success`: https://docs.github.com/en/enterprise-cloud@latest/rest/deployments/deployments
+- `actions/checkout` fetches only the triggering commit by default. Changed-service detection needs the previous push SHA, so set `fetch-depth: 0` in `../everr-deploy` before running `git diff`: https://github.com/actions/checkout/blob/main/README.md
 - CDEvents spec version is pinned to `0.5.0`: https://cdevents.dev/docs/
 - CDEvents event types stay pinned to:
   - `dev.cdevents.pipelinerun.queued.0.3.0`
@@ -1909,7 +1910,20 @@ Add under workflow `env:`:
   DEPLOY_ENVIRONMENT: production
 ```
 
-- [ ] **Step 6: Add deployment creation before apply**
+- [ ] **Step 6: Fetch enough Git history for changed-service detection**
+
+In `../everr-deploy/.github/workflows/deploy.yml`, update the checkout step:
+
+```yaml
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+```
+
+`changed-ecs-services.sh` compares `github.event.before` to `github.sha`. GitHub push workflows can otherwise check out only the triggering commit, which means the base SHA may not exist locally and `git diff "$base" "$head"` can fail before deployments are created.
+
+- [ ] **Step 7: Add deployment creation before apply**
 
 In the `apply-infra` job, after `Init` and before `Apply`, add:
 
@@ -1935,7 +1949,7 @@ In the `apply-infra` job, after `Init` and before `Apply`, add:
           done
 ```
 
-- [ ] **Step 7: Add failure trap around apply and rollout wait**
+- [ ] **Step 8: Add failure trap around apply and rollout wait**
 
 Replace the current `Apply` step with:
 
@@ -2015,7 +2029,7 @@ Because the job default working directory is `./infra`, script paths in this ste
 
 The failure trap skips services already marked successful. If `app` completes and `docs` fails later, the trap must not emit a failure status for `app`.
 
-- [ ] **Step 8: Validate workflow YAML and shell scripts**
+- [ ] **Step 9: Validate workflow YAML and shell scripts**
 
 Run from `../everr-deploy`:
 
@@ -2037,7 +2051,7 @@ PY
 
 Expected: shell syntax passes, shellcheck passes when installed, and workflow YAML parses.
 
-- [ ] **Step 9: Commit everr-deploy workflow changes**
+- [ ] **Step 10: Commit everr-deploy workflow changes**
 
 Run from `../everr-deploy`:
 
