@@ -41,8 +41,6 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
-        with:
-          resource-usage: "true"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

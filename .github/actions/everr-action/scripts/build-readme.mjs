@@ -38,13 +38,14 @@ permissions:
 
 steps:
   - uses: everr-labs/everr-action@v0
-    with:
-      resource-usage: "true"
 \`\`\`
 
 > The action needs \`actions: read\` so it can look up its own job via
 > the GitHub Jobs API to derive a \`check_run_id\`. The default
 > \`github-token\` input uses the workflow's GITHUB_TOKEN.
+>
+> Resource usage collection is on by default. To opt out, pass
+> \`resource-usage: "false"\`.
 
 ## Inputs
 
