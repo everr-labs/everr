@@ -7,6 +7,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { finalizePartialArtifact } from "../scripts/finalize.ts";
+
 const artifactClient = new artifact.DefaultArtifactClient();
 
 interface RuntimePaths {
@@ -29,10 +31,7 @@ type SaveState = (key: string, value: string) => void;
 type ReadState = (key: string) => string;
 type Log = (message: string) => void;
 type Now = () => Date;
-type ExecFileImpl = (
-  file: string,
-  args: readonly string[],
-) => Promise<unknown>;
+type FinalizePartialArtifactImpl = typeof finalizePartialArtifact;
 type ResolveFilesystemInfo = (workspacePath: string) => Promise<FilesystemInfo>;
 type UploadArtifactImpl = (
   name: string,
@@ -79,7 +78,7 @@ interface StartResourceUsageOptions {
 
 interface FinalizeAndUploadResourceUsageOptions {
   env?: Env;
-  execFileImpl?: ExecFileImpl;
+  finalizeImpl?: FinalizePartialArtifactImpl;
   fspModule?: typeof fsp;
   info?: Log;
   now?: Now;
@@ -315,7 +314,7 @@ async function finalizeAndUploadResourceUsage({
   info = core.info,
   warning = core.warning,
   now = () => new Date(),
-  execFileImpl = execFileAsync,
+  finalizeImpl = finalizePartialArtifact,
   resolveFilesystemInfo = resolveWorkspaceFilesystemInfo,
   uploadArtifactImpl = (name, files, rootDirectory, options) =>
     artifactClient.uploadArtifact(name, files, rootDirectory, options),
@@ -328,6 +327,13 @@ async function finalizeAndUploadResourceUsage({
     return { enabled: false };
   }
 
+  if (env.RUNNER_OS !== "Linux") {
+    warning(
+      "resource-usage finalization skipped: non-Linux runner (filesystem discovery uses GNU-only df flags)",
+    );
+    return { enabled: true, failed: true };
+  }
+
   const checkRunId = readState("checkRunId");
   const samplesPath = readState("samplesPath");
   const pidPath = readState("pidPath");
@@ -336,47 +342,31 @@ async function finalizeAndUploadResourceUsage({
     readState("workspacePath") || env.GITHUB_WORKSPACE || process.cwd();
   const { outputDir } = buildRuntimePaths(env);
   const completedAt = now().toISOString();
-  const actionRoot = resolveActionRoot();
 
   try {
     await ensureSamplesFile(samplesPath, fspModule);
     await stopSampler(pidPath, warning, fspModule);
     const filesystem = await resolveFilesystemInfo(workspacePath);
 
-    const finalizeScript = path.join(actionRoot, "dist", "finalize", "index.js");
-    await execFileImpl(process.execPath, [
-      finalizeScript,
-      "--samples-path",
+    await finalizeImpl({
       samplesPath,
-      "--output-dir",
       outputDir,
-      "--check-run-id",
-      checkRunId,
-      "--repo",
-      env.GITHUB_REPOSITORY || "",
-      "--run-id",
-      env.GITHUB_RUN_ID || "0",
-      "--run-attempt",
-      env.GITHUB_RUN_ATTEMPT || "0",
-      "--github-job",
-      env.GITHUB_JOB || "",
-      "--runner-name",
-      env.RUNNER_NAME || "",
-      "--runner-os",
-      env.RUNNER_OS || "",
-      "--runner-arch",
-      env.RUNNER_ARCH || "",
-      "--filesystem-device",
-      filesystem.device,
-      "--filesystem-mountpoint",
-      filesystem.mountpoint,
-      "--filesystem-type",
-      filesystem.type,
-      "--started-at",
-      startedAt,
-      "--completed-at",
-      completedAt,
-    ]);
+      metadata: {
+        checkRunId,
+        repo: env.GITHUB_REPOSITORY || "",
+        runId: env.GITHUB_RUN_ID || "0",
+        runAttempt: env.GITHUB_RUN_ATTEMPT || "0",
+        githubJob: env.GITHUB_JOB || "",
+        runnerName: env.RUNNER_NAME || "",
+        runnerOs: env.RUNNER_OS || "",
+        runnerArch: env.RUNNER_ARCH || "",
+        filesystemDevice: filesystem.device,
+        filesystemMountpoint: filesystem.mountpoint,
+        filesystemType: filesystem.type,
+        startedAt,
+        completedAt,
+      },
+    });
 
     const files = [
       path.join(outputDir, "metadata.json"),
@@ -489,21 +479,6 @@ async function resolveWorkspaceFilesystemInfo(
     type: fields[1] || "",
     mountpoint: fields[6] || "",
   };
-}
-
-async function execFileAsync(
-  file: string,
-  args: readonly string[],
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    execFile(file, args, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
 }
 
 async function execFileWithOutput(

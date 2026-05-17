@@ -392,11 +392,8 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
     rootDirectory: string;
   }> = [];
   const infos: string[] = [];
-  let execInvocation:
-    | {
-        args: readonly string[];
-        file: string;
-      }
+  let finalizeInvocation:
+    | Parameters<typeof import("../scripts/finalize.ts").finalizePartialArtifact>[0]
     | undefined;
 
   try {
@@ -421,12 +418,13 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
             startedAt: "2026-03-10T10:00:00.000Z",
           } as Record<string, string>
         )[key] || "",
-      execFileImpl: async (file: string, args: readonly string[]) => {
-        execInvocation = { file, args };
+      finalizeImpl: (async (options) => {
+        finalizeInvocation = options;
         await fsp.mkdir(outputDir, { recursive: true });
         await fsp.writeFile(path.join(outputDir, "metadata.json"), "{}\n", "utf8");
         await fsp.writeFile(path.join(outputDir, "samples.ndjson"), "", "utf8");
-      },
+        return {} as any;
+      }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
       resolveFilesystemInfo: async () => ({
         device: "/dev/root",
         mountpoint: "/",
@@ -454,16 +452,10 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
       rootDirectory: outputDir,
       options: { retentionDays: 7 },
     });
-    assert.equal(execInvocation?.file, process.execPath);
-    assert.equal(
-      execInvocation?.args[0],
-      path.join(
-        resolveActionRoot(fileURLToPath(import.meta.url)),
-        "dist",
-        "finalize",
-        "index.js",
-      ),
-    );
+    assert.equal(finalizeInvocation?.outputDir, outputDir);
+    assert.equal(finalizeInvocation?.metadata.checkRunId, "777");
+    assert.equal(finalizeInvocation?.metadata.repo, "everr-labs/everr");
+    assert.equal(finalizeInvocation?.metadata.filesystemType, "ext4");
     assert.match(infos[0], /uploaded resource-usage artifact/);
   } finally {
     await fsp.rm(tempDir, { recursive: true, force: true });
@@ -477,6 +469,7 @@ test(
 
     const result = await finalizeAndUploadResourceUsage({
       env: {
+        RUNNER_OS: "Linux",
         RUNNER_TEMP: os.tmpdir(),
         GITHUB_RUN_ID: "123",
         GITHUB_RUN_ATTEMPT: "1",
@@ -492,9 +485,9 @@ test(
             startedAt: "2026-03-10T10:00:00.000Z",
           } as Record<string, string>
         )[key] || "",
-      execFileImpl: async () => {
+      finalizeImpl: (async () => {
         throw new Error("finalize boom");
-      },
+      }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
       resolveFilesystemInfo: async () => ({
         device: "/dev/root",
         mountpoint: "/",
@@ -509,3 +502,42 @@ test(
     assert.match(warnings[0], /finalization failed: finalize boom/);
   },
 );
+
+test("finalizeAndUploadResourceUsage skips finalization on non-Linux runners", async () => {
+  const warnings: string[] = [];
+  let finalizeCalled = false;
+
+  const result = await finalizeAndUploadResourceUsage({
+    env: {
+      RUNNER_OS: "macOS",
+      RUNNER_TEMP: os.tmpdir(),
+      GITHUB_RUN_ID: "123",
+      GITHUB_RUN_ATTEMPT: "1",
+      GITHUB_JOB: "lint",
+    },
+    readState: (key: string) =>
+      (
+        {
+          enabled: "1",
+          checkRunId: "777",
+          samplesPath: path.join(os.tmpdir(), "missing.ndjson"),
+          pidPath: path.join(os.tmpdir(), "missing.pid"),
+          startedAt: "2026-03-10T10:00:00.000Z",
+        } as Record<string, string>
+      )[key] || "",
+    finalizeImpl: (async () => {
+      finalizeCalled = true;
+      return {} as any;
+    }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
+    resolveFilesystemInfo: async () => {
+      throw new Error("df should not be called on non-Linux");
+    },
+    uploadArtifactImpl: async () => {},
+    info: () => {},
+    warning: (message: string) => warnings.push(message),
+  });
+
+  assert.equal(result.failed, true);
+  assert.equal(finalizeCalled, false);
+  assert.match(warnings[0], /non-Linux runner/);
+});
