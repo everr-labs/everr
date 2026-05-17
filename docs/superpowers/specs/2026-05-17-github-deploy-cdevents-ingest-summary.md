@@ -48,7 +48,7 @@ For CDEvents records, `cdevents.id` equals the CDEvents body `context.id`. Use G
 
 ## Query Attributes
 
-CDEvents log records should include these attributes so SQL queries do not need to parse JSON:
+CDEvents log records should include these event-specific attributes so SQL queries do not need to parse JSON:
 
 - `cdevents.type`
 - `cdevents.id`
@@ -57,26 +57,24 @@ CDEvents log records should include these attributes so SQL queries do not need 
 - `cicd.pipeline.result`
 - `cicd.pipeline.run.id`
 - `cicd.pipeline.run.state`
-- `deployment.environment.name`
-- `vcs.repository.name`
-- `vcs.repository.url.full`
 - `vcs.ref.head.revision`
+- `vcs.ref.head.name`
 - `everr.deploy.id`
 - `everr.deploy.service.name`
 - `everr.deploy.status`
 - `everr.deploy.url`
-- `everr.github.repository.full_name`
-- `everr.github.repository.owner.login`
 - `everr.github.deployment_status.id`
 - `everr.github.deployment.creator.login`
 - `everr.github.workflow_run.id`
 - `everr.github.workflow_run.run_attempt`
 
+Repository identity is resource-level data, so queries should read it from `ResourceAttributes`.
+
 Set the OTel log record event name with `SetEventName(...)`. ClickHouse stores it in the dedicated `EventName` column, so do not duplicate it as `event.name` inside `LogAttributes`.
 
 Keep custom deploy fields under `everr.*`. Use standard OTel fields only when they already mean the same thing.
 
-Use `ServiceName = 'github-deployments'` for storage and `everr.deploy.service.name` for the service being deployed.
+Use `ServiceName = 'github-deployments'` for storage and `everr.deploy.service.name` for the service being deployed. Query environment from `ResourceAttributes['deployment.environment.name']`, not from log attributes.
 
 Use `cicd.pipeline.run.id` for the GitHub deployment id, `cicd.pipeline.name` for the deployment task, `cicd.pipeline.run.state` for pending/executing, and `cicd.pipeline.result` for success/failure/error.
 
@@ -102,9 +100,9 @@ Set `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by 
 
 ## Trace Linkage
 
-When the GitHub payload includes `workflow_run`, set the deploy log `TraceID` with the existing workflow formula: `generateTraceID(repository.id, workflow_run.id, workflow_run.run_attempt)`.
+When the parsed GitHub payload includes `workflow_run`, set the deploy log `TraceID` with the existing workflow formula: `generateTraceID(repository.id, workflow_run.id, workflow_run.run_attempt)`.
 
-If the payload does not include workflow run linkage, leave `TraceID` empty in v1. Do not call the GitHub API just to fill it in.
+In go-github v67.0.0, `DeploymentEvent` exposes `WorkflowRun`, but `DeploymentStatusEvent` does not. If the parsed event does not expose workflow run linkage, leave `TraceID` empty in v1. Do not call the GitHub API just to fill it in.
 
 ## Data Flow
 

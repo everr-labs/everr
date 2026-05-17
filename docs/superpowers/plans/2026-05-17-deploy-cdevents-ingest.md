@@ -102,14 +102,16 @@ ClickHouse/docs changes:
 Every deploy OTel log record:
 
 - `EventName`: one of the CDEvents event types or `everr.deploy.superseded`.
-- `Body`: JSON CDEvents-shaped object.
+- `Body`: JSON CDEvents-shaped object for CDEvents records, and a small Everr JSON object for `everr.deploy.superseded`.
 - `ResourceAttributes`:
   - `everr.tenant.id`: set by the collector resource processor from `x-everr-tenant-id`.
   - `service.name`: `github-deployments`.
   - `deployment.environment.name`: GitHub deployment environment.
-  - `vcs.provider.name`: `github`.
-  - `vcs.repository.name`: GitHub repository full name.
-  - `vcs.owner.name`: GitHub repository owner login when available.
+  - `vcs.repository.name`: GitHub repository name only, such as `everr-deploy`.
+  - `vcs.repository.url.full`: GitHub repository HTML URL.
+  - `everr.github.repository.full_name`: GitHub `owner/repo` value.
+  - `everr.github.repository.owner.login`: GitHub owner or organization login.
+  - `ResourceLogs.SchemaUrl`: `conventions.SchemaURL`.
 - `LogAttributes`:
   - `cdevents.type`
   - `cdevents.id`
@@ -119,11 +121,11 @@ Every deploy OTel log record:
   - `cicd.pipeline.name`
   - `cicd.pipeline.run.state` for queued/started states
   - `cicd.pipeline.result` for finished states
-  - `deployment.environment.name`
   - `vcs.ref.head.revision`
   - `vcs.ref.head.name`
   - `everr.deploy.id`
   - `everr.deploy.service.name`
+  - `everr.deploy.status`
   - `everr.deploy.url` when GitHub status provides `environment_url` or `target_url`
   - `everr.github.deployment.id`
   - `everr.github.deployment_status.id` for deployment_status events
@@ -573,12 +575,16 @@ const (
 
 	EverrDeployID          = "everr.deploy.id"
 	EverrDeployServiceName = "everr.deploy.service.name"
+	EverrDeployStatus      = "everr.deploy.status"
 	EverrDeployURL         = "everr.deploy.url"
 
 	EverrGitHubDeliveryID              = "everr.github.delivery.id"
 	EverrGitHubDeploymentID           = "everr.github.deployment.id"
 	EverrGitHubDeploymentStatusID     = "everr.github.deployment_status.id"
 	EverrGitHubDeploymentCreatorLogin = "everr.github.deployment.creator.login"
+	EverrGitHubRepositoryFullName     = "everr.github.repository.full_name"
+	EverrGitHubRepositoryOwnerLogin   = "everr.github.repository.owner.login"
+	EverrGitHubWorkflowRunID          = "everr.github.workflow_run.id"
 )
 ```
 
@@ -701,14 +707,22 @@ func TestDeploymentEventToLogsMapsDeploymentCreated(t *testing.T) {
 	require.Equal(t, "dev.cdevents.pipelinerun.queued.0.3.0", record.EventName())
 	require.Equal(t, "dev.cdevents.pipelinerun.queued.0.3.0", record.Attributes().AsRaw()[semconv.CDEventsType])
 	require.Equal(t, "delivery-deploy-created-1", record.Attributes().AsRaw()[semconv.CDEventsID])
+	require.NotContains(t, record.Attributes().AsRaw(), "event.name")
+	require.NotContains(t, record.Attributes().AsRaw(), "deployment.environment.name")
 	require.Equal(t, int64(987), record.Attributes().AsRaw()[semconv.EverrGitHubDeploymentID])
 	require.Equal(t, "987", record.Attributes().AsRaw()[string(conventions.CICDPipelineRunIDKey)])
 	require.Equal(t, "987", record.Attributes().AsRaw()[semconv.EverrDeployID])
 
+	require.Equal(t, conventions.SchemaURL, logs.ResourceLogs().At(0).SchemaUrl())
 	resourceAttrs := logs.ResourceLogs().At(0).Resource().Attributes().AsRaw()
 	require.Equal(t, "github-deployments", resourceAttrs["service.name"])
 	require.Equal(t, "production", resourceAttrs["deployment.environment.name"])
-	require.Equal(t, "everr-labs/everr-deploy", resourceAttrs[string(conventions.VCSRepositoryNameKey)])
+	require.Equal(t, "everr-deploy", resourceAttrs[string(conventions.VCSRepositoryNameKey)])
+	require.Equal(t, "https://github.com/everr-labs/everr-deploy", resourceAttrs["vcs.repository.url.full"])
+	require.Equal(t, "everr-labs/everr-deploy", resourceAttrs[semconv.EverrGitHubRepositoryFullName])
+	require.Equal(t, "everr-labs", resourceAttrs[semconv.EverrGitHubRepositoryOwnerLogin])
+	require.NotContains(t, resourceAttrs, string(conventions.VCSProviderNameKey))
+	require.NotContains(t, resourceAttrs, string(conventions.VCSOwnerNameKey))
 }
 
 func TestDeploymentStatusSuccessEmitsPipelineFinishedAndServiceDeployed(t *testing.T) {
@@ -740,7 +754,47 @@ func TestDeploymentStatusInactiveEmitsSuperseded(t *testing.T) {
 	record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 	require.Equal(t, "everr.deploy.superseded", record.EventName())
 	require.Equal(t, "delivery-deploy-status-inactive-1", record.Attributes().AsRaw()[semconv.EverrGitHubDeliveryID])
+	require.NotContains(t, record.Attributes().AsRaw(), semconv.CDEventsType)
+	require.NotContains(t, record.Attributes().AsRaw(), semconv.CDEventsID)
 	require.NotContains(t, record.Body().Str(), "service.removed")
+}
+
+func TestDeploymentStatusInProgressEmitsPipelineStarted(t *testing.T) {
+	event := deploymentStatusEventWithState(t, "in_progress")
+
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-status-started-1", zap.NewNop())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, logs.LogRecordCount())
+	record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+	require.Equal(t, "dev.cdevents.pipelinerun.started.0.3.0", record.EventName())
+	require.Equal(t, "executing", record.Attributes().AsRaw()[string(conventions.CICDPipelineRunStateKey)])
+	require.Equal(t, "in_progress", record.Attributes().AsRaw()[semconv.EverrDeployStatus])
+}
+
+func TestDeploymentStatusFailureAndErrorEmitPipelineFinished(t *testing.T) {
+	for _, state := range []string{"failure", "error"} {
+		event := deploymentStatusEventWithState(t, state)
+
+		logs, err := deploymentEventToLogs(event, "delivery-deploy-status-"+state, zap.NewNop())
+
+		require.NoError(t, err)
+		require.Equal(t, 1, logs.LogRecordCount())
+		record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+		require.Equal(t, "dev.cdevents.pipelinerun.finished.0.3.0", record.EventName())
+		require.Equal(t, state, record.Attributes().AsRaw()[string(conventions.CICDPipelineResultKey)])
+		require.Equal(t, state, record.Attributes().AsRaw()[semconv.EverrDeployStatus])
+	}
+}
+
+func TestDeploymentLogTraceIDEmptyWithoutWorkflowRun(t *testing.T) {
+	event := parseGitHubTestEvent[*github.DeploymentEvent](t, "testdata/deployment/deployment_created.json", "deployment")
+
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-no-workflow-1", zap.NewNop())
+
+	require.NoError(t, err)
+	record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+	require.True(t, record.TraceID().IsEmpty())
 }
 ```
 
@@ -758,6 +812,13 @@ func parseGitHubTestEvent[T any](t *testing.T, path string, eventType string) T 
 	typed, ok := event.(T)
 	require.True(t, ok)
 	return typed
+}
+
+func deploymentStatusEventWithState(t *testing.T, state string) *github.DeploymentStatusEvent {
+	t.Helper()
+	event := parseGitHubTestEvent[*github.DeploymentStatusEvent](t, "testdata/deployment/deployment_status_success.json", "deployment_status")
+	event.DeploymentStatus.State = github.String(state)
+	return event
 }
 ```
 
@@ -782,6 +843,7 @@ package githubactionsreceiver
 import (
 	"strings"
 
+	"github.com/everr-labs/everr/collector/semconv"
 	"github.com/google/go-github/v67/github"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
@@ -794,10 +856,11 @@ func setDeploymentResourceAttributes(attrs pcommon.Map, repo *github.Repository,
 	if environment != "" {
 		attrs.PutStr("deployment.environment.name", environment)
 	}
-	attrs.PutStr(string(conventions.VCSProviderNameKey), "github")
 	if repo != nil {
-		attrs.PutStr(string(conventions.VCSRepositoryNameKey), repo.GetFullName())
-		attrs.PutStr(string(conventions.VCSOwnerNameKey), repo.GetOwner().GetLogin())
+		attrs.PutStr(string(conventions.VCSRepositoryNameKey), repo.GetName())
+		attrs.PutStr("vcs.repository.url.full", repo.GetHTMLURL())
+		attrs.PutStr(semconv.EverrGitHubRepositoryFullName, repo.GetFullName())
+		attrs.PutStr(semconv.EverrGitHubRepositoryOwnerLogin, repo.GetOwner().GetLogin())
 	}
 }
 
@@ -821,14 +884,12 @@ Create `collector/receiver/githubactionsreceiver/deploy_event_handling.go` with 
 package githubactionsreceiver
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/google/go-github/v67/github"
 	"github.com/everr-labs/everr/collector/semconv"
+	"github.com/google/go-github/v67/github"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
@@ -845,6 +906,10 @@ const (
 )
 
 func deploymentEventToLogs(event interface{}, deliveryID string, logger *zap.Logger) (*plog.Logs, error) {
+	if deliveryID == "" {
+		return nil, fmt.Errorf("missing x-github-delivery")
+	}
+
 	switch e := event.(type) {
 	case *github.DeploymentEvent:
 		return deploymentCreatedToLogs(e, deliveryID, logger)
@@ -867,6 +932,7 @@ func deploymentCreatedToLogs(e *github.DeploymentEvent, deliveryID string, logge
 		DeliveryID: deliveryID,
 		Repo: e.GetRepo(),
 		Deployment: e.GetDeployment(),
+		WorkflowRun: e.GetWorkflowRun(),
 		State: "pending",
 		Result: "",
 		URL: "",
@@ -988,6 +1054,7 @@ type deploymentLogInput struct {
 	Repo             *github.Repository
 	Deployment      *github.Deployment
 	Status          *github.DeploymentStatus
+	WorkflowRun     *github.WorkflowRun
 	State           string
 	Result          string
 	URL             string
@@ -997,6 +1064,7 @@ type deploymentLogInput struct {
 func newDeploymentLogs(repo *github.Repository, environment string) (plog.Logs, plog.LogRecordSlice) {
 	logs := plog.NewLogs()
 	resourceLogs := logs.ResourceLogs().AppendEmpty()
+	resourceLogs.SetSchemaUrl(conventions.SchemaURL)
 	setDeploymentResourceAttributes(resourceLogs.Resource().Attributes(), repo, environment)
 	scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
 	scopeLogs.Scope().SetName("github-deployments")
@@ -1029,20 +1097,80 @@ func cdeventsSource(repo *github.Repository) string {
 }
 
 func cdeventsID(input deploymentLogInput) string {
-	if input.DeliveryID != "" {
-		if input.CDEventsIDSuffix != "" {
-			return fmt.Sprintf("%s-%s", input.DeliveryID, input.CDEventsIDSuffix)
-		}
-		return input.DeliveryID
+	if input.CDEventsIDSuffix != "" {
+		return fmt.Sprintf("%s-%s", input.DeliveryID, input.CDEventsIDSuffix)
 	}
+	return input.DeliveryID
+}
 
-	statusID := int64(0)
-	if input.Status != nil {
-		statusID = input.Status.GetID()
+func cdeventsSubjectType(eventType string) string {
+	if eventType == cdeventsServiceDeployed {
+		return "service"
 	}
+	return "pipelineRun"
+}
 
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d", input.EventType, input.Deployment.GetID(), statusID)))
-	return hex.EncodeToString(hash[:])
+func cdeventsSubjectID(input deploymentLogInput) string {
+	if input.EventType == cdeventsServiceDeployed {
+		return deploymentServiceName(input.Deployment.GetTask())
+	}
+	return fmt.Sprintf("github-deployment-%d", input.Deployment.GetID())
+}
+
+func artifactID(repo *github.Repository, sha string) string {
+	if repo == nil || repo.GetFullName() == "" || sha == "" {
+		return ""
+	}
+	return fmt.Sprintf("pkg:github/%s@%s", repo.GetFullName(), sha)
+}
+
+func deploymentContent(input deploymentLogInput) map[string]any {
+	repoFullName := ""
+	if input.Repo != nil {
+		repoFullName = input.Repo.GetFullName()
+	}
+	content := map[string]any{
+		"environment": map[string]string{
+			"id": input.Deployment.GetEnvironment(),
+			"name": input.Deployment.GetEnvironment(),
+		},
+		"deploymentId": fmt.Sprintf("%d", input.Deployment.GetID()),
+		"repository": repoFullName,
+		"sha": input.Deployment.GetSHA(),
+		"ref": input.Deployment.GetRef(),
+	}
+	if artifact := artifactID(input.Repo, input.Deployment.GetSHA()); artifact != "" {
+		content["artifactId"] = artifact
+	}
+	if input.URL != "" {
+		content["uri"] = input.URL
+	}
+	return content
+}
+
+func deploymentCDEventsBody(input deploymentLogInput) cdeventsBody {
+	return cdeventsBody{
+		Context: cdeventsContext{
+			Version: cdeventsSpecVersion,
+			ID: cdeventsID(input),
+			Source: cdeventsSource(input.Repo),
+			Type: input.EventType,
+			Timestamp: input.Time.UTC().Format(time.RFC3339Nano),
+		},
+		Subject: cdeventsSubject{
+			ID: cdeventsSubjectID(input),
+			Type: cdeventsSubjectType(input.EventType),
+			Source: cdeventsSource(input.Repo),
+			Content: deploymentContent(input),
+		},
+	}
+}
+
+func deploymentStatusValue(input deploymentLogInput) string {
+	if input.Status != nil && input.Status.GetState() != "" {
+		return input.Status.GetState()
+	}
+	return input.State
 }
 ```
 
@@ -1051,6 +1179,12 @@ Inside `fillDeploymentLogRecord(...)`, set:
 ```go
 record.SetEventName(input.EventType)
 record.SetTimestamp(pcommon.NewTimestampFromTime(input.Time))
+if input.WorkflowRun != nil && input.Repo != nil && input.Repo.GetID() > 0 && input.WorkflowRun.GetID() > 0 && input.WorkflowRun.GetRunAttempt() > 0 {
+	traceID, err := generateTraceID(input.Repo.GetID(), input.WorkflowRun.GetID(), input.WorkflowRun.GetRunAttempt())
+	if err == nil {
+		record.SetTraceID(traceID)
+	}
+}
 attrs := record.Attributes()
 attrs.PutStr(semconv.EverrGitHubDeliveryID, input.DeliveryID)
 if input.EventType != everrDeploySuperseded {
@@ -1060,24 +1194,41 @@ if input.EventType != everrDeploySuperseded {
 }
 attrs.PutStr(string(conventions.CICDPipelineRunIDKey), fmt.Sprintf("%d", input.Deployment.GetID()))
 attrs.PutStr(string(conventions.CICDPipelineNameKey), firstString(input.Deployment.GetTask(), "deploy"))
-attrs.PutStr("deployment.environment.name", input.Deployment.GetEnvironment())
 attrs.PutStr(string(conventions.VCSRefHeadRevisionKey), input.Deployment.GetSHA())
 attrs.PutStr(string(conventions.VCSRefHeadNameKey), input.Deployment.GetRef())
 attrs.PutStr(semconv.EverrDeployID, fmt.Sprintf("%d", input.Deployment.GetID()))
 attrs.PutStr(semconv.EverrDeployServiceName, deploymentServiceName(input.Deployment.GetTask()))
+attrs.PutStr(semconv.EverrDeployStatus, deploymentStatusValue(input))
 attrs.PutInt(semconv.EverrGitHubDeploymentID, input.Deployment.GetID())
 attrs.PutStr(semconv.EverrGitHubDeploymentCreatorLogin, input.Deployment.GetCreator().GetLogin())
+if input.Status != nil {
+	attrs.PutInt(semconv.EverrGitHubDeploymentStatusID, input.Status.GetID())
+}
+if input.WorkflowRun != nil {
+	attrs.PutInt(semconv.EverrGitHubWorkflowRunID, input.WorkflowRun.GetID())
+	attrs.PutInt(semconv.EverrGitHubWorkflowRunRunAttempt, int64(input.WorkflowRun.GetRunAttempt()))
+}
+if input.EventType == everrDeploySuperseded {
+	bodyBytes, _ := json.Marshal(map[string]any{
+		"deploymentId": fmt.Sprintf("%d", input.Deployment.GetID()),
+		"deploymentStatusId": fmt.Sprintf("%d", input.Status.GetID()),
+		"environment": input.Deployment.GetEnvironment(),
+		"githubDeliveryId": input.DeliveryID,
+	})
+	record.Body().SetStr(string(bodyBytes))
+} else {
+	bodyBytes, _ := json.Marshal(deploymentCDEventsBody(input))
+	record.Body().SetStr(string(bodyBytes))
+}
 ```
 
 Set `cicd.pipeline.run.state` only for `pending` and `executing`. Set `cicd.pipeline.result` only for `success`, `failure`, `error`, and `inactive`.
-
-For CDEvents records, marshal the CDEvents body and store it in `record.Body().SetStr(...)`. For `everr.deploy.superseded`, leave `cdevents.*` attributes empty and set a small JSON body with the deployment id, status id, environment, and raw GitHub delivery id.
 
 When building a CDEvents body, set `body.Context.ID = cdeventsID(input)` and `body.Context.Type = input.EventType`. The log attribute `cdevents.id` must always be copied from the same value used for `body.Context.ID`.
 
 - [ ] **Step 7: Add trace linkage test**
 
-Create `collector/receiver/githubactionsreceiver/testdata/deployment/deployment_status_success_with_workflow_run.json`:
+Create `collector/receiver/githubactionsreceiver/testdata/deployment/deployment_created_with_workflow_run.json`:
 
 ```json
 {
@@ -1091,15 +1242,6 @@ Create `collector/receiver/githubactionsreceiver/testdata/deployment/deployment_
     "created_at": "2026-05-17T10:00:00Z",
     "updated_at": "2026-05-17T10:00:00Z",
     "creator": { "login": "github-actions[bot]" }
-  },
-  "deployment_status": {
-    "id": 988,
-    "state": "success",
-    "environment_url": "https://app.everr.dev",
-    "target_url": "https://github.com/everr-labs/everr-deploy/actions/runs/1",
-    "description": "app rollout completed",
-    "created_at": "2026-05-17T10:04:00Z",
-    "updated_at": "2026-05-17T10:04:00Z"
   },
   "workflow_run": {
     "id": 456,
@@ -1120,10 +1262,10 @@ Create `collector/receiver/githubactionsreceiver/testdata/deployment/deployment_
 Add a test:
 
 ```go
-func TestDeploymentStatusUsesWorkflowTraceIDWhenPresent(t *testing.T) {
-	event := parseGitHubTestEvent[*github.DeploymentStatusEvent](t, "testdata/deployment/deployment_status_success_with_workflow_run.json", "deployment_status")
+func TestDeploymentEventUsesWorkflowTraceIDWhenPresent(t *testing.T) {
+	event := parseGitHubTestEvent[*github.DeploymentEvent](t, "testdata/deployment/deployment_created_with_workflow_run.json", "deployment")
 
-	logs, err := deploymentEventToLogs(event, "delivery-deploy-status-success-trace-1", zap.NewNop())
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-created-trace-1", zap.NewNop())
 
 	require.NoError(t, err)
 	expected, err := generateTraceID(654321, 456, 2)
@@ -1133,7 +1275,7 @@ func TestDeploymentStatusUsesWorkflowTraceIDWhenPresent(t *testing.T) {
 }
 ```
 
-Implement a helper that checks `event.GetWorkflowRun()` on `github.DeploymentEvent` and `github.DeploymentStatusEvent`. If present and repo id is positive, set `TraceID` on every emitted record.
+Implement a helper that checks `event.GetWorkflowRun()` on `github.DeploymentEvent`. Verified against go-github v67.0.0: `DeploymentEvent` has `WorkflowRun`, while `DeploymentStatusEvent` does not. If a future go-github version exposes workflow linkage on status events, extend the helper then. If workflow run data is absent or the repo id is not positive, leave `TraceID` empty.
 
 - [ ] **Step 8: Run mapper tests**
 
@@ -1310,19 +1452,22 @@ SELECT
   TimestampTime,
   EventName,
   LogAttributes['everr.deploy.service.name'] AS deployed_service,
-  LogAttributes['deployment.environment.name'] AS environment,
+  ResourceAttributes['deployment.environment.name'] AS environment,
   LogAttributes['cicd.pipeline.result'] AS result,
   LogAttributes['everr.deploy.url'] AS deploy_url
 FROM app.logs
 WHERE ServiceName = 'github-deployments'
   AND TimestampTime >= now() - INTERVAL 7 DAY
 ORDER BY TimestampTime DESC
+LIMIT 1 BY if(LogAttributes['cdevents.id'] = '', LogAttributes['everr.github.delivery.id'], LogAttributes['cdevents.id'])
 LIMIT 100;
 ```
 
 Do not add `PREWHERE`.
 
 Do not add `tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))`; the row-level policy handles tenant filtering.
+
+V1 keeps ClickHouse append-only. If a retry creates duplicate rows, query surfaces deduplicate with `LIMIT 1 BY` on `cdevents.id`, falling back to `everr.github.delivery.id` for custom non-CDEvents rows.
 
 - [ ] **Step 3: Commit query doc change if any**
 
@@ -1564,6 +1709,8 @@ base="${1:-}"
 head="${2:-HEAD}"
 
 if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+  # workflow_dispatch has no reliable before SHA. Deploy all services so manual
+  # infra applies do not silently skip an ECS rollout wait.
   echo "app docs collector"
   exit 0
 fi
@@ -1662,9 +1809,10 @@ payload="$(
     '{
       state: $state,
       description: $description,
-      log_url: $log_url,
-      auto_inactive: true
-    } + if $environment_url == "" then {} else {environment_url: $environment_url} end'
+      log_url: $log_url
+    }
+    + if $state == "success" then {auto_inactive: true} else {} end
+    + if $environment_url == "" then {} else {environment_url: $environment_url} end'
 )"
 
 gh api \
@@ -1736,12 +1884,27 @@ Replace the current `Apply` step with:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          completed_services=()
+
+          service_completed() {
+            local needle="$1"
+            local completed
+            for completed in "${completed_services[@]}"; do
+              if [[ "$completed" == "$needle" ]]; then
+                return 0
+              fi
+            done
+            return 1
+          }
 
           mark_failed() {
-            status="$?"
+            local status="$?"
             for file in ../.deployments/*.id; do
               [ -f "$file" ] || continue
               service="$(basename "$file" .id)"
+              if service_completed "$service"; then
+                continue
+              fi
               deployment_id="$(cat "$file")"
               ../scripts/update-github-deployment-status.sh "$deployment_id" failure "${service} deploy failed"
             done
@@ -1781,12 +1944,15 @@ Replace the current `Apply` step with:
             ../scripts/wait-ecs-service-rollout.sh "$cluster" "$ecs_service" 1200 15
             deployment_id="$(cat "../.deployments/${service}.id")"
             ../scripts/update-github-deployment-status.sh "$deployment_id" success "${service} rollout completed" "$environment_url"
+            completed_services+=("$service")
           done
 
           trap - ERR
 ```
 
 Because the job default working directory is `./infra`, script paths in this step use `../scripts/...` and deployment id files live in `../.deployments`.
+
+The failure trap skips services already marked successful. If `app` completes and `docs` fails later, the trap must not emit a failure status for `app`.
 
 - [ ] **Step 8: Validate workflow YAML and shell scripts**
 
@@ -1795,6 +1961,11 @@ Run from `../everr-deploy`:
 ```bash
 chmod +x scripts/changed-ecs-services.sh scripts/create-github-deployment.sh scripts/update-github-deployment-status.sh scripts/wait-ecs-service-rollout.sh
 bash -n scripts/changed-ecs-services.sh scripts/create-github-deployment.sh scripts/update-github-deployment-status.sh scripts/wait-ecs-service-rollout.sh
+if command -v shellcheck >/dev/null; then
+  shellcheck scripts/changed-ecs-services.sh scripts/create-github-deployment.sh scripts/update-github-deployment-status.sh scripts/wait-ecs-service-rollout.sh
+else
+  echo "shellcheck not installed; skipped"
+fi
 python - <<'PY'
 import pathlib, yaml
 for path in pathlib.Path(".github/workflows").glob("*.yml"):
@@ -1803,7 +1974,7 @@ print("workflow yaml parsed")
 PY
 ```
 
-Expected: shell syntax passes and workflow YAML parses.
+Expected: shell syntax passes, shellcheck passes when installed, and workflow YAML parses.
 
 - [ ] **Step 9: Commit everr-deploy workflow changes**
 
@@ -1850,9 +2021,14 @@ Run:
 cd /Users/guidodorsi/workspace/everr-deploy
 scripts/tests/wait-ecs-service-rollout.test.sh
 bash -n scripts/*.sh
+if command -v shellcheck >/dev/null; then
+  shellcheck scripts/*.sh scripts/tests/*.sh
+else
+  echo "shellcheck not installed; skipped"
+fi
 ```
 
-Expected: tests and shell syntax checks pass.
+Expected: tests pass, shell syntax checks pass, and shellcheck passes when installed.
 
 - [ ] **Step 4: Confirm GitHub App configuration**
 
@@ -1890,12 +2066,13 @@ SELECT
   TimestampTime,
   EventName,
   LogAttributes['everr.deploy.service.name'] AS deployed_service,
-  LogAttributes['deployment.environment.name'] AS environment,
+  ResourceAttributes['deployment.environment.name'] AS environment,
   LogAttributes['cicd.pipeline.result'] AS result
 FROM app.logs
 WHERE ServiceName = 'github-deployments'
   AND TimestampTime >= now() - INTERVAL 1 DAY
 ORDER BY TimestampTime DESC
+LIMIT 1 BY if(LogAttributes['cdevents.id'] = '', LogAttributes['everr.github.delivery.id'], LogAttributes['cdevents.id'])
 LIMIT 20;
 ```
 

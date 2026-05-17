@@ -98,7 +98,7 @@ For `deployment_status: success`, emit both:
 
 ## Query Attributes
 
-The CDEvents JSON body is useful for portability, but common filters should not require JSON parsing. Duplicate important fields into OTel log attributes:
+The CDEvents JSON body is useful for portability, but common filters should not require JSON parsing. Duplicate event-specific fields into OTel log attributes:
 
 - `cdevents.type`
 - `cdevents.id`
@@ -107,24 +107,22 @@ The CDEvents JSON body is useful for portability, but common filters should not 
 - `cicd.pipeline.result`
 - `cicd.pipeline.run.id`
 - `cicd.pipeline.run.state`
-- `deployment.environment.name`
-- `vcs.repository.name`
-- `vcs.repository.url.full`
 - `vcs.ref.head.revision`
+- `vcs.ref.head.name`
 - `everr.deploy.id`
 - `everr.deploy.service.name`
 - `everr.deploy.status`
 - `everr.deploy.url`
-- `everr.github.repository.full_name`
-- `everr.github.repository.owner.login`
 - `everr.github.deployment_status.id`
 - `everr.github.deployment.creator.login`
 - `everr.github.workflow_run.id`
 - `everr.github.workflow_run.run_attempt`
 
+Repository identity lives on `ResourceAttributes`, because it describes the source resource shared by all records emitted from the same GitHub webhook.
+
 Set the OTel log record event name with `SetEventName(...)`, so ClickHouse stores it in the dedicated `EventName` column. Do not also write `event.name` into `LogAttributes`.
 
-Keep custom attributes under `everr.*`. Use standard OTel attributes only when the attribute already has the same meaning, such as `deployment.environment.name` and `vcs.ref.head.revision`.
+Keep custom attributes under `everr.*`. Use standard OTel attributes only when the attribute already has the same meaning, such as resource-level `deployment.environment.name` and log-level `vcs.ref.head.revision`.
 
 Use `ServiceName = 'github-deployments'` for the OTel resource service name and ClickHouse column. Use `everr.deploy.service.name` for the service being deployed.
 
@@ -153,7 +151,7 @@ Every deploy log record must be emitted under an OTel resource. These attributes
 - `everr.github.repository.full_name`: GitHub full repository name, such as `acme/api`.
 - `everr.github.repository.owner.login`: repository owner or organization login.
 
-Do not use `vcs.owner.name` or `vcs.provider.name`; they are not in the OTel VCS semantic conventions. Keep those GitHub-specific fields under `everr.github.*`.
+Do not use `vcs.owner.name` or `vcs.provider.name` in v1. Store GitHub-specific owner and provider identity under `everr.github.*` so the resource identity stays aligned with the query contract.
 
 Set the `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by the receiver, for example `https://opentelemetry.io/schemas/1.38.0` while the receiver uses semconv v1.38.0.
 
@@ -161,7 +159,7 @@ If one GitHub webhook emits multiple log records, such as `deployment_status: su
 
 ## Trace Linkage
 
-If a `deployment` or `deployment_status` payload includes GitHub `workflow_run` data, set each emitted deploy log record's OTel `TraceID` to the same deterministic trace id used by workflow telemetry:
+If a parsed deploy webhook includes GitHub `workflow_run` data, set each emitted deploy log record's OTel `TraceID` to the same deterministic trace id used by workflow telemetry:
 
 ```text
 generateTraceID(repository.id, workflow_run.id, workflow_run.run_attempt)
@@ -169,7 +167,7 @@ generateTraceID(repository.id, workflow_run.id, workflow_run.run_attempt)
 
 This links deploy logs to the CI trace for queries and trace views. It uses the existing receiver trace id shape from workflow logs and spans.
 
-Only set this trace id when `repository.id`, `workflow_run.id`, and `workflow_run.run_attempt` are all present. If the webhook does not include workflow run linkage, leave the deploy log `TraceID` empty in v1. Do not call the GitHub API just to discover missing linkage.
+Only set this trace id when `repository.id`, `workflow_run.id`, and `workflow_run.run_attempt` are all present. In go-github v67.0.0, `DeploymentEvent` exposes `WorkflowRun`, but `DeploymentStatusEvent` does not. If the parsed event does not expose workflow run linkage, leave the deploy log `TraceID` empty in v1. Do not call the GitHub API just to discover missing linkage.
 
 Also copy the linkage into log attributes:
 
@@ -201,10 +199,10 @@ Deploy history queries read from `app.logs`:
 SELECT
   TimestampTime,
   EventName AS event_name,
-  LogAttributes['deployment.environment.name'] AS environment,
+  ResourceAttributes['deployment.environment.name'] AS environment,
   LogAttributes['everr.deploy.status'] AS status,
   LogAttributes['everr.deploy.service.name'] AS service,
-  LogAttributes['everr.github.repository.full_name'] AS repository,
+  ResourceAttributes['everr.github.repository.full_name'] AS repository,
   LogAttributes['vcs.ref.head.revision'] AS sha,
   Body
 FROM app.logs
@@ -212,10 +210,11 @@ WHERE ServiceName = 'github-deployments'
   AND TimestampTime >= now() - INTERVAL 7 DAY
   AND (startsWith(EventName, 'dev.cdevents.') OR EventName = 'everr.deploy.superseded')
 ORDER BY TimestampTime DESC
+LIMIT 1 BY if(LogAttributes['cdevents.id'] = '', LogAttributes['everr.github.delivery.id'], LogAttributes['cdevents.id'])
 LIMIT 100;
 ```
 
-The existing `app.logs` table orders by tenant, service, and time. That is a reasonable v1 fit if deploy logs use a stable service name such as `github-deployments`. It keeps deploy queries time-bounded and service-filtered.
+The existing `app.logs` table orders by tenant, service, and time. That is a reasonable v1 fit if deploy logs use a stable service name such as `github-deployments`. It keeps deploy queries time-bounded and service-filtered. ClickHouse remains append-only for v1; if a retry produces duplicate rows, query surfaces deduplicate with `LIMIT 1 BY` on `cdevents.id`, falling back to `everr.github.delivery.id` for custom non-CDEvents rows.
 
 Per `query-mv-incremental`, remember that `app.logs_mv` transforms inserted `otel.otel_logs` rows as they arrive. That means `everr.tenant.id` must already be present on `ResourceAttributes` before insert time. Per `schema-pk-filter-on-orderby`, keep deploy queries anchored on the existing `ORDER BY` prefix through the tenant row policy, `ServiceName`, and time. `EventName` is cheaper to read than `LogAttributes['event.name']`, but it is not part of the `ORDER BY`, so it should not replace the service and time filters. Per `query-index-skipping-indices`, do not add a skipping index for `EventName` in v1; consider it later only if real deploy queries are hot and `EXPLAIN indexes = 1` shows useful skipping.
 
