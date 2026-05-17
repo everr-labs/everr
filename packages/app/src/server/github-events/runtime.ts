@@ -5,6 +5,7 @@ import { GH_EVENTS_CONFIG } from "./config";
 import { firstHeader } from "./headers";
 import {
   installationIdFromQueuedEvent,
+  parseQueuedCollectorEvent,
   parseQueuedWorkflowEvent,
 } from "./payloads";
 import { handleStatusEvent } from "./status-writer";
@@ -31,7 +32,7 @@ function createBoss(): PgBoss {
 async function processCollectorJob(job: Job<WebhookJobData>): Promise<void> {
   const eventType = firstHeader(job.data.headers, "x-github-event") ?? "";
   const body = Buffer.from(job.data.body, "base64");
-  const parsed = parseQueuedWorkflowEvent(eventType, body);
+  const parsed = parseQueuedCollectorEvent(eventType, body);
   const installationId = installationIdFromQueuedEvent(parsed);
   const organizationId = await resolveOrganizationId(installationId);
   await replayWebhookToCollector(
@@ -108,17 +109,26 @@ async function startGitHubEventsRuntime(): Promise<PgBoss> {
   return boss;
 }
 
+type EnqueueWebhookEventOptions = {
+  statusQueue: boolean;
+};
+
 export async function enqueueWebhookEvent(
   eventId: string,
   data: WebhookJobData,
+  options: EnqueueWebhookEventOptions = { statusQueue: true },
 ): Promise<void> {
   let b = getBoss();
   if (!b) {
     b = await startGitHubEventsRuntime();
   }
 
+  const queues = options.statusQueue
+    ? (["gh-collector", "gh-status"] as const)
+    : (["gh-collector"] as const);
+
   await Promise.all(
-    (["gh-collector", "gh-status"] as const).map((queue) =>
+    queues.map((queue) =>
       b.send(queue, data, {
         id: eventId,
         retryLimit: GH_EVENTS_CONFIG.maxAttempts,
