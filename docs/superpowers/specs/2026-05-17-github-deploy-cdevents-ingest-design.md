@@ -49,14 +49,12 @@ The log body is JSON with a CDEvents-style shape:
   "subject": {
     "id": "github-deployment-123456",
     "source": "github.com/acme/api",
-    "type": "service",
     "content": {
       "environment": {
         "id": "production",
         "name": "production"
       },
-      "artifactId": "pkg:github/acme/api@abc123",
-      "uri": "https://github.com/acme/api/deployments/123456"
+      "artifactId": "pkg:github/acme/api@abc123"
     }
   }
 }
@@ -98,13 +96,20 @@ The CDEvents JSON body is useful for portability, but common filters should not 
 
 - `cdevents.type`
 - `cdevents.id`
+- `cicd.pipeline.name`
+- `cicd.pipeline.result`
+- `cicd.pipeline.run.id`
+- `cicd.pipeline.run.state`
 - `deployment.environment.name`
 - `vcs.repository.name`
+- `vcs.repository.url.full`
 - `vcs.ref.head.revision`
 - `everr.deploy.id`
 - `everr.deploy.service.name`
 - `everr.deploy.status`
 - `everr.deploy.url`
+- `everr.github.repository.full_name`
+- `everr.github.repository.owner.login`
 - `everr.github.deployment_status.id`
 - `everr.github.deployment.creator.login`
 - `everr.github.workflow_run.id`
@@ -116,6 +121,15 @@ Keep custom attributes under `everr.*`. Use standard OTel attributes only when t
 
 Use `ServiceName = 'github-deployments'` for the OTel resource service name and ClickHouse column. Use `everr.deploy.service.name` for the service being deployed.
 
+Map OTel CI/CD attributes when they fit the GitHub deployment lifecycle:
+
+- `cicd.pipeline.run.id`: GitHub deployment id.
+- `cicd.pipeline.name`: GitHub deployment task, defaulting to `deploy`.
+- `cicd.pipeline.run.state`: `pending` for deployment creation, `executing` for `in_progress`.
+- `cicd.pipeline.result`: `success`, `failure`, or `error` on finished deployment status events.
+
+Use `everr.github.repository.full_name` for GitHub's `owner/repo` value because OTel `vcs.repository.name` is only the repository name.
+
 Use empty strings for missing optional fields instead of nullable values.
 
 ## Resource Attributes
@@ -125,9 +139,12 @@ Every deploy log record must be emitted under an OTel resource. These attributes
 - `everr.tenant.id`: the tenant id resolved from the GitHub App installation. This is required because `app.logs_mv` copies `ResourceAttributes['everr.tenant.id']` into `app.logs.tenant_id`.
 - `service.name`: `github-deployments`. The ClickHouse exporter copies this into the `ServiceName` column, which deploy queries use for the primary filter.
 - `deployment.environment.name`: GitHub deployment environment name.
-- `vcs.provider.name`: `github`.
-- `vcs.owner.name`: repository owner or organization login.
-- `vcs.repository.name`: full repository name, such as `acme/api`.
+- `vcs.repository.name`: repository name only, such as `api`.
+- `vcs.repository.url.full`: canonical repository URL, such as `https://github.com/acme/api`.
+- `everr.github.repository.full_name`: GitHub full repository name, such as `acme/api`.
+- `everr.github.repository.owner.login`: repository owner or organization login.
+
+Do not use `vcs.owner.name` or `vcs.provider.name`; they are not in the OTel VCS semantic conventions. Keep those GitHub-specific fields under `everr.github.*`.
 
 Set the `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by the receiver, for example `https://opentelemetry.io/schemas/1.38.0` while the receiver uses semconv v1.38.0.
 
@@ -178,7 +195,7 @@ SELECT
   LogAttributes['deployment.environment.name'] AS environment,
   LogAttributes['everr.deploy.status'] AS status,
   LogAttributes['everr.deploy.service.name'] AS service,
-  LogAttributes['vcs.repository.name'] AS repository,
+  LogAttributes['everr.github.repository.full_name'] AS repository,
   LogAttributes['vcs.ref.head.revision'] AS sha,
   Body
 FROM app.logs

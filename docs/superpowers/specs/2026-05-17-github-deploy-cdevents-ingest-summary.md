@@ -50,13 +50,20 @@ Each log should include these attributes so SQL queries do not need to parse JSO
 
 - `cdevents.type`
 - `cdevents.id`
+- `cicd.pipeline.name`
+- `cicd.pipeline.result`
+- `cicd.pipeline.run.id`
+- `cicd.pipeline.run.state`
 - `deployment.environment.name`
 - `vcs.repository.name`
+- `vcs.repository.url.full`
 - `vcs.ref.head.revision`
 - `everr.deploy.id`
 - `everr.deploy.service.name`
 - `everr.deploy.status`
 - `everr.deploy.url`
+- `everr.github.repository.full_name`
+- `everr.github.repository.owner.login`
 - `everr.github.deployment_status.id`
 - `everr.github.deployment.creator.login`
 - `everr.github.workflow_run.id`
@@ -68,6 +75,10 @@ Keep custom deploy fields under `everr.*`. Use standard OTel fields only when th
 
 Use `ServiceName = 'github-deployments'` for storage and `everr.deploy.service.name` for the service being deployed.
 
+Use `cicd.pipeline.run.id` for the GitHub deployment id, `cicd.pipeline.name` for the deployment task, `cicd.pipeline.run.state` for pending/executing, and `cicd.pipeline.result` for success/failure/error.
+
+Use `everr.github.repository.full_name` for GitHub's `owner/repo` value because OTel `vcs.repository.name` is only the repository name.
+
 Use empty strings for optional missing values.
 
 ## Resource Attributes
@@ -77,9 +88,10 @@ Each deploy log must also set resource-level data:
 - `everr.tenant.id`: resolved tenant id from the GitHub App installation
 - `service.name`: `github-deployments`
 - `deployment.environment.name`
-- `vcs.provider.name`: `github`
-- `vcs.owner.name`
-- `vcs.repository.name`
+- `vcs.repository.name`: repository name only
+- `vcs.repository.url.full`
+- `everr.github.repository.full_name`
+- `everr.github.repository.owner.login`
 
 Set `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by the receiver. This matters because `app.logs_mv` reads the tenant from `ResourceAttributes['everr.tenant.id']`.
 
@@ -121,3 +133,16 @@ When we add Everr-specific deploy markers, phases should be represented as CDEve
 - `dev.cdevents.taskrun.finished.0.3.0`
 
 Those logs can also include `everr.deploy.phase` for easy filtering.
+
+## Standards Links
+
+The summary follows these standards contracts:
+
+- OTel logs data model for `Body`, `Resource`, `Attributes`, `TraceId`, and `EventName`: https://opentelemetry.io/docs/specs/otel/logs/data-model/
+- OTel custom attribute naming, which is why Everr-specific fields stay under `everr.*`: https://opentelemetry.io/docs/specs/semconv/general/naming/
+- OTel resource/service conventions for `service.name`: https://opentelemetry.io/docs/specs/semconv/resource/
+- OTel deployment attributes for `deployment.environment.name`: https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/
+- OTel CI/CD attributes for `cicd.pipeline.*`: https://opentelemetry.io/docs/specs/semconv/registry/attributes/cicd/
+- OTel VCS attributes for `vcs.repository.name`, `vcs.repository.url.full`, and `vcs.ref.head.revision`: https://opentelemetry.io/docs/specs/semconv/registry/entities/vcs/
+- CDEvents v0.5.0 docs and event versioning model: https://cdevents.dev/docs/ and https://cdevents.dev/docs/primer/#versioning-of-cdevents
+- CDEvents Go SDK v0.5 schema surface used to pin event types to `0.3.0`: https://pkg.go.dev/github.com/cdevents/sdk-go/pkg/api/v05
