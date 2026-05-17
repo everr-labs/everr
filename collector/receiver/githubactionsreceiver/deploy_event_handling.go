@@ -71,7 +71,7 @@ func deploymentEventToLogs(event interface{}, deliveryID string, logger *zap.Log
 
 	switch e := event.(type) {
 	case *github.DeploymentEvent:
-		return deploymentCreatedToLogs(e, deliveryID, logger)
+		return deploymentCreatedToLogs(e, deliveryID)
 	case *github.DeploymentStatusEvent:
 		return deploymentStatusToLogs(e, deliveryID, logger)
 	default:
@@ -79,8 +79,7 @@ func deploymentEventToLogs(event interface{}, deliveryID string, logger *zap.Log
 	}
 }
 
-func deploymentCreatedToLogs(e *github.DeploymentEvent, deliveryID string, logger *zap.Logger) (*plog.Logs, error) {
-	_ = logger
+func deploymentCreatedToLogs(e *github.DeploymentEvent, deliveryID string) (*plog.Logs, error) {
 	logs, records := newDeploymentLogs(e.GetRepo(), e.GetDeployment().GetEnvironment())
 	record := records.AppendEmpty()
 	fillDeploymentLogRecord(record, deploymentLogInput{
@@ -202,11 +201,17 @@ func firstNonZeroTime(values ...time.Time) time.Time {
 	return time.Now().UTC()
 }
 
+// cdeventsSource returns a CDEvents `context.source` value: an absolute URI
+// per CDEvents v0.5.0 ("An absolute URI is RECOMMENDED"). It mirrors the
+// repository's HTML URL so downstream consumers can join on the same identity
+// they would derive from `vcs.repository.url.full`.
 func cdeventsSource(repo *github.Repository) string {
-	if repo == nil || repo.GetFullName() == "" {
-		return "/github/deployments"
+	if repo != nil {
+		if htmlURL := repo.GetHTMLURL(); htmlURL != "" {
+			return htmlURL
+		}
 	}
-	return fmt.Sprintf("/github/%s/deployments", repo.GetFullName())
+	return "https://github.com"
 }
 
 func cdeventsID(input deploymentLogInput) string {

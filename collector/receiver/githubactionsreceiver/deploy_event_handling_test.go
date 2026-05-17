@@ -68,6 +68,9 @@ func TestDeploymentEventToLogsMapsDeploymentCreated(t *testing.T) {
 	require.Equal(t, "0.5.0", body.Context.Version)
 	require.Equal(t, "delivery-deploy-created-1", body.Context.ID)
 	require.Equal(t, "dev.cdevents.pipelinerun.queued.0.3.0", body.Context.Type)
+	require.Equal(t, "https://github.com/everr-labs/everr-deploy", body.Context.Source)
+	require.Equal(t, "https://github.com/everr-labs/everr-deploy", body.Subject.Source)
+	require.Equal(t, "https://github.com/everr-labs/everr-deploy", record.Attributes().AsRaw()[semconv.CDEventsSource])
 }
 
 func TestDeploymentStatusSuccessEmitsPipelineFinishedAndServiceDeployed(t *testing.T) {
@@ -126,6 +129,15 @@ func TestDeploymentStatusQueuedAndPendingAreSkipped(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, logs)
 	}
+}
+
+func TestDeploymentStatusUnknownStateYieldsNoLogs(t *testing.T) {
+	event := deploymentStatusEventWithState(t, "waiting")
+
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-status-waiting-1", zap.NewNop())
+
+	require.NoError(t, err)
+	require.Nil(t, logs)
 }
 
 func TestDeploymentStatusInProgressEmitsPipelineStarted(t *testing.T) {

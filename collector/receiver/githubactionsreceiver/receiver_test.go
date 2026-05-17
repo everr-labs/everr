@@ -504,3 +504,28 @@ func TestReceiverDeploymentStatusDoesNotRequireGitHubAPIClient(t *testing.T) {
 	require.Equal(t, 2, consumer.logs[0].LogRecordCount())
 	require.Contains(t, consumer.metadata.Get("x-everr-tenant-id"), "42")
 }
+
+func TestReceiverDeploymentEventRejectsMissingDeliveryID(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Path = "/webhook/github"
+	cfg.Secret = "secret"
+	cfg.GitHubAPIConfig.Auth.AppID = 0
+	cfg.GitHubAPIConfig.Auth.PrivateKey = ""
+
+	consumer := newCapturingLogsConsumer()
+	rcv, err := newReceiver(receivertest.NewNopSettings(metadata.Type), cfg)
+	require.NoError(t, err)
+	rcv.logsConsumer = consumer
+
+	payload, err := os.ReadFile("testdata/deployment/deployment_status_success.json")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/webhook/github", bytes.NewReader(payload))
+	signGitHubRequest(req, "secret", payload)
+	req.Header.Set("x-github-event", "deployment_status")
+	rec := httptest.NewRecorder()
+
+	rcv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Empty(t, consumer.logs)
+}
