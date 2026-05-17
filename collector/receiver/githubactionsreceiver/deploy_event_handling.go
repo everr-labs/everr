@@ -28,19 +28,27 @@ type cdeventsBody struct {
 	Subject cdeventsSubject `json:"subject"`
 }
 
+// cdeventsContext mirrors the CDEvents v0.5.0 context object. The spec text
+// and conformance examples (cdevents/spec @ v0.5.0/conformance/) name the
+// version field `specversion`; the v0.5.0 JSON schema's `required` array
+// erroneously lists `version`, but its `properties` only define `specversion`,
+// so we follow the spec text and conformance examples here.
 type cdeventsContext struct {
-	Version   string `json:"version"`
-	ID        string `json:"id"`
-	Source    string `json:"source"`
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp,omitempty"`
+	Specversion string `json:"specversion"`
+	ID          string `json:"id"`
+	Source      string `json:"source"`
+	Type        string `json:"type"`
+	Timestamp   string `json:"timestamp,omitempty"`
 }
 
+// cdeventsSubject mirrors the CDEvents v0.5.0 subject object. The subject
+// has no `type` field (the event type lives in context.type only), and
+// `content` is event-type specific — we use per-event-type content builders
+// below so the body remains schema-valid (`additionalProperties: false`).
 type cdeventsSubject struct {
-	ID      string         `json:"id"`
-	Type    string         `json:"type"`
-	Source  string         `json:"source,omitempty"`
-	Content map[string]any `json:"content,omitempty"`
+	ID      string `json:"id"`
+	Source  string `json:"source,omitempty"`
+	Content any    `json:"content"`
 }
 
 type deploymentLogInput struct {
@@ -250,13 +258,6 @@ func workflowRunLink(deployment *github.Deployment, workflowRun *github.Workflow
 	return payload.WorkflowRunID, payload.WorkflowRunAttempt
 }
 
-func cdeventsSubjectType(eventType string) string {
-	if eventType == cdeventsServiceDeployed {
-		return "service"
-	}
-	return "pipelineRun"
-}
-
 func cdeventsSubjectID(input deploymentLogInput) string {
 	if input.EventType == cdeventsServiceDeployed {
 		return deploymentServiceName(input.Deployment.GetTask())
@@ -267,51 +268,108 @@ func cdeventsSubjectID(input deploymentLogInput) string {
 	return "github-deployment"
 }
 
-func artifactID(repo *github.Repository, sha string) string {
-	if repo == nil || repo.GetFullName() == "" || sha == "" {
-		return ""
-	}
-	return fmt.Sprintf("pkg:github/%s@%s", repo.GetFullName(), sha)
+// pipelineRunContent matches the CDEvents v0.5.0 pipelinerun.* subject content
+// schema (cdevents/spec @ v0.5.0/schemas/pipelinerun{queued,started,finished}.json,
+// additionalProperties: false). Only `pipelineName`, `uri`, `outcome`, and
+// `errors` are permitted across the three pipelinerun event types.
+type pipelineRunContent struct {
+	PipelineName string `json:"pipelineName,omitempty"`
+	URI          string `json:"uri,omitempty"`
+	Outcome      string `json:"outcome,omitempty"`
+	Errors       string `json:"errors,omitempty"`
 }
 
-func deploymentContent(input deploymentLogInput) map[string]any {
-	repoFullName := ""
-	if input.Repo != nil {
-		repoFullName = input.Repo.GetFullName()
-	}
-	content := map[string]any{
-		"environment": map[string]string{
-			"id":   input.Deployment.GetEnvironment(),
-			"name": input.Deployment.GetEnvironment(),
-		},
-		"deploymentId": deploymentIDString(input.Deployment),
-		"repository":   repoFullName,
-		"sha":          input.Deployment.GetSHA(),
-		"ref":          input.Deployment.GetRef(),
-	}
-	if artifact := artifactID(input.Repo, input.Deployment.GetSHA()); artifact != "" {
-		content["artifactId"] = artifact
-	}
+// serviceDeployedContent matches the CDEvents v0.5.0 service.deployed subject
+// content schema. Both `environment` and `artifactId` are required and no
+// additional properties are allowed.
+type serviceDeployedContent struct {
+	Environment serviceEnvironment `json:"environment"`
+	ArtifactID  string             `json:"artifactId"`
+}
+
+type serviceEnvironment struct {
+	ID     string `json:"id"`
+	Source string `json:"source,omitempty"`
+}
+
+// deploymentPipelineURI returns the URI advertised in pipelinerun event bodies.
+// pipelinerun.started requires a non-empty uri per the schema, so fall back to
+// the repository URL when GitHub has not yet attached any status URL.
+func deploymentPipelineURI(input deploymentLogInput) string {
 	if input.URL != "" {
-		content["uri"] = input.URL
+		return input.URL
+	}
+	if input.Repo != nil {
+		if htmlURL := input.Repo.GetHTMLURL(); htmlURL != "" {
+			return htmlURL
+		}
+	}
+	return "https://github.com"
+}
+
+func pipelineRunCDEventsContent(input deploymentLogInput) pipelineRunContent {
+	content := pipelineRunContent{
+		PipelineName: firstString(input.Deployment.GetTask(), "deploy"),
+		URI:          deploymentPipelineURI(input),
+	}
+	if input.EventType == cdeventsPipelineRunDone {
+		content.Outcome = input.Result
+		if input.Status != nil {
+			content.Errors = input.Status.GetDescription()
+		}
 	}
 	return content
 }
 
+// deploymentArtifactID returns a purl-style identifier for the deployed
+// artifact. service.deployed requires a non-empty artifactId per the schema,
+// so always return a stable string even when SHA or repo are missing.
+func deploymentArtifactID(repo *github.Repository, sha string) string {
+	switch {
+	case repo == nil || repo.GetFullName() == "":
+		if sha != "" {
+			return fmt.Sprintf("pkg:github/unknown@%s", sha)
+		}
+		return "pkg:github/unknown"
+	case sha == "":
+		return fmt.Sprintf("pkg:github/%s", repo.GetFullName())
+	default:
+		return fmt.Sprintf("pkg:github/%s@%s", repo.GetFullName(), sha)
+	}
+}
+
+func serviceDeployedCDEventsContent(input deploymentLogInput) serviceDeployedContent {
+	envID := input.Deployment.GetEnvironment()
+	if envID == "" {
+		envID = "unknown"
+	}
+	return serviceDeployedContent{
+		Environment: serviceEnvironment{ID: envID},
+		ArtifactID:  deploymentArtifactID(input.Repo, input.Deployment.GetSHA()),
+	}
+}
+
+func deploymentCDEventsContent(input deploymentLogInput) any {
+	if input.EventType == cdeventsServiceDeployed {
+		return serviceDeployedCDEventsContent(input)
+	}
+	return pipelineRunCDEventsContent(input)
+}
+
 func deploymentCDEventsBody(input deploymentLogInput) cdeventsBody {
+	source := cdeventsSource(input.Repo)
 	return cdeventsBody{
 		Context: cdeventsContext{
-			Version:   cdeventsSpecVersion,
-			ID:        cdeventsID(input),
-			Source:    cdeventsSource(input.Repo),
-			Type:      input.EventType,
-			Timestamp: input.Time.UTC().Format(time.RFC3339Nano),
+			Specversion: cdeventsSpecVersion,
+			ID:          cdeventsID(input),
+			Source:      source,
+			Type:        input.EventType,
+			Timestamp:   input.Time.UTC().Format(time.RFC3339Nano),
 		},
 		Subject: cdeventsSubject{
 			ID:      cdeventsSubjectID(input),
-			Type:    cdeventsSubjectType(input.EventType),
-			Source:  cdeventsSource(input.Repo),
-			Content: deploymentContent(input),
+			Source:  source,
+			Content: deploymentCDEventsContent(input),
 		},
 	}
 }

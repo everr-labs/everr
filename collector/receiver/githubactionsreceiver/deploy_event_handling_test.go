@@ -33,6 +33,35 @@ func deploymentStatusEventWithState(t *testing.T, state string) *github.Deployme
 	return event
 }
 
+func keysOf(m map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func rawSubjectContent(t *testing.T, body string) map[string]json.RawMessage {
+	t.Helper()
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(body), &raw))
+	var subject map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw["subject"], &subject))
+	var content map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(subject["content"], &content))
+	return content
+}
+
+func jsonString(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	require.NoError(t, json.Unmarshal(raw, &s))
+	return s
+}
+
 func TestDeploymentEventToLogsMapsDeploymentCreated(t *testing.T) {
 	event := parseGitHubTestEvent[*github.DeploymentEvent](t, "testdata/deployment/deployment_created.json", "deployment")
 
@@ -65,12 +94,28 @@ func TestDeploymentEventToLogsMapsDeploymentCreated(t *testing.T) {
 
 	var body cdeventsBody
 	require.NoError(t, json.Unmarshal([]byte(record.Body().Str()), &body))
-	require.Equal(t, "0.5.0", body.Context.Version)
+	require.Equal(t, "0.5.0", body.Context.Specversion)
 	require.Equal(t, "delivery-deploy-created-1", body.Context.ID)
 	require.Equal(t, "dev.cdevents.pipelinerun.queued.0.3.0", body.Context.Type)
 	require.Equal(t, "https://github.com/everr-labs/everr-deploy", body.Context.Source)
 	require.Equal(t, "https://github.com/everr-labs/everr-deploy", body.Subject.Source)
 	require.Equal(t, "https://github.com/everr-labs/everr-deploy", record.Attributes().AsRaw()[semconv.CDEventsSource])
+
+	// Raw body shape: assert the JSON contains only the CDEvents-allowed keys
+	// (the schema for pipelinerun events sets `additionalProperties: false`).
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(record.Body().Str()), &raw))
+	require.ElementsMatch(t, []string{"context", "subject"}, keysOf(raw))
+	var rawContext, rawSubject map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw["context"], &rawContext))
+	require.NoError(t, json.Unmarshal(raw["subject"], &rawSubject))
+	require.ElementsMatch(t, []string{"specversion", "id", "source", "type", "timestamp"}, keysOf(rawContext))
+	require.ElementsMatch(t, []string{"id", "source", "content"}, keysOf(rawSubject))
+	var rawContent map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(rawSubject["content"], &rawContent))
+	for k := range rawContent {
+		require.Contains(t, []string{"pipelineName", "uri", "outcome", "errors"}, k)
+	}
 }
 
 func TestDeploymentStatusSuccessEmitsPipelineFinishedAndServiceDeployed(t *testing.T) {
@@ -92,15 +137,37 @@ func TestDeploymentStatusSuccessEmitsPipelineFinishedAndServiceDeployed(t *testi
 
 	var finishedBody cdeventsBody
 	require.NoError(t, json.Unmarshal([]byte(records.At(0).Body().Str()), &finishedBody))
-	require.Equal(t, "0.5.0", finishedBody.Context.Version)
+	require.Equal(t, "0.5.0", finishedBody.Context.Specversion)
 	require.Equal(t, "delivery-deploy-status-success-1", finishedBody.Context.ID)
 	require.Equal(t, "dev.cdevents.pipelinerun.finished.0.3.0", finishedBody.Context.Type)
 
+	// pipelinerun.finished content: only {pipelineName, uri, outcome, errors} are
+	// allowed per the CDEvents v0.5.0 schema (additionalProperties: false).
+	finishedContent := rawSubjectContent(t, records.At(0).Body().Str())
+	for k := range finishedContent {
+		require.Contains(t, []string{"pipelineName", "uri", "outcome", "errors"}, k)
+	}
+	require.Equal(t, "success", jsonString(t, finishedContent["outcome"]))
+	require.NotEmpty(t, jsonString(t, finishedContent["pipelineName"]))
+	require.NotEmpty(t, jsonString(t, finishedContent["uri"]))
+
 	var deployedBody cdeventsBody
 	require.NoError(t, json.Unmarshal([]byte(records.At(1).Body().Str()), &deployedBody))
-	require.Equal(t, "0.5.0", deployedBody.Context.Version)
+	require.Equal(t, "0.5.0", deployedBody.Context.Specversion)
 	require.Equal(t, "delivery-deploy-status-success-1-service-deployed", deployedBody.Context.ID)
 	require.Equal(t, "dev.cdevents.service.deployed.0.3.0", deployedBody.Context.Type)
+
+	// service.deployed content: only {environment, artifactId} are allowed and
+	// both are required per the CDEvents v0.5.0 schema.
+	deployedContent := rawSubjectContent(t, records.At(1).Body().Str())
+	require.ElementsMatch(t, []string{"environment", "artifactId"}, keysOf(deployedContent))
+	require.Equal(t, "pkg:github/everr-labs/everr-deploy@abc123", jsonString(t, deployedContent["artifactId"]))
+	var env map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(deployedContent["environment"], &env))
+	for k := range env {
+		require.Contains(t, []string{"id", "source"}, k)
+	}
+	require.Equal(t, "production", jsonString(t, env["id"]))
 }
 
 func TestDeploymentStatusInactiveEmitsSuperseded(t *testing.T) {
@@ -204,7 +271,12 @@ func TestDeploymentLogUsesEmptyStringForMissingDeploymentID(t *testing.T) {
 	require.Equal(t, "", attrs[string(conventions.CICDPipelineRunIDKey)])
 	require.Equal(t, "", attrs[semconv.EverrDeployID])
 	require.NotContains(t, attrs, semconv.EverrGitHubDeploymentID)
-	require.Contains(t, record.Body().Str(), `"deploymentId":""`)
+	// CDEvents subject.content for pipelinerun has no deploymentId field —
+	// the deployment id lives in the queryable log attributes above. The
+	// subject.id falls back to "github-deployment" when the id is missing.
+	var body cdeventsBody
+	require.NoError(t, json.Unmarshal([]byte(record.Body().Str()), &body))
+	require.Equal(t, "github-deployment", body.Subject.ID)
 }
 
 func TestDeploymentEventUsesWorkflowTraceIDWhenPresent(t *testing.T) {

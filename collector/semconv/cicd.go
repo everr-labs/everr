@@ -48,7 +48,22 @@ const (
 	EverrGitHubWorkflowJobStepCompletedAt = "everr.github.workflow_job_step.completed_at"
 )
 
-// Everr — CDEvents and deployment attributes with no stable OTel equivalent.
+// Everr — CDEvents and deployment attributes.
+//
+// OTel does define `deployment.id`, `deployment.name`, and `deployment.status`,
+// and `cloudevents.event_id` / `cloudevents.event_source` / `cloudevents.event_type`
+// (the last three could in principle alias the `cdevents.*` keys since CDEvents
+// builds on CloudEvents). All of these are at Development stability in OTel
+// semconv as of v1.41 / v1.38.0, which means their semantics and value spaces
+// may still change in a non-backward-compatible way.
+//
+// V1 of the deploy ingest pins the deploy run identifier to the stable
+// `cicd.pipeline.run.id` / `cicd.pipeline.name` / `cicd.pipeline.run.state` /
+// `cicd.pipeline.result` attributes, and uses `everr.deploy.*` / `cdevents.*` /
+// `everr.github.*` for fields with no stable equivalent. When the OTel
+// `deployment.*` and `cloudevents.*` attributes graduate to Stable, emit them
+// as aliases so OTel-native tooling can consume the deploy stream without
+// changing the existing query contract.
 const (
 	CDEventsType   = "cdevents.type"
 	CDEventsID     = "cdevents.id"
