@@ -47,3 +47,23 @@ const (
 	EverrGitHubWorkflowJobStepStartedAt   = "everr.github.workflow_job_step.started_at"
 	EverrGitHubWorkflowJobStepCompletedAt = "everr.github.workflow_job_step.completed_at"
 )
+
+// Everr — CDEvents and deployment attributes with no stable OTel equivalent.
+const (
+	CDEventsType   = "cdevents.type"
+	CDEventsID     = "cdevents.id"
+	CDEventsSource = "cdevents.source"
+
+	EverrDeployID          = "everr.deploy.id"
+	EverrDeployServiceName = "everr.deploy.service.name"
+	EverrDeployStatus      = "everr.deploy.status"
+	EverrDeployURL         = "everr.deploy.url"
+
+	EverrGitHubDeliveryID             = "everr.github.delivery.id"
+	EverrGitHubDeploymentID           = "everr.github.deployment.id"
+	EverrGitHubDeploymentStatusID     = "everr.github.deployment_status.id"
+	EverrGitHubDeploymentCreatorLogin = "everr.github.deployment.creator.login"
+	EverrGitHubRepositoryFullName     = "everr.github.repository.full_name"
+	EverrGitHubRepositoryOwnerLogin   = "everr.github.repository.owner.login"
+	EverrGitHubWorkflowRunID          = "everr.github.workflow_run.id"
+)

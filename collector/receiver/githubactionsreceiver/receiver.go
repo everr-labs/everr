@@ -236,6 +236,8 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	// Handle events based on specific types and completion status
 	switch e := event.(type) {
+	case *github.DeploymentEvent, *github.DeploymentStatusEvent:
+		// Deploy events are mapped directly to logs below.
 	case *github.WorkflowJobEvent:
 		if e.GetWorkflowJob().GetStatus() != "completed" {
 			gar.logger.Debug("Skipping non-completed WorkflowJobEvent", zap.String("status", e.GetWorkflowJob().GetStatus()))
@@ -295,6 +297,32 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	ci := client.FromContext(ctx)
 	ci.Metadata = client.NewMetadata(r.Header)
 	ctx = client.NewContext(ctx, ci)
+
+	if isDeploymentWebhookEvent(event) {
+		if gar.logsConsumer == nil {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+
+		deliveryID := r.Header.Get("x-github-delivery")
+		ld, err := deploymentEventToLogs(event, deliveryID, gar.logger.Named("deploymentEventToLogs"))
+		if err != nil {
+			gar.logger.Error("Failed to process deployment event", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if ld != nil {
+			if err := gar.logsConsumer.ConsumeLogs(ctx, *ld); err != nil {
+				gar.logger.Error("Failed to consume deployment logs", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
 
 	installationID, err := installationIDFromWebhookEvent(event)
 	if err != nil {
@@ -432,6 +460,15 @@ func (gar *githubActionsReceiver) githubClientForInstallation(installationID int
 	}
 
 	return client, nil
+}
+
+func isDeploymentWebhookEvent(event interface{}) bool {
+	switch event.(type) {
+	case *github.DeploymentEvent, *github.DeploymentStatusEvent:
+		return true
+	default:
+		return false
+	}
 }
 
 func installationIDFromWebhookEvent(event interface{}) (int64, error) {

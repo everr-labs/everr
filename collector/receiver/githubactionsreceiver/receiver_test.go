@@ -7,10 +7,17 @@
 package githubactionsreceiver
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,17 +25,54 @@ import (
 	"github.com/everr-labs/everr/collector/semconv"
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
+
+// capturingLogsConsumer records consumed logs and the client metadata captured
+// from context, so tests can assert headers propagated by the receiver.
+type capturingLogsConsumer struct {
+	mu       sync.Mutex
+	logs     []plog.Logs
+	metadata client.Metadata
+}
+
+func newCapturingLogsConsumer() *capturingLogsConsumer {
+	return &capturingLogsConsumer{}
+}
+
+func (c *capturingLogsConsumer) Capabilities() consumer.Capabilities {
+	return consumer.Capabilities{MutatesData: false}
+}
+
+func (c *capturingLogsConsumer) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.logs) == 0 {
+		c.metadata = client.FromContext(ctx).Metadata
+	}
+	c.logs = append(c.logs, ld)
+	return nil
+}
+
+// signGitHubRequest sets a valid GitHub webhook signature header for the payload.
+func signGitHubRequest(req *http.Request, secret string, payload []byte) {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	sig := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	req.Header.Set("X-Hub-Signature-256", sig)
+	req.Header.Set("Content-Type", "application/json")
+}
 
 func int64Ptr(v int64) *int64 {
 	return &v
@@ -430,4 +474,33 @@ func TestCreateRootSpanZeroTimestamps(t *testing.T) {
 
 func getPtr(str string) *string {
 	return &str
+}
+
+func TestReceiverDeploymentStatusDoesNotRequireGitHubAPIClient(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Path = "/webhook/github"
+	cfg.Secret = "secret"
+	cfg.GitHubAPIConfig.Auth.AppID = 0
+	cfg.GitHubAPIConfig.Auth.PrivateKey = ""
+
+	consumer := newCapturingLogsConsumer()
+	rcv, err := newReceiver(receivertest.NewNopSettings(metadata.Type), cfg)
+	require.NoError(t, err)
+	rcv.logsConsumer = consumer
+
+	payload, err := os.ReadFile("testdata/deployment/deployment_status_success.json")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/webhook/github", bytes.NewReader(payload))
+	signGitHubRequest(req, "secret", payload)
+	req.Header.Set("x-github-event", "deployment_status")
+	req.Header.Set("x-github-delivery", "delivery-deploy-status-success-1")
+	req.Header.Set("x-everr-tenant-id", "42")
+	rec := httptest.NewRecorder()
+
+	rcv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusAccepted, rec.Code)
+	require.Len(t, consumer.logs, 1)
+	require.Equal(t, 2, consumer.logs[0].LogRecordCount())
+	require.Contains(t, consumer.metadata.Get("x-everr-tenant-id"), "42")
 }
