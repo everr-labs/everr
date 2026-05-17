@@ -28,6 +28,7 @@ For v1, deployment events should be stored as OpenTelemetry logs with a CDEvents
 - Do not add `everr/action` deploy marker inputs in this slice.
 - Do not build deploy UI in this slice.
 - Do not try to infer deploys from workflow names.
+- Do not capture GitHub Actions environment usage that does not create a GitHub Deployment object, such as jobs configured with `environment.deployment: false`.
 - Do not generate Drizzle migrations as part of the design step.
 
 ## Event Model
@@ -42,7 +43,7 @@ The log body is JSON with a CDEvents-style shape:
     "version": "0.5.0",
     "id": "github-delivery-id",
     "source": "github.com/acme/api",
-    "type": "dev.cdevents.service.deployed.0.2.0",
+    "type": "dev.cdevents.service.deployed.0.3.0",
     "timestamp": "2026-05-17T10:30:00.000Z"
   },
   "subject": {
@@ -61,17 +62,30 @@ The log body is JSON with a CDEvents-style shape:
 }
 ```
 
+## CDEvents Version Pin
+
+V1 pins the body to CDEvents spec `0.5.0` and this event type subset:
+
+- `dev.cdevents.pipelinerun.queued.0.3.0`
+- `dev.cdevents.pipelinerun.started.0.3.0`
+- `dev.cdevents.pipelinerun.finished.0.3.0`
+- `dev.cdevents.service.deployed.0.3.0`
+
+For CDEvents records, the `context.version` field must be `0.5.0`, and the `context.type` field must use one of the exact event types above. Do not silently move to a newer CDEvents spec or event type version later; that is an ingestion format change and needs an explicit migration or dual-read plan.
+
+`everr.deploy.superseded` is an Everr custom OTel log event, not part of the pinned CDEvents subset. Set its OTel `EventName` to `everr.deploy.superseded` and leave `cdevents.type` empty.
+
 The exact CDEvents event type depends on the GitHub event:
 
 | GitHub event | GitHub state | CDEvents-style log event |
 | --- | --- | --- |
-| `deployment` | created/requested | `dev.cdevents.pipelinerun.queued.*` |
-| `deployment_status` | `in_progress` | `dev.cdevents.pipelinerun.started.*` |
-| `deployment_status` | `success` | `dev.cdevents.pipelinerun.finished.*` and `dev.cdevents.service.deployed.*` |
-| `deployment_status` | `failure` or `error` | `dev.cdevents.pipelinerun.finished.*` |
+| `deployment` | created/requested | `dev.cdevents.pipelinerun.queued.0.3.0` |
+| `deployment_status` | `in_progress` | `dev.cdevents.pipelinerun.started.0.3.0` |
+| `deployment_status` | `success` | `dev.cdevents.pipelinerun.finished.0.3.0` and `dev.cdevents.service.deployed.0.3.0` |
+| `deployment_status` | `failure` or `error` | `dev.cdevents.pipelinerun.finished.0.3.0` |
 | `deployment_status` | `inactive` | `everr.deploy.superseded` custom OTel log event |
 
-Do not map GitHub `inactive` to `dev.cdevents.service.removed.*`. In GitHub, `inactive` usually means an older deployment was superseded by a newer one, not that the service stopped running.
+Do not map GitHub `inactive` to a CDEvents `service.removed` event. In GitHub, `inactive` usually means an older deployment was superseded by a newer one, not that the service stopped running.
 
 For `deployment_status: success`, emit both:
 
@@ -93,6 +107,8 @@ The CDEvents JSON body is useful for portability, but common filters should not 
 - `everr.deploy.url`
 - `everr.github.deployment_status.id`
 - `everr.github.deployment.creator.login`
+- `everr.github.workflow_run.id`
+- `everr.github.workflow_run.run_attempt`
 
 Set the OTel log record event name with `SetEventName(...)`, so ClickHouse stores it in the dedicated `EventName` column. Do not also write `event.name` into `LogAttributes`.
 
@@ -116,6 +132,23 @@ Every deploy log record must be emitted under an OTel resource. These attributes
 Set the `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by the receiver, for example `https://opentelemetry.io/schemas/1.38.0` while the receiver uses semconv v1.38.0.
 
 If one GitHub webhook emits multiple log records, such as `deployment_status: success`, put those records under the same resource so they share the tenant, storage service, environment, and repository identity.
+
+## Trace Linkage
+
+If a `deployment` or `deployment_status` payload includes GitHub `workflow_run` data, set each emitted deploy log record's OTel `TraceID` to the same deterministic trace id used by workflow telemetry:
+
+```text
+generateTraceID(repository.id, workflow_run.id, workflow_run.run_attempt)
+```
+
+This links deploy logs to the CI trace for queries and trace views. It uses the existing receiver trace id shape from workflow logs and spans.
+
+Only set this trace id when `repository.id`, `workflow_run.id`, and `workflow_run.run_attempt` are all present. If the webhook does not include workflow run linkage, leave the deploy log `TraceID` empty in v1. Do not call the GitHub API just to discover missing linkage.
+
+Also copy the linkage into log attributes:
+
+- `everr.github.workflow_run.id`
+- `everr.github.workflow_run.run_attempt`
 
 ## Data Flow
 
@@ -176,8 +209,8 @@ Do not add `tenant_id = toUInt64(getSetting('SQL_everr_tenant_id'))` to queries.
 
 CDEvents does not model deploy phases as one `phase` field on `service.deployed`. Richer phases should be modeled as task runs:
 
-- `dev.cdevents.taskrun.started.*`
-- `dev.cdevents.taskrun.finished.*`
+- `dev.cdevents.taskrun.started.0.3.0`
+- `dev.cdevents.taskrun.finished.0.3.0`
 
 GitHub native deployment events do not provide phase detail like `migrate`, `canary`, `rollout`, or `verify`. That should be a later `everr/action` feature. When added, Everr can emit task-run CDEvents and include a query-friendly attribute such as `everr.deploy.phase`.
 
@@ -198,10 +231,13 @@ GitHub native deployment events do not provide phase detail like `migrate`, `can
   - maps `deployment_status: success` to pipeline finished plus service deployed
   - maps `deployment_status: failure` and `error` to pipeline finished with failure
   - maps `deployment_status: inactive` to `everr.deploy.superseded`, not service removed
+  - uses `context.version = "0.5.0"` and only the pinned CDEvents `0.3.0` event types
   - preserves repository, SHA, environment, URL, and sender fields as log attributes
   - sets the OTel `EventName` field instead of writing `event.name` to `LogAttributes`
   - sets resource attributes for tenant id, storage service name, environment, and repository identity
   - sets `ResourceLogs.SchemaUrl`
+  - sets the same `TraceID` as workflow telemetry when `workflow_run` linkage is present
+  - leaves `TraceID` empty when workflow linkage is absent
 - Receiver dispatch tests:
   - deploy events use the deploy mapper before the workflow log path
   - deploy events do not require an installation GitHub client
@@ -217,5 +253,6 @@ GitHub native deployment events do not provide phase detail like `migrate`, `can
 
 - CDEvents documentation: https://cdevents.dev/docs/
 - CDEvents primer and observability use case: https://cdevents.dev/docs/primer/
+- GitHub Actions environment deployment tracking: https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments
 - GitHub deployment webhooks: https://docs.github.com/en/webhooks/webhook-events-and-payloads
 - GitHub deployment statuses API states: https://docs.github.com/en/rest/deployments/statuses

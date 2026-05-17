@@ -32,15 +32,17 @@ V1 tracks deploy history in ClickHouse only. It does not add a Postgres deploy t
 
 | GitHub event | GitHub state | OTel log event |
 | --- | --- | --- |
-| `deployment` | created/requested | `dev.cdevents.pipelinerun.queued.*` |
-| `deployment_status` | `in_progress` | `dev.cdevents.pipelinerun.started.*` |
-| `deployment_status` | `success` | `dev.cdevents.pipelinerun.finished.*` plus `dev.cdevents.service.deployed.*` |
-| `deployment_status` | `failure` or `error` | `dev.cdevents.pipelinerun.finished.*` |
+| `deployment` | created/requested | `dev.cdevents.pipelinerun.queued.0.3.0` |
+| `deployment_status` | `in_progress` | `dev.cdevents.pipelinerun.started.0.3.0` |
+| `deployment_status` | `success` | `dev.cdevents.pipelinerun.finished.0.3.0` plus `dev.cdevents.service.deployed.0.3.0` |
+| `deployment_status` | `failure` or `error` | `dev.cdevents.pipelinerun.finished.0.3.0` |
 | `deployment_status` | `inactive` | `everr.deploy.superseded` custom OTel log event |
 
 On successful deploys, emit both a pipeline finished event and a service deployed event. The first says the deploy process completed; the second says the service is now deployed.
 
 Do not map GitHub `inactive` to `service.removed`. GitHub usually marks an old deployment inactive when a newer one supersedes it, while the service can still be running.
+
+Pin CDEvents output to `context.version = "0.5.0"` and the exact `0.3.0` event types above. Changing the CDEvents spec or event type versions later is an ingestion format change. `everr.deploy.superseded` is a custom OTel log event outside that CDEvents subset.
 
 ## Query Attributes
 
@@ -57,6 +59,8 @@ Each log should include these attributes so SQL queries do not need to parse JSO
 - `everr.deploy.url`
 - `everr.github.deployment_status.id`
 - `everr.github.deployment.creator.login`
+- `everr.github.workflow_run.id`
+- `everr.github.workflow_run.run_attempt`
 
 Set the OTel log record event name with `SetEventName(...)`. ClickHouse stores it in the dedicated `EventName` column, so do not duplicate it as `event.name` inside `LogAttributes`.
 
@@ -79,6 +83,12 @@ Each deploy log must also set resource-level data:
 
 Set `ResourceLogs.SchemaUrl` to the OTel semantic convention schema URL used by the receiver. This matters because `app.logs_mv` reads the tenant from `ResourceAttributes['everr.tenant.id']`.
 
+## Trace Linkage
+
+When the GitHub payload includes `workflow_run`, set the deploy log `TraceID` with the existing workflow formula: `generateTraceID(repository.id, workflow_run.id, workflow_run.run_attempt)`.
+
+If the payload does not include workflow run linkage, leave `TraceID` empty in v1. Do not call the GitHub API just to fill it in.
+
 ## Data Flow
 
 1. GitHub sends `deployment` or `deployment_status` to `/webhook/github`.
@@ -98,6 +108,7 @@ Implementation detail: deploy mapping must be a separate collector path from wor
 - No deploy UI in this slice.
 - No `everr/action` deploy marker inputs in this slice.
 - No deploy inference from workflow names.
+- No capture for GitHub Actions environment usage that does not create a GitHub Deployment object, such as `environment.deployment: false`.
 - No detailed phase tracking from GitHub alone.
 
 ## Later Extension
@@ -106,7 +117,7 @@ GitHub native deploy events do not include detailed phases like `migrate`, `cana
 
 When we add Everr-specific deploy markers, phases should be represented as CDEvents task-run logs:
 
-- `dev.cdevents.taskrun.started.*`
-- `dev.cdevents.taskrun.finished.*`
+- `dev.cdevents.taskrun.started.0.3.0`
+- `dev.cdevents.taskrun.finished.0.3.0`
 
 Those logs can also include `everr.deploy.phase` for easy filtering.
