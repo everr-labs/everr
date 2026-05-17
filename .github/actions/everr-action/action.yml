@@ -8,8 +8,9 @@ inputs:
     default: "true"
   check-run-id:
     description: |
-      Check run id for the current workflow job, e.g. ${{ job.check_run_id }}.
-      Required when resource-usage is enabled; the action no-ops with a warning
+      Check run id for the current workflow job. Pass the workflow
+      expression `job.check_run_id` from the calling workflow. Required
+      when resource-usage is enabled; the action no-ops with a warning
       if it is missing.
     required: false
     default: ""
