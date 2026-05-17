@@ -41,7 +41,7 @@ The log body is JSON with a CDEvents-style shape:
 {
   "context": {
     "version": "0.5.0",
-    "id": "github-delivery-id",
+    "id": "github-delivery-id-service-deployed",
     "source": "github.com/acme/api",
     "type": "dev.cdevents.service.deployed.0.3.0",
     "timestamp": "2026-05-17T10:30:00.000Z"
@@ -71,7 +71,13 @@ V1 pins the body to CDEvents spec `0.5.0` and this event type subset:
 
 For CDEvents records, the `context.version` field must be `0.5.0`, and the `context.type` field must use one of the exact event types above. Do not silently move to a newer CDEvents spec or event type version later; that is an ingestion format change and needs an explicit migration or dual-read plan.
 
-`everr.deploy.superseded` is an Everr custom OTel log event, not part of the pinned CDEvents subset. Set its OTel `EventName` to `everr.deploy.superseded` and leave `cdevents.type` empty.
+`everr.deploy.superseded` is an Everr custom OTel log event, not part of the pinned CDEvents subset. Set its OTel `EventName` to `everr.deploy.superseded` and leave `cdevents.*` attributes empty.
+
+For CDEvents records, `cdevents.id` must equal the CDEvents body's `context.id`. Base the id on GitHub's `x-github-delivery` header because that is the source webhook event id:
+
+- For webhooks that emit one CDEvents record, set `context.id = cdevents.id = <x-github-delivery>`.
+- For `deployment_status: success`, set the pipeline-finished record to `<x-github-delivery>` and the service-deployed record to `<x-github-delivery>-service-deployed`. CDEvents builds on CloudEvents, where `source + id` identifies a distinct event, so two CDEvents records from one webhook must not share the same `context.id`.
+- Store the raw GitHub delivery id separately in `everr.github.delivery.id` on every emitted deploy row, including custom rows such as `everr.deploy.superseded`.
 
 The exact CDEvents event type depends on the GitHub event:
 
@@ -96,6 +102,7 @@ The CDEvents JSON body is useful for portability, but common filters should not 
 
 - `cdevents.type`
 - `cdevents.id`
+- `everr.github.delivery.id`
 - `cicd.pipeline.name`
 - `cicd.pipeline.result`
 - `cicd.pipeline.run.id`
@@ -127,6 +134,8 @@ Map OTel CI/CD attributes when they fit the GitHub deployment lifecycle:
 - `cicd.pipeline.name`: GitHub deployment task, defaulting to `deploy`.
 - `cicd.pipeline.run.state`: `pending` for deployment creation, `executing` for `in_progress`.
 - `cicd.pipeline.result`: `success`, `failure`, or `error` on finished deployment status events.
+
+Set `everr.deploy.id` to the same GitHub deployment id string used by `cicd.pipeline.run.id`. This deliberate duplicate gives future `everr/action` task-run or phase events a stable Everr-owned deploy join key without depending on OTel CI/CD semantic convention evolution. Keep `everr.github.deployment.id` as the source-specific raw GitHub id as well.
 
 Use `everr.github.repository.full_name` for GitHub's `owner/repo` value because OTel `vcs.repository.name` is only the repository name.
 
@@ -270,6 +279,7 @@ GitHub native deployment events do not provide phase detail like `migrate`, `can
 
 - CDEvents documentation: https://cdevents.dev/docs/
 - CDEvents primer and observability use case: https://cdevents.dev/docs/primer/
+- CloudEvents `source + id` uniqueness rule inherited by CDEvents context ids: https://github.com/cloudevents/spec/blob/main/cloudevents/spec.md#id
 - GitHub Actions environment deployment tracking: https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments
 - GitHub deployment webhooks: https://docs.github.com/en/webhooks/webhook-events-and-payloads
 - GitHub deployment statuses API states: https://docs.github.com/en/rest/deployments/statuses

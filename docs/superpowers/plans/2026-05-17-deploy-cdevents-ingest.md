@@ -43,6 +43,7 @@ Current `../everr-deploy` flow:
   - `dev.cdevents.pipelinerun.finished.0.3.0`
   - `dev.cdevents.service.deployed.0.3.0`
 - CDEvents versioning guidance says event versions live in event `type`, while spec version lives in `context.version`: https://cdevents.dev/docs/primer/#versioning-of-cdevents
+- CDEvents builds on CloudEvents. CloudEvents says producers must keep `source + id` unique for each distinct event, so two CDEvents records emitted from one webhook need different `context.id` values: https://github.com/cloudevents/spec/blob/main/cloudevents/spec.md#id
 - OTel logs are the right signal because OTel treats events as a special type of log: https://opentelemetry.io/docs/concepts/signals/logs/
 - Use the OTel log record event-name field through `LogRecord.SetEventName(...)`; do not duplicate it in `LogAttributes['event.name']`.
 - Use stable OTel attributes where they match:
@@ -113,6 +114,7 @@ Every deploy OTel log record:
   - `cdevents.type`
   - `cdevents.id`
   - `cdevents.source`
+  - `everr.github.delivery.id`
   - `cicd.pipeline.run.id`
   - `cicd.pipeline.name`
   - `cicd.pipeline.run.state` for queued/started states
@@ -127,6 +129,17 @@ Every deploy OTel log record:
   - `everr.github.deployment_status.id` for deployment_status events
   - `everr.github.deployment.creator.login`
   - `everr.github.workflow_run.id` and `everr.github.workflow_run.run_attempt` when present
+
+`cdevents.*` attributes apply only to CDEvents records. Custom records such as `everr.deploy.superseded` leave `cdevents.*` empty and still set `everr.github.delivery.id`.
+
+Identifier rules:
+
+- `cdevents.id` equals the CDEvents body `context.id`.
+- For webhooks that emit one CDEvents record, set `context.id = cdevents.id = <x-github-delivery>`.
+- For `deployment_status: success`, the pipeline-finished record uses `<x-github-delivery>` and the service-deployed record uses `<x-github-delivery>-service-deployed`.
+- `everr.github.delivery.id` always stores the raw GitHub `x-github-delivery` header on every deploy row, including custom rows such as `everr.deploy.superseded`.
+- `cicd.pipeline.run.id` is the GitHub deployment id string.
+- `everr.deploy.id` equals the same GitHub deployment id string. This deliberate duplicate gives future `everr/action` task-run or phase events a stable Everr-owned deploy join key without depending on OTel CI/CD semantic convention evolution.
 
 Trace linkage:
 
@@ -562,6 +575,7 @@ const (
 	EverrDeployServiceName = "everr.deploy.service.name"
 	EverrDeployURL         = "everr.deploy.url"
 
+	EverrGitHubDeliveryID              = "everr.github.delivery.id"
 	EverrGitHubDeploymentID           = "everr.github.deployment.id"
 	EverrGitHubDeploymentStatusID     = "everr.github.deployment_status.id"
 	EverrGitHubDeploymentCreatorLogin = "everr.github.deployment.creator.login"
@@ -677,7 +691,7 @@ In `collector/receiver/githubactionsreceiver/deploy_event_handling_test.go`, add
 func TestDeploymentEventToLogsMapsDeploymentCreated(t *testing.T) {
 	event := parseGitHubTestEvent[*github.DeploymentEvent](t, "testdata/deployment/deployment_created.json", "deployment")
 
-	logs, err := deploymentEventToLogs(event, zap.NewNop())
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-created-1", zap.NewNop())
 
 	require.NoError(t, err)
 	require.NotNil(t, logs)
@@ -686,8 +700,10 @@ func TestDeploymentEventToLogsMapsDeploymentCreated(t *testing.T) {
 	record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 	require.Equal(t, "dev.cdevents.pipelinerun.queued.0.3.0", record.EventName())
 	require.Equal(t, "dev.cdevents.pipelinerun.queued.0.3.0", record.Attributes().AsRaw()[semconv.CDEventsType])
+	require.Equal(t, "delivery-deploy-created-1", record.Attributes().AsRaw()[semconv.CDEventsID])
 	require.Equal(t, int64(987), record.Attributes().AsRaw()[semconv.EverrGitHubDeploymentID])
 	require.Equal(t, "987", record.Attributes().AsRaw()[string(conventions.CICDPipelineRunIDKey)])
+	require.Equal(t, "987", record.Attributes().AsRaw()[semconv.EverrDeployID])
 
 	resourceAttrs := logs.ResourceLogs().At(0).Resource().Attributes().AsRaw()
 	require.Equal(t, "github-deployments", resourceAttrs["service.name"])
@@ -698,7 +714,7 @@ func TestDeploymentEventToLogsMapsDeploymentCreated(t *testing.T) {
 func TestDeploymentStatusSuccessEmitsPipelineFinishedAndServiceDeployed(t *testing.T) {
 	event := parseGitHubTestEvent[*github.DeploymentStatusEvent](t, "testdata/deployment/deployment_status_success.json", "deployment_status")
 
-	logs, err := deploymentEventToLogs(event, zap.NewNop())
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-status-success-1", zap.NewNop())
 
 	require.NoError(t, err)
 	require.NotNil(t, logs)
@@ -706,21 +722,24 @@ func TestDeploymentStatusSuccessEmitsPipelineFinishedAndServiceDeployed(t *testi
 
 	records := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()
 	require.Equal(t, "dev.cdevents.pipelinerun.finished.0.3.0", records.At(0).EventName())
+	require.Equal(t, "delivery-deploy-status-success-1", records.At(0).Attributes().AsRaw()[semconv.CDEventsID])
 	require.Equal(t, "success", records.At(0).Attributes().AsRaw()[string(conventions.CICDPipelineResultKey)])
 	require.Equal(t, "dev.cdevents.service.deployed.0.3.0", records.At(1).EventName())
+	require.Equal(t, "delivery-deploy-status-success-1-service-deployed", records.At(1).Attributes().AsRaw()[semconv.CDEventsID])
 	require.Equal(t, "https://app.everr.dev", records.At(1).Attributes().AsRaw()[semconv.EverrDeployURL])
 }
 
 func TestDeploymentStatusInactiveEmitsSuperseded(t *testing.T) {
 	event := parseGitHubTestEvent[*github.DeploymentStatusEvent](t, "testdata/deployment/deployment_status_inactive.json", "deployment_status")
 
-	logs, err := deploymentEventToLogs(event, zap.NewNop())
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-status-inactive-1", zap.NewNop())
 
 	require.NoError(t, err)
 	require.NotNil(t, logs)
 	require.Equal(t, 1, logs.LogRecordCount())
 	record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 	require.Equal(t, "everr.deploy.superseded", record.EventName())
+	require.Equal(t, "delivery-deploy-status-inactive-1", record.Attributes().AsRaw()[semconv.EverrGitHubDeliveryID])
 	require.NotContains(t, record.Body().Str(), "service.removed")
 }
 ```
@@ -825,12 +844,12 @@ const (
 	everrDeploySuperseded      = "everr.deploy.superseded"
 )
 
-func deploymentEventToLogs(event interface{}, logger *zap.Logger) (*plog.Logs, error) {
+func deploymentEventToLogs(event interface{}, deliveryID string, logger *zap.Logger) (*plog.Logs, error) {
 	switch e := event.(type) {
 	case *github.DeploymentEvent:
-		return deploymentCreatedToLogs(e, logger)
+		return deploymentCreatedToLogs(e, deliveryID, logger)
 	case *github.DeploymentStatusEvent:
-		return deploymentStatusToLogs(e, logger)
+		return deploymentStatusToLogs(e, deliveryID, logger)
 	default:
 		return nil, nil
 	}
@@ -840,11 +859,12 @@ func deploymentEventToLogs(event interface{}, logger *zap.Logger) (*plog.Logs, e
 Implement `deploymentCreatedToLogs`, `deploymentStatusToLogs`, and helpers so:
 
 ```go
-func deploymentCreatedToLogs(e *github.DeploymentEvent, logger *zap.Logger) (*plog.Logs, error) {
+func deploymentCreatedToLogs(e *github.DeploymentEvent, deliveryID string, logger *zap.Logger) (*plog.Logs, error) {
 	logs, records := newDeploymentLogs(e.GetRepo(), e.GetDeployment().GetEnvironment())
 	record := records.AppendEmpty()
 	fillDeploymentLogRecord(record, deploymentLogInput{
 		EventType: cdeventsPipelineRunQueued,
+		DeliveryID: deliveryID,
 		Repo: e.GetRepo(),
 		Deployment: e.GetDeployment(),
 		State: "pending",
@@ -857,7 +877,7 @@ func deploymentCreatedToLogs(e *github.DeploymentEvent, logger *zap.Logger) (*pl
 ```
 
 ```go
-func deploymentStatusToLogs(e *github.DeploymentStatusEvent, logger *zap.Logger) (*plog.Logs, error) {
+func deploymentStatusToLogs(e *github.DeploymentStatusEvent, deliveryID string, logger *zap.Logger) (*plog.Logs, error) {
 	status := e.GetDeploymentStatus()
 	state := status.GetState()
 	logs, records := newDeploymentLogs(e.GetRepo(), e.GetDeployment().GetEnvironment())
@@ -867,6 +887,7 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, logger *zap.Logger)
 		record := records.AppendEmpty()
 		fillDeploymentLogRecord(record, deploymentLogInput{
 			EventType: cdeventsPipelineRunStarted,
+			DeliveryID: deliveryID,
 			Repo: e.GetRepo(),
 			Deployment: e.GetDeployment(),
 			Status: status,
@@ -878,6 +899,7 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, logger *zap.Logger)
 		finished := records.AppendEmpty()
 		fillDeploymentLogRecord(finished, deploymentLogInput{
 			EventType: cdeventsPipelineRunDone,
+			DeliveryID: deliveryID,
 			Repo: e.GetRepo(),
 			Deployment: e.GetDeployment(),
 			Status: status,
@@ -888,6 +910,8 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, logger *zap.Logger)
 		deployed := records.AppendEmpty()
 		fillDeploymentLogRecord(deployed, deploymentLogInput{
 			EventType: cdeventsServiceDeployed,
+			DeliveryID: deliveryID,
+			CDEventsIDSuffix: "service-deployed",
 			Repo: e.GetRepo(),
 			Deployment: e.GetDeployment(),
 			Status: status,
@@ -899,6 +923,7 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, logger *zap.Logger)
 		record := records.AppendEmpty()
 		fillDeploymentLogRecord(record, deploymentLogInput{
 			EventType: cdeventsPipelineRunDone,
+			DeliveryID: deliveryID,
 			Repo: e.GetRepo(),
 			Deployment: e.GetDeployment(),
 			Status: status,
@@ -910,6 +935,7 @@ func deploymentStatusToLogs(e *github.DeploymentStatusEvent, logger *zap.Logger)
 		record := records.AppendEmpty()
 		fillDeploymentLogRecord(record, deploymentLogInput{
 			EventType: everrDeploySuperseded,
+			DeliveryID: deliveryID,
 			Repo: e.GetRepo(),
 			Deployment: e.GetDeployment(),
 			Status: status,
@@ -956,14 +982,16 @@ Use this input type and helper set:
 
 ```go
 type deploymentLogInput struct {
-	EventType  string
-	Repo      *github.Repository
-	Deployment *github.Deployment
-	Status    *github.DeploymentStatus
-	State     string
-	Result    string
-	URL       string
-	Time      time.Time
+	EventType        string
+	DeliveryID       string
+	CDEventsIDSuffix string
+	Repo             *github.Repository
+	Deployment      *github.Deployment
+	Status          *github.DeploymentStatus
+	State           string
+	Result          string
+	URL             string
+	Time            time.Time
 }
 
 func newDeploymentLogs(repo *github.Repository, environment string) (plog.Logs, plog.LogRecordSlice) {
@@ -1001,10 +1029,18 @@ func cdeventsSource(repo *github.Repository) string {
 }
 
 func cdeventsID(input deploymentLogInput) string {
+	if input.DeliveryID != "" {
+		if input.CDEventsIDSuffix != "" {
+			return fmt.Sprintf("%s-%s", input.DeliveryID, input.CDEventsIDSuffix)
+		}
+		return input.DeliveryID
+	}
+
 	statusID := int64(0)
 	if input.Status != nil {
 		statusID = input.Status.GetID()
 	}
+
 	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d", input.EventType, input.Deployment.GetID(), statusID)))
 	return hex.EncodeToString(hash[:])
 }
@@ -1016,15 +1052,18 @@ Inside `fillDeploymentLogRecord(...)`, set:
 record.SetEventName(input.EventType)
 record.SetTimestamp(pcommon.NewTimestampFromTime(input.Time))
 attrs := record.Attributes()
-attrs.PutStr(semconv.CDEventsType, input.EventType)
-attrs.PutStr(semconv.CDEventsID, cdeventsID(input))
-attrs.PutStr(semconv.CDEventsSource, cdeventsSource(input.Repo))
+attrs.PutStr(semconv.EverrGitHubDeliveryID, input.DeliveryID)
+if input.EventType != everrDeploySuperseded {
+	attrs.PutStr(semconv.CDEventsType, input.EventType)
+	attrs.PutStr(semconv.CDEventsID, cdeventsID(input))
+	attrs.PutStr(semconv.CDEventsSource, cdeventsSource(input.Repo))
+}
 attrs.PutStr(string(conventions.CICDPipelineRunIDKey), fmt.Sprintf("%d", input.Deployment.GetID()))
 attrs.PutStr(string(conventions.CICDPipelineNameKey), firstString(input.Deployment.GetTask(), "deploy"))
 attrs.PutStr("deployment.environment.name", input.Deployment.GetEnvironment())
 attrs.PutStr(string(conventions.VCSRefHeadRevisionKey), input.Deployment.GetSHA())
 attrs.PutStr(string(conventions.VCSRefHeadNameKey), input.Deployment.GetRef())
-attrs.PutStr(semconv.EverrDeployID, fmt.Sprintf("github-deployment-%d", input.Deployment.GetID()))
+attrs.PutStr(semconv.EverrDeployID, fmt.Sprintf("%d", input.Deployment.GetID()))
 attrs.PutStr(semconv.EverrDeployServiceName, deploymentServiceName(input.Deployment.GetTask()))
 attrs.PutInt(semconv.EverrGitHubDeploymentID, input.Deployment.GetID())
 attrs.PutStr(semconv.EverrGitHubDeploymentCreatorLogin, input.Deployment.GetCreator().GetLogin())
@@ -1032,7 +1071,9 @@ attrs.PutStr(semconv.EverrGitHubDeploymentCreatorLogin, input.Deployment.GetCrea
 
 Set `cicd.pipeline.run.state` only for `pending` and `executing`. Set `cicd.pipeline.result` only for `success`, `failure`, `error`, and `inactive`.
 
-Marshal the CDEvents body and store it in `record.Body().SetStr(...)`.
+For CDEvents records, marshal the CDEvents body and store it in `record.Body().SetStr(...)`. For `everr.deploy.superseded`, leave `cdevents.*` attributes empty and set a small JSON body with the deployment id, status id, environment, and raw GitHub delivery id.
+
+When building a CDEvents body, set `body.Context.ID = cdeventsID(input)` and `body.Context.Type = input.EventType`. The log attribute `cdevents.id` must always be copied from the same value used for `body.Context.ID`.
 
 - [ ] **Step 7: Add trace linkage test**
 
@@ -1082,7 +1123,7 @@ Add a test:
 func TestDeploymentStatusUsesWorkflowTraceIDWhenPresent(t *testing.T) {
 	event := parseGitHubTestEvent[*github.DeploymentStatusEvent](t, "testdata/deployment/deployment_status_success_with_workflow_run.json", "deployment_status")
 
-	logs, err := deploymentEventToLogs(event, zap.NewNop())
+	logs, err := deploymentEventToLogs(event, "delivery-deploy-status-success-trace-1", zap.NewNop())
 
 	require.NoError(t, err)
 	expected, err := generateTraceID(654321, 456, 2)
@@ -1134,6 +1175,7 @@ func TestReceiverDeploymentStatusDoesNotRequireGitHubAPIClient(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/webhook/github", bytes.NewReader(payload))
 	signGitHubRequest(req, "secret", payload)
 	req.Header.Set("x-github-event", "deployment_status")
+	req.Header.Set("x-github-delivery", "delivery-deploy-status-success-1")
 	req.Header.Set("x-everr-tenant-id", "42")
 	rec := httptest.NewRecorder()
 
@@ -1191,7 +1233,8 @@ if isDeploymentWebhookEvent(event) {
 		return
 	}
 
-	ld, err := deploymentEventToLogs(event, gar.logger.Named("deploymentEventToLogs"))
+	deliveryID := r.Header.Get("x-github-delivery")
+	ld, err := deploymentEventToLogs(event, deliveryID, gar.logger.Named("deploymentEventToLogs"))
 	if err != nil {
 		gar.logger.Error("Failed to process deployment event", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)

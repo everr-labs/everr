@@ -42,14 +42,17 @@ On successful deploys, emit both a pipeline finished event and a service deploye
 
 Do not map GitHub `inactive` to `service.removed`. GitHub usually marks an old deployment inactive when a newer one supersedes it, while the service can still be running.
 
-Pin CDEvents output to `context.version = "0.5.0"` and the exact `0.3.0` event types above. Changing the CDEvents spec or event type versions later is an ingestion format change. `everr.deploy.superseded` is a custom OTel log event outside that CDEvents subset.
+Pin CDEvents output to `context.version = "0.5.0"` and the exact `0.3.0` event types above. Changing the CDEvents spec or event type versions later is an ingestion format change. `everr.deploy.superseded` is a custom OTel log event outside that CDEvents subset, so it leaves `cdevents.*` attributes empty.
+
+For CDEvents records, `cdevents.id` equals the CDEvents body `context.id`. Use GitHub's `x-github-delivery` header as the base id. If one webhook emits two CDEvents records, as `deployment_status: success` does, the second record must get a distinct id: `<x-github-delivery>-service-deployed`. Keep the raw delivery id in `everr.github.delivery.id` on every deploy row.
 
 ## Query Attributes
 
-Each log should include these attributes so SQL queries do not need to parse JSON:
+CDEvents log records should include these attributes so SQL queries do not need to parse JSON:
 
 - `cdevents.type`
 - `cdevents.id`
+- `everr.github.delivery.id`
 - `cicd.pipeline.name`
 - `cicd.pipeline.result`
 - `cicd.pipeline.run.id`
@@ -76,6 +79,8 @@ Keep custom deploy fields under `everr.*`. Use standard OTel fields only when th
 Use `ServiceName = 'github-deployments'` for storage and `everr.deploy.service.name` for the service being deployed.
 
 Use `cicd.pipeline.run.id` for the GitHub deployment id, `cicd.pipeline.name` for the deployment task, `cicd.pipeline.run.state` for pending/executing, and `cicd.pipeline.result` for success/failure/error.
+
+Set `everr.deploy.id` to the same GitHub deployment id string used by `cicd.pipeline.run.id`. It duplicates the id under the `everr.*` namespace so future `everr/action` task-run or phase events have a stable Everr-owned deploy join key without depending on OTel CI/CD semantic convention evolution.
 
 Use `everr.github.repository.full_name` for GitHub's `owner/repo` value because OTel `vcs.repository.name` is only the repository name.
 
@@ -145,4 +150,5 @@ The summary follows these standards contracts:
 - OTel CI/CD attributes for `cicd.pipeline.*`: https://opentelemetry.io/docs/specs/semconv/registry/attributes/cicd/
 - OTel VCS attributes for `vcs.repository.name`, `vcs.repository.url.full`, and `vcs.ref.head.revision`: https://opentelemetry.io/docs/specs/semconv/registry/entities/vcs/
 - CDEvents v0.5.0 docs and event versioning model: https://cdevents.dev/docs/ and https://cdevents.dev/docs/primer/#versioning-of-cdevents
+- CloudEvents `source + id` uniqueness rule inherited by CDEvents context ids: https://github.com/cloudevents/spec/blob/main/cloudevents/spec.md#id
 - CDEvents Go SDK v0.5 schema surface used to pin event types to `0.3.0`: https://pkg.go.dev/github.com/cdevents/sdk-go/pkg/api/v05
