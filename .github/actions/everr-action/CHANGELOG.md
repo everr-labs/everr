@@ -1,5 +1,15 @@
 # @everr/action
 
+## 0.2.0
+
+### Minor Changes
+
+- f1b81ce: Default `resource-usage` to `"true"` so callers can use the action with
+  no `with:` block. Inline the finalize logic into the main bundle (no
+  more spawned subprocess), guard finalization on `RUNNER_OS=Linux`, and
+  fix the auto-generated README that still referenced the removed
+  `check-run-id` input.
+
 ## 0.1.0
 
 ### Minor Changes
