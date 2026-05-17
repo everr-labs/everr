@@ -104,6 +104,26 @@ When the parsed GitHub payload includes `workflow_run`, set the deploy log `Trac
 
 In go-github v67.0.0, `DeploymentEvent` exposes `WorkflowRun`, but `DeploymentStatusEvent` does not. If the parsed event does not expose workflow run linkage, leave `TraceID` empty in v1. Do not call the GitHub API just to fill it in.
 
+## Query Example
+
+```sql
+SELECT
+  TimestampTime,
+  EventName,
+  LogAttributes['everr.deploy.service.name'] AS deployed_service,
+  ResourceAttributes['deployment.environment.name'] AS environment,
+  LogAttributes['cicd.pipeline.result'] AS result,
+  LogAttributes['everr.deploy.url'] AS deploy_url
+FROM app.logs
+WHERE ServiceName = 'github-deployments'
+  AND TimestampTime >= now() - INTERVAL 7 DAY
+ORDER BY TimestampTime DESC
+LIMIT 1 BY if(LogAttributes['cdevents.id'] = '', LogAttributes['everr.github.delivery.id'], LogAttributes['cdevents.id'])
+LIMIT 100;
+```
+
+V1 keeps ClickHouse append-only. Retries can produce duplicate rows; dedupe at query time with `LIMIT 1 BY` on `cdevents.id`, falling back to `everr.github.delivery.id` for custom non-CDEvents rows. The row-level policy handles tenant filtering, so do not add an explicit `tenant_id` predicate.
+
 ## Data Flow
 
 1. GitHub sends `deployment` or `deployment_status` to `/webhook/github`.
