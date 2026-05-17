@@ -42,7 +42,8 @@ const loadDevlogPosts = createServerFn({ method: "GET" }).handler(async () => {
       description: post.data.description,
       date: post.data.date,
       author: post.data.author,
-    }));
+    }))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 });
 
 function DevlogIndex() {
