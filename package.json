@@ -11,12 +11,16 @@
     "build:desktop:ci": "pnpm --filter @everr/desktop-app build:desktop:ci",
     "check": "biome check",
     "check:fix": "biome check --fix",
+    "changeset": "changeset",
+    "changeset:version": "changeset version && node scripts/sync-desktop-app-version.mjs",
+    "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
     "test": "vitest",
     "test:watch": "vitest --watch --ui"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
+    "@changesets/cli": "^2.31.0",
     "@vitest/coverage-v8": "^4.1.5",
     "@vitest/ui": "4.1.5",
     "lefthook": "^2.1.6",

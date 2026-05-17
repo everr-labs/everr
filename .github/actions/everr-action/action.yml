@@ -1,0 +1,21 @@
+name: Everr Action
+description: Everr CI helpers. Capabilities are opt-in via inputs.
+
+inputs:
+  resource-usage:
+    description: Collect per-job machine resource usage and upload a best-effort artifact
+    required: false
+    default: "false"
+  github-token:
+    description: |
+      Token used to look up the current job's check_run_id via the GitHub API
+      when resource-usage is enabled. The default uses the workflow-provided
+      GITHUB_TOKEN; the calling workflow must grant `actions: read`.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: node24
+  main: dist/index.js
+  post: dist/index.js
+  post-if: always()

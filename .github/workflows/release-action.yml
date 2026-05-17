@@ -1,0 +1,154 @@
+name: Release @everr/action
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    tags:
+      - "@everr/action@*"
+
+jobs:
+  publish:
+    name: Push @everr/action to everr-labs/everr-action
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    env:
+      MIRROR_REPO: everr-labs/everr-action
+      MIRROR_BRANCH: main
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag##*@}"
+          if [[ -z "$version" ]]; then
+            echo "Could not parse version from tag '$tag'." >&2
+            exit 1
+          fi
+          major="${version%%.*}"
+          {
+            echo "version=$version"
+            echo "major=v${major}"
+            echo "tag=v${version}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build action bundle
+        run: pnpm --filter @everr/action build
+
+      - name: Verify bundled dist matches committed dist
+        run: |
+          if ! git diff --exit-code -- .github/actions/everr-action/dist; then
+            echo "::error::Committed dist/ does not match a fresh build. Refusing to publish stale bundle." >&2
+            exit 1
+          fi
+
+      - name: Generate README for mirror
+        run: pnpm --filter @everr/action exec node scripts/build-readme.mjs
+
+      - name: Stage flat mirror tree
+        id: stage
+        run: |
+          set -euo pipefail
+          staging="${RUNNER_TEMP}/everr-action-mirror"
+          rm -rf "$staging"
+          mkdir -p "$staging"
+          action_root=".github/actions/everr-action"
+          cp "$action_root/action.yml" "$staging/action.yml"
+          cp -R "$action_root/dist" "$staging/dist"
+          mkdir -p "$staging/scripts"
+          cp "$action_root/scripts/sampler.sh" "$staging/scripts/sampler.sh"
+          cp "$action_root/README.generated.md" "$staging/README.md"
+          if [[ -f LICENSE ]]; then
+            cp LICENSE "$staging/LICENSE"
+          fi
+          echo "staging=$staging" >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token for mirror push
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
+          owner: everr-labs
+          repositories: everr-action
+
+      - name: Push flat tree to mirror
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MIRROR_BRANCH: ${{ env.MIRROR_BRANCH }}
+          MIRROR_REPO: ${{ env.MIRROR_REPO }}
+          STAGING: ${{ steps.stage.outputs.staging }}
+          VERSION_TAG: ${{ steps.version.outputs.tag }}
+          MAJOR_TAG: ${{ steps.version.outputs.major }}
+          SRC_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          work="${RUNNER_TEMP}/everr-action-clone"
+          rm -rf "$work"
+          git clone --depth 1 --branch "$MIRROR_BRANCH" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${MIRROR_REPO}.git" "$work"
+
+          cd "$work"
+          git config user.name "everr-action-bot"
+          git config user.email "everr-action-bot@users.noreply.github.com"
+
+          # Replace the mirror contents with the staged tree.
+          git rm -rf . >/dev/null 2>&1 || true
+          rm -rf -- *
+          cp -R "$STAGING"/. .
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+          else
+            git commit -m "Release ${VERSION_TAG} (from everr-labs/everr@${SRC_SHA})"
+            git push origin "$MIRROR_BRANCH"
+          fi
+
+          git tag -f "$VERSION_TAG"
+          git tag -f "$MAJOR_TAG"
+          git push origin "$VERSION_TAG"
+          git push origin --force "$MAJOR_TAG"
+
+      - name: Create GitHub Release on mirror
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MIRROR_REPO: ${{ env.MIRROR_REPO }}
+          VERSION_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          changelog_path="${GITHUB_WORKSPACE}/.github/actions/everr-action/CHANGELOG.md"
+          notes_args=()
+          if [[ -f "$changelog_path" ]]; then
+            notes_args+=(--notes-file "$changelog_path")
+          else
+            notes_args+=(--generate-notes)
+          fi
+          gh release create "$VERSION_TAG" \
+            --repo "$MIRROR_REPO" \
+            --title "$VERSION_TAG" \
+            "${notes_args[@]}" || \
+          gh release edit "$VERSION_TAG" \
+            --repo "$MIRROR_REPO" \
+            --title "$VERSION_TAG" \
+            "${notes_args[@]}"

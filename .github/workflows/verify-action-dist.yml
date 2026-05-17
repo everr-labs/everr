@@ -1,0 +1,59 @@
+name: Verify Action dist
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - .github/actions/everr-action/**
+      - .github/workflows/verify-action-dist.yml
+      - .nvmrc
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/everr-action/**
+      - .github/workflows/verify-action-dist.yml
+      - .nvmrc
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+
+jobs:
+  verify-dist:
+    name: Rebuild and diff dist
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild action bundle
+        run: pnpm --filter @everr/action build
+
+      - name: Run action tests
+        run: pnpm --filter @everr/action test
+
+      - name: Fail if committed dist/ is stale
+        run: |
+          if ! git diff --exit-code -- .github/actions/everr-action/dist; then
+            echo "::error::Committed dist/ does not match a fresh build. Run 'pnpm --filter @everr/action build' and commit the changes."
+            exit 1
+          fi

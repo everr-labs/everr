@@ -36,9 +36,10 @@ coverage.out
 config.yml
 
 dist
-!.github/actions/everr-resource-usage/dist
-!.github/actions/everr-resource-usage/dist/**
-.github/actions/everr-resource-usage/build/
+!.github/actions/everr-action/dist
+!.github/actions/everr-action/dist/**
+.github/actions/everr-action/build/
+.github/actions/everr-action/README.generated.md
 
 .output
 

@@ -2,6 +2,7 @@ packages:
   - "crates/*"
   - "packages/*"
   - "collector"
+  - ".github/actions/everr-action"
 
 catalog:
   '@icons-pack/react-simple-icons': ^13.13.0
