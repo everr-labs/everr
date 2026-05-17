@@ -50,29 +50,26 @@ const (
 
 // Everr — CDEvents and deployment attributes.
 //
-// REVIEW NOTE (2026-05-18, deploy-cdevents-ingest): a reviewer suggested
-// replacing these with OTel `deployment.id` / `deployment.name` /
-// `deployment.status` and CloudEvents `cloudevents.event_id` /
-// `cloudevents.event_source` / `cloudevents.event_type`. We deliberately
-// did not swap because, as of OTel semconv v1.41 / v1.38.0:
+// We intentionally do not use the OTel `deployment.id` / `deployment.name` /
+// `deployment.status` or CloudEvents `cloudevents.event_id` /
+// `cloudevents.event_source` / `cloudevents.event_type` attributes. As of
+// OTel semconv v1.41 / v1.38.0 all of those are at Development stability:
 //   - https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/
 //   - https://opentelemetry.io/docs/specs/semconv/registry/attributes/cloudevents/
 //
-// every one of those attributes is at Development stability — the same
-// stability bucket the deploy-cdevents-ingest design doc flagged as the
-// reason to avoid `deployment.*` in the first place. Switching now would
-// trade churn risk for no real interoperability gain.
+// Development-stage attributes can still change semantics or value space in
+// a non-backward-compatible way, which would break the deploy query
+// contract that lands in ClickHouse. V1 instead pins the deploy run
+// identifier to the stable `cicd.pipeline.run.id` / `cicd.pipeline.name` /
+// `cicd.pipeline.run.state` / `cicd.pipeline.result` attributes, and uses
+// the custom `everr.deploy.*` / `cdevents.*` / `everr.github.*` namespaces
+// for fields with no stable equivalent.
 //
-// V1 of the deploy ingest pins the deploy run identifier to the stable
-// `cicd.pipeline.run.id` / `cicd.pipeline.name` / `cicd.pipeline.run.state` /
-// `cicd.pipeline.result` attributes, and uses `everr.deploy.*` / `cdevents.*` /
-// `everr.github.*` for fields with no stable equivalent.
-//
-// REVISIT when either OTel `deployment.*` or `cloudevents.*` graduate to
-// Stable: emit them as aliases so OTel-native tooling can consume the
-// deploy stream without changing the existing `cicd.*` query contract.
-// Check the URLs above before reopening this — if they still say
-// Development, the answer is still no.
+// Revisit when either OTel `deployment.*` or `cloudevents.*` graduate to
+// Stable: at that point emit them as aliases so OTel-native tooling can
+// consume the deploy stream without changing the existing `cicd.*` query
+// contract. Check the URLs above first — if they still say Development,
+// the answer is still no.
 const (
 	CDEventsType   = "cdevents.type"
 	CDEventsID     = "cdevents.id"
