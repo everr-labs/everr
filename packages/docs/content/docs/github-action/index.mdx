@@ -1,0 +1,115 @@
+---
+title: GitHub Action
+description: Drop the everr-action into a workflow to capture per-job runner metrics and ship them to Everr.
+---
+
+The Everr GitHub Action runs alongside your CI jobs and uploads
+per-job runner metrics (CPU, memory, network, disk) as a workflow
+artifact. Everr ingests the artifact and stitches the samples onto the
+matching check run so you can see resource pressure next to the rest of
+your CI signal.
+
+The action is published from this monorepo to
+[`everr-labs/everr-action`](https://github.com/everr-labs/everr-action)
+and tagged with semver. Use the floating major tag (`@v0`) in your
+workflows so patches are picked up automatically.
+
+## Quick start
+
+Add the action as the first step of any job whose resource usage you
+want to track. It needs `actions: read` so it can look up its own job
+via the GitHub Jobs API.
+
+```yaml
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: everr-labs/everr-action@v0
+
+      # ...the rest of your job
+```
+
+That's it — the action samples while your job runs and uploads the
+artifact in its post-step.
+
+## How it works
+
+- **Pre-step.** Calls
+  `/repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt}/jobs`
+  to discover the current job's `check_run_id`, then spawns a
+  detached background sampler script that writes one NDJSON line every
+  five seconds.
+- **During the job.** Your job runs normally; the sampler does not
+  block, and a failed sampler never fails the job.
+- **Post-step.** Stops the sampler, normalizes the samples, writes
+  `metadata.json` + `samples.ndjson`, and uploads them as a workflow
+  artifact named `everr-resource-usage-v2-{check_run_id}` (7-day
+  retention).
+
+Sampling currently runs only on Linux runners. macOS and Windows jobs
+get a no-op start and a warning at finalize time.
+
+## Inputs
+
+| Name             | Required | Default                | Description                                                                                                                                              |
+| ---------------- | -------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resource-usage` | no       | `"true"`               | Whether to sample per-job resource usage. Set to `"false"` to opt out without removing the step.                                                         |
+| `github-token`   | no       | `${{ github.token }}`  | Token used to look up the current job's `check_run_id`. The default uses the workflow's `GITHUB_TOKEN`; the calling workflow must grant `actions: read`. |
+
+## Permissions
+
+The default `GITHUB_TOKEN` works as long as the workflow grants
+`actions: read`. The most common setup:
+
+```yaml
+permissions:
+  contents: read
+  actions: read
+```
+
+If your workflow already restricts permissions for security reasons,
+add `actions: read` to whatever block you already have. The action
+fails gracefully (warns, does not error) when the token lacks the
+needed scope.
+
+## Opting out
+
+To disable resource sampling on a specific job without removing the
+step:
+
+```yaml
+- uses: everr-labs/everr-action@v0
+  with:
+    resource-usage: "false"
+```
+
+## Versioning
+
+- `v0` — floating major tag. Recommended for most consumers; picks up
+  every backwards-compatible release.
+- `v0.X.Y` — exact version. Use if you need a reproducible pin.
+
+Releases are managed via [Changesets](https://github.com/changesets/changesets);
+each release ships a CHANGELOG on the mirror repo's GitHub Release.
+
+## Failure modes
+
+The action is designed to never fail the host job. Each of the
+following downgrades to a `warning::` annotation:
+
+- The sampler script fails to start or exits early.
+- The Jobs API call returns a non-2xx response (e.g. missing
+  `actions: read`).
+- No `in_progress` job on the current runner matches by `runner_name`
+  (shouldn't happen in practice).
+- The finalize step can't read its sample file or the upload fails.
+- The runner is not Linux.
+
+The host job continues as if the action wasn't present.
