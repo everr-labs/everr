@@ -8,60 +8,17 @@ import { fileURLToPath } from "node:url";
 import {
   artifactNameForCheckRun,
   buildRuntimePaths,
-  checkRunIdFromUrl,
-  discoverCurrentCheckRunId,
   finalizeAndUploadResourceUsage,
   isResourceUsageEnabled,
   normalizeCheckRunId,
   resolveActionRoot,
+  resolveCheckRunIdInput,
   startResourceUsage,
 } from "./index.ts";
 
 function inputResolver(values: Record<string, string>): (name: string) => string {
   return (name: string) => values[name] ?? "";
 }
-
-function jsonResponse(status: number, body: unknown) {
-  return {
-    json: async () => body,
-    ok: status >= 200 && status < 300,
-    status,
-  };
-}
-
-function mockFetch(
-  responses: Array<{ body: unknown; status: number }>,
-): {
-  calls: Array<{ headers: Record<string, string>; url: string }>;
-  fetch: (
-    input: string,
-    init: { headers: Record<string, string> },
-  ) => Promise<ReturnType<typeof jsonResponse>>;
-} {
-  const calls: Array<{ headers: Record<string, string>; url: string }> = [];
-  let i = 0;
-  return {
-    calls,
-    fetch: async (
-      input: string,
-      init: { headers: Record<string, string> },
-    ) => {
-      calls.push({ headers: init.headers, url: input });
-      const next = responses[i++];
-      if (!next) {
-        throw new Error("no more mocked responses");
-      }
-      return jsonResponse(next.status, next.body);
-    },
-  };
-}
-
-const defaultEnvForDiscovery = {
-  GITHUB_REPOSITORY: "everr-labs/everr",
-  GITHUB_RUN_ATTEMPT: "1",
-  GITHUB_RUN_ID: "12",
-  RUNNER_NAME: "runner-7",
-};
 
 test("artifactNameForCheckRun uses the direct per-job naming contract", () => {
   assert.equal(artifactNameForCheckRun("123"), "everr-resource-usage-v2-123");
@@ -97,114 +54,16 @@ test("normalizeCheckRunId trims valid ids and rejects malformed values", () => {
   assert.equal(normalizeCheckRunId("abc"), null);
 });
 
-test("checkRunIdFromUrl extracts the trailing id and rejects malformed values", () => {
-  assert.equal(
-    checkRunIdFromUrl("https://api.github.com/repos/o/r/check-runs/12345"),
-    "12345",
-  );
-  assert.equal(checkRunIdFromUrl("https://api.github.com/repos/o/r/check-runs/"), null);
-  assert.equal(checkRunIdFromUrl(""), null);
-});
-
-test("discoverCurrentCheckRunId returns the in_progress job on this runner", async () => {
-  const { calls, fetch } = mockFetch([
-    {
-      status: 200,
-      body: {
-        total_count: 2,
-        jobs: [
-          {
-            name: "Build",
-            runner_name: "runner-9",
-            status: "in_progress",
-            check_run_url: "https://api.github.com/repos/everr-labs/everr/check-runs/9999",
-          },
-          {
-            name: "Lint",
-            runner_name: "runner-7",
-            status: "in_progress",
-            check_run_url: "https://api.github.com/repos/everr-labs/everr/check-runs/4242",
-          },
-        ],
-      },
-    },
-  ]);
-
-  const result = await discoverCurrentCheckRunId({
-    env: defaultEnvForDiscovery,
-    fetchImpl: fetch,
-    token: "ghs_xyz",
-    warning: () => {},
-  });
-
-  assert.equal(result, "4242");
-  assert.equal(calls.length, 1);
-  assert.match(
-    calls[0].url,
-    /\/repos\/everr-labs\/everr\/actions\/runs\/12\/attempts\/1\/jobs/,
-  );
-  assert.equal(calls[0].headers.Authorization, "Bearer ghs_xyz");
-});
-
-test("discoverCurrentCheckRunId warns and returns null when the API rejects the request", async () => {
+test("resolveCheckRunIdInput warns when the workflow does not provide a valid id", () => {
   const warnings: string[] = [];
-  const { fetch } = mockFetch([{ status: 403, body: { message: "no" } }]);
 
-  const result = await discoverCurrentCheckRunId({
-    env: defaultEnvForDiscovery,
-    fetchImpl: fetch,
-    token: "ghs_xyz",
+  const checkRunId = resolveCheckRunIdInput({
+    getInput: () => "not-a-number",
     warning: (message: string) => warnings.push(message),
   });
 
-  assert.equal(result, null);
-  assert.match(warnings[0], /jobs API returned 403/);
-});
-
-test("discoverCurrentCheckRunId warns when no in_progress job matches the runner", async () => {
-  const warnings: string[] = [];
-  const { fetch } = mockFetch([
-    {
-      status: 200,
-      body: {
-        total_count: 1,
-        jobs: [
-          {
-            name: "Build",
-            runner_name: "runner-9",
-            status: "in_progress",
-            check_run_url: "https://api.github.com/repos/o/r/check-runs/9999",
-          },
-        ],
-      },
-    },
-  ]);
-
-  const result = await discoverCurrentCheckRunId({
-    env: defaultEnvForDiscovery,
-    fetchImpl: fetch,
-    token: "ghs_xyz",
-    warning: (message: string) => warnings.push(message),
-  });
-
-  assert.equal(result, null);
-  assert.match(warnings[0], /no in_progress job on runner 'runner-7'/);
-});
-
-test("discoverCurrentCheckRunId warns when required env vars are missing", async () => {
-  const warnings: string[] = [];
-  const { fetch, calls } = mockFetch([]);
-
-  const result = await discoverCurrentCheckRunId({
-    env: { GITHUB_RUN_ID: "12" },
-    fetchImpl: fetch,
-    token: "ghs_xyz",
-    warning: (message: string) => warnings.push(message),
-  });
-
-  assert.equal(result, null);
-  assert.equal(calls.length, 0);
-  assert.match(warnings[0], /GITHUB_REPOSITORY, GITHUB_RUN_ID, or RUNNER_NAME is missing/);
+  assert.equal(checkRunId, null);
+  assert.match(warnings[0], /missing or invalid check-run-id input/);
 });
 
 test("isResourceUsageEnabled accepts only the literal string 'true'", () => {
@@ -224,7 +83,7 @@ test("startResourceUsage no-ops when resource-usage input is not enabled", async
     env: {
       RUNNER_OS: "Linux",
     },
-    getInput: inputResolver({ "resource-usage": "false", "github-token": "ghs_xyz" }),
+    getInput: inputResolver({ "resource-usage": "false", "check-run-id": "123" }),
     saveState: (key: string, value: string) => savedState.set(key, value),
     info: (message: string) => infoMessages.push(message),
     warning: () => {},
@@ -243,7 +102,7 @@ test("startResourceUsage no-ops on non-linux runners", async () => {
     env: {
       RUNNER_OS: "Windows",
     },
-    getInput: inputResolver({ "resource-usage": "true", "github-token": "ghs_xyz" }),
+    getInput: inputResolver({ "resource-usage": "true", "check-run-id": "123" }),
     saveState: (key: string, value: string) => savedState.set(key, value),
     info: (message: string) => infoMessages.push(message),
     warning: () => {},
@@ -254,7 +113,7 @@ test("startResourceUsage no-ops on non-linux runners", async () => {
   assert.match(infoMessages[0], /supported only on Linux runners/);
 });
 
-test("startResourceUsage skips sampling when github-token is missing", async () => {
+test("startResourceUsage skips sampling when check-run-id is missing", async () => {
   const savedState = new Map<string, string>();
   const warnings: string[] = [];
 
@@ -262,7 +121,7 @@ test("startResourceUsage skips sampling when github-token is missing", async () 
     env: {
       RUNNER_OS: "Linux",
     },
-    getInput: inputResolver({ "resource-usage": "true", "github-token": "" }),
+    getInput: inputResolver({ "resource-usage": "true", "check-run-id": "" }),
     saveState: (key: string, value: string) => savedState.set(key, value),
     info: () => {},
     warning: (message: string) => warnings.push(message),
@@ -270,46 +129,26 @@ test("startResourceUsage skips sampling when github-token is missing", async () 
 
   assert.equal(result.enabled, false);
   assert.equal(savedState.get("enabled"), "0");
-  assert.match(warnings[0], /no github-token/);
+  assert.match(warnings[0], /missing or invalid check-run-id input/);
 });
-
-function jobsApiResponseFor(checkRunId: string, runnerName: string) {
-  return {
-    status: 200,
-    body: {
-      total_count: 1,
-      jobs: [
-        {
-          name: "lint",
-          runner_name: runnerName,
-          status: "in_progress",
-          check_run_url: `https://api.github.com/repos/everr-labs/everr/check-runs/${checkRunId}`,
-        },
-      ],
-    },
-  };
-}
 
 test("startResourceUsage downgrades sampler startup failures to warnings", async () => {
   const savedState = new Map<string, string>();
   const warnings: string[] = [];
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-start-"));
-  const { fetch } = mockFetch([jobsApiResponseFor("111", "runner-7")]);
 
   try {
     const result = await startResourceUsage({
       env: {
         RUNNER_OS: "Linux",
         RUNNER_TEMP: tempDir,
-        RUNNER_NAME: "runner-7",
         GITHUB_RUN_ID: "12",
         GITHUB_RUN_ATTEMPT: "1",
         GITHUB_JOB: "lint",
         GITHUB_REPOSITORY: "everr-labs/everr",
         GITHUB_WORKSPACE: tempDir,
       },
-      getInput: inputResolver({ "resource-usage": "true", "github-token": "ghs_xyz" }),
-      fetchImpl: fetch,
+      getInput: inputResolver({ "resource-usage": "true", "check-run-id": "111" }),
       saveState: (key: string, value: string) => savedState.set(key, value),
       warning: (message: string) => warnings.push(message),
       spawnImpl: () => {
@@ -329,7 +168,6 @@ test("startResourceUsage downgrades sampler startup failures to warnings", async
 test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH", async () => {
   const savedState = new Map<string, string>();
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-spawn-"));
-  const { fetch } = mockFetch([jobsApiResponseFor("222", "runner-7")]);
   let spawnInvocation:
     | {
         args: readonly string[];
@@ -342,15 +180,13 @@ test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH", asyn
       env: {
         RUNNER_OS: "Linux",
         RUNNER_TEMP: tempDir,
-        RUNNER_NAME: "runner-7",
         GITHUB_RUN_ID: "12",
         GITHUB_RUN_ATTEMPT: "1",
         GITHUB_JOB: "lint",
         GITHUB_REPOSITORY: "everr-labs/everr",
         GITHUB_WORKSPACE: tempDir,
       },
-      getInput: inputResolver({ "resource-usage": "true", "github-token": "ghs_xyz" }),
-      fetchImpl: fetch,
+      getInput: inputResolver({ "resource-usage": "true", "check-run-id": "222" }),
       saveState: (key: string, value: string) => savedState.set(key, value),
       info: () => {},
       warning: () => {},

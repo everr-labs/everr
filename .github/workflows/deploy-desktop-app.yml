@@ -2,7 +2,6 @@ name: Deploy Desktop App
 
 permissions:
   contents: read
-  actions: read
   id-token: write
   attestations: write
 
@@ -27,6 +26,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

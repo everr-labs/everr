@@ -2,7 +2,6 @@ name: Build & Test App
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   # For pushes, this lets concurrent runs happen, so each push gets a result.
@@ -48,6 +47,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
