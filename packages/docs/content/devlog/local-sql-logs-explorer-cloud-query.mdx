@@ -86,12 +86,8 @@ This isn't visible to users beyond "downloads work and updates are signed," but 
 
 We've now got production OTel ingest, the same SQL surface on the local collector and the cloud, a shared logs explorer that consumes both, a way to feed arbitrary commands into the local stack, and skills that tell assistants how to use it all.
 
-The next batch is shaped around four threads:
+The next batch is about turning that shared telemetry layer into a fuller working loop. Logs got the explorer this cycle; traces and metrics need the same treatment, and the OpenTelemetry setup needs a shorter on-ramp for both the local collector and cloud ingest. The goal is for a developer, or an assistant, to get from "something is running" to useful runtime context without first becoming an observability expert.
 
-- **Traces and metrics views.** Logs got the explorer this cycle. Traces and metrics need the same treatment so the desktop and web apps cover the full OTel triad, not just one third of it.
-- **A simpler OTel setup.** Picking up OpenTelemetry for the first time can be overwhelming. We want the on-ramp to be short and obvious, both for spinning up the local collector and for pointing existing services at the cloud ingest endpoint.
-- **Pushing local telemetry to the cloud.** A way to forward a slice of local telemetry to the cloud, so a teammate can see what your local stack was actually doing, or a cloud agent can pick up the runtime context it needs to keep going.
-- **A collector inside the Everr GitHub Action.** Today, getting CI-time telemetry into Everr means standing up your own OTel collector inside the workflow. Bundling one into the Everr action would make that a one-liner. We also want to find out whether the same channel can push run updates to us faster than the GitHub webhook path we currently rely on.
-- **CD tracking.** With production telemetry landing this cycle, the missing piece is the deploys themselves: knowing when a version went out, where it ran, and being able to trace a production regression back through CI to the commit that caused it.
+We also want the local and cloud sides to start helping each other. That means forwarding slices of local telemetry when a teammate or cloud agent needs to see what happened on your machine, bundling a collector into the Everr GitHub Action so CI-time telemetry becomes a one-liner, and tracking deploys as first-class events. With production telemetry now landing, the missing piece is the deploy itself: when a version went out, where it ran, and how a production regression connects back through CI to the commit that caused it.
 
 Same pattern as before: the things we hit in daily use keep turning into PRs the same week.
