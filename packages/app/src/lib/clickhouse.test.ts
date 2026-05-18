@@ -4,21 +4,22 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(
-  () => ({
+const { mockQuery, mockInsert, mockCommand, mockExec, mockJson, MASTER_KEY } =
+  vi.hoisted(() => ({
     mockQuery: vi.fn(),
     mockInsert: vi.fn(),
     mockCommand: vi.fn(),
+    mockExec: vi.fn(),
     mockJson: vi.fn(),
     MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
-  }),
-);
+  }));
 
 vi.mock("@clickhouse/client", () => ({
   createClient: vi.fn(() => ({
     query: mockQuery,
     insert: mockInsert,
     command: mockCommand,
+    exec: mockExec,
   })),
 }));
 
