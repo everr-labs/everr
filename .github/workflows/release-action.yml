@@ -15,7 +15,7 @@ on:
 jobs:
   publish:
     name: Push @everr/action to everr-labs/everr-action
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     env:
       MIRROR_REPO: everr-labs/everr-action
       MIRROR_BRANCH: main

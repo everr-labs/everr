@@ -14,7 +14,7 @@ on:
 jobs:
   release:
     name: Open Version Packages PR or tag versions
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     steps:
       # Tags and commits created by the default GITHUB_TOKEN cannot trigger
       # other workflows (e.g. release-action.yml on tag push), so we mint a
