@@ -39,9 +39,9 @@ type Config struct {
 	confighttp.ServerConfig `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
 	Path                    string                   `mapstructure:"path"`                // path for data collection. Default is <host>:<port>/events
 	Secret                  string                   `mapstructure:"secret"`              // github webhook hash signature. Default is empty
-	CustomServiceName       string                   `mapstructure:"custom_service_name"` // custom service name. Default is empty
-	ServiceNamePrefix       string                   `mapstructure:"service_name_prefix"` // service name prefix. Default is empty
-	ServiceNameSuffix       string                   `mapstructure:"service_name_suffix"` // service name suffix. Default is empty
+	CustomServiceName       string                   `mapstructure:"custom_service_name"` // deprecated: ignored; service.name is github-actions
+	ServiceNamePrefix       string                   `mapstructure:"service_name_prefix"` // deprecated: ignored; service.name is github-actions
+	ServiceNameSuffix       string                   `mapstructure:"service_name_suffix"` // deprecated: ignored; service.name is github-actions
 	GitHubAPIConfig         GitHubAPIConfig          `mapstructure:"gh_api"`              // github api configuration
 }
 

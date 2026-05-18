@@ -24,8 +24,7 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 
 	switch e := event.(type) {
 	case *github.WorkflowJobEvent:
-		serviceName := generateServiceName(config, e.GetRepo().GetFullName())
-		attrs.PutStr("service.name", serviceName)
+		setGitHubActionsServiceAttributes(attrs)
 
 		attrs.PutStr(string(conventions.CICDPipelineNameKey), e.GetWorkflowJob().GetWorkflowName())
 

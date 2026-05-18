@@ -17,9 +17,18 @@ import (
 	"github.com/everr-labs/everr/collector/semconv"
 )
 
+const (
+	githubActionsServiceName      = "github-actions"
+	githubActionsServiceNamespace = "cicd"
+)
+
+func setGitHubActionsServiceAttributes(attrs pcommon.Map) {
+	attrs.PutStr(string(conventions.ServiceNameKey), githubActionsServiceName)
+	attrs.PutStr(string(conventions.ServiceNamespaceKey), githubActionsServiceNamespace)
+}
+
 func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent, config *Config) {
-	serviceName := generateServiceName(config, e.GetRepo().GetFullName())
-	attrs.PutStr("service.name", serviceName)
+	setGitHubActionsServiceAttributes(attrs)
 
 	attrs.PutInt(semconv.EverrGitHubWorkflowID, e.GetWorkflowRun().GetWorkflowID())
 	attrs.PutStr(semconv.EverrGitHubWorkflowRunActorLogin, e.GetWorkflowRun().GetActor().GetLogin())
