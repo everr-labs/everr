@@ -7,86 +7,75 @@ import { type Span, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 
 const tracer = trace.getTracer("@everr/app/clickhouse");
 
-type SqlMethod = "query" | "command" | "exec";
-type AnyParams = Record<string, unknown>;
-type AnyAsync = (params: AnyParams) => Promise<unknown>;
+type InstrumentedClient = Pick<
+  ClickHouseClient,
+  "query" | "command" | "insert"
+>;
 
 export function createClient(
   config: ClickHouseClientConfigOptions,
-): ClickHouseClient {
+): InstrumentedClient {
   const client = upstreamCreateClient(config);
   const database = config.database ?? "default";
 
-  const wrapped: Record<string, AnyAsync> = {
-    query: instrumentSql(client, "query", database),
-    command: instrumentSql(client, "command", database),
-    exec: instrumentSql(client, "exec", database),
-    insert: instrumentInsert(client, database),
+  return {
+    query: (params) =>
+      withSqlSpan("query", database, params.query, () => client.query(params)),
+    command: (params) =>
+      withSqlSpan("command", database, params.query, () =>
+        client.command(params),
+      ),
+    insert: (params) =>
+      withInsertSpan(database, params.table, () => client.insert(params)),
   };
+}
 
-  return new Proxy(client, {
-    get(target, prop, receiver) {
-      if (typeof prop === "string" && prop in wrapped) {
-        return wrapped[prop];
-      }
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
+function withSqlSpan<T>(
+  method: "query" | "command",
+  database: string,
+  sql: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const op = firstSqlKeyword(sql);
+  return tracer.startActiveSpan(
+    `clickhouse.${method}:${op} ${database}`,
+    {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        "db.system": "clickhouse",
+        "db.name": database,
+        "db.namespace": database,
+        "db.operation": op,
+        "db.operation.name": op,
+        "db.statement": sql,
+        "db.query.text": sql,
+      },
     },
-  });
+    (span) => runInSpan(span, fn),
+  );
 }
 
-function instrumentSql(
-  client: ClickHouseClient,
-  method: SqlMethod,
+function withInsertSpan<T>(
   database: string,
-): AnyAsync {
-  const original = (client[method] as unknown as AnyAsync).bind(client);
-  return (params) => {
-    const sql = typeof params?.query === "string" ? params.query : "";
-    const op = firstSqlKeyword(sql);
-    return tracer.startActiveSpan(
-      `clickhouse.${method}:${op} ${database}`,
-      {
-        kind: SpanKind.CLIENT,
-        attributes: {
-          "db.system": "clickhouse",
-          "db.name": database,
-          "db.namespace": database,
-          "db.operation": op,
-          "db.operation.name": op,
-          "db.statement": sql,
-          "db.query.text": sql,
-        },
+  table: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return tracer.startActiveSpan(
+    `clickhouse.insert ${table}`,
+    {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        "db.system": "clickhouse",
+        "db.name": database,
+        "db.namespace": database,
+        "db.operation": "INSERT",
+        "db.operation.name": "INSERT",
+        "db.collection.name": table,
+        "db.sql.table": table,
       },
-      (span) => runInSpan(span, () => original(params)),
-    );
-  };
-}
-
-function instrumentInsert(
-  client: ClickHouseClient,
-  database: string,
-): AnyAsync {
-  const original = (client.insert as unknown as AnyAsync).bind(client);
-  return (params) => {
-    const table = typeof params?.table === "string" ? params.table : "unknown";
-    return tracer.startActiveSpan(
-      `clickhouse.insert ${table}`,
-      {
-        kind: SpanKind.CLIENT,
-        attributes: {
-          "db.system": "clickhouse",
-          "db.name": database,
-          "db.namespace": database,
-          "db.operation": "INSERT",
-          "db.operation.name": "INSERT",
-          "db.collection.name": table,
-          "db.sql.table": table,
-        },
-      },
-      (span) => runInSpan(span, () => original(params)),
-    );
-  };
+    },
+    (span) => runInSpan(span, fn),
+  );
 }
 
 async function runInSpan<T>(span: Span, fn: () => Promise<T>): Promise<T> {
