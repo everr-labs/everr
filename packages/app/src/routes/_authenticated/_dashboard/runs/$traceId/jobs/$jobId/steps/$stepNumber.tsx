@@ -41,7 +41,7 @@ function stepLogsQueryKey(
   return ["runs", "stepLogs", traceId, jobName, stepNumber] as const;
 }
 
-function stepLogsInfiniteOptions(
+export function stepLogsInfiniteOptions(
   traceId: string,
   jobName: string,
   stepNumber: string,
@@ -65,19 +65,15 @@ function stepLogsInfiniteOptions(
       });
     },
     initialPageParam: getInitialPageParam(),
-    getPreviousPageParam: (
-      _firstPage: StepLogsPage,
-      allPages: StepLogsPage[],
-    ) => {
-      if (!allPages?.length) return undefined;
-      const firstOffset = allPages[0].offset;
+    getPreviousPageParam: (firstPage: StepLogsPage | undefined) => {
+      if (!firstPage) return undefined;
+      const firstOffset = firstPage.offset;
       if (firstOffset <= 0) return undefined;
       const limit = Math.min(LOG_PAGE_SIZE, firstOffset);
       return { tail: 0, offset: firstOffset - limit, limit };
     },
-    getNextPageParam: (_lastPage: StepLogsPage, allPages: StepLogsPage[]) => {
-      if (!allPages?.length) return undefined;
-      const lastPage = allPages[allPages.length - 1];
+    getNextPageParam: (lastPage: StepLogsPage | undefined) => {
+      if (!lastPage) return undefined;
       const endOffset = lastPage.offset + lastPage.logs.length;
       if (endOffset >= lastPage.totalCount) return undefined;
       const limit = Math.min(LOG_PAGE_SIZE, lastPage.totalCount - endOffset);
