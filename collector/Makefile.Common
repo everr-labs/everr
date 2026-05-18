@@ -44,7 +44,7 @@ CROSSLINK := $(TOOLS_BIN_DIR)/crosslink
 
 .PHONY: lint
 lint:
-	$(LINT) run
+	$(LINT) run --timeout=10m
 
 .PHONY: tidy
 tidy:
