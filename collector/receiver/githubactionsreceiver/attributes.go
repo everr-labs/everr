@@ -19,7 +19,7 @@ import (
 
 const (
 	githubActionsServiceName      = "github-actions"
-	githubActionsServiceNamespace = "ci"
+	githubActionsServiceNamespace = "cicd"
 )
 
 func setGitHubActionsServiceAttributes(attrs pcommon.Map) {

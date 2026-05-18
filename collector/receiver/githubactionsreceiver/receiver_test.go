@@ -301,7 +301,7 @@ func TestGitHubActionsServiceResourceAttributes(t *testing.T) {
 
 		serviceNamespace, found := attrs.Get("service.namespace")
 		require.True(t, found)
-		require.Equal(t, "ci", serviceNamespace.Str())
+		require.Equal(t, "cicd", serviceNamespace.Str())
 	})
 
 	t.Run("workflow job", func(t *testing.T) {
@@ -321,7 +321,7 @@ func TestGitHubActionsServiceResourceAttributes(t *testing.T) {
 
 		serviceNamespace, found := attrs.Get("service.namespace")
 		require.True(t, found)
-		require.Equal(t, "ci", serviceNamespace.Str())
+		require.Equal(t, "cicd", serviceNamespace.Str())
 	})
 }
 

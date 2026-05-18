@@ -94,7 +94,7 @@ Several helper files are leveraged to provide additional capabilities automatica
 The GitHub Actions Receiver sets the OpenTelemetry service identity to:
 
 ```text
-service.namespace = "ci"
+service.namespace = "cicd"
 service.name = "github-actions"
 ```
 
