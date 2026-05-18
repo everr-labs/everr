@@ -40,32 +40,10 @@ type UploadArtifactImpl = (
   options: { retentionDays: number },
 ) => Promise<unknown>;
 
-interface JobsApiResponse {
-  jobs: Array<{
-    check_run_url: string;
-    name: string;
-    runner_name: string | null;
-    status: string;
-  }>;
-  total_count: number;
-}
-
-interface FetchResponseLike {
-  json: () => Promise<unknown>;
-  ok: boolean;
-  status: number;
-}
-
-type FetchImpl = (
-  input: string,
-  init: { headers: Record<string, string> },
-) => Promise<FetchResponseLike>;
-
 const defaultSampleIntervalSeconds = "5";
 
 interface StartResourceUsageOptions {
   env?: Env;
-  fetchImpl?: FetchImpl;
   fsModule?: typeof fs;
   fspModule?: typeof fsp;
   getInput?: GetInput;
@@ -122,83 +100,16 @@ function normalizeCheckRunId(rawCheckRunId: string): string | null {
   return checkRunId;
 }
 
-function checkRunIdFromUrl(checkRunUrl: string): string | null {
-  const tail = checkRunUrl.split("/").pop() || "";
-  return normalizeCheckRunId(tail);
-}
-
-async function discoverCurrentCheckRunId({
-  env,
-  fetchImpl = globalThis.fetch as unknown as FetchImpl,
-  token,
+function resolveCheckRunIdInput({
+  getInput = core.getInput,
   warning = core.warning,
 }: {
-  env: Env;
-  fetchImpl?: FetchImpl;
-  token: string;
+  getInput?: GetInput;
   warning?: Log;
-}): Promise<string | null> {
-  const repo = env.GITHUB_REPOSITORY;
-  const runId = env.GITHUB_RUN_ID;
-  const attempt = env.GITHUB_RUN_ATTEMPT || "1";
-  const runnerName = env.RUNNER_NAME;
-  const apiUrl = env.GITHUB_API_URL || "https://api.github.com";
-
-  if (!repo || !runId || !runnerName) {
-    warning(
-      "resource-usage skipped: GITHUB_REPOSITORY, GITHUB_RUN_ID, or RUNNER_NAME is missing",
-    );
-    return null;
-  }
-
-  const url = `${apiUrl}/repos/${repo}/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100`;
-
-  let response: FetchResponseLike;
-  try {
-    response = await fetchImpl(url, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "User-Agent": "everr-action",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-  } catch (error) {
-    warning(
-      `resource-usage skipped: GitHub jobs API request failed: ${formatError(error)}`,
-    );
-    return null;
-  }
-
-  if (!response.ok) {
-    warning(
-      `resource-usage skipped: GitHub jobs API returned ${response.status}`,
-    );
-    return null;
-  }
-
-  const body = (await response.json()) as JobsApiResponse;
-  if (body.total_count > body.jobs.length) {
-    warning(
-      `resource-usage: only fetched ${body.jobs.length} of ${body.total_count} jobs; matching may be incomplete`,
-    );
-  }
-
-  const match = body.jobs.find(
-    (job) => job.runner_name === runnerName && job.status === "in_progress",
-  );
-  if (!match) {
-    warning(
-      `resource-usage skipped: no in_progress job on runner '${runnerName}'`,
-    );
-    return null;
-  }
-
-  const checkRunId = checkRunIdFromUrl(match.check_run_url);
+} = {}): string | null {
+  const checkRunId = normalizeCheckRunId(getInput("check-run-id"));
   if (!checkRunId) {
-    warning(
-      `resource-usage skipped: could not parse check_run_id from '${match.check_run_url}'`,
-    );
+    warning("resource-usage skipped: missing or invalid check-run-id input");
     return null;
   }
 
@@ -211,7 +122,6 @@ function isResourceUsageEnabled(getInput: GetInput): boolean {
 
 async function startResourceUsage({
   env = process.env,
-  fetchImpl,
   fsModule = fs,
   fspModule = fsp,
   saveState = core.saveState,
@@ -238,21 +148,7 @@ async function startResourceUsage({
     return { enabled: false };
   }
 
-  const token = getInput("github-token");
-  if (!token) {
-    warning(
-      "resource-usage skipped: no github-token; ensure the workflow grants actions: read and exposes GITHUB_TOKEN",
-    );
-    saveState("enabled", "0");
-    return { enabled: false };
-  }
-
-  const checkRunId = await discoverCurrentCheckRunId({
-    env,
-    fetchImpl,
-    token,
-    warning,
-  });
+  const checkRunId = resolveCheckRunIdInput({ getInput, warning });
   if (!checkRunId) {
     saveState("enabled", "0");
     return { enabled: false };
@@ -524,14 +420,13 @@ if (entrypointPath === fileURLToPath(import.meta.url)) {
 export {
   artifactNameForCheckRun,
   buildRuntimePaths,
-  checkRunIdFromUrl,
-  discoverCurrentCheckRunId,
   ensureSamplesFile,
   finalizeAndUploadResourceUsage,
   formatError,
   isResourceUsageEnabled,
   normalizeCheckRunId,
   resolveActionRoot,
+  resolveCheckRunIdInput,
   resolveWorkspaceFilesystemInfo,
   startResourceUsage,
   stopSampler,

@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: build-and-push-images
@@ -75,6 +74,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -108,6 +109,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -141,6 +144,8 @@ jobs:
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

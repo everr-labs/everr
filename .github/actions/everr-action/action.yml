@@ -6,13 +6,14 @@ inputs:
     description: Collect per-job machine resource usage and upload a best-effort artifact. Set to "false" to opt out.
     required: false
     default: "true"
-  github-token:
+  check-run-id:
     description: |
-      Token used to look up the current job's check_run_id via the GitHub API
-      when resource-usage is enabled. The default uses the workflow-provided
-      GITHUB_TOKEN; the calling workflow must grant `actions: read`.
+      Check run id for the current workflow job. Pass the workflow
+      expression `job.check_run_id` from the calling workflow. Required
+      when resource-usage is enabled; the action no-ops with a warning
+      if it is missing.
     required: false
-    default: ${{ github.token }}
+    default: ""
 
 runs:
   using: node24
