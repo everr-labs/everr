@@ -91,11 +91,58 @@ const workflowJobSchema = z.object({
   repository: repositorySchema,
 });
 
+const deploymentSchema = z.object({
+  action: z.string().optional(),
+  installation: z
+    .object({ id: z.number().int().positive().optional() })
+    .optional(),
+  repository: repositorySchema,
+  deployment: z
+    .object({
+      id: z.number().int(),
+      sha: z.string().nullish(),
+      ref: z.string().nullish(),
+      task: z.string().nullish(),
+      environment: z.string().nullish(),
+      created_at: z.string().nullish(),
+      updated_at: z.string().nullish(),
+      creator: z.object({ login: z.string().optional() }).nullish(),
+    })
+    .optional(),
+  workflow_run: z
+    .object({
+      id: z.number().int(),
+      run_attempt: z.number().int().optional(),
+    })
+    .optional(),
+});
+
+const deploymentStatusSchema = deploymentSchema.extend({
+  deployment_status: z
+    .object({
+      id: z.number().int(),
+      state: z.string(),
+      environment_url: z.string().nullish(),
+      target_url: z.string().nullish(),
+      log_url: z.string().nullish(),
+      description: z.string().nullish(),
+      created_at: z.string().nullish(),
+      updated_at: z.string().nullish(),
+    })
+    .optional(),
+});
+
 export type WorkflowRunPayload = z.infer<typeof workflowRunSchema>;
 export type WorkflowJobPayload = z.infer<typeof workflowJobSchema>;
+export type DeploymentPayload = z.infer<typeof deploymentSchema>;
+export type DeploymentStatusPayload = z.infer<typeof deploymentStatusSchema>;
 export type ParsedQueuedWorkflowEvent =
   | { eventType: "workflow_run"; payload: WorkflowRunPayload }
   | { eventType: "workflow_job"; payload: WorkflowJobPayload };
+export type ParsedQueuedCollectorEvent =
+  | ParsedQueuedWorkflowEvent
+  | { eventType: "deployment"; payload: DeploymentPayload }
+  | { eventType: "deployment_status"; payload: DeploymentStatusPayload };
 
 function parseJson<T>(body: Buffer, schema: z.ZodSchema<T>, label: string): T {
   let parsedBody: unknown;
@@ -136,8 +183,29 @@ export function parseQueuedWorkflowEvent(
   );
 }
 
+export function parseQueuedCollectorEvent(
+  eventType: string,
+  body: Buffer,
+): ParsedQueuedCollectorEvent {
+  if (eventType === "deployment") {
+    return {
+      eventType,
+      payload: parseJson(body, deploymentSchema, "deployment"),
+    };
+  }
+
+  if (eventType === "deployment_status") {
+    return {
+      eventType,
+      payload: parseJson(body, deploymentStatusSchema, "deployment_status"),
+    };
+  }
+
+  return parseQueuedWorkflowEvent(eventType, body);
+}
+
 export function installationIdFromQueuedEvent(
-  event: ParsedQueuedWorkflowEvent,
+  event: ParsedQueuedCollectorEvent,
 ): number {
   const installationId =
     event.payload.installation?.id && event.payload.installation.id > 0

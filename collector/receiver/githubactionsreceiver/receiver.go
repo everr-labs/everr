@@ -234,8 +234,49 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Handle events based on specific types and completion status
+	gar.logger.Debug("Received valid GitHub event", zap.String("type", eventType))
+
+	// Preserve incoming request headers in client metadata so downstream
+	// processors (and the deploy dispatch below) can enrich telemetry using
+	// from_context metadata access.
+	ci := client.FromContext(ctx)
+	ci.Metadata = client.NewMetadata(r.Header)
+	ctx = client.NewContext(ctx, ci)
+
+	// Handle events based on specific types and completion status.
+	// Deploy events are dispatched inline so the set of deploy webhook types
+	// lives in exactly one place.
 	switch e := event.(type) {
+	case *github.DeploymentEvent, *github.DeploymentStatusEvent:
+		_ = e
+		if gar.logsConsumer == nil {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+
+		deliveryID := r.Header.Get("x-github-delivery")
+		if deliveryID == "" {
+			http.Error(w, "Missing x-github-delivery", http.StatusBadRequest)
+			return
+		}
+
+		ld, err := deploymentEventToLogs(event, deliveryID, gar.logger.Named("deploymentEventToLogs"))
+		if err != nil {
+			gar.logger.Error("Failed to process deployment event", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if ld != nil {
+			if err := gar.logsConsumer.ConsumeLogs(ctx, *ld); err != nil {
+				gar.logger.Error("Failed to consume deployment logs", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+		return
 	case *github.WorkflowJobEvent:
 		if e.GetWorkflowJob().GetStatus() != "completed" {
 			gar.logger.Debug("Skipping non-completed WorkflowJobEvent", zap.String("status", e.GetWorkflowJob().GetStatus()))
@@ -286,15 +327,8 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	gar.logger.Debug("Received valid GitHub event", zap.String("type", eventType))
 	var processingFailed bool
 	traceErr := false
-
-	// Preserve incoming request headers in client metadata so downstream processors
-	// can enrich telemetry using from_context metadata access.
-	ci := client.FromContext(ctx)
-	ci.Metadata = client.NewMetadata(r.Header)
-	ctx = client.NewContext(ctx, ci)
 
 	installationID, err := installationIDFromWebhookEvent(event)
 	if err != nil {

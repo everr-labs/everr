@@ -7,6 +7,15 @@ import { env } from "@/env";
 import { headersToRecord } from "./headers";
 import { enqueueWebhookEvent } from "./runtime";
 
+const collectorEventTypes = new Set([
+  "workflow_run",
+  "workflow_job",
+  "deployment",
+  "deployment_status",
+]);
+
+const workflowStatusEventTypes = new Set(["workflow_run", "workflow_job"]);
+
 const installationEventSchema = z.object({
   action: z.string().optional(),
   installation: z
@@ -98,16 +107,20 @@ export async function handleGitHubWebhookRequest(
     return handleInstallationEvent({ eventType, bodyText });
   }
 
-  if (eventType !== "workflow_run" && eventType !== "workflow_job") {
+  if (!collectorEventTypes.has(eventType)) {
     return new Response(null, { status: 202 });
   }
 
   const body = Buffer.from(bodyText, "utf8");
 
-  await enqueueWebhookEvent(eventId, {
-    headers: headersToRecord(request.headers),
-    body: body.toString("base64"),
-  });
+  await enqueueWebhookEvent(
+    eventId,
+    {
+      headers: headersToRecord(request.headers),
+      body: body.toString("base64"),
+    },
+    { statusQueue: workflowStatusEventTypes.has(eventType) },
+  );
 
   return new Response(null, { status: 202 });
 }

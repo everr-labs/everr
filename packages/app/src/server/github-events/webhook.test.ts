@@ -112,6 +112,7 @@ describe("handleGitHubWebhookRequest", () => {
         }),
         body: expect.any(String),
       },
+      { statusQueue: true },
     );
   });
 
@@ -263,5 +264,98 @@ describe("handleGitHubWebhookRequest", () => {
 
     expect(response.status).toBe(202);
     expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledOnce();
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Object),
+      { statusQueue: true },
+    );
+  });
+
+  it("enqueues deployment events", async () => {
+    const secret = webhookSecret;
+    vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
+    const payload = JSON.stringify({
+      action: "created",
+      installation: { id: 123 },
+      repository: { id: 654321, full_name: "everr-labs/everr-deploy" },
+      deployment: {
+        id: 987,
+        sha: "abc123",
+        ref: "main",
+        task: "deploy:app",
+        environment: "production",
+        created_at: "2026-05-17T10:00:00Z",
+        updated_at: "2026-05-17T10:00:00Z",
+      },
+    });
+
+    const response = await handleGitHubWebhookRequest(
+      new Request("http://localhost/webhook/github", {
+        method: "POST",
+        headers: {
+          "x-github-event": "deployment",
+          "x-github-delivery": "delivery-deploy-1",
+          "x-hub-signature-256": sign(payload, secret),
+        },
+        body: payload,
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledOnce();
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledWith(
+      "delivery-deploy-1",
+      {
+        headers: expect.objectContaining({
+          "x-github-event": ["deployment"],
+        }),
+        body: expect.any(String),
+      },
+      { statusQueue: false },
+    );
+  });
+
+  it("enqueues deployment_status events", async () => {
+    const secret = webhookSecret;
+    vi.stubEnv("GITHUB_APP_WEBHOOK_SECRET", secret);
+    const payload = JSON.stringify({
+      action: "created",
+      installation: { id: 123 },
+      repository: { id: 654321, full_name: "everr-labs/everr-deploy" },
+      deployment: {
+        id: 987,
+        sha: "abc123",
+        ref: "main",
+        task: "deploy:app",
+        environment: "production",
+      },
+      deployment_status: {
+        id: 988,
+        state: "success",
+        environment_url: "https://app.everr.dev",
+        target_url: "https://github.com/everr-labs/everr-deploy/actions/runs/1",
+        created_at: "2026-05-17T10:04:00Z",
+        updated_at: "2026-05-17T10:04:00Z",
+      },
+    });
+
+    const response = await handleGitHubWebhookRequest(
+      new Request("http://localhost/webhook/github", {
+        method: "POST",
+        headers: {
+          "x-github-event": "deployment_status",
+          "x-github-delivery": "delivery-deploy-status-1",
+          "x-hub-signature-256": sign(payload, secret),
+        },
+        body: payload,
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledWith(
+      "delivery-deploy-status-1",
+      expect.any(Object),
+      { statusQueue: false },
+    );
   });
 });

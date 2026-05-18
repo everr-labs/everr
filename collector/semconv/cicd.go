@@ -47,3 +47,44 @@ const (
 	EverrGitHubWorkflowJobStepStartedAt   = "everr.github.workflow_job_step.started_at"
 	EverrGitHubWorkflowJobStepCompletedAt = "everr.github.workflow_job_step.completed_at"
 )
+
+// Everr — CDEvents and deployment attributes.
+//
+// We intentionally do not use the OTel `deployment.id` / `deployment.name` /
+// `deployment.status` or CloudEvents `cloudevents.event_id` /
+// `cloudevents.event_source` / `cloudevents.event_type` attributes. As of
+// OTel semconv v1.41 / v1.38.0 all of those are at Development stability:
+//   - https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/
+//   - https://opentelemetry.io/docs/specs/semconv/registry/attributes/cloudevents/
+//
+// Development-stage attributes can still change semantics or value space in
+// a non-backward-compatible way, which would break the deploy query
+// contract that lands in ClickHouse. V1 instead pins the deploy run
+// identifier to the stable `cicd.pipeline.run.id` / `cicd.pipeline.name` /
+// `cicd.pipeline.run.state` / `cicd.pipeline.result` attributes, and uses
+// the custom `everr.deploy.*` / `cdevents.*` / `everr.github.*` namespaces
+// for fields with no stable equivalent.
+//
+// Revisit when either OTel `deployment.*` or `cloudevents.*` graduate to
+// Stable: at that point emit them as aliases so OTel-native tooling can
+// consume the deploy stream without changing the existing `cicd.*` query
+// contract. Check the URLs above first — if they still say Development,
+// the answer is still no.
+const (
+	CDEventsType   = "cdevents.type"
+	CDEventsID     = "cdevents.id"
+	CDEventsSource = "cdevents.source"
+
+	EverrDeployID          = "everr.deploy.id"
+	EverrDeployServiceName = "everr.deploy.service.name"
+	EverrDeployStatus      = "everr.deploy.status"
+	EverrDeployURL         = "everr.deploy.url"
+
+	EverrGitHubDeliveryID             = "everr.github.delivery.id"
+	EverrGitHubDeploymentID           = "everr.github.deployment.id"
+	EverrGitHubDeploymentStatusID     = "everr.github.deployment_status.id"
+	EverrGitHubDeploymentCreatorLogin = "everr.github.deployment.creator.login"
+	EverrGitHubRepositoryFullName     = "everr.github.repository.full_name"
+	EverrGitHubRepositoryOwnerLogin   = "everr.github.repository.owner.login"
+	EverrGitHubWorkflowRunID          = "everr.github.workflow_run.id"
+)
