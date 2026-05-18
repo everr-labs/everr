@@ -9,11 +9,6 @@ artifact. Everr ingests the artifact and stitches the samples onto the
 matching check run so you can see resource pressure next to the rest of
 your CI signal.
 
-The action is published from this monorepo to
-[`everr-labs/everr-action`](https://github.com/everr-labs/everr-action)
-and tagged with semver. Use the floating major tag (`@v0`) in your
-workflows so patches are picked up automatically.
-
 ## Quick start
 
 Add the action as the first step of any job whose resource usage you
@@ -69,15 +64,6 @@ step:
   with:
     resource-usage: "false"
 ```
-
-## Versioning
-
-- `v0` — floating major tag. Recommended for most consumers; picks up
-  every backwards-compatible release.
-- `v0.X.Y` — exact version. Use if you need a reproducible pin.
-
-Releases are managed via [Changesets](https://github.com/changesets/changesets);
-each release ships a CHANGELOG on the mirror repo's GitHub Release.
 
 ## Failure modes
 
