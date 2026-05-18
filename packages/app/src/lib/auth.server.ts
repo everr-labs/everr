@@ -2,11 +2,7 @@ import { apiKey } from "@better-auth/api-key";
 import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import {
-  APIError,
-  createAuthMiddleware,
-  getSessionFromCtx,
-} from "better-auth/api";
+import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import {
   bearer,
   deviceAuthorization,
@@ -22,7 +18,7 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { deviceCode, invitation, member, user } from "@/db/schema";
+import { deviceCode, member, user } from "@/db/schema";
 import { env } from "@/env";
 import {
   getDeviceApprovalUserCode,
@@ -158,35 +154,6 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
   },
   databaseHooks: {
-    user: {
-      create: {
-        // TODO: this is a very basic form of avoiding signups from non-invited users.
-        // It doesn't force users to signup via the email invitation link, so users can basically signup by themselves without joining the organization that invited them,
-        // but it's good enough for now given we'll remove this limitation soon anyway.
-        before: async (userData) => {
-          if (!env.REQUIRE_INVITATION_FOR_SIGNUP) {
-            return true;
-          }
-
-          const pending = await db
-            .select({ id: invitation.id })
-            .from(invitation)
-            .where(
-              and(
-                eq(invitation.email, userData.email),
-                eq(invitation.status, "pending"),
-              ),
-            )
-            .limit(1);
-
-          if (pending.length === 0) {
-            throw new APIError("FORBIDDEN", {
-              message: "Signup is by invitation only",
-            });
-          }
-        },
-      },
-    },
     session: {
       create: {
         before: async (session, context) => {
