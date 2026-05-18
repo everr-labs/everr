@@ -291,14 +291,6 @@ func generateParentSpanID(runID int64, runAttempt int) (pcommon.SpanID, error) {
 	return spanID, nil
 }
 
-func generateServiceName(config *Config, fullName string) string {
-	if config.CustomServiceName != "" {
-		return config.CustomServiceName
-	}
-	formattedName := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(fullName, "/", "-"), "_", "-"))
-	return fmt.Sprintf("%s%s%s", config.ServiceNamePrefix, formattedName, config.ServiceNameSuffix)
-}
-
 func generateStepSpanID(runID int64, runAttempt int, jobName string, stepNumber int64) (pcommon.SpanID, error) {
 	input := fmt.Sprintf("%d%d%s%d", runID, runAttempt, jobName, stepNumber)
 	hash := sha256.Sum256([]byte(input))

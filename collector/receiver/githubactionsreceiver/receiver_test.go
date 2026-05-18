@@ -278,6 +278,53 @@ func TestResourceAndSpanAttributesCreation(t *testing.T) {
 	}
 }
 
+func TestGitHubActionsServiceResourceAttributes(t *testing.T) {
+	config := &Config{
+		CustomServiceName: "custom-service",
+		ServiceNamePrefix: "prefix-",
+		ServiceNameSuffix: "-suffix",
+	}
+
+	t.Run("workflow run", func(t *testing.T) {
+		payload, err := os.ReadFile("./testdata/completed/8_workflow_run_completed.json")
+		require.NoError(t, err)
+
+		event, err := github.ParseWebHook("workflow_run", payload)
+		require.NoError(t, err)
+
+		attrs := pcommon.NewMap()
+		setWorkflowRunEventAttributes(attrs, event.(*github.WorkflowRunEvent), config)
+
+		serviceName, found := attrs.Get("service.name")
+		require.True(t, found)
+		require.Equal(t, "github-actions", serviceName.Str())
+
+		serviceNamespace, found := attrs.Get("service.namespace")
+		require.True(t, found)
+		require.Equal(t, "ci", serviceNamespace.Str())
+	})
+
+	t.Run("workflow job", func(t *testing.T) {
+		payload, err := os.ReadFile("./testdata/completed/5_workflow_job_completed.json")
+		require.NoError(t, err)
+
+		event, err := github.ParseWebHook("workflow_job", payload)
+		require.NoError(t, err)
+
+		resource := pcommon.NewResource()
+		createResourceAttributes(resource, event, config, zaptest.NewLogger(t))
+		attrs := resource.Attributes()
+
+		serviceName, found := attrs.Get("service.name")
+		require.True(t, found)
+		require.Equal(t, "github-actions", serviceName.Str())
+
+		serviceNamespace, found := attrs.Get("service.namespace")
+		require.True(t, found)
+		require.Equal(t, "ci", serviceNamespace.Str())
+	})
+}
+
 // attributeValueToString converts an attribute value to a string regardless of its actual type
 func attributeValueToString(attr pcommon.Value) string {
 	switch attr.Type() {

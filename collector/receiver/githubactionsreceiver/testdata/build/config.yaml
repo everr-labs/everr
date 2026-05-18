@@ -1,9 +1,6 @@
 receivers:
   githubactions:
     # secret: my-secret
-    # custom_service_name: github // default org-repo-name
-    # service_name_prefix: foo-   // ignored if custom_service_name set
-    # service_name_suffix: -bar   // ignored if custom_service_name set
     # gh_api:
     #   base_url: https://gh_enterprise.base.url      // Enterprise GitHub base URL. Omit for github.com
     #   upload_url: https://gh_enterprise.upload.url  // Enterprise GitHub upload URL. Omit for github.com
