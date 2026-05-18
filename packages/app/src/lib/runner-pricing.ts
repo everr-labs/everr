@@ -35,6 +35,9 @@ interface PricingEntry {
 }
 
 const PRICING_TABLE: PricingEntry[] = [
+  // Blacksmith runners
+  ...blacksmithRunners(),
+
   // Self-hosted
   {
     match: (labels) => labels.includes("self-hosted"),
@@ -101,8 +104,14 @@ const PRICING_TABLE: PricingEntry[] = [
     },
   },
 
+  // ARM Windows larger runners
+  ...armWindowsRunners(),
+
   // Windows larger runners (descending cores)
   ...windowsLargerRunners(),
+
+  // ARM Linux
+  ...armLinuxRunners(),
 
   // Windows standard
   {
@@ -115,12 +124,6 @@ const PRICING_TABLE: PricingEntry[] = [
       tier: "Windows 2-core",
     },
   },
-
-  // ARM Linux
-  ...armLinuxRunners(),
-
-  // ARM Windows
-  ...armWindowsRunners(),
 
   // x64 Linux larger runners (descending cores)
   ...linuxLargerRunners(),
@@ -171,11 +174,91 @@ function hasOs(labels: string[], os: "linux" | "windows" | "macos"): boolean {
   }
   return labels.some(
     (l) =>
-      l.includes("macos") ||
-      l === "macos-latest" ||
-      l.startsWith("macos-") ||
-      l.includes("macOS"),
+      l.includes("macos") || l === "macos-latest" || l.startsWith("macos-"),
   );
+}
+
+function hasCoreCount(labels: string[], cores: number): boolean {
+  return labels.some(
+    (l) => l.includes(`${cores}-core`) || l.includes(`${cores}core`),
+  );
+}
+
+function hasBlacksmithLabel(labels: string[], pattern: RegExp): boolean {
+  return labels.some((label) => pattern.test(label));
+}
+
+function blacksmithRunners(): PricingEntry[] {
+  const linuxXCores = [2, 4, 8, 16, 32];
+  const linuxArmCores = [2, 4, 8, 16, 32];
+  const windowsCores = [2, 4, 8, 16, 32];
+
+  return [
+    ...linuxXCores.map((cores) => ({
+      match: (labels: string[]) =>
+        hasBlacksmithLabel(
+          labels,
+          new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)$`),
+        ),
+      pricing: {
+        ratePerMinute: 0.004 * (cores / 2),
+        os: "linux" as const,
+        isSelfHosted: false,
+        minuteMultiplier: cores / 2,
+        tier: `Blacksmith Ubuntu x64 ${cores} vCPU`,
+      },
+    })),
+    ...linuxArmCores.map((cores) => ({
+      match: (labels: string[]) =>
+        hasBlacksmithLabel(
+          labels,
+          new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)-arm$`),
+        ),
+      pricing: {
+        ratePerMinute: 0.0025 * (cores / 2),
+        os: "linux" as const,
+        isSelfHosted: false,
+        minuteMultiplier: (cores / 2) * 0.625,
+        tier: `Blacksmith Ubuntu ARM ${cores} vCPU`,
+      },
+    })),
+    ...windowsCores.map((cores) => ({
+      match: (labels: string[]) =>
+        hasBlacksmithLabel(
+          labels,
+          new RegExp(`^blacksmith-${cores}vcpu-windows-2025$`),
+        ),
+      pricing: {
+        ratePerMinute: 0.008 * (cores / 2),
+        os: "windows" as const,
+        isSelfHosted: false,
+        minuteMultiplier: (cores / 2) * 2,
+        tier: `Blacksmith Windows x64 ${cores} vCPU`,
+      },
+    })),
+    {
+      match: (labels) =>
+        hasBlacksmithLabel(labels, /^blacksmith-6vcpu-macos-(latest|15|26)$/),
+      pricing: {
+        ratePerMinute: 0.08,
+        os: "macos",
+        isSelfHosted: false,
+        minuteMultiplier: 20,
+        tier: "Blacksmith macOS M4 6 vCPU",
+      },
+    },
+    {
+      match: (labels) =>
+        hasBlacksmithLabel(labels, /^blacksmith-12vcpu-macos-(latest|15|26)$/),
+      pricing: {
+        ratePerMinute: 0.16,
+        os: "macos",
+        isSelfHosted: false,
+        minuteMultiplier: 40,
+        tier: "Blacksmith macOS M4 12 vCPU",
+      },
+    },
+  ];
 }
 
 function windowsLargerRunners(): PricingEntry[] {
@@ -189,8 +272,7 @@ function windowsLargerRunners(): PricingEntry[] {
   ];
   return cores.map(({ c, rate }) => ({
     match: (labels: string[]) =>
-      hasOs(labels, "windows") &&
-      labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`)),
+      hasOs(labels, "windows") && hasCoreCount(labels, c),
     pricing: {
       ratePerMinute: rate,
       os: "windows" as const,
@@ -214,8 +296,7 @@ function armLinuxRunners(): PricingEntry[] {
     match: (labels: string[]) =>
       hasOs(labels, "linux") &&
       labels.some((l) => l.includes("arm") || l.includes("arm64")) &&
-      (c === 2 ||
-        labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`))),
+      (c === 2 || hasCoreCount(labels, c)),
     pricing: {
       ratePerMinute: rate,
       os: "linux" as const,
@@ -239,8 +320,7 @@ function armWindowsRunners(): PricingEntry[] {
     match: (labels: string[]) =>
       hasOs(labels, "windows") &&
       labels.some((l) => l.includes("arm") || l.includes("arm64")) &&
-      (c === 2 ||
-        labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`))),
+      hasCoreCount(labels, c),
     pricing: {
       ratePerMinute: rate,
       os: "windows" as const,
@@ -264,7 +344,7 @@ function linuxLargerRunners(): PricingEntry[] {
     match: (labels: string[]) =>
       hasOs(labels, "linux") &&
       !labels.some((l) => l.includes("arm") || l.includes("arm64")) &&
-      labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`)),
+      hasCoreCount(labels, c),
     pricing: {
       ratePerMinute: rate,
       os: "linux" as const,

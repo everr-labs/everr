@@ -1,3 +1,9 @@
+import type { BucketGranularity } from "@/lib/time-range";
+
+export type { BucketGranularity };
+
+export const BREAKDOWN_OTHER_KEY = "__other__";
+
 export interface CostSummary {
   totalCost: number;
   totalMinutes: number;
@@ -8,34 +14,19 @@ export interface CostSummary {
   selfHostedJobs: number;
 }
 
-export interface CostOverTimePoint {
+export type CostMetric = "spend" | "minutes";
+
+export interface CostOverTimeBreakdownPoint {
   date: string;
-  totalCost: number;
-  linuxCost: number;
-  windowsCost: number;
-  macosCost: number;
-  selfHostedMinutes: number;
+  cost: Record<string, number>;
+  minutes: Record<string, number>;
 }
 
-export interface CostByRunner {
-  labels: string;
-  tier: string;
-  os: string;
-  isSelfHosted: boolean;
-  totalJobs: number;
-  totalMinutes: number;
-  billingMinutes: number;
-  estimatedCost: number;
-  ratePerMinute: number;
-}
-
-export interface CostByRepo {
-  repo: string;
-  totalJobs: number;
-  totalMinutes: number;
-  billingMinutes: number;
-  estimatedCost: number;
-  topRunner: string;
+export interface CostOverTimeBreakdown {
+  granularity: BucketGranularity;
+  topKeys: string[];
+  hasOther: boolean;
+  points: CostOverTimeBreakdownPoint[];
 }
 
 export interface CostByWorkflow {

@@ -67,6 +67,59 @@ describe("getRunnerPricing", () => {
     expect(pricing.tier).toBe("macOS 12-core");
   });
 
+  it("identifies Blacksmith Ubuntu x64 runners", () => {
+    const pricing = getRunnerPricing("blacksmith-4vcpu-ubuntu-2404");
+    expect(pricing.ratePerMinute).toBe(0.008);
+    expect(pricing.os).toBe("linux");
+    expect(pricing.minuteMultiplier).toBe(2);
+    expect(pricing.tier).toBe("Blacksmith Ubuntu x64 4 vCPU");
+  });
+
+  it("identifies Blacksmith Ubuntu ARM runners", () => {
+    const pricing = getRunnerPricing("blacksmith-8vcpu-ubuntu-2204-arm");
+    expect(pricing.ratePerMinute).toBe(0.01);
+    expect(pricing.os).toBe("linux");
+    expect(pricing.minuteMultiplier).toBe(2.5);
+    expect(pricing.tier).toBe("Blacksmith Ubuntu ARM 8 vCPU");
+  });
+
+  it("identifies Blacksmith Windows runners", () => {
+    const pricing = getRunnerPricing("blacksmith-4vcpu-windows-2025");
+    expect(pricing.ratePerMinute).toBe(0.016);
+    expect(pricing.os).toBe("windows");
+    expect(pricing.minuteMultiplier).toBe(4);
+    expect(pricing.tier).toBe("Blacksmith Windows x64 4 vCPU");
+  });
+
+  it("identifies Blacksmith macOS runners", () => {
+    const pricing = getRunnerPricing("blacksmith-12vcpu-macos-15");
+    expect(pricing.ratePerMinute).toBe(0.16);
+    expect(pricing.os).toBe("macos");
+    expect(pricing.minuteMultiplier).toBe(40);
+    expect(pricing.tier).toBe("Blacksmith macOS M4 12 vCPU");
+  });
+
+  it("uses Blacksmith pricing when a Blacksmith label is mixed with self-hosted labels", () => {
+    const pricing = getRunnerPricing(
+      "self-hosted,linux,blacksmith-2vcpu-ubuntu-2404",
+    );
+    expect(pricing.ratePerMinute).toBe(0.004);
+    expect(pricing.isSelfHosted).toBe(false);
+    expect(pricing.tier).toBe("Blacksmith Ubuntu x64 2 vCPU");
+  });
+
+  it("keeps standard GitHub Windows ARM at the baseline Windows rate", () => {
+    const pricing = getRunnerPricing("windows-latest,arm64");
+    expect(pricing.ratePerMinute).toBe(0.01);
+    expect(pricing.tier).toBe("Windows 2-core");
+  });
+
+  it("identifies GitHub larger Windows ARM runners", () => {
+    const pricing = getRunnerPricing("windows-2025,arm64,4-core");
+    expect(pricing.ratePerMinute).toBe(0.014);
+    expect(pricing.tier).toBe("ARM Windows 4-core");
+  });
+
   it("returns fallback for unknown labels", () => {
     const pricing = getRunnerPricing("custom-runner-label");
     expect(pricing.ratePerMinute).toBe(0.006);
@@ -123,6 +176,13 @@ describe("calculateCost", () => {
     expect(correct.actualMinutes).toBe(5);
     expect(correct.billingMinutes).toBe(10); // 10 * 1x
     expect(correct.estimatedCost).toBe(0.06); // 10 * 0.006
+  });
+
+  it("uses Blacksmith's per-minute rate for Blacksmith runner labels", () => {
+    const result = calculateCost("blacksmith-4vcpu-ubuntu-2404", 90_000);
+    expect(result.actualMinutes).toBe(1.5);
+    expect(result.billingMinutes).toBe(4); // ceil(1.5) * 2x 2-vCPU units
+    expect(result.estimatedCost).toBe(0.016); // 2 * 0.008
   });
 });
 

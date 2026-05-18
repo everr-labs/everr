@@ -49,3 +49,13 @@ export function withTimeRange<T extends { from?: string; to?: string }>(
   const to = search.to ?? DEFAULT_TIME_RANGE.to;
   return { ...search, from, to, timeRange: { from, to } };
 }
+
+export type BucketGranularity = "hour" | "day";
+
+export function getBucketGranularity(
+  fromDate: Date,
+  toDate: Date,
+): BucketGranularity {
+  const hours = (toDate.getTime() - fromDate.getTime()) / 3_600_000;
+  return hours <= 36 ? "hour" : "day";
+}
