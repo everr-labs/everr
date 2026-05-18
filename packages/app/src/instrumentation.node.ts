@@ -7,16 +7,16 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import { SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs";
+import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { getNodeTelemetryConfig } from "./telemetry/node-config.ts";
 import {
   buildOtlpSignalUrl,
   getExceptionAttributes,
   normalizeOtlpOrigin,
 } from "./telemetry/shared.ts";
 
-const DEFAULT_COLLECTOR_ENDPOINT = "http://127.0.0.1:54318";
 const instrumentationStateKey = Symbol.for("everr.web.node.otel.state");
 type NodeInstrumentationState = ReturnType<typeof startNodeInstrumentation>;
 
@@ -29,29 +29,32 @@ if (!instrumentationGlobal[instrumentationStateKey]) {
 }
 
 function startNodeInstrumentation() {
-  const collectorEndpoint = normalizeOtlpOrigin(
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-      process.env.VITE_OTEL_EXPORTER_OTLP_ENDPOINT ||
-      DEFAULT_COLLECTOR_ENDPOINT,
-  );
+  const config = getNodeTelemetryConfig(process.env);
+
+  if (!config) {
+    return { sdk: null };
+  }
+
+  const collectorEndpoint = normalizeOtlpOrigin(config.endpoint);
 
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
-      "service.name": process.env.OTEL_SERVICE_NAME || "everr-web-node",
-      "service.version": process.env.npm_package_version || "0.1.0",
-      "deployment.environment": "development",
+      "service.name": config.serviceName,
+      "deployment.environment": config.deploymentEnvironment,
     }),
     spanProcessors: [
       new BatchSpanProcessor(
         new OTLPTraceExporter({
           url: buildOtlpSignalUrl(collectorEndpoint, "traces"),
+          headers: config.headers,
         }),
       ),
     ],
     logRecordProcessors: [
-      new SimpleLogRecordProcessor(
+      new BatchLogRecordProcessor(
         new OTLPLogExporter({
           url: buildOtlpSignalUrl(collectorEndpoint, "logs"),
+          headers: config.headers,
         }),
       ),
     ],

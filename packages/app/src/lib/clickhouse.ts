@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
-import { createClient } from "@clickhouse/client";
 import { env } from "@/env";
+import { createClient } from "@/lib/clickhouse-client";
 
 const clickhouse = createClient({
   url: env.CLICKHOUSE_URL,

@@ -1,4 +1,5 @@
 import { verify } from "@octokit/webhooks-methods";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -6,6 +7,8 @@ import { githubInstallationOrganizations } from "@/db/schema";
 import { env } from "@/env";
 import { headersToRecord } from "./headers";
 import { enqueueWebhookEvent } from "./runtime";
+
+const logger = logs.getLogger("@everr/app/github-events/webhook");
 
 const installationEventSchema = z.object({
   action: z.string().optional(),
@@ -36,27 +39,87 @@ async function handleInstallationEvent(args: {
   try {
     parsedBody = JSON.parse(args.bodyText);
   } catch {
+    logger.emit({
+      severityNumber: SeverityNumber.WARN,
+      severityText: "WARN",
+      body: "github webhook: invalid json payload",
+      attributes: { "github.event.type": args.eventType },
+    });
     return new Response("invalid json payload", { status: 400 });
   }
 
   const parsed = installationEventSchema.safeParse(parsedBody);
   if (!parsed.success) {
+    logger.emit({
+      severityNumber: SeverityNumber.WARN,
+      severityText: "WARN",
+      body: "github webhook: invalid installation payload shape",
+      attributes: {
+        "github.event.type": args.eventType,
+        "validation.error": parsed.error.message,
+      },
+    });
     return new Response("invalid payload shape", { status: 400 });
   }
 
   const installationId = parsed.data.installation?.id;
   if (!installationId) {
+    logger.emit({
+      severityNumber: SeverityNumber.WARN,
+      severityText: "WARN",
+      body: "github webhook: installation event missing installation.id",
+      attributes: {
+        "github.event.type": args.eventType,
+        "github.event.action": parsed.data.action,
+      },
+    });
     return new Response("missing installation.id", { status: 400 });
   }
 
   if (args.eventType === "installation") {
-    if (parsed.data.action === "deleted") {
-      await setGithubInstallationStatus(installationId, "uninstalled");
-    } else if (parsed.data.action === "suspend") {
-      await setGithubInstallationStatus(installationId, "suspended");
-    } else if (parsed.data.action === "unsuspend") {
-      await setGithubInstallationStatus(installationId, "active");
+    const nextStatus =
+      parsed.data.action === "deleted"
+        ? "uninstalled"
+        : parsed.data.action === "suspend"
+          ? "suspended"
+          : parsed.data.action === "unsuspend"
+            ? "active"
+            : null;
+
+    if (nextStatus) {
+      await setGithubInstallationStatus(installationId, nextStatus);
+      logger.emit({
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        body: "github installation: status updated",
+        attributes: {
+          "github.installation_id": installationId,
+          "github.event.action": parsed.data.action,
+          "github.installation.status": nextStatus,
+        },
+      });
+    } else {
+      logger.emit({
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        body: "github installation: event received (no status change)",
+        attributes: {
+          "github.installation_id": installationId,
+          "github.event.action": parsed.data.action,
+        },
+      });
     }
+  } else {
+    logger.emit({
+      severityNumber: SeverityNumber.INFO,
+      severityText: "INFO",
+      body: "github installation: repositories event received",
+      attributes: {
+        "github.installation_id": installationId,
+        "github.event.type": args.eventType,
+        "github.event.action": parsed.data.action,
+      },
+    });
   }
 
   return new Response(null, { status: 202 });
