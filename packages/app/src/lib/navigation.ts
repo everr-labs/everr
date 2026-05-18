@@ -1,5 +1,4 @@
 import {
-  ChartLine,
   FlaskConical,
   GitBranch,
   type LucideIcon,
@@ -32,6 +31,10 @@ export const navMain: NavItem[] = [
         title: "Workflows",
         url: "/workflows",
       },
+      {
+        title: "Cost Analysis",
+        url: "/cost-analysis",
+      },
     ],
   },
   {
@@ -40,27 +43,8 @@ export const navMain: NavItem[] = [
     icon: ScrollText,
   },
   {
-    title: "Testing",
+    title: "Tests Overview",
     url: "/tests-overview",
     icon: FlaskConical,
-    isActive: true,
-    items: [
-      {
-        title: "Tests Overview",
-        url: "/tests-overview",
-      },
-    ],
-  },
-  {
-    title: "Insights",
-    url: "/cost-analysis",
-    icon: ChartLine,
-    isActive: true,
-    items: [
-      {
-        title: "Cost Analysis",
-        url: "/cost-analysis",
-      },
-    ],
   },
 ];

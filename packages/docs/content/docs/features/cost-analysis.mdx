@@ -1,23 +1,22 @@
 ---
 title: Cost Analysis
-description: Estimated GitHub Actions spend based on runner labels and job duration.
+description: Estimated CI runner spend based on runner labels and job duration.
 ---
 
 **Route:** `/dashboard/cost-analysis`
 
-Estimates GitHub Actions spend based on runner labels and job duration, with breakdowns by repository, workflow, and runner type. Also shows normalized billing minutes (actual minutes multiplied by the OS multiplier).
+Estimates CI runner spend based on runner labels and job duration, with breakdowns by repository, workflow, and runner type. GitHub-hosted and Blacksmith runners use their own provider rates.
 
 - Summary cards: estimated cost, total minutes, billing minutes, self-hosted minutes
-- Cost over time stacked bar chart broken down by operating system (Linux, Windows, macOS)
-- Cost by runner horizontal bar chart showing estimated cost per runner type
-- Cost by repository table with jobs, minutes, billing minutes, estimated cost, and top runner
+- Actions usage by day chart showing spend or runner minutes
+- Actions usage breakdown over time by repository or runner
 - Cost by workflow table with jobs, minutes, estimated cost, and average cost per run
 - Time range selector (7d, 14d, 30d, 90d)
 
 ## Pricing Model
 
-Cost estimates are based on GitHub Actions standard per-minute rates. Runner labels are matched against a pricing table that covers standard, larger, ARM, GPU, and macOS runners. Each job's duration is rounded up to the nearest whole minute, matching GitHub's billing behavior.
+Cost estimates are based on GitHub Actions and Blacksmith per-minute runner rates. Runner labels are matched against a pricing table that covers standard, larger, ARM, GPU, macOS, and Blacksmith runners. Each job's duration is rounded up to the nearest whole minute before applying the runner rate.
 
-Billing minutes apply an OS multiplier: Linux 1x, Windows 2x, macOS 10x.
+Billing minutes use the provider's normalized units: GitHub uses OS multipliers, and Blacksmith uses x64 2-vCPU-equivalent minutes.
 
 Self-hosted runners are shown with $0.00 cost but their minutes are still tracked.

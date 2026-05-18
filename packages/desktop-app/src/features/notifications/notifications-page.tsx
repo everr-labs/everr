@@ -71,7 +71,6 @@ export function NotificationsPage() {
   const runsQuery = useQuery({
     queryKey: [...runsListQueryKey, timeRange.from, timeRange.to],
     queryFn: () => getRunsList(timeRange),
-    refetchOnWindowFocus: true,
     staleTime: 0,
     refetchInterval: 30_000,
   });

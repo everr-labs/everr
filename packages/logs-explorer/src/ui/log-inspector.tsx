@@ -5,7 +5,9 @@ import { cn } from "@everr/ui/lib/utils";
 import AnsiImport from "ansi-to-react";
 import {
   Boxes,
+  Check,
   Clock3,
+  Copy,
   FileSearch,
   Fingerprint,
   GitBranch,
@@ -124,7 +126,7 @@ function DetailItem({
   mono?: boolean;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-3 rounded-md border bg-background/70 px-2.5 py-2 text-xs">
+    <div className="group relative grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-3 rounded-md border bg-background/70 px-2.5 py-2 text-xs">
       <span className="text-muted-foreground flex min-w-0 items-center gap-1">
         {icon ? <span className="[&>svg]:size-3">{icon}</span> : null}
         <span className="truncate">{label}</span>
@@ -138,7 +140,47 @@ function DetailItem({
       >
         {value || "N/A"}
       </span>
+      {value ? (
+        <CopyValueButton
+          value={value}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-background shadow-sm"
+        />
+      ) : null}
     </div>
+  );
+}
+
+function CopyValueButton({
+  value,
+  className,
+}: {
+  value: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
+  return (
+    <button
+      type="button"
+      aria-label={copied ? "Copied" : "Copy value"}
+      title={copied ? "Copied" : "Copy value"}
+      onClick={handleCopy}
+      className={cn(
+        "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 inline-flex size-5 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none",
+        className,
+      )}
+    >
+      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+    </button>
   );
 }
 
@@ -307,13 +349,17 @@ export function LogInspectorPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-3">
-        <div className="mb-4 rounded-md border bg-background p-3">
+        <div className="group relative mb-4 rounded-md border bg-background p-3">
           <div className="text-muted-foreground mb-2 text-xs font-medium">
             Message
           </div>
           <div className="font-mono text-xs leading-5">
             <Ansi useClasses>{log.body}</Ansi>
           </div>
+          <CopyValueButton
+            value={log.body}
+            className="absolute right-2 top-2 bg-background shadow-sm"
+          />
         </div>
 
         {isError ? (

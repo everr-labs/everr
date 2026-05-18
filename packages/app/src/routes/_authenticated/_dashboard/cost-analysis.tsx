@@ -1,17 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Clock, DollarSign, Receipt, Server } from "lucide-react";
 import {
-  CostByRepoTable,
-  CostByRunnerChart,
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@everr/ui/components/toggle-group";
+import { createFileRoute } from "@tanstack/react-router";
+import { Clock, DollarSign, Server } from "lucide-react";
+import { useState } from "react";
+import {
+  ActionsUsageChart,
+  type ActionsUsageDimension,
   CostByWorkflowTable,
-  CostOverTimeChart,
 } from "@/components/cost-analysis";
 import { TimeRangePanel } from "@/components/time-range-panel";
+import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
-  costByRepoOptions,
   costByWorkflowOptions,
+  costOverTimeBreakdownOptions,
   costOverviewOptions,
 } from "@/data/cost-analysis/options";
+import type { CostMetric } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
 
@@ -29,25 +35,83 @@ export const Route = createFileRoute(
     const input = { timeRange };
     await Promise.all([
       queryClient.prefetchQuery(costOverviewOptions(input)),
-      queryClient.prefetchQuery(costByRepoOptions(input)),
+      queryClient.prefetchQuery(
+        costOverTimeBreakdownOptions({ ...input, dimension: "repo" }),
+      ),
       queryClient.prefetchQuery(costByWorkflowOptions(input)),
     ]);
   },
 });
 
+function MetricToggle({
+  value,
+  onChange,
+}: {
+  value: CostMetric;
+  onChange: (metric: CostMetric) => void;
+}) {
+  return (
+    <ToggleGroup
+      value={[value]}
+      variant="outline"
+      size="sm"
+      spacing={0}
+      onValueChange={(next) => {
+        const selected = next[0];
+        if (selected === "spend" || selected === "minutes") onChange(selected);
+      }}
+      aria-label="Usage metric"
+    >
+      <ToggleGroupItem value="spend">Spend</ToggleGroupItem>
+      <ToggleGroupItem value="minutes">Minutes</ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
+function DimensionToggle({
+  value,
+  onChange,
+}: {
+  value: ActionsUsageDimension;
+  onChange: (dimension: ActionsUsageDimension) => void;
+}) {
+  return (
+    <ToggleGroup
+      value={[value]}
+      variant="outline"
+      size="sm"
+      spacing={0}
+      onValueChange={(next) => {
+        const selected = next[0];
+        if (selected === "repo" || selected === "runner") onChange(selected);
+      }}
+      aria-label="Breakdown dimension"
+    >
+      <ToggleGroupItem value="repo">By Repository</ToggleGroupItem>
+      <ToggleGroupItem value="runner">By Runner</ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
 function CostAnalysisPage() {
+  const [metric, setMetric] = useState<CostMetric>("spend");
+  const [dimension, setDimension] = useState<ActionsUsageDimension>("repo");
+
+  const breakdownQuery = (input: TimeRangeInput) =>
+    costOverTimeBreakdownOptions({ ...input, dimension });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Cost Analysis</h1>
           <p className="text-muted-foreground">
-            Estimated GitHub Actions spend based on runner usage
+            Estimated CI runner spend based on runner usage
           </p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <TimeRangePanel
           title="Estimated Cost"
           queries={[costOverviewOptions]}
@@ -69,15 +133,6 @@ function CostAnalysisPage() {
         </TimeRangePanel>
 
         <TimeRangePanel
-          title="Billing Minutes"
-          queries={[costOverviewOptions]}
-          variant="stat"
-          icon={Receipt}
-        >
-          {(overview) => overview.summary.totalBillingMinutes.toLocaleString()}
-        </TimeRangePanel>
-
-        <TimeRangePanel
           title="Self-Hosted Minutes"
           queries={[costOverviewOptions]}
           variant="stat"
@@ -90,28 +145,16 @@ function CostAnalysisPage() {
       </div>
 
       <TimeRangePanel
-        title="Cost Over Time"
-        description="Daily estimated cost by operating system"
-        queries={[costOverviewOptions]}
+        title="Actions Usage"
+        queries={[breakdownQuery]}
+        action={
+          <div className="flex items-center gap-2">
+            <MetricToggle value={metric} onChange={setMetric} />
+            <DimensionToggle value={dimension} onChange={setDimension} />
+          </div>
+        }
       >
-        {(overview) => <CostOverTimeChart data={overview.overTime} />}
-      </TimeRangePanel>
-
-      <TimeRangePanel
-        title="Cost by Runner"
-        description="Estimated cost per runner type"
-        queries={[costOverviewOptions]}
-      >
-        {(overview) => <CostByRunnerChart data={overview.byRunner} />}
-      </TimeRangePanel>
-
-      <TimeRangePanel
-        title="Cost by Repository"
-        description="Per-repository cost breakdown"
-        queries={[costByRepoOptions]}
-        inset="flush-content"
-      >
-        {(byRepo) => <CostByRepoTable data={byRepo} />}
+        {(breakdown) => <ActionsUsageChart data={breakdown} metric={metric} />}
       </TimeRangePanel>
 
       <TimeRangePanel

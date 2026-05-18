@@ -21,9 +21,10 @@ export function logsExplorerInfiniteOptions(
       repo.explorer({ ...input, offset: pageParam }),
     initialPageParam: 0,
     getNextPageParam: (
-      lastPage: { logs: unknown[] },
+      lastPage: { logs: unknown[] } | undefined,
       allPages: { logs: unknown[] }[],
     ) => {
+      if (!lastPage) return undefined;
       if (lastPage.logs.length < input.limit) return undefined;
       return allPages.reduce((count, page) => count + page.logs.length, 0);
     },

@@ -2,14 +2,12 @@ export interface RunnerPricing {
   ratePerMinute: number;
   os: "linux" | "windows" | "macos";
   isSelfHosted: boolean;
-  minuteMultiplier: number;
   tier: string;
 }
 
 export interface CostResult {
   estimatedCost: number;
   actualMinutes: number;
-  billingMinutes: number;
   pricing: RunnerPricing;
 }
 
@@ -17,7 +15,6 @@ const SELF_HOSTED_PRICING: RunnerPricing = {
   ratePerMinute: 0,
   os: "linux",
   isSelfHosted: true,
-  minuteMultiplier: 1,
   tier: "Self-Hosted",
 };
 
@@ -25,7 +22,6 @@ const FALLBACK_PRICING: RunnerPricing = {
   ratePerMinute: 0.006,
   os: "linux",
   isSelfHosted: false,
-  minuteMultiplier: 1,
   tier: "Unknown",
 };
 
@@ -35,6 +31,9 @@ interface PricingEntry {
 }
 
 const PRICING_TABLE: PricingEntry[] = [
+  // Blacksmith runners
+  ...blacksmithRunners(),
+
   // Self-hosted
   {
     match: (labels) => labels.includes("self-hosted"),
@@ -49,7 +48,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.102,
       os: "windows",
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: "GPU 4-core",
     },
   },
@@ -59,7 +57,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.052,
       os: "linux",
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: "GPU 4-core",
     },
   },
@@ -73,7 +70,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.077,
       os: "macos",
       isSelfHosted: false,
-      minuteMultiplier: 10,
       tier: "macOS 12-core",
     },
   },
@@ -84,7 +80,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.102,
       os: "macos",
       isSelfHosted: false,
-      minuteMultiplier: 10,
       tier: "macOS M2 Pro",
     },
   },
@@ -96,13 +91,18 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.062,
       os: "macos",
       isSelfHosted: false,
-      minuteMultiplier: 10,
       tier: "macOS 3-core",
     },
   },
 
+  // ARM Windows larger runners
+  ...armWindowsRunners(),
+
   // Windows larger runners (descending cores)
   ...windowsLargerRunners(),
+
+  // ARM Linux
+  ...armLinuxRunners(),
 
   // Windows standard
   {
@@ -111,16 +111,9 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.01,
       os: "windows",
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: "Windows 2-core",
     },
   },
-
-  // ARM Linux
-  ...armLinuxRunners(),
-
-  // ARM Windows
-  ...armWindowsRunners(),
 
   // x64 Linux larger runners (descending cores)
   ...linuxLargerRunners(),
@@ -133,7 +126,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.002,
       os: "linux",
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: "Linux 1-core",
     },
   },
@@ -145,7 +137,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.006,
       os: "linux",
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: "Linux 2-core",
     },
   },
@@ -171,11 +162,86 @@ function hasOs(labels: string[], os: "linux" | "windows" | "macos"): boolean {
   }
   return labels.some(
     (l) =>
-      l.includes("macos") ||
-      l === "macos-latest" ||
-      l.startsWith("macos-") ||
-      l.includes("macOS"),
+      l.includes("macos") || l === "macos-latest" || l.startsWith("macos-"),
   );
+}
+
+function hasCoreCount(labels: string[], cores: number): boolean {
+  return labels.some(
+    (l) => l.includes(`${cores}-core`) || l.includes(`${cores}core`),
+  );
+}
+
+function hasBlacksmithLabel(labels: string[], pattern: RegExp): boolean {
+  return labels.some((label) => pattern.test(label));
+}
+
+function blacksmithRunners(): PricingEntry[] {
+  const linuxXCores = [2, 4, 8, 16, 32];
+  const linuxArmCores = [2, 4, 8, 16, 32];
+  const windowsCores = [2, 4, 8, 16, 32];
+
+  return [
+    ...linuxXCores.map((cores) => ({
+      match: (labels: string[]) =>
+        hasBlacksmithLabel(
+          labels,
+          new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)$`),
+        ),
+      pricing: {
+        ratePerMinute: 0.004 * (cores / 2),
+        os: "linux" as const,
+        isSelfHosted: false,
+        tier: `Blacksmith Ubuntu x64 ${cores} vCPU`,
+      },
+    })),
+    ...linuxArmCores.map((cores) => ({
+      match: (labels: string[]) =>
+        hasBlacksmithLabel(
+          labels,
+          new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)-arm$`),
+        ),
+      pricing: {
+        ratePerMinute: 0.0025 * (cores / 2),
+        os: "linux" as const,
+        isSelfHosted: false,
+        tier: `Blacksmith Ubuntu ARM ${cores} vCPU`,
+      },
+    })),
+    ...windowsCores.map((cores) => ({
+      match: (labels: string[]) =>
+        hasBlacksmithLabel(
+          labels,
+          new RegExp(`^blacksmith-${cores}vcpu-windows-2025$`),
+        ),
+      pricing: {
+        ratePerMinute: 0.008 * (cores / 2),
+        os: "windows" as const,
+        isSelfHosted: false,
+        tier: `Blacksmith Windows x64 ${cores} vCPU`,
+      },
+    })),
+    {
+      match: (labels) =>
+        hasBlacksmithLabel(labels, /^blacksmith-6vcpu-macos-(latest|15|26)$/),
+      pricing: {
+        ratePerMinute: 0.08,
+        os: "macos",
+        isSelfHosted: false,
+        tier: "Blacksmith macOS M4 6 vCPU",
+      },
+    },
+    {
+      match: (labels) =>
+        hasBlacksmithLabel(labels, /^blacksmith-12vcpu-macos-(latest|15|26)$/),
+      pricing: {
+        ratePerMinute: 0.16,
+        os: "macos",
+        isSelfHosted: false,
+        tier: "Blacksmith macOS M4 12 vCPU",
+      },
+    },
+  ];
 }
 
 function windowsLargerRunners(): PricingEntry[] {
@@ -189,13 +255,11 @@ function windowsLargerRunners(): PricingEntry[] {
   ];
   return cores.map(({ c, rate }) => ({
     match: (labels: string[]) =>
-      hasOs(labels, "windows") &&
-      labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`)),
+      hasOs(labels, "windows") && hasCoreCount(labels, c),
     pricing: {
       ratePerMinute: rate,
       os: "windows" as const,
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: `Windows ${c}-core`,
     },
   }));
@@ -214,13 +278,11 @@ function armLinuxRunners(): PricingEntry[] {
     match: (labels: string[]) =>
       hasOs(labels, "linux") &&
       labels.some((l) => l.includes("arm") || l.includes("arm64")) &&
-      (c === 2 ||
-        labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`))),
+      (c === 2 || hasCoreCount(labels, c)),
     pricing: {
       ratePerMinute: rate,
       os: "linux" as const,
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: `ARM Linux ${c}-core`,
     },
   }));
@@ -239,13 +301,11 @@ function armWindowsRunners(): PricingEntry[] {
     match: (labels: string[]) =>
       hasOs(labels, "windows") &&
       labels.some((l) => l.includes("arm") || l.includes("arm64")) &&
-      (c === 2 ||
-        labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`))),
+      hasCoreCount(labels, c),
     pricing: {
       ratePerMinute: rate,
       os: "windows" as const,
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: `ARM Windows ${c}-core`,
     },
   }));
@@ -264,12 +324,11 @@ function linuxLargerRunners(): PricingEntry[] {
     match: (labels: string[]) =>
       hasOs(labels, "linux") &&
       !labels.some((l) => l.includes("arm") || l.includes("arm64")) &&
-      labels.some((l) => l.includes(`${c}-core`) || l.includes(`${c}core`)),
+      hasCoreCount(labels, c),
     pricing: {
       ratePerMinute: rate,
       os: "linux" as const,
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: `Linux ${c}-core`,
     },
   }));
@@ -297,12 +356,16 @@ export function getRunnerPricing(labelsString: string): RunnerPricing {
 /**
  * Calculate cost for runner usage.
  *
+ * GitHub bills each job rounded up to the nearest minute, so callers that
+ * aggregate multiple jobs must pre-round in SQL (sum of per-job ceiled
+ * minutes) and pass that as preRoundedMinutes. The same per-job
+ * ceil-to-minute rule is applied to Blacksmith runners; their billing
+ * granularity isn't documented, so this may slightly overstate Blacksmith
+ * cost for sub-minute jobs.
+ *
  * @param labelsString - comma-separated runner labels
  * @param durationMs - total actual duration in milliseconds
- * @param preRoundedMinutes - sum of per-job ceil'd minutes (each job rounded up
- *   individually). When provided, this is used for billing instead of rounding
- *   the aggregate duration. GitHub bills each job rounded up to the nearest
- *   minute, so callers that aggregate multiple jobs must pre-round in SQL.
+ * @param preRoundedMinutes - sum of per-job ceil'd minutes
  */
 export function calculateCost(
   labelsString: string,
@@ -312,13 +375,11 @@ export function calculateCost(
   const pricing = getRunnerPricing(labelsString);
   const actualMinutes = durationMs / 60_000;
   const roundedMinutes = preRoundedMinutes ?? Math.ceil(actualMinutes);
-  const billingMinutes = roundedMinutes * pricing.minuteMultiplier;
   const estimatedCost = roundedMinutes * pricing.ratePerMinute;
 
   return {
     estimatedCost,
     actualMinutes,
-    billingMinutes,
     pricing,
   };
 }

@@ -7,7 +7,6 @@ describe("getRunnerPricing", () => {
     expect(pricing.ratePerMinute).toBe(0.006);
     expect(pricing.os).toBe("linux");
     expect(pricing.isSelfHosted).toBe(false);
-    expect(pricing.minuteMultiplier).toBe(1);
     expect(pricing.tier).toBe("Linux 2-core");
   });
 
@@ -15,7 +14,6 @@ describe("getRunnerPricing", () => {
     const pricing = getRunnerPricing("windows-latest");
     expect(pricing.ratePerMinute).toBe(0.01);
     expect(pricing.os).toBe("windows");
-    expect(pricing.minuteMultiplier).toBe(2);
     expect(pricing.tier).toBe("Windows 2-core");
   });
 
@@ -23,7 +21,6 @@ describe("getRunnerPricing", () => {
     const pricing = getRunnerPricing("macos-latest");
     expect(pricing.ratePerMinute).toBe(0.062);
     expect(pricing.os).toBe("macos");
-    expect(pricing.minuteMultiplier).toBe(10);
     expect(pricing.tier).toBe("macOS 3-core");
   });
 
@@ -67,6 +64,55 @@ describe("getRunnerPricing", () => {
     expect(pricing.tier).toBe("macOS 12-core");
   });
 
+  it("identifies Blacksmith Ubuntu x64 runners", () => {
+    const pricing = getRunnerPricing("blacksmith-4vcpu-ubuntu-2404");
+    expect(pricing.ratePerMinute).toBe(0.008);
+    expect(pricing.os).toBe("linux");
+    expect(pricing.tier).toBe("Blacksmith Ubuntu x64 4 vCPU");
+  });
+
+  it("identifies Blacksmith Ubuntu ARM runners", () => {
+    const pricing = getRunnerPricing("blacksmith-8vcpu-ubuntu-2204-arm");
+    expect(pricing.ratePerMinute).toBe(0.01);
+    expect(pricing.os).toBe("linux");
+    expect(pricing.tier).toBe("Blacksmith Ubuntu ARM 8 vCPU");
+  });
+
+  it("identifies Blacksmith Windows runners", () => {
+    const pricing = getRunnerPricing("blacksmith-4vcpu-windows-2025");
+    expect(pricing.ratePerMinute).toBe(0.016);
+    expect(pricing.os).toBe("windows");
+    expect(pricing.tier).toBe("Blacksmith Windows x64 4 vCPU");
+  });
+
+  it("identifies Blacksmith macOS runners", () => {
+    const pricing = getRunnerPricing("blacksmith-12vcpu-macos-15");
+    expect(pricing.ratePerMinute).toBe(0.16);
+    expect(pricing.os).toBe("macos");
+    expect(pricing.tier).toBe("Blacksmith macOS M4 12 vCPU");
+  });
+
+  it("uses Blacksmith pricing when a Blacksmith label is mixed with self-hosted labels", () => {
+    const pricing = getRunnerPricing(
+      "self-hosted,linux,blacksmith-2vcpu-ubuntu-2404",
+    );
+    expect(pricing.ratePerMinute).toBe(0.004);
+    expect(pricing.isSelfHosted).toBe(false);
+    expect(pricing.tier).toBe("Blacksmith Ubuntu x64 2 vCPU");
+  });
+
+  it("keeps standard GitHub Windows ARM at the baseline Windows rate", () => {
+    const pricing = getRunnerPricing("windows-latest,arm64");
+    expect(pricing.ratePerMinute).toBe(0.01);
+    expect(pricing.tier).toBe("Windows 2-core");
+  });
+
+  it("identifies GitHub larger Windows ARM runners", () => {
+    const pricing = getRunnerPricing("windows-2025,arm64,4-core");
+    expect(pricing.ratePerMinute).toBe(0.014);
+    expect(pricing.tier).toBe("ARM Windows 4-core");
+  });
+
   it("returns fallback for unknown labels", () => {
     const pricing = getRunnerPricing("custom-runner-label");
     expect(pricing.ratePerMinute).toBe(0.006);
@@ -83,19 +129,16 @@ describe("calculateCost", () => {
   it("rounds minutes up to nearest whole minute", () => {
     const result = calculateCost("ubuntu-latest", 90_000); // 1.5 min
     expect(result.actualMinutes).toBe(1.5);
-    expect(result.billingMinutes).toBe(2); // ceil(1.5) * 1x
     expect(result.estimatedCost).toBe(0.012); // 2 * 0.006
   });
 
-  it("applies minute multiplier for Windows", () => {
+  it("computes USD cost for Windows", () => {
     const result = calculateCost("windows-latest", 60_000); // 1 min
-    expect(result.billingMinutes).toBe(2); // ceil(1) * 2x
     expect(result.estimatedCost).toBe(0.01); // 1 * 0.010
   });
 
-  it("applies minute multiplier for macOS", () => {
+  it("computes USD cost for macOS", () => {
     const result = calculateCost("macos-latest", 60_000); // 1 min
-    expect(result.billingMinutes).toBe(10); // ceil(1) * 10x
     expect(result.estimatedCost).toBe(0.062); // 1 * 0.062
   });
 
@@ -103,26 +146,29 @@ describe("calculateCost", () => {
     const result = calculateCost("self-hosted,linux,x64", 300_000); // 5 min
     expect(result.estimatedCost).toBe(0);
     expect(result.actualMinutes).toBe(5);
-    expect(result.billingMinutes).toBe(5);
   });
 
   it("handles very short durations", () => {
     const result = calculateCost("ubuntu-latest", 1000); // 1 second
-    expect(result.billingMinutes).toBe(1); // ceil to 1 minute
-    expect(result.estimatedCost).toBe(0.006);
+    expect(result.estimatedCost).toBe(0.006); // ceil to 1 minute
   });
 
   it("uses preRoundedMinutes when provided for per-job billing", () => {
     // 10 jobs of 30s each: totalDurationMs = 300_000 (5 min actual)
-    // Without preRoundedMinutes: ceil(5) = 5 billing minutes (wrong)
-    // With preRoundedMinutes: 10 jobs * ceil(0.5) = 10 billing minutes (correct)
+    // Without preRoundedMinutes: ceil(5) = 5 billed minutes (wrong)
+    // With preRoundedMinutes: 10 jobs * ceil(0.5) = 10 billed minutes (correct)
     const wrong = calculateCost("ubuntu-latest", 300_000);
-    expect(wrong.billingMinutes).toBe(5); // ceil(5) * 1x
+    expect(wrong.estimatedCost).toBe(0.03); // ceil(5) * 0.006
 
     const correct = calculateCost("ubuntu-latest", 300_000, 10);
     expect(correct.actualMinutes).toBe(5);
-    expect(correct.billingMinutes).toBe(10); // 10 * 1x
     expect(correct.estimatedCost).toBe(0.06); // 10 * 0.006
+  });
+
+  it("uses Blacksmith's per-minute rate for Blacksmith runner labels", () => {
+    const result = calculateCost("blacksmith-4vcpu-ubuntu-2404", 90_000);
+    expect(result.actualMinutes).toBe(1.5);
+    expect(result.estimatedCost).toBe(0.016); // ceil(1.5) * 0.008
   });
 });
 
