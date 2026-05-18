@@ -8,14 +8,17 @@ import { defineConfig, loadEnv } from "vite";
 const config = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const browserTelemetryEnabled = mode === "development";
+  const browserTelemetryEndpoint =
+    env.VITE_OTEL_EXPORTER_OTLP_ENDPOINT ||
+    env.OTEL_EXPORTER_OTLP_ENDPOINT ||
+    "http://127.0.0.1:54318";
 
   return {
     define: {
       __EVERR_BROWSER_OTEL__: JSON.stringify({
         enabled: browserTelemetryEnabled,
-        endpoint: "http://127.0.0.1:54318",
+        endpoint: browserTelemetryEnabled ? browserTelemetryEndpoint : "",
         serviceName: "everr-web-browser",
-        serviceVersion: env.npm_package_version || "0.1.0",
       }),
     },
     server: {

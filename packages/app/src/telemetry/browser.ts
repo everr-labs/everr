@@ -21,7 +21,6 @@ type BrowserTelemetryConfig = {
   enabled: boolean;
   endpoint: string;
   serviceName: string;
-  serviceVersion: string;
 };
 
 declare const __EVERR_BROWSER_OTEL__: BrowserTelemetryConfig;
@@ -33,7 +32,6 @@ if (config.enabled && typeof window !== "undefined") {
   const ignoredCollectorUrl = new RegExp(`^${escapeRegExp(collectorOrigin)}`);
   const resource = resourceFromAttributes({
     "service.name": config.serviceName,
-    "service.version": config.serviceVersion,
     "deployment.environment": "development",
   });
 

@@ -27,11 +27,17 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
 COPY --from=build /app/packages/app/.output ./.output
-COPY --from=build /app/packages/app/node_modules ./node_modules
+COPY --from=build /app/node_modules/.pnpm ./node_modules/.pnpm
+COPY --from=build /app/packages/app/node_modules ./packages/app/node_modules
+COPY --from=build /app/packages/app/package.json ./packages/app/package.json
+RUN mkdir -p ./packages/app/src/telemetry
+COPY --from=build /app/packages/app/src/instrumentation.node.ts ./packages/app/src/instrumentation.node.ts
+COPY --from=build /app/packages/app/src/telemetry/node-config.ts ./packages/app/src/telemetry/node-config.ts
+COPY --from=build /app/packages/app/src/telemetry/shared.ts ./packages/app/src/telemetry/shared.ts
 
 # Copy migration files
 COPY packages/app/drizzle ./drizzle
 
 EXPOSE 3000
 USER nodejs
-CMD ["node", ".output/server/index.mjs"]
+CMD ["node", "--import", "./packages/app/src/instrumentation.node.ts", ".output/server/index.mjs"]

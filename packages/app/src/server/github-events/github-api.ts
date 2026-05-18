@@ -6,8 +6,11 @@
  */
 
 import { createSign } from "node:crypto";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import QuickLRU from "quick-lru";
 import { githubEnv } from "@/env/github";
+
+const logger = logs.getLogger("@everr/app/github-events/github-api");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -123,9 +126,18 @@ export async function* paginate<T>(
         );
       }
       const retryAfter = Number(resp.headers.get("retry-after") ?? "60");
-      console.warn(
-        `[github-api] rate limited on ${nextUrl}, waiting ${retryAfter}s (attempt ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES})`,
-      );
+      logger.emit({
+        severityNumber: SeverityNumber.WARN,
+        severityText: "WARN",
+        body: "github-api: rate limited, sleeping before retry",
+        attributes: {
+          "url.full": nextUrl,
+          "http.response.status_code": resp.status,
+          "github.rate_limit.retry_after_seconds": retryAfter,
+          "github.rate_limit.attempt": rateLimitRetries,
+          "github.rate_limit.max_attempts": MAX_RATE_LIMIT_RETRIES,
+        },
+      });
       await sleep(retryAfter * 1000);
       continue;
     }
