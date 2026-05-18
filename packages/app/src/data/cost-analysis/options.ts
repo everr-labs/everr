@@ -23,6 +23,6 @@ export const costOverTimeBreakdownOptions = (
   input: TimeRangeInput & { dimension: "repo" | "runner" },
 ) =>
   queryOptions({
-    queryKey: ["cost", "overTimeBreakdown", input],
+    queryKey: ["cost", "overTimeBreakdown", input.timeRange, input.dimension],
     queryFn: () => getCostOverTimeBreakdown({ data: input }),
   });
