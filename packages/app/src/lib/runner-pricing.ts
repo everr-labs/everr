@@ -2,14 +2,12 @@ export interface RunnerPricing {
   ratePerMinute: number;
   os: "linux" | "windows" | "macos";
   isSelfHosted: boolean;
-  minuteMultiplier: number;
   tier: string;
 }
 
 export interface CostResult {
   estimatedCost: number;
   actualMinutes: number;
-  billingMinutes: number;
   pricing: RunnerPricing;
 }
 
@@ -17,7 +15,6 @@ const SELF_HOSTED_PRICING: RunnerPricing = {
   ratePerMinute: 0,
   os: "linux",
   isSelfHosted: true,
-  minuteMultiplier: 1,
   tier: "Self-Hosted",
 };
 
@@ -25,7 +22,6 @@ const FALLBACK_PRICING: RunnerPricing = {
   ratePerMinute: 0.006,
   os: "linux",
   isSelfHosted: false,
-  minuteMultiplier: 1,
   tier: "Unknown",
 };
 
@@ -52,7 +48,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.102,
       os: "windows",
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: "GPU 4-core",
     },
   },
@@ -62,7 +57,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.052,
       os: "linux",
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: "GPU 4-core",
     },
   },
@@ -76,7 +70,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.077,
       os: "macos",
       isSelfHosted: false,
-      minuteMultiplier: 10,
       tier: "macOS 12-core",
     },
   },
@@ -87,7 +80,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.102,
       os: "macos",
       isSelfHosted: false,
-      minuteMultiplier: 10,
       tier: "macOS M2 Pro",
     },
   },
@@ -99,7 +91,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.062,
       os: "macos",
       isSelfHosted: false,
-      minuteMultiplier: 10,
       tier: "macOS 3-core",
     },
   },
@@ -120,7 +111,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.01,
       os: "windows",
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: "Windows 2-core",
     },
   },
@@ -136,7 +126,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.002,
       os: "linux",
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: "Linux 1-core",
     },
   },
@@ -148,7 +137,6 @@ const PRICING_TABLE: PricingEntry[] = [
       ratePerMinute: 0.006,
       os: "linux",
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: "Linux 2-core",
     },
   },
@@ -204,7 +192,6 @@ function blacksmithRunners(): PricingEntry[] {
         ratePerMinute: 0.004 * (cores / 2),
         os: "linux" as const,
         isSelfHosted: false,
-        minuteMultiplier: cores / 2,
         tier: `Blacksmith Ubuntu x64 ${cores} vCPU`,
       },
     })),
@@ -218,7 +205,6 @@ function blacksmithRunners(): PricingEntry[] {
         ratePerMinute: 0.0025 * (cores / 2),
         os: "linux" as const,
         isSelfHosted: false,
-        minuteMultiplier: (cores / 2) * 0.625,
         tier: `Blacksmith Ubuntu ARM ${cores} vCPU`,
       },
     })),
@@ -232,7 +218,6 @@ function blacksmithRunners(): PricingEntry[] {
         ratePerMinute: 0.008 * (cores / 2),
         os: "windows" as const,
         isSelfHosted: false,
-        minuteMultiplier: (cores / 2) * 2,
         tier: `Blacksmith Windows x64 ${cores} vCPU`,
       },
     })),
@@ -243,7 +228,6 @@ function blacksmithRunners(): PricingEntry[] {
         ratePerMinute: 0.08,
         os: "macos",
         isSelfHosted: false,
-        minuteMultiplier: 20,
         tier: "Blacksmith macOS M4 6 vCPU",
       },
     },
@@ -254,7 +238,6 @@ function blacksmithRunners(): PricingEntry[] {
         ratePerMinute: 0.16,
         os: "macos",
         isSelfHosted: false,
-        minuteMultiplier: 40,
         tier: "Blacksmith macOS M4 12 vCPU",
       },
     },
@@ -277,7 +260,6 @@ function windowsLargerRunners(): PricingEntry[] {
       ratePerMinute: rate,
       os: "windows" as const,
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: `Windows ${c}-core`,
     },
   }));
@@ -301,7 +283,6 @@ function armLinuxRunners(): PricingEntry[] {
       ratePerMinute: rate,
       os: "linux" as const,
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: `ARM Linux ${c}-core`,
     },
   }));
@@ -325,7 +306,6 @@ function armWindowsRunners(): PricingEntry[] {
       ratePerMinute: rate,
       os: "windows" as const,
       isSelfHosted: false,
-      minuteMultiplier: 2,
       tier: `ARM Windows ${c}-core`,
     },
   }));
@@ -349,7 +329,6 @@ function linuxLargerRunners(): PricingEntry[] {
       ratePerMinute: rate,
       os: "linux" as const,
       isSelfHosted: false,
-      minuteMultiplier: 1,
       tier: `Linux ${c}-core`,
     },
   }));
@@ -377,12 +356,16 @@ export function getRunnerPricing(labelsString: string): RunnerPricing {
 /**
  * Calculate cost for runner usage.
  *
+ * GitHub bills each job rounded up to the nearest minute, so callers that
+ * aggregate multiple jobs must pre-round in SQL (sum of per-job ceiled
+ * minutes) and pass that as preRoundedMinutes. The same per-job
+ * ceil-to-minute rule is applied to Blacksmith runners; their billing
+ * granularity isn't documented, so this may slightly overstate Blacksmith
+ * cost for sub-minute jobs.
+ *
  * @param labelsString - comma-separated runner labels
  * @param durationMs - total actual duration in milliseconds
- * @param preRoundedMinutes - sum of per-job ceil'd minutes (each job rounded up
- *   individually). When provided, this is used for billing instead of rounding
- *   the aggregate duration. GitHub bills each job rounded up to the nearest
- *   minute, so callers that aggregate multiple jobs must pre-round in SQL.
+ * @param preRoundedMinutes - sum of per-job ceil'd minutes
  */
 export function calculateCost(
   labelsString: string,
@@ -392,13 +375,11 @@ export function calculateCost(
   const pricing = getRunnerPricing(labelsString);
   const actualMinutes = durationMs / 60_000;
   const roundedMinutes = preRoundedMinutes ?? Math.ceil(actualMinutes);
-  const billingMinutes = roundedMinutes * pricing.minuteMultiplier;
   const estimatedCost = roundedMinutes * pricing.ratePerMinute;
 
   return {
     estimatedCost,
     actualMinutes,
-    billingMinutes,
     pricing,
   };
 }

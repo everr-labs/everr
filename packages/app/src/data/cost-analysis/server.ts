@@ -72,7 +72,6 @@ export const getCostOverview = createAuthenticatedServerFn({
     const summary: CostSummary = {
       totalCost: 0,
       totalMinutes: 0,
-      totalBillingMinutes: 0,
       totalJobs: 0,
       costByOs: [],
       selfHostedMinutes: 0,
@@ -89,7 +88,6 @@ export const getCostOverview = createAuthenticatedServerFn({
 
       summary.totalCost += costResult.estimatedCost;
       summary.totalMinutes += costResult.actualMinutes;
-      summary.totalBillingMinutes += costResult.billingMinutes;
       summary.totalJobs += jobs;
 
       if (costResult.pricing.isSelfHosted) {
@@ -170,14 +168,12 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
         workflow: row.workflow,
         totalJobs: 0,
         totalMinutes: 0,
-        billingMinutes: 0,
         estimatedCost: 0,
         maxUniqueRuns: 0,
       };
 
       existing.totalJobs += jobs;
       existing.totalMinutes += costResult.actualMinutes;
-      existing.billingMinutes += costResult.billingMinutes;
       existing.estimatedCost += costResult.estimatedCost;
       existing.maxUniqueRuns = Math.max(existing.maxUniqueRuns, runs);
 

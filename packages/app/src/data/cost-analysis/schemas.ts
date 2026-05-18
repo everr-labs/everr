@@ -7,7 +7,6 @@ export const BREAKDOWN_OTHER_KEY = "__other__";
 export interface CostSummary {
   totalCost: number;
   totalMinutes: number;
-  totalBillingMinutes: number;
   totalJobs: number;
   costByOs: { os: string; cost: number; jobs: number }[];
   selfHostedMinutes: number;
@@ -34,7 +33,6 @@ export interface CostByWorkflow {
   workflow: string;
   totalJobs: number;
   totalMinutes: number;
-  billingMinutes: number;
   estimatedCost: number;
   avgCostPerRun: number;
 }
