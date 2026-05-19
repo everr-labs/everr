@@ -1,4 +1,13 @@
 /**
+ * Spans carrying `everr.test.*` attributes only come from CI runners.
+ * Filtering by ServiceName aligns with the `traces` ORDER BY prefix
+ * `(tenant_id, ServiceName, …)` and lets ClickHouse use the primary index
+ * instead of scanning every span in the time window.
+ */
+export const TEST_SPAN_SERVICE_FILTER =
+  "ServiceName IN ('github-actions', 'everr-labs-everr')";
+
+/**
  * SQL expression to build the full test name from parent_test and test name.
  * Uses "/" as the join separator for deduplication purposes.
  *
@@ -50,7 +59,8 @@ export function leafTestFilter(
   return `${leftExpr} NOT IN (
     SELECT DISTINCT ${rightExpr}
     FROM traces
-    WHERE SpanAttributes['everr.test.parent_test'] != ''
+    WHERE ${TEST_SPAN_SERVICE_FILTER}
+      AND SpanAttributes['everr.test.parent_test'] != ''
       AND Timestamp >= {${fromParam}:String} AND Timestamp <= {${toParam}:String}
       ${scopedConditions}
   )`;
