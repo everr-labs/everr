@@ -78,13 +78,14 @@ everr local query "SELECT Timestamp, SpanName, Duration, StatusCode, StatusMessa
 
 ## Everr skills
 
-Everr ships bundled skills for agents that need local telemetry context:
+Everr ships bundled skills for agents that need telemetry and CI context:
 
-- `local-telemetry-setup` explains how to start the collector and point a local app at it.
-- `local-debugging` explains how to query local logs and traces while debugging runtime issues.
+- `everr-working-with-ci` explains how to use CI run, job, step, log, and historical test data.
+- `everr-setup-telemetry` explains how to make apps, services, tests, and commands emit telemetry.
+- `everr-use-telemetry` explains how to query cloud and local telemetry during investigations.
 
 ```shell
-everr skills install local-telemetry-setup local-debugging --project
+everr skills install everr-working-with-ci everr-setup-telemetry everr-use-telemetry --project
 ```
 
 To install every bundled Everr skill instead:
