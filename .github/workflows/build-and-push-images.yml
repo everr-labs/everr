@@ -22,10 +22,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: eu-central-1
-  APP_ECR_REPOSITORY: everr-dev/nodejs-app
-  DOCS_ECR_REPOSITORY: everr-dev/docs
-  COLLECTOR_ECR_REPOSITORY: everr-dev/everr-otel-collector
   SCW_REGISTRY_HOST: rg.fr-par.scw.cloud
   SCW_REGISTRY_NAMESPACE: everr
 
@@ -79,17 +75,6 @@ jobs:
         with:
           check-run-id: ${{ job.check_run_id }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Load Scaleway registry credentials
         id: scw-creds
         uses: 1password/load-secrets-action@v2
@@ -113,8 +98,6 @@ jobs:
           file: packages/app/Dockerfile
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_ECR_REPOSITORY }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.APP_ECR_REPOSITORY }}:latest
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/app:${{ github.sha }}
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/app:latest
 
@@ -131,17 +114,6 @@ jobs:
         uses: ./.github/actions/everr-action
         with:
           check-run-id: ${{ job.check_run_id }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Load Scaleway registry credentials
         id: scw-creds
@@ -166,8 +138,6 @@ jobs:
           file: collector/Dockerfile
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.COLLECTOR_ECR_REPOSITORY }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.COLLECTOR_ECR_REPOSITORY }}:latest
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/collector:${{ github.sha }}
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/collector:latest
 
@@ -184,17 +154,6 @@ jobs:
         uses: ./.github/actions/everr-action
         with:
           check-run-id: ${{ job.check_run_id }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Load Scaleway registry credentials
         id: scw-creds
@@ -222,8 +181,6 @@ jobs:
             VITE_POSTHOG_PROJECT_TOKEN=${{ vars.DOCS_POSTHOG_PROJECT_TOKEN }}
             VITE_POSTHOG_HOST=${{ vars.DOCS_POSTHOG_HOST }}
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCS_ECR_REPOSITORY }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.DOCS_ECR_REPOSITORY }}:latest
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/docs:${{ github.sha }}
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/docs:latest
 
