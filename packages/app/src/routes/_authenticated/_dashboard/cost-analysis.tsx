@@ -123,6 +123,7 @@ function CostAnalysisPage() {
 
         <TimeRangePanel
           title="Total Minutes"
+          titleHint="Actual elapsed runner time across all jobs, summed second-by-second. Useful for measuring real usage and pipeline duration."
           queries={[costOverviewOptions]}
           variant="stat"
           icon={Clock}
@@ -134,6 +135,7 @@ function CostAnalysisPage() {
 
         <TimeRangePanel
           title="Billed Minutes"
+          titleHint="What GitHub actually charges for: each job's duration rounded up to the next whole minute, then summed. Always ≥ Total Minutes."
           queries={[costOverviewOptions]}
           variant="stat"
           icon={Receipt}
