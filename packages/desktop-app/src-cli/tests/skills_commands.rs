@@ -219,7 +219,7 @@ fn setup_authenticates_without_enter_when_polling_succeeds() {
         .arg("setup")
         .assert()
         .success()
-        .stderr(contains("Press Enter to open in your browser"))
+        .stderr(contains("Press Enter to open in your browser").not())
         .stderr(contains("Logged in as user@example.com"))
         .stderr(contains("Using organization: Acme"));
 
