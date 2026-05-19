@@ -1,10 +1,6 @@
-use std::future::Future;
-use std::io::{self, IsTerminal};
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result, anyhow, bail};
-use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use anyhow::{Result, anyhow, bail};
 use everr_core::api::ApiClient;
 use everr_core::auth::{
     AuthConfig, DeviceAuthorization, DevicePollStatus, build_auth_http_client, login_with_prompt,
@@ -12,7 +8,6 @@ use everr_core::auth::{
 };
 use everr_core::build;
 use everr_core::state::{AppStateStore, Session};
-use futures_util::StreamExt;
 use tokio::time::sleep;
 
 use crate::cli::LoginArgs;
@@ -59,24 +54,15 @@ pub(crate) fn identity_summary_lines(email: Option<&str>, org_name: Option<&str>
     lines
 }
 
-pub async fn login_with_enter_to_open_browser(
+pub async fn login_with_device_authorization(
     config: &AuthConfig,
     store: &AppStateStore,
 ) -> Result<Session> {
     let client = build_auth_http_client()?;
     let authorization = start_device_authorization(&client, config).await?;
     show_device_sign_in_note(&authorization.verification_url, &authorization.user_code)?;
-    cliclack::log::remark("Press Enter to open in your browser")?;
 
-    complete_setup_device_authorization_with_enter_prompt(
-        config,
-        store,
-        &client,
-        authorization,
-        wait_for_browser_prompt_action(),
-        open_browser_with_warning,
-    )
-    .await
+    complete_setup_device_authorization(config, store, &client, authorization).await
 }
 
 fn show_device_sign_in_note(verification_url: &str, user_code: &str) -> Result<()> {
@@ -87,127 +73,35 @@ fn show_device_sign_in_note(verification_url: &str, user_code: &str) -> Result<(
     Ok(())
 }
 
-async fn complete_setup_device_authorization_with_enter_prompt<Enter, OpenBrowser>(
+async fn complete_setup_device_authorization(
     config: &AuthConfig,
     store: &AppStateStore,
     client: &reqwest::Client,
     authorization: DeviceAuthorization,
-    enter_prompt: Enter,
-    mut open_browser: OpenBrowser,
-) -> Result<Session>
-where
-    Enter: Future<Output = BrowserPromptAction>,
-    OpenBrowser: FnMut(&str) -> Result<()>,
-{
+) -> Result<Session> {
     let deadline = Instant::now() + Duration::from_secs(authorization.expires_in);
     let mut poll_interval = authorization.interval;
-    let mut enter_prompt = Box::pin(enter_prompt);
-    let mut listen_for_enter = true;
 
     loop {
         if Instant::now() >= deadline {
             bail!("device authentication expired before completion");
         }
 
-        tokio::select! {
-            action = &mut enter_prompt, if listen_for_enter => {
-                listen_for_enter = false;
-                match action {
-                    BrowserPromptAction::OpenBrowser => {
-                        open_browser(&authorization.verification_url)?;
-                    }
-                    BrowserPromptAction::Cancel => bail!("cancelled"),
-                    BrowserPromptAction::Unavailable => {}
-                }
+        sleep(Duration::from_secs(poll_interval)).await;
+        match poll_device_authorization(client, config, &authorization).await? {
+            DevicePollStatus::Authorized(token) => {
+                let session = session_from_device_token(config, token)?;
+                store.save_session(&session)?;
+                return Ok(session);
             }
-            _ = sleep(Duration::from_secs(poll_interval)) => {
-                match poll_device_authorization(client, config, &authorization).await? {
-                    DevicePollStatus::Authorized(token) => {
-                        let session = session_from_device_token(config, token)?;
-                        store.save_session(&session)?;
-                        return Ok(session);
-                    }
-                    DevicePollStatus::Pending => {}
-                    DevicePollStatus::SlowDown => {
-                        poll_interval += 5;
-                    }
-                    DevicePollStatus::Denied => bail!("device authentication was denied"),
-                    DevicePollStatus::Expired => bail!("device authentication token expired"),
-                }
+            DevicePollStatus::Pending => {}
+            DevicePollStatus::SlowDown => {
+                poll_interval += 5;
             }
+            DevicePollStatus::Denied => bail!("device authentication was denied"),
+            DevicePollStatus::Expired => bail!("device authentication token expired"),
         }
     }
-}
-
-async fn wait_for_browser_prompt_action() -> BrowserPromptAction {
-    if !io::stdin().is_terminal() {
-        return BrowserPromptAction::Unavailable;
-    }
-
-    let _raw_mode = match RawModeGuard::enable() {
-        Ok(guard) => guard,
-        Err(_) => return BrowserPromptAction::Unavailable,
-    };
-
-    let mut events = EventStream::new();
-    while let Some(event) = events.next().await {
-        match event {
-            Ok(Event::Key(key)) => {
-                if let Some(action) = browser_prompt_action_for_key(key) {
-                    return action;
-                }
-            }
-            Ok(_) => {}
-            Err(_) => return BrowserPromptAction::Unavailable,
-        }
-    }
-
-    BrowserPromptAction::Unavailable
-}
-
-fn browser_prompt_action_for_key(key: KeyEvent) -> Option<BrowserPromptAction> {
-    if key.kind != KeyEventKind::Press {
-        return None;
-    }
-
-    match key.code {
-        KeyCode::Enter => Some(BrowserPromptAction::OpenBrowser),
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            Some(BrowserPromptAction::Cancel)
-        }
-        _ => None,
-    }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum BrowserPromptAction {
-    OpenBrowser,
-    Cancel,
-    Unavailable,
-}
-
-struct RawModeGuard;
-
-impl RawModeGuard {
-    fn enable() -> Result<Self> {
-        enable_raw_mode().context("failed to enable terminal raw mode")?;
-        Ok(Self)
-    }
-}
-
-impl Drop for RawModeGuard {
-    fn drop(&mut self) {
-        let _ = disable_raw_mode();
-    }
-}
-
-fn open_browser_with_warning(verification_url: &str) -> Result<()> {
-    if let Err(error) = webbrowser::open(verification_url) {
-        cliclack::log::warning(format!(
-            "Could not open browser automatically.\nOpen this URL manually: {verification_url} ({error})"
-        ))?;
-    }
-    Ok(())
 }
 
 pub async fn open_browser_immediately(verification_url: String, user_code: String) {
@@ -302,10 +196,8 @@ fn current_api_base_url() -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::future;
     use std::sync::Mutex;
 
-    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
     use everr_core::auth::{AuthConfig, DeviceAuthorization};
     use everr_core::build;
     use mockito::Server;
@@ -380,7 +272,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn setup_login_finishes_when_enter_is_never_pressed() {
+    async fn setup_login_waits_for_authorization_polling() {
         let _guard = ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -407,68 +299,14 @@ mod tests {
             interval: 0,
         };
 
-        let session = super::complete_setup_device_authorization_with_enter_prompt(
-            &config,
-            &store,
-            &client,
-            authorization,
-            future::pending(),
-            |_| Ok(()),
-        )
-        .await
-        .expect("setup login should finish");
+        let session =
+            super::complete_setup_device_authorization(&config, &store, &client, authorization)
+                .await
+                .expect("setup login should finish");
 
         token_mock.assert_async().await;
         assert_eq!(session.api_base_url, config.api_base_url);
         assert_eq!(session.token, "token-123");
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn setup_login_opens_browser_once_when_enter_is_pressed() {
-        let _guard = ENV_LOCK
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let mut server = Server::new_async().await;
-        let token_mock = server
-            .mock("POST", "/api/auth/device/token")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(r#"{"access_token":"token-123"}"#)
-            .create_async()
-            .await;
-        let config = AuthConfig {
-            api_base_url: server.url(),
-        };
-        let temp_dir = tempdir().expect("temp dir");
-        let _env = TempConfigEnv::set(temp_dir.path());
-        let store = everr_core::state::AppStateStore::for_namespace("everr-auth-test");
-        let client = everr_core::auth::build_auth_http_client().expect("http client");
-        let authorization = DeviceAuthorization {
-            device_code: "device-123".to_string(),
-            user_code: "CODE-123".to_string(),
-            verification_url: "https://example.com/device".to_string(),
-            expires_in: 60,
-            interval: 0,
-        };
-        let mut opened_urls = Vec::new();
-
-        let session = super::complete_setup_device_authorization_with_enter_prompt(
-            &config,
-            &store,
-            &client,
-            authorization,
-            future::ready(super::BrowserPromptAction::OpenBrowser),
-            |url| {
-                opened_urls.push(url.to_string());
-                Ok(())
-            },
-        )
-        .await
-        .expect("setup login should finish");
-
-        token_mock.assert_async().await;
-        assert_eq!(session.token, "token-123");
-        assert_eq!(opened_urls, vec!["https://example.com/device"]);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -499,44 +337,12 @@ mod tests {
             interval: 0,
         };
 
-        let error = super::complete_setup_device_authorization_with_enter_prompt(
-            &config,
-            &store,
-            &client,
-            authorization,
-            future::pending(),
-            |_| Ok(()),
-        )
-        .await
-        .expect_err("denied auth should fail");
+        let error =
+            super::complete_setup_device_authorization(&config, &store, &client, authorization)
+                .await
+                .expect_err("denied auth should fail");
 
         token_mock.assert_async().await;
         assert_eq!(error.to_string(), "device authentication was denied");
-    }
-
-    #[test]
-    fn enter_key_opens_browser_and_ctrl_c_cancels() {
-        assert_eq!(
-            super::browser_prompt_action_for_key(
-                KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE,)
-            ),
-            Some(super::BrowserPromptAction::OpenBrowser)
-        );
-        assert_eq!(
-            super::browser_prompt_action_for_key(KeyEvent::new(
-                KeyCode::Char('c'),
-                KeyModifiers::CONTROL,
-            )),
-            Some(super::BrowserPromptAction::Cancel)
-        );
-        assert_eq!(
-            super::browser_prompt_action_for_key(KeyEvent {
-                code: KeyCode::Enter,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Release,
-                state: KeyEventState::NONE,
-            }),
-            None
-        );
     }
 }

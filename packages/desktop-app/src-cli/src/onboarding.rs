@@ -106,7 +106,7 @@ async fn step_authenticate() -> Result<Session> {
             Ok(session)
         }
         Err(_) => {
-            let session = auth::login_with_enter_to_open_browser(&config, &store).await?;
+            let session = auth::login_with_device_authorization(&config, &store).await?;
             Ok(session)
         }
     }
