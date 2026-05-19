@@ -38,6 +38,17 @@ func TestBuildCollectorConfigUsesLocalDefaults(t *testing.T) {
 	chdb := exporters["chdb"].(map[string]any)
 	require.Equal(t, "168h0m0s", chdb["ttl"])
 	require.NotContains(t, chdb, "path")
+
+	receivers := raw["receivers"].(map[string]any)
+	otlp := receivers["otlp"].(map[string]any)
+	protocols := otlp["protocols"].(map[string]any)
+	httpCfg := protocols["http"].(map[string]any)
+	cors := httpCfg["cors"].(map[string]any)
+	require.Equal(t, []any{"*"}, cors["allowed_origins"])
+	require.Equal(t,
+		[]any{"Authorization", "Content-Type"},
+		cors["allowed_headers"],
+	)
 }
 
 func TestStaticProviderReturnsGeneratedConfig(t *testing.T) {

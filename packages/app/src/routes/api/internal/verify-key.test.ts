@@ -104,6 +104,7 @@ describe("/api/internal/verify-key", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_3",
+      allowedOrigins: [],
     });
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key
@@ -111,6 +112,67 @@ describe("/api/internal/verify-key", () => {
     const { auth } = await import("@/lib/auth.server");
     expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
       body: { key: "the-key", configId: "ingest" },
+    });
+  });
+
+  it("returns allowedOrigins when metadata is an object", async () => {
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: {
+        id: "ak_obj",
+        referenceId: "org_1",
+        metadata: { allowedOrigins: ["https://app.example.com"] },
+      },
+    });
+    const res = await getHandler()({ request: makeRequest({ key: "k" }) });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      tenantId: "org_1",
+      keyId: "ak_obj",
+      allowedOrigins: ["https://app.example.com"],
+    });
+  });
+
+  it("returns allowedOrigins when metadata is a JSON string", async () => {
+    // better-auth may hand the raw text column straight through when the
+    // payload didn't round-trip via its serializer.
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: {
+        id: "ak_str",
+        referenceId: "org_2",
+        metadata: JSON.stringify({
+          allowedOrigins: ["https://a.example", "https://b.example"],
+        }),
+      },
+    });
+    const res = await getHandler()({ request: makeRequest({ key: "k" }) });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      tenantId: "org_2",
+      keyId: "ak_str",
+      allowedOrigins: ["https://a.example", "https://b.example"],
+    });
+  });
+
+  it("returns empty allowedOrigins when metadata is malformed JSON", async () => {
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: {
+        id: "ak_bad",
+        referenceId: "org_3",
+        metadata: "{not-json",
+      },
+    });
+    const res = await getHandler()({ request: makeRequest({ key: "k" }) });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      tenantId: "org_3",
+      keyId: "ak_bad",
+      allowedOrigins: [],
     });
   });
 });

@@ -13,7 +13,11 @@ import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { toast } from "sonner";
 import { formatDate } from "@/components/users-management/format-date";
-import { type IngestKey, useRevokeIngestKey } from "./queries";
+import {
+  type IngestKey,
+  readAllowedOrigins,
+  useRevokeIngestKey,
+} from "./queries";
 
 interface IngestKeysTableProps {
   keys: IngestKey[];
@@ -56,6 +60,24 @@ export function IngestKeysTable({ keys }: IngestKeysTableProps) {
     {
       header: "Expires",
       cell: (row) => dimmedDate(row.expiresAt as unknown as string | null),
+    },
+    {
+      header: "Allowed origins",
+      cell: (row) => {
+        const origins = readAllowedOrigins(row);
+        if (origins.length === 0) {
+          return <span className="text-muted-foreground">Any origin</span>;
+        }
+        return (
+          <div className="flex flex-col gap-0.5">
+            {origins.map((origin) => (
+              <code key={origin} className="text-xs">
+                {origin}
+              </code>
+            ))}
+          </div>
+        );
+      },
     },
     {
       header: "Last used",

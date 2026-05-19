@@ -62,6 +62,13 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 						"endpoint": cfg.OTLPListenAddress,
 						"cors": map[string]any{
 							"allowed_origins": []any{"*"},
+							// Browsers won't include Authorization on the
+							// actual request unless we declare it allowed on
+							// the preflight response.
+							"allowed_headers": []any{
+								"Authorization",
+								"Content-Type",
+							},
 						},
 					},
 				},

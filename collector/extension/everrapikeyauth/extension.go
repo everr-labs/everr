@@ -21,15 +21,17 @@ import (
 
 // Errors returned by Authenticate.
 var (
-	errMissingAuth   = errors.New("missing authorization header")
-	errInvalidScheme = errors.New("authorization scheme must be Bearer")
-	errUnauthorized  = errors.New("unauthorized")
+	errMissingAuth      = errors.New("missing authorization header")
+	errInvalidScheme    = errors.New("authorization scheme must be Bearer")
+	errUnauthorized     = errors.New("unauthorized")
+	errOriginNotAllowed = errors.New("origin not allowed for this key")
 )
 
 // verifyResponse mirrors VerifyKeyResponse on the app side.
 type verifyResponse struct {
-	TenantID string `json:"tenantId"`
-	KeyID    string `json:"keyId"`
+	TenantID       string   `json:"tenantId"`
+	KeyID          string   `json:"keyId"`
+	AllowedOrigins []string `json:"allowedOrigins"`
 }
 
 type ext struct {
@@ -94,9 +96,54 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 		return ctx, err
 	}
 
+	if len(res.allowedOrigins) > 0 {
+		origin := headerValue(headers, "Origin")
+		if !originAllowed(origin, res.allowedOrigins) {
+			e.logger.Debug(
+				"rejecting request from disallowed origin",
+				zap.String("key_id", res.keyID),
+				zap.String("origin", origin),
+			)
+			return ctx, errOriginNotAllowed
+		}
+	}
+
 	cl := client.FromContext(ctx)
 	cl.Auth = authData{tenantID: res.tenantID, keyID: res.keyID}
 	return client.NewContext(ctx, cl), nil
+}
+
+// headerValue returns the first non-empty value for name from headers,
+// probing both lowercase (gRPC) and canonical (net/http) shapes before
+// falling back to a case-insensitive scan.
+func headerValue(headers map[string][]string, name string) string {
+	canonical := http.CanonicalHeaderKey(name)
+	if v := firstNonEmpty(headers[strings.ToLower(name)], headers[canonical]); v != "" {
+		return v
+	}
+	for k, v := range headers {
+		if len(v) > 0 && v[0] != "" && strings.EqualFold(k, name) {
+			return v[0]
+		}
+	}
+	return ""
+}
+
+// originAllowed reports whether origin matches any entry in allowed.
+// Matching is exact and case-sensitive on scheme+host (browsers send the
+// Origin header verbatim from the document origin), with the trailing slash
+// stripped if present.
+func originAllowed(origin string, allowed []string) bool {
+	if origin == "" {
+		return false
+	}
+	normalized := strings.TrimSuffix(origin, "/")
+	for _, a := range allowed {
+		if strings.TrimSuffix(a, "/") == normalized {
+			return true
+		}
+	}
+	return false
 }
 
 func bearerFrom(headers map[string][]string) (string, error) {
@@ -222,7 +269,11 @@ func (e *ext) verify(ctx context.Context, token string) (*authResult, error) {
 			zap.String("key_id", vr.KeyID),
 			zap.String("tenant_id", vr.TenantID),
 		)
-		return &authResult{tenantID: vr.TenantID, keyID: vr.KeyID}, nil
+		return &authResult{
+			tenantID:       vr.TenantID,
+			keyID:          vr.KeyID,
+			allowedOrigins: vr.AllowedOrigins,
+		}, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		e.logger.Debug("verify endpoint rejected key")
 		return nil, errUnauthorized

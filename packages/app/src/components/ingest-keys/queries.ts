@@ -61,20 +61,46 @@ export function ingestKeysQueryOptions() {
   });
 }
 
+export function readAllowedOrigins(key: IngestKey): string[] {
+  const raw = (key as { metadata?: unknown }).metadata;
+  let parsed: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  const origins = (parsed as { allowedOrigins?: unknown }).allowedOrigins;
+  if (!Array.isArray(origins)) return [];
+  return origins.filter(
+    (v): v is string => typeof v === "string" && v.length > 0,
+  );
+}
+
 export function useCreateIngestKey() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { name: string; expiresInDays?: number }) => {
+    mutationFn: async (vars: {
+      name: string;
+      expiresInDays?: number;
+      allowedOrigins?: string[];
+    }) => {
       const expiresIn =
         vars.expiresInDays && vars.expiresInDays > 0
           ? vars.expiresInDays * 24 * 60 * 60
           : undefined;
       const organizationId = await getActiveOrgId();
+      const origins = (vars.allowedOrigins ?? []).filter((o) => o.length > 0);
       const res = await authClient.apiKey.create({
         configId: INGEST_CONFIG_ID,
         organizationId,
         name: vars.name,
         ...(expiresIn !== undefined ? { expiresIn } : {}),
+        ...(origins.length > 0
+          ? { metadata: { allowedOrigins: origins } }
+          : {}),
       });
       if (res.error)
         throw new Error(res.error.message ?? "Failed to create ingest key");

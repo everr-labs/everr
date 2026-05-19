@@ -10,15 +10,48 @@ import {
 } from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { Textarea } from "@everr/ui/components/textarea";
 import { Check, Copy, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCreateIngestKey } from "./queries";
 
+function parseOrigins(raw: string): {
+  origins: string[];
+  invalid: string[];
+} {
+  const tokens = raw
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const origins: string[] = [];
+  const invalid: string[] = [];
+  for (const token of tokens) {
+    let url: URL;
+    try {
+      url = new URL(token);
+    } catch {
+      invalid.push(token);
+      continue;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      invalid.push(token);
+      continue;
+    }
+    if ((url.pathname && url.pathname !== "/") || url.search || url.hash) {
+      invalid.push(token);
+      continue;
+    }
+    origins.push(`${url.protocol}//${url.host}`);
+  }
+  return { origins, invalid };
+}
+
 export function CreateIngestKeyDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [expiresInDays, setExpiresInDays] = useState<string>("");
+  const [originsInput, setOriginsInput] = useState("");
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const create = useCreateIngestKey();
@@ -26,6 +59,7 @@ export function CreateIngestKeyDialog() {
   const reset = () => {
     setName("");
     setExpiresInDays("");
+    setOriginsInput("");
     setIssuedKey(null);
     setCopied(false);
   };
@@ -41,8 +75,15 @@ export function CreateIngestKeyDialog() {
     const trimmed = name.trim();
     if (!trimmed) return;
     const days = expiresInDays.trim() ? Number(expiresInDays) : undefined;
+    const { origins, invalid } = parseOrigins(originsInput);
+    if (invalid.length > 0) {
+      toast.error(
+        `Invalid origin(s): ${invalid.join(", ")}. Use http(s)://host[:port] with no path.`,
+      );
+      return;
+    }
     create.mutate(
-      { name: trimmed, expiresInDays: days },
+      { name: trimmed, expiresInDays: days, allowedOrigins: origins },
       {
         onSuccess: (data) => {
           const key = (data as { key?: string } | null)?.key ?? null;
@@ -134,6 +175,22 @@ export function CreateIngestKeyDialog() {
                   onChange={(e) => setExpiresInDays(e.target.value)}
                   placeholder="never"
                 />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ingest-key-origins">
+                  Allowed origins (optional)
+                </Label>
+                <Textarea
+                  id="ingest-key-origins"
+                  value={originsInput}
+                  onChange={(e) => setOriginsInput(e.target.value)}
+                  placeholder="https://app.example.com, https://staging.example.com"
+                  rows={2}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma- or space-separated. Leave empty to accept any origin.
+                  Server-to-server clients can ignore this.
+                </p>
               </div>
             </div>
             <DialogFooter>

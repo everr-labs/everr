@@ -8,7 +8,23 @@ export const INGEST_CONFIG_ID = "ingest";
 export type VerifyKeyResponse = {
   tenantId: string;
   keyId: string;
+  allowedOrigins: string[];
 };
+
+function parseAllowedOrigins(metadata: unknown): string[] {
+  let parsed: unknown = metadata;
+  if (typeof metadata === "string") {
+    try {
+      parsed = JSON.parse(metadata);
+    } catch {
+      return [];
+    }
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  const raw = (parsed as { allowedOrigins?: unknown }).allowedOrigins;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((v): v is string => typeof v === "string" && v.length > 0);
+}
 
 function secretMatches(provided: string | null): boolean {
   if (!provided) return false;
@@ -47,6 +63,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         const payload: VerifyKeyResponse = {
           tenantId: result.key.referenceId,
           keyId: result.key.id,
+          allowedOrigins: parseAllowedOrigins(result.key.metadata),
         };
 
         return Response.json(payload);

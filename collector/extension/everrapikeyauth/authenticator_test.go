@@ -227,3 +227,105 @@ func TestExtension_TimeoutWiring(t *testing.T) {
 		t.Fatalf("got %v", e.httpClient.Timeout)
 	}
 }
+
+// originHeaders augments authHeaders with an Origin entry. Uses a deliberately
+// non-canonical key shape on alternating cases so the header probe is
+// exercised both ways.
+func originHeaders(token, origin, headerName string) map[string][]string {
+	return map[string][]string{
+		"Authorization": {"Bearer " + token},
+		headerName:      {origin},
+	}
+}
+
+func TestAuthenticate_OriginAllowed(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{
+			TenantID:       "org_1",
+			KeyID:          "ak_1",
+			AllowedOrigins: []string{"https://app.example.com"},
+		})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	if _, err := e.Authenticate(
+		context.Background(),
+		originHeaders("good", "https://app.example.com", "Origin"),
+	); err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+}
+
+func TestAuthenticate_OriginRejected(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{
+			TenantID:       "org_1",
+			KeyID:          "ak_1",
+			AllowedOrigins: []string{"https://app.example.com"},
+		})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	_, err := e.Authenticate(
+		context.Background(),
+		originHeaders("good", "https://attacker.example", "Origin"),
+	)
+	if err == nil {
+		t.Fatal("expected origin rejection")
+	}
+}
+
+func TestAuthenticate_OriginMissingWithAllowList(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{
+			TenantID:       "org_1",
+			KeyID:          "ak_1",
+			AllowedOrigins: []string{"https://app.example.com"},
+		})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	_, err := e.Authenticate(context.Background(), authHeaders("good"))
+	if err == nil {
+		t.Fatal("expected rejection when Origin is missing but allow list is non-empty")
+	}
+}
+
+func TestAuthenticate_OriginIgnoredWhenAllowListEmpty(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	// Any origin should pass when the key has no allow list (backward compat).
+	if _, err := e.Authenticate(
+		context.Background(),
+		originHeaders("good", "https://anywhere.example", "Origin"),
+	); err != nil {
+		t.Fatalf("expected success with empty allow list, got %v", err)
+	}
+}
+
+func TestAuthenticate_OriginHeaderCaseInsensitive(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{
+			TenantID:       "org_1",
+			KeyID:          "ak_1",
+			AllowedOrigins: []string{"https://app.example.com"},
+		})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	// Lowercase "origin" — gRPC shape.
+	if _, err := e.Authenticate(
+		context.Background(),
+		originHeaders("good", "https://app.example.com", "origin"),
+	); err != nil {
+		t.Fatalf("expected success with lowercase header, got %v", err)
+	}
+}
