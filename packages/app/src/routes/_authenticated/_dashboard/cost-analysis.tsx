@@ -145,6 +145,7 @@ function CostAnalysisPage() {
 
         <TimeRangePanel
           title="Self-Hosted Minutes"
+          titleHint="Actual elapsed minutes for jobs running on self-hosted runners (no GitHub-hosted runner charges). Subset of Total Minutes."
           queries={[costOverviewOptions]}
           variant="stat"
           icon={Server}
