@@ -33,6 +33,7 @@ export type InferFactoriesData<T extends readonly unknown[]> = {
 /** Shared chrome props for all panel variants. */
 export interface PanelChromeProps {
   title?: string;
+  titleHint?: ReactNode;
   description?: string;
   variant?: "default" | "stat";
   skeleton?: ReactNode;

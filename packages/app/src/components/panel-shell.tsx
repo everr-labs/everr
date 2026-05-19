@@ -7,8 +7,13 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CircleHelp } from "lucide-react";
 import type { ReactNode } from "react";
 import type { PanelChromeProps } from "./panel-types";
 
@@ -17,8 +22,38 @@ export interface PanelShellProps extends PanelChromeProps {
   children?: ReactNode;
 }
 
+function StatTitle({
+  title,
+  titleHint,
+}: {
+  title: string;
+  titleHint?: ReactNode;
+}) {
+  if (!titleHint) return <CardDescription>{title}</CardDescription>;
+  return (
+    <CardDescription className="inline-flex items-center gap-1">
+      {title}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={`What is ${title}?`}
+            />
+          }
+        >
+          <CircleHelp className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">{titleHint}</TooltipContent>
+      </Tooltip>
+    </CardDescription>
+  );
+}
+
 export function PanelShell({
   title,
+  titleHint,
   description,
   status,
   variant = "default",
@@ -34,7 +69,7 @@ export function PanelShell({
       return (
         <Card inset={inset} className={className}>
           <CardHeader className="pb-1">
-            {title && <CardDescription>{title}</CardDescription>}
+            {title && <StatTitle title={title} titleHint={titleHint} />}
             <Skeleton className="h-9 w-24" />
           </CardHeader>
         </Card>
@@ -60,7 +95,7 @@ export function PanelShell({
       return (
         <Card inset={inset} className={className}>
           <CardHeader className="pb-1">
-            {title && <CardDescription>{title}</CardDescription>}
+            {title && <StatTitle title={title} titleHint={titleHint} />}
             <CardTitle className="text-3xl tabular-nums">--</CardTitle>
           </CardHeader>
         </Card>
@@ -87,7 +122,7 @@ export function PanelShell({
       <Card inset={inset} className={cn(className)}>
         <CardHeader className="relative pb-2">
           <div className="flex items-center justify-between">
-            {title && <CardDescription>{title}</CardDescription>}
+            {title && <StatTitle title={title} titleHint={titleHint} />}
             {Icon && <Icon className="text-muted-foreground size-4" />}
           </div>
           <CardTitle className="text-3xl tabular-nums">{children}</CardTitle>

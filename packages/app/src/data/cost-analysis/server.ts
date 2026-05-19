@@ -51,7 +51,8 @@ export const getCostOverview = createAuthenticatedServerFn({
         ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
         count(*) as totalJobs,
         sum(Duration) / 1000000 as totalDurationMs,
-        sum(ceil(Duration / 60000000000.0)) as roundedMinutes
+        sum(ceil(Duration / 60000000000.0)) as roundedMinutes,
+        sum(sum(ceil(Duration / 60000000000.0))) OVER () as totalBilledMinutes
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
@@ -67,11 +68,13 @@ export const getCostOverview = createAuthenticatedServerFn({
       totalJobs: string;
       totalDurationMs: string;
       roundedMinutes: string;
+      totalBilledMinutes: string;
     }>(sql, { fromTime: fromISO, toTime: toISO });
 
     const summary: CostSummary = {
       totalCost: 0,
       totalMinutes: 0,
+      billedMinutes: Number(rows[0]?.totalBilledMinutes ?? 0),
       totalJobs: 0,
       costByOs: [],
       selfHostedMinutes: 0,
