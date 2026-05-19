@@ -3,7 +3,7 @@ import {
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import { createFileRoute } from "@tanstack/react-router";
-import { Clock, DollarSign, Server } from "lucide-react";
+import { Clock, DollarSign, Receipt, Server } from "lucide-react";
 import { useState } from "react";
 import {
   ActionsUsageChart,
@@ -111,7 +111,7 @@ function CostAnalysisPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <TimeRangePanel
           title="Estimated Cost"
           queries={[costOverviewOptions]}
@@ -130,6 +130,15 @@ function CostAnalysisPage() {
           {(overview) =>
             Math.round(overview.summary.totalMinutes).toLocaleString()
           }
+        </TimeRangePanel>
+
+        <TimeRangePanel
+          title="Billed Minutes"
+          queries={[costOverviewOptions]}
+          variant="stat"
+          icon={Receipt}
+        >
+          {(overview) => overview.summary.billedMinutes.toLocaleString()}
         </TimeRangePanel>
 
         <TimeRangePanel

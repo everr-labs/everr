@@ -7,6 +7,7 @@ export const BREAKDOWN_OTHER_KEY = "__other__";
 export interface CostSummary {
   totalCost: number;
   totalMinutes: number;
+  billedMinutes: number;
   totalJobs: number;
   costByOs: { os: string; cost: number; jobs: number }[];
   selfHostedMinutes: number;
