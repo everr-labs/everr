@@ -2,11 +2,17 @@ import { createHmac } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
 
+// The client default of 2500ms forces a fresh TLS handshake on most queries
+// against ClickHouse Cloud (server keep-alive ~10s). Set just under the server
+// timeout so idle sockets are reused instead of reconnected.
+const clickhouseKeepAlive = { idle_socket_ttl: 8000 } as const;
+
 const clickhouse = createClient({
   url: env.CLICKHOUSE_URL,
   username: env.CLICKHOUSE_USERNAME,
   password: env.CLICKHOUSE_PASSWORD,
   database: env.CLICKHOUSE_DATABASE,
+  keep_alive: clickhouseKeepAlive,
 });
 
 export type ClickhouseQuery = <T>(
@@ -103,6 +109,7 @@ const clickhouseAdmin = createClient({
   username: env.CLICKHOUSE_ADMIN_USERNAME,
   password: env.CLICKHOUSE_ADMIN_PASSWORD,
   database: env.CLICKHOUSE_DATABASE,
+  keep_alive: clickhouseKeepAlive,
 });
 
 export async function upsertTenantRetention(row: {
