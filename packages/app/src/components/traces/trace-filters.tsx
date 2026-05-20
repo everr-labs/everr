@@ -6,7 +6,7 @@ import {
 } from "@everr/ui/components/toggle-group";
 import { cn } from "@everr/ui/lib/utils";
 import { CornerDownLeft } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { FilterCombobox } from "@/components/filter-combobox";
 import type { ServiceIdentity } from "@/data/traces/types";
 
@@ -146,10 +146,11 @@ function NameInput({
 }) {
   const id = useId();
   const [local, setLocal] = useState(value);
-
-  useEffect(() => {
+  const lastValueRef = useRef(value);
+  if (lastValueRef.current !== value) {
+    lastValueRef.current = value;
     setLocal(value);
-  }, [value]);
+  }
 
   const dirty = local !== value;
   const commit = () => {
@@ -204,11 +205,28 @@ function DurationInput({
   onCommit: (next: number | undefined) => void;
 }) {
   const id = useId();
-  const [local, setLocal] = useState(value === undefined ? "" : String(value));
+  const asString = (v: number | undefined) =>
+    v === undefined ? "" : String(v);
+  const [local, setLocal] = useState(asString(value));
+  const lastValueRef = useRef(value);
+  if (lastValueRef.current !== value) {
+    lastValueRef.current = value;
+    setLocal(asString(value));
+  }
 
-  useEffect(() => {
-    setLocal(value === undefined ? "" : String(value));
-  }, [value]);
+  const commit = () => {
+    const trimmed = local.trim();
+    if (trimmed === "") {
+      onCommit(undefined);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isInteger(parsed) && parsed >= 0) {
+      onCommit(parsed);
+    } else {
+      setLocal(asString(value));
+    }
+  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -223,19 +241,15 @@ function DurationInput({
         placeholder="—"
         value={local}
         onChange={(e) => setLocal(e.target.value)}
-        onBlur={() => {
-          const trimmed = local.trim();
-          if (trimmed === "") {
-            onCommit(undefined);
-            return;
-          }
-          const parsed = Number(trimmed);
-          if (Number.isInteger(parsed) && parsed >= 0) {
-            onCommit(parsed);
-          } else {
-            setLocal(value === undefined ? "" : String(value));
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            setLocal(asString(value));
           }
         }}
+        onBlur={commit}
         className="w-24"
       />
     </div>
