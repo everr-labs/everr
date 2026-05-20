@@ -82,7 +82,6 @@ function TraceRow({
       params={{ traceId: row.traceId }}
       search={(prev) => ({
         ...prev,
-        tab: "timeline" as const,
         start: row.startTs,
         end: addNsToCHDateTime(row.startTs, BigInt(row.durationNs)),
       })}

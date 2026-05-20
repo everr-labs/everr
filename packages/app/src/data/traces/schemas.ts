@@ -15,7 +15,6 @@ export const TraceSearchParamsSchema = TimeRangeSearchSchema.extend({
 });
 
 export const TraceDetailParamsSchema = TimeRangeSearchSchema.extend({
-  tab: z.enum(["timeline", "json"]).default("timeline"),
   span: z.string().optional(),
   start: z.string().optional(),
   end: z.string().optional(),

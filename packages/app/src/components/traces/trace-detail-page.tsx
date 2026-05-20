@@ -6,12 +6,6 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@everr/ui/components/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -20,18 +14,15 @@ import { getTraceOptions } from "@/data/traces/options";
 import type { Span } from "@/data/traces/types";
 import { computeDetailWindow } from "@/data/traces/window";
 import { formatDuration } from "@/lib/formatting";
-import { JsonView } from "./json/json-view";
 import { serviceColor } from "./shared/service-color";
 import { TimelineView } from "./timeline/timeline-view";
 
 const route = getRouteApi("/_authenticated/_dashboard/traces/$traceId");
 
-type Tab = "timeline" | "json";
-
 export function TraceDetailPage() {
   const { traceId } = route.useParams();
   const search = route.useSearch();
-  const { tab, span: focusedSpan } = search;
+  const { span: focusedSpan } = search;
   const navigate = route.useNavigate();
 
   const detailWindow = useMemo(
@@ -81,37 +72,17 @@ export function TraceDetailPage() {
           void refetch();
         }}
       />
-      <Tabs
-        value={tab}
-        onValueChange={(next) =>
+      <TimelineView
+        key={traceId}
+        spans={spans}
+        focusedSpan={focusedSpan}
+        onSelectSpan={(spanId) =>
           navigate({
-            search: (prev) => ({ ...prev, tab: next as Tab }),
+            search: (prev) => ({ ...prev, span: spanId }),
             replace: true,
           })
         }
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        <TabsList className="mx-3 mt-1.5 shrink-0">
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="json">JSON</TabsTrigger>
-        </TabsList>
-        <TabsContent value="timeline" className="flex min-h-0 flex-1">
-          <TimelineView
-            key={traceId}
-            spans={spans}
-            focusedSpan={focusedSpan}
-            onSelectSpan={(spanId) =>
-              navigate({
-                search: (prev) => ({ ...prev, span: spanId }),
-                replace: true,
-              })
-            }
-          />
-        </TabsContent>
-        <TabsContent value="json" className="flex min-h-0 flex-1">
-          <JsonView spans={spans} />
-        </TabsContent>
-      </Tabs>
+      />
     </div>
   );
 }
