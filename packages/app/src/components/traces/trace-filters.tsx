@@ -4,6 +4,8 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
+import { cn } from "@everr/ui/lib/utils";
+import { CornerDownLeft } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { FilterCombobox } from "@/components/filter-combobox";
 import type { ServiceIdentity } from "@/data/traces/types";
@@ -24,8 +26,6 @@ type TraceFiltersProps = {
   identities: ServiceIdentity[];
   onChange: (patch: Partial<FilterValue>) => void;
 };
-
-const NAME_DEBOUNCE_MS = 250;
 
 export function TraceFilters({
   value,
@@ -80,10 +80,7 @@ export function TraceFilters({
         placeholder="All"
         searchPlaceholder="Search services..."
       />
-      <DebouncedNameInput
-        value={value.name}
-        onCommit={(name) => onChange({ name })}
-      />
+      <NameInput value={value.name} onCommit={(name) => onChange({ name })} />
       <DurationInput
         label="Min ms"
         value={value.minMs}
@@ -140,7 +137,7 @@ export function TraceFilters({
   );
 }
 
-function DebouncedNameInput({
+function NameInput({
   value,
   onCommit,
 }: {
@@ -154,25 +151,45 @@ function DebouncedNameInput({
     setLocal(value);
   }, [value]);
 
-  useEffect(() => {
-    if (local === value) return;
-    const handle = setTimeout(() => onCommit(local), NAME_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [local, value, onCommit]);
+  const dirty = local !== value;
+  const commit = () => {
+    if (dirty) onCommit(local);
+  };
 
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={id} className="text-muted-foreground text-xs">
         Name
       </Label>
-      <Input
-        id={id}
-        type="text"
-        placeholder="Span name contains..."
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        className="w-56"
-      />
+      <div className="relative w-56">
+        <Input
+          id={id}
+          type="text"
+          placeholder="Span name contains..."
+          value={local}
+          onChange={(e) => setLocal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            } else if (e.key === "Escape") {
+              setLocal(value);
+            }
+          }}
+          className={cn(dirty && "pr-8")}
+        />
+        {dirty && (
+          <button
+            type="button"
+            onClick={commit}
+            aria-label="Apply name filter"
+            title="Apply (Enter)"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded"
+          >
+            <CornerDownLeft className="size-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
