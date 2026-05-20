@@ -8,7 +8,6 @@ import {
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import { getTraceOptions } from "@/data/traces/options";
 import type { Span } from "@/data/traces/types";
@@ -65,13 +64,7 @@ export function TraceDetailPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TraceHeader
-        spans={spans}
-        traceId={traceId}
-        onRefresh={() => {
-          void refetch();
-        }}
-      />
+      <TraceHeader spans={spans} traceId={traceId} />
       <TimelineView
         key={traceId}
         spans={spans}
@@ -116,15 +109,7 @@ function computeTotalDurationNs(spans: Span[]): bigint {
   return start === undefined ? 0n : end - start;
 }
 
-function TraceHeader({
-  spans,
-  traceId,
-  onRefresh,
-}: {
-  spans: Span[];
-  traceId: string;
-  onRefresh: () => void;
-}) {
+function TraceHeader({ spans, traceId }: { spans: Span[]; traceId: string }) {
   const { root, total } = useMemo(
     () => ({ root: pickRootSpan(spans), total: computeTotalDurationNs(spans) }),
     [spans],
@@ -150,10 +135,6 @@ function TraceHeader({
         {formatDuration(Number(total), "ns")}
       </div>
       <div className="text-muted-foreground text-xs">{spans.length} spans</div>
-      <Button variant="outline" size="sm" onClick={onRefresh}>
-        <RefreshCw className="size-3.5" />
-        Refresh
-      </Button>
     </div>
   );
 }
