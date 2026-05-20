@@ -48,13 +48,15 @@ export class TracesRepository {
       );
       params.namespace = input.namespace;
     }
-    // toUInt64('') raises in ClickHouse — append only when the bound is set.
+    // durationNsRaw is the inner-aggregate alias (UInt64); the outer query
+    // exposes it as a string. Filter on the raw int to avoid a double
+    // toString → toUInt64 round-trip per row.
     if (input.minDurationNs !== undefined) {
-      havingParts.push("toUInt64(durationNs) >= {minDurationNs:UInt64}");
+      havingParts.push("durationNsRaw >= {minDurationNs:UInt64}");
       params.minDurationNs = input.minDurationNs;
     }
     if (input.maxDurationNs !== undefined) {
-      havingParts.push("toUInt64(durationNs) <= {maxDurationNs:UInt64}");
+      havingParts.push("durationNsRaw <= {maxDurationNs:UInt64}");
       params.maxDurationNs = input.maxDurationNs;
     }
     if (input.status === "ok" || input.status === "error") {
@@ -71,34 +73,46 @@ export class TracesRepository {
     // Root election: argMinIf returns the column default ('') when no row
     // matches, not NULL — gate on countIf(ParentSpanId = '') > 0.
     const sql = /* sql */ `
-      SELECT
-        TraceId AS traceId,
-        if(countIf(ParentSpanId = '') > 0,
-           argMinIf(SpanName,    (Timestamp, SpanId), ParentSpanId = ''),
-           argMin  (SpanName,    (Timestamp, SpanId))) AS rootName,
-        if(countIf(ParentSpanId = '') > 0,
-           argMinIf(ServiceName, (Timestamp, SpanId), ParentSpanId = ''),
-           argMin  (ServiceName, (Timestamp, SpanId))) AS rootService,
-        if(countIf(ParentSpanId = '') > 0,
-           argMinIf(ResourceAttributes['service.namespace'], (Timestamp, SpanId), ParentSpanId = ''),
-           argMin  (ResourceAttributes['service.namespace'], (Timestamp, SpanId))) AS rootNamespace,
-        if(countIf(ParentSpanId = '') > 0,
-           argMinIf(StatusCode,  (Timestamp, SpanId), ParentSpanId = ''),
-           argMin  (StatusCode,  (Timestamp, SpanId))) AS rootStatus,
-        toString(min(Timestamp)) AS startTs,
-        toString(
+      WITH aggregated AS (
+        SELECT
+          TraceId,
+          if(countIf(ParentSpanId = '') > 0,
+             argMinIf(SpanName,    (Timestamp, SpanId), ParentSpanId = ''),
+             argMin  (SpanName,    (Timestamp, SpanId))) AS rootName,
+          if(countIf(ParentSpanId = '') > 0,
+             argMinIf(ServiceName, (Timestamp, SpanId), ParentSpanId = ''),
+             argMin  (ServiceName, (Timestamp, SpanId))) AS rootService,
+          if(countIf(ParentSpanId = '') > 0,
+             argMinIf(ResourceAttributes['service.namespace'], (Timestamp, SpanId), ParentSpanId = ''),
+             argMin  (ResourceAttributes['service.namespace'], (Timestamp, SpanId))) AS rootNamespace,
+          if(countIf(ParentSpanId = '') > 0,
+             argMinIf(StatusCode,  (Timestamp, SpanId), ParentSpanId = ''),
+             argMin  (StatusCode,  (Timestamp, SpanId))) AS rootStatus,
+          min(Timestamp) AS startTsRaw,
           toUInt64(dateDiff('nanosecond', min(Timestamp),
-                            max(addNanoseconds(Timestamp, Duration))))
-        ) AS durationNs,
-        toUInt32(count())                       AS spanCount,
-        toUInt32(countIf(StatusCode = 'Error')) AS errorCount,
-        groupUniqArray(ServiceName)             AS services
-      FROM app.traces
-      WHERE Timestamp BETWEEN {fromTs:DateTime64(9)} AND {toTs:DateTime64(9)}
-      GROUP BY TraceId
-      ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
-      ORDER BY startTs DESC
-      LIMIT {limit:UInt32}
+                            max(addNanoseconds(Timestamp, Duration)))) AS durationNsRaw,
+          toUInt32(count())                       AS spanCount,
+          toUInt32(countIf(StatusCode = 'Error')) AS errorCount,
+          groupUniqArray(ServiceName)             AS services
+        FROM app.traces
+        WHERE Timestamp BETWEEN {fromTs:DateTime64(9)} AND {toTs:DateTime64(9)}
+        GROUP BY TraceId
+        ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
+        ORDER BY startTsRaw DESC
+        LIMIT {limit:UInt32}
+      )
+      SELECT
+        TraceId             AS traceId,
+        rootName,
+        rootService,
+        rootNamespace,
+        rootStatus,
+        toString(startTsRaw)    AS startTs,
+        toString(durationNsRaw) AS durationNs,
+        spanCount,
+        errorCount,
+        services
+      FROM aggregated
     `;
     return this.query<TraceSummary>(sql, params);
   }
