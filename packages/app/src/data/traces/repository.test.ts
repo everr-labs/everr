@@ -66,8 +66,8 @@ describe("TracesRepository.search", () => {
 
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("HAVING");
-    expect(sql).toContain("toUInt64(durationNs) >= {minDurationNs:UInt64}");
-    expect(sql).not.toContain("toUInt64(durationNs) <= {maxDurationNs:UInt64}");
+    expect(sql).toContain("durationNsRaw >= {minDurationNs:UInt64}");
+    expect(sql).not.toContain("durationNsRaw <= {maxDurationNs:UInt64}");
     expect(sql).toContain("rootStatus = {status:String}");
     expect(params).toMatchObject({ minDurationNs: "1000", status: "Error" });
   });
