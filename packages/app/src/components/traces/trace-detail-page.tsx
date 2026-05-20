@@ -12,7 +12,6 @@ import { useMemo } from "react";
 import { getTraceOptions } from "@/data/traces/options";
 import type { Span } from "@/data/traces/types";
 import { computeDetailWindow } from "@/data/traces/window";
-import { formatDuration } from "@/lib/formatting";
 import { serviceColor } from "./shared/service-color";
 import { TimelineView } from "./timeline/timeline-view";
 
@@ -97,23 +96,8 @@ function pickRootSpan(spans: Span[]): Span {
   return root;
 }
 
-function computeTotalDurationNs(spans: Span[]): bigint {
-  let start: bigint | undefined;
-  let end = 0n;
-  for (const s of spans) {
-    const t = BigInt(s.timestampNs);
-    const e = t + BigInt(s.duration);
-    if (start === undefined || t < start) start = t;
-    if (e > end) end = e;
-  }
-  return start === undefined ? 0n : end - start;
-}
-
 function TraceHeader({ spans, traceId }: { spans: Span[]; traceId: string }) {
-  const { root, total } = useMemo(
-    () => ({ root: pickRootSpan(spans), total: computeTotalDurationNs(spans) }),
-    [spans],
-  );
+  const root = useMemo(() => pickRootSpan(spans), [spans]);
   return (
     <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
       <span
@@ -131,10 +115,6 @@ function TraceHeader({ spans, traceId }: { spans: Span[]; traceId: string }) {
           {root.serviceName} · {traceId}
         </div>
       </div>
-      <div className="text-muted-foreground text-xs tabular-nums">
-        {formatDuration(Number(total), "ns")}
-      </div>
-      <div className="text-muted-foreground text-xs">{spans.length} spans</div>
     </div>
   );
 }
