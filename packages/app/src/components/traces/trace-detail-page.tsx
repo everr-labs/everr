@@ -140,7 +140,7 @@ function TraceHeader({
           ),
         }}
       />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 max-w-2xl flex-1">
         <div className="truncate font-medium">{root.spanName}</div>
         <div className="text-muted-foreground truncate text-xs">
           {root.serviceName} · {traceId}
