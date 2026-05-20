@@ -24,8 +24,8 @@ export type TraceSearchParams = z.infer<typeof TraceSearchParamsSchema>;
 export type TraceDetailParams = z.infer<typeof TraceDetailParamsSchema>;
 
 export const SearchTracesInputSchema = z.object({
-  fromTs: z.string(),
-  toTs: z.string(),
+  fromTs: z.string().min(1),
+  toTs: z.string().min(1),
   namespace: z.array(z.string()).default([]),
   service: z.array(z.string()).default([]),
   name: z.string().default(""),
@@ -38,14 +38,14 @@ export type SearchTracesInput = z.infer<typeof SearchTracesInputSchema>;
 
 export const GetTraceInputSchema = z.object({
   traceId: z.string().min(1),
-  fromTs: z.string(),
-  toTs: z.string(),
+  fromTs: z.string().min(1),
+  toTs: z.string().min(1),
 });
 export type GetTraceInput = z.infer<typeof GetTraceInputSchema>;
 
 export const ListServiceIdentitiesInputSchema = z.object({
-  fromTs: z.string(),
-  toTs: z.string(),
+  fromTs: z.string().min(1),
+  toTs: z.string().min(1),
 });
 export type ListServiceIdentitiesInput = z.infer<
   typeof ListServiceIdentitiesInputSchema
