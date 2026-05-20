@@ -54,6 +54,7 @@ export function TracesSearchPage() {
       />
       <TraceResultsList
         query={tracesQuery}
+        limit={search.limit}
         onLoadMore={() =>
           navigate({
             search: (prev) => ({

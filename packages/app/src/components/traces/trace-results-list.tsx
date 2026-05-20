@@ -21,11 +21,17 @@ const SKELETON_DELAY_MS = 1000;
 
 type Props = {
   query: UseQueryResult<TraceSummary[]>;
+  limit: number;
   onLoadMore: () => void;
   onClearFilters: () => void;
 };
 
-export function TraceResultsList({ query, onLoadMore, onClearFilters }: Props) {
+export function TraceResultsList({
+  query,
+  limit,
+  onLoadMore,
+  onClearFilters,
+}: Props) {
   const rows = query.data ?? [];
   const maxDuration = useMemo(() => {
     let max = 0n;
@@ -50,6 +56,7 @@ export function TraceResultsList({ query, onLoadMore, onClearFilters }: Props) {
     return <EmptyState onClearFilters={onClearFilters} />;
   }
 
+  const hasMore = rows.length >= limit;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Virtuoso
@@ -59,16 +66,18 @@ export function TraceResultsList({ query, onLoadMore, onClearFilters }: Props) {
           <TraceRow row={row} maxDuration={maxDuration} />
         )}
       />
-      <div className="flex justify-center border-t py-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground text-xs"
-          onClick={onLoadMore}
-        >
-          Load more
-        </Button>
-      </div>
+      {hasMore && (
+        <div className="flex justify-center border-t py-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground text-xs"
+            onClick={onLoadMore}
+          >
+            Load more
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

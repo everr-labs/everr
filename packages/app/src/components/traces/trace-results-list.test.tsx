@@ -81,6 +81,7 @@ describe("TraceResultsList", () => {
     render(
       <TraceResultsList
         query={queryResult(rows)}
+        limit={50}
         onLoadMore={() => {}}
         onClearFilters={() => {}}
       />,
@@ -100,6 +101,7 @@ describe("TraceResultsList", () => {
     const { container } = render(
       <TraceResultsList
         query={queryResult(rows)}
+        limit={50}
         onLoadMore={() => {}}
         onClearFilters={() => {}}
       />,
@@ -117,6 +119,7 @@ describe("TraceResultsList", () => {
     render(
       <TraceResultsList
         query={queryResult(rows)}
+        limit={50}
         onLoadMore={() => {}}
         onClearFilters={() => {}}
       />,
@@ -133,6 +136,7 @@ describe("TraceResultsList", () => {
     render(
       <TraceResultsList
         query={queryResult([])}
+        limit={50}
         onLoadMore={() => {}}
         onClearFilters={onClearFilters}
       />,
