@@ -59,9 +59,14 @@ export class TracesRepository {
       havingParts.push("durationNsRaw <= {maxDurationNs:UInt64}");
       params.maxDurationNs = input.maxDurationNs;
     }
-    if (input.status === "ok" || input.status === "error") {
-      havingParts.push("rootStatus = {status:String}");
-      params.status = input.status === "error" ? "Error" : "Ok";
+    // Span-level, matching the rest of the filters: 'error' = trace contains
+    // at least one Error span; 'ok' = trace contains zero Error spans (Ok or
+    // Unset everywhere). Filtering on the root span alone hides traces whose
+    // failure lives in a child.
+    if (input.status === "error") {
+      havingParts.push("countIf(StatusCode = 'Error') > 0");
+    } else if (input.status === "ok") {
+      havingParts.push("countIf(StatusCode = 'Error') = 0");
     }
 
     // Single-pass: aggregate every in-window trace, HAVING gates inclusion

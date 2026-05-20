@@ -68,8 +68,8 @@ describe("TracesRepository.search", () => {
     expect(sql).toContain("HAVING");
     expect(sql).toContain("durationNsRaw >= {minDurationNs:UInt64}");
     expect(sql).not.toContain("durationNsRaw <= {maxDurationNs:UInt64}");
-    expect(sql).toContain("rootStatus = {status:String}");
-    expect(params).toMatchObject({ minDurationNs: "1000", status: "Error" });
+    expect(sql).toContain("countIf(StatusCode = 'Error') > 0");
+    expect(params).toMatchObject({ minDurationNs: "1000" });
   });
 
   it("propagates query errors", async () => {
