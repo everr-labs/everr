@@ -235,9 +235,9 @@ function DurationInput({
       </Label>
       <Input
         id={id}
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={0}
+        pattern="\d*"
         placeholder="—"
         value={local}
         onChange={(e) => setLocal(e.target.value)}
