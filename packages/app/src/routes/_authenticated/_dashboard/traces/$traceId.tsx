@@ -17,17 +17,18 @@ export const Route = createFileRoute(
     to: search.to,
     refresh: search.refresh,
   }),
-  loader: ({ context: { queryClient }, params, deps }) =>
-    queryClient.ensureQueryData(
+  loader: async ({ context: { queryClient }, params, deps }) => {
+    await queryClient.ensureQueryData(
       getTraceOptions({
         traceId: params.traceId,
         window: computeDetailWindow({
           start: deps.start,
           end: deps.end,
-          timeRange: { from: deps.from ?? "", to: deps.to ?? "" },
+          timeRange: { from: deps.from, to: deps.to },
         }),
         refresh: deps.refresh ?? "",
       }),
-    ),
+    );
+  },
   component: TraceDetailPage,
 });

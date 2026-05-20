@@ -83,7 +83,11 @@ export function getTraceOptions(input: GetTraceOptionsInput) {
   });
 }
 
-export function listServiceIdentitiesOptions(timeRange: TimeRange) {
+export function listServiceIdentitiesOptions(
+  timeRange: TimeRange,
+  refresh: string,
+) {
+  const refreshMs = getRefreshIntervalMs(refresh);
   return queryOptions({
     queryKey: ["traces", "service-identities", timeRange] as const,
     queryFn: async () => {
@@ -95,5 +99,6 @@ export function listServiceIdentitiesOptions(timeRange: TimeRange) {
         },
       });
     },
+    refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
 }

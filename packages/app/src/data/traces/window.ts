@@ -16,10 +16,9 @@ export function computeDetailWindow(input: {
   timeRange: { from: string | undefined; to: string | undefined };
 }): DetailWindow {
   if (input.start && input.end) {
-    return {
-      fromTs: shiftCHDateTime(input.start, -HOUR_MS),
-      toTs: shiftCHDateTime(input.end, HOUR_MS),
-    };
+    const fromTs = shiftCHDateTime(input.start, -HOUR_MS);
+    const toTs = shiftCHDateTime(input.end, HOUR_MS);
+    if (fromTs && toTs) return { fromTs, toTs };
   }
   const range: TimeRange = {
     from: input.timeRange.from || DEFAULT_TIME_RANGE.from,
@@ -33,10 +32,11 @@ export function computeDetailWindow(input: {
 }
 
 export function addNsToCHDateTime(ts: string, ns: bigint): string {
-  return shiftCHDateTime(ts, Number(ns / 1_000_000n));
+  return shiftCHDateTime(ts, Number(ns / 1_000_000n)) ?? ts;
 }
 
-function shiftCHDateTime(ts: string, ms: number): string {
-  const date = parseTimestampAsUTC(ts) ?? new Date(NaN);
+function shiftCHDateTime(ts: string, ms: number): string | undefined {
+  const date = parseTimestampAsUTC(ts);
+  if (!date || Number.isNaN(date.getTime())) return undefined;
   return toClickHouseDateTime(new Date(date.getTime() + ms));
 }

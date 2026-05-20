@@ -212,8 +212,8 @@ function DurationInput({
             onCommit(undefined);
             return;
           }
-          const parsed = Number.parseInt(trimmed, 10);
-          if (Number.isFinite(parsed) && parsed >= 0) {
+          const parsed = Number(trimmed);
+          if (Number.isInteger(parsed) && parsed >= 0) {
             onCommit(parsed);
           } else {
             setLocal(value === undefined ? "" : String(value));

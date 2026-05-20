@@ -20,17 +20,35 @@ export class TracesRepository {
   constructor(private readonly query: Query) {}
 
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {
-    const havingParts: string[] = [];
+    const havingParts: string[] = [
+      // Span-level matching: HAVING countIf(...) > 0 means "trace has at least
+      // one matching span". Kept inside HAVING (not WHERE) so the GROUP BY sees
+      // every in-window span — otherwise summary aggregates would drop spans
+      // outside the filter.
+    ];
     const params: Record<string, unknown> = {
       fromTs: input.fromTs,
       toTs: input.toTs,
-      name: input.name,
-      service: input.service,
-      namespace: input.namespace,
       limit: input.limit,
     };
 
-    // Build HAVING in JS rather than `'' OR …`: `toUInt64('')` raises in ClickHouse.
+    if (input.name) {
+      havingParts.push(
+        "countIf(positionCaseInsensitive(SpanName, {name:String}) > 0) > 0",
+      );
+      params.name = input.name;
+    }
+    if (input.service.length > 0) {
+      havingParts.push("countIf(ServiceName IN {service:Array(String)}) > 0");
+      params.service = input.service;
+    }
+    if (input.namespace.length > 0) {
+      havingParts.push(
+        "countIf(ResourceAttributes['service.namespace'] IN {namespace:Array(String)}) > 0",
+      );
+      params.namespace = input.namespace;
+    }
+    // toUInt64('') raises in ClickHouse — append only when the bound is set.
     if (input.minDurationNs !== undefined) {
       havingParts.push("toUInt64(durationNs) >= {minDurationNs:UInt64}");
       params.minDurationNs = input.minDurationNs;
@@ -43,25 +61,16 @@ export class TracesRepository {
       havingParts.push("rootStatus = {status:String}");
       params.status = input.status === "error" ? "Error" : "Ok";
     }
-    const havingClause =
-      havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : "";
 
-    // Root election: `argMinIf` returns the column's default ('') when no row
-    // matches the predicate, not NULL — so `coalesce(argMinIf, argMin)` is
-    // wrong. Gate explicitly on `countIf(ParentSpanId = '') > 0`.
+    // Single-pass: aggregate every in-window trace, HAVING gates inclusion
+    // before LIMIT. Earlier two-pass (CTE + IN) (a) clipped the candidate set
+    // to 1000 rows before HAVING fired, hiding older matches; and (b) made the
+    // outer read use only TraceId — app.traces orders by (tenant_id,
+    // ServiceName, SpanName, toDateTime(Timestamp)), so a bare TraceId IN (…)
+    // scans broadly. Summary stats are over the in-window subset only.
+    // Root election: argMinIf returns the column default ('') when no row
+    // matches, not NULL — gate on countIf(ParentSpanId = '') > 0.
     const sql = /* sql */ `
-      WITH matching_traces AS (
-        SELECT TraceId
-        FROM app.traces
-        WHERE Timestamp BETWEEN {fromTs:DateTime64(9)} AND {toTs:DateTime64(9)}
-          AND ({name:String} = '' OR positionCaseInsensitive(SpanName, {name:String}) > 0)
-          AND (empty({service:Array(String)}) OR ServiceName IN {service:Array(String)})
-          AND (empty({namespace:Array(String)})
-               OR ResourceAttributes['service.namespace'] IN {namespace:Array(String)})
-        GROUP BY TraceId
-        ORDER BY max(Timestamp) DESC
-        LIMIT 1000
-      )
       SELECT
         TraceId AS traceId,
         if(countIf(ParentSpanId = '') > 0,
@@ -82,9 +91,9 @@ export class TracesRepository {
         toUInt32(countIf(StatusCode = 'Error')) AS errorCount,
         groupUniqArray(ServiceName)             AS services
       FROM app.traces
-      WHERE TraceId IN (SELECT TraceId FROM matching_traces)
+      WHERE Timestamp BETWEEN {fromTs:DateTime64(9)} AND {toTs:DateTime64(9)}
       GROUP BY TraceId
-      ${havingClause}
+      ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
       ORDER BY startTs DESC
       LIMIT {limit:UInt32}
     `;

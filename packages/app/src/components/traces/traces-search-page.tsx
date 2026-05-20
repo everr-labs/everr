@@ -15,11 +15,14 @@ export function TracesSearchPage() {
   const navigate = route.useNavigate();
   const { timeRange } = withTimeRange(search);
 
-  const identitiesQuery = useQuery(listServiceIdentitiesOptions(timeRange));
+  const refresh = search.refresh ?? "";
+  const identitiesQuery = useQuery(
+    listServiceIdentitiesOptions(timeRange, refresh),
+  );
   const tracesQuery = useQuery(
     tracesSearchOptions({
       timeRange,
-      refresh: search.refresh ?? "",
+      refresh,
       namespace: search.namespace,
       service: search.service,
       name: search.name,
@@ -53,7 +56,10 @@ export function TracesSearchPage() {
         query={tracesQuery}
         onLoadMore={() =>
           navigate({
-            search: (prev) => ({ ...prev, limit: (prev.limit ?? 50) + 50 }),
+            search: (prev) => ({
+              ...prev,
+              limit: Math.min((prev.limit ?? 50) + 50, 500),
+            }),
             replace: true,
           })
         }

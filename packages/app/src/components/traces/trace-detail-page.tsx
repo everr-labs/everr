@@ -39,7 +39,7 @@ export function TraceDetailPage() {
       computeDetailWindow({
         start: search.start,
         end: search.end,
-        timeRange: { from: search.from ?? "", to: search.to ?? "" },
+        timeRange: { from: search.from, to: search.to },
       }),
     [search.start, search.end, search.from, search.to],
   );
