@@ -12,9 +12,12 @@ import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "@/data/traces/types";
 import { addNsToCHDateTime } from "@/data/traces/window";
+import { useDelayedFlag } from "@/hooks/use-delayed-flag";
 import { formatDuration } from "@/lib/formatting";
 import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";
+
+const SKELETON_DELAY_MS = 1000;
 
 type Props = {
   query: UseQueryResult<TraceSummary[]>;
@@ -33,7 +36,8 @@ export function TraceResultsList({ query, onLoadMore, onClearFilters }: Props) {
     return max;
   }, [rows]);
 
-  if (query.isPending) return <ResultsSkeleton />;
+  const showSkeleton = useDelayedFlag(query.isPending, SKELETON_DELAY_MS);
+  if (query.isPending) return showSkeleton ? <ResultsSkeleton /> : null;
   if (query.isError) {
     return (
       <ErrorState

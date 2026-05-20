@@ -12,8 +12,11 @@ import { useMemo } from "react";
 import { getTraceOptions } from "@/data/traces/options";
 import type { Span } from "@/data/traces/types";
 import { computeDetailWindow } from "@/data/traces/window";
+import { useDelayedFlag } from "@/hooks/use-delayed-flag";
 import { serviceColor } from "./shared/service-color";
 import { TimelineView } from "./timeline/timeline-view";
+
+const SKELETON_DELAY_MS = 1000;
 
 const route = getRouteApi("/_authenticated/_dashboard/traces/$traceId");
 
@@ -46,7 +49,8 @@ export function TraceDetailPage() {
     }),
   );
 
-  if (isPending) return <DetailSkeleton />;
+  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
+  if (isPending) return showSkeleton ? <DetailSkeleton /> : null;
   if (error) {
     return (
       <ErrorState
