@@ -30,6 +30,7 @@ import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './routes/_authenticated/_dashboard/users-management'
+import { Route as AuthenticatedDashboardTracesRouteImport } from './routes/_authenticated/_dashboard/traces'
 import { Route as AuthenticatedDashboardTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/tests-overview'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
 import { Route as AuthenticatedDashboardReposRouteImport } from './routes/_authenticated/_dashboard/repos'
@@ -46,6 +47,7 @@ import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/githu
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
+import { Route as AuthenticatedDashboardTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/traces/$traceId'
 import { Route as AuthenticatedDashboardCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/checkout.success'
 import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
 import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
@@ -162,6 +164,12 @@ const AuthenticatedDashboardUsersManagementRoute =
     path: '/users-management',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardTracesRoute =
+  AuthenticatedDashboardTracesRouteImport.update({
+    id: '/traces',
+    path: '/traces',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardTestsOverviewRoute =
   AuthenticatedDashboardTestsOverviewRouteImport.update({
     id: '/tests-overview',
@@ -253,6 +261,12 @@ const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
   path: '/name',
   getParentRoute: () => ApiCliOrgRoute,
 } as any)
+const AuthenticatedDashboardTracesTraceIdRoute =
+  AuthenticatedDashboardTracesTraceIdRouteImport.update({
+    id: '/$traceId',
+    path: '/$traceId',
+    getParentRoute: () => AuthenticatedDashboardTracesRoute,
+  } as any)
 const AuthenticatedDashboardCheckoutSuccessRoute =
   AuthenticatedDashboardCheckoutSuccessRouteImport.update({
     id: '/checkout/success',
@@ -339,6 +353,7 @@ export interface FileRoutesByFullPath {
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
+  '/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
@@ -356,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
+  '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -385,6 +401,7 @@ export interface FileRoutesByTo {
   '/logs': typeof AuthenticatedDashboardLogsRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
+  '/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
@@ -401,6 +418,7 @@ export interface FileRoutesByTo {
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
+  '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -435,6 +453,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/repos': typeof AuthenticatedDashboardReposRoute
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/_authenticated/_dashboard/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
+  '/_authenticated/_dashboard/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
   '/_authenticated/_dashboard/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
@@ -453,6 +472,7 @@ export interface FileRoutesById {
   '/_auth/_guest/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/_auth/_guest/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/_authenticated/_dashboard/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
+  '/_authenticated/_dashboard/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -485,6 +505,7 @@ export interface FileRouteTypes {
     | '/repos'
     | '/runs'
     | '/tests-overview'
+    | '/traces'
     | '/users-management'
     | '/api/auth/$'
     | '/api/cli/import'
@@ -502,6 +523,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/checkout/success'
+    | '/traces/$traceId'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -531,6 +553,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/repos'
     | '/tests-overview'
+    | '/traces'
     | '/users-management'
     | '/api/auth/$'
     | '/api/cli/import'
@@ -547,6 +570,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/checkout/success'
+    | '/traces/$traceId'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -580,6 +604,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/repos'
     | '/_authenticated/_dashboard/runs'
     | '/_authenticated/_dashboard/tests-overview'
+    | '/_authenticated/_dashboard/traces'
     | '/_authenticated/_dashboard/users-management'
     | '/api/auth/$'
     | '/api/cli/import'
@@ -598,6 +623,7 @@ export interface FileRouteTypes {
     | '/_auth/_guest/auth/sign-in'
     | '/_auth/_guest/auth/sign-up'
     | '/_authenticated/_dashboard/checkout/success'
+    | '/_authenticated/_dashboard/traces/$traceId'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -776,6 +802,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardUsersManagementRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/_dashboard/traces': {
+      id: '/_authenticated/_dashboard/traces'
+      path: '/traces'
+      fullPath: '/traces'
+      preLoaderRoute: typeof AuthenticatedDashboardTracesRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/_dashboard/tests-overview': {
       id: '/_authenticated/_dashboard/tests-overview'
       path: '/tests-overview'
@@ -887,6 +920,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/org/name'
       preLoaderRoute: typeof ApiCliOrgNameRouteImport
       parentRoute: typeof ApiCliOrgRoute
+    }
+    '/_authenticated/_dashboard/traces/$traceId': {
+      id: '/_authenticated/_dashboard/traces/$traceId'
+      path: '/$traceId'
+      fullPath: '/traces/$traceId'
+      preLoaderRoute: typeof AuthenticatedDashboardTracesTraceIdRouteImport
+      parentRoute: typeof AuthenticatedDashboardTracesRoute
     }
     '/_authenticated/_dashboard/checkout/success': {
       id: '/_authenticated/_dashboard/checkout/success'
@@ -1046,6 +1086,21 @@ const AuthenticatedDashboardRunsRouteWithChildren =
     AuthenticatedDashboardRunsRouteChildren,
   )
 
+interface AuthenticatedDashboardTracesRouteChildren {
+  AuthenticatedDashboardTracesTraceIdRoute: typeof AuthenticatedDashboardTracesTraceIdRoute
+}
+
+const AuthenticatedDashboardTracesRouteChildren: AuthenticatedDashboardTracesRouteChildren =
+  {
+    AuthenticatedDashboardTracesTraceIdRoute:
+      AuthenticatedDashboardTracesTraceIdRoute,
+  }
+
+const AuthenticatedDashboardTracesRouteWithChildren =
+  AuthenticatedDashboardTracesRoute._addFileChildren(
+    AuthenticatedDashboardTracesRouteChildren,
+  )
+
 interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
   AuthenticatedDashboardBillingRoute: typeof AuthenticatedDashboardBillingRoute
@@ -1055,6 +1110,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardReposRoute: typeof AuthenticatedDashboardReposRoute
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
   AuthenticatedDashboardTestsOverviewRoute: typeof AuthenticatedDashboardTestsOverviewRoute
+  AuthenticatedDashboardTracesRoute: typeof AuthenticatedDashboardTracesRouteWithChildren
   AuthenticatedDashboardUsersManagementRoute: typeof AuthenticatedDashboardUsersManagementRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
@@ -1076,6 +1132,8 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardRunsRouteWithChildren,
     AuthenticatedDashboardTestsOverviewRoute:
       AuthenticatedDashboardTestsOverviewRoute,
+    AuthenticatedDashboardTracesRoute:
+      AuthenticatedDashboardTracesRouteWithChildren,
     AuthenticatedDashboardUsersManagementRoute:
       AuthenticatedDashboardUsersManagementRoute,
     AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,

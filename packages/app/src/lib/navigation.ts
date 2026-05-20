@@ -3,6 +3,7 @@ import {
   GitBranch,
   type LucideIcon,
   ScrollText,
+  Workflow,
 } from "lucide-react";
 
 export type NavItem = {
@@ -41,6 +42,11 @@ export const navMain: NavItem[] = [
     title: "Logs",
     url: "/logs",
     icon: ScrollText,
+  },
+  {
+    title: "Traces",
+    url: "/traces",
+    icon: Workflow,
   },
   {
     title: "Tests Overview",
