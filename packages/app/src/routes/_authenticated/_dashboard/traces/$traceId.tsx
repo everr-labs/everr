@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TraceDetailPage } from "@/components/traces/trace-detail-page";
+import {
+  TraceDetailError,
+  TraceDetailPage,
+} from "@/components/traces/trace-detail-page";
 import { getTraceOptions } from "@/data/traces/options";
 import { TraceDetailParamsSchema } from "@/data/traces/schemas";
 import { computeDetailWindow } from "@/data/traces/window";
@@ -31,4 +34,5 @@ export const Route = createFileRoute(
     );
   },
   component: TraceDetailPage,
+  errorComponent: TraceDetailError,
 });
