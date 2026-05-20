@@ -20,12 +20,13 @@ export class TracesRepository {
   constructor(private readonly query: Query) {}
 
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {
-    const havingParts: string[] = [
-      // Span-level matching: HAVING countIf(...) > 0 means "trace has at least
-      // one matching span". Kept inside HAVING (not WHERE) so the GROUP BY sees
-      // every in-window span — otherwise summary aggregates would drop spans
-      // outside the filter.
-    ];
+    // Row-level predicates push down to WHERE in a candidate subquery so the
+    // outer aggregate only reads spans belonging to traces with at least one
+    // matching span. Without this, span-level HAVING via countIf forces a
+    // full in-window scan + group-by on every tenant span.
+    const spanPreds: string[] = [];
+    // Aggregate-level predicates that can't be pushed to WHERE.
+    const havingParts: string[] = [];
     const params: Record<string, unknown> = {
       fromTs: input.fromTs,
       toTs: input.toTs,
@@ -33,18 +34,16 @@ export class TracesRepository {
     };
 
     if (input.name) {
-      havingParts.push(
-        "countIf(positionCaseInsensitive(SpanName, {name:String}) > 0) > 0",
-      );
+      spanPreds.push("positionCaseInsensitive(SpanName, {name:String}) > 0");
       params.name = input.name;
     }
     if (input.service.length > 0) {
-      havingParts.push("countIf(ServiceName IN {service:Array(String)}) > 0");
+      spanPreds.push("ServiceName IN {service:Array(String)}");
       params.service = input.service;
     }
     if (input.namespace.length > 0) {
-      havingParts.push(
-        "countIf(ResourceAttributes['service.namespace'] IN {namespace:Array(String)}) > 0",
+      spanPreds.push(
+        "ResourceAttributes['service.namespace'] IN {namespace:Array(String)}",
       );
       params.namespace = input.namespace;
     }
@@ -69,14 +68,22 @@ export class TracesRepository {
       havingParts.push("countIf(StatusCode = 'Error') = 0");
     }
 
-    // Single-pass: aggregate every in-window trace, HAVING gates inclusion
-    // before LIMIT. Earlier two-pass (CTE + IN) (a) clipped the candidate set
-    // to 1000 rows before HAVING fired, hiding older matches; and (b) made the
-    // outer read use only TraceId — app.traces orders by (tenant_id,
-    // ServiceName, SpanName, toDateTime(Timestamp)), so a bare TraceId IN (…)
-    // scans broadly. Summary stats are over the in-window subset only.
+    // Two-pass when span-level filters are present: the inner subquery uses
+    // WHERE to prune spans before reading, then the outer aggregates the full
+    // trace (every in-window span) for matching trace ids. Without span
+    // filters, single-pass over the time window is cheapest.
     // Root election: argMinIf returns the column default ('') when no row
     // matches, not NULL — gate on countIf(ParentSpanId = '') > 0.
+    const candidateFilter =
+      spanPreds.length > 0
+        ? `AND TraceId IN (
+            SELECT DISTINCT TraceId
+            FROM app.traces
+            WHERE Timestamp BETWEEN {fromTs:DateTime64(9)} AND {toTs:DateTime64(9)}
+              AND ${spanPreds.join(" AND ")}
+          )`
+        : "";
+
     const sql = /* sql */ `
       WITH aggregated AS (
         SELECT
@@ -101,6 +108,7 @@ export class TracesRepository {
           groupUniqArray(ServiceName)             AS services
         FROM app.traces
         WHERE Timestamp BETWEEN {fromTs:DateTime64(9)} AND {toTs:DateTime64(9)}
+          ${candidateFilter}
         GROUP BY TraceId
         ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
         ORDER BY startTsRaw DESC
