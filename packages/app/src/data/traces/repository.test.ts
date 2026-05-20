@@ -18,6 +18,7 @@ describe("TracesRepository.search", () => {
       traceId: "t1",
       rootName: "GET /home",
       rootService: "web",
+      rootNamespace: "",
       rootStatus: "Ok",
       startTs: "2026-05-20 12:00:00.000",
       durationNs: "1500000",

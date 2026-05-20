@@ -90,7 +90,7 @@ function TraceRow({
       <span
         className="h-2 w-2 shrink-0 rounded-full"
         style={{
-          backgroundColor: serviceColor("", row.rootService),
+          backgroundColor: serviceColor(row.rootNamespace, row.rootService),
         }}
       />
       <div className="min-w-0 flex-1">

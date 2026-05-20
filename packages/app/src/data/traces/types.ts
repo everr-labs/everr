@@ -4,6 +4,7 @@ export type TraceSummary = {
   traceId: string;
   rootName: string;
   rootService: string;
+  rootNamespace: string;
   rootStatus: SpanStatus;
   startTs: string;
   durationNs: string;
