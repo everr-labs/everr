@@ -1,7 +1,7 @@
 import { Button } from "@everr/ui/components/button";
 import { X } from "lucide-react";
 import type { Span } from "@/data/traces/types";
-import { formatDurationNs } from "../shared/format-duration";
+import { formatDuration } from "@/lib/formatting";
 
 type Props = {
   span: Span;
@@ -43,8 +43,14 @@ export function SpanDetailPanel({ span, traceStartNs, onClose }: Props) {
 
         <Section title="Timing">
           <Row label="Start" value={span.timestamp} />
-          <Row label="Relative" value={`+${formatDurationNs(relativeNs)}`} />
-          <Row label="Duration" value={formatDurationNs(span.duration)} />
+          <Row
+            label="Relative"
+            value={`+${formatDuration(Number(relativeNs), "ns")}`}
+          />
+          <Row
+            label="Duration"
+            value={formatDuration(Number(span.duration), "ns")}
+          />
         </Section>
 
         <AttributeSection

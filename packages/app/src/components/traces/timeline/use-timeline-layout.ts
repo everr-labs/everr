@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Span } from "@/data/traces/types";
 
 export type TimelineRow = {
@@ -25,8 +25,6 @@ export function useTimelineLayout(spans: Span[]) {
     const knownIds = new Set<string>();
     for (const s of spans) {
       knownIds.add(s.spanId);
-    }
-    for (const s of spans) {
       const arr = byParent.get(s.parentSpanId) ?? [];
       arr.push(s);
       byParent.set(s.parentSpanId, arr);
@@ -92,7 +90,7 @@ export function useTimelineLayout(spans: Span[]) {
     };
   }, [spans, collapsed]);
 
-  function toggleCollapse(spanId: string) {
+  const toggleCollapse = useCallback((spanId: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(spanId)) {
@@ -102,7 +100,7 @@ export function useTimelineLayout(spans: Span[]) {
       }
       return next;
     });
-  }
+  }, []);
 
   return { ...layout, toggleCollapse };
 }

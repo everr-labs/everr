@@ -4,16 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 const useMatchMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (options: Record<string, unknown>) => options,
   Outlet: () => <div data-testid="trace-detail-outlet" />,
   useMatch: (options: unknown) => useMatchMock(options),
 }));
 
-vi.mock("@/components/traces/traces-search-page", () => ({
+vi.mock("./traces-search-page", () => ({
   TracesSearchPage: () => <div data-testid="trace-search-page" />,
 }));
 
-import { TracesRoute } from "./traces";
+import { TracesRoute } from "./traces-route";
 
 describe("traces route", () => {
   it("renders the search page on the traces index route", () => {

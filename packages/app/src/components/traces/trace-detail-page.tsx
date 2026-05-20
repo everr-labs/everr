@@ -1,12 +1,17 @@
 import { Button } from "@everr/ui/components/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@everr/ui/components/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -14,8 +19,8 @@ import { useMemo } from "react";
 import { getTraceOptions } from "@/data/traces/options";
 import type { Span } from "@/data/traces/types";
 import { computeDetailWindow } from "@/data/traces/window";
+import { formatDuration } from "@/lib/formatting";
 import { JsonView } from "./json/json-view";
-import { formatDurationNs } from "./shared/format-duration";
 import { serviceColor } from "./shared/service-color";
 import { TimelineView } from "./timeline/timeline-view";
 
@@ -29,7 +34,7 @@ export function TraceDetailPage() {
   const { tab, span: focusedSpan } = search;
   const navigate = route.useNavigate();
 
-  const window = useMemo(
+  const detailWindow = useMemo(
     () =>
       computeDetailWindow({
         start: search.start,
@@ -47,7 +52,7 @@ export function TraceDetailPage() {
   } = useQuery(
     getTraceOptions({
       traceId,
-      window,
+      window: detailWindow,
       refresh: search.refresh ?? "",
     }),
   );
@@ -55,7 +60,7 @@ export function TraceDetailPage() {
   if (isPending) return <DetailSkeleton />;
   if (error) {
     return (
-      <ErrorCard
+      <ErrorState
         message={(error as Error).message}
         onRetry={() => {
           void refetch();
@@ -76,34 +81,37 @@ export function TraceDetailPage() {
           void refetch();
         }}
       />
-      <TabsBar
-        active={tab}
-        onSelect={(next) =>
+      <Tabs
+        value={tab}
+        onValueChange={(next) =>
           navigate({
-            search: (prev) => ({ ...prev, tab: next }),
+            search: (prev) => ({ ...prev, tab: next as Tab }),
             replace: true,
           })
         }
-      />
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {tab === "timeline" ? (
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabsList className="mx-3 mt-1.5 shrink-0">
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="json">JSON</TabsTrigger>
+        </TabsList>
+        <TabsContent value="timeline" className="flex min-h-0 flex-1">
           <TimelineView
+            key={traceId}
             spans={spans}
             focusedSpan={focusedSpan}
             onSelectSpan={(spanId) =>
               navigate({
-                search: (prev) => ({
-                  ...prev,
-                  span: spanId === "" ? undefined : spanId,
-                }),
+                search: (prev) => ({ ...prev, span: spanId }),
                 replace: true,
               })
             }
           />
-        ) : (
+        </TabsContent>
+        <TabsContent value="json" className="flex min-h-0 flex-1">
           <JsonView spans={spans} />
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -146,8 +154,10 @@ function TraceHeader({
   traceId: string;
   onRefresh: () => void;
 }) {
-  const root = pickRootSpan(spans);
-  const total = computeTotalDurationNs(spans);
+  const { root, total } = useMemo(
+    () => ({ root: pickRootSpan(spans), total: computeTotalDurationNs(spans) }),
+    [spans],
+  );
   return (
     <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
       <span
@@ -166,47 +176,13 @@ function TraceHeader({
         </div>
       </div>
       <div className="text-muted-foreground text-xs tabular-nums">
-        {formatDurationNs(total)}
+        {formatDuration(Number(total), "ns")}
       </div>
       <div className="text-muted-foreground text-xs">{spans.length} spans</div>
       <Button variant="outline" size="sm" onClick={onRefresh}>
         <RefreshCw className="size-3.5" />
         Refresh
       </Button>
-    </div>
-  );
-}
-
-function TabsBar({
-  active,
-  onSelect,
-}: {
-  active: Tab;
-  onSelect: (next: Tab) => void;
-}) {
-  const tabs: { value: Tab; label: string }[] = [
-    { value: "timeline", label: "Timeline" },
-    { value: "json", label: "JSON" },
-  ];
-  return (
-    <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1.5">
-      {tabs.map((t) => {
-        const isActive = t.value === active;
-        return (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => onSelect(t.value)}
-            className={
-              isActive
-                ? "rounded-md bg-input/30 border border-input px-2 py-0.5 text-xs font-medium"
-                : "text-muted-foreground hover:text-foreground rounded-md border border-transparent px-2 py-0.5 text-xs font-medium"
-            }
-          >
-            {t.label}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -229,7 +205,7 @@ function DetailSkeleton() {
   );
 }
 
-function ErrorCard({
+function ErrorState({
   message,
   onRetry,
 }: {
@@ -237,37 +213,29 @@ function ErrorCard({
   onRetry: () => void;
 }) {
   return (
-    <div className="p-4">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-destructive">
-            Failed to load trace
-          </CardTitle>
-          <CardDescription>{message}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <Empty>
+      <EmptyHeader>
+        <EmptyTitle>Failed to load trace</EmptyTitle>
+        <EmptyDescription>{message}</EmptyDescription>
+      </EmptyHeader>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        Retry
+      </Button>
+    </Empty>
   );
 }
 
 function NotFoundState({ traceId }: { traceId: string }) {
   return (
-    <div className="p-4">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Trace not found</CardTitle>
-          <CardDescription>
-            No spans matched trace id <code className="text-xs">{traceId}</code>{" "}
-            within the queried window. The trace may have been deleted or fall
-            outside the time range.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    </div>
+    <Empty>
+      <EmptyHeader>
+        <EmptyTitle>Trace not found</EmptyTitle>
+        <EmptyDescription>
+          No spans matched trace id <code className="text-xs">{traceId}</code>{" "}
+          within the queried window. The trace may have been deleted or fall
+          outside the time range.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }

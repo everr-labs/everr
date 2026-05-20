@@ -24,9 +24,10 @@ export type TraceSearchOptionsInput = {
 const MS_TO_NS = 1_000_000n;
 
 export function tracesSearchOptions(input: TraceSearchOptionsInput) {
-  const refreshMs = getRefreshIntervalMs(input.refresh);
+  const { refresh, ...key } = input;
+  const refreshMs = getRefreshIntervalMs(refresh);
   return queryOptions({
-    queryKey: ["traces", "search", input] as const,
+    queryKey: ["traces", "search", key] as const,
     queryFn: async () => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
       return searchTraces({

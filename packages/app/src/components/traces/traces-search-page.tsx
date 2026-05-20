@@ -59,7 +59,13 @@ export function TracesSearchPage() {
         }
         onClearFilters={() =>
           navigate({
-            search: () => ({}) as never,
+            search: () => ({
+              namespace: [],
+              service: [],
+              name: "",
+              status: "all",
+              limit: 50,
+            }),
             replace: true,
           })
         }

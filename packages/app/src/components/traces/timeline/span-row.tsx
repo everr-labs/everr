@@ -1,6 +1,6 @@
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { formatDurationNs } from "../shared/format-duration";
+import { formatDuration } from "@/lib/formatting";
 import { serviceColor } from "../shared/service-color";
 import { SpanBar } from "./span-bar";
 import type { TimelineRow } from "./use-timeline-layout";
@@ -76,7 +76,7 @@ export function SpanRow({
           {span.serviceName}
         </span>
         <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-[10px] tabular-nums">
-          {formatDurationNs(span.duration)}
+          {formatDuration(Number(span.duration), "ns")}
         </span>
       </div>
       <div className="relative h-full px-2">

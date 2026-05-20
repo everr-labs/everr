@@ -1,5 +1,5 @@
-import { createFileRoute, Outlet, useMatch } from "@tanstack/react-router";
-import { TracesSearchPage } from "@/components/traces/traces-search-page";
+import { createFileRoute } from "@tanstack/react-router";
+import { TracesRoute } from "@/components/traces/traces-route";
 import { TraceSearchParamsSchema } from "@/data/traces/schemas";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/traces")({
@@ -8,12 +8,3 @@ export const Route = createFileRoute("/_authenticated/_dashboard/traces")({
   validateSearch: TraceSearchParamsSchema,
   component: TracesRoute,
 });
-
-export function TracesRoute() {
-  const traceDetailMatch = useMatch({
-    from: "/_authenticated/_dashboard/traces/$traceId",
-    shouldThrow: false,
-  });
-
-  return traceDetailMatch ? <Outlet /> : <TracesSearchPage />;
-}

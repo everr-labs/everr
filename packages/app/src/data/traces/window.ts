@@ -1,3 +1,4 @@
+import { parseTimestampAsUTC } from "@/lib/formatting";
 import {
   DEFAULT_TIME_RANGE,
   resolveTimeRange,
@@ -32,12 +33,10 @@ export function computeDetailWindow(input: {
 }
 
 export function addNsToCHDateTime(ts: string, ns: bigint): string {
-  const ms = Number(ns / 1_000_000n);
-  return shiftCHDateTime(ts, ms);
+  return shiftCHDateTime(ts, Number(ns / 1_000_000n));
 }
 
 function shiftCHDateTime(ts: string, ms: number): string {
-  // toClickHouseDateTime strips T/Z; reverse to parse, then reformat.
-  const date = new Date(`${ts.replace(" ", "T")}Z`);
+  const date = parseTimestampAsUTC(ts) ?? new Date(NaN);
   return toClickHouseDateTime(new Date(date.getTime() + ms));
 }

@@ -8,7 +8,7 @@ import { useTimelineLayout } from "./use-timeline-layout";
 type Props = {
   spans: Span[];
   focusedSpan: string | undefined;
-  onSelectSpan: (spanId: string) => void;
+  onSelectSpan: (spanId: string | undefined) => void;
 };
 
 export function TimelineView({ spans, focusedSpan, onSelectSpan }: Props) {
@@ -42,7 +42,7 @@ export function TimelineView({ spans, focusedSpan, onSelectSpan }: Props) {
         <SpanDetailPanel
           span={selected}
           traceStartNs={traceStartNs}
-          onClose={() => onSelectSpan("")}
+          onClose={() => onSelectSpan(undefined)}
         />
       )}
     </div>
