@@ -6,7 +6,7 @@ import {
   type TimeRange,
   TimeRangeSchema,
 } from "@/lib/time-range";
-import { testFullNameExpr } from "../sql-helpers";
+import { TEST_SPAN_SERVICE_FILTER, testFullNameExpr } from "../sql-helpers";
 
 // Filter options (repos + branches that have test data)
 interface TestPerfFilterOptions {
@@ -28,7 +28,8 @@ const getTestPerfFilterOptions = createAuthenticatedServerFn({
       clickhouse.query<{ repo: string }>(
         `SELECT DISTINCT ResourceAttributes['vcs.repository.name'] as repo
       FROM traces
-      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+      WHERE ${TEST_SPAN_SERVICE_FILTER}
+        AND Timestamp >= {from:String} AND Timestamp <= {to:String}
         AND ResourceAttributes['vcs.repository.name'] != ''
         AND SpanAttributes['everr.test.name'] != ''
       ORDER BY repo
@@ -38,7 +39,8 @@ const getTestPerfFilterOptions = createAuthenticatedServerFn({
       clickhouse.query<{ branch: string }>(
         `SELECT DISTINCT ResourceAttributes['vcs.ref.head.name'] as branch
       FROM traces
-      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+      WHERE ${TEST_SPAN_SERVICE_FILTER}
+        AND Timestamp >= {from:String} AND Timestamp <= {to:String}
         AND ResourceAttributes['vcs.ref.head.name'] != ''
         AND SpanAttributes['everr.test.name'] != ''
       ORDER BY branch
@@ -98,6 +100,7 @@ const getTestPerfChildren = createAuthenticatedServerFn({
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
     const baseConditions = [
+      TEST_SPAN_SERVICE_FILTER,
       "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
       "SpanAttributes['everr.test.name'] != ''",
       "SpanAttributes['everr.test.result'] IN ('pass', 'fail')",

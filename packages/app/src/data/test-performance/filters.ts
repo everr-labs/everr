@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
-import { leafTestFilter, testFullNameExpr } from "../sql-helpers";
+import {
+  leafTestFilter,
+  TEST_SPAN_SERVICE_FILTER,
+  testFullNameExpr,
+} from "../sql-helpers";
 
 // Filter input for test performance
 export const TestPerformanceFilterSchema = z.object({
@@ -34,6 +38,7 @@ export function buildFilterConditions(
 ): BuildFilterResult {
   const includeSkipResults = options?.includeSkipResults ?? false;
   const conditions: string[] = [
+    TEST_SPAN_SERVICE_FILTER,
     "Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}",
     "SpanAttributes['everr.test.name'] != ''",
     includeSkipResults
