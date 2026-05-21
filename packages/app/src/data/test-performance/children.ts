@@ -124,13 +124,14 @@ const getTestPerfChildren = createAuthenticatedServerFn({
     }
 
     const isRoot = !data.pkg;
+    let sql: string;
 
     if (isRoot) {
       const rootConditions = [...baseConditions];
       rootConditions.push("SpanAttributes['everr.test.package'] != ''");
       const rootWhere = rootConditions.join("\n          AND ");
 
-      const sql = `
+      sql = `
         WITH executions AS (
           SELECT
             SpanAttributes['everr.test.package'] as pkg_name,
@@ -210,46 +211,31 @@ const getTestPerfChildren = createAuthenticatedServerFn({
         GROUP BY pkg_name
         ORDER BY pkg_name
       `;
+    } else {
+      // Package or deeper level: return direct children with suite flag in one query
+      const childConditions = [...baseConditions];
+      childConditions.push(
+        "SpanAttributes['everr.test.package'] = {pkg:String}",
+      );
+      params.pkg = data.pkg;
 
-      const result = await clickhouse.query<{
-        name: string;
-        is_suite: number;
-        executions: string;
-        avg_duration: string;
-        p95_duration: string;
-        failure_rate: string;
-      }>(sql, params);
+      const parentTest = data.path ?? "";
+      params.parentTest = parentTest;
 
-      return result.map((row) => ({
-        name: row.name,
-        isSuite: row.is_suite === 1,
-        executions: Number(row.executions),
-        avgDuration: Number(row.avg_duration),
-        p95Duration: Number(row.p95_duration),
-        failureRate: Number(row.failure_rate) || 0,
-      })) satisfies TestPerfChild[];
-    }
+      childConditions.push(
+        "SpanAttributes['everr.test.parent_test'] = {parentTest:String}",
+      );
 
-    // Package or deeper level: return direct children with suite flag in one query
-    const childConditions = [...baseConditions];
-    childConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
-    params.pkg = data.pkg;
+      const childWhere = childConditions.join("\n          AND ");
 
-    const parentTest = data.path ?? "";
-    params.parentTest = parentTest;
+      const suiteConditions = [...baseConditions];
+      suiteConditions.push(
+        "SpanAttributes['everr.test.package'] = {pkg:String}",
+      );
+      suiteConditions.push("SpanAttributes['everr.test.parent_test'] != ''");
+      const suiteWhere = suiteConditions.join("\n          AND ");
 
-    childConditions.push(
-      "SpanAttributes['everr.test.parent_test'] = {parentTest:String}",
-    );
-
-    const childWhere = childConditions.join("\n          AND ");
-
-    const suiteConditions = [...baseConditions];
-    suiteConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
-    suiteConditions.push("SpanAttributes['everr.test.parent_test'] != ''");
-    const suiteWhere = suiteConditions.join("\n          AND ");
-
-    const sql = `
+      sql = `
       SELECT
         c.name,
         if(countIf(s.name != '') > 0, 1, 0) as is_suite,
@@ -277,6 +263,7 @@ const getTestPerfChildren = createAuthenticatedServerFn({
       GROUP BY c.name
       ORDER BY c.name
     `;
+    }
 
     const result = await clickhouse.query<{
       name: string;
