@@ -15,5 +15,3 @@ export const OrgMetadataSchema = z.preprocess(
   },
   z.looseObject({ onboardingCompleted: z.boolean().optional() }),
 );
-
-export type OrgMetadata = z.infer<typeof OrgMetadataSchema>;

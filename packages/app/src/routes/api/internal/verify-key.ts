@@ -3,9 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
 
-export const INGEST_CONFIG_ID = "ingest";
+const INGEST_CONFIG_ID = "ingest";
 
-export type VerifyKeyResponse = {
+type VerifyKeyResponse = {
   tenantId: string;
   keyId: string;
 };

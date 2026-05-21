@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  // Repo is clean as of adoption — enforce the rules we care about as errors.
+  // `stale-suppressions` catches `@expected-unused` tags that have become live
+  // imports, which is the main reason we chose tag-based suppression.
+  "rules": {
+    "unresolved-imports": "error",
+    "unlisted-dependencies": "error",
+    "unused-files": "error",
+    "unused-exports": "error",
+    "unused-types": "error",
+    "unused-class-members": "error",
+    "unused-dependencies": "error",
+    "duplicate-exports": "error",
+    "stale-suppressions": "error"
+  },
+  "entry": [
+    // CI scripts invoked directly by GitHub Actions workflows.
+    ".github/actions/everr-action/scripts/build-readme.mjs",
+    // Static entry points reached via Vite resolve.alias in
+    // packages/app/vite.config.ts (use-sync-external-store/shim).
+    "packages/app/src/ssr-shims/**"
+  ],
+  // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
+  // in packages/docs/.source/*.ts — fallow can't trace through the glob.
+  "dynamicallyLoaded": ["packages/docs/content/**/*.{md,mdx}"],
+  // Internal workspace libraries whose exported API surface is intentional —
+  // subcomponents (shadcn-style) and repository methods accessed structurally
+  // via `Pick<>` interfaces are kept even when no current consumer is visible.
+  "publicPackages": ["@everr/ui", "@everr/logs-explorer"],
+  // Error subclasses commonly set `name` and are discriminated via
+  // `err.name === "..."` rather than `instanceof`; fallow can't see those
+  // string-comparison references.
+  "usedClassMembers": [{ "extends": "Error", "members": ["name"] }],
+  "ignoreExports": [
+    {
+      // Intentional namespace-barrel API: the app exposes a zero-prop
+      // `<RefreshPicker />` / `<TimeRangePicker />` bound to app hooks; @everr/ui
+      // exports the parameterized primitive of the same name. Same export name
+      // on purpose, parallel implementations.
+      "file": "packages/app/src/components/analytics/refresh-picker.tsx",
+      "exports": ["*"]
+    },
+    {
+      "file": "packages/ui/src/components/refresh-picker.tsx",
+      "exports": ["*"]
+    },
+    {
+      "file": "packages/app/src/components/analytics/time-range-picker.tsx",
+      "exports": ["*"]
+    },
+    {
+      "file": "packages/ui/src/components/time-range-picker.tsx",
+      "exports": ["*"]
+    }
+  ]
+}

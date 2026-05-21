@@ -19,6 +19,7 @@ type SpanRow = Omit<Span, "events" | "links"> & {
 export class TracesRepository {
   constructor(private readonly query: Query) {}
 
+  // fallow-ignore-next-line unused-class-member
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {
     // Row-level predicates push down to WHERE in a candidate subquery so the
     // outer aggregate only reads spans belonging to traces with at least one
@@ -130,6 +131,7 @@ export class TracesRepository {
     return this.query<TraceSummary>(sql, params);
   }
 
+  // fallow-ignore-next-line unused-class-member
   async getTrace(input: GetTraceInput): Promise<Span[]> {
     // The order key on `app.traces` is (tenant_id, ServiceName, SpanName,
     // toDateTime(Timestamp)) — a bare `TraceId =` is bloom-filter-only and
@@ -168,6 +170,7 @@ export class TracesRepository {
     return rows.map(rowToSpan);
   }
 
+  // fallow-ignore-next-line unused-class-member
   async listServiceIdentities(
     input: ListServiceIdentitiesInput,
   ): Promise<ServiceIdentity[]> {

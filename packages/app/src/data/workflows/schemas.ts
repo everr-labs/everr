@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { TimeRangeSchema } from "@/lib/time-range";
-import type { RunListItem } from "../runs-list/schemas";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -77,9 +76,6 @@ export interface WorkflowCost {
   prevTotalCost: number;
   overTime: number[];
 }
-
-// Re-export RunListItem since getWorkflowRecentRuns returns it
-export type { RunListItem };
 
 // ── Input Schemas ───────────────────────────────────────────────────────
 
