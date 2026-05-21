@@ -1,4 +1,4 @@
-import type { SqlClient } from "@everr/logs-explorer";
+import type { SqlClient } from "@everr/telemetry-explorer/logs";
 import { invokeCommand } from "@/lib/tauri";
 
 /**

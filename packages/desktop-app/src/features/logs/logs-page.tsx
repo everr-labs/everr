@@ -4,7 +4,7 @@ import {
   LogsExplorer,
   type LogsExplorerSearch,
   LogsRepository,
-} from "@everr/logs-explorer";
+} from "@everr/telemetry-explorer/logs";
 import {
   getRefreshIntervalMs,
   RefreshPicker,

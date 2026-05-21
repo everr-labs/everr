@@ -36,7 +36,7 @@ On top of that storage layer we built a logs explorer. It has a draggable histog
 - In the web app, against our cloud ClickHouse, for CI and ingested workflow logs.
 - In the desktop app, against the local chDB instance, for whatever you've sent into your local collector.
 
-To make that possible without two implementations, the explorer lives in a shared `@everr/logs-explorer` workspace package, with a `SqlClient` interface and a `LogsRepository` that both surfaces wire up to their own backend. The web app talks to it through server functions; the desktop app talks to it through a Tauri command that calls the local SQL endpoint. Same UI, same query builders, same schemas, different transport.
+To make that possible without two implementations, the explorer lives in the shared `@everr/telemetry-explorer` workspace package, with a `SqlClient` interface and a `LogsRepository` that both surfaces wire up to their own backend. The web app talks to it through server functions; the desktop app talks to it through a Tauri command that calls the local SQL endpoint. Same UI, same query builders, same schemas, different transport.
 
 Day to day it means the logs view is no longer a CI-only feature. If you've pointed any local service at the collector, you can open the desktop app and watch its logs there.
 

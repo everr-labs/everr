@@ -13,6 +13,7 @@ import {
   LogOut,
   ScrollText,
   Settings,
+  Workflow,
 } from "lucide-react";
 import { useAuthStatusQuery, useSignOutMutation } from "../auth/auth";
 
@@ -25,6 +26,9 @@ export function AppShell() {
           <NotificationsLink />
           <SidebarLink to="/logs" label="Logs">
             <ScrollText className="size-[18px]" />
+          </SidebarLink>
+          <SidebarLink to="/traces" label="Traces">
+            <Workflow className="size-[18px]" />
           </SidebarLink>
           <SidebarLink to="/settings" label="Settings">
             <Settings className="size-[18px]" />
