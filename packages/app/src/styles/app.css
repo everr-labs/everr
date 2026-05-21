@@ -1,19 +1,9 @@
 @import "@everr/ui/src/styles/global.css";
+@import "@everr/telemetry-explorer/styles.css";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
-@source "../../../logs-explorer/src/**/*.{ts,tsx}";
+@source "../../../telemetry-explorer/src/**/*.{ts,tsx}";
 @source not "../../.output";
-
-:root {
-  --trace-service-1: oklch(0.72 0.16 25);
-  --trace-service-2: oklch(0.72 0.16 70);
-  --trace-service-3: oklch(0.78 0.16 115);
-  --trace-service-4: oklch(0.74 0.16 155);
-  --trace-service-5: oklch(0.74 0.13 200);
-  --trace-service-6: oklch(0.7 0.14 245);
-  --trace-service-7: oklch(0.7 0.16 290);
-  --trace-service-8: oklch(0.72 0.17 335);
-}
 
 @keyframes fake-progress {
   0% {

@@ -2,7 +2,7 @@ import {
   LogLevelSchema,
   LogsExplorer,
   type LogsExplorerSearch,
-} from "@everr/logs-explorer";
+} from "@everr/telemetry-explorer/logs";
 import { Button } from "@everr/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";

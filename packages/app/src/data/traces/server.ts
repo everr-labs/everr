@@ -1,15 +1,19 @@
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { TracesRepository } from "./repository";
 import {
   GetTraceInputSchema,
   ListServiceIdentitiesInputSchema,
   SearchTracesInputSchema,
-} from "./schemas";
+  type SqlClient,
+  TracesRepository,
+} from "@everr/telemetry-explorer/traces";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 function repoFromContext(clickhouse: {
   query: <T>(sql: string, params?: Record<string, unknown>) => Promise<T[]>;
 }) {
-  return new TracesRepository(clickhouse.query);
+  const client: SqlClient = {
+    execute: (sql, params) => clickhouse.query(sql, params),
+  };
+  return new TracesRepository(client);
 }
 
 export const searchTraces = createAuthenticatedServerFn({ method: "GET" })
