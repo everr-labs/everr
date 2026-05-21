@@ -11,7 +11,7 @@
     "@everr/app",
     "@everr/datemath",
     "@everr/docs",
-    "@everr/logs-explorer",
+    "@everr/telemetry-explorer",
     "@everr/ui"
   ],
   "privatePackages": {
