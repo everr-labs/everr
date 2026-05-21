@@ -1,11 +1,11 @@
-import { queryOptions } from "@tanstack/react-query";
-import { z } from "zod";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   resolveTimeRange,
   type TimeRange,
   TimeRangeSchema,
-} from "@/lib/time-range";
+} from "@everr/ui/lib/time-range";
+import { queryOptions } from "@tanstack/react-query";
+import { z } from "zod";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { TEST_SPAN_SERVICE_FILTER, testFullNameExpr } from "../sql-helpers";
 
 // Filter options (repos + branches that have test data)

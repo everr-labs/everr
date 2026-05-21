@@ -19,6 +19,14 @@ export function toClickHouseDateTime(date: Date): string {
   return date.toISOString().replace("T", " ").replace("Z", "");
 }
 
+export function withTimeRange<T extends { from?: string; to?: string }>(
+  search: T,
+): T & { from: string; to: string; timeRange: TimeRange } {
+  const from = search.from ?? DEFAULT_TIME_RANGE.from;
+  const to = search.to ?? DEFAULT_TIME_RANGE.to;
+  return { ...search, from, to, timeRange: { from, to } };
+}
+
 export function resolveTimeRange(range: TimeRange) {
   const fromDate = resolve(range.from, { roundUp: false });
   const toDate = resolve(range.to, { roundUp: true });

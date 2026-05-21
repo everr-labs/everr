@@ -3,8 +3,8 @@ import {
   resolveTimeRange,
   type TimeRange,
   toClickHouseDateTime,
-} from "../time-range";
-import { parseTimestampAsUTC } from "../util/formatting";
+} from "@everr/ui/lib/time-range";
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 
 export type DetailWindow = { fromTs: string; toTs: string };
 

@@ -4,9 +4,9 @@ import {
   DetailItem,
   DetailSection,
 } from "@everr/ui/components/detail-panel";
+import { formatDuration } from "@everr/ui/lib/formatting";
 import { Clock3, Fingerprint, Server, X } from "lucide-react";
 import type { Span } from "../../data/types";
-import { formatDuration } from "../../util/formatting";
 
 type Props = {
   span: Span;

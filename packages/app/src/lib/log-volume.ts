@@ -1,4 +1,4 @@
-import { parseTimestampAsUTC } from "./formatting";
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { ParsedLogLine } from "./log-parser";
 
 export interface LogVolumeBin {

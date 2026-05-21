@@ -5,6 +5,7 @@ import {
   InputGroupInput,
 } from "@everr/ui/components/input-group";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import {
   keepPreviousData,
@@ -22,7 +23,6 @@ import {
 } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogExplorerRow, LogLevel } from "../schemas";
-import type { TimeRange } from "../time-range";
 import { LogFiltersBar } from "./log-filters";
 import { LogHistogram } from "./log-histogram";
 import { LogInspectorPanel } from "./log-inspector";

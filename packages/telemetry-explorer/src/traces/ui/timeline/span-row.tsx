@@ -1,6 +1,6 @@
+import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { formatDuration } from "../../util/formatting";
 import { serviceColor } from "../shared/service-color";
 import { SpanBar } from "./span-bar";
 import type { TimelineRow } from "./use-timeline-layout";

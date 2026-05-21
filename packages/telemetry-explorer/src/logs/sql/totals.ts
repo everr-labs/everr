@@ -1,5 +1,5 @@
+import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import type { LogLevel, LogsTotalsInput, LogsTotalsResult } from "../schemas";
-import { resolveTimeRange } from "../time-range";
 import type { BuiltQuery } from "./explorer";
 import { LOG_LEVEL_EXPR, LOG_LEVELS } from "./level-expr";
 import { validateTableName } from "./table";

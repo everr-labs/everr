@@ -6,6 +6,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@everr/ui/components/resizable";
+import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import {
   ChevronRight,
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Span } from "@/data/runs/schemas";
-import { formatDuration, parseDuration } from "@/lib/formatting";
+import { parseDuration } from "@/lib/formatting";
 import { ConclusionIcon } from "./conclusion-icon";
 import { FrameworkIcon } from "./framework-icon";
 import { SpanDetailPanel } from "./span-detail-panel";

@@ -5,13 +5,14 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { Pagination, RunsFilterBar, RunsTable } from "@/components/runs-list";
 import { runsListOptions } from "@/data/runs-list/options";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
-import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 const PAGE_SIZE = 20;
 

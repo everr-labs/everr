@@ -1,8 +1,8 @@
 import {
   TraceSearchParamsSchema,
   TracesSearch,
-  withTimeRange,
 } from "@everr/telemetry-explorer/traces";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
   Link,

@@ -1,17 +1,15 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { Sparkline } from "@everr/ui/components/sparkline";
+import { formatDuration } from "@everr/ui/lib/formatting";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type {
   WorkflowListItem,
   WorkflowSparklineData,
 } from "@/data/workflows/schemas";
-import {
-  formatDuration,
-  formatRelativeTime,
-  getSuccessRateVariant,
-} from "@/lib/formatting";
+import { getSuccessRateVariant } from "@/lib/formatting";
 
 interface WorkflowsTableProps {
   data: WorkflowListItem[];

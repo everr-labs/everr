@@ -1,5 +1,5 @@
+import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import { resolveTimeRange, TimeRangeSchema } from "@/lib/time-range";
 import {
   leafTestFilter,
   TEST_SPAN_SERVICE_FILTER,

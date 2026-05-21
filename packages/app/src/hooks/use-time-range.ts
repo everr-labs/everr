@@ -1,8 +1,6 @@
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import {
-  ResolvedTimeRangeSearchSchema,
-  type TimeRange,
-} from "@/lib/time-range";
+import { ResolvedTimeRangeSearchSchema } from "@/lib/time-range";
 
 export function useTimeRange() {
   const timeRange = useSearch({

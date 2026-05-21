@@ -1,4 +1,5 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
@@ -10,7 +11,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { TestPerfChild } from "@/data/test-performance/children";
-import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
+import { testNameLastSegment } from "@/lib/formatting";
 import {
   getTestPerfHierarchyKind,
   getTestPerfHierarchyKindLabel,

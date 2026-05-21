@@ -6,12 +6,12 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { formatDuration } from "@everr/ui/lib/formatting";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { addNsToCHDateTime } from "../data/window";
-import { formatDuration } from "../util/formatting";
 import { useDelayedFlag } from "../util/use-delayed-flag";
 import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";

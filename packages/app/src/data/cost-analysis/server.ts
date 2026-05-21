@@ -1,12 +1,9 @@
+import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import {
-  type BucketGranularity,
-  getBucketGranularity,
-  resolveTimeRange,
-} from "@/lib/time-range";
+import { type BucketGranularity, getBucketGranularity } from "@/lib/time-range";
 import {
   BREAKDOWN_OTHER_KEY,
   type CostByWorkflow,

@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import type { FailureNotification } from "@everr/ui/lib/notification";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useState } from "react";
@@ -21,23 +22,6 @@ import { authStatusQueryKey } from "../auth/auth";
 import { SettingsSection } from "../desktop-shell/ui";
 
 const AUTO_DISMISS_MS = 40_000;
-
-type FailedJobInfo = {
-  jobName: string;
-  stepNumber: string;
-  stepName?: string;
-};
-
-export type FailureNotification = {
-  dedupeKey: string;
-  traceId: string;
-  repo: string;
-  branch: string;
-  workflowName: string;
-  failedAt: string;
-  detailsUrl: string;
-  failedJobs: FailedJobInfo[];
-};
 
 type TestNotificationResponse = {
   status: "shown" | "queued";

@@ -1,10 +1,11 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
+import { formatDuration } from "@everr/ui/lib/formatting";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { SenderCell } from "@/components/sender-cell";
 import type { RunListItem } from "@/data/runs-list/schemas";
-import { formatDuration, formatRelativeTime } from "@/lib/formatting";
 
 interface RunsTableProps {
   data: RunListItem[];

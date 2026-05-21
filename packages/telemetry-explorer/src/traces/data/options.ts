@@ -1,10 +1,10 @@
-import { queryOptions } from "@tanstack/react-query";
+import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import {
-  getRefreshIntervalMs,
   resolveTimeRange,
   type TimeRange,
   toClickHouseDateTime,
-} from "../time-range";
+} from "@everr/ui/lib/time-range";
+import { queryOptions } from "@tanstack/react-query";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
 import type { DetailWindow } from "./window";

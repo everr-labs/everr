@@ -1,8 +1,8 @@
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import {
   testPerfBranchFilterOptions,
   testPerfRepoFilterOptions,
 } from "@/data/test-performance/children";
-import type { TimeRange } from "@/lib/time-range";
 import { FilterCombobox } from "../filter-combobox";
 
 interface TestPerfFilterBarProps {

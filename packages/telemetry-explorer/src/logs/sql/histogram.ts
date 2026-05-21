@@ -1,5 +1,5 @@
+import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import type { LogHistogramBucket, LogHistogramInput } from "../schemas";
-import { resolveTimeRange } from "../time-range";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import type { BuiltQuery } from "./explorer";
 import { LOG_LEVEL_EXPR } from "./level-expr";

@@ -1,5 +1,5 @@
+import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
 import type { LogEntry } from "@/data/runs/schemas";
-import { formatTimestampTimeOfDay } from "@/lib/formatting";
 
 export interface ParsedLogLine {
   timestamp: string;

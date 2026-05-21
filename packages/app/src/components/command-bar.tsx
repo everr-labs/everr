@@ -10,6 +10,7 @@ import {
   CommandShortcut,
 } from "@everr/ui/components/command";
 import { Kbd } from "@everr/ui/components/kbd";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -19,7 +20,6 @@ import { flushSync } from "react-dom";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { searchRunsOptions } from "@/data/runs-list/options";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { formatRelativeTime } from "@/lib/formatting";
 import { navMain } from "@/lib/navigation";
 
 export function CommandBar() {

@@ -1,9 +1,8 @@
 import {
-  DEFAULT_TIME_RANGE,
-  LogLevelSchema,
   LogsExplorer,
   type LogsExplorerSearch,
   LogsRepository,
+  LogsSearchFiltersShape,
 } from "@everr/telemetry-explorer/logs";
 import {
   getRefreshIntervalMs,
@@ -13,6 +12,7 @@ import {
   type TimeRange,
   TimeRangePicker,
 } from "@everr/ui/components/time-range-picker";
+import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef } from "react";
@@ -24,9 +24,7 @@ export const LogsSearchSchema = z.object({
   to: z.string().optional(),
   refresh: z.string().optional(),
   q: z.string().optional(),
-  levels: z.array(LogLevelSchema).default([]),
-  services: z.array(z.string()).default([]),
-  repos: z.array(z.string()).default([]),
+  ...LogsSearchFiltersShape,
   traceId: z.string().optional(),
   showVolume: z.boolean().default(true),
 });

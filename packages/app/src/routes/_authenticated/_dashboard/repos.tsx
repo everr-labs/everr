@@ -1,3 +1,4 @@
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
@@ -19,7 +20,7 @@ import {
   repoSuccessRateTrendOptions,
   topFailingJobsOptions,
 } from "@/data/repo-detail/options";
-import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },

@@ -2,6 +2,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";
 import { Clock, DollarSign, Receipt, Server } from "lucide-react";
 import { useState } from "react";
@@ -19,7 +20,7 @@ import {
 } from "@/data/cost-analysis/options";
 import type { CostMetric } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
-import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/cost-analysis",

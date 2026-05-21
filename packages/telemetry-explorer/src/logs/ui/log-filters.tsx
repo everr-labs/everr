@@ -6,13 +6,13 @@ import {
   InputGroupInput,
 } from "@everr/ui/components/input-group";
 import { Separator } from "@everr/ui/components/separator";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash, ListFilter, X } from "lucide-react";
 import { useState } from "react";
 import { logRepoFilterOptions, logServiceFilterOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogLevel } from "../schemas";
-import type { TimeRange } from "../time-range";
 import { LOG_LEVEL_META, LOG_LEVELS } from "./log-level-meta";
 
 export interface LogFiltersBarProps {

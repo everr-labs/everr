@@ -1,3 +1,4 @@
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
   LogFilterOptions,
@@ -6,7 +7,6 @@ import type {
   LogsExplorerInput,
   LogsTotalsInput,
 } from "../schemas";
-import type { TimeRange } from "../time-range";
 import type { LogsRepositoryLike } from "./repository";
 
 export type LogsExplorerInfiniteInput = Omit<LogsExplorerInput, "offset">;

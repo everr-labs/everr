@@ -1,5 +1,5 @@
+import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import { TimeRangeSchema } from "@/lib/time-range";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

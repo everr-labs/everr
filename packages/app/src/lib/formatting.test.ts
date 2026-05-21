@@ -1,14 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
 import {
   formatDuration,
   formatDurationCompact,
-  formatRelativeTime,
-  formatTimestampTimeOfDay,
+} from "@everr/ui/lib/formatting";
+import { describe, expect, it } from "vitest";
+import {
   getFailureRateColor,
   getSuccessRateVariant,
   normalizeTimestampToUtc,
   parseDuration,
-  parseTimestampAsUTC,
   testNameLastSegment,
   testNameSeparator,
 } from "./formatting";
@@ -144,76 +143,6 @@ describe("parseDuration", () => {
   });
 });
 
-describe("formatRelativeTime", () => {
-  it("returns 'just now' for less than a minute", () => {
-    const now = new Date();
-    expect(formatRelativeTime(now.toISOString())).toBe("just now");
-  });
-
-  it("returns minutes ago", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-01-01T12:05:00Z"));
-    expect(formatRelativeTime("2025-01-01T12:00:00Z")).toBe("5m ago");
-    vi.useRealTimers();
-  });
-
-  it("returns hours ago", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-01-01T15:00:00Z"));
-    expect(formatRelativeTime("2025-01-01T12:00:00Z")).toBe("3h ago");
-    vi.useRealTimers();
-  });
-
-  it("returns days ago", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-01-03T12:00:00Z"));
-    expect(formatRelativeTime("2025-01-01T12:00:00Z")).toBe("2d ago");
-    vi.useRealTimers();
-  });
-
-  it("treats timezone-less ClickHouse timestamps as UTC", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-01-01T12:05:00Z"));
-    expect(formatRelativeTime("2025-01-01 12:00:00")).toBe("5m ago");
-    vi.useRealTimers();
-  });
-
-  it("treats timezone-less ISO timestamps as UTC", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-01-01T12:05:00Z"));
-    expect(formatRelativeTime("2025-01-01T12:00:00")).toBe("5m ago");
-    vi.useRealTimers();
-  });
-
-  it("returns a safe placeholder for invalid timestamps", () => {
-    expect(formatRelativeTime("not-a-date")).toBe("—");
-  });
-});
-
-describe("parseTimestampAsUTC", () => {
-  it("treats timezone-less ClickHouse timestamps as UTC", () => {
-    expect(parseTimestampAsUTC("2025-01-01 12:00:00")?.toISOString()).toBe(
-      "2025-01-01T12:00:00.000Z",
-    );
-  });
-
-  it("treats timezone-less ISO timestamps as UTC", () => {
-    expect(parseTimestampAsUTC("2025-01-01T12:00:00")?.toISOString()).toBe(
-      "2025-01-01T12:00:00.000Z",
-    );
-  });
-
-  it("preserves explicit timezone offsets", () => {
-    expect(
-      parseTimestampAsUTC("2025-01-01T13:00:00+01:00")?.toISOString(),
-    ).toBe("2025-01-01T12:00:00.000Z");
-  });
-
-  it("returns null for invalid timestamps", () => {
-    expect(parseTimestampAsUTC("not-a-date")).toBeNull();
-  });
-});
-
 describe("normalizeTimestampToUtc", () => {
   it("returns timezone-aware UTC timestamps", () => {
     expect(normalizeTimestampToUtc("2025-01-01 12:00:00.123")).toBe(
@@ -223,12 +152,6 @@ describe("normalizeTimestampToUtc", () => {
 
   it("leaves invalid timestamps unchanged", () => {
     expect(normalizeTimestampToUtc("not-a-date")).toBe("not-a-date");
-  });
-});
-
-describe("formatTimestampTimeOfDay", () => {
-  it("returns a safe placeholder for invalid timestamps", () => {
-    expect(formatTimestampTimeOfDay("not-a-date")).toBe("—");
   });
 });
 

@@ -1,25 +1,16 @@
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+
 export type NotificationTimeFormatOptions = {
   locale?: Intl.LocalesArgument;
   now?: Date;
   timeZone?: string;
 };
 
-export function parseNotificationTimestamp(timestamp: string): Date | null {
-  const normalized = timestamp.trim();
-  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized);
-  const candidate = hasTimezone
-    ? normalized
-    : `${normalized.includes("T") ? normalized : normalized.replace(" ", "T")}Z`;
-  const parsed = new Date(candidate);
-
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 export function getNotificationTimeParts(
   timestamp: string,
   options: NotificationTimeFormatOptions = {},
 ): { absolute: string; timeZoneName: string | null } {
-  const parsed = parseNotificationTimestamp(timestamp);
+  const parsed = parseTimestampAsUTC(timestamp);
   if (!parsed) {
     return {
       absolute: "—",
@@ -51,7 +42,7 @@ export function formatNotificationRelativeTime(
   timestamp: string,
   options: NotificationTimeFormatOptions = {},
 ): string {
-  const parsed = parseNotificationTimestamp(timestamp);
+  const parsed = parseTimestampAsUTC(timestamp);
   if (!parsed) {
     return "—";
   }

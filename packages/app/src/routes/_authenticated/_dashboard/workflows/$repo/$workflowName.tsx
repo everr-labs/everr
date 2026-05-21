@@ -12,6 +12,8 @@ import {
   formatChartDate,
 } from "@everr/ui/components/chart-helpers";
 import { Sparkline } from "@everr/ui/components/sparkline";
+import { formatDuration } from "@everr/ui/lib/formatting";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
 import { ComposedChart, Line, XAxis, YAxis } from "recharts";
@@ -28,11 +30,7 @@ import {
   workflowSuccessRateTrendOptions,
   workflowTopFailingJobsOptions,
 } from "@/data/workflows/options";
-import {
-  formatDuration,
-  formatRelativeTime,
-  getSuccessRateVariant,
-} from "@/lib/formatting";
+import { getSuccessRateVariant } from "@/lib/formatting";
 import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 

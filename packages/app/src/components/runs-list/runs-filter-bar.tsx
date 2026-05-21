@@ -1,12 +1,12 @@
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { FilterCombobox } from "@/components/filter-combobox";
 import {
   runBranchFilterOptions,
   runRepoFilterOptions,
   runWorkflowNameFilterOptions,
 } from "@/data/runs-list/options";
-import type { TimeRange } from "@/lib/time-range";
 
 const conclusionFilterOptions = {
   queryKey: ["runs", "conclusions"] as const,

@@ -1,7 +1,7 @@
+import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getRunsList } from "@/data/runs-list/server";
-import { DEFAULT_TIME_RANGE } from "@/lib/time-range";
 
 const RunsListQuerySchema = z.strictObject({
   from: z.string().optional(),
