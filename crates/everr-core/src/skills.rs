@@ -8,6 +8,12 @@ use serde::Serialize;
 
 static BUNDLED_SKILLS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/skills");
 
+const LEGACY_SKILL_RENAMES: &[(&str, &str)] = &[
+    ("everr-ci-debugging", "everr-working-with-ci"),
+    ("everr-local-telemetry-setup", "everr-setup-telemetry"),
+    ("everr-local-debugging", "everr-use-telemetry"),
+];
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SkillProvider {
@@ -184,9 +190,20 @@ pub fn update_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOpe
     let mut options = options.clone();
     options.force = true;
     if !options.all && options.skill_names.is_empty() {
-        options.skill_names = installed_bundled_skill_names(&options)?;
+        options.skill_names = installed_update_skill_names(&options)?;
+    } else if !options.all {
+        options.skill_names = normalize_update_skill_names(&options.skill_names)?;
     }
-    install_bundled_skills(&options)
+
+    let mut changes = Vec::new();
+    remove_legacy_skills_selected_for_update(&options, &mut changes)?;
+
+    let mut summary = install_bundled_skills(&options)?;
+    if !changes.is_empty() {
+        changes.extend(summary.changes);
+        summary.changes = changes;
+    }
+    Ok(summary)
 }
 
 pub fn uninstall_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOperationSummary> {
@@ -332,11 +349,50 @@ pub fn installed_bundled_skill_names(options: &SkillOperationOptions) -> Result<
     Ok(installed)
 }
 
+pub fn installed_update_skill_names(options: &SkillOperationOptions) -> Result<Vec<String>> {
+    let mut names: BTreeSet<String> = installed_bundled_skill_names(options)?
+        .into_iter()
+        .collect();
+    for (legacy_name, new_name) in LEGACY_SKILL_RENAMES {
+        if skill_path_exists(options, legacy_name) {
+            names.insert((*new_name).to_string());
+        }
+    }
+    Ok(names.into_iter().collect())
+}
+
+pub fn normalize_update_skill_names(skill_names: &[String]) -> Result<Vec<String>> {
+    let available: BTreeSet<String> = bundled_skills()?.into_iter().map(|s| s.name).collect();
+    let mut names = BTreeSet::new();
+    for raw_name in skill_names {
+        let name = raw_name.trim().to_string();
+        if name.is_empty() {
+            continue;
+        }
+        validate_skill_name(&name)?;
+        let normalized = renamed_skill_name(&name).unwrap_or(name.as_str());
+        if !available.contains(normalized) {
+            bail!("unknown skill {name:?}");
+        }
+        names.insert(normalized.to_string());
+    }
+    if names.is_empty() {
+        bail!("provide at least one skill name");
+    }
+    Ok(names.into_iter().collect())
+}
+
 fn validate_skill_name(name: &str) -> Result<()> {
     if name == "." || name == ".." || name.contains('/') || name.contains('\\') {
         bail!("invalid skill name {name:?}");
     }
     Ok(())
+}
+
+fn renamed_skill_name(name: &str) -> Option<&'static str> {
+    LEGACY_SKILL_RENAMES
+        .iter()
+        .find_map(|(legacy, new)| (*legacy == name).then_some(*new))
 }
 
 fn normalize_providers(providers: &[SkillProvider]) -> Vec<SkillProvider> {
@@ -375,6 +431,68 @@ fn provider_skills_dir(options: &SkillOperationOptions, provider: SkillProvider)
         },
         SkillScope::Global => global_provider_skills_dir(&options.home_dir, provider),
     }
+}
+
+fn skill_path_exists(options: &SkillOperationOptions, skill_name: &str) -> bool {
+    let canonical_dir = canonical_skill_dir(options, skill_name);
+    if fs::symlink_metadata(&canonical_dir).is_ok() {
+        return true;
+    }
+
+    normalize_providers(&options.providers)
+        .into_iter()
+        .any(|provider| {
+            fs::symlink_metadata(provider_skill_dir(options, provider, skill_name)).is_ok()
+        })
+}
+
+fn remove_legacy_skills_selected_for_update(
+    options: &SkillOperationOptions,
+    changes: &mut Vec<SkillPathChange>,
+) -> Result<()> {
+    let selected: BTreeSet<&str> = if options.all {
+        LEGACY_SKILL_RENAMES.iter().map(|(_, new)| *new).collect()
+    } else {
+        options.skill_names.iter().map(String::as_str).collect()
+    };
+
+    for (legacy_name, new_name) in LEGACY_SKILL_RENAMES {
+        if selected.contains(new_name) && skill_path_exists(options, legacy_name) {
+            remove_installed_skill_paths(options, legacy_name, changes)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn remove_installed_skill_paths(
+    options: &SkillOperationOptions,
+    skill_name: &str,
+    changes: &mut Vec<SkillPathChange>,
+) -> Result<()> {
+    let canonical_dir = canonical_skill_dir(options, skill_name);
+    for provider in normalize_providers(&options.providers) {
+        let provider_dir = provider_skill_dir(options, provider, skill_name);
+        if same_path(&provider_dir, &canonical_dir) {
+            continue;
+        }
+        remove_path(
+            skill_name,
+            Some(provider),
+            &provider_dir,
+            Some(&canonical_dir),
+            options.dry_run,
+            changes,
+        )?;
+    }
+    remove_path(
+        skill_name,
+        None,
+        &canonical_dir,
+        None,
+        options.dry_run,
+        changes,
+    )
 }
 
 fn global_provider_skills_dir(home_dir: &Path, provider: SkillProvider) -> PathBuf {

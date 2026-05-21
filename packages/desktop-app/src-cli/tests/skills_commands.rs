@@ -56,21 +56,21 @@ fn skills_install_project_creates_canonical_skill_and_provider_symlink() {
         .args([
             "skills",
             "install",
-            "everr-ci-debugging",
+            "everr-working-with-ci",
             "--project",
             "--agent",
             "claude-code",
         ])
         .assert()
         .success()
-        .stdout(contains("Installed 1 skill: everr-ci-debugging"));
+        .stdout(contains("Installed 1 skill: everr-working-with-ci"));
 
     assert!(
-        repo.join(".agents/skills/everr-ci-debugging/SKILL.md")
+        repo.join(".agents/skills/everr-working-with-ci/SKILL.md")
             .is_file()
     );
     #[cfg(unix)]
-    assert_symlink(&repo.join(".claude/skills/everr-ci-debugging"));
+    assert_symlink(&repo.join(".claude/skills/everr-working-with-ci"));
 }
 
 #[test]
@@ -92,21 +92,21 @@ fn skills_install_global_creates_provider_symlink() {
         .args([
             "skills",
             "install",
-            "everr-local-debugging",
+            "everr-use-telemetry",
             "--global",
             "--agent",
             "codex",
         ])
         .assert()
         .success()
-        .stdout(contains("Installed 1 skill: everr-local-debugging"));
+        .stdout(contains("Installed 1 skill: everr-use-telemetry"));
 
     assert!(
         env.home_dir
-            .join(".agents/skills/everr-local-debugging/SKILL.md")
+            .join(".agents/skills/everr-use-telemetry/SKILL.md")
             .is_file()
     );
-    let codex_skill = env.home_dir.join(".codex/skills/everr-local-debugging");
+    let codex_skill = env.home_dir.join(".codex/skills/everr-use-telemetry");
     assert!(codex_skill.join("SKILL.md").is_file());
     #[cfg(unix)]
     assert_symlink(&codex_skill);
@@ -122,7 +122,7 @@ fn skills_update_without_scope_checks_global_skills() {
         .args([
             "skills",
             "install",
-            "everr-local-debugging",
+            "everr-use-telemetry",
             "--global",
             "--agent",
             "codex",
@@ -132,7 +132,7 @@ fn skills_update_without_scope_checks_global_skills() {
 
     let skill_doc = env
         .home_dir
-        .join(".agents/skills/everr-local-debugging/SKILL.md");
+        .join(".agents/skills/everr-use-telemetry/SKILL.md");
     fs::write(&skill_doc, "local edits").expect("edit global skill");
 
     env.command()
@@ -140,11 +140,35 @@ fn skills_update_without_scope_checks_global_skills() {
         .args(["skills", "update"])
         .assert()
         .success()
-        .stdout(contains("Updated 1 skill: everr-local-debugging"));
+        .stdout(contains("Updated 1 skill: everr-use-telemetry"));
 
     let content = fs::read_to_string(skill_doc).expect("read updated skill");
-    assert!(content.contains("name: everr-local-debugging"));
+    assert!(content.contains("name: everr-use-telemetry"));
     assert!(!content.contains("local edits"));
+}
+
+#[test]
+fn skills_update_replaces_legacy_global_skill_names() {
+    let env = CliTestEnv::new();
+    let legacy_skill = env
+        .home_dir
+        .join(".agents/skills/everr-local-debugging/SKILL.md");
+    fs::create_dir_all(legacy_skill.parent().expect("legacy skill parent"))
+        .expect("create legacy skill parent");
+    fs::write(&legacy_skill, "name: everr-local-debugging").expect("write legacy skill");
+
+    env.command()
+        .args(["skills", "update"])
+        .assert()
+        .success()
+        .stdout(contains("Updated 1 skill: everr-use-telemetry"));
+
+    assert!(!legacy_skill.exists());
+    assert!(
+        env.home_dir
+            .join(".agents/skills/everr-use-telemetry/SKILL.md")
+            .is_file()
+    );
 }
 
 #[test]
@@ -163,19 +187,19 @@ fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
         .stderr(contains("Already logged in"));
 
     assert!(
-        repo.join(".agents/skills/everr-ci-debugging/SKILL.md")
+        repo.join(".agents/skills/everr-working-with-ci/SKILL.md")
             .is_file()
     );
     assert!(
-        repo.join(".agents/skills/everr-local-telemetry-setup/SKILL.md")
+        repo.join(".agents/skills/everr-setup-telemetry/SKILL.md")
             .is_file()
     );
     assert!(
-        repo.join(".agents/skills/everr-local-debugging/SKILL.md")
+        repo.join(".agents/skills/everr-use-telemetry/SKILL.md")
             .is_file()
     );
     #[cfg(unix)]
-    assert_symlink(&repo.join(".claude/skills/everr-ci-debugging"));
+    assert_symlink(&repo.join(".claude/skills/everr-working-with-ci"));
 }
 
 #[test]

@@ -146,7 +146,7 @@ fn update_installed_scopes(
             dry_run,
         )?;
         let installed: BTreeSet<String> =
-            core_skills::installed_bundled_skill_names(&probe_options)?
+            core_skills::installed_update_skill_names(&probe_options)?
                 .into_iter()
                 .collect();
         let skill_names = match &requested_skills {
@@ -182,25 +182,7 @@ fn update_installed_scopes(
 }
 
 fn normalize_requested_skill_names(skills: Vec<String>) -> Result<Vec<String>> {
-    let available: BTreeSet<String> = bundled_skills()?
-        .into_iter()
-        .map(|skill| skill.name)
-        .collect();
-    let mut names = BTreeSet::new();
-    for skill in skills {
-        let name = skill.trim().to_string();
-        if name.is_empty() {
-            continue;
-        }
-        if !available.contains(&name) {
-            bail!("unknown skill {name:?}");
-        }
-        names.insert(name);
-    }
-    if names.is_empty() {
-        bail!("provide at least one skill name");
-    }
-    Ok(names.into_iter().collect())
+    core_skills::normalize_update_skill_names(&skills)
 }
 
 fn merge_summaries(summaries: Vec<SkillOperationSummary>, dry_run: bool) -> SkillOperationSummary {

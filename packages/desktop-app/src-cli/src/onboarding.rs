@@ -300,7 +300,7 @@ fn step_install_skills() -> Result<bool> {
     if interactive {
         cliclack::note(
             "Everr skills",
-            "Everr can install skills that teach compatible agents how to debug CI and local telemetry.",
+            "Everr can install skills that teach compatible agents how to work with CI, set up telemetry, and use real telemetry data during investigations.",
         )?;
 
         let install: bool = cliclack::confirm("Install Everr skills?")

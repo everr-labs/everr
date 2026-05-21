@@ -37,7 +37,7 @@ By the time a regression shows up in a production graph, it's already too late. 
 - **Local telemetry, queryable on the spot**, A sidecar collector embeds [chDB](https://clickhouse.com/docs/chdb) and exposes OpenTelemetry data from your dev server, tests, or any wrapped command over SQL. `everr local query "<SQL>"` from the terminal; the same data drives charts and a logs explorer in the desktop app.
 - **CI observability**, Every GitHub Actions workflow run becomes a structured trace with flakiness scores, performance trends, failure patterns, and cost breakdowns. No YAML changes, no config files.
 - **Production observability**, send the same OpenTelemetry data to any standard OTLP collector so it's available in your existing dashboards, or to local agents alongside everything else they already see.
-- **Bundled agent skills**, `everr skills install` drops CI debugging, local telemetry setup, and local debugging skills into Claude Code, Codex, or Cursor, globally or per project, kept in sync via `everr skills update`.
+- **Bundled agent skills**, `everr skills install` drops skills for working with CI, setting up telemetry, and using telemetry into Claude Code, Codex, or Cursor, globally or per project, kept in sync via `everr skills update`.
 
 ## Get early access
 
