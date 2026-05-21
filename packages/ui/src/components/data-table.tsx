@@ -36,15 +36,16 @@ export function DataTable<T>({
             {columns.map((col, i) => (
               <th
                 key={i}
-                className={
+                className={cn(
+                  "whitespace-nowrap",
                   col.className ??
-                  cn(
-                    "pb-2",
-                    !isLast(i) && "pr-4",
-                    isFirst(i) && "pl-3",
-                    isLast(i) && "pr-3",
-                  )
-                }
+                    cn(
+                      "pb-2",
+                      !isLast(i) && "pr-4",
+                      isFirst(i) && "pl-3",
+                      isLast(i) && "pr-3",
+                    ),
+                )}
               >
                 {col.header}
               </th>
