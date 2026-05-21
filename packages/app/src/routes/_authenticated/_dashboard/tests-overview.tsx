@@ -15,16 +15,18 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { PanelShell } from "@/components/panel-shell";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
+import { ChildrenTable } from "@/components/test-performance/children-table";
+import { TestPerfFailuresTable } from "@/components/test-performance/failures-table";
+import { TestPerfFilterBar } from "@/components/test-performance/filter-bar";
+import { TestPerfScatterChart } from "@/components/test-performance/scatter-chart";
 import {
-  ChildrenTable,
-  getTreemapMetricLabel,
-  TestPerfFailuresTable,
-  TestPerfFilterBar,
-  TestPerfScatterChart,
   TestPerfTreemap,
-  TestPerfTreemapMetricToggle,
   type TreemapSizeMetric,
-} from "@/components/test-performance";
+} from "@/components/test-performance/treemap";
+import {
+  getTreemapMetricLabel,
+  TestPerfTreemapMetricToggle,
+} from "@/components/test-performance/treemap-metric-toggle";
 import { testPerfChildrenOptions } from "@/data/test-performance/children";
 import {
   testPerfFailuresOptions,

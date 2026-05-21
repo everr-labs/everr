@@ -23,7 +23,8 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { JobTreeNav, RunHeader } from "@/components/run-detail";
+import { JobTreeNav } from "@/components/run-detail/job-tree-nav";
+import { RunHeader } from "@/components/run-detail/run-header";
 import {
   allJobsStepsOptions,
   runDetailsOptions,

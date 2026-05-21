@@ -18,7 +18,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
 import { ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
-import { RunsTable } from "@/components/runs-list";
+import { RunsTable } from "@/components/runs-list/runs-table";
 import { TimeRangePanel } from "@/components/time-range-panel";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {

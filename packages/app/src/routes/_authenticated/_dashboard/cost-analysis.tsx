@@ -9,8 +9,8 @@ import { useState } from "react";
 import {
   ActionsUsageChart,
   type ActionsUsageDimension,
-  CostByWorkflowTable,
-} from "@/components/cost-analysis";
+} from "@/components/cost-analysis/actions-usage-chart";
+import { CostByWorkflowTable } from "@/components/cost-analysis/cost-by-workflow-table";
 import { TimeRangePanel } from "@/components/time-range-panel";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {

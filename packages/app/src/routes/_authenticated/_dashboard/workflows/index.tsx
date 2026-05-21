@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { FilterCombobox } from "@/components/filter-combobox";
-import { Pagination } from "@/components/runs-list";
+import { Pagination } from "@/components/runs-list/pagination";
 import { WorkflowsTable } from "@/components/workflows/workflows-table";
 import { runRepoFilterOptions } from "@/data/runs-list/options";
 import {

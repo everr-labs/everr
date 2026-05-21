@@ -16,7 +16,8 @@ import {
   useMatches,
 } from "@tanstack/react-router";
 import { z } from "zod";
-import { RefreshPicker, TimeRangePicker } from "@/components/analytics";
+import { RefreshPicker } from "@/components/analytics/refresh-picker";
+import { TimeRangePicker } from "@/components/analytics/time-range-picker";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
