@@ -9,6 +9,7 @@ import {
   TraceSearchParamsSchema,
   TracesRepository,
   TracesSearch,
+  toTraceListSearch,
   withTimeRange,
 } from "@everr/telemetry-explorer/traces";
 import { RefreshPicker } from "@everr/ui/components/refresh-picker";
@@ -129,11 +130,7 @@ export function TraceDetailPage() {
         onBack={() =>
           navigate({
             to: "/traces",
-            search: {
-              from: search.from,
-              to: search.to,
-              refresh: search.refresh,
-            },
+            search: toTraceListSearch(search),
           })
         }
         onSpanChange={(spanId) =>

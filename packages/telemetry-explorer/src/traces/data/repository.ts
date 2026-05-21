@@ -30,7 +30,6 @@ export class TracesRepository {
     this.tableName = options.tableName ?? "app.traces";
   }
 
-  // fallow-ignore-next-line unused-class-member
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {
     validateTableName(this.tableName);
     // Row-level predicates push down to WHERE in a candidate subquery so the

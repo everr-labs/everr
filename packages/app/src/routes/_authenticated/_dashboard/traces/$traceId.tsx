@@ -3,6 +3,7 @@ import {
   getTraceOptions,
   TraceDetail,
   TraceDetailParamsSchema,
+  toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -57,11 +58,7 @@ function TraceDetailRoute() {
       onBack={() =>
         navigate({
           to: "/traces",
-          search: {
-            from: search.from,
-            to: search.to,
-            refresh: search.refresh,
-          },
+          search: toTraceListSearch(search),
         })
       }
       onSpanChange={(spanId) =>
@@ -75,13 +72,18 @@ function TraceDetailRoute() {
 }
 
 function TraceDetailError({ error }: { error: Error }) {
+  const search = Route.useSearch();
   return (
     <Empty>
       <EmptyHeader>
         <EmptyTitle>Failed to load trace</EmptyTitle>
         <EmptyDescription>{error.message}</EmptyDescription>
       </EmptyHeader>
-      <Button variant="outline" size="sm" render={<Link to="/traces" />}>
+      <Button
+        variant="outline"
+        size="sm"
+        render={<Link to="/traces" search={toTraceListSearch(search)} />}
+      >
         Back to traces
       </Button>
     </Empty>

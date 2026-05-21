@@ -13,12 +13,21 @@ export const TraceSearchParamsSchema = TimeRangeSearchSchema.extend({
   status: SpanStatusFilterSchema.default("all"),
   limit: z.number().int().positive().max(500).default(50),
 });
+export type TraceSearchParams = z.infer<typeof TraceSearchParamsSchema>;
 
-export const TraceDetailParamsSchema = TimeRangeSearchSchema.extend({
+export const TraceDetailParamsSchema = TraceSearchParamsSchema.extend({
   span: z.string().optional(),
   start: z.string().optional(),
   end: z.string().optional(),
 });
+export type TraceDetailParams = z.infer<typeof TraceDetailParamsSchema>;
+
+export function toTraceListSearch(
+  search: TraceDetailParams,
+): TraceSearchParams {
+  const { span: _span, start: _start, end: _end, ...listSearch } = search;
+  return listSearch;
+}
 
 export const SearchTracesInputSchema = z.object({
   fromTs: z.string().min(1),
