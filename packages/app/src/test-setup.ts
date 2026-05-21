@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
+import {
+  composeMiddleware,
+  type FunctionMiddlewareHandler,
+} from "./lib/test-middleware";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -26,63 +30,20 @@ function makeServerFnChain(wrapHandler: (fn: AnyFn) => AnyFn) {
 
 vi.mock("@tanstack/react-start", () => ({
   createMiddleware: vi.fn(() => {
-    const makeMiddleware = (
-      handlers: Array<
-        (args: {
-          request?: Request;
-          context?: Record<string, unknown>;
-          next: (args?: unknown) => Promise<unknown>;
-        }) => Promise<unknown>
-      > = [],
-    ) => ({
+    const makeMiddleware = (handlers: FunctionMiddlewareHandler[] = []) => ({
       middleware: (
-        definitions: Array<{
-          __handler?: (args: {
-            request?: Request;
-            context?: Record<string, unknown>;
-            next: (args?: unknown) => Promise<unknown>;
-          }) => Promise<unknown>;
-        }>,
+        definitions: Array<{ __handler?: FunctionMiddlewareHandler }>,
       ) =>
         makeMiddleware([
           ...handlers,
           ...definitions
             .map((definition) => definition.__handler)
-            .filter((handler): handler is NonNullable<typeof handler> =>
+            .filter((handler): handler is FunctionMiddlewareHandler =>
               Boolean(handler),
             ),
         ]),
-      server: vi.fn((handler) => ({
-        __handler: handlers.reduceRight<typeof handler>(
-          (nextHandler, middlewareHandler) =>
-            async ({
-              request,
-              context,
-              next,
-            }: {
-              request?: Request;
-              context?: Record<string, unknown>;
-              next: (args?: unknown) => Promise<unknown>;
-            }) =>
-              middlewareHandler({
-                request,
-                context,
-                next: (args?: unknown) =>
-                  nextHandler({
-                    request,
-                    context:
-                      typeof args === "object" && args !== null
-                        ? {
-                            ...context,
-                            ...((args as { context?: Record<string, unknown> })
-                              .context ?? {}),
-                          }
-                        : context,
-                    next,
-                  }),
-              }),
-          handler,
-        ),
+      server: vi.fn((handler: FunctionMiddlewareHandler) => ({
+        __handler: composeMiddleware(handlers, handler),
       })),
     });
 

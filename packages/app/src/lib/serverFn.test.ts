@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-type FunctionMiddlewareHandler = (args: {
-  request: Request;
-  context?: Record<string, unknown>;
-  next: (args?: unknown) => Promise<unknown>;
-}) => Promise<unknown>;
+import {
+  composeMiddleware,
+  type FunctionMiddlewareHandler,
+} from "./test-middleware";
 
 const mocked = vi.hoisted(() => ({
   handler: null as FunctionMiddlewareHandler | null,
@@ -50,28 +48,7 @@ async function loadModule() {
             ),
         ]),
       server: (handler: FunctionMiddlewareHandler) => {
-        const composed = handlers.reduceRight<FunctionMiddlewareHandler>(
-          (nextHandler, middlewareHandler) =>
-            async ({ request, context, next }) =>
-              middlewareHandler({
-                request,
-                context,
-                next: (args?: unknown) =>
-                  nextHandler({
-                    request,
-                    context:
-                      typeof args === "object" && args !== null
-                        ? {
-                            ...context,
-                            ...((args as { context?: Record<string, unknown> })
-                              .context ?? {}),
-                          }
-                        : context,
-                    next,
-                  }),
-              }),
-          handler,
-        );
+        const composed = composeMiddleware(handlers, handler);
 
         const definition = {
           options: { type: "function" },

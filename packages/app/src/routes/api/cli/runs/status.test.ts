@@ -5,6 +5,7 @@ vi.mock("@/data/branch-status", () => ({
 }));
 
 import { getBranchStatus } from "@/data/branch-status";
+import { cliSessionContext, getRouteHandler } from "../test-utils";
 import { Route } from "./status";
 
 const mockedGetBranchStatus = vi.mocked(getBranchStatus);
@@ -21,20 +22,7 @@ type GetHandler = (args: {
 }) => Promise<Response>;
 
 function getHandler(): GetHandler {
-  const routeOptions = Route.options as unknown as {
-    server?: {
-      handlers?: {
-        GET?: GetHandler;
-      };
-    };
-  };
-
-  const handler = routeOptions.server?.handlers?.GET;
-  if (!handler) {
-    throw new Error("Missing GET handler for status route.");
-  }
-
-  return handler;
+  return getRouteHandler<GetHandler>(Route, "GET", "status route");
 }
 
 beforeEach(() => {
@@ -56,13 +44,7 @@ describe("/api/cli/runs/status", () => {
       request: new Request(
         "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123",
       ),
-      context: {
-        session: {
-          session: {
-            activeOrganizationId: "org-42",
-          },
-        },
-      },
+      context: cliSessionContext(),
     });
 
     expect(response.status).toBe(200);
@@ -101,13 +83,7 @@ describe("/api/cli/runs/status", () => {
       request: new Request(
         "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123",
       ),
-      context: {
-        session: {
-          session: {
-            activeOrganizationId: "org-42",
-          },
-        },
-      },
+      context: cliSessionContext(),
     });
 
     expect(response.status).toBe(200);
@@ -148,13 +124,7 @@ describe("/api/cli/runs/status", () => {
       request: new Request(
         "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123",
       ),
-      context: {
-        session: {
-          session: {
-            activeOrganizationId: "org-42",
-          },
-        },
-      },
+      context: cliSessionContext(),
     });
 
     expect(response.status).toBe(200);
@@ -185,13 +155,7 @@ describe("/api/cli/runs/status", () => {
       request: new Request(
         "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123&attempt=3",
       ),
-      context: {
-        session: {
-          session: {
-            activeOrganizationId: "org-42",
-          },
-        },
-      },
+      context: cliSessionContext(),
     });
 
     expect(response.status).toBe(200);
@@ -218,13 +182,7 @@ describe("/api/cli/runs/status", () => {
       request: new Request(
         "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&runId=4242",
       ),
-      context: {
-        session: {
-          session: {
-            activeOrganizationId: "org-42",
-          },
-        },
-      },
+      context: cliSessionContext(),
     });
 
     expect(response.status).toBe(200);
@@ -243,13 +201,7 @@ describe("/api/cli/runs/status", () => {
       request: new Request(
         "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr",
       ),
-      context: {
-        session: {
-          session: {
-            activeOrganizationId: "org-42",
-          },
-        },
-      },
+      context: cliSessionContext(),
     });
 
     expect(response.status).toBe(400);

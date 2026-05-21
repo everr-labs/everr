@@ -5,6 +5,7 @@ import {
   listInstallationRepos,
 } from "@/server/github-events/backfill";
 import { Route } from "./import";
+import { CLI_TEST_ORG_ID, getRouteHandler } from "./test-utils";
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -44,17 +45,12 @@ type PostHandler = (args: {
 }) => Promise<Response>;
 
 function getHandler(): PostHandler {
-  const routeOptions = Route.options as unknown as {
-    server?: { handlers?: { POST?: PostHandler } };
-  };
-  const handler = routeOptions.server?.handlers?.POST;
-  if (!handler) throw new Error("Missing POST handler for /api/cli/import.");
-  return handler;
+  return getRouteHandler<PostHandler>(Route, "POST", "/api/cli/import");
 }
 
 const context = {
   session: {
-    session: { activeOrganizationId: "org-42", userId: "user-1" },
+    session: { activeOrganizationId: CLI_TEST_ORG_ID, userId: "user-1" },
     user: { id: "user-1" },
   },
 };

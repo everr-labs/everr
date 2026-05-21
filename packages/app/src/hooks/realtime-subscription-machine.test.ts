@@ -36,6 +36,23 @@ function latestEs(): MockEventSource {
   return MockEventSource.instances[MockEventSource.instances.length - 1]!;
 }
 
+function sendMessage(type: string) {
+  latestEs().onmessage!(
+    new MessageEvent("message", { data: JSON.stringify({ type }) }),
+  );
+}
+
+function connectedMachine(
+  overrides: Partial<
+    ConstructorParameters<typeof RealtimeSubscriptionMachine>[0]
+  > = {},
+) {
+  const machine = createMachine(overrides);
+  machine.connect();
+  latestEs().onopen!();
+  return machine;
+}
+
 beforeEach(() => {
   MockEventSource.instances = [];
   vi.useFakeTimers();
@@ -137,13 +154,9 @@ describe("reconnection", () => {
 describe("trailing throttle", () => {
   it("calls onInvalidate after throttle delay, not immediately", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
-    );
+    sendMessage("update");
 
     expect(onInvalidate).not.toHaveBeenCalled();
 
@@ -154,13 +167,9 @@ describe("trailing throttle", () => {
 
   it("ignores non-update messages", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "ping" }) }),
-    );
+    sendMessage("ping");
 
     vi.advanceTimersByTime(THROTTLE_MS);
 
@@ -169,20 +178,11 @@ describe("trailing throttle", () => {
 
   it("batches multiple rapid messages into one invalidation per window", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
-    sendUpdate();
-    sendUpdate();
+    sendMessage("update");
+    sendMessage("update");
+    sendMessage("update");
 
     vi.advanceTimersByTime(THROTTLE_MS);
 
@@ -191,43 +191,25 @@ describe("trailing throttle", () => {
 
   it("fires again if messages arrive during throttle window", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
 
     // New message in next window
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(2);
   });
 
   it("batches mid-window messages into same invalidation", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS / 2);
-    sendUpdate(); // arrives mid-window, batched with first
+    sendMessage("update"); // arrives mid-window, batched with first
     vi.advanceTimersByTime(THROTTLE_MS / 2);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
 
@@ -238,36 +220,23 @@ describe("trailing throttle", () => {
 
   it("fires second time when message arrives after first window fires", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
 
     // Message during re-armed window
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(2);
   });
 
   it("stops firing after messages stop arriving", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
-    );
+    sendMessage("update");
 
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
@@ -303,13 +272,9 @@ describe("dispose", () => {
 
   it("cancels pending throttle invalidation", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    const machine = connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
-    );
+    sendMessage("update");
     machine.dispose();
 
     vi.advanceTimersByTime(THROTTLE_MS);

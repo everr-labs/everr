@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { listInstallationRepos } from "@/server/github-events/backfill";
 import { Route } from "./repos";
+import { cliSessionContext, getRouteHandler } from "./test-utils";
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -34,15 +35,10 @@ type GetHandler = (args: {
 }) => Promise<Response>;
 
 function getHandler(): GetHandler {
-  const routeOptions = Route.options as unknown as {
-    server?: { handlers?: { GET?: GetHandler } };
-  };
-  const handler = routeOptions.server?.handlers?.GET;
-  if (!handler) throw new Error("Missing GET handler for /api/cli/repos.");
-  return handler;
+  return getRouteHandler<GetHandler>(Route, "GET", "/api/cli/repos");
 }
 
-const context = { session: { session: { activeOrganizationId: "org-42" } } };
+const context = cliSessionContext();
 
 function mockDbInstallations(
   installations: Array<{ installationId: number; status: string }>,
