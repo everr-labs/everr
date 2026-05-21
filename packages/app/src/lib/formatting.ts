@@ -121,7 +121,7 @@ import {
   formatRelativeTime,
   formatTimestampTimeOfDay,
   parseTimestampAsUTC,
-} from "@everr/logs-explorer";
+} from "@everr/telemetry-explorer/logs";
 
 export { formatRelativeTime, formatTimestampTimeOfDay, parseTimestampAsUTC };
 

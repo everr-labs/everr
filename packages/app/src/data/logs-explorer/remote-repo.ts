@@ -10,7 +10,7 @@ import type {
   LogsTotalsInput,
   LogsTotalsResult,
   TimeRange,
-} from "@everr/logs-explorer";
+} from "@everr/telemetry-explorer/logs";
 import {
   getLogDetail,
   getLogFilterOptions,
