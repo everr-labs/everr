@@ -6,6 +6,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { AuthPageHeader } from "../-components/auth-page";
 
 export const Route = createFileRoute("/_auth/_guest/auth/forgot-password")({
   component: ForgotPassword,
@@ -48,78 +49,72 @@ function ForgotPassword() {
   });
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight font-heading">
-            Forgot your password?
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Enter your email and we'll send you a reset link
+    <>
+      <AuthPageHeader
+        title="Forgot your password?"
+        subtitle="Enter your email and we'll send you a reset link"
+      />
+
+      {submitted ? (
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            Check your email for a password reset link.
           </p>
         </div>
-
-        {submitted ? (
-          <div className="space-y-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Check your email for a password reset link.
-            </p>
-          </div>
-        ) : (
-          <form
-            className="space-y-5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void form.handleSubmit();
-            }}
-          >
-            <form.Field name="email">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                    autoComplete="username"
-                  />
-                </div>
-              )}
-            </form.Field>
-
-            {error && (
-              <p className="text-xs text-destructive" role="alert">
-                {error}
-              </p>
+      ) : (
+        <form
+          className="space-y-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit();
+          }}
+        >
+          <form.Field name="email">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="username"
+                />
+              </div>
             )}
+          </form.Field>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                "Send reset link"
-              )}
-            </Button>
-          </form>
-        )}
+          {error && (
+            <p className="text-xs text-destructive" role="alert">
+              {error}
+            </p>
+          )}
 
-        <p className="text-center text-sm text-muted-foreground">
-          Remember your password?{" "}
-          <Link
-            to="/auth/sign-in"
-            className="font-medium text-foreground hover:underline"
-          >
-            Sign in
-          </Link>
-        </p>
-      </div>
-    </main>
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              "Send reset link"
+            )}
+          </Button>
+        </form>
+      )}
+
+      <p className="text-center text-sm text-muted-foreground">
+        Remember your password?{" "}
+        <Link
+          to="/auth/sign-in"
+          className="font-medium text-foreground hover:underline"
+        >
+          Sign in
+        </Link>
+      </p>
+    </>
   );
 }
