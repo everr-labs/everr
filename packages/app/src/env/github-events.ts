@@ -1,20 +1,11 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 
-function trim(value: unknown): unknown {
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  const trimmed = value.trim();
-  return trimmed === "" ? undefined : trimmed;
-}
-
 export const githubEventsEnv = createEnv({
   isServer: true,
   server: {
-    INGRESS_SOURCE: z.preprocess(trim, z.string().min(1)),
-    INGRESS_COLLECTOR_URL: z.preprocess(trim, z.url()),
+    INGRESS_SOURCE: z.string().trim().min(1),
+    INGRESS_COLLECTOR_URL: z.url().trim(),
   },
   runtimeEnv: {
     INGRESS_SOURCE: process.env.INGRESS_SOURCE,
