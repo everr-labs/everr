@@ -1,10 +1,12 @@
 import { defineConfig, defineDocs, defineCollections } from 'fumadocs-mdx/config';
 import { z } from 'zod';
 
+/** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export const docs = defineDocs({
   dir: 'content/docs',
 });
 
+/** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export const devlog = defineCollections({
   type: 'doc',
   dir: 'content/devlog',
@@ -21,6 +23,7 @@ export const devlog = defineCollections({
   }),
 });
 
+/** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export const blog = defineCollections({
   type: 'doc',
   dir: 'content/blog',
@@ -33,4 +36,5 @@ export const blog = defineCollections({
   }),
 });
 
+/** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export default defineConfig();

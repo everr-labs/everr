@@ -1,62 +1,6 @@
 import { z } from "zod";
 import { TimeRangeSchema } from "@/lib/time-range";
 
-// Filter input for flaky tests list
-export const FlakyTestsFilterInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  repo: z.string().optional(),
-  branch: z.string().optional(),
-  search: z.string().optional(),
-});
-export type FlakyTestsFilterInput = z.infer<typeof FlakyTestsFilterInputSchema>;
-
-// Filter options (repos + branches that have test data)
-export interface FlakyTestFilterOptions {
-  repos: string[];
-  branches: string[];
-}
-
-// Flaky test list item
-export interface FlakyTest {
-  repo: string;
-  testPackage: string;
-  testFullName: string;
-  totalExecutions: number;
-  failCount: number;
-  passCount: number;
-  skipCount: number;
-  distinctRuns: number;
-  distinctShas: number;
-  failureRate: number;
-  lastSeen: string;
-  avgDuration: number;
-  firstSeen: string;
-  recentFailureRate: number;
-}
-
-// Daily result for heatmap
-export interface TestDailyResult {
-  date: string;
-  passCount: number;
-  failCount: number;
-  skipCount: number;
-}
-
-// Summary stats
-export interface FlakyTestSummary {
-  flakyTestCount: number;
-  totalTestCount: number;
-  flakyPercentage: number;
-}
-
-// Flakiness trend (per-day)
-export interface FlakinessTrendPoint {
-  date: string;
-  flakyCount: number;
-  totalCount: number;
-  flakyPercentage: number;
-}
-
 // Test detail history
 export interface TestExecution {
   traceId: string;
@@ -93,20 +37,3 @@ export const TestHistoryInputSchema = z
       });
     }
   });
-
-export const TestDetailInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  repo: z.string(),
-  testFullName: z.string(),
-});
-export type TestDetailInput = z.infer<typeof TestDetailInputSchema>;
-
-// Runner breakdown for a specific test
-export interface RunnerFlakiness {
-  runnerName: string;
-  totalExecutions: number;
-  failCount: number;
-  passCount: number;
-  failureRate: number;
-  avgDuration: number;
-}

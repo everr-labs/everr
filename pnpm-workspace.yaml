@@ -27,6 +27,7 @@ minimumReleaseAge: 4320
 allowBuilds:
   core-js: false
   esbuild: false
+  fallow: false
   lefthook: true
   msw: false
   protobufjs: false

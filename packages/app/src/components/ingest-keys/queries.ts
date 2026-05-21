@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth-client";
 
-export const INGEST_CONFIG_ID = "ingest";
+const INGEST_CONFIG_ID = "ingest";
 
 type ListResult = Awaited<ReturnType<typeof authClient.apiKey.list>>;
 type ListData = NonNullable<ListResult["data"]>;
@@ -19,7 +19,7 @@ type RawApiKeys = ListData extends {
 
 export type IngestKey = RawApiKeys[number];
 
-export const ingestKeysQueryKey = ["ingest-keys"] as const;
+const ingestKeysQueryKey = ["ingest-keys"] as const;
 
 async function getActiveOrgId(): Promise<string> {
   const res = await authClient.getSession();

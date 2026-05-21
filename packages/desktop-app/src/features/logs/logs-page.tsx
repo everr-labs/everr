@@ -31,7 +31,7 @@ export const LogsSearchSchema = z.object({
   showVolume: z.boolean().default(true),
 });
 
-export type LogsSearch = z.infer<typeof LogsSearchSchema>;
+type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
 export function LogsPage() {
   const search = useSearch({ strict: false }) as LogsSearch;

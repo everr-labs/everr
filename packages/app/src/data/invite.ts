@@ -9,16 +9,8 @@ import {
   type InvitationLookup,
 } from "./invite-resolver";
 
-export type {
-  InvitationLookup,
-  InvitationRow,
-  InviteLoaderResult,
-  InviteLoaderSession,
-} from "./invite-resolver";
-export {
-  deriveInvitationLookup,
-  resolveInvitationLoader,
-} from "./invite-resolver";
+export type { InviteLoaderResult } from "./invite-resolver";
+export { resolveInvitationLoader } from "./invite-resolver";
 
 export const lookupInvitation = createServerFn({ method: "GET" })
   .inputValidator(z.object({ invitationId: z.string() }))

@@ -43,16 +43,6 @@ export interface FilterOptions {
   workflowNames: string[];
 }
 
-export interface RunSearchResult {
-  traceId: string;
-  runId: string;
-  workflowName: string;
-  repo: string;
-  branch: string;
-  conclusion: string;
-  timestamp: string;
-}
-
 export const SearchRunsInputSchema = z.object({
   query: z.string().min(1),
 });
