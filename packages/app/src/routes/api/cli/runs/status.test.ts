@@ -25,6 +25,13 @@ function getHandler(): GetHandler {
   return getRouteHandler<GetHandler>(Route, "GET", "status route");
 }
 
+function callStatus(query: string) {
+  return getHandler()({
+    request: new Request(`http://localhost/api/cli/runs/status?${query}`),
+    context: cliSessionContext(),
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -40,12 +47,9 @@ describe("/api/cli/runs/status", () => {
       completed: [],
     });
 
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123",
-      ),
-      context: cliSessionContext(),
-    });
+    const response = await callStatus(
+      "repo=everr-labs%2Feverr&branch=main&commit=abc123",
+    );
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -79,12 +83,9 @@ describe("/api/cli/runs/status", () => {
       completed: [],
     });
 
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123",
-      ),
-      context: cliSessionContext(),
-    });
+    const response = await callStatus(
+      "repo=everr-labs%2Feverr&branch=main&commit=abc123",
+    );
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -120,12 +121,9 @@ describe("/api/cli/runs/status", () => {
       ],
     });
 
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123",
-      ),
-      context: cliSessionContext(),
-    });
+    const response = await callStatus(
+      "repo=everr-labs%2Feverr&branch=main&commit=abc123",
+    );
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -151,12 +149,9 @@ describe("/api/cli/runs/status", () => {
       completed: [],
     });
 
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&branch=main&commit=abc123&attempt=3",
-      ),
-      context: cliSessionContext(),
-    });
+    const response = await callStatus(
+      "repo=everr-labs%2Feverr&branch=main&commit=abc123&attempt=3",
+    );
 
     expect(response.status).toBe(200);
     expect(mockedGetBranchStatus).toHaveBeenCalledWith({
@@ -178,12 +173,7 @@ describe("/api/cli/runs/status", () => {
       completed: [],
     });
 
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr&runId=4242",
-      ),
-      context: cliSessionContext(),
-    });
+    const response = await callStatus("repo=everr-labs%2Feverr&runId=4242");
 
     expect(response.status).toBe(200);
     expect(mockedGetBranchStatus).toHaveBeenCalledWith({
@@ -197,12 +187,7 @@ describe("/api/cli/runs/status", () => {
   });
 
   it("requires repo and either commit or runId", async () => {
-    const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/runs/status?repo=everr-labs%2Feverr",
-      ),
-      context: cliSessionContext(),
-    });
+    const response = await callStatus("repo=everr-labs%2Feverr");
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
