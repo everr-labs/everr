@@ -4,10 +4,6 @@ vi.mock("@/data/runs/server", () => ({
   getStepLogs: vi.fn(),
 }));
 
-vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
-  accessTokenAuthMiddleware: { options: {} },
-}));
-
 import { getStepLogs } from "@/data/runs/server";
 import { Route } from "./logs";
 

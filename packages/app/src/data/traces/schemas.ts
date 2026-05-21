@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
-export const SpanStatusFilterSchema = z.enum(["ok", "error", "all"]);
+const SpanStatusFilterSchema = z.enum(["ok", "error", "all"]);
 export type SpanStatusFilter = z.infer<typeof SpanStatusFilterSchema>;
 
 export const TraceSearchParamsSchema = TimeRangeSearchSchema.extend({
@@ -19,9 +19,6 @@ export const TraceDetailParamsSchema = TimeRangeSearchSchema.extend({
   start: z.string().optional(),
   end: z.string().optional(),
 });
-
-export type TraceSearchParams = z.infer<typeof TraceSearchParamsSchema>;
-export type TraceDetailParams = z.infer<typeof TraceDetailParamsSchema>;
 
 export const SearchTracesInputSchema = z.object({
   fromTs: z.string().min(1),

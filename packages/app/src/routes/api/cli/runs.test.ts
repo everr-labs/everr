@@ -4,12 +4,6 @@ vi.mock("@/data/runs-list/server", () => ({
   getRunsList: vi.fn(),
 }));
 
-vi.mock("@/lib/accessTokenAuthMiddleware", () => ({
-  accessTokenAuthMiddleware: {
-    options: {},
-  },
-}));
-
 import { getRunsList } from "@/data/runs-list/server";
 import { Route } from "./runs";
 

@@ -5,6 +5,11 @@ pre-commit:
       glob: "*.{js,ts,tsx,json,jsonc,css}"
       run: pnpm biome check --fix --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
       stage_fixed: true
+    - name: fallow
+      glob: "*.{js,mjs,cjs,ts,tsx,jsonc}"
+      # dead-code only — health + dupes will move into a `fallow audit` gate
+      # once stage-2 baselines are in place.
+      run: pnpm exec fallow dead-code --fail-on-issues --quiet
     - name: collector
       glob: "collector/**/*.go"
       group:

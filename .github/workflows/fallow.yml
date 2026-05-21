@@ -1,0 +1,53 @@
+name: Fallow
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/fallow.yml
+      - .fallowrc.jsonc
+      - .nvmrc
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.mts"
+      - "**/*.cts"
+      - "**/*.js"
+      - "**/*.mjs"
+      - "**/*.cjs"
+  push:
+    branches: [main]
+
+jobs:
+  dead-code:
+    name: Dead-code scan
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: fallow dead-code
+        # Stage 1 of the fallow rollout — enforces only the rules we cleaned
+        # under .fallowrc.jsonc. Health + dupes move under `fallow audit` with
+        # baselines in stage 2.
+        run: pnpm exec fallow dead-code --fail-on-issues --quiet

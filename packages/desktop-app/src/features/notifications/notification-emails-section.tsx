@@ -25,7 +25,7 @@ import {
 } from "../desktop-shell/ui";
 import { notificationEmailsQueryKey } from "./query-keys";
 
-export type UserProfile = {
+type UserProfile = {
   email: string;
   name: string;
   profile_url: string | null;

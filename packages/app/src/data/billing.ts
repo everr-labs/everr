@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { organization } from "@/db/schema";
 import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
-import { getOrgEntitlement as readOrgEntitlement } from "@/lib/billing-data.server";
+import { readOrgEntitlement } from "@/lib/billing-data.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import {
   createAuthenticatedServerFn,

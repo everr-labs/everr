@@ -19,7 +19,7 @@ function compareSpans(a: Span, b: Span): number {
 
 // Roots = explicit roots (parentSpanId === "") + orphan roots whose parent
 // is missing from the trace (retention boundary or window clipped it).
-export function pickRoots(spans: Span[]): Span[] {
+function pickRoots(spans: Span[]): Span[] {
   const knownIds = new Set<string>();
   for (const s of spans) knownIds.add(s.spanId);
   const roots: Span[] = [];

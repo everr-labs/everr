@@ -11,7 +11,7 @@ const Ansi =
     ? AnsiImport
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
-export interface LogRowProps {
+interface LogRowProps {
   log: LogExplorerRow;
   rowKey: string;
   isSelected: boolean;
