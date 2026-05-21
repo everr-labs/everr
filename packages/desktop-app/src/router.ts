@@ -11,6 +11,12 @@ import { DeveloperPage } from "./features/developer/developer-page";
 import { LogsPage, LogsSearchSchema } from "./features/logs/logs-page";
 import { NotificationsPage } from "./features/notifications/notifications-page";
 import { OnboardingPage } from "./features/onboarding/onboarding-page";
+import {
+  TraceDetailPage,
+  TraceDetailParamsSchema,
+  TraceSearchParamsSchema,
+  TracesPage,
+} from "./features/traces/traces-page";
 
 const rootRoute = createRootRoute({
   component: DesktopWindow,
@@ -60,6 +66,20 @@ const logsRoute = createRoute({
   component: LogsPage,
 });
 
+const tracesRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "/traces",
+  validateSearch: TraceSearchParamsSchema,
+  component: TracesPage,
+});
+
+const traceDetailRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "/traces/$traceId",
+  validateSearch: TraceDetailParamsSchema,
+  component: TraceDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   onboardingRoute,
   authenticatedRoute.addChildren([
@@ -67,6 +87,8 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     developerRoute,
     logsRoute,
+    tracesRoute,
+    traceDetailRoute,
   ]),
 ]);
 

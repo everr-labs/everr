@@ -6,7 +6,7 @@ import {
   LogsTotalsInputSchema,
   type SqlClient,
   TimeRangeSchema,
-} from "@everr/logs-explorer";
+} from "@everr/telemetry-explorer/logs";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 

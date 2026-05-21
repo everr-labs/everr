@@ -20,6 +20,8 @@
       "packages/ui/**/src/**/*",
       "packages/ui/**/*.css",
 
+      "packages/telemetry-explorer/**/src/**/*",
+
       "packages/datemath/**/src/**/*",
       "packages/datemath/vite.config.ts",
 

@@ -20,7 +20,7 @@
     "@better-auth/api-key": "^1.6.10",
     "@clickhouse/client": "^1.18.4",
     "@everr/datemath": "workspace:*",
-    "@everr/logs-explorer": "workspace:*",
+    "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@octokit/webhooks-methods": "^6.0.0",
     "@polar-sh/better-auth": "^1.8.4",
