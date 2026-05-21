@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { listInstallationRepos } from "@/server/github-events/backfill";
+import { cliSessionContext, getRouteHandler } from "./-test-utils";
 import { Route } from "./repos";
-import { cliSessionContext, getRouteHandler } from "./test-utils";
 
 vi.mock("@/db/client", () => ({
   db: {

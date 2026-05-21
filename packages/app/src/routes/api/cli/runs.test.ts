@@ -5,8 +5,8 @@ vi.mock("@/data/runs-list/server", () => ({
 }));
 
 import { getRunsList } from "@/data/runs-list/server";
+import { getRouteHandler } from "./-test-utils";
 import { Route } from "./runs";
-import { getRouteHandler } from "./test-utils";
 
 const mockedGetRunsList = vi.mocked(getRunsList);
 

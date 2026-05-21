@@ -1,12 +1,15 @@
 import { isValid, resolve } from "@everr/datemath";
 import { z } from "zod";
-import {
-  DEFAULT_TIME_RANGE,
-  type TimeRange,
-} from "../components/time-range-picker";
 
-export type { TimeRange };
-export { DEFAULT_TIME_RANGE };
+export interface TimeRange {
+  from: string;
+  to: string;
+}
+
+export const DEFAULT_TIME_RANGE: TimeRange = {
+  from: "now-7d",
+  to: "now",
+} as const;
 
 const datemath = z.string().refine(isValid);
 

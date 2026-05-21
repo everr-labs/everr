@@ -4,8 +4,8 @@ import {
   backfillRepo,
   listInstallationRepos,
 } from "@/server/github-events/backfill";
+import { CLI_TEST_ORG_ID, getRouteHandler } from "./-test-utils";
 import { Route } from "./import";
-import { CLI_TEST_ORG_ID, getRouteHandler } from "./test-utils";
 
 vi.mock("@/db/client", () => ({
   db: {

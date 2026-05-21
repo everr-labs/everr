@@ -5,7 +5,7 @@ vi.mock("@/data/branch-status", () => ({
 }));
 
 import { getBranchStatus } from "@/data/branch-status";
-import { cliSessionContext, getRouteHandler } from "../test-utils";
+import { cliSessionContext, getRouteHandler } from "../-test-utils";
 import { Route } from "./status";
 
 const mockedGetBranchStatus = vi.mocked(getBranchStatus);
