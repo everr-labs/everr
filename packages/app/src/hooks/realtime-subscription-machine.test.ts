@@ -53,6 +53,23 @@ function connectedMachine(
   return machine;
 }
 
+function errorAndAdvance(ms: number = MAX_RECONNECT_DELAY_MS) {
+  latestEs().onerror!();
+  vi.advanceTimersByTime(ms);
+}
+
+function exhaustRetriesAndAssertDisconnect() {
+  // 5 retries within budget
+  for (let i = 0; i < 5; i++) {
+    errorAndAdvance();
+  }
+  // 6th error disconnects permanently
+  latestEs().onerror!();
+  const countAfterDisconnect = MockEventSource.instances.length;
+  vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
+  expect(MockEventSource.instances).toHaveLength(countAfterDisconnect);
+}
+
 beforeEach(() => {
   MockEventSource.instances = [];
   vi.useFakeTimers();
@@ -99,18 +116,7 @@ describe("reconnection", () => {
     const machine = createMachine();
     machine.connect();
 
-    for (let i = 0; i < 5; i++) {
-      latestEs().onerror!();
-      vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    }
-
-    // 6th error should disconnect permanently
-    latestEs().onerror!();
-
-    // No new EventSource created
-    const countAfterDisconnect = MockEventSource.instances.length;
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    expect(MockEventSource.instances).toHaveLength(countAfterDisconnect);
+    exhaustRetriesAndAssertDisconnect();
   });
 
   it("resets retry counter on successful connection", () => {
@@ -118,25 +124,14 @@ describe("reconnection", () => {
     machine.connect();
 
     // Fail a few times
-    latestEs().onerror!();
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    latestEs().onerror!();
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
+    errorAndAdvance();
+    errorAndAdvance();
 
     // Successfully connect
     latestEs().onopen!();
 
-    // Fail again — should get full retry budget
-    for (let i = 0; i < 5; i++) {
-      latestEs().onerror!();
-      vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    }
-
-    // 6th error after reset — now disconnects
-    latestEs().onerror!();
-    const countAfterDisconnect = MockEventSource.instances.length;
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    expect(MockEventSource.instances).toHaveLength(countAfterDisconnect);
+    // Fail again — should get full retry budget before disconnect
+    exhaustRetriesAndAssertDisconnect();
   });
 
   it("handles error during connecting state", () => {

@@ -217,6 +217,18 @@ function mockGitHubList(itemsKey: string, items: unknown[], linkNext?: string) {
   };
 }
 
+function makeSuccessfulRunsWithJobs(runIds: number[]) {
+  const runs = runIds.map((id) => makeRun({ id, conclusion: "success" }));
+  const jobs = runIds.map((id) => [makeJob({ id: id * 100 + 1, run_id: id })]);
+  return { runs, jobs };
+}
+
+function makeSingleRunWithJob() {
+  const runs = [makeRun({ id: 1 })];
+  const jobs = [[makeJob({ id: 101, run_id: 1 })]];
+  return { runs, jobs };
+}
+
 function setupDbMock(existingTraceIds: string[] = []) {
   const rows = existingTraceIds.map((traceId) => ({ traceId }));
   const where = vi.fn().mockResolvedValue(rows);
@@ -307,8 +319,7 @@ describe("backfillRepo", () => {
   }
 
   it("replays runs and jobs through the collector", async () => {
-    const runs = [makeRun({ id: 1 })];
-    const jobs = [[makeJob({ id: 101, run_id: 1 })]];
+    const { runs, jobs } = makeSingleRunWithJob();
     setupFetch(runs, jobs);
 
     const { result } = await drainBackfill(999, "org-1", TEST_REPO);
@@ -354,8 +365,7 @@ describe("backfillRepo", () => {
   });
 
   it("falls back to no branch filter when main and master have no runs", async () => {
-    const runs = [makeRun({ id: 1 })];
-    const jobs = [[makeJob({ id: 101, run_id: 1 })]];
+    const { runs, jobs } = makeSingleRunWithJob();
 
     mockFetch.mockImplementation(async (url: string) => {
       if (url.includes("/access_tokens")) return mockTokenResponse();
@@ -389,14 +399,7 @@ describe("backfillRepo", () => {
   });
 
   it("continues with remaining runs when one run fails", async () => {
-    const runs = [
-      makeRun({ id: 1, conclusion: "success" }),
-      makeRun({ id: 2, conclusion: "success" }),
-    ];
-    const jobs = [
-      [makeJob({ id: 101, run_id: 1 })],
-      [makeJob({ id: 201, run_id: 2 })],
-    ];
+    const { runs, jobs } = makeSuccessfulRunsWithJobs([1, 2]);
     setupFetch(runs, jobs);
 
     // Make replay fail for run 1's job (jobs are enqueued before runs)
@@ -413,16 +416,7 @@ describe("backfillRepo", () => {
   });
 
   it("emits onProgress events during backfill", async () => {
-    const runs = [
-      makeRun({ id: 1, conclusion: "success" }),
-      makeRun({ id: 2, conclusion: "success" }),
-      makeRun({ id: 3, conclusion: "success" }),
-    ];
-    const jobs = [
-      [makeJob({ id: 101, run_id: 1 })],
-      [makeJob({ id: 201, run_id: 2 })],
-      [makeJob({ id: 301, run_id: 3 })],
-    ];
+    const { runs, jobs } = makeSuccessfulRunsWithJobs([1, 2, 3]);
     setupFetch(runs, jobs);
 
     const { result, progress: progressEvents } = await drainBackfill(
@@ -461,16 +455,7 @@ describe("backfillRepo", () => {
   });
 
   it("skips runs whose traceId already exists in the database", async () => {
-    const runs = [
-      makeRun({ id: 1, conclusion: "success" }),
-      makeRun({ id: 2, conclusion: "success" }),
-      makeRun({ id: 3, conclusion: "success" }),
-    ];
-    const jobs = [
-      [makeJob({ id: 101, run_id: 1 })],
-      [makeJob({ id: 201, run_id: 2 })],
-      [makeJob({ id: 301, run_id: 3 })],
-    ];
+    const { runs, jobs } = makeSuccessfulRunsWithJobs([1, 2, 3]);
     setupFetch(runs, jobs);
 
     // Mark run 1 and run 3 as already existing

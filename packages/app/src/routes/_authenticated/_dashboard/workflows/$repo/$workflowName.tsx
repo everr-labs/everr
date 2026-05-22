@@ -18,6 +18,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
 import { ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
+import { DeltaIndicator } from "@/components/delta-indicator";
 import { RunsTable } from "@/components/runs-list/runs-table";
 import { TimeRangePanel } from "@/components/time-range-panel";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
@@ -45,31 +46,6 @@ export const Route = createFileRoute(
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────
-
-function DeltaIndicator({
-  current,
-  previous,
-  invertColors = false,
-}: {
-  current: number;
-  previous: number;
-  invertColors?: boolean;
-}) {
-  if (previous === 0 && current === 0) return null;
-  if (previous === 0) return null;
-  const delta = ((current - previous) / previous) * 100;
-  if (Math.abs(delta) < 0.5) return null;
-  const isPositive = delta > 0;
-  const isGood = invertColors ? !isPositive : isPositive;
-  return (
-    <span
-      className={`text-xs font-normal ${isGood ? "text-green-600" : "text-red-600"}`}
-    >
-      {isPositive ? "+" : ""}
-      {Math.round(delta)}%
-    </span>
-  );
-}
 
 const durationChartConfig = {
   avgDuration: { label: "Avg Duration", color: "hsl(217, 91%, 60%)" },

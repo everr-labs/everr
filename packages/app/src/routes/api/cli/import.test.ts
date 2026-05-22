@@ -4,7 +4,11 @@ import {
   backfillRepo,
   listInstallationRepos,
 } from "@/server/github-events/backfill";
-import { CLI_TEST_ORG_ID, getRouteHandler } from "./-test-utils";
+import {
+  CLI_TEST_ORG_ID,
+  getRouteHandler,
+  mockDbInstallations,
+} from "./-test-utils";
 import { Route } from "./import";
 
 vi.mock("@/db/client", () => ({
@@ -55,19 +59,6 @@ const context = {
   },
 };
 
-function mockDbInstallations(
-  installations: Array<{ installationId: number; status: string }>,
-) {
-  const where = vi.fn().mockResolvedValue(
-    installations.map((i) => ({
-      installationId: i.installationId,
-      status: i.status,
-    })),
-  );
-  const from = vi.fn().mockReturnValue({ where });
-  vi.mocked(mockedDb.select).mockReturnValue({ from } as never);
-}
-
 beforeEach(() => vi.clearAllMocks());
 
 async function mockCurrentMemberRole(role: string) {
@@ -77,20 +68,24 @@ async function mockCurrentMemberRole(role: string) {
   } as never);
 }
 
+function callImport(body: unknown) {
+  return getHandler()({
+    request: new Request("http://localhost/api/cli/import", {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
+    }),
+    context,
+  });
+}
+
 describe("/api/cli/import", () => {
   it("returns 403 when the current user cannot manage imports", async () => {
     await mockCurrentMemberRole("member");
-    mockDbInstallations([{ status: "active", installationId: 99 }]);
+    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
     mockedListRepos.mockResolvedValueOnce([]);
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/import", {
-        method: "POST",
-        body: JSON.stringify({ repos: ["org/repo-a"] }),
-        headers: { "content-type": "application/json" },
-      }),
-      context,
-    });
+    const response = await callImport({ repos: ["org/repo-a"] });
 
     expect(response.status).toBe(403);
     expect(mockedListRepos).not.toHaveBeenCalled();
@@ -98,37 +93,23 @@ describe("/api/cli/import", () => {
   });
 
   it("returns 400 when repos list is empty", async () => {
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/import", {
-        method: "POST",
-        body: JSON.stringify({ repos: [] }),
-        headers: { "content-type": "application/json" },
-      }),
-      context,
-    });
+    const response = await callImport({ repos: [] });
 
     expect(response.status).toBe(400);
   });
 
   it("returns 400 when no active GitHub installation", async () => {
     await mockCurrentMemberRole("admin");
-    mockDbInstallations([]);
+    mockDbInstallations(mockedDb, []);
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/import", {
-        method: "POST",
-        body: JSON.stringify({ repos: ["org/repo-a"] }),
-        headers: { "content-type": "application/json" },
-      }),
-      context,
-    });
+    const response = await callImport({ repos: ["org/repo-a"] });
 
     expect(response.status).toBe(400);
   });
 
   it("returns ok immediately and starts backfill in background", async () => {
     await mockCurrentMemberRole("admin");
-    mockDbInstallations([{ status: "active", installationId: 99 }]);
+    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
     mockedListRepos.mockResolvedValueOnce([
       { id: 1, full_name: "org/repo-a" } as Awaited<
         ReturnType<typeof mockedListRepos>
@@ -146,14 +127,7 @@ describe("/api/cli/import", () => {
     }
     mockedBackfillRepo.mockReturnValueOnce(fakeBackfill());
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/import", {
-        method: "POST",
-        body: JSON.stringify({ repos: ["org/repo-a"] }),
-        headers: { "content-type": "application/json" },
-      }),
-      context,
-    });
+    const response = await callImport({ repos: ["org/repo-a"] });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });

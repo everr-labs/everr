@@ -53,6 +53,22 @@ async function typeMinimumDuration(
   return input;
 }
 
+function expectSpansVisible(...names: string[]) {
+  for (const name of names) {
+    expect(
+      screen.getByRole("button", { name: new RegExp(name) }),
+    ).toBeInTheDocument();
+  }
+}
+
+function expectSpansHidden(...names: string[]) {
+  for (const name of names) {
+    expect(
+      screen.queryByRole("button", { name: new RegExp(name) }),
+    ).not.toBeInTheDocument();
+  }
+}
+
 const flatSpans: Span[] = [
   makeSpan({
     spanId: "a",
@@ -99,8 +115,7 @@ const hierarchicalSpans: Span[] = [
 describe("TraceWaterfall", () => {
   it("renders span names", () => {
     renderWaterfall(flatSpans);
-    expect(screen.getByRole("button", { name: /Job A/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Job B/ })).toBeInTheDocument();
+    expectSpansVisible("Job A", "Job B");
   });
 
   it("renders duration labels", () => {
@@ -128,42 +143,23 @@ describe("TraceWaterfall", () => {
       const user = renderWaterfall(hierarchicalSpans);
 
       // Children visible initially
-      expect(
-        screen.getByRole("button", { name: /Child One/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Child Two/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Child One", "Child Two");
 
       await user.click(screen.getByRole("button", { name: /Collapse All/ }));
 
-      expect(
-        screen.queryByRole("button", { name: /Child One/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: /Child Two/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Child One", "Child Two");
       // Root is still visible
-      expect(
-        screen.getByRole("button", { name: /Root Span/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Root Span");
     });
 
     it("Expand All restores children after collapse", async () => {
       const user = renderWaterfall(hierarchicalSpans);
 
       await user.click(screen.getByRole("button", { name: /Collapse All/ }));
-      expect(
-        screen.queryByRole("button", { name: /Child One/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Child One");
 
       await user.click(screen.getByRole("button", { name: /Expand All/ }));
-      expect(
-        screen.getByRole("button", { name: /Child One/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Child Two/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Child One", "Child Two");
     });
   });
 
@@ -277,57 +273,33 @@ describe("TraceWaterfall", () => {
       const user = renderWaterfall(mixedSpans);
       await typeMinimumDuration(user, "500ms");
 
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Fast Span");
     });
 
     it("keeps spans at or above the threshold visible", async () => {
       const user = renderWaterfall(mixedSpans);
       await typeMinimumDuration(user, "500ms");
 
-      expect(
-        screen.getByRole("button", { name: /Medium Span/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Slow Span/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Medium Span", "Slow Span");
     });
 
     it("filters using seconds notation", async () => {
       const user = renderWaterfall(mixedSpans);
       await typeMinimumDuration(user, "1s");
 
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: /Medium Span/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Slow Span/ }),
-      ).toBeInTheDocument();
+      expectSpansHidden("Fast Span", "Medium Span");
+      expectSpansVisible("Slow Span");
     });
 
     it("clearing the filter restores all spans", async () => {
       const user = renderWaterfall(mixedSpans);
       const input = await typeMinimumDuration(user, "500ms");
 
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Fast Span");
 
       await user.clear(input);
 
-      expect(
-        screen.getByRole("button", { name: /Fast Span/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Medium Span/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Slow Span/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Fast Span", "Medium Span", "Slow Span");
     });
 
     it("shows filtered span count when filter is active", async () => {
@@ -341,12 +313,8 @@ describe("TraceWaterfall", () => {
       const user = renderWaterfall(mixedSpans);
       await typeMinimumDuration(user, "500");
 
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Medium Span/ }),
-      ).toBeInTheDocument();
+      expectSpansHidden("Fast Span");
+      expectSpansVisible("Medium Span");
     });
   });
 
