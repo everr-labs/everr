@@ -8,8 +8,8 @@
 }
 
 .react-grid-item.react-grid-placeholder {
-  background: var(--primary);
-  opacity: 0.2;
+  background: color-mix(in oklch, var(--primary) 20%, transparent);
+  opacity: 1;
   border: 2px dashed var(--primary);
   border-radius: var(--radius);
 }
