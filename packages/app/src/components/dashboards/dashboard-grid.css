@@ -10,5 +10,6 @@
 .react-grid-item.react-grid-placeholder {
   background: var(--primary);
   opacity: 0.2;
+  border: 2px dashed var(--primary);
   border-radius: var(--radius);
 }
