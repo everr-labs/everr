@@ -1,5 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import { GripVertical, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { Panel } from "@/data/dashboards/types";
 import { PanelShell } from "../panel-shell";
 
@@ -24,26 +24,19 @@ export function DashboardPanel({
       description={display.description}
       status="success"
       className="h-full"
+      headerClassName={
+        isEditing ? "drag-handle cursor-grab active:cursor-grabbing" : undefined
+      }
       action={
         isEditing ? (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="drag-handle cursor-grab active:cursor-grabbing"
-              aria-label="Drag to move"
-            >
-              <GripVertical />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={onRemove}
-              aria-label="Remove panel"
-            >
-              <X />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onRemove}
+            aria-label="Remove panel"
+          >
+            <X />
+          </Button>
         ) : undefined
       }
     >

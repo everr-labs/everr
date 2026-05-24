@@ -61,6 +61,7 @@ export function PanelShell({
   icon: Icon,
   action,
   inset = "default",
+  headerClassName,
   className,
   children,
 }: PanelShellProps) {
@@ -136,7 +137,7 @@ export function PanelShell({
   return (
     <Card inset={inset} className={cn(className)}>
       {hasHeader && (
-        <CardHeader>
+        <CardHeader className={headerClassName}>
           {title && <CardTitle>{title}</CardTitle>}
           {description && <CardDescription>{description}</CardDescription>}
           {action && <CardAction>{action}</CardAction>}
