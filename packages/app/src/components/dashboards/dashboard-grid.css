@@ -7,6 +7,16 @@
   z-index: 3;
 }
 
+.react-grid-item > .react-resizable-handle::after {
+  border-right-color: var(--muted-foreground);
+  border-bottom-color: var(--muted-foreground);
+}
+
+.react-grid-item:hover > .react-resizable-handle::after {
+  border-right-color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
 .react-grid-item.react-grid-placeholder {
   background: color-mix(in oklch, var(--primary) 20%, transparent);
   opacity: 1;
