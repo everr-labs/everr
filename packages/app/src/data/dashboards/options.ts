@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { queryOptions } from "@tanstack/react-query";
 import { getDashboard } from "./server";
 

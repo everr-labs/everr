@@ -1,7 +1,5 @@
-// fallow-ignore-file unused-file
 import type { Dashboard } from "./types";
 
-/** @expected-unused — consumed by getDashboard server function once the dashboard route is added. */
 export const MOCK_DASHBOARD: Dashboard = {
   kind: "Dashboard",
   metadata: {
