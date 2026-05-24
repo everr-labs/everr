@@ -8,6 +8,7 @@
 }
 
 .react-grid-item.react-grid-placeholder {
-  background: red;
+  background: hsl(var(--primary));
   opacity: 0.2;
+  border-radius: var(--radius);
 }
