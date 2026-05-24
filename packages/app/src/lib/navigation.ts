@@ -2,6 +2,7 @@ import {
   Bug,
   FlaskConical,
   GitBranch,
+  LayoutDashboard,
   type LucideIcon,
   ScrollText,
   Workflow,
@@ -19,6 +20,11 @@ export type NavItem = {
 };
 
 export const navMain: NavItem[] = [
+  {
+    title: "Dashboards",
+    url: "/dashboards/default",
+    icon: LayoutDashboard,
+  },
   {
     title: "CI/CD",
     url: "/runs",
