@@ -3,6 +3,10 @@
   user-select: none;
 }
 
+.react-grid-item.resizing {
+  z-index: 3;
+}
+
 .react-grid-item.react-grid-placeholder {
   background: red;
   opacity: 0.2;
