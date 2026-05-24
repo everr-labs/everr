@@ -4,8 +4,6 @@
 }
 
 .react-grid-item.react-grid-placeholder {
-  background: hsl(var(--muted));
-  border: 2px dashed hsl(var(--border));
-  border-radius: var(--radius);
-  opacity: 1;
+  background: red;
+  opacity: 0.2;
 }
