@@ -1,3 +1,8 @@
+.react-grid-item.react-draggable-dragging,
+.react-grid-item.resizing {
+  user-select: none;
+}
+
 .react-grid-item.react-grid-placeholder {
   background: transparent;
   border: 2px dashed hsl(var(--border));
