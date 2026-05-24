@@ -177,7 +177,11 @@ export function DashboardGrid({ dashboard: initial }: DashboardGridProps) {
           className="layout"
           layout={layout}
           gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT }}
-          dragConfig={{ enabled: isEditing, handle: ".drag-handle" }}
+          dragConfig={{
+            enabled: isEditing,
+            handle: ".drag-handle",
+            bounded: true,
+          }}
           resizeConfig={{ enabled: isEditing, handles: ["se"] }}
           onLayoutChange={handleLayoutChange}
           compactor={verticalCompactor}
