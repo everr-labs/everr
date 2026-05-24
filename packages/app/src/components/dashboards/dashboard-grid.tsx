@@ -17,6 +17,7 @@ import type { Dashboard, Panel } from "@/data/dashboards/types";
 import { DashboardPanel } from "./dashboard-panel";
 
 import "react-grid-layout/css/styles.css";
+import "./dashboard-grid.css";
 
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
