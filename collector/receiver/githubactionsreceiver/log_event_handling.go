@@ -169,6 +169,8 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 
 	logger.Debug("Extracted jobs from zip", zap.Strings("jobs", jobs), zap.Int("file_count", len(stepFiles)))
 
+	jobMetadataByZipName := resolveLogJobMetadata(ctx, jobs, stepTimingsCache, ghClient, e, logger)
+
 	// Resolve sanitized ZIP directory names to original job names.
 	// GitHub sanitizes "/" to "_" in ZIP paths, causing span ID mismatches
 	// for matrix/sharded jobs like "test (1/2)" → "test (1_2)".
@@ -183,9 +185,14 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 				jobName = resolved
 			}
 		}
+		jobID := int64(0)
+		if metadata, ok := jobMetadataByZipName[zipJobName]; ok {
+			jobName = metadata.jobName
+			jobID = metadata.jobID
+		}
 
 		jobLogsScope := allLogs.ScopeLogs().AppendEmpty()
-		jobLogsScope.Scope().Attributes().PutStr(string(conventions.CICDPipelineTaskNameKey), jobName)
+		setJobScopeAttributes(jobLogsScope, jobName, jobID)
 
 		for _, logFile := range stepFiles {
 			// File matching uses the ZIP directory name
@@ -322,7 +329,7 @@ func processCombinedLogs(
 		jobName := jst.jobName
 
 		jobLogsScope := allLogs.ScopeLogs().AppendEmpty()
-		jobLogsScope.Scope().Attributes().PutStr(string(conventions.CICDPipelineTaskNameKey), jobName)
+		setJobScopeAttributes(jobLogsScope, jobName, jst.jobID)
 
 		// Pre-generate span IDs for each step
 		steps := make([]stepInfo, 0, len(jst.steps))
@@ -445,6 +452,73 @@ func minDuration(a, b time.Duration) time.Duration {
 	return b
 }
 
+type logJobMetadata struct {
+	jobID   int64
+	jobName string
+}
+
+func setJobScopeAttributes(scopeLogs plog.ScopeLogs, jobName string, jobID int64) {
+	attrs := scopeLogs.Scope().Attributes()
+	attrs.PutStr(string(conventions.CICDPipelineTaskNameKey), jobName)
+	if jobID != 0 {
+		attrs.PutInt(string(conventions.CICDPipelineTaskRunIDKey), jobID)
+	}
+}
+
+func resolveLogJobMetadata(ctx context.Context, zipJobNames []string, stepTimingsCache *stepTimingCache, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) map[string]logJobMetadata {
+	result := make(map[string]logJobMetadata)
+	key := runKey{
+		repoID:     e.GetRepo().GetID(),
+		runID:      e.GetWorkflowRun().GetID(),
+		runAttempt: e.GetWorkflowRun().GetRunAttempt(),
+	}
+
+	if stepTimingsCache != nil {
+		if cachedJobs := stepTimingsCache.GetSteps(key); cachedJobs != nil {
+			addJobTimingsMetadata(result, cachedJobs)
+			stepTimingsCache.Delete(key)
+		}
+	}
+
+	if hasMetadataForAllJobs(result, zipJobNames) {
+		return result
+	}
+
+	addJobMetadata(result, listWorkflowJobMetadata(ctx, ghClient, e, logger))
+	return result
+}
+
+func hasMetadataForAllJobs(metadata map[string]logJobMetadata, zipJobNames []string) bool {
+	for _, jobName := range zipJobNames {
+		if _, ok := metadata[jobName]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func addJobTimingsMetadata(dst map[string]logJobMetadata, jobs []jobStepTimings) {
+	metadata := make([]logJobMetadata, 0, len(jobs))
+	for _, job := range jobs {
+		metadata = append(metadata, logJobMetadata{
+			jobID:   job.jobID,
+			jobName: job.jobName,
+		})
+	}
+	addJobMetadata(dst, metadata)
+}
+
+func addJobMetadata(dst map[string]logJobMetadata, jobs []logJobMetadata) {
+	for _, job := range jobs {
+		if job.jobName == "" {
+			continue
+		}
+		dst[job.jobName] = job
+		sanitized := strings.ReplaceAll(job.jobName, "/", "_")
+		dst[sanitized] = job
+	}
+}
+
 // fetchStepTimingsFromAPI calls the GitHub API to get step timing data
 // when the cache doesn't have it.
 func fetchStepTimingsFromAPI(ctx context.Context, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) []jobStepTimings {
@@ -483,10 +557,48 @@ func fetchStepTimingsFromAPI(ctx context.Context, ghClient *github.Client, e *gi
 			}
 			if len(timings) > 0 {
 				result = append(result, jobStepTimings{
+					jobID:   job.GetID(),
 					jobName: job.GetName(),
 					steps:   timings,
 				})
 			}
+		}
+
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return result
+}
+
+func listWorkflowJobMetadata(ctx context.Context, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) []logJobMetadata {
+	owner := e.GetRepo().GetOwner().GetLogin()
+	repo := e.GetRepo().GetName()
+	runID := e.GetWorkflowRun().GetID()
+
+	opts := &github.ListWorkflowJobsOptions{
+		Filter:      "latest",
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	var result []logJobMetadata
+	for {
+		jobsResp, resp, err := ghClient.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
+		if err != nil {
+			logger.Warn("Failed to list workflow jobs for log metadata", zap.Error(err))
+			return nil
+		}
+
+		for _, job := range jobsResp.Jobs {
+			if job.GetStatus() != "completed" {
+				continue
+			}
+			result = append(result, logJobMetadata{
+				jobID:   job.GetID(),
+				jobName: job.GetName(),
+			})
 		}
 
 		if resp == nil || resp.NextPage == 0 {

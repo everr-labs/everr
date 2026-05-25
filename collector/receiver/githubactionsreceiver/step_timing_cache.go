@@ -15,6 +15,7 @@ type stepTiming struct {
 
 // jobStepTimings holds step timing information for a single job within a run.
 type jobStepTimings struct {
+	jobID   int64
 	jobName string
 	steps   []stepTiming
 }
@@ -45,7 +46,7 @@ func newStepTimingCache(maxSize int, ttl time.Duration) *stepTimingCache {
 
 // AddJob records step timing data for a job. Called when a workflow_job event
 // arrives with completed status.
-func (c *stepTimingCache) AddJob(key runKey, jobName string, steps []stepTiming) {
+func (c *stepTimingCache) AddJob(key runKey, jobID int64, jobName string, steps []stepTiming) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -61,6 +62,7 @@ func (c *stepTimingCache) AddJob(key runKey, jobName string, steps []stepTiming)
 		c.order = append(c.order, key)
 	}
 	entry.jobs = append(entry.jobs, jobStepTimings{
+		jobID:   jobID,
 		jobName: jobName,
 		steps:   steps,
 	})

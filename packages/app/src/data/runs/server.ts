@@ -40,16 +40,16 @@ function buildJobFilterClause(params: StepLogsJobFilter): {
   clause: string;
   queryParam: Record<string, string>;
 } {
-  if (params.jobId !== undefined) {
+  if (params.jobName !== undefined) {
     return {
       clause:
-        "AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}",
-      queryParam: { jobId: params.jobId },
+        "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
+      queryParam: { jobName: params.jobName },
     };
   }
   return {
-    clause: "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
-    queryParam: { jobName: params.jobName! },
+    clause: "AND ScopeAttributes['cicd.pipeline.task.run.id'] = {jobId:String}",
+    queryParam: { jobId: params.jobId },
   };
 }
 
@@ -339,10 +339,14 @@ export const getStepLogs = createAuthenticatedServerFn({
     }),
   )
   .handler(async ({ data, context }) => {
-    const jobFilter: StepLogsJobFilter =
-      data.jobId !== undefined
-        ? { jobId: data.jobId }
-        : { jobName: data.jobName! };
+    let jobFilter: StepLogsJobFilter;
+    if (data.jobId !== undefined) {
+      jobFilter = { jobId: data.jobId };
+    } else if (data.jobName !== undefined) {
+      jobFilter = { jobName: data.jobName };
+    } else {
+      throw new Error("Provide either jobName or jobId.");
+    }
 
     const totalCount = await countStepLogs(context.clickhouse, {
       traceId: data.traceId,

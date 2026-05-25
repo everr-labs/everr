@@ -271,7 +271,7 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 				})
 			}
 			if len(timings) > 0 {
-				gar.stepTimings.AddJob(key, jobName, timings)
+				gar.stepTimings.AddJob(key, e.GetWorkflowJob().GetID(), jobName, timings)
 			}
 		}
 	case *github.WorkflowRunEvent:
