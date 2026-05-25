@@ -82,11 +82,15 @@ const columns: Column<MockRow>[] = [
 
 export function TableVisualization({ plugin }: VisualizationProps) {
   return (
-    <DataTable
-      data={MOCK_DATA}
-      columns={columns}
-      rowKey={(row) => row.endpoint}
-      stickyHeader={plugin.spec.stickyHeader === true}
-    />
+    <div className="flex h-full flex-col border-t border-border">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-none">
+        <DataTable
+          data={MOCK_DATA}
+          columns={columns}
+          rowKey={(row) => row.endpoint}
+          stickyHeader={plugin.spec.stickyHeader === true}
+        />
+      </div>
+    </div>
   );
 }

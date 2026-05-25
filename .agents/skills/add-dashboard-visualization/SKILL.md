@@ -73,6 +73,30 @@ export function <Kind>Visualization({ plugin }: VisualizationProps) {
 - Available chart wrapper: `ChartContainer` from `@everr/ui/components/chart`
 - Available table: `DataTable` from `@everr/ui/components/data-table`
 
+**Scrolling and overflow are visualization concerns.** `PanelShell` provides `min-h-0 flex-1` on its content area but no `overflow`. Each visualization must manage its own scroll container. For example, the table visualization wraps itself in a flex column with a scrollable inner div:
+
+```tsx
+export function MyVisualization({ plugin }: VisualizationProps) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-none">
+        {/* visualization content */}
+      </div>
+    </div>
+  );
+}
+```
+
+For `flush-content` visualizations that need a top border separating the header from content, place `border-t border-border` on the outer wrapper — outside the scroll container so it stays fixed:
+
+```tsx
+<div className="flex h-full flex-col border-t border-border">
+  <div className="min-h-0 flex-1 overflow-auto overscroll-none">
+    {/* content */}
+  </div>
+</div>
+```
+
 ### 3. Create the settings component (optional)
 
 File: `<kind>-settings.tsx`
