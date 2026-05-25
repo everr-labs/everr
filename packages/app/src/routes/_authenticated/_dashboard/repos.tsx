@@ -1,14 +1,13 @@
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import {
-  ActiveBranchesTable,
-  RepoDurationTrendChart,
-  RepoHeader,
-  RepoRecentRuns,
-  RepoSuccessRateChart,
-  TopFailingJobsTable,
-} from "@/components/repo-detail";
+import { ActiveBranchesTable } from "@/components/repo-detail/active-branches-table";
+import { RepoDurationTrendChart } from "@/components/repo-detail/repo-duration-trend-chart";
+import { RepoHeader } from "@/components/repo-detail/repo-header";
+import { RepoRecentRuns } from "@/components/repo-detail/repo-recent-runs";
+import { RepoSuccessRateChart } from "@/components/repo-detail/repo-success-rate-chart";
+import { TopFailingJobsTable } from "@/components/repo-detail/top-failing-jobs-table";
 import { TimeRangePanel } from "@/components/time-range-panel";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
@@ -19,7 +18,7 @@ import {
   repoSuccessRateTrendOptions,
   topFailingJobsOptions,
 } from "@/data/repo-detail/options";
-import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/repos")({
   staticData: { breadcrumb: "Repositories" },

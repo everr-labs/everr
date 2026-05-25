@@ -11,9 +11,9 @@ import {
   createLegendFormatter,
   formatChartDate,
 } from "@everr/ui/components/chart-helpers";
+import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import type { TestDurationTrendPoint } from "@/data/test-results";
-import { formatDurationCompact } from "@/lib/formatting";
 
 interface TestDurationTrendChartProps {
   data: TestDurationTrendPoint[];

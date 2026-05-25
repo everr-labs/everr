@@ -1,5 +1,5 @@
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
-import type { TimeRange } from "@/lib/time-range";
 import type { FilterOptions, RunsListInput } from "./schemas";
 import { getRunFilterOptions, getRunsList, searchRuns } from "./server";
 

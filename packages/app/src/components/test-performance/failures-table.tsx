@@ -1,8 +1,9 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { formatDuration } from "@everr/ui/lib/formatting";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import type { TestFailure } from "@/data/test-performance/metrics";
-import { formatDuration, formatRelativeTime } from "@/lib/formatting";
 
 interface FailuresTableProps {
   data: TestFailure[];

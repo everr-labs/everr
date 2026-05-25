@@ -1,8 +1,8 @@
+import { QUICK_RANGE_GROUPS } from "@everr/ui/components/time-range-picker";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { TimeRange } from "@/lib/time-range";
-import { QUICK_RANGE_GROUPS } from "@/lib/time-range";
 import { TimeRangePicker } from "./time-range-picker";
 
 const mockSetTimeRange = vi.fn();

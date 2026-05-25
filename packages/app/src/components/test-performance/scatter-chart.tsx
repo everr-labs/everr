@@ -13,6 +13,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@everr/ui/components/drawer";
+import { formatDurationCompact } from "@everr/ui/lib/formatting";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -25,7 +27,6 @@ import {
   ZAxis,
 } from "recharts";
 import type { ScatterPoint } from "@/data/test-performance/metrics";
-import { formatDurationCompact, formatRelativeTime } from "@/lib/formatting";
 
 interface TestPerfScatterChartProps {
   data: ScatterPoint[];

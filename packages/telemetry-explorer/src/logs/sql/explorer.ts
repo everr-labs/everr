@@ -1,5 +1,5 @@
+import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import type { LogExplorerRow, LogLevel, LogsExplorerInput } from "../schemas";
-import { resolveTimeRange } from "../time-range";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 import { validateTableName } from "./table";

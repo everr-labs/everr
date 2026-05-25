@@ -38,6 +38,21 @@ const context = {
   },
 };
 
+type OrgMember = { userId: string; role: string };
+type OrgFixture = {
+  name: string;
+  members: OrgMember[];
+  metadata?: unknown;
+};
+
+function makeOrg(overrides: Partial<OrgFixture> = {}): OrgFixture {
+  return {
+    name: "Test Org",
+    members: [{ userId: "user_abc", role: "admin" }],
+    ...overrides,
+  };
+}
+
 async function mockGetFullOrganization(result: unknown) {
   const { auth } = await import("@/lib/auth.server");
   vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
@@ -45,19 +60,27 @@ async function mockGetFullOrganization(result: unknown) {
   );
 }
 
+function invokeGet() {
+  return getHandler()({
+    request: new Request("http://localhost/api/cli/org"),
+    context,
+  });
+}
+
+function invokePatch() {
+  return patchHandler()({
+    request: new Request("http://localhost/api/cli/org", { method: "PATCH" }),
+    context,
+  });
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/org", () => {
   it("returns org name and isOnlyMember true when user is the only member", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [{ userId: "user_abc", role: "admin" }],
-    });
+    await mockGetFullOrganization(makeOrg());
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/org"),
-      context,
-    });
+    const response = await invokeGet();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -69,16 +92,11 @@ describe("/api/cli/org", () => {
   });
 
   it("returns onboardingCompleted true when the active org metadata has it", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [{ userId: "user_abc", role: "admin" }],
-      metadata: { onboardingCompleted: true },
-    });
+    await mockGetFullOrganization(
+      makeOrg({ metadata: { onboardingCompleted: true } }),
+    );
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/org"),
-      context,
-    });
+    const response = await invokeGet();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -90,88 +108,70 @@ describe("/api/cli/org", () => {
   });
 
   it("parses metadata when better-auth returns it as a JSON string", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [{ userId: "user_abc", role: "admin" }],
-      metadata: JSON.stringify({ onboardingCompleted: true }),
-    });
+    await mockGetFullOrganization(
+      makeOrg({ metadata: JSON.stringify({ onboardingCompleted: true }) }),
+    );
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/org"),
-      context,
-    });
+    const response = await invokeGet();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ onboardingCompleted: true });
   });
 
   it("returns the current user's role in the active org", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [
-        { userId: "user_other", role: "owner" },
-        { userId: "user_abc", role: "member" },
-      ],
-    });
+    await mockGetFullOrganization(
+      makeOrg({
+        members: [
+          { userId: "user_other", role: "owner" },
+          { userId: "user_abc", role: "member" },
+        ],
+      }),
+    );
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/org"),
-      context,
-    });
+    const response = await invokeGet();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ role: "member" });
   });
 
   it("returns isOnlyMember false when another member exists", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [
-        { userId: "user_abc", role: "admin" },
-        { userId: "user_def", role: "member" },
-      ],
-    });
+    await mockGetFullOrganization(
+      makeOrg({
+        members: [
+          { userId: "user_abc", role: "admin" },
+          { userId: "user_def", role: "member" },
+        ],
+      }),
+    );
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/org"),
-      context,
-    });
+    const response = await invokeGet();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ isOnlyMember: false });
   });
 
   it("returns isOnlyMember false when the user is not the only member", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [
-        { userId: "user_abc", role: "admin" },
-        { userId: "user_def", role: "admin" },
-      ],
-    });
+    await mockGetFullOrganization(
+      makeOrg({
+        members: [
+          { userId: "user_abc", role: "admin" },
+          { userId: "user_def", role: "admin" },
+        ],
+      }),
+    );
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/org"),
-      context,
-    });
+    const response = await invokeGet();
 
     expect(await response.json()).toMatchObject({ isOnlyMember: false });
   });
 
   it("marks active org onboarding complete", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [{ userId: "user_abc", role: "admin" }],
-      metadata: { plan: "free", onboardingCompleted: false },
-    });
+    await mockGetFullOrganization(
+      makeOrg({ metadata: { plan: "free", onboardingCompleted: false } }),
+    );
     const { auth } = await import("@/lib/auth.server");
 
-    const response = await patchHandler()({
-      request: new Request("http://localhost/api/cli/org", {
-        method: "PATCH",
-      }),
-      context,
-    });
+    const response = await invokePatch();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
@@ -187,19 +187,14 @@ describe("/api/cli/org", () => {
   });
 
   it("preserves existing metadata keys when better-auth returns it as a JSON string", async () => {
-    await mockGetFullOrganization({
-      name: "Test Org",
-      members: [{ userId: "user_abc", role: "admin" }],
-      metadata: JSON.stringify({ plan: "free", onboardingCompleted: false }),
-    });
+    await mockGetFullOrganization(
+      makeOrg({
+        metadata: JSON.stringify({ plan: "free", onboardingCompleted: false }),
+      }),
+    );
     const { auth } = await import("@/lib/auth.server");
 
-    await patchHandler()({
-      request: new Request("http://localhost/api/cli/org", {
-        method: "PATCH",
-      }),
-      context,
-    });
+    await invokePatch();
 
     expect(auth.api.updateOrganization).toHaveBeenCalledWith({
       headers: expect.any(Headers),

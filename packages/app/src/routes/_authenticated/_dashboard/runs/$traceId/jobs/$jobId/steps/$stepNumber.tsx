@@ -3,7 +3,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { LogViewer } from "@/components/run-detail";
+import { LogViewer } from "@/components/run-detail/log-viewer";
 import { ResourceUsagePanel } from "@/components/run-detail/resource-usage-panel";
 import { jobResourceUsageOptions } from "@/data/resource-usage";
 import {

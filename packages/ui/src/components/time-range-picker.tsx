@@ -1,15 +1,14 @@
 import { isValid, resolve } from "@everr/datemath";
 import { ChevronDownIcon, Clock } from "lucide-react";
 import { useMemo, useState } from "react";
+import { DEFAULT_TIME_RANGE, type TimeRange } from "../lib/time-range";
 import { Button } from "./button";
 import { Input } from "./input";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-export interface TimeRange {
-  from: string;
-  to: string;
-}
+export type { TimeRange };
+export { DEFAULT_TIME_RANGE };
 
 export interface QuickRange {
   label: string;
@@ -21,11 +20,6 @@ export interface QuickRangeGroup {
   label: string;
   ranges: QuickRange[];
 }
-
-export const DEFAULT_TIME_RANGE: TimeRange = {
-  from: "now-7d",
-  to: "now",
-} as const;
 
 export const QUICK_RANGE_GROUPS: QuickRangeGroup[] = [
   {

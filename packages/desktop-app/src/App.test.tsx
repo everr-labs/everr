@@ -1,3 +1,4 @@
+import type { FailureNotification } from "@everr/ui/lib/notification";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { emit } from "@tauri-apps/api/event";
@@ -39,23 +40,6 @@ type SignInResponse =
   | PendingSignIn
   | { status: "signed_in"; session_path: string }
   | { status: "denied" | "expired" };
-
-type FailedJobInfo = {
-  jobName: string;
-  stepNumber: string;
-  stepName?: string;
-};
-
-type FailureNotification = {
-  dedupeKey: string;
-  traceId: string;
-  repo: string;
-  branch: string;
-  workflowName: string;
-  failedAt: string;
-  detailsUrl: string;
-  failedJobs: FailedJobInfo[];
-};
 
 type TestNotificationResponse = {
   status: "shown" | "queued";

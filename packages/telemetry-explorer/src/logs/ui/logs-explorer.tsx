@@ -4,7 +4,9 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@everr/ui/components/input-group";
+import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import {
   keepPreviousData,
@@ -22,7 +24,6 @@ import {
 } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogExplorerRow, LogLevel } from "../schemas";
-import type { TimeRange } from "../time-range";
 import { LogFiltersBar } from "./log-filters";
 import { LogHistogram } from "./log-histogram";
 import { LogInspectorPanel } from "./log-inspector";
@@ -231,6 +232,8 @@ export function LogsExplorer({
     isFetchingNextPage,
     isPending,
     isError,
+    error,
+    refetch,
   } = useInfiniteQuery({
     ...logsExplorerInfiniteOptions(repo, { ...filterInput, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
@@ -349,9 +352,13 @@ export function LogsExplorer({
                 {isPending ? (
                   <LogRowsSkeleton />
                 ) : isError ? (
-                  <div className="text-destructive flex h-full min-h-80 items-center justify-center text-sm">
-                    Failed to load logs
-                  </div>
+                  <RetryError
+                    title="Failed to load logs"
+                    message={(error as Error).message}
+                    onRetry={() => {
+                      void refetch();
+                    }}
+                  />
                 ) : logs.length ? (
                   <LogStream
                     logs={logs}

@@ -1,22 +1,21 @@
 import {
-  LogLevelSchema,
   LogsExplorer,
   type LogsExplorerSearch,
+  LogsSearchFiltersShape,
 } from "@everr/telemetry-explorer/logs";
 import { Button } from "@everr/ui/components/button";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { FileSearch } from "lucide-react";
 import { z } from "zod";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { runJobsOptions } from "@/data/runs/options";
-import { TimeRangeSearchSchema, withTimeRange } from "@/lib/time-range";
+import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 const SearchSchema = TimeRangeSearchSchema.extend({
   q: z.string().optional(),
-  levels: z.array(LogLevelSchema).default([]),
-  services: z.array(z.string()).default([]),
-  repos: z.array(z.string()).default([]),
+  ...LogsSearchFiltersShape,
   traceId: z.string().optional(),
   showVolume: z.boolean().default(true),
 });

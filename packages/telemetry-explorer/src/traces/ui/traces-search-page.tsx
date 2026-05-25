@@ -1,3 +1,4 @@
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import {
@@ -6,7 +7,6 @@ import {
 } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { SpanStatusFilter } from "../data/schemas";
-import type { TimeRange } from "../time-range";
 import { TraceFilters } from "./trace-filters";
 import {
   type TraceLinkRenderProps,

@@ -1,8 +1,8 @@
+import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import {
-  getRefreshIntervalMs,
   type RefreshInterval,
   ResolvedTimeRangeSearchSchema,
 } from "@/lib/time-range";

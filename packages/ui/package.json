@@ -2,6 +2,12 @@
   "name": "@everr/ui",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:ci": "vitest run",
+    "test:watch": "vitest run --watch",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@everr/datemath": "workspace:*",

@@ -32,6 +32,11 @@
   // `err.name === "..."` rather than `instanceof`; fallow can't see those
   // string-comparison references.
   "usedClassMembers": [{ "extends": "Error", "members": ["name"] }],
+  "duplicates": {
+    // TanStack Router's generated route tree contains many structurally
+    // identical declarations by design — not actionable copy-paste.
+    "ignore": ["**/routeTree.gen.ts"]
+  },
   "ignoreExports": [
     {
       // Intentional namespace-barrel API: the app exposes a zero-prop

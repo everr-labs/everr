@@ -5,6 +5,7 @@ vi.mock("@/data/runs/server", () => ({
 }));
 
 import { getStepLogs } from "@/data/runs/server";
+import { getRouteHandler } from "../../-test-utils";
 import { Route } from "./logs";
 
 const mockedGetStepLogs = vi.mocked(getStepLogs);
@@ -15,12 +16,11 @@ type GetHandler = (args: {
 }) => Promise<Response>;
 
 function getHandler(): GetHandler {
-  const routeOptions = Route.options as unknown as {
-    server?: { handlers?: { GET?: GetHandler } };
-  };
-  const handler = routeOptions.server?.handlers?.GET;
-  if (!handler) throw new Error("Missing GET handler");
-  return handler;
+  return getRouteHandler<GetHandler>(
+    Route,
+    "GET",
+    "/api/cli/runs/:traceId/logs",
+  );
 }
 
 function makeRequest(params: Record<string, string>): Request {

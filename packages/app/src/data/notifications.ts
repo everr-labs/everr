@@ -1,3 +1,7 @@
+import type {
+  FailedJobInfo,
+  FailureNotification,
+} from "@everr/ui/lib/notification";
 import { pool } from "@/db/client";
 import type { WorkflowJobStep } from "@/db/schema";
 
@@ -10,23 +14,6 @@ type FailureRow = {
   jobId: string | null;
   jobName: string | null;
   steps: WorkflowJobStep[] | null;
-};
-
-export type FailedJobInfo = {
-  jobName: string;
-  stepNumber: string;
-  stepName?: string;
-};
-
-export type FailureNotification = {
-  dedupeKey: string;
-  traceId: string;
-  repo: string;
-  branch: string;
-  workflowName: string;
-  failedAt: string;
-  detailsUrl: string;
-  failedJobs: FailedJobInfo[];
 };
 
 type FailureNotificationsOptions = {

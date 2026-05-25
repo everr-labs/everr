@@ -7,6 +7,7 @@ import {
   DetailSection,
 } from "@everr/ui/components/detail-panel";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import AnsiImport from "ansi-to-react";
@@ -24,7 +25,6 @@ import { useEffect, useState } from "react";
 import { logDetailOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
-import { formatRelativeTime } from "../util/formatting";
 import { LOG_LEVEL_META } from "./log-level-meta";
 
 const Ansi =

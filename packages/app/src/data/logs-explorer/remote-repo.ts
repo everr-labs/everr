@@ -9,8 +9,8 @@ import type {
   LogsRepositoryLike,
   LogsTotalsInput,
   LogsTotalsResult,
-  TimeRange,
 } from "@everr/telemetry-explorer/logs";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import {
   getLogDetail,
   getLogFilterOptions,

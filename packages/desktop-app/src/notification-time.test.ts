@@ -3,42 +3,7 @@ import {
   formatNotificationAbsoluteTime,
   formatNotificationRelativeTime,
   getNotificationTimeParts,
-  parseNotificationTimestamp,
 } from "./notification-time";
-
-describe("parseNotificationTimestamp", () => {
-  it("parses an ISO timestamp with Z suffix", () => {
-    const result = parseNotificationTimestamp("2026-03-07T13:32:00Z");
-    expect(result).toBeInstanceOf(Date);
-    expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
-  });
-
-  it("parses an ISO timestamp with a timezone offset", () => {
-    const result = parseNotificationTimestamp("2026-03-07T14:32:00+01:00");
-    expect(result).toBeInstanceOf(Date);
-    expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
-  });
-
-  it("parses a ClickHouse space-separated timestamp as UTC", () => {
-    const result = parseNotificationTimestamp("2026-03-07 13:32:00");
-    expect(result).toBeInstanceOf(Date);
-    expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
-  });
-
-  it("trims whitespace around the input", () => {
-    const result = parseNotificationTimestamp("  2026-03-07T13:32:00Z  ");
-    expect(result).toBeInstanceOf(Date);
-    expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
-  });
-
-  it("returns null for an invalid string", () => {
-    expect(parseNotificationTimestamp("not-a-date")).toBeNull();
-  });
-
-  it("returns null for an empty string", () => {
-    expect(parseNotificationTimestamp("")).toBeNull();
-  });
-});
 
 describe("getNotificationTimeParts", () => {
   it("returns absolute time and null timeZoneName", () => {

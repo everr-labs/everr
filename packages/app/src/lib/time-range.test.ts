@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
+import { formatTimeRangeDisplay } from "@everr/ui/components/time-range-picker";
 import {
   DEFAULT_TIME_RANGE,
-  formatTimeRangeDisplay,
-  getRefreshIntervalMs,
-  ResolvedTimeRangeSearchSchema,
   resolveTimeRange,
   TimeRangeSchema,
   withTimeRange,
-} from "./time-range";
+} from "@everr/ui/lib/time-range";
+import { describe, expect, it } from "vitest";
+import { ResolvedTimeRangeSearchSchema } from "./time-range";
 
 describe("TimeRangeSchema", () => {
   it("accepts valid datemath expressions", () => {

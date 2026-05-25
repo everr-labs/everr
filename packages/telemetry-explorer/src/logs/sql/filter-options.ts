@@ -1,5 +1,5 @@
+import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import type { LogFilterOptions } from "../schemas";
-import { resolveTimeRange, type TimeRange } from "../time-range";
 import type { BuiltQuery } from "./explorer";
 import { validateTableName } from "./table";
 

@@ -7,6 +7,7 @@ const Ansi =
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 import { buttonVariants } from "@everr/ui/components/button";
+import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import {
   ChevronRight,
@@ -17,7 +18,6 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { LogEntry } from "@/data/runs/schemas";
-import { formatTimestampTimeOfDay } from "@/lib/formatting";
 import {
   computeVisibleLines,
   getMarkerClass,

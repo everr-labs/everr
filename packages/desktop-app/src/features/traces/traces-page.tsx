@@ -1,7 +1,4 @@
 import {
-  DEFAULT_TIME_RANGE,
-  getRefreshIntervalMs,
-  type TimeRange,
   TraceDetail,
   type TraceDetailParams,
   TraceDetailParamsSchema,
@@ -10,10 +7,17 @@ import {
   TracesRepository,
   TracesSearch,
   toTraceListSearch,
-  withTimeRange,
 } from "@everr/telemetry-explorer/traces";
-import { RefreshPicker } from "@everr/ui/components/refresh-picker";
+import {
+  getRefreshIntervalMs,
+  RefreshPicker,
+} from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
+import {
+  DEFAULT_TIME_RANGE,
+  type TimeRange,
+  withTimeRange,
+} from "@everr/ui/lib/time-range";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import {
   Link,

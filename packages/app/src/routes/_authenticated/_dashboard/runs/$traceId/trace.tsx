@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { DataPanel } from "@/components/data-panel";
 import { PanelShell } from "@/components/panel-shell";
-import { TraceWaterfall } from "@/components/run-detail";
+import { TraceWaterfall } from "@/components/run-detail/trace-waterfall";
 import { flakyTestNamesOptions } from "@/data/flaky-tests/options";
 import { runDetailsOptions, runSpansOptions } from "@/data/runs/options";
 

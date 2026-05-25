@@ -1,9 +1,10 @@
 import { Badge } from "@everr/ui/components/badge";
 import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
+import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { useMemo } from "react";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
 import type { TestPerfChild } from "@/data/test-performance/children";
-import { formatDurationCompact, testNameLastSegment } from "@/lib/formatting";
+import { testNameLastSegment } from "@/lib/formatting";
 import {
   getTestPerfHierarchyKind,
   getTestPerfHierarchyKindBadgeLabel,

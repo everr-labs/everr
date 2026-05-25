@@ -1,3 +1,4 @@
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import type {
   LogDetail,
   LogFilterOptions,
@@ -34,7 +35,6 @@ import {
   decodeTotalsRows,
   type TotalsRowRaw,
 } from "../sql/totals";
-import type { TimeRange } from "../time-range";
 import type { SqlClient } from "./client";
 
 export interface LogsRepositoryOptions {

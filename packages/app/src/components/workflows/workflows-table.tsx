@@ -1,49 +1,21 @@
 import { Badge } from "@everr/ui/components/badge";
+import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { Sparkline } from "@everr/ui/components/sparkline";
+import { formatDuration } from "@everr/ui/lib/formatting";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { DeltaIndicator } from "@/components/delta-indicator";
 import type {
   WorkflowListItem,
   WorkflowSparklineData,
 } from "@/data/workflows/schemas";
-import {
-  formatDuration,
-  formatRelativeTime,
-  getSuccessRateVariant,
-} from "@/lib/formatting";
+import { getSuccessRateVariant } from "@/lib/formatting";
 
 interface WorkflowsTableProps {
   data: WorkflowListItem[];
   sparklines: WorkflowSparklineData[];
-}
-
-function DeltaIndicator({
-  current,
-  previous,
-  invertColors = false,
-}: {
-  current: number;
-  previous: number;
-  invertColors?: boolean;
-}) {
-  if (previous === 0 && current === 0) return null;
-  if (previous === 0)
-    return <span className="text-green-600 text-xs">new</span>;
-
-  const delta = ((current - previous) / previous) * 100;
-  if (Math.abs(delta) < 0.5) return null;
-
-  const isPositive = delta > 0;
-  // For duration, positive = bad (slower). For runs and success rate, positive = good.
-  const isGood = invertColors ? !isPositive : isPositive;
-
-  return (
-    <span className={`text-xs ${isGood ? "text-green-600" : "text-red-600"}`}>
-      {isPositive ? "+" : ""}
-      {Math.round(delta)}%
-    </span>
-  );
 }
 
 function SparklineCell({
@@ -72,102 +44,111 @@ function SparklineCell({
 }
 
 export function WorkflowsTable({ data, sparklines }: WorkflowsTableProps) {
-  if (data.length === 0) {
-    return (
-      <Empty>
-        <EmptyDescription>No workflows found</EmptyDescription>
-      </Empty>
-    );
-  }
-
   const sparklineMap = new Map(
     sparklines.map((s) => [`${s.workflowName}:${s.repo}`, s]),
   );
 
+  const sparkFor = (wf: WorkflowListItem) =>
+    sparklineMap.get(`${wf.workflowName}:${wf.repo}`);
+
+  const columns: Column<WorkflowListItem>[] = [
+    {
+      header: "Workflow",
+      className: "pb-2 pl-3 pr-4 w-full",
+      cellClassName: "py-2 pl-3 pr-4 w-full max-w-0",
+      cell: (wf) => (
+        <Link
+          to="/workflows/$repo/$workflowName"
+          params={{ repo: wf.repo, workflowName: wf.workflowName }}
+          className="block truncate font-medium hover:underline"
+          title={wf.workflowName}
+        >
+          {wf.workflowName}
+        </Link>
+      ),
+    },
+    {
+      header: "Repository",
+      cell: (wf) => (
+        <span className="whitespace-nowrap text-muted-foreground">
+          {wf.repo}
+        </span>
+      ),
+    },
+    {
+      header: "Runs",
+      cell: (wf) => (
+        <SparklineCell
+          sparkData={sparkFor(wf)?.buckets.map((b) => b.totalRuns) ?? []}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="tabular-nums">{wf.totalRuns}</span>
+            <DeltaIndicator
+              current={wf.totalRuns}
+              previous={wf.prevTotalRuns}
+            />
+          </div>
+        </SparklineCell>
+      ),
+    },
+    {
+      header: "Success Rate",
+      cell: (wf) => (
+        <SparklineCell
+          sparkData={sparkFor(wf)?.buckets.map((b) => b.successRate) ?? []}
+          maxValue={100}
+        >
+          <div className="flex items-center gap-1.5">
+            <Badge variant={getSuccessRateVariant(wf.successRate)}>
+              {wf.successRate}%
+            </Badge>
+            <DeltaIndicator
+              current={wf.successRate}
+              previous={wf.prevSuccessRate}
+            />
+          </div>
+        </SparklineCell>
+      ),
+    },
+    {
+      header: "Avg Duration",
+      cell: (wf) => (
+        <SparklineCell
+          sparkData={sparkFor(wf)?.buckets.map((b) => b.avgDuration) ?? []}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-xs tabular-nums">
+              {formatDuration(wf.avgDuration, "ms")}
+            </span>
+            <DeltaIndicator
+              current={wf.avgDuration}
+              previous={wf.prevAvgDuration}
+              invertColors
+            />
+          </div>
+        </SparklineCell>
+      ),
+    },
+    {
+      header: "Last Run",
+      cell: (wf) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {wf.lastRunAt ? formatRelativeTime(wf.lastRunAt) : "—"}
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left text-muted-foreground">
-            <th className="pb-2 pl-3 pr-4">Workflow</th>
-            <th className="pb-2 pr-4">Repository</th>
-            <th className="pb-2 pr-4">Runs</th>
-            <th className="pb-2 pr-4">Success Rate</th>
-            <th className="pb-2 pr-4">Avg Duration</th>
-            <th className="pb-2 pr-3">Last Run</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((wf) => {
-            const spark = sparklineMap.get(`${wf.workflowName}:${wf.repo}`);
-            return (
-              <tr
-                key={`${wf.workflowName}:${wf.repo}`}
-                className="border-b last:border-0 hover:bg-muted/50"
-              >
-                <td className="py-2 pl-3 pr-4">
-                  <Link
-                    to="/workflows/$repo/$workflowName"
-                    params={{ repo: wf.repo, workflowName: wf.workflowName }}
-                    className="font-medium hover:underline"
-                  >
-                    {wf.workflowName}
-                  </Link>
-                </td>
-                <td className="py-2 pr-4 text-muted-foreground">{wf.repo}</td>
-                <td className="py-2 pr-4">
-                  <SparklineCell
-                    sparkData={spark?.buckets.map((b) => b.totalRuns) ?? []}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="tabular-nums">{wf.totalRuns}</span>
-                      <DeltaIndicator
-                        current={wf.totalRuns}
-                        previous={wf.prevTotalRuns}
-                      />
-                    </div>
-                  </SparklineCell>
-                </td>
-                <td className="py-2 pr-4">
-                  <SparklineCell
-                    sparkData={spark?.buckets.map((b) => b.successRate) ?? []}
-                    maxValue={100}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant={getSuccessRateVariant(wf.successRate)}>
-                        {wf.successRate}%
-                      </Badge>
-                      <DeltaIndicator
-                        current={wf.successRate}
-                        previous={wf.prevSuccessRate}
-                      />
-                    </div>
-                  </SparklineCell>
-                </td>
-                <td className="py-2 pr-4">
-                  <SparklineCell
-                    sparkData={spark?.buckets.map((b) => b.avgDuration) ?? []}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-xs tabular-nums">
-                        {formatDuration(wf.avgDuration, "ms")}
-                      </span>
-                      <DeltaIndicator
-                        current={wf.avgDuration}
-                        previous={wf.prevAvgDuration}
-                        invertColors
-                      />
-                    </div>
-                  </SparklineCell>
-                </td>
-                <td className="py-2 pr-3 text-xs text-muted-foreground">
-                  {wf.lastRunAt ? formatRelativeTime(wf.lastRunAt) : "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      data={data}
+      columns={columns}
+      rowKey={(wf) => `${wf.workflowName}:${wf.repo}`}
+      emptyState={
+        <Empty>
+          <EmptyDescription>No workflows found</EmptyDescription>
+        </Empty>
+      }
+    />
   );
 }

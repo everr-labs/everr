@@ -36,6 +36,40 @@ function latestEs(): MockEventSource {
   return MockEventSource.instances[MockEventSource.instances.length - 1]!;
 }
 
+function sendMessage(type: string) {
+  latestEs().onmessage!(
+    new MessageEvent("message", { data: JSON.stringify({ type }) }),
+  );
+}
+
+function connectedMachine(
+  overrides: Partial<
+    ConstructorParameters<typeof RealtimeSubscriptionMachine>[0]
+  > = {},
+) {
+  const machine = createMachine(overrides);
+  machine.connect();
+  latestEs().onopen!();
+  return machine;
+}
+
+function errorAndAdvance(ms: number = MAX_RECONNECT_DELAY_MS) {
+  latestEs().onerror!();
+  vi.advanceTimersByTime(ms);
+}
+
+function exhaustRetriesAndAssertDisconnect() {
+  // 5 retries within budget
+  for (let i = 0; i < 5; i++) {
+    errorAndAdvance();
+  }
+  // 6th error disconnects permanently
+  latestEs().onerror!();
+  const countAfterDisconnect = MockEventSource.instances.length;
+  vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
+  expect(MockEventSource.instances).toHaveLength(countAfterDisconnect);
+}
+
 beforeEach(() => {
   MockEventSource.instances = [];
   vi.useFakeTimers();
@@ -82,18 +116,7 @@ describe("reconnection", () => {
     const machine = createMachine();
     machine.connect();
 
-    for (let i = 0; i < 5; i++) {
-      latestEs().onerror!();
-      vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    }
-
-    // 6th error should disconnect permanently
-    latestEs().onerror!();
-
-    // No new EventSource created
-    const countAfterDisconnect = MockEventSource.instances.length;
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    expect(MockEventSource.instances).toHaveLength(countAfterDisconnect);
+    exhaustRetriesAndAssertDisconnect();
   });
 
   it("resets retry counter on successful connection", () => {
@@ -101,25 +124,14 @@ describe("reconnection", () => {
     machine.connect();
 
     // Fail a few times
-    latestEs().onerror!();
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    latestEs().onerror!();
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
+    errorAndAdvance();
+    errorAndAdvance();
 
     // Successfully connect
     latestEs().onopen!();
 
-    // Fail again — should get full retry budget
-    for (let i = 0; i < 5; i++) {
-      latestEs().onerror!();
-      vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    }
-
-    // 6th error after reset — now disconnects
-    latestEs().onerror!();
-    const countAfterDisconnect = MockEventSource.instances.length;
-    vi.advanceTimersByTime(MAX_RECONNECT_DELAY_MS);
-    expect(MockEventSource.instances).toHaveLength(countAfterDisconnect);
+    // Fail again — should get full retry budget before disconnect
+    exhaustRetriesAndAssertDisconnect();
   });
 
   it("handles error during connecting state", () => {
@@ -137,13 +149,9 @@ describe("reconnection", () => {
 describe("trailing throttle", () => {
   it("calls onInvalidate after throttle delay, not immediately", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
-    );
+    sendMessage("update");
 
     expect(onInvalidate).not.toHaveBeenCalled();
 
@@ -154,13 +162,9 @@ describe("trailing throttle", () => {
 
   it("ignores non-update messages", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "ping" }) }),
-    );
+    sendMessage("ping");
 
     vi.advanceTimersByTime(THROTTLE_MS);
 
@@ -169,20 +173,11 @@ describe("trailing throttle", () => {
 
   it("batches multiple rapid messages into one invalidation per window", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
-    sendUpdate();
-    sendUpdate();
+    sendMessage("update");
+    sendMessage("update");
+    sendMessage("update");
 
     vi.advanceTimersByTime(THROTTLE_MS);
 
@@ -191,43 +186,25 @@ describe("trailing throttle", () => {
 
   it("fires again if messages arrive during throttle window", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
 
     // New message in next window
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(2);
   });
 
   it("batches mid-window messages into same invalidation", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS / 2);
-    sendUpdate(); // arrives mid-window, batched with first
+    sendMessage("update"); // arrives mid-window, batched with first
     vi.advanceTimersByTime(THROTTLE_MS / 2);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
 
@@ -238,36 +215,23 @@ describe("trailing throttle", () => {
 
   it("fires second time when message arrives after first window fires", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    const sendUpdate = () =>
-      latestEs().onmessage!(
-        new MessageEvent("message", {
-          data: JSON.stringify({ type: "update" }),
-        }),
-      );
-
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
 
     // Message during re-armed window
-    sendUpdate();
+    sendMessage("update");
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(2);
   });
 
   it("stops firing after messages stop arriving", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
-    );
+    sendMessage("update");
 
     vi.advanceTimersByTime(THROTTLE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
@@ -303,13 +267,9 @@ describe("dispose", () => {
 
   it("cancels pending throttle invalidation", () => {
     const onInvalidate = vi.fn();
-    const machine = createMachine({ onInvalidate });
-    machine.connect();
-    latestEs().onopen!();
+    const machine = connectedMachine({ onInvalidate });
 
-    latestEs().onmessage!(
-      new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
-    );
+    sendMessage("update");
     machine.dispose();
 
     vi.advanceTimersByTime(THROTTLE_MS);

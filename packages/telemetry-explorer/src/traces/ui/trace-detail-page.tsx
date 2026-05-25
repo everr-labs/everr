@@ -5,6 +5,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@everr/ui/components/empty";
+import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
@@ -81,7 +82,8 @@ export function TraceDetail({
   if (isPending) return showSkeleton ? <DetailSkeleton /> : null;
   if (error) {
     return (
-      <ErrorState
+      <RetryError
+        title="Failed to load trace"
         message={(error as Error).message}
         onRetry={() => {
           void refetch();
@@ -165,26 +167,6 @@ function DetailSkeleton() {
         ))}
       </div>
     </div>
-  );
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>Failed to load trace</EmptyTitle>
-        <EmptyDescription>{message}</EmptyDescription>
-      </EmptyHeader>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        Retry
-      </Button>
-    </Empty>
   );
 }
 

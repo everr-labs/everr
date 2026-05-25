@@ -1,5 +1,5 @@
+import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import { TimeRangeSchema } from "./time-range";
 
 export const LogLevelSchema = z.enum([
   "error",
@@ -12,12 +12,16 @@ export const LogLevelSchema = z.enum([
 
 export type LogLevel = z.infer<typeof LogLevelSchema>;
 
-const LogsFilterShape = {
-  timeRange: TimeRangeSchema,
-  query: z.string().trim().optional(),
+export const LogsSearchFiltersShape = {
   levels: z.array(LogLevelSchema).default([]),
   services: z.array(z.string()).default([]),
   repos: z.array(z.string()).default([]),
+} as const;
+
+const LogsFilterShape = {
+  timeRange: TimeRangeSchema,
+  query: z.string().trim().optional(),
+  ...LogsSearchFiltersShape,
   traceId: z.string().trim().optional(),
 } as const;
 

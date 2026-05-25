@@ -6,7 +6,6 @@ export {
   type LogsRepositoryOptions,
 } from "./data/repository";
 export * from "./schemas";
-export * from "./time-range";
 export {
   DEFAULT_HISTOGRAM_BUCKETS,
   LOG_LEVEL_META,
@@ -17,8 +16,3 @@ export type {
   LogsExplorerSearch,
 } from "./ui/logs-explorer";
 export { LogsExplorer } from "./ui/logs-explorer";
-export {
-  formatRelativeTime,
-  formatTimestampTimeOfDay,
-  parseTimestampAsUTC,
-} from "./util/formatting";

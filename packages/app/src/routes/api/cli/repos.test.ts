@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { listInstallationRepos } from "@/server/github-events/backfill";
+import {
+  cliSessionContext,
+  getRouteHandler,
+  mockDbInstallations,
+} from "./-test-utils";
 import { Route } from "./repos";
 
 vi.mock("@/db/client", () => ({
@@ -34,34 +39,18 @@ type GetHandler = (args: {
 }) => Promise<Response>;
 
 function getHandler(): GetHandler {
-  const routeOptions = Route.options as unknown as {
-    server?: { handlers?: { GET?: GetHandler } };
-  };
-  const handler = routeOptions.server?.handlers?.GET;
-  if (!handler) throw new Error("Missing GET handler for /api/cli/repos.");
-  return handler;
+  return getRouteHandler<GetHandler>(Route, "GET", "/api/cli/repos");
 }
 
-const context = { session: { session: { activeOrganizationId: "org-42" } } };
-
-function mockDbInstallations(
-  installations: Array<{ installationId: number; status: string }>,
-) {
-  const where = vi.fn().mockResolvedValue(
-    installations.map((i) => ({
-      installationId: i.installationId,
-      status: i.status,
-    })),
-  );
-  const from = vi.fn().mockReturnValue({ where });
-  vi.mocked(mockedDb.select).mockReturnValue({ from } as never);
-}
+const context = cliSessionContext();
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/repos", () => {
   it("returns empty array when no active installation exists", async () => {
-    mockDbInstallations([{ status: "uninstalled", installationId: 1 }]);
+    mockDbInstallations(mockedDb, [
+      { status: "uninstalled", installationId: 1 },
+    ]);
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/repos"),
@@ -74,7 +63,7 @@ describe("/api/cli/repos", () => {
   });
 
   it("returns repos from active installation", async () => {
-    mockDbInstallations([{ status: "active", installationId: 99 }]);
+    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
     mockedListRepos.mockResolvedValueOnce([
       { id: 1, full_name: "org/repo-a" } as Awaited<
         ReturnType<typeof mockedListRepos>
@@ -98,7 +87,7 @@ describe("/api/cli/repos", () => {
   });
 
   it("returns empty array when tenant has no installations", async () => {
-    mockDbInstallations([]);
+    mockDbInstallations(mockedDb, []);
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/repos"),

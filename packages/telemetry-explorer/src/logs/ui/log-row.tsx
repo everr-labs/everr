@@ -1,9 +1,9 @@
+import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import AnsiImport from "ansi-to-react";
 import { ChevronRight } from "lucide-react";
 import { memo } from "react";
 import type { LogExplorerRow } from "../schemas";
-import { formatTimestampTimeOfDay } from "../util/formatting";
 import { LOG_LEVEL_META } from "./log-level-meta";
 
 const Ansi =

@@ -5,6 +5,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@everr/ui/components/sidebar";
+import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
@@ -15,12 +16,12 @@ import {
   useMatches,
 } from "@tanstack/react-router";
 import { z } from "zod";
-import { RefreshPicker, TimeRangePicker } from "@/components/analytics";
+import { RefreshPicker } from "@/components/analytics/refresh-picker";
+import { TimeRangePicker } from "@/components/analytics/time-range-picker";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import {
-  DEFAULT_TIME_RANGE,
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
 } from "@/lib/time-range";

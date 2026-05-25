@@ -5,13 +5,14 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@everr/ui/components/empty";
+import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { formatDuration } from "@everr/ui/lib/formatting";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { addNsToCHDateTime } from "../data/window";
-import { formatDuration } from "../util/formatting";
 import { useDelayedFlag } from "../util/use-delayed-flag";
 import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";
@@ -55,7 +56,8 @@ export function TraceResultsList({
   if (query.isPending) return showSkeleton ? <ResultsSkeleton /> : null;
   if (query.isError) {
     return (
-      <ErrorState
+      <RetryError
+        title="Failed to load traces"
         message={(query.error as Error).message}
         onRetry={() => query.refetch()}
       />
@@ -157,26 +159,6 @@ function ResultsSkeleton() {
         <Skeleton key={i} className="h-10 w-full" />
       ))}
     </div>
-  );
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>Failed to load traces</EmptyTitle>
-        <EmptyDescription>{message}</EmptyDescription>
-      </EmptyHeader>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        Retry
-      </Button>
-    </Empty>
   );
 }
 

@@ -27,6 +27,48 @@ function makeSpan(overrides: Partial<Span> & { spanId: string }): Span {
   };
 }
 
+function renderWaterfall(spans: Span[]) {
+  const user = userEvent.setup();
+  render(<TraceWaterfall spans={spans} traceId="t1" />);
+  return user;
+}
+
+function getFocusButtons() {
+  return screen.getAllByRole("button", { name: "Focus on this span" });
+}
+
+function getFocusBadge(): HTMLElement {
+  const clearButton = screen.getByRole("button", { name: "Clear focus" });
+  const badge = clearButton.closest("[data-slot='badge']");
+  assert(badge instanceof HTMLElement, "expected badge element");
+  return badge;
+}
+
+async function typeMinimumDuration(
+  user: ReturnType<typeof userEvent.setup>,
+  value: string,
+) {
+  const input = screen.getByLabelText("Minimum duration");
+  await user.type(input, value);
+  return input;
+}
+
+function expectSpansVisible(...names: string[]) {
+  for (const name of names) {
+    expect(
+      screen.getByRole("button", { name: new RegExp(name) }),
+    ).toBeInTheDocument();
+  }
+}
+
+function expectSpansHidden(...names: string[]) {
+  for (const name of names) {
+    expect(
+      screen.queryByRole("button", { name: new RegExp(name) }),
+    ).not.toBeInTheDocument();
+  }
+}
+
 const flatSpans: Span[] = [
   makeSpan({
     spanId: "a",
@@ -72,13 +114,12 @@ const hierarchicalSpans: Span[] = [
 
 describe("TraceWaterfall", () => {
   it("renders span names", () => {
-    render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
-    expect(screen.getByRole("button", { name: /Job A/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Job B/ })).toBeInTheDocument();
+    renderWaterfall(flatSpans);
+    expectSpansVisible("Job A", "Job B");
   });
 
   it("renders duration labels", () => {
-    render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
+    renderWaterfall(flatSpans);
     expect(screen.getByText("500ms")).toBeInTheDocument();
     expect(screen.getByText("600ms")).toBeInTheDocument();
   });
@@ -93,95 +134,59 @@ describe("TraceWaterfall", () => {
         duration: 0,
       }),
     ];
-    render(<TraceWaterfall spans={zeroSpans} traceId="t1" />);
+    renderWaterfall(zeroSpans);
     expect(screen.getByRole("button", { name: /Zero/ })).toBeInTheDocument();
   });
 
   describe("Expand / Collapse", () => {
     it("Collapse All hides children", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={hierarchicalSpans} traceId="t1" />);
+      const user = renderWaterfall(hierarchicalSpans);
 
       // Children visible initially
-      expect(
-        screen.getByRole("button", { name: /Child One/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Child Two/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Child One", "Child Two");
 
       await user.click(screen.getByRole("button", { name: /Collapse All/ }));
 
-      expect(
-        screen.queryByRole("button", { name: /Child One/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: /Child Two/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Child One", "Child Two");
       // Root is still visible
-      expect(
-        screen.getByRole("button", { name: /Root Span/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Root Span");
     });
 
     it("Expand All restores children after collapse", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={hierarchicalSpans} traceId="t1" />);
+      const user = renderWaterfall(hierarchicalSpans);
 
       await user.click(screen.getByRole("button", { name: /Collapse All/ }));
-      expect(
-        screen.queryByRole("button", { name: /Child One/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Child One");
 
       await user.click(screen.getByRole("button", { name: /Expand All/ }));
-      expect(
-        screen.getByRole("button", { name: /Child One/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Child Two/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Child One", "Child Two");
     });
   });
 
   describe("Focus feature", () => {
     it("each span row has a focus button", () => {
-      render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
-      expect(
-        screen.getAllByRole("button", { name: "Focus on this span" }),
-      ).toHaveLength(2);
+      renderWaterfall(flatSpans);
+      expect(getFocusButtons()).toHaveLength(2);
     });
 
     it("clicking focus shows the span name in a toolbar badge", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
+      const user = renderWaterfall(flatSpans);
 
       // No badge initially
       expect(
         screen.queryByRole("button", { name: "Clear focus" }),
       ).not.toBeInTheDocument();
 
-      const focusButtons = screen.getAllByRole("button", {
-        name: "Focus on this span",
-      });
-      await user.click(focusButtons[0]);
+      await user.click(getFocusButtons()[0]);
 
       // Badge appears with the focused span's name
-      const clearButton = screen.getByRole("button", {
-        name: "Clear focus",
-      });
-      const badge = clearButton.closest("[data-slot='badge']");
-      assert(badge instanceof HTMLElement, "expected badge element");
-      expect(within(badge).getByText("Job A")).toBeInTheDocument();
+      expect(within(getFocusBadge()).getByText("Job A")).toBeInTheDocument();
     });
 
     it("clicking Clear focus removes the badge", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
+      const user = renderWaterfall(flatSpans);
 
-      const focusButtons = screen.getAllByRole("button", {
-        name: "Focus on this span",
-      });
-      await user.click(focusButtons[0]);
+      await user.click(getFocusButtons()[0]);
 
       await user.click(screen.getByRole("button", { name: "Clear focus" }));
       expect(
@@ -190,7 +195,6 @@ describe("TraceWaterfall", () => {
     });
 
     it("time markers update to reflect focused span duration", async () => {
-      const user = userEvent.setup();
       // Total range = 700ms. Markers at: 0, 140, 280, 420, 560, 700ms
       // Span X duration = 400ms is NOT a marker value, so no collision
       // After focusing Span X: markers at: 0, 80, 160, 240, 320, 400ms
@@ -210,16 +214,13 @@ describe("TraceWaterfall", () => {
           duration: 600,
         }),
       ];
-      render(<TraceWaterfall spans={spans} traceId="t1" />);
+      const user = renderWaterfall(spans);
 
       // Before focus: the last marker is "700ms"
       expect(screen.getByText("700ms")).toBeInTheDocument();
 
       // Focus on Span X (400ms)
-      const focusButtons = screen.getAllByRole("button", {
-        name: "Focus on this span",
-      });
-      await user.click(focusButtons[0]);
+      await user.click(getFocusButtons()[0]);
 
       // After focus: markers should reflect 400ms range, not 700ms
       expect(screen.queryByText("700ms")).not.toBeInTheDocument();
@@ -227,20 +228,13 @@ describe("TraceWaterfall", () => {
     });
 
     it("focusing a different span replaces the badge", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
+      const user = renderWaterfall(flatSpans);
 
-      const focusButtons = screen.getAllByRole("button", {
-        name: "Focus on this span",
-      });
+      const focusButtons = getFocusButtons();
 
       // Focus on Job A
       await user.click(focusButtons[0]);
-      const clearButton = screen.getByRole("button", {
-        name: "Clear focus",
-      });
-      const badge = clearButton.closest("[data-slot='badge']");
-      assert(badge instanceof HTMLElement, "expected badge element");
+      const badge = getFocusBadge();
       expect(within(badge).getByText("Job A")).toBeInTheDocument();
 
       // Focus on Job B instead
@@ -276,97 +270,51 @@ describe("TraceWaterfall", () => {
     ];
 
     it("hides spans below the minimum duration", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={mixedSpans} traceId="t1" />);
+      const user = renderWaterfall(mixedSpans);
+      await typeMinimumDuration(user, "500ms");
 
-      const input = screen.getByLabelText("Minimum duration");
-      await user.type(input, "500ms");
-
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Fast Span");
     });
 
     it("keeps spans at or above the threshold visible", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={mixedSpans} traceId="t1" />);
+      const user = renderWaterfall(mixedSpans);
+      await typeMinimumDuration(user, "500ms");
 
-      const input = screen.getByLabelText("Minimum duration");
-      await user.type(input, "500ms");
-
-      expect(
-        screen.getByRole("button", { name: /Medium Span/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Slow Span/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Medium Span", "Slow Span");
     });
 
     it("filters using seconds notation", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={mixedSpans} traceId="t1" />);
+      const user = renderWaterfall(mixedSpans);
+      await typeMinimumDuration(user, "1s");
 
-      const input = screen.getByLabelText("Minimum duration");
-      await user.type(input, "1s");
-
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: /Medium Span/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Slow Span/ }),
-      ).toBeInTheDocument();
+      expectSpansHidden("Fast Span", "Medium Span");
+      expectSpansVisible("Slow Span");
     });
 
     it("clearing the filter restores all spans", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={mixedSpans} traceId="t1" />);
+      const user = renderWaterfall(mixedSpans);
+      const input = await typeMinimumDuration(user, "500ms");
 
-      const input = screen.getByLabelText("Minimum duration");
-      await user.type(input, "500ms");
-
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
+      expectSpansHidden("Fast Span");
 
       await user.clear(input);
 
-      expect(
-        screen.getByRole("button", { name: /Fast Span/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Medium Span/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Slow Span/ }),
-      ).toBeInTheDocument();
+      expectSpansVisible("Fast Span", "Medium Span", "Slow Span");
     });
 
     it("shows filtered span count when filter is active", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={mixedSpans} traceId="t1" />);
-
-      const input = screen.getByLabelText("Minimum duration");
-      await user.type(input, "500ms");
+      const user = renderWaterfall(mixedSpans);
+      await typeMinimumDuration(user, "500ms");
 
       expect(screen.getByText("2 of 3 spans")).toBeInTheDocument();
     });
 
     it("treats plain numbers as milliseconds", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={mixedSpans} traceId="t1" />);
+      const user = renderWaterfall(mixedSpans);
+      await typeMinimumDuration(user, "500");
 
-      const input = screen.getByLabelText("Minimum duration");
-      await user.type(input, "500");
-
-      expect(
-        screen.queryByRole("button", { name: /Fast Span/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Medium Span/ }),
-      ).toBeInTheDocument();
+      expectSpansHidden("Fast Span");
+      expectSpansVisible("Medium Span");
     });
   });
 
@@ -383,7 +331,7 @@ describe("TraceWaterfall", () => {
           name: "Job A",
         }),
       ];
-      render(<TraceWaterfall spans={spans} traceId="t1" />);
+      renderWaterfall(spans);
 
       const icons = screen.getAllByRole("img");
       expect(icons).toHaveLength(1);
@@ -392,8 +340,7 @@ describe("TraceWaterfall", () => {
 
   describe("Selection", () => {
     it("clicking a span opens the detail panel", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
+      const user = renderWaterfall(flatSpans);
 
       expect(
         screen.queryByRole("heading", { name: "Job A" }),
@@ -406,8 +353,7 @@ describe("TraceWaterfall", () => {
     });
 
     it("clicking the same span again closes the detail panel", async () => {
-      const user = userEvent.setup();
-      render(<TraceWaterfall spans={flatSpans} traceId="t1" />);
+      const user = renderWaterfall(flatSpans);
 
       await user.click(screen.getByRole("button", { name: /Job A/ }));
       expect(
@@ -421,7 +367,6 @@ describe("TraceWaterfall", () => {
     });
 
     it("shows suite and subtest types independently in the detail panel", async () => {
-      const user = userEvent.setup();
       const spans: Span[] = [
         makeSpan({
           spanId: "suite-subtest",
@@ -434,7 +379,7 @@ describe("TraceWaterfall", () => {
         }),
       ];
 
-      render(<TraceWaterfall spans={spans} traceId="t1" />);
+      const user = renderWaterfall(spans);
 
       await user.click(screen.getByRole("button", { name: /Nested Suite/ }));
 
@@ -442,7 +387,6 @@ describe("TraceWaterfall", () => {
     });
 
     it("shows framework and language in the detail panel for test spans", async () => {
-      const user = userEvent.setup();
       const spans: Span[] = [
         makeSpan({
           spanId: "typed-test",
@@ -454,7 +398,7 @@ describe("TraceWaterfall", () => {
         }),
       ];
 
-      render(<TraceWaterfall spans={spans} traceId="t1" />);
+      const user = renderWaterfall(spans);
 
       await user.click(
         screen.getByRole("button", { name: /formats milliseconds/ }),

@@ -173,14 +173,30 @@ function getHandler(event: string) {
   return call[1] as (...args: unknown[]) => void;
 }
 
+function resetAllMocks() {
+  mockConnect.mockReset().mockResolvedValue(undefined);
+  mockQuery.mockReset().mockResolvedValue(undefined);
+  mockEnd.mockReset().mockResolvedValue(undefined);
+  mockOn.mockReset();
+}
+
+function resetForReconnect() {
+  mockConnect.mockReset().mockResolvedValue(undefined);
+  mockQuery.mockReset().mockResolvedValue(undefined);
+  mockOn.mockReset();
+}
+
+function resetForFailedReconnect() {
+  mockConnect.mockReset().mockRejectedValue(new Error("still down"));
+  mockEnd.mockReset().mockResolvedValue(undefined);
+  mockOn.mockReset();
+}
+
 describe("NotificationHub — pg.Client lifecycle", () => {
   let hub: NotificationHub;
 
   beforeEach(() => {
-    mockConnect.mockReset().mockResolvedValue(undefined);
-    mockQuery.mockReset().mockResolvedValue(undefined);
-    mockEnd.mockReset().mockResolvedValue(undefined);
-    mockOn.mockReset();
+    resetAllMocks();
     hub = new NotificationHub();
   });
 
@@ -304,10 +320,7 @@ describe("NotificationHub — reconnect", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    mockConnect.mockReset().mockResolvedValue(undefined);
-    mockQuery.mockReset().mockResolvedValue(undefined);
-    mockEnd.mockReset().mockResolvedValue(undefined);
-    mockOn.mockReset();
+    resetAllMocks();
     hub = new NotificationHub();
   });
 
@@ -324,9 +337,7 @@ describe("NotificationHub — reconnect", () => {
     errorHandler(new Error("connection lost"));
 
     // Reset mocks to track reconnect calls
-    mockConnect.mockReset().mockResolvedValue(undefined);
-    mockQuery.mockReset().mockResolvedValue(undefined);
-    mockOn.mockReset();
+    resetForReconnect();
 
     await vi.advanceTimersByTimeAsync(1000);
 
@@ -342,17 +353,13 @@ describe("NotificationHub — reconnect", () => {
     const errorHandler = getHandler("error");
     errorHandler(new Error("fail"));
 
-    mockConnect.mockReset().mockRejectedValue(new Error("still down"));
-    mockEnd.mockReset().mockResolvedValue(undefined);
-    mockOn.mockReset();
+    resetForFailedReconnect();
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(mockConnect).toHaveBeenCalledTimes(1);
 
     // Second failure — should reconnect after 2s
-    mockConnect.mockReset().mockRejectedValue(new Error("still down"));
-    mockEnd.mockReset().mockResolvedValue(undefined);
-    mockOn.mockReset();
+    resetForFailedReconnect();
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(mockConnect).not.toHaveBeenCalled();
@@ -369,9 +376,7 @@ describe("NotificationHub — reconnect", () => {
     errorHandler(new Error("fail"));
 
     // Reconnect succeeds after 1s
-    mockConnect.mockReset().mockResolvedValue(undefined);
-    mockQuery.mockReset().mockResolvedValue(undefined);
-    mockOn.mockReset();
+    resetForReconnect();
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(mockConnect).toHaveBeenCalledTimes(1);
@@ -380,9 +385,7 @@ describe("NotificationHub — reconnect", () => {
     const errorHandler2 = getHandler("error");
     errorHandler2(new Error("fail again"));
 
-    mockConnect.mockReset().mockResolvedValue(undefined);
-    mockQuery.mockReset().mockResolvedValue(undefined);
-    mockOn.mockReset();
+    resetForReconnect();
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(mockConnect).toHaveBeenCalledTimes(1);

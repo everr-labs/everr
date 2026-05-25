@@ -1,12 +1,15 @@
 import { isValid, resolve } from "@everr/datemath";
 import { z } from "zod";
-import {
-  DEFAULT_TIME_RANGE,
-  type TimeRange,
-} from "../components/time-range-picker";
 
-export type { TimeRange };
-export { DEFAULT_TIME_RANGE };
+export interface TimeRange {
+  from: string;
+  to: string;
+}
+
+export const DEFAULT_TIME_RANGE: TimeRange = {
+  from: "now-7d",
+  to: "now",
+} as const;
 
 const datemath = z.string().refine(isValid);
 
@@ -17,6 +20,14 @@ export const TimeRangeSchema = z.object({
 
 export function toClickHouseDateTime(date: Date): string {
   return date.toISOString().replace("T", " ").replace("Z", "");
+}
+
+export function withTimeRange<T extends { from?: string; to?: string }>(
+  search: T,
+): T & { from: string; to: string; timeRange: TimeRange } {
+  const from = search.from ?? DEFAULT_TIME_RANGE.from;
+  const to = search.to ?? DEFAULT_TIME_RANGE.to;
+  return { ...search, from, to, timeRange: { from, to } };
 }
 
 export function resolveTimeRange(range: TimeRange) {
