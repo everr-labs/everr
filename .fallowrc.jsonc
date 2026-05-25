@@ -22,7 +22,9 @@
     "packages/docs/routes/**/*.{ts,tsx}",
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
-    "packages/app/src/ssr-shims/**"
+    "packages/app/src/ssr-shims/**",
+    // Dashboard zustand store — pending wiring into DashboardGrid in a follow-up task.
+    "packages/app/src/data/dashboards/dashboard-store.ts"
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
