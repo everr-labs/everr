@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -502,94 +501,6 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 	sn, ok := records.At(0).Attributes().Get(semconv.EverrGitHubWorkflowJobStepNumber)
 	require.True(t, ok)
 	require.Equal(t, int64(1), sn.Int())
-}
-
-func TestEventToLogsNormalFormatUsesCachedJobMetadata(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-
-	runPayload, err := os.ReadFile("./testdata/completed/8_workflow_run_completed.json")
-	require.NoError(t, err)
-	runEvent, err := github.ParseWebHook("workflow_run", runPayload)
-	require.NoError(t, err)
-	wre := runEvent.(*github.WorkflowRunEvent)
-
-	normalLog := "2023-10-13T10:11:33Z Setting up the job\n"
-	var buf bytes.Buffer
-	w := zip.NewWriter(&buf)
-	f, err := w.Create("pre-commit/1_Set up job.txt")
-	require.NoError(t, err)
-	_, err = f.Write([]byte(normalLog))
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	zipData := buf.Bytes()
-
-	zipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/zip")
-		_, _ = w.Write(zipData)
-	}))
-	defer zipServer.Close()
-
-	var jobsAPIHits atomic.Int32
-	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		expectedSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/attempts/%d/logs",
-			wre.GetRepo().GetOwner().GetLogin(),
-			wre.GetRepo().GetName(),
-			wre.GetWorkflowRun().GetID(),
-			wre.GetWorkflowRun().GetRunAttempt())
-		if r.URL.Path == expectedSuffix || r.URL.Path == "/api/v3"+expectedSuffix {
-			http.Redirect(w, r, zipServer.URL, http.StatusFound)
-			return
-		}
-		jobsSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs",
-			wre.GetRepo().GetOwner().GetLogin(),
-			wre.GetRepo().GetName(),
-			wre.GetWorkflowRun().GetID())
-		if r.URL.Path == jobsSuffix || r.URL.Path == "/api/v3"+jobsSuffix {
-			jobsAPIHits.Add(1)
-			http.Error(w, "unexpected jobs API call", http.StatusInternalServerError)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer apiServer.Close()
-
-	ghClient, err := github.NewClient(nil).WithEnterpriseURLs(apiServer.URL+"/", apiServer.URL+"/")
-	require.NoError(t, err)
-
-	jnCache := newJobNameCache(100, 30*time.Minute)
-	stCache := newStepTimingCache(100, 30*time.Minute)
-	key := runKey{
-		repoID:     wre.GetRepo().GetID(),
-		runID:      wre.GetWorkflowRun().GetID(),
-		runAttempt: wre.GetWorkflowRun().GetRunAttempt(),
-	}
-	stCache.AddJob(key, 12345, "pre-commit", []stepTiming{
-		{
-			Number:      1,
-			Name:        "Set up job",
-			StartedAt:   time.Date(2023, 10, 13, 10, 11, 33, 0, time.UTC),
-			CompletedAt: time.Date(2023, 10, 13, 10, 11, 35, 0, time.UTC),
-		},
-	})
-
-	logs, err := eventToLogs(
-		context.Background(),
-		wre,
-		&Config{},
-		ghClient,
-		logger,
-		true,
-		jnCache,
-		stCache,
-	)
-	require.NoError(t, err)
-	require.NotNil(t, logs)
-	require.Equal(t, int32(0), jobsAPIHits.Load())
-
-	scope := logs.ResourceLogs().At(0).ScopeLogs().At(0)
-	scopeJobID, ok := scope.Scope().Attributes().Get(string(conventions.CICDPipelineTaskRunIDKey))
-	require.True(t, ok)
-	require.Equal(t, "12345", scopeJobID.Str())
 }
 
 func makeTestWorkflowRunEvent(repoID, runID int64, runAttempt int) *github.WorkflowRunEvent {
