@@ -143,7 +143,7 @@ export function PanelShell({
           {action && <CardAction>{action}</CardAction>}
         </CardHeader>
       )}
-      <CardContent className={cn(!hasHeader && "min-h-0 flex-1")}>
+      <CardContent className="min-h-0 flex-1 overflow-auto overscroll-none border-t border-border">
         {children}
       </CardContent>
     </Card>

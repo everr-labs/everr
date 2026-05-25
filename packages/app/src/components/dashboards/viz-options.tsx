@@ -1,12 +1,14 @@
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { Separator } from "@everr/ui/components/separator";
 import { Textarea } from "@everr/ui/components/textarea";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import { Hash, LineChart, Table } from "lucide-react";
-import type { Panel } from "@/data/dashboards/types";
+import type { Panel, PluginSpecValue } from "@/data/dashboards/types";
+import { getVisualizationSettings } from "./visualizations";
 
 interface VizOptionsProps {
   draft: Panel;
@@ -21,6 +23,7 @@ const CHART_TYPES = [
 
 export function VizOptions({ draft, onChange }: VizOptionsProps) {
   const pluginKind = draft.spec.plugin.kind;
+  const Settings = getVisualizationSettings(pluginKind);
 
   const handleKindChange = (next: string[]) => {
     const selected = next[0];
@@ -54,30 +57,14 @@ export function VizOptions({ draft, onChange }: VizOptionsProps) {
     });
   };
 
-  const handleUnit = (unit: string) => {
+  const handlePluginSpec = (spec: Record<string, unknown>) => {
     onChange({
       ...draft,
       spec: {
         ...draft.spec,
         plugin: {
           ...draft.spec.plugin,
-          spec: { ...draft.spec.plugin.spec, unit },
-        },
-      },
-    });
-  };
-
-  const handleShowLegend = (next: string[]) => {
-    onChange({
-      ...draft,
-      spec: {
-        ...draft.spec,
-        plugin: {
-          ...draft.spec.plugin,
-          spec: {
-            ...draft.spec.plugin.spec,
-            showLegend: next.includes("showLegend"),
-          },
+          spec: spec as Record<string, PluginSpecValue>,
         },
       },
     });
@@ -102,30 +89,14 @@ export function VizOptions({ draft, onChange }: VizOptionsProps) {
         </ToggleGroup>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="panel-title">Title</Label>
-          <Input
-            id="panel-title"
-            value={draft.spec.display.name ?? ""}
-            onChange={(e) => handleDisplayName(e.target.value)}
-            placeholder="Panel title"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="panel-unit">Unit</Label>
-          <Input
-            id="panel-unit"
-            value={
-              typeof draft.spec.plugin.spec.unit === "string"
-                ? draft.spec.plugin.spec.unit
-                : ""
-            }
-            onChange={(e) => handleUnit(e.target.value)}
-            placeholder="e.g. req/s, ms, %"
-          />
-        </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="panel-title">Title</Label>
+        <Input
+          id="panel-title"
+          value={draft.spec.display.name ?? ""}
+          onChange={(e) => handleDisplayName(e.target.value)}
+          placeholder="Panel title"
+        />
       </div>
 
       <div className="flex flex-col gap-2">
@@ -138,20 +109,14 @@ export function VizOptions({ draft, onChange }: VizOptionsProps) {
         />
       </div>
 
-      {pluginKind === "TimeSeriesChart" && (
-        <div className="flex flex-col gap-2">
-          <Label>Legend</Label>
-          <ToggleGroup
-            value={draft.spec.plugin.spec.showLegend ? ["showLegend"] : []}
-            onValueChange={handleShowLegend}
-            variant="outline"
-            size="sm"
-          >
-            <ToggleGroupItem value="showLegend" aria-label="Show legend">
-              Show legend
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
+      {Settings && (
+        <>
+          <Separator />
+          <Settings
+            spec={draft.spec.plugin.spec as Record<string, unknown>}
+            onChange={handlePluginSpec}
+          />
+        </>
       )}
     </div>
   );

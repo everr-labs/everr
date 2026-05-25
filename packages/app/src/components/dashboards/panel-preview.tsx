@@ -1,5 +1,6 @@
 import type { Panel } from "@/data/dashboards/types";
 import { PanelShell } from "../panel-shell";
+import { getVisualizationInset, PanelVisualization } from "./visualizations";
 
 interface PanelPreviewProps {
   panel: Panel;
@@ -15,10 +16,9 @@ export function PanelPreview({ panel, panelKey }: PanelPreviewProps) {
       description={display.description}
       status="success"
       className="h-full"
+      inset={getVisualizationInset(plugin.kind)}
     >
-      <div className="flex h-full min-h-32 items-center justify-center text-muted-foreground">
-        <p className="text-sm">{plugin.kind}</p>
-      </div>
+      <PanelVisualization plugin={plugin} />
     </PanelShell>
   );
 }

@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Pencil, X } from "lucide-react";
 import type { Panel } from "@/data/dashboards/types";
 import { PanelShell } from "../panel-shell";
+import { getVisualizationInset, PanelVisualization } from "./visualizations";
 
 interface DashboardPanelProps {
   panel: Panel;
@@ -27,6 +28,7 @@ export function DashboardPanel({
       description={display.description}
       status="success"
       className="h-full"
+      inset={getVisualizationInset(plugin.kind)}
       headerClassName={
         isEditing ? "drag-handle cursor-grab active:cursor-grabbing" : undefined
       }
@@ -58,9 +60,7 @@ export function DashboardPanel({
         ) : undefined
       }
     >
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        <p className="text-sm">{plugin.kind}</p>
-      </div>
+      <PanelVisualization plugin={plugin} />
     </PanelShell>
   );
 }
