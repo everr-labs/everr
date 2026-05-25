@@ -453,13 +453,22 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 			http.Redirect(w, r, zipServer.URL, http.StatusFound)
 			return
 		}
-		jobsSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs",
+		jobsSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/attempts/%d/jobs",
 			wre.GetRepo().GetOwner().GetLogin(),
 			wre.GetRepo().GetName(),
-			wre.GetWorkflowRun().GetID())
+			wre.GetWorkflowRun().GetID(),
+			wre.GetWorkflowRun().GetRunAttempt())
 		if r.URL.Path == jobsSuffix || r.URL.Path == "/api/v3"+jobsSuffix {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"total_count":1,"jobs":[{"id":12345,"name":"pre-commit","status":"completed"}]}`))
+			return
+		}
+		latestJobsSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs",
+			wre.GetRepo().GetOwner().GetLogin(),
+			wre.GetRepo().GetName(),
+			wre.GetWorkflowRun().GetID())
+		if r.URL.Path == latestJobsSuffix || r.URL.Path == "/api/v3"+latestJobsSuffix {
+			http.Error(w, "unexpected latest-attempt jobs API call", http.StatusInternalServerError)
 			return
 		}
 		http.NotFound(w, r)

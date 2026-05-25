@@ -581,15 +581,13 @@ func listWorkflowJobMetadata(ctx context.Context, ghClient *github.Client, e *gi
 	owner := e.GetRepo().GetOwner().GetLogin()
 	repo := e.GetRepo().GetName()
 	runID := e.GetWorkflowRun().GetID()
+	runAttempt := int64(e.GetWorkflowRun().GetRunAttempt())
 
-	opts := &github.ListWorkflowJobsOptions{
-		Filter:      "latest",
-		ListOptions: github.ListOptions{PerPage: 100},
-	}
+	opts := &github.ListOptions{PerPage: 100}
 
 	var result []logJobMetadata
 	for {
-		jobsResp, resp, err := ghClient.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
+		jobsResp, resp, err := ghClient.Actions.ListWorkflowJobsAttempt(ctx, owner, repo, runID, runAttempt, opts)
 		if err != nil {
 			logger.Warn("Failed to list workflow jobs for log metadata", zap.Error(err))
 			return nil
