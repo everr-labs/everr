@@ -1,11 +1,13 @@
 import { Button } from "@everr/ui/components/button";
-import { X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Pencil, X } from "lucide-react";
 import type { Panel } from "@/data/dashboards/types";
 import { PanelShell } from "../panel-shell";
 
 interface DashboardPanelProps {
   panel: Panel;
   panelKey: string;
+  dashboardId: string;
   isEditing: boolean;
   onRemove?: () => void;
 }
@@ -13,6 +15,7 @@ interface DashboardPanelProps {
 export function DashboardPanel({
   panel,
   panelKey,
+  dashboardId,
   isEditing,
   onRemove,
 }: DashboardPanelProps) {
@@ -29,14 +32,29 @@ export function DashboardPanel({
       }
       action={
         isEditing ? (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onRemove}
-            aria-label="Remove panel"
-          >
-            <X />
-          </Button>
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              render={
+                <Link
+                  to="/dashboards/$dashboardId/panel/$panelKey"
+                  params={{ dashboardId, panelKey }}
+                />
+              }
+              aria-label="Edit panel"
+            >
+              <Pencil />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={onRemove}
+              aria-label="Remove panel"
+            >
+              <X />
+            </Button>
+          </div>
         ) : undefined
       }
     >

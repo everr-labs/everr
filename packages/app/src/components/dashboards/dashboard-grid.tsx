@@ -190,6 +190,7 @@ export function DashboardGrid() {
                 <DashboardPanel
                   panel={panel}
                   panelKey={item.i}
+                  dashboardId={dashboard.metadata.name}
                   isEditing={isEditing}
                   onRemove={() => handleRemovePanel(item.i)}
                 />
