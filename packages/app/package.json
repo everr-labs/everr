@@ -48,7 +48,8 @@
     "resend": "^6.12.3",
     "simple-icons": "^16.18.1",
     "sonner": "^2.0.7",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@opentelemetry/api": "1.9.1",
