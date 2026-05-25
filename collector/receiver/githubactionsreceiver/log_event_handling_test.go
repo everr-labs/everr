@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/everr-labs/everr/collector/semconv"
@@ -208,7 +210,7 @@ func TestStepTimingCache(t *testing.T) {
 		{Number: 2, Name: "Build", StartedAt: base.Add(5 * time.Second), CompletedAt: base.Add(30 * time.Second)},
 	}
 
-	cache.AddJob(key, "build", steps)
+	cache.AddJob(key, 101, "build", steps)
 
 	t.Run("cache hit", func(t *testing.T) {
 		result := cache.GetSteps(key)
@@ -218,7 +220,7 @@ func TestStepTimingCache(t *testing.T) {
 	})
 
 	t.Run("multiple jobs same run", func(t *testing.T) {
-		cache.AddJob(key, "test", []stepTiming{
+		cache.AddJob(key, 102, "test", []stepTiming{
 			{Number: 1, Name: "Run tests", StartedAt: base, CompletedAt: base.Add(60 * time.Second)},
 		})
 		result := cache.GetSteps(key)
@@ -294,7 +296,7 @@ func TestProcessCombinedLogsWithRealWebhook(t *testing.T) {
 			CompletedAt: s.GetCompletedAt().Time,
 		})
 	}
-	stCache.AddJob(key, job.GetName(), timings)
+	stCache.AddJob(key, job.GetID(), job.GetName(), timings)
 
 	// Build a combined-format zip with log lines spanning multiple steps.
 	// Steps from the real payload:
@@ -366,6 +368,9 @@ func TestProcessCombinedLogsWithRealWebhook(t *testing.T) {
 	scopeJobName, ok := scope.Scope().Attributes().Get(string("cicd.pipeline.task.name"))
 	require.True(t, ok)
 	require.Equal(t, "pre-commit", scopeJobName.Str())
+	scopeJobID, ok := scope.Scope().Attributes().Get(string(conventions.CICDPipelineTaskRunIDKey))
+	require.True(t, ok)
+	require.Equal(t, strconv.FormatInt(job.GetID(), 10), scopeJobID.Str())
 
 	records := scope.LogRecords()
 	require.Equal(t, 5, records.Len(), "expected 5 log lines")
@@ -448,6 +453,24 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 			http.Redirect(w, r, zipServer.URL, http.StatusFound)
 			return
 		}
+		jobsSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/attempts/%d/jobs",
+			wre.GetRepo().GetOwner().GetLogin(),
+			wre.GetRepo().GetName(),
+			wre.GetWorkflowRun().GetID(),
+			wre.GetWorkflowRun().GetRunAttempt())
+		if r.URL.Path == jobsSuffix || r.URL.Path == "/api/v3"+jobsSuffix {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"total_count":1,"jobs":[{"id":12345,"name":"pre-commit","status":"completed"}]}`))
+			return
+		}
+		latestJobsSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs",
+			wre.GetRepo().GetOwner().GetLogin(),
+			wre.GetRepo().GetName(),
+			wre.GetWorkflowRun().GetID())
+		if r.URL.Path == latestJobsSuffix || r.URL.Path == "/api/v3"+latestJobsSuffix {
+			http.Error(w, "unexpected latest-attempt jobs API call", http.StatusInternalServerError)
+			return
+		}
 		http.NotFound(w, r)
 	}))
 	defer apiServer.Close()
@@ -479,6 +502,10 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 
 	records := sl.At(0).LogRecords()
 	require.Equal(t, 1, records.Len())
+
+	scopeJobID, ok := sl.At(0).Scope().Attributes().Get(string(conventions.CICDPipelineTaskRunIDKey))
+	require.True(t, ok)
+	require.Equal(t, "12345", scopeJobID.Str())
 
 	sn, ok := records.At(0).Attributes().Get(semconv.EverrGitHubWorkflowJobStepNumber)
 	require.True(t, ok)

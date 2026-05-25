@@ -322,6 +322,10 @@ func TestGitHubActionsServiceResourceAttributes(t *testing.T) {
 		serviceNamespace, found := attrs.Get("service.namespace")
 		require.True(t, found)
 		require.Equal(t, "cicd", serviceNamespace.Str())
+
+		jobID, found := attrs.Get(string(conventions.CICDPipelineTaskRunIDKey))
+		require.True(t, found)
+		require.Equal(t, strconv.FormatInt(event.(*github.WorkflowJobEvent).GetWorkflowJob().GetID(), 10), jobID.Str())
 	})
 }
 

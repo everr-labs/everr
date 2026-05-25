@@ -8,6 +8,7 @@ package githubactionsreceiver
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ func createResourceAttributes(resource pcommon.Resource, event interface{}, conf
 		attrs.PutStr(string(conventions.VCSRefHeadTypeKey), "branch")
 		attrs.PutStr(string(conventions.VCSRefHeadRevisionKey), e.GetWorkflowJob().GetHeadSHA())
 		attrs.PutStr(string(conventions.CICDPipelineTaskRunURLFullKey), e.GetWorkflowJob().GetHTMLURL())
-		attrs.PutInt(string(conventions.CICDPipelineTaskRunIDKey), e.GetWorkflowJob().GetID())
+		attrs.PutStr(string(conventions.CICDPipelineTaskRunIDKey), strconv.FormatInt(e.GetWorkflowJob().GetID(), 10))
 
 		if len(e.WorkflowJob.Labels) > 0 {
 			labels := e.GetWorkflowJob().Labels
