@@ -13,15 +13,12 @@ import {
   persesToRGL,
   rglToPerses,
 } from "@/data/dashboards/convert";
-import type { Dashboard, Panel } from "@/data/dashboards/types";
+import { useDashboardStore } from "@/data/dashboards/dashboard-store";
+import type { Panel } from "@/data/dashboards/types";
 import { DashboardPanel } from "./dashboard-panel";
 
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
-
-interface DashboardGridProps {
-  dashboard: Dashboard;
-}
 
 function generatePanelKey(panels: Record<string, Panel>): string {
   let i = 1;
@@ -29,111 +26,112 @@ function generatePanelKey(panels: Record<string, Panel>): string {
   return `panel${i}`;
 }
 
-export function DashboardGrid({ dashboard: initial }: DashboardGridProps) {
-  const [dashboard, setDashboard] = useState(initial);
+export function DashboardGrid() {
+  const dashboard = useDashboardStore((s) => s.dashboard);
+  const updatePanel = useDashboardStore((s) => s.updatePanel);
+  const updateLayout = useDashboardStore((s) => s.updateLayout);
+  const setDashboard = useDashboardStore((s) => s.setDashboard);
+
   const [isEditing, setIsEditing] = useState(false);
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
 
   const layout = useMemo(() => {
+    if (!dashboard) return [];
     const firstLayout = dashboard.spec.layouts[0];
     if (!firstLayout) return [];
     return persesToRGL(firstLayout.spec.items);
   }, [dashboard]);
 
-  const handleLayoutChange = useCallback((newLayout: Layout) => {
-    setDashboard((prev) => ({
-      ...prev,
-      spec: {
-        ...prev.spec,
-        layouts: [
-          {
-            kind: "Grid" as const,
-            spec: {
-              ...prev.spec.layouts[0]?.spec,
-              items: rglToPerses([...newLayout]),
-            },
+  const handleLayoutChange = useCallback(
+    (newLayout: Layout) => {
+      if (!dashboard) return;
+      updateLayout([
+        {
+          kind: "Grid" as const,
+          spec: {
+            ...dashboard.spec.layouts[0]?.spec,
+            items: rglToPerses([...newLayout]),
           },
-          ...prev.spec.layouts.slice(1),
-        ],
-      },
-    }));
-  }, []);
+        },
+        ...dashboard.spec.layouts.slice(1),
+      ]);
+    },
+    [dashboard, updateLayout],
+  );
 
   const handleAddPanel = useCallback(() => {
-    setDashboard((prev) => {
-      const key = generatePanelKey(prev.spec.panels);
-      const newPanel: Panel = {
-        kind: "Panel",
+    if (!dashboard) return;
+    const key = generatePanelKey(dashboard.spec.panels);
+    const newPanel: Panel = {
+      kind: "Panel",
+      spec: {
+        display: { name: "New Panel" },
+        plugin: { kind: "TimeSeriesChart", spec: {} },
+      },
+    };
+
+    const maxY =
+      dashboard.spec.layouts[0]?.spec.items.reduce(
+        (max, item) => Math.max(max, item.y + item.height),
+        0,
+      ) ?? 0;
+
+    updatePanel(key, newPanel);
+    updateLayout([
+      {
+        kind: "Grid" as const,
         spec: {
-          display: { name: "New Panel" },
-          plugin: { kind: "TimeSeriesChart", spec: {} },
-        },
-      };
-
-      const maxY =
-        prev.spec.layouts[0]?.spec.items.reduce(
-          (max, item) => Math.max(max, item.y + item.height),
-          0,
-        ) ?? 0;
-
-      const newItem = {
-        x: 0,
-        y: maxY,
-        width: 12,
-        height: 8,
-        content: { $ref: panelRefFromKey(key) },
-      };
-
-      return {
-        ...prev,
-        spec: {
-          ...prev.spec,
-          panels: { ...prev.spec.panels, [key]: newPanel },
-          layouts: [
+          ...dashboard.spec.layouts[0]?.spec,
+          items: [
+            ...(dashboard.spec.layouts[0]?.spec.items ?? []),
             {
-              kind: "Grid" as const,
-              spec: {
-                ...prev.spec.layouts[0]?.spec,
-                items: [...(prev.spec.layouts[0]?.spec.items ?? []), newItem],
-              },
+              x: 0,
+              y: maxY,
+              width: 12,
+              height: 8,
+              content: { $ref: panelRefFromKey(key) },
             },
-            ...prev.spec.layouts.slice(1),
           ],
         },
-      };
-    });
-  }, []);
+      },
+      ...dashboard.spec.layouts.slice(1),
+    ]);
+  }, [dashboard, updatePanel, updateLayout]);
 
-  const handleRemovePanel = useCallback((panelKey: string) => {
-    setDashboard((prev) => {
-      const { [panelKey]: _, ...remainingPanels } = prev.spec.panels;
-      return {
-        ...prev,
+  const handleRemovePanel = useCallback(
+    (panelKey: string) => {
+      if (!dashboard) return;
+      const { [panelKey]: _, ...remainingPanels } = dashboard.spec.panels;
+      setDashboard({
+        ...dashboard,
         spec: {
-          ...prev.spec,
+          ...dashboard.spec,
           panels: remainingPanels,
           layouts: [
             {
               kind: "Grid" as const,
               spec: {
-                ...prev.spec.layouts[0]?.spec,
-                items: (prev.spec.layouts[0]?.spec.items ?? []).filter(
+                ...dashboard.spec.layouts[0]?.spec,
+                items: (dashboard.spec.layouts[0]?.spec.items ?? []).filter(
                   (item) => item.content.$ref !== panelRefFromKey(panelKey),
                 ),
               },
             },
-            ...prev.spec.layouts.slice(1),
+            ...dashboard.spec.layouts.slice(1),
           ],
         },
-      };
-    });
-  }, []);
+      });
+    },
+    [dashboard, setDashboard],
+  );
 
   const handleSave = useCallback(() => {
     toast.info("Dashboard saved (mock — no persistence yet)");
   }, []);
+
+  if (!dashboard) return null;
 
   return (
     <div>
