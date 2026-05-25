@@ -1,6 +1,18 @@
+.react-grid-item.cssTransforms {
+  transition: none;
+}
+
+.layout-editing .react-grid-item.cssTransforms {
+  transition:
+    transform 200ms ease,
+    width 200ms ease,
+    height 200ms ease;
+}
+
 .react-grid-item.react-draggable-dragging,
 .react-grid-item.resizing {
   user-select: none;
+  transition: none !important;
 }
 
 .react-grid-item.resizing {

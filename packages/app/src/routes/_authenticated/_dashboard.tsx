@@ -15,12 +15,14 @@ import {
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
+import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { z } from "zod";
 import { RefreshPicker } from "@/components/analytics/refresh-picker";
 import { TimeRangePicker } from "@/components/analytics/time-range-picker";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
+import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
@@ -54,6 +56,18 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
       });
     }
   },
+  head: () => ({
+    links: [
+      {
+        rel: "stylesheet",
+        href: gridLayoutCSS,
+      },
+      {
+        rel: "stylesheet",
+        href: gridLayoutOverridesCSS,
+      },
+    ],
+  }),
   component: RouteComponent,
 });
 

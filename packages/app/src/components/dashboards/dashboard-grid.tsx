@@ -16,9 +16,6 @@ import {
 import type { Dashboard, Panel } from "@/data/dashboards/types";
 import { DashboardPanel } from "./dashboard-panel";
 
-import "react-grid-layout/css/styles.css";
-import "./dashboard-grid.css";
-
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
 
@@ -174,7 +171,7 @@ export function DashboardGrid({ dashboard: initial }: DashboardGridProps) {
       <div ref={containerRef}>
         <GridLayout
           width={width}
-          className="layout"
+          className={isEditing ? "layout layout-editing" : "layout"}
           layout={layout}
           gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT }}
           dragConfig={{
