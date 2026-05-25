@@ -271,6 +271,9 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 				})
 			}
 			if len(timings) > 0 {
+				// The workflow_run log archive only names jobs by ZIP path. Keep the
+				// workflow_job event's stable GitHub job ID here so later log records
+				// can be enriched without relying on display names.
 				gar.stepTimings.AddJob(key, e.GetWorkflowJob().GetID(), jobName, timings)
 			}
 		}

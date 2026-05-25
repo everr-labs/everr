@@ -473,6 +473,10 @@ func resolveLogJobMetadata(ctx context.Context, zipJobNames []string, stepTiming
 		runAttempt: e.GetWorkflowRun().GetRunAttempt(),
 	}
 
+	// Job logs arrive from the workflow_run archive, whose file paths only
+	// include job names. The stable GitHub job ID comes from completed
+	// workflow_job events cached with step timings; if that event was missed,
+	// ListWorkflowJobs provides the same ID/name mapping before we emit logs.
 	if stepTimingsCache != nil {
 		if cachedJobs := stepTimingsCache.GetSteps(key); cachedJobs != nil {
 			addJobTimingsMetadata(result, cachedJobs)
