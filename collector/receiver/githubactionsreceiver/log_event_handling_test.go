@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -369,7 +370,7 @@ func TestProcessCombinedLogsWithRealWebhook(t *testing.T) {
 	require.Equal(t, "pre-commit", scopeJobName.Str())
 	scopeJobID, ok := scope.Scope().Attributes().Get(string(conventions.CICDPipelineTaskRunIDKey))
 	require.True(t, ok)
-	require.Equal(t, job.GetID(), scopeJobID.Int())
+	require.Equal(t, strconv.FormatInt(job.GetID(), 10), scopeJobID.Str())
 
 	records := scope.LogRecords()
 	require.Equal(t, 5, records.Len(), "expected 5 log lines")
@@ -495,7 +496,7 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 
 	scopeJobID, ok := sl.At(0).Scope().Attributes().Get(string(conventions.CICDPipelineTaskRunIDKey))
 	require.True(t, ok)
-	require.Equal(t, int64(12345), scopeJobID.Int())
+	require.Equal(t, "12345", scopeJobID.Str())
 
 	sn, ok := records.At(0).Attributes().Get(semconv.EverrGitHubWorkflowJobStepNumber)
 	require.True(t, ok)

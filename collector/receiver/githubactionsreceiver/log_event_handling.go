@@ -461,7 +461,7 @@ func setJobScopeAttributes(scopeLogs plog.ScopeLogs, jobName string, jobID int64
 	attrs := scopeLogs.Scope().Attributes()
 	attrs.PutStr(string(conventions.CICDPipelineTaskNameKey), jobName)
 	if jobID != 0 {
-		attrs.PutInt(string(conventions.CICDPipelineTaskRunIDKey), jobID)
+		attrs.PutStr(string(conventions.CICDPipelineTaskRunIDKey), strconv.FormatInt(jobID, 10))
 	}
 }
 

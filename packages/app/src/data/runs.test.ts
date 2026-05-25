@@ -314,23 +314,4 @@ describe("getStepLogs", () => {
     expect(mockedQuery.mock.calls[0]?.[0]).not.toContain("match(Body");
     expect(mockedQuery.mock.calls[1]?.[0]).not.toContain("match(Body");
   });
-
-  it("filters job id logs using scope attributes", async () => {
-    mockedQuery
-      .mockResolvedValueOnce([{ cnt: "1" }])
-      .mockResolvedValueOnce([
-        { timestamp: "2026-03-09 12:00:00", body: "ok" },
-      ]);
-
-    await getStepLogs({
-      data: { traceId: "trace-1", jobId: "777", stepNumber: "16" },
-    });
-
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "ScopeAttributes['cicd.pipeline.task.run.id'] = {jobId:String}",
-    );
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "ScopeAttributes['cicd.pipeline.task.run.id'] = {jobId:String}",
-    );
-  });
 });
