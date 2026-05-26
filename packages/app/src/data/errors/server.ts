@@ -114,7 +114,7 @@ function buildSummaryQuery(input: SearchErrorIssuesInput): {
   params: Record<string, unknown>;
 } {
   const cte = buildExceptionLogsCte(input);
-  const params = { ...cte.params, limit: input.limit };
+  const params: Record<string, unknown> = { ...cte.params, limit: input.limit };
   const fingerprintFilter = input.fingerprint
     ? "WHERE fingerprint = {fingerprint:String}"
     : "";
