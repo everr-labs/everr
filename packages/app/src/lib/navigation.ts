@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   FlaskConical,
   GitBranch,
   type LucideIcon,
@@ -42,6 +43,11 @@ export const navMain: NavItem[] = [
     title: "Logs",
     url: "/logs",
     icon: ScrollText,
+  },
+  {
+    title: "Errors",
+    url: "/errors",
+    icon: AlertTriangle,
   },
   {
     title: "Traces",
