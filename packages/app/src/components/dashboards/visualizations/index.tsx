@@ -2,6 +2,8 @@ import type { ComponentType } from "react";
 import type { PanelPlugin } from "@/data/dashboards/types";
 import { TableSettings } from "./table/table-settings";
 import { TableVisualization } from "./table/table-visualization";
+import { TimeSeriesChartSettings } from "./time-series-chart/time-series-chart-settings";
+import { TimeSeriesChartVisualization } from "./time-series-chart/time-series-chart-visualization";
 
 export type QueryResultRow = Record<string, string | number | boolean | null>;
 
@@ -26,6 +28,10 @@ const registry: Record<string, VisualizationEntry> = {
     component: TableVisualization,
     settings: TableSettings,
     inset: "flush-content",
+  },
+  TimeSeriesChart: {
+    component: TimeSeriesChartVisualization,
+    settings: TimeSeriesChartSettings,
   },
 };
 
