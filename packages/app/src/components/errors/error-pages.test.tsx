@@ -1,9 +1,22 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ErrorIssueSummary } from "@/data/errors/types";
+import type { ErrorIssueSummary, ErrorOccurrence } from "@/data/errors/types";
 import { ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
+import { ErrorLatestOccurrence } from "./error-latest-occurrence";
+import { ErrorOccurrencesList } from "./error-occurrences-list";
+import { ErrorStacktrace } from "./error-stacktrace";
+import { TraceLink } from "./trace-link";
 
 const issue: ErrorIssueSummary = {
   fingerprint: "fp-1",
@@ -20,6 +33,43 @@ const issue: ErrorIssueSummary = {
   latestSpanId: "span-1",
   latestTimestamp: "2026-05-26 10:05:00.000000000",
 };
+
+const occurrence: ErrorOccurrence = {
+  fingerprint: "fp-1",
+  timestamp: "2026-05-26 10:05:00.000000000",
+  serviceName: "web",
+  traceId: "trace-1",
+  spanId: "span-1",
+  body: "TypeError: boom",
+  exceptionType: "TypeError",
+  exceptionMessage: "boom",
+  exceptionStacktrace: "TypeError: boom\n    at app.ts:1:1",
+  resourceAttributes: { "service.namespace": "frontend" },
+  logAttributes: { "exception.type": "TypeError" },
+  scopeAttributes: { "otel.scope.name": "browser-errors" },
+};
+
+function renderWithRouter(children: ReactNode) {
+  const rootRoute = createRootRoute({
+    component: Outlet,
+  });
+  const indexRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/",
+    component: () => children,
+  });
+  const traceRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/traces/$traceId",
+    component: () => null,
+  });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([indexRoute, traceRoute]),
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
+
+  return render(<RouterProvider router={router} />);
+}
 
 describe("ErrorIssueList", () => {
   it("renders grouped issue rows", () => {
@@ -136,5 +186,43 @@ describe("ErrorFilters", () => {
 
     await userEvent.click(api);
     expect(onChange).toHaveBeenCalledWith({ service: ["web", "api"] });
+  });
+});
+
+describe("error detail components", () => {
+  it("renders latest occurrence metadata and attributes", () => {
+    render(<ErrorLatestOccurrence occurrence={occurrence} />);
+    expect(screen.getByText("web")).toBeInTheDocument();
+    expect(screen.getByText("trace-1")).toBeInTheDocument();
+    expect(screen.getByText("Resource attributes")).toBeInTheDocument();
+  });
+
+  it("renders stacktrace when present", () => {
+    render(<ErrorStacktrace stacktrace={occurrence.exceptionStacktrace} />);
+    expect(screen.getByText("TypeError: boom")).toBeInTheDocument();
+    expect(screen.getByText("at app.ts:1:1")).toBeInTheDocument();
+  });
+
+  it("omits trace action when trace id is absent", () => {
+    render(
+      <ErrorOccurrencesList
+        occurrences={[{ ...occurrence, traceId: "" }]}
+        renderTraceLink={({ children }) => <a href="/trace">{children}</a>}
+      />,
+    );
+    expect(screen.queryByText("Open trace")).not.toBeInTheDocument();
+  });
+
+  it("builds trace links with focused span and narrow window", async () => {
+    renderWithRouter(<TraceLink occurrence={occurrence} />);
+    const link = await screen.findByRole("link", { name: "Open trace" });
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/traces/trace-1"),
+    );
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("span=span-1"),
+    );
   });
 });

@@ -74,11 +74,9 @@ function ErrorsPage() {
           onRetry={() => issuesQuery.refetch()}
           renderIssueLink={({ fingerprint: issueFingerprint, children }) => (
             <Link
-              // The detail route lands in Task 5; keep this as a Link now so
-              // search state is preserved when that route is registered.
-              to={"/errors/$fingerprint" as never}
-              params={{ fingerprint: issueFingerprint } as never}
-              search={search as never}
+              to="/errors/$fingerprint"
+              params={{ fingerprint: issueFingerprint }}
+              search={search}
               className="block text-foreground no-underline"
             >
               {children}
