@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/clickhouse", () => ({
+  query: vi.fn(),
+}));
+
+import { query } from "@/lib/clickhouse";
 import {
   ERROR_FINGERPRINT_SQL,
   EXCEPTION_LOG_FILTER_SQL,
@@ -18,12 +24,19 @@ import {
   ListErrorServicesInputSchema,
   SearchErrorIssuesInputSchema,
 } from "./schemas";
+import { getErrorIssue, listErrorServices, searchErrorIssues } from "./server";
 import type {
   ErrorIssueDetail,
   ErrorIssueSummary,
   ErrorOccurrence,
   ErrorSort as ErrorSortDto,
 } from "./types";
+
+const mockedQuery = vi.mocked(query);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("error tracking schemas", () => {
   it("defaults list search params for the route", () => {
@@ -74,6 +87,172 @@ describe("error tracking schemas", () => {
         toTs: "2026-05-26 11:00:00",
       }),
     ).toMatchObject({ fromTs: "2026-05-26 10:00:00" });
+  });
+});
+
+describe("searchErrorIssues", () => {
+  it("groups only OTel exception logs from app.logs", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        fingerprint: "fp-1",
+        exceptionType: "TypeError",
+        exceptionMessage: "Cannot read properties of undefined",
+        body: "TypeError: Cannot read properties of undefined",
+        latestServiceName: "web",
+        services: ["web"],
+        occurrenceCount: "3",
+        traceCount: "2",
+        firstSeen: "2026-05-26 10:00:00.000000000",
+        lastSeen: "2026-05-26 10:05:00.000000000",
+        latestTraceId: "trace-1",
+        latestSpanId: "span-1",
+        latestTimestamp: "2026-05-26 10:05:00.000000000",
+      },
+    ]);
+
+    const result = await searchErrorIssues({
+      data: {
+        fromTs: "2026-05-26 10:00:00",
+        toTs: "2026-05-26 11:00:00",
+        q: "undefined",
+        service: ["web"],
+        fingerprint: "",
+        sort: "lastSeen",
+        limit: 50,
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    expect(sql).toContain("FROM app.logs");
+    expect(sql).toContain("TimestampTime >=");
+    expect(sql).toContain("Timestamp >=");
+    expect(sql).toContain("SeverityNumber >= 17");
+    expect(sql).toContain("LogAttributes['exception.type'] != ''");
+    expect(sql).toContain("LogAttributes['exception.message'] != ''");
+    expect(sql).toContain("ServiceName IN {service:Array(String)}");
+    expect(sql).toContain("positionCaseInsensitive");
+    expect(sql).toContain("GROUP BY fingerprint");
+    expect(sql).toContain("ORDER BY lastSeen DESC");
+    expect(sql).not.toContain("PREWHERE");
+    expect(sql).not.toContain("SQL_everr_tenant_id");
+    expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({
+      service: ["web"],
+      q: "undefined",
+      limit: 50,
+    });
+    expect(result[0]).toMatchObject({
+      fingerprint: "fp-1",
+      occurrenceCount: 3,
+      traceCount: 2,
+      latestTraceId: "trace-1",
+    });
+  });
+
+  it("orders by occurrence count when requested", async () => {
+    mockedQuery.mockResolvedValueOnce([]);
+
+    await searchErrorIssues({
+      data: {
+        fromTs: "2026-05-26 10:00:00",
+        toTs: "2026-05-26 11:00:00",
+        q: "",
+        service: [],
+        fingerprint: "fp-1",
+        sort: "count",
+        limit: 25,
+      },
+    });
+
+    const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    expect(sql).toContain("WHERE fingerprint = {fingerprint:String}");
+    expect(sql).toContain("ORDER BY occurrenceCount DESC");
+  });
+});
+
+describe("getErrorIssue", () => {
+  it("returns summary, latest occurrence, and recent occurrences", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        fingerprint: "fp-1",
+        exceptionType: "TypeError",
+        exceptionMessage: "boom",
+        body: "TypeError: boom",
+        latestServiceName: "web",
+        services: ["web"],
+        occurrenceCount: "2",
+        traceCount: "1",
+        firstSeen: "2026-05-26 10:00:00.000000000",
+        lastSeen: "2026-05-26 10:05:00.000000000",
+        latestTraceId: "trace-2",
+        latestSpanId: "span-2",
+        latestTimestamp: "2026-05-26 10:05:00.000000000",
+      },
+    ]);
+    mockedQuery.mockResolvedValueOnce([
+      {
+        fingerprint: "fp-1",
+        timestamp: "2026-05-26 10:05:00.000000000",
+        serviceName: "web",
+        traceId: "trace-2",
+        spanId: "span-2",
+        body: "TypeError: boom",
+        exceptionType: "TypeError",
+        exceptionMessage: "boom",
+        exceptionStacktrace: "TypeError: boom\n    at app.ts:1:1",
+        resourceAttributes: { "service.namespace": "frontend" },
+        logAttributes: { "exception.type": "TypeError" },
+        scopeAttributes: { "scope.kind": "browser" },
+      },
+    ]);
+
+    const result = await getErrorIssue({
+      data: {
+        fingerprint: "fp-1",
+        fromTs: "2026-05-26 10:00:00",
+        toTs: "2026-05-26 11:00:00",
+        service: [],
+        occurrenceLimit: 50,
+      },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    expect(result.latest.traceId).toBe("trace-2");
+    expect(result.occurrences).toHaveLength(1);
+  });
+
+  it("throws when the issue is absent in the selected window", async () => {
+    mockedQuery.mockResolvedValueOnce([]);
+
+    await expect(
+      getErrorIssue({
+        data: {
+          fingerprint: "missing",
+          fromTs: "2026-05-26 10:00:00",
+          toTs: "2026-05-26 11:00:00",
+          service: [],
+          occurrenceLimit: 50,
+        },
+      }),
+    ).rejects.toThrow("Error issue not found");
+  });
+});
+
+describe("listErrorServices", () => {
+  it("lists services that emitted exception logs", async () => {
+    mockedQuery.mockResolvedValueOnce([{ serviceName: "api" }]);
+
+    const result = await listErrorServices({
+      data: {
+        fromTs: "2026-05-26 10:00:00",
+        toTs: "2026-05-26 11:00:00",
+      },
+    });
+
+    const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    expect(sql).toContain("SELECT DISTINCT ServiceName AS serviceName");
+    expect(sql).toContain("SeverityNumber >= 17");
+    expect(result).toEqual(["api"]);
   });
 });
 
