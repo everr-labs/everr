@@ -1,6 +1,11 @@
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useMatch,
+} from "@tanstack/react-router";
 import { ErrorFilters } from "@/components/errors/error-filters";
 import { ErrorIssueList } from "@/components/errors/error-issue-list";
 import {
@@ -15,8 +20,16 @@ export const Route = createFileRoute("/_authenticated/_dashboard/errors")({
   staticData: { breadcrumb: "Errors", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Errors" }] }),
   validateSearch: ErrorIssueSearchSchema,
-  component: ErrorsPage,
+  component: ErrorsRoute,
 });
+
+function ErrorsRoute() {
+  const errorDetailMatch = useMatch({
+    from: "/_authenticated/_dashboard/errors/$fingerprint",
+    shouldThrow: false,
+  });
+  return errorDetailMatch ? <Outlet /> : <ErrorsPage />;
+}
 
 function ErrorsPage() {
   useRealtimeSubscription({ scope: "tenant" });
