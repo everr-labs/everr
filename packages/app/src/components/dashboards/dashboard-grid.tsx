@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, Pencil, Plus, Save } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Layout, LayoutItem } from "react-grid-layout";
@@ -26,7 +27,21 @@ function generatePanelKey(panels: Record<string, Panel>): string {
   return `panel${i}`;
 }
 
-export function DashboardGrid() {
+function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || `dashboard-${Date.now()}`
+  );
+}
+
+interface DashboardGridProps {
+  isNew?: boolean;
+}
+
+export function DashboardGrid({ isNew }: DashboardGridProps) {
+  const navigate = useNavigate();
   const dashboard = useDashboardStore((s) => s.dashboard);
   const updatePanel = useDashboardStore((s) => s.updatePanel);
   const updateLayout = useDashboardStore((s) => s.updateLayout);
@@ -34,7 +49,7 @@ export function DashboardGrid() {
 
   const saveMutation = useSaveDashboard();
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(isNew ?? false);
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
@@ -131,11 +146,23 @@ export function DashboardGrid() {
 
   const handleSave = useCallback(() => {
     if (!dashboard) return;
-    saveMutation.mutate({
-      slug: dashboard.metadata.name,
-      spec: dashboard.spec,
-    });
-  }, [dashboard, saveMutation]);
+    const slug = isNew
+      ? slugify(dashboard.spec.display?.name ?? "")
+      : dashboard.metadata.name;
+    saveMutation.mutate(
+      { slug, spec: dashboard.spec },
+      {
+        onSuccess: (data) => {
+          if (isNew) {
+            navigate({
+              to: "/dashboards/$dashboardId",
+              params: { dashboardId: data.slug },
+            });
+          }
+        },
+      },
+    );
+  }, [dashboard, saveMutation, isNew, navigate]);
 
   if (!dashboard) return null;
 

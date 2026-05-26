@@ -14,7 +14,7 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { SearchIcon } from "lucide-react";
+import { Plus, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
@@ -122,6 +122,12 @@ export function CommandBar() {
                 ))}
               </CommandGroup>
             )}
+            <CommandGroup heading="Actions">
+              <CommandItem onSelect={() => handleSelect("/dashboards/new")}>
+                <Plus />
+                New Dashboard
+              </CommandItem>
+            </CommandGroup>
             {navMain.map((group) => (
               <CommandGroup key={group.title} heading={group.title}>
                 {(group.items ?? [group]).map((item) => (
