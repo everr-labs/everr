@@ -6,15 +6,45 @@ import {
 } from "@everr/ui/components/toggle-group";
 import type { VisualizationSettingsProps } from "../index";
 
+const CURVE_TYPES = [
+  { value: "monotone", label: "Smooth" },
+  { value: "linear", label: "Linear" },
+  { value: "natural", label: "Natural" },
+  { value: "stepBefore", label: "Step before" },
+  { value: "stepAfter", label: "Step after" },
+] as const;
+
+export type CurveType = (typeof CURVE_TYPES)[number]["value"];
+
 export function TimeSeriesChartSettings({
   spec,
   onChange,
 }: VisualizationSettingsProps) {
   const showLegend = spec.showLegend === true;
   const unit = typeof spec.unit === "string" ? spec.unit : "";
+  const curveType =
+    typeof spec.curveType === "string" ? spec.curveType : "monotone";
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label>Line style</Label>
+        <ToggleGroup
+          value={[curveType]}
+          onValueChange={(next) => {
+            if (next[0]) onChange({ ...spec, curveType: next[0] });
+          }}
+          variant="outline"
+          size="sm"
+        >
+          {CURVE_TYPES.map(({ value, label }) => (
+            <ToggleGroupItem key={value} value={value} aria-label={label}>
+              {label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+
       <div className="flex flex-col gap-2">
         <Label htmlFor="ts-unit">Unit</Label>
         <Input

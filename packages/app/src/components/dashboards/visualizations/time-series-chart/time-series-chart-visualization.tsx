@@ -10,6 +10,7 @@ import { LineChart as LineChartIcon } from "lucide-react";
 import { useMemo } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import type { QueryResultRow, VisualizationProps } from "../index";
+import type { CurveType } from "./time-series-chart-settings";
 
 const COLORS = [
   "hsl(217, 91%, 60%)",
@@ -57,8 +58,13 @@ function formatTick(ms: number): string {
   });
 }
 
-function formatTooltipLabel(ms: number): string {
-  return new Date(ms).toLocaleString();
+function formatTooltipLabel(
+  _label: unknown,
+  payload: Array<{ payload?: Record<string, unknown> }>,
+): string {
+  const ts = payload[0]?.payload?.[TS_KEY];
+  if (typeof ts === "number") return new Date(ts).toLocaleString();
+  return String(_label);
 }
 
 export function TimeSeriesChartVisualization({
@@ -68,6 +74,10 @@ export function TimeSeriesChartVisualization({
 }: VisualizationProps) {
   const showLegend = plugin.spec.showLegend === true;
   const unit = typeof plugin.spec.unit === "string" ? plugin.spec.unit : "";
+  const curveType: CurveType =
+    typeof plugin.spec.curveType === "string"
+      ? (plugin.spec.curveType as CurveType)
+      : "monotone";
 
   const { chartData, valueKeys, chartConfig, domain } = useMemo(() => {
     if (!data || data.length === 0) {
@@ -156,7 +166,7 @@ export function TimeSeriesChartVisualization({
           <Line
             key={key}
             dataKey={key}
-            type="monotone"
+            type={curveType}
             stroke={`var(--color-${key})`}
             strokeWidth={2}
             dot={false}
