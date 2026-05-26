@@ -25,11 +25,14 @@ export const Route = createFileRoute(
 });
 
 function NewDashboardPage() {
+  const dashboard = useDashboardStore((s) => s.dashboard);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
 
   useEffect(() => {
-    setDashboard(EMPTY_DASHBOARD);
-  }, [setDashboard]);
+    if (!dashboard || dashboard.metadata.name !== "new") {
+      setDashboard(EMPTY_DASHBOARD);
+    }
+  }, [dashboard, setDashboard]);
 
   return <DashboardGrid isNew />;
 }
