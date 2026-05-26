@@ -58,3 +58,4 @@ override.tf.json
 terraform.tfvars
 terraform.tfvars.json
 .fallow/
+.superpowers/
