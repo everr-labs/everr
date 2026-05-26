@@ -10,6 +10,7 @@ import {
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import { Search, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ErrorSort } from "@/data/errors/types";
 
 export type ErrorFiltersValue = {
@@ -29,14 +30,19 @@ export function ErrorFilters({
   services: string[];
   onChange: (patch: Partial<ErrorFiltersValue>) => void;
 }) {
+  const [qDraft, setQDraft] = useState(value.q);
+
+  useEffect(() => {
+    setQDraft(value.q);
+  }, [value.q]);
+
   return (
     <div className="flex flex-col gap-2 border-b bg-muted/10 px-3 py-2">
       <form
         className="flex min-w-0 items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          onChange({ q: String(form.get("q") ?? "").trim() });
+          onChange({ q: qDraft.trim() });
         }}
       >
         <InputGroup className="min-w-0 flex-1">
@@ -45,7 +51,8 @@ export function ErrorFilters({
           </InputGroupAddon>
           <InputGroupInput
             name="q"
-            defaultValue={value.q}
+            value={qDraft}
+            onChange={(event) => setQDraft(event.currentTarget.value)}
             placeholder="Search errors"
           />
           <InputGroupAddon align="inline-end">
@@ -60,7 +67,10 @@ export function ErrorFilters({
             variant="ghost"
             size="icon-sm"
             aria-label="Clear search"
-            onClick={() => onChange({ q: "" })}
+            onClick={() => {
+              setQDraft("");
+              onChange({ q: "" });
+            }}
           >
             <X />
           </Button>
@@ -98,6 +108,7 @@ export function ErrorFilters({
                 type="button"
                 variant={active ? "default" : "outline"}
                 size="sm"
+                aria-pressed={active}
                 onClick={() =>
                   onChange({
                     service: active

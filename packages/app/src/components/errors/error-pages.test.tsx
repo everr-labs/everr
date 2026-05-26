@@ -59,17 +59,19 @@ describe("ErrorIssueList", () => {
 });
 
 describe("ErrorFilters", () => {
+  const defaultValue = {
+    q: "",
+    service: [],
+    fingerprint: "",
+    sort: "lastSeen" as const,
+    limit: 50,
+  };
+
   it("submits search text and sort changes", async () => {
     const onChange = vi.fn();
     render(
       <ErrorFilters
-        value={{
-          q: "",
-          service: [],
-          fingerprint: "",
-          sort: "lastSeen",
-          limit: 50,
-        }}
+        value={defaultValue}
         services={["web", "api"]}
         onChange={onChange}
       />,
@@ -85,5 +87,54 @@ describe("ErrorFilters", () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ sort: "count" }),
     );
+  });
+
+  it("syncs search draft from route state and clears it", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ErrorFilters
+        value={{ ...defaultValue, q: "boom" }}
+        services={["web", "api"]}
+        onChange={onChange}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("Search errors");
+    expect(input).toHaveValue("boom");
+
+    rerender(
+      <ErrorFilters
+        value={{ ...defaultValue, q: "external" }}
+        services={["web", "api"]}
+        onChange={onChange}
+      />,
+    );
+    expect(input).toHaveValue("external");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(input).toHaveValue("");
+    expect(onChange).toHaveBeenCalledWith({ q: "" });
+  });
+
+  it("toggles service filters", async () => {
+    const onChange = vi.fn();
+    render(
+      <ErrorFilters
+        value={{ ...defaultValue, service: ["web"] }}
+        services={["web", "api"]}
+        onChange={onChange}
+      />,
+    );
+
+    const web = screen.getByRole("button", { name: "web" });
+    const api = screen.getByRole("button", { name: "api" });
+    expect(web).toHaveAttribute("aria-pressed", "true");
+    expect(api).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.click(web);
+    expect(onChange).toHaveBeenCalledWith({ service: [] });
+
+    await userEvent.click(api);
+    expect(onChange).toHaveBeenCalledWith({ service: ["web", "api"] });
   });
 });
