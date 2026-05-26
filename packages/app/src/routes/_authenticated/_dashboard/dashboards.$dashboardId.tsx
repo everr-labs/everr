@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
@@ -23,9 +23,9 @@ function DashboardNotFound() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
       <p className="text-lg">Dashboard not found</p>
-      <a href="/dashboards" className="text-sm underline">
+      <Link to="/dashboards" className="text-sm underline">
         Back to dashboards
-      </a>
+      </Link>
     </div>
   );
 }

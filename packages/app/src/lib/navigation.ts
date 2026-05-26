@@ -22,7 +22,7 @@ export type NavItem = {
 export const navMain: NavItem[] = [
   {
     title: "Dashboards",
-    url: "/dashboards/default",
+    url: "/dashboards",
     icon: LayoutDashboard,
   },
   {

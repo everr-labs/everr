@@ -42,6 +42,7 @@ import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_aut
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
+import { Route as AuthenticatedDashboardDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/dashboards.index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
@@ -238,6 +239,12 @@ const AuthenticatedDashboardRunsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
+const AuthenticatedDashboardDashboardsIndexRoute =
+  AuthenticatedDashboardDashboardsIndexRouteImport.update({
+    id: '/dashboards/',
+    path: '/dashboards/',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const ApiGithubInstallStartRoute = ApiGithubInstallStartRouteImport.update({
   id: '/api/github/install/start',
   path: '/api/github/install/start',
@@ -400,6 +407,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
@@ -450,6 +458,7 @@ export interface FileRoutesByTo {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/dashboards': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
@@ -507,6 +516,7 @@ export interface FileRoutesById {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/_authenticated/_dashboard/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/_authenticated/_dashboard/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
@@ -561,6 +571,7 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/dashboards/'
     | '/runs/'
     | '/workflows/'
     | '/runs/$traceId/trace'
@@ -611,6 +622,7 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/dashboards'
     | '/runs'
     | '/workflows'
     | '/runs/$traceId/trace'
@@ -667,6 +679,7 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/_authenticated/_dashboard/dashboards/'
     | '/_authenticated/_dashboard/runs/'
     | '/_authenticated/_dashboard/workflows/'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
@@ -925,6 +938,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsRoute
     }
+    '/_authenticated/_dashboard/dashboards/': {
+      id: '/_authenticated/_dashboard/dashboards/'
+      path: '/dashboards'
+      fullPath: '/dashboards/'
+      preLoaderRoute: typeof AuthenticatedDashboardDashboardsIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/api/github/install/start': {
       id: '/api/github/install/start'
       path: '/api/github/install/start'
@@ -1176,6 +1196,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
   AuthenticatedDashboardDashboardsDashboardIdRoute: typeof AuthenticatedDashboardDashboardsDashboardIdRoute
   AuthenticatedDashboardDashboardsNewRoute: typeof AuthenticatedDashboardDashboardsNewRoute
+  AuthenticatedDashboardDashboardsIndexRoute: typeof AuthenticatedDashboardDashboardsIndexRoute
   AuthenticatedDashboardWorkflowsIndexRoute: typeof AuthenticatedDashboardWorkflowsIndexRoute
   AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute: typeof AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute
@@ -1206,6 +1227,8 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardDashboardsDashboardIdRoute,
     AuthenticatedDashboardDashboardsNewRoute:
       AuthenticatedDashboardDashboardsNewRoute,
+    AuthenticatedDashboardDashboardsIndexRoute:
+      AuthenticatedDashboardDashboardsIndexRoute,
     AuthenticatedDashboardWorkflowsIndexRoute:
       AuthenticatedDashboardWorkflowsIndexRoute,
     AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute:
