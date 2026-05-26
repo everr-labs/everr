@@ -50,7 +50,12 @@ export function ErrorOccurrencesList({
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <span>{formatRelativeTime(occurrence.timestamp)}</span>
                     {occurrence.traceId ? (
-                      <span className="font-mono">{occurrence.traceId}</span>
+                      <span
+                        className="inline-block max-w-64 truncate align-bottom font-mono"
+                        title={occurrence.traceId}
+                      >
+                        {occurrence.traceId}
+                      </span>
                     ) : null}
                   </div>
                 </div>

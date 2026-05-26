@@ -34,6 +34,9 @@ const issue: ErrorIssueSummary = {
   latestTimestamp: "2026-05-26 10:05:00.000000000",
 };
 
+const stacktrace =
+  "TypeError: boom\n\n    at app.ts:1:1\n      at worker.ts:2:2";
+
 const occurrence: ErrorOccurrence = {
   fingerprint: "fp-1",
   timestamp: "2026-05-26 10:05:00.000000000",
@@ -43,7 +46,7 @@ const occurrence: ErrorOccurrence = {
   body: "TypeError: boom",
   exceptionType: "TypeError",
   exceptionMessage: "boom",
-  exceptionStacktrace: "TypeError: boom\n    at app.ts:1:1",
+  exceptionStacktrace: stacktrace,
   resourceAttributes: { "service.namespace": "frontend" },
   logAttributes: { "exception.type": "TypeError" },
   scopeAttributes: { "otel.scope.name": "browser-errors" },
@@ -198,9 +201,10 @@ describe("error detail components", () => {
   });
 
   it("renders stacktrace when present", () => {
-    render(<ErrorStacktrace stacktrace={occurrence.exceptionStacktrace} />);
-    expect(screen.getByText("TypeError: boom")).toBeInTheDocument();
-    expect(screen.getByText("at app.ts:1:1")).toBeInTheDocument();
+    const { container } = render(
+      <ErrorStacktrace stacktrace={occurrence.exceptionStacktrace} />,
+    );
+    expect(container.querySelector("code")?.textContent).toBe(stacktrace);
   });
 
   it("omits trace action when trace id is absent", () => {
@@ -216,13 +220,13 @@ describe("error detail components", () => {
   it("builds trace links with focused span and narrow window", async () => {
     renderWithRouter(<TraceLink occurrence={occurrence} />);
     const link = await screen.findByRole("link", { name: "Open trace" });
-    expect(link).toHaveAttribute(
-      "href",
-      expect.stringContaining("/traces/trace-1"),
-    );
-    expect(link).toHaveAttribute(
-      "href",
-      expect.stringContaining("span=span-1"),
-    );
+    const href = link.getAttribute("href");
+    expect(href).toBeTruthy();
+    const url = new URL(href ?? "", "http://localhost");
+
+    expect(url.pathname).toBe("/traces/trace-1");
+    expect(url.searchParams.get("span")).toBe("span-1");
+    expect(url.searchParams.get("start")).toBe("2026-05-26 10:00:00.000");
+    expect(url.searchParams.get("end")).toBe("2026-05-26 10:10:00.000");
   });
 });
