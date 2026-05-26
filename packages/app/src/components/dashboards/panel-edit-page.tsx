@@ -40,6 +40,20 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const { from, to } = search;
   const { fromDate, toDate } = resolveTimeRange(withTimeRange(search));
+  const handleTimeRangeChange = useCallback(
+    (range: { from: Date; to: Date }) => {
+      navigate({
+        to: ".",
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          from: range.from.toISOString(),
+          to: range.to.toISOString(),
+        }),
+        replace: false,
+      });
+    },
+    [navigate],
+  );
   const queryClient = useQueryClient();
   const storeDashboard = useDashboardStore((s) => s.dashboard);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
@@ -153,6 +167,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
                   panelKey={panelKey}
                   data={queryResult}
                   timeRange={{ from: fromDate, to: toDate }}
+                  onTimeRangeChange={handleTimeRangeChange}
                 />
               </div>
             </ResizablePanel>

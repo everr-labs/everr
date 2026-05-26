@@ -1,7 +1,8 @@
 import { Button } from "@everr/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Pencil, X } from "lucide-react";
+import { useCallback } from "react";
 import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/types";
 import { resolveTimeRange, withTimeRange } from "@/lib/time-range";
@@ -31,6 +32,7 @@ export function DashboardPanel({
   onRemove,
 }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
+  const navigate = useNavigate();
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const { from, to } = search;
   const sql = getPanelQuerySql(panel);
@@ -38,6 +40,21 @@ export function DashboardPanel({
     panelQueryOptions(sql, from, to),
   );
   const { fromDate, toDate } = resolveTimeRange(withTimeRange(search));
+
+  const handleTimeRangeChange = useCallback(
+    (range: { from: Date; to: Date }) => {
+      navigate({
+        to: ".",
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          from: range.from.toISOString(),
+          to: range.to.toISOString(),
+        }),
+        replace: false,
+      });
+    },
+    [navigate],
+  );
 
   const status = sql && isPending ? "pending" : "success";
 
@@ -83,6 +100,7 @@ export function DashboardPanel({
         plugin={plugin}
         data={queryResult?.rows}
         timeRange={{ from: fromDate, to: toDate }}
+        onTimeRangeChange={handleTimeRangeChange}
       />
     </PanelShell>
   );

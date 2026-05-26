@@ -8,6 +8,7 @@ interface PanelPreviewProps {
   panelKey: string;
   data?: QueryResultRow[];
   timeRange?: TimeRange;
+  onTimeRangeChange?: (range: TimeRange) => void;
 }
 
 export function PanelPreview({
@@ -15,6 +16,7 @@ export function PanelPreview({
   panelKey,
   data,
   timeRange,
+  onTimeRangeChange,
 }: PanelPreviewProps) {
   const { display, plugin } = panel.spec;
 
@@ -26,7 +28,12 @@ export function PanelPreview({
       className="h-full"
       inset={getVisualizationInset(plugin.kind)}
     >
-      <PanelVisualization plugin={plugin} data={data} timeRange={timeRange} />
+      <PanelVisualization
+        plugin={plugin}
+        data={data}
+        timeRange={timeRange}
+        onTimeRangeChange={onTimeRangeChange}
+      />
     </PanelShell>
   );
 }

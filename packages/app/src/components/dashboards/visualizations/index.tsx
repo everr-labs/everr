@@ -16,6 +16,7 @@ export interface VisualizationProps {
   plugin: PanelPlugin;
   data?: QueryResultRow[];
   timeRange?: TimeRange;
+  onTimeRangeChange?: (range: TimeRange) => void;
 }
 
 export interface VisualizationSettingsProps {
@@ -57,6 +58,7 @@ export function PanelVisualization({
   plugin,
   data,
   timeRange,
+  onTimeRangeChange,
 }: VisualizationProps) {
   const entry = registry[plugin.kind];
 
@@ -69,5 +71,12 @@ export function PanelVisualization({
   }
 
   const Component = entry.component;
-  return <Component plugin={plugin} data={data} timeRange={timeRange} />;
+  return (
+    <Component
+      plugin={plugin}
+      data={data}
+      timeRange={timeRange}
+      onTimeRangeChange={onTimeRangeChange}
+    />
+  );
 }

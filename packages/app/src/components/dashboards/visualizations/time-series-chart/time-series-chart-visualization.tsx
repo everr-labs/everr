@@ -7,8 +7,15 @@ import {
   ChartTooltipContent,
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
-import { useMemo } from "react";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceArea,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { QueryResultRow, VisualizationProps } from "../index";
 import type { CurveType } from "./time-series-chart-settings";
 
@@ -44,7 +51,7 @@ function getValueKeys(row: QueryResultRow, timeKey: string): string[] {
 function toTimestamp(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") {
-    const ms = new Date(value.replace(" ", "T") + "Z").getTime();
+    const ms = new Date(`${value.replace(" ", "T")}Z`).getTime();
     if (!Number.isNaN(ms)) return ms;
   }
   return 0;
@@ -67,10 +74,28 @@ function formatTooltipLabel(
   return String(_label);
 }
 
+function getPlotArea(container: HTMLElement): DOMRect | null {
+  const grid = container.querySelector(".recharts-cartesian-grid");
+  return grid?.getBoundingClientRect() ?? null;
+}
+
+function pxToTimestamp(
+  clientX: number,
+  plotRect: DOMRect,
+  domain: [number, number],
+): number {
+  const ratio = Math.max(
+    0,
+    Math.min(1, (clientX - plotRect.left) / plotRect.width),
+  );
+  return domain[0] + ratio * (domain[1] - domain[0]);
+}
+
 export function TimeSeriesChartVisualization({
   plugin,
   data,
   timeRange,
+  onTimeRangeChange,
 }: VisualizationProps) {
   const showLegend = plugin.spec.showLegend === true;
   const unit = typeof plugin.spec.unit === "string" ? plugin.spec.unit : "";
@@ -78,6 +103,11 @@ export function TimeSeriesChartVisualization({
     typeof plugin.spec.curveType === "string"
       ? (plugin.spec.curveType as CurveType)
       : "monotone";
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const plotRectRef = useRef<DOMRect | null>(null);
+  const [brushStart, setBrushStart] = useState<number | null>(null);
+  const [brushEnd, setBrushEnd] = useState<number | null>(null);
 
   const { chartData, valueKeys, chartConfig, domain } = useMemo(() => {
     if (!data || data.length === 0) {
@@ -125,6 +155,42 @@ export function TimeSeriesChartVisualization({
     };
   }, [data, timeRange]);
 
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!containerRef.current || !domain) return;
+      const plotRect = getPlotArea(containerRef.current);
+      if (!plotRect) return;
+      plotRectRef.current = plotRect;
+      const ts = pxToTimestamp(e.clientX, plotRect, domain);
+      setBrushStart(ts);
+      setBrushEnd(null);
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [domain],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (brushStart == null || !plotRectRef.current || !domain) return;
+      const ts = pxToTimestamp(e.clientX, plotRectRef.current, domain);
+      setBrushEnd(ts);
+    },
+    [brushStart, domain],
+  );
+
+  const handlePointerUp = useCallback(() => {
+    if (brushStart != null && brushEnd != null && onTimeRangeChange) {
+      const from = Math.min(brushStart, brushEnd);
+      const to = Math.max(brushStart, brushEnd);
+      if (to - from > 1000) {
+        onTimeRangeChange({ from: new Date(from), to: new Date(to) });
+      }
+    }
+    setBrushStart(null);
+    setBrushEnd(null);
+    plotRectRef.current = null;
+  }, [brushStart, brushEnd, onTimeRangeChange]);
+
   if (chartData.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -139,41 +205,61 @@ export function TimeSeriesChartVisualization({
   }
 
   return (
-    <ChartContainer config={chartConfig} className="h-full w-full">
-      <LineChart data={chartData} margin={{ left: 12, right: 12, top: 8 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey={TS_KEY}
-          type="number"
-          scale="time"
-          domain={domain ?? ["dataMin", "dataMax"]}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tickFormatter={formatTick}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
-        />
-        <ChartTooltip
-          content={<ChartTooltipContent labelFormatter={formatTooltipLabel} />}
-        />
-        {showLegend && <ChartLegend content={<ChartLegendContent />} />}
-        {valueKeys.map((key) => (
-          <Line
-            key={key}
-            dataKey={key}
-            type={curveType}
-            stroke={`var(--color-${key})`}
-            strokeWidth={2}
-            dot={false}
-            isAnimationActive={false}
+    <div
+      ref={containerRef}
+      className="h-full w-full select-none"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      <ChartContainer config={chartConfig} className="h-full w-full">
+        <LineChart data={chartData} margin={{ left: 12, right: 12, top: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey={TS_KEY}
+            type="number"
+            scale="time"
+            domain={domain ?? ["dataMin", "dataMax"]}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            tickFormatter={formatTick}
           />
-        ))}
-      </LineChart>
-    </ChartContainer>
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent labelFormatter={formatTooltipLabel} />
+            }
+          />
+          {showLegend && <ChartLegend content={<ChartLegendContent />} />}
+          {valueKeys.map((key) => (
+            <Line
+              key={key}
+              dataKey={key}
+              type={curveType}
+              stroke={`var(--color-${key})`}
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />
+          ))}
+          {brushStart != null && brushEnd != null && (
+            <ReferenceArea
+              x1={brushStart}
+              x2={brushEnd}
+              fill="hsl(217, 91%, 60%)"
+              fillOpacity={0.15}
+              stroke="hsl(217, 91%, 60%)"
+              strokeOpacity={0.3}
+            />
+          )}
+        </LineChart>
+      </ChartContainer>
+    </div>
   );
 }
