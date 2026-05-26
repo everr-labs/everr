@@ -9,7 +9,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions, panelQueryOptions } from "@/data/dashboards/options";
 import { runPanelQuery } from "@/data/dashboards/server";
 import type { Panel } from "@/data/dashboards/types";
+import { resolveTimeRange, withTimeRange } from "@/lib/time-range";
 import { PanelPreview } from "./panel-preview";
 import { QueryEditor } from "./query-editor";
 import type { QueryResultRow } from "./visualizations";
@@ -36,6 +37,9 @@ function getQuerySql(panel: Panel): string {
 
 export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   const navigate = useNavigate();
+  const search = useSearch({ from: "/_authenticated/_dashboard" });
+  const { from, to } = search;
+  const { fromDate, toDate } = resolveTimeRange(withTimeRange(search));
   const queryClient = useQueryClient();
   const storeDashboard = useDashboardStore((s) => s.dashboard);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
@@ -63,7 +67,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   }, [panel, draft]);
 
   const savedSql = panel ? getQuerySql(panel) : "";
-  const { data: autoResult } = useQuery(panelQueryOptions(savedSql));
+  const { data: autoResult } = useQuery(panelQueryOptions(savedSql, from, to));
 
   const [manualResult, setManualResult] = useState<
     QueryResultRow[] | undefined
@@ -74,16 +78,19 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
     async (sql: string) => {
       setIsRunning(true);
       try {
-        const result = await runPanelQuery({ data: { sql } });
+        const result = await runPanelQuery({ data: { sql, from, to } });
         setManualResult(result.rows);
-        queryClient.setQueryData(panelQueryOptions(sql).queryKey, result);
+        queryClient.setQueryData(
+          panelQueryOptions(sql, from, to).queryKey,
+          result,
+        );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Query failed");
       } finally {
         setIsRunning(false);
       }
     },
-    [queryClient],
+    [queryClient, from, to],
   );
 
   const queryResult = manualResult ?? autoResult?.rows;
@@ -145,6 +152,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
                   panel={draft}
                   panelKey={panelKey}
                   data={queryResult}
+                  timeRange={{ from: fromDate, to: toDate }}
                 />
               </div>
             </ResizablePanel>

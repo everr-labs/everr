@@ -20,6 +20,8 @@ const COLORS = [
   "hsl(190, 90%, 50%)",
 ];
 
+const TS_KEY = "__ts";
+
 function detectTimeKey(rows: QueryResultRow[]): string | undefined {
   const first = rows[0];
   if (!first) return undefined;
@@ -38,36 +40,53 @@ function getValueKeys(row: QueryResultRow, timeKey: string): string[] {
   );
 }
 
-function formatTickValue(value: unknown): string {
+function toTimestamp(value: unknown): number {
+  if (typeof value === "number") return value;
   if (typeof value === "string") {
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
-    if (value.length > 16) return `${value.slice(0, 16)}…`;
-    return value;
+    const ms = new Date(value.replace(" ", "T") + "Z").getTime();
+    if (!Number.isNaN(ms)) return ms;
   }
-  return String(value ?? "");
+  return 0;
+}
+
+function formatTick(ms: number): string {
+  const d = new Date(ms);
+  return d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatTooltipLabel(ms: number): string {
+  return new Date(ms).toLocaleString();
 }
 
 export function TimeSeriesChartVisualization({
   plugin,
   data,
+  timeRange,
 }: VisualizationProps) {
   const showLegend = plugin.spec.showLegend === true;
   const unit = typeof plugin.spec.unit === "string" ? plugin.spec.unit : "";
 
-  const { timeKey, valueKeys, chartConfig } = useMemo(() => {
+  const { chartData, valueKeys, chartConfig, domain } = useMemo(() => {
     if (!data || data.length === 0) {
-      return { timeKey: undefined, valueKeys: [], chartConfig: {} };
+      return {
+        chartData: [],
+        valueKeys: [],
+        chartConfig: {},
+        domain: undefined,
+      };
     }
 
     const tk = detectTimeKey(data);
     if (!tk) {
-      return { timeKey: undefined, valueKeys: [], chartConfig: {} };
+      return {
+        chartData: [],
+        valueKeys: [],
+        chartConfig: {},
+        domain: undefined,
+      };
     }
 
     const vk = getValueKeys(data[0]!, tk);
@@ -79,10 +98,24 @@ export function TimeSeriesChartVisualization({
       };
     }
 
-    return { timeKey: tk, valueKeys: vk, chartConfig: config };
-  }, [data]);
+    const mapped = data.map((row) => ({
+      ...row,
+      [TS_KEY]: toTimestamp(row[tk]),
+    }));
 
-  if (!data || data.length === 0 || !timeKey) {
+    const dm: [number, number] | undefined = timeRange
+      ? [timeRange.from.getTime(), timeRange.to.getTime()]
+      : undefined;
+
+    return {
+      chartData: mapped,
+      valueKeys: vk,
+      chartConfig: config,
+      domain: dm,
+    };
+  }, [data, timeRange]);
+
+  if (chartData.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <LineChartIcon className="size-8" />
@@ -97,14 +130,17 @@ export function TimeSeriesChartVisualization({
 
   return (
     <ChartContainer config={chartConfig} className="h-full w-full">
-      <LineChart data={data} margin={{ left: 12, right: 12, top: 8 }}>
+      <LineChart data={chartData} margin={{ left: 12, right: 12, top: 8 }}>
         <CartesianGrid vertical={false} />
         <XAxis
-          dataKey={timeKey}
+          dataKey={TS_KEY}
+          type="number"
+          scale="time"
+          domain={domain ?? ["dataMin", "dataMax"]}
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickFormatter={formatTickValue}
+          tickFormatter={formatTick}
         />
         <YAxis
           tickLine={false}
@@ -112,7 +148,9 @@ export function TimeSeriesChartVisualization({
           tickMargin={8}
           tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
         />
-        <ChartTooltip content={<ChartTooltipContent />} />
+        <ChartTooltip
+          content={<ChartTooltipContent labelFormatter={formatTooltipLabel} />}
+        />
         {showLegend && <ChartLegend content={<ChartLegendContent />} />}
         {valueKeys.map((key) => (
           <Line

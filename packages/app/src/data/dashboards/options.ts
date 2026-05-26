@@ -7,9 +7,9 @@ export const dashboardOptions = (dashboardId: string) =>
     queryFn: () => getDashboard({ data: { dashboardId } }),
   });
 
-export const panelQueryOptions = (sql: string) =>
+export const panelQueryOptions = (sql: string, from?: string, to?: string) =>
   queryOptions({
-    queryKey: ["panel-query", sql],
-    queryFn: () => runPanelQuery({ data: { sql } }),
+    queryKey: ["panel-query", sql, from, to],
+    queryFn: () => runPanelQuery({ data: { sql, from, to } }),
     enabled: sql.trim().length > 0,
   });

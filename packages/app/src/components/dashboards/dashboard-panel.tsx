@@ -1,9 +1,10 @@
 import { Button } from "@everr/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import { Pencil, X } from "lucide-react";
 import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/types";
+import { resolveTimeRange, withTimeRange } from "@/lib/time-range";
 import { PanelShell } from "../panel-shell";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";
 
@@ -30,8 +31,13 @@ export function DashboardPanel({
   onRemove,
 }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
+  const search = useSearch({ from: "/_authenticated/_dashboard" });
+  const { from, to } = search;
   const sql = getPanelQuerySql(panel);
-  const { data: queryResult, isPending } = useQuery(panelQueryOptions(sql));
+  const { data: queryResult, isPending } = useQuery(
+    panelQueryOptions(sql, from, to),
+  );
+  const { fromDate, toDate } = resolveTimeRange(withTimeRange(search));
 
   const status = sql && isPending ? "pending" : "success";
 
@@ -73,7 +79,11 @@ export function DashboardPanel({
         ) : undefined
       }
     >
-      <PanelVisualization plugin={plugin} data={queryResult?.rows} />
+      <PanelVisualization
+        plugin={plugin}
+        data={queryResult?.rows}
+        timeRange={{ from: fromDate, to: toDate }}
+      />
     </PanelShell>
   );
 }

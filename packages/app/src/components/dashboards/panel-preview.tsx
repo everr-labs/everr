@@ -1,15 +1,21 @@
 import type { Panel } from "@/data/dashboards/types";
 import { PanelShell } from "../panel-shell";
-import type { QueryResultRow } from "./visualizations";
+import type { QueryResultRow, TimeRange } from "./visualizations";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";
 
 interface PanelPreviewProps {
   panel: Panel;
   panelKey: string;
   data?: QueryResultRow[];
+  timeRange?: TimeRange;
 }
 
-export function PanelPreview({ panel, panelKey, data }: PanelPreviewProps) {
+export function PanelPreview({
+  panel,
+  panelKey,
+  data,
+  timeRange,
+}: PanelPreviewProps) {
   const { display, plugin } = panel.spec;
 
   return (
@@ -20,7 +26,7 @@ export function PanelPreview({ panel, panelKey, data }: PanelPreviewProps) {
       className="h-full"
       inset={getVisualizationInset(plugin.kind)}
     >
-      <PanelVisualization plugin={plugin} data={data} />
+      <PanelVisualization plugin={plugin} data={data} timeRange={timeRange} />
     </PanelShell>
   );
 }

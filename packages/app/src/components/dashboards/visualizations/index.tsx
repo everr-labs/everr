@@ -7,9 +7,15 @@ import { TimeSeriesChartVisualization } from "./time-series-chart/time-series-ch
 
 export type QueryResultRow = Record<string, string | number | boolean | null>;
 
+export interface TimeRange {
+  from: Date;
+  to: Date;
+}
+
 export interface VisualizationProps {
   plugin: PanelPlugin;
   data?: QueryResultRow[];
+  timeRange?: TimeRange;
 }
 
 export interface VisualizationSettingsProps {
@@ -47,7 +53,11 @@ export function getVisualizationSettings(
   return registry[kind]?.settings;
 }
 
-export function PanelVisualization({ plugin, data }: VisualizationProps) {
+export function PanelVisualization({
+  plugin,
+  data,
+  timeRange,
+}: VisualizationProps) {
   const entry = registry[plugin.kind];
 
   if (!entry) {
@@ -59,5 +69,5 @@ export function PanelVisualization({ plugin, data }: VisualizationProps) {
   }
 
   const Component = entry.component;
-  return <Component plugin={plugin} data={data} />;
+  return <Component plugin={plugin} data={data} timeRange={timeRange} />;
 }
