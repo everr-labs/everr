@@ -1,7 +1,17 @@
 import { Button } from "@everr/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@everr/ui/components/dialog";
+import { Input } from "@everr/ui/components/input";
+import { Label } from "@everr/ui/components/label";
 import { useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, Pencil, Plus, Save } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { Layout, LayoutItem } from "react-grid-layout";
 import {
   GridLayout,
@@ -50,6 +60,9 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
   const saveMutation = useSaveDashboard();
 
   const [isEditing, setIsEditing] = useState(isNew ?? false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
@@ -146,23 +159,37 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
 
   const handleSave = useCallback(() => {
     if (!dashboard) return;
-    const slug = isNew
-      ? slugify(dashboard.spec.display?.name ?? "")
-      : dashboard.metadata.name;
+    if (isNew) {
+      setSaveName(dashboard.spec.display?.name ?? "");
+      setShowSaveDialog(true);
+      return;
+    }
+    saveMutation.mutate({
+      slug: dashboard.metadata.name,
+      spec: dashboard.spec,
+    });
+  }, [dashboard, saveMutation, isNew]);
+
+  const handleConfirmSave = useCallback(() => {
+    if (!dashboard || !saveName.trim()) return;
+    const slug = slugify(saveName);
+    const spec = {
+      ...dashboard.spec,
+      display: { ...dashboard.spec.display, name: saveName.trim() },
+    };
     saveMutation.mutate(
-      { slug, spec: dashboard.spec },
+      { slug, spec },
       {
         onSuccess: (data) => {
-          if (isNew) {
-            navigate({
-              to: "/dashboards/$dashboardId",
-              params: { dashboardId: data.slug },
-            });
-          }
+          setShowSaveDialog(false);
+          navigate({
+            to: "/dashboards/$dashboardId",
+            params: { dashboardId: data.slug },
+          });
         },
       },
     );
-  }, [dashboard, saveMutation, isNew, navigate]);
+  }, [dashboard, saveName, saveMutation, navigate]);
 
   if (!dashboard) return null;
 
@@ -236,6 +263,42 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
           })}
         </GridLayout>
       </div>
+
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save Dashboard</DialogTitle>
+            <DialogDescription>
+              Give your dashboard a name to save it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="dashboard-name">Name</Label>
+            <Input
+              id="dashboard-name"
+              ref={nameInputRef}
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleConfirmSave();
+              }}
+              placeholder="My Dashboard"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowSaveDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmSave}
+              disabled={!saveName.trim() || saveMutation.isPending}
+            >
+              {saveMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
