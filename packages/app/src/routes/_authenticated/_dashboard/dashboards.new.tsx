@@ -6,7 +6,7 @@ import type { Dashboard } from "@/data/dashboards/types";
 
 const EMPTY_DASHBOARD: Dashboard = {
   kind: "Dashboard",
-  metadata: { name: "" },
+  metadata: { name: "new" },
   spec: {
     display: { name: "New Dashboard" },
     panels: {},

@@ -4,11 +4,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@everr/ui/components/resizable";
-import {
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -55,21 +51,25 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
     [navigate],
   );
   const queryClient = useQueryClient();
+  const isNew = dashboardId === "new";
   const storeDashboard = useDashboardStore((s) => s.dashboard);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
   const updatePanel = useDashboardStore((s) => s.updatePanel);
 
-  const { data: fetchedDashboard } = useSuspenseQuery(
-    dashboardOptions(dashboardId),
-  );
+  const { data: fetchedDashboard } = useQuery({
+    ...dashboardOptions(dashboardId),
+    enabled: !isNew,
+  });
 
   useEffect(() => {
-    if (!storeDashboard) {
+    if (!storeDashboard && fetchedDashboard) {
       setDashboard(fetchedDashboard);
     }
   }, [storeDashboard, fetchedDashboard, setDashboard]);
 
   const dashboard = storeDashboard ?? fetchedDashboard;
+
+  if (!dashboard) return null;
   const panel = dashboard.spec.panels[panelKey];
 
   const [draft, setDraft] = useState<Panel | null>(panel ?? null);
@@ -119,17 +119,19 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
 
   const handleApply = () => {
     updatePanel(panelKey, draft);
-    navigate({
-      to: "/dashboards/$dashboardId",
-      params: { dashboardId },
-    });
+    if (isNew) {
+      navigate({ to: "/dashboards/new" });
+    } else {
+      navigate({ to: "/dashboards/$dashboardId", params: { dashboardId } });
+    }
   };
 
   const handleDiscard = () => {
-    navigate({
-      to: "/dashboards/$dashboardId",
-      params: { dashboardId },
-    });
+    if (isNew) {
+      navigate({ to: "/dashboards/new" });
+    } else {
+      navigate({ to: "/dashboards/$dashboardId", params: { dashboardId } });
+    }
   };
 
   return (
@@ -137,8 +139,8 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
       <div className="flex items-center justify-between border-b px-4 py-2">
         <div className="flex items-center gap-3">
           <Link
-            to="/dashboards/$dashboardId"
-            params={{ dashboardId }}
+            to={isNew ? "/dashboards/new" : "/dashboards/$dashboardId"}
+            params={isNew ? {} : { dashboardId }}
             className="text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="size-4" />

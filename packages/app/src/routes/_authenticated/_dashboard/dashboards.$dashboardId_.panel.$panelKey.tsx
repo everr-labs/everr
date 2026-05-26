@@ -11,7 +11,9 @@ export const Route = createFileRoute(
   }),
   component: PanelEditRoute,
   loader: async ({ context: { queryClient }, params: { dashboardId } }) => {
-    await queryClient.prefetchQuery(dashboardOptions(dashboardId));
+    if (dashboardId !== "new") {
+      await queryClient.prefetchQuery(dashboardOptions(dashboardId));
+    }
   },
 });
 
