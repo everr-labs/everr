@@ -117,7 +117,6 @@ export interface DashboardSpec {
 
 export interface DashboardMetadata {
   name: string;
-  project: string;
 }
 
 export interface Dashboard {

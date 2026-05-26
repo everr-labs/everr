@@ -4,7 +4,6 @@ export const MOCK_DASHBOARD: Dashboard = {
   kind: "Dashboard",
   metadata: {
     name: "default",
-    project: "everr",
   },
   spec: {
     display: {
