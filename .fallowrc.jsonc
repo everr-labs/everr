@@ -67,15 +67,15 @@
       "exports": ["*"]
     },
     {
-      // Dashboard server function re-exports — schema surface not yet consumed.
+      // Dashboard server functions — will be consumed in subsequent tasks.
       "file": "packages/app/src/data/dashboards/server.ts",
       "exports": [
-        "createFolderInput",
-        "dashboardSpecSchema",
-        "deleteDashboardInput",
-        "deleteFolderInput",
-        "renameFolderInput",
-        "saveDashboardInput"
+        "saveDashboard",
+        "deleteDashboard",
+        "listFolders",
+        "createFolder",
+        "renameFolder",
+        "deleteFolder"
       ]
     }
   ]
