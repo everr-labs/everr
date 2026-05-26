@@ -1,6 +1,6 @@
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ErrorFilters } from "@/components/errors/error-filters";
 import { ErrorIssueList } from "@/components/errors/error-issue-list";
 import {
@@ -73,12 +73,16 @@ function ErrorsPage() {
           isError={issuesQuery.isError}
           onRetry={() => issuesQuery.refetch()}
           renderIssueLink={({ fingerprint: issueFingerprint, children }) => (
-            <a
-              href={`/errors/${encodeURIComponent(issueFingerprint)}`}
+            <Link
+              // The detail route lands in Task 5; keep this as a Link now so
+              // search state is preserved when that route is registered.
+              to={"/errors/$fingerprint" as never}
+              params={{ fingerprint: issueFingerprint } as never}
+              search={search as never}
               className="block text-foreground no-underline"
             >
               {children}
-            </a>
+            </Link>
           )}
         />
       </div>
