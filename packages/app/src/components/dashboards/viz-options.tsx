@@ -7,7 +7,7 @@ import {
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import { Hash, LineChart, Table } from "lucide-react";
-import type { Panel, PluginSpecValue } from "@/data/dashboards/types";
+import type { Panel, PluginSpecValue } from "@/data/dashboards/schema";
 import { getVisualizationSettings } from "./visualizations";
 
 interface VizOptionsProps {

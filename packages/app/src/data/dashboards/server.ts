@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { dashboardFolders, dashboards } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@/lib/time-range";
+import type { Dashboard, DashboardSpec } from "./schema";
 import {
   createFolderInput,
   dashboardSpecSchema,
@@ -12,7 +13,6 @@ import {
   renameFolderInput,
   saveDashboardInput,
 } from "./schema";
-import type { Dashboard, DashboardSpec } from "./types";
 
 export const getDashboard = createAuthenticatedServerFn({
   method: "GET",
@@ -147,7 +147,7 @@ export const createFolder = createAuthenticatedServerFn({
       })
       .returning({ id: dashboardFolders.id });
 
-    return { id: row!.id };
+    return { id: row?.id };
   });
 
 export const renameFolder = createAuthenticatedServerFn({

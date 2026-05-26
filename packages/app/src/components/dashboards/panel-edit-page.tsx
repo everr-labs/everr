@@ -11,8 +11,8 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions, panelQueryOptions } from "@/data/dashboards/options";
+import type { Panel } from "@/data/dashboards/schema";
 import { runPanelQuery } from "@/data/dashboards/server";
-import type { Panel } from "@/data/dashboards/types";
 import { resolveTimeRange, withTimeRange } from "@/lib/time-range";
 import { PanelPreview } from "./panel-preview";
 import { QueryEditor } from "./query-editor";
@@ -68,11 +68,9 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   }, [storeDashboard, fetchedDashboard, setDashboard]);
 
   const dashboard = storeDashboard ?? fetchedDashboard;
+  const panel = dashboard?.spec.panels[panelKey] ?? null;
 
-  if (!dashboard) return null;
-  const panel = dashboard.spec.panels[panelKey];
-
-  const [draft, setDraft] = useState<Panel | null>(panel ?? null);
+  const [draft, setDraft] = useState<Panel | null>(panel);
 
   useEffect(() => {
     if (panel && !draft) {
@@ -108,6 +106,8 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   );
 
   const queryResult = manualResult ?? autoResult?.rows;
+
+  if (!dashboard) return null;
 
   if (!draft) {
     return (

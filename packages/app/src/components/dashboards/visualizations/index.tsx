@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { PanelPlugin } from "@/data/dashboards/types";
+import type { PanelPlugin } from "@/data/dashboards/schema";
 import { TableSettings } from "./table/table-settings";
 import { TableVisualization } from "./table/table-visualization";
 import { TimeSeriesChartSettings } from "./time-series-chart/time-series-chart-settings";

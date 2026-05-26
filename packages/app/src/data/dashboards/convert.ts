@@ -1,5 +1,5 @@
 import type { LayoutItem } from "react-grid-layout";
-import type { GridItem } from "./types";
+import type { GridItem } from "./schema";
 
 const REF_PREFIX = "#/spec/panels/";
 

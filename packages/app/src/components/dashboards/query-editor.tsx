@@ -7,7 +7,7 @@ import { Label } from "@everr/ui/components/label";
 import { basicSetup } from "codemirror";
 import { Play } from "lucide-react";
 import { useEffect, useRef } from "react";
-import type { Panel, PanelQuery } from "@/data/dashboards/types";
+import type { Panel, PanelQuery } from "@/data/dashboards/schema";
 
 const clickhouseDialect = SQLDialect.define({
   keywords:

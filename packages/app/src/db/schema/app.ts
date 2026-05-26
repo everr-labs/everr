@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { DashboardSpec } from "@/data/dashboards/types";
+import type { DashboardSpec } from "@/data/dashboards/schema";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
   "active",

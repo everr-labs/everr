@@ -6,7 +6,7 @@ import {
   persesToRGL,
   rglToPerses,
 } from "./convert";
-import type { GridItem } from "./types";
+import type { GridItem } from "./schema";
 
 describe("panelKeyFromRef", () => {
   it("extracts panel key from $ref", () => {

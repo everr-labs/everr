@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Dashboard, GridLayout, Panel } from "./types";
+import type { Dashboard, GridLayout, Panel } from "./schema";
 
 interface DashboardState {
   dashboard: Dashboard | null;

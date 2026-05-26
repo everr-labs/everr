@@ -1,6 +1,15 @@
 import * as z from "zod";
 
-const pluginSpecValue: z.ZodType<unknown> = z.lazy(() =>
+/** Recursive JSON-serializable value type for Perses plugin specs. */
+export type PluginSpecValue =
+  | string
+  | number
+  | boolean
+  | null
+  | PluginSpecValue[]
+  | { [key: string]: PluginSpecValue };
+
+const pluginSpecValue: z.ZodType<PluginSpecValue> = z.lazy(() =>
   z.union([
     z.string(),
     z.number(),
@@ -11,29 +20,29 @@ const pluginSpecValue: z.ZodType<unknown> = z.lazy(() =>
   ]),
 );
 
-const dashboardDisplay = z.object({
+export const dashboardDisplay = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
 });
 
-const panelPlugin = z.object({
+export const panelPlugin = z.object({
   kind: z.string(),
   spec: z.record(z.string(), pluginSpecValue),
 });
 
-const queryPlugin = z.object({
+export const queryPlugin = z.object({
   kind: z.string(),
   spec: z.record(z.string(), pluginSpecValue),
 });
 
-const panelQuery = z.object({
+export const panelQuery = z.object({
   kind: z.string(),
   spec: z.object({
     plugin: queryPlugin,
   }),
 });
 
-const panel = z.object({
+export const panel = z.object({
   kind: z.literal("Panel"),
   spec: z.object({
     display: dashboardDisplay,
@@ -42,7 +51,7 @@ const panel = z.object({
   }),
 });
 
-const gridItem = z.object({
+export const gridItem = z.object({
   x: z.number(),
   y: z.number(),
   width: z.number(),
@@ -50,7 +59,7 @@ const gridItem = z.object({
   content: z.object({ $ref: z.string() }),
 });
 
-const gridLayout = z.object({
+export const gridLayout = z.object({
   kind: z.literal("Grid"),
   spec: z.object({
     display: z
@@ -63,7 +72,7 @@ const gridLayout = z.object({
   }),
 });
 
-const datasourceSpec = z.object({
+export const datasourceSpec = z.object({
   default: z.boolean(),
   plugin: z.object({
     kind: z.string(),
@@ -71,11 +80,11 @@ const datasourceSpec = z.object({
   }),
 });
 
-const variableDisplay = dashboardDisplay.extend({
+export const variableDisplay = dashboardDisplay.extend({
   hidden: z.boolean().optional(),
 });
 
-const textVariable = z.object({
+export const textVariable = z.object({
   kind: z.literal("TextVariable"),
   spec: z.object({
     name: z.string(),
@@ -85,7 +94,7 @@ const textVariable = z.object({
   }),
 });
 
-const listVariable = z.object({
+export const listVariable = z.object({
   kind: z.literal("ListVariable"),
   spec: z.object({
     name: z.string(),
@@ -113,7 +122,10 @@ const listVariable = z.object({
   }),
 });
 
-const variable = z.discriminatedUnion("kind", [textVariable, listVariable]);
+export const variable = z.discriminatedUnion("kind", [
+  textVariable,
+  listVariable,
+]);
 
 export const dashboardSpecSchema = z.object({
   display: dashboardDisplay.optional(),
@@ -124,6 +136,29 @@ export const dashboardSpecSchema = z.object({
   duration: z.string().optional(),
   refreshInterval: z.string().optional(),
 });
+
+export type DashboardDisplay = z.infer<typeof dashboardDisplay>;
+export type PanelPlugin = z.infer<typeof panelPlugin>;
+export type QueryPlugin = z.infer<typeof queryPlugin>;
+export type PanelQuery = z.infer<typeof panelQuery>;
+export type Panel = z.infer<typeof panel>;
+export type GridItem = z.infer<typeof gridItem>;
+export type GridLayout = z.infer<typeof gridLayout>;
+export type DatasourceSpec = z.infer<typeof datasourceSpec>;
+export type TextVariable = z.infer<typeof textVariable>;
+export type ListVariable = z.infer<typeof listVariable>;
+export type Variable = z.infer<typeof variable>;
+export type DashboardSpec = z.infer<typeof dashboardSpecSchema>;
+
+export interface DashboardMetadata {
+  name: string;
+}
+
+export interface Dashboard {
+  kind: "Dashboard";
+  metadata: DashboardMetadata;
+  spec: DashboardSpec;
+}
 
 export const saveDashboardInput = z.object({
   slug: z.string().min(1).max(200),

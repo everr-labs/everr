@@ -44,10 +44,8 @@ export function useSaveDashboard() {
       spec: Parameters<typeof saveDashboard>[0]["data"]["spec"];
       folderId?: string;
     }) => saveDashboard({ data: vars }),
-    onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({
-        queryKey: [...dashboardsQueryKey, vars.slug],
-      });
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dashboardsQueryKey });
       toast.success("Dashboard saved");
     },
     onError: (error) => {

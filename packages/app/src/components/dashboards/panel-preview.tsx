@@ -1,4 +1,4 @@
-import type { Panel } from "@/data/dashboards/types";
+import type { Panel } from "@/data/dashboards/schema";
 import { PanelShell } from "../panel-shell";
 import type { QueryResultRow, TimeRange } from "./visualizations";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";

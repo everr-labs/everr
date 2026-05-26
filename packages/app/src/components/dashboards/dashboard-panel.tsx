@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Pencil, X } from "lucide-react";
 import { useCallback } from "react";
 import { panelQueryOptions } from "@/data/dashboards/options";
-import type { Panel } from "@/data/dashboards/types";
+import type { Panel } from "@/data/dashboards/schema";
 import { resolveTimeRange, withTimeRange } from "@/lib/time-range";
 import { PanelShell } from "../panel-shell";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";

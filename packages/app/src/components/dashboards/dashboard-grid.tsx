@@ -25,7 +25,7 @@ import {
 } from "@/data/dashboards/convert";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { useSaveDashboard } from "@/data/dashboards/options";
-import type { Panel } from "@/data/dashboards/types";
+import type { Panel } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
 
 const GRID_COLS = 24;
