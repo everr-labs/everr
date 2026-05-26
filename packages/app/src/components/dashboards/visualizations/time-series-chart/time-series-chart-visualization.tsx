@@ -7,7 +7,7 @@ import {
   ChartTooltipContent,
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -57,12 +57,21 @@ function toTimestamp(value: unknown): number {
   return 0;
 }
 
-function formatTick(ms: number): string {
-  const d = new Date(ms);
-  return d.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function createTickFormatter(domain?: [number, number]) {
+  const span = domain ? domain[1] - domain[0] : 0;
+  return (ms: number) => {
+    const d = new Date(ms);
+    if (span > 86_400_000) {
+      return d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
+    }
+    return d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 }
 
 function formatTooltipLabel(
@@ -72,6 +81,45 @@ function formatTooltipLabel(
   const ts = payload[0]?.payload?.[TS_KEY];
   if (typeof ts === "number") return new Date(ts).toLocaleString();
   return String(_label);
+}
+
+const TICK_INTERVALS = [
+  1_000, // 1s
+  5_000, // 5s
+  10_000, // 10s
+  30_000, // 30s
+  60_000, // 1m
+  5 * 60_000, // 5m
+  10 * 60_000, // 10m
+  30 * 60_000, // 30m
+  3_600_000, // 1h
+  3 * 3_600_000, // 3h
+  6 * 3_600_000, // 6h
+  12 * 3_600_000, // 12h
+  86_400_000, // 1d
+  2 * 86_400_000, // 2d
+  3 * 86_400_000, // 3d
+  7 * 86_400_000, // 1w
+  14 * 86_400_000, // 2w
+  30 * 86_400_000, // 1mo
+  90 * 86_400_000, // 3mo
+  365 * 86_400_000, // 1y
+];
+
+function generateTicks(domain: [number, number], maxTicks: number): number[] {
+  const span = domain[1] - domain[0];
+  if (span <= 0) return [];
+
+  const ideal = span / maxTicks;
+  const interval =
+    TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1)!;
+
+  const first = Math.ceil(domain[0] / interval) * interval;
+  const ticks: number[] = [];
+  for (let t = first; t <= domain[1]; t += interval) {
+    ticks.push(t);
+  }
+  return ticks;
 }
 
 function getPlotArea(container: HTMLElement): DOMRect | null {
@@ -106,16 +154,37 @@ export function TimeSeriesChartVisualization({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);
+  const [maxTicks, setMaxTicks] = useState(6);
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);
 
-  const { chartData, valueKeys, chartConfig, domain } = useMemo(() => {
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const computeTicks = (width: number) =>
+      Math.max(2, Math.floor(width / 120));
+    setMaxTicks(computeTicks(el.clientWidth));
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const next = computeTicks(entry.contentRect.width);
+      setMaxTicks((prev) => (prev === next ? prev : next));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const { chartData, valueKeys, chartConfig, domain, ticks } = useMemo(() => {
+    const dm: [number, number] | undefined = timeRange
+      ? [timeRange.from.getTime(), timeRange.to.getTime()]
+      : undefined;
+
     if (!data || data.length === 0) {
       return {
         chartData: [],
         valueKeys: [],
         chartConfig: {},
-        domain: undefined,
+        domain: dm,
+        ticks: dm ? generateTicks(dm, maxTicks) : undefined,
       };
     }
 
@@ -125,7 +194,8 @@ export function TimeSeriesChartVisualization({
         chartData: [],
         valueKeys: [],
         chartConfig: {},
-        domain: undefined,
+        domain: dm,
+        ticks: dm ? generateTicks(dm, maxTicks) : undefined,
       };
     }
 
@@ -143,17 +213,14 @@ export function TimeSeriesChartVisualization({
       [TS_KEY]: toTimestamp(row[tk]),
     }));
 
-    const dm: [number, number] | undefined = timeRange
-      ? [timeRange.from.getTime(), timeRange.to.getTime()]
-      : undefined;
-
     return {
       chartData: mapped,
       valueKeys: vk,
       chartConfig: config,
       domain: dm,
+      ticks: dm ? generateTicks(dm, maxTicks) : undefined,
     };
-  }, [data, timeRange]);
+  }, [data, timeRange, maxTicks]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -191,14 +258,14 @@ export function TimeSeriesChartVisualization({
     plotRectRef.current = null;
   }, [brushStart, brushEnd, onTimeRangeChange]);
 
-  if (chartData.length === 0) {
+  if (!data || chartData.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <LineChartIcon className="size-8" />
         <p className="text-sm">
-          {!data || data.length === 0
-            ? "No data — run a query to see results"
-            : "No time column detected"}
+          {!data
+            ? "Configure a query to see results"
+            : "No data in this time range"}
         </p>
       </div>
     );
@@ -220,10 +287,11 @@ export function TimeSeriesChartVisualization({
             type="number"
             scale="time"
             domain={domain ?? ["dataMin", "dataMax"]}
+            ticks={ticks}
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={formatTick}
+            tickFormatter={createTickFormatter(domain)}
           />
           <YAxis
             tickLine={false}
