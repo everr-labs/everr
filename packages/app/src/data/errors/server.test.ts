@@ -130,6 +130,9 @@ describe("searchErrorIssues", () => {
     expect(sql).toContain("SeverityNumber >= 17");
     expect(sql).toContain("LogAttributes['exception.type'] != ''");
     expect(sql).toContain("LogAttributes['exception.message'] != ''");
+    expect(sql.replace(/\s+/g, " ")).toContain(
+      "LogAttributes['exception.type'] != '' OR LogAttributes['exception.message'] != ''",
+    );
     expect(sql).toContain("ServiceName IN {service:Array(String)}");
     expect(sql).toContain("positionCaseInsensitive");
     expect(sql).toContain("GROUP BY fingerprint");
@@ -200,9 +203,9 @@ describe("getErrorIssue", () => {
         exceptionType: "TypeError",
         exceptionMessage: "boom",
         exceptionStacktrace: "TypeError: boom\n    at app.ts:1:1",
-        resourceAttributes: { "service.namespace": "frontend" },
-        logAttributes: { "exception.type": "TypeError" },
-        scopeAttributes: { "scope.kind": "browser" },
+        resourceAttributes: null,
+        logAttributes: null,
+        scopeAttributes: null,
       },
     ]);
 
@@ -217,8 +220,28 @@ describe("getErrorIssue", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
+    const summarySql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    const occurrencesSql = mockedQuery.mock.calls[1]?.[0] ?? "";
+    expect(summarySql).toContain("WHERE fingerprint = {fingerprint:String}");
+    expect(occurrencesSql).toContain(
+      "WHERE fingerprint = {fingerprint:String}",
+    );
+    expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({
+      fingerprint: "fp-1",
+    });
+    expect(mockedQuery.mock.calls[1]?.[2]).toMatchObject({
+      fingerprint: "fp-1",
+    });
+    expect(result.summary).toMatchObject({
+      fingerprint: "fp-1",
+      occurrenceCount: 2,
+      traceCount: 1,
+    });
     expect(result.latest.traceId).toBe("trace-2");
     expect(result.occurrences).toHaveLength(1);
+    expect(result.occurrences[0]?.resourceAttributes).toEqual({});
+    expect(result.occurrences[0]?.logAttributes).toEqual({});
+    expect(result.occurrences[0]?.scopeAttributes).toEqual({});
   });
 
   it("throws when the issue is absent in the selected window", async () => {
@@ -269,6 +292,9 @@ describe("error fingerprint SQL", () => {
     expect(EXCEPTION_LOG_FILTER_SQL).toContain("SeverityNumber >= 17");
     expect(EXCEPTION_LOG_FILTER_SQL).toContain(
       "LogAttributes['exception.type']",
+    );
+    expect(EXCEPTION_LOG_FILTER_SQL.replace(/\s+/g, " ")).toContain(
+      "LogAttributes['exception.type'] != '' OR LogAttributes['exception.message'] != ''",
     );
     expect(EXCEPTION_LOG_FILTER_SQL).not.toContain("PREWHERE");
     expect(EXCEPTION_LOG_FILTER_SQL).not.toContain("SQL_everr_tenant_id");
