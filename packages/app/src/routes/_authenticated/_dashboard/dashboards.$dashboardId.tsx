@@ -13,10 +13,22 @@ export const Route = createFileRoute(
     meta: [{ title: "Everr - Dashboard" }],
   }),
   component: DashboardPage,
+  errorComponent: DashboardNotFound,
   loader: async ({ context: { queryClient }, params: { dashboardId } }) => {
     await queryClient.prefetchQuery(dashboardOptions(dashboardId));
   },
 });
+
+function DashboardNotFound() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
+      <p className="text-lg">Dashboard not found</p>
+      <a href="/dashboards" className="text-sm underline">
+        Back to dashboards
+      </a>
+    </div>
+  );
+}
 
 function DashboardPage() {
   const { dashboardId } = Route.useParams();
