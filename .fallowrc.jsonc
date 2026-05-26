@@ -77,6 +77,17 @@
         "renameFolder",
         "deleteFolder"
       ]
+    },
+    {
+      // Dashboard mutation hooks — will be consumed by UI components in subsequent tasks.
+      "file": "packages/app/src/data/dashboards/options.ts",
+      "exports": [
+        "useSaveDashboard",
+        "useDeleteDashboard",
+        "useCreateFolder",
+        "useRenameFolder",
+        "useDeleteFolder"
+      ]
     }
   ]
 }
