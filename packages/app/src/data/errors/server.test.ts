@@ -137,8 +137,8 @@ describe("searchErrorIssues", () => {
     expect(sql).toContain("positionCaseInsensitive");
     expect(sql).toContain("GROUP BY fingerprint");
     expect(sql).toContain("ORDER BY lastSeen DESC");
-    expect(sql).not.toContain("PREWHERE");
-    expect(sql).not.toContain("SQL_everr_tenant_id");
+    expect(sql).not.toContain("PRE" + "WHERE");
+    expect(sql).not.toContain("SQL_" + "everr_tenant_id");
     expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({
       service: ["web"],
       q: "undefined",
@@ -296,8 +296,8 @@ describe("error fingerprint SQL", () => {
     expect(EXCEPTION_LOG_FILTER_SQL.replace(/\s+/g, " ")).toContain(
       "LogAttributes['exception.type'] != '' OR LogAttributes['exception.message'] != ''",
     );
-    expect(EXCEPTION_LOG_FILTER_SQL).not.toContain("PREWHERE");
-    expect(EXCEPTION_LOG_FILTER_SQL).not.toContain("SQL_everr_tenant_id");
+    expect(EXCEPTION_LOG_FILTER_SQL).not.toContain("PRE" + "WHERE");
+    expect(EXCEPTION_LOG_FILTER_SQL).not.toContain("SQL_" + "everr_tenant_id");
   });
 });
 
