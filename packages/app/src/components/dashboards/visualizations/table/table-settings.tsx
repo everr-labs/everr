@@ -1,28 +1,21 @@
 import { Label } from "@everr/ui/components/label";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { Switch } from "@everr/ui/components/switch";
 import type { VisualizationSettingsProps } from "../index";
 
 export function TableSettings({ spec, onChange }: VisualizationSettingsProps) {
   const stickyHeader = spec.stickyHeader === true;
 
   return (
-    <div className="flex flex-col gap-2">
-      <Label>Header</Label>
-      <ToggleGroup
-        value={stickyHeader ? ["stickyHeader"] : []}
-        onValueChange={(next) =>
-          onChange({ ...spec, stickyHeader: next.includes("stickyHeader") })
-        }
-        variant="outline"
+    <div className="flex items-center justify-between">
+      <Label htmlFor="table-sticky-header">Sticky header</Label>
+      <Switch
+        id="table-sticky-header"
         size="sm"
-      >
-        <ToggleGroupItem value="stickyHeader" aria-label="Sticky header">
-          Sticky header
-        </ToggleGroupItem>
-      </ToggleGroup>
+        checked={stickyHeader}
+        onCheckedChange={(checked) =>
+          onChange({ ...spec, stickyHeader: checked })
+        }
+      />
     </div>
   );
 }

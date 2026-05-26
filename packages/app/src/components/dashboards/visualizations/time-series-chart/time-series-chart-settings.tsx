@@ -1,5 +1,6 @@
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { Switch } from "@everr/ui/components/switch";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -55,20 +56,16 @@ export function TimeSeriesChartSettings({
         />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label>Legend</Label>
-        <ToggleGroup
-          value={showLegend ? ["showLegend"] : []}
-          onValueChange={(next) =>
-            onChange({ ...spec, showLegend: next.includes("showLegend") })
-          }
-          variant="outline"
+      <div className="flex items-center justify-between">
+        <Label htmlFor="ts-legend">Show legend</Label>
+        <Switch
+          id="ts-legend"
           size="sm"
-        >
-          <ToggleGroupItem value="showLegend" aria-label="Show legend">
-            Show legend
-          </ToggleGroupItem>
-        </ToggleGroup>
+          checked={showLegend}
+          onCheckedChange={(checked) =>
+            onChange({ ...spec, showLegend: checked })
+          }
+        />
       </div>
     </div>
   );
