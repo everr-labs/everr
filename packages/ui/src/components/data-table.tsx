@@ -11,7 +11,7 @@ export interface Column<T> {
 interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
-  rowKey: (row: T) => string;
+  rowKey: (row: T, index: number) => string;
   emptyState?: ReactNode;
   stickyHeader?: boolean;
 }
@@ -49,8 +49,8 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody className="[&>tr:last-child>td]:border-b-0">
-          {data.map((row) => (
-            <tr key={rowKey(row)} className="hover:bg-muted/50">
+          {data.map((row, rowIndex) => (
+            <tr key={rowKey(row, rowIndex)} className="hover:bg-muted/50">
               {columns.map((col, i) => (
                 <td
                   key={i}

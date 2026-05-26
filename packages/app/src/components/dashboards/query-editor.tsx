@@ -24,6 +24,8 @@ const clickhouseDialect = SQLDialect.define({
 interface QueryEditorProps {
   draft: Panel;
   onChange: (panel: Panel) => void;
+  onRunQuery: (sql: string) => void;
+  isRunning?: boolean;
 }
 
 function getQueryText(draft: Panel): string {
@@ -53,7 +55,12 @@ function setQueryText(draft: Panel, query: string): Panel {
   };
 }
 
-export function QueryEditor({ draft, onChange }: QueryEditorProps) {
+export function QueryEditor({
+  draft,
+  onChange,
+  onRunQuery,
+  isRunning,
+}: QueryEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -105,9 +112,14 @@ export function QueryEditor({ draft, onChange }: QueryEditorProps) {
     <div className="flex h-full flex-col gap-2">
       <div className="flex items-center justify-between">
         <Label>ClickHouse SQL</Label>
-        <Button variant="outline" size="sm" disabled>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isRunning || !getQueryText(draft).trim()}
+          onClick={() => onRunQuery(getQueryText(draft))}
+        >
           <Play data-icon="inline-start" />
-          Run Query
+          {isRunning ? "Running…" : "Run Query"}
         </Button>
       </div>
       <div

@@ -1,9 +1,18 @@
 import { Button } from "@everr/ui/components/button";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Pencil, X } from "lucide-react";
+import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/types";
 import { PanelShell } from "../panel-shell";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";
+
+function getPanelQuerySql(panel: Panel): string {
+  const query = panel.spec.queries?.[0];
+  if (!query) return "";
+  const spec = query.spec.plugin.spec;
+  return typeof spec.query === "string" ? spec.query : "";
+}
 
 interface DashboardPanelProps {
   panel: Panel;
@@ -21,12 +30,16 @@ export function DashboardPanel({
   onRemove,
 }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
+  const sql = getPanelQuerySql(panel);
+  const { data: queryResult, isPending } = useQuery(panelQueryOptions(sql));
+
+  const status = sql && isPending ? "pending" : "success";
 
   return (
     <PanelShell
       title={display.name ?? panelKey}
       description={display.description}
-      status="success"
+      status={status}
       className="h-full"
       inset={getVisualizationInset(plugin.kind)}
       headerClassName={
@@ -60,7 +73,7 @@ export function DashboardPanel({
         ) : undefined
       }
     >
-      <PanelVisualization plugin={plugin} />
+      <PanelVisualization plugin={plugin} data={queryResult?.rows} />
     </PanelShell>
   );
 }

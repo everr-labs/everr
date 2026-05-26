@@ -3,8 +3,11 @@ import type { PanelPlugin } from "@/data/dashboards/types";
 import { TableSettings } from "./table/table-settings";
 import { TableVisualization } from "./table/table-visualization";
 
+export type QueryResultRow = Record<string, string | number | boolean | null>;
+
 export interface VisualizationProps {
   plugin: PanelPlugin;
+  data?: QueryResultRow[];
 }
 
 export interface VisualizationSettingsProps {
@@ -38,7 +41,7 @@ export function getVisualizationSettings(
   return registry[kind]?.settings;
 }
 
-export function PanelVisualization({ plugin }: VisualizationProps) {
+export function PanelVisualization({ plugin, data }: VisualizationProps) {
   const entry = registry[plugin.kind];
 
   if (!entry) {
@@ -50,5 +53,5 @@ export function PanelVisualization({ plugin }: VisualizationProps) {
   }
 
   const Component = entry.component;
-  return <Component plugin={plugin} />;
+  return <Component plugin={plugin} data={data} />;
 }
