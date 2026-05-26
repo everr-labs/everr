@@ -60,6 +60,23 @@
     {
       "file": "packages/ui/src/components/time-range-picker.tsx",
       "exports": ["*"]
+    },
+    {
+      // Dashboard Zod schemas — API surface consumed by server functions not yet wired up.
+      "file": "packages/app/src/data/dashboards/schema.ts",
+      "exports": ["*"]
+    },
+    {
+      // Dashboard server function re-exports — schema surface not yet consumed.
+      "file": "packages/app/src/data/dashboards/server.ts",
+      "exports": [
+        "createFolderInput",
+        "dashboardSpecSchema",
+        "deleteDashboardInput",
+        "deleteFolderInput",
+        "renameFolderInput",
+        "saveDashboardInput"
+      ]
     }
   ]
 }

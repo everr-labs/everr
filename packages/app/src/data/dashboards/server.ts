@@ -3,6 +3,15 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@/lib/time-range";
 import { MOCK_DASHBOARD } from "./mock";
 
+export {
+  createFolderInput,
+  dashboardSpecSchema,
+  deleteDashboardInput,
+  deleteFolderInput,
+  renameFolderInput,
+  saveDashboardInput,
+} from "./schema";
+
 export const getDashboard = createAuthenticatedServerFn({
   method: "GET",
 })
