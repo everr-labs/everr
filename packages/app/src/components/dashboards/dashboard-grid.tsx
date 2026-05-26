@@ -7,13 +7,13 @@ import {
   useContainerWidth,
   verticalCompactor,
 } from "react-grid-layout";
-import { toast } from "sonner";
 import {
   panelRefFromKey,
   persesToRGL,
   rglToPerses,
 } from "@/data/dashboards/convert";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
+import { useSaveDashboard } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/types";
 import { DashboardPanel } from "./dashboard-panel";
 
@@ -31,6 +31,8 @@ export function DashboardGrid() {
   const updatePanel = useDashboardStore((s) => s.updatePanel);
   const updateLayout = useDashboardStore((s) => s.updateLayout);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
+
+  const saveMutation = useSaveDashboard();
 
   const [isEditing, setIsEditing] = useState(false);
   const { width, containerRef } = useContainerWidth({
@@ -128,8 +130,12 @@ export function DashboardGrid() {
   );
 
   const handleSave = useCallback(() => {
-    toast.info("Dashboard saved (mock — no persistence yet)");
-  }, []);
+    if (!dashboard) return;
+    saveMutation.mutate({
+      slug: dashboard.metadata.name,
+      spec: dashboard.spec,
+    });
+  }, [dashboard, saveMutation]);
 
   if (!dashboard) return null;
 
@@ -149,9 +155,13 @@ export function DashboardGrid() {
                 <Plus data-icon="inline-start" />
                 Add Panel
               </Button>
-              <Button size="sm" onClick={handleSave}>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saveMutation.isPending}
+              >
                 <Save data-icon="inline-start" />
-                Save
+                {saveMutation.isPending ? "Saving…" : "Save"}
               </Button>
             </>
           )}
