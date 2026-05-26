@@ -9,6 +9,7 @@ import {
   deleteDashboard,
   deleteFolder,
   getDashboard,
+  listDashboards,
   renameFolder,
   runPanelQuery,
   saveDashboard,
@@ -20,6 +21,12 @@ export const dashboardOptions = (dashboardId: string) =>
   queryOptions({
     queryKey: [...dashboardsQueryKey, dashboardId],
     queryFn: () => getDashboard({ data: { dashboardId } }),
+  });
+
+export const dashboardListOptions = () =>
+  queryOptions({
+    queryKey: [...dashboardsQueryKey, "list"],
+    queryFn: () => listDashboards(),
   });
 
 export const panelQueryOptions = (sql: string, from?: string, to?: string) =>

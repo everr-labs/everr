@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
 import { db } from "@/db/client";
 import { dashboardFolders, dashboards } from "@/db/schema";
@@ -96,6 +96,25 @@ export const deleteDashboard = createAuthenticatedServerFn({
 
     return { deleted: true };
   });
+
+export const listDashboards = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context }) => {
+  const orgId = context.session.session.activeOrganizationId;
+
+  const rows = await db
+    .select({
+      slug: dashboards.slug,
+      displayName: sql<string>`spec->'display'->>'name'`,
+    })
+    .from(dashboards)
+    .where(eq(dashboards.organizationId, orgId));
+
+  return rows.map((r) => ({
+    slug: r.slug,
+    name: r.displayName ?? r.slug,
+  }));
+});
 
 export const listFolders = createAuthenticatedServerFn({
   method: "GET",
