@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   errorIssueOptions,
   errorIssuesOptions,
@@ -6,14 +6,18 @@ import {
 } from "./options";
 
 describe("error query options", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("resolves datemath before searching issues", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-26T11:00:00.000Z"));
+
     const searchErrorIssues = vi.fn().mockResolvedValue([]);
     const options = errorIssuesOptions({
       searchErrorIssues,
-      timeRange: {
-        from: "2026-05-26T10:00:00.000Z",
-        to: "2026-05-26T11:00:00.000Z",
-      },
+      timeRange: { from: "now-1h", to: "now" },
       refresh: "",
       q: "boom",
       service: ["web"],
