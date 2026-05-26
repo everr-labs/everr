@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   index,
   integer,
@@ -9,7 +10,9 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from "drizzle-orm/pg-core";
+import type { DashboardSpec } from "@/data/dashboards/types";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
   "active",
@@ -164,6 +167,63 @@ export const workflowJobs = pgTable(
     index("workflow_jobs_tenant_trace_id_idx").on(
       table.organizationId,
       table.traceId,
+    ),
+  ],
+);
+
+export const dashboardFolders = pgTable(
+  "dashboard_folders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id").notNull(),
+    parentId: uuid("parent_id").references(
+      (): AnyPgColumn => dashboardFolders.id,
+      {
+        onDelete: "cascade",
+      },
+    ),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("dashboard_folders_tenant_parent_name_uq").on(
+      table.organizationId,
+      sql`COALESCE(parent_id, '00000000-0000-0000-0000-000000000000')`,
+      table.name,
+    ),
+  ],
+);
+
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id").notNull(),
+    folderId: uuid("folder_id").references(() => dashboardFolders.id, {
+      onDelete: "cascade",
+    }),
+    slug: text("slug").notNull(),
+    spec: jsonb("spec").notNull().$type<DashboardSpec>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("dashboards_tenant_slug_uq").on(
+      table.organizationId,
+      table.slug,
+    ),
+    index("dashboards_tenant_updated_idx").on(
+      table.organizationId,
+      sql`updated_at DESC`,
     ),
   ],
 );
