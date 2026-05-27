@@ -3,15 +3,19 @@ import type { Dashboard, GridLayout, Panel } from "./schema";
 
 interface DashboardState {
   dashboard: Dashboard | null;
+  isEditing: boolean;
   setDashboard: (d: Dashboard) => void;
+  setEditing: (editing: boolean) => void;
   updatePanel: (key: string, panel: Panel) => void;
   updateLayout: (layouts: GridLayout[]) => void;
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
   dashboard: null,
+  isEditing: false,
 
   setDashboard: (dashboard) => set({ dashboard }),
+  setEditing: (isEditing) => set({ isEditing }),
 
   updatePanel: (key, panel) =>
     set((state) => {

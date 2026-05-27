@@ -67,6 +67,7 @@ export function DashboardPanel({
         "group/panel relative h-full",
         isEditing && "drag-handle cursor-grab active:cursor-grabbing",
       )}
+      style={{ viewTransitionName: `panel-${panelKey}` }}
     >
       {isEditing && (
         <div className="absolute top-0 left-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 cursor-default items-center rounded-md border border-border bg-card px-1 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/panel:opacity-100">

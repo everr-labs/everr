@@ -120,17 +120,25 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   const handleApply = () => {
     updatePanel(panelKey, draft);
     if (isNew) {
-      navigate({ to: "/dashboards/new" });
+      navigate({ to: "/dashboards/new", viewTransition: true });
     } else {
-      navigate({ to: "/dashboards/$dashboardId", params: { dashboardId } });
+      navigate({
+        to: "/dashboards/$dashboardId",
+        params: { dashboardId },
+        viewTransition: true,
+      });
     }
   };
 
   const handleDiscard = () => {
     if (isNew) {
-      navigate({ to: "/dashboards/new" });
+      navigate({ to: "/dashboards/new", viewTransition: true });
     } else {
-      navigate({ to: "/dashboards/$dashboardId", params: { dashboardId } });
+      navigate({
+        to: "/dashboards/$dashboardId",
+        params: { dashboardId },
+        viewTransition: true,
+      });
     }
   };
 
@@ -142,6 +150,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
             to={isNew ? "/dashboards/new" : "/dashboards/$dashboardId"}
             params={isNew ? {} : { dashboardId }}
             className="text-muted-foreground hover:text-foreground"
+            viewTransition
           >
             <ArrowLeft className="size-4" />
           </Link>
@@ -163,7 +172,10 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
         <ResizablePanel defaultSize={65} minSize={30}>
           <ResizablePanelGroup orientation="vertical">
             <ResizablePanel defaultSize={50} minSize={20}>
-              <div className="h-full overflow-auto p-4">
+              <div
+                className="h-full overflow-auto p-4"
+                style={{ viewTransitionName: `panel-${panelKey}` }}
+              >
                 <PanelPreview
                   panel={draft}
                   panelKey={panelKey}

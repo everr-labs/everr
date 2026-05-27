@@ -11,7 +11,7 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useNavigate } from "@tanstack/react-router";
 import { Pencil, Plus, Save } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Layout, LayoutItem } from "react-grid-layout";
 import {
   GridLayout,
@@ -59,7 +59,12 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
 
   const saveMutation = useSaveDashboard();
 
-  const [isEditing, setIsEditing] = useState(isNew ?? false);
+  const isEditing = useDashboardStore((s) => s.isEditing);
+  const setEditing = useDashboardStore((s) => s.setEditing);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    requestAnimationFrame(() => setMounted(true));
+  }, []);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -256,7 +261,7 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
         <Button
           variant={isEditing ? "default" : "outline"}
           size="sm"
-          onClick={() => setIsEditing((v) => !v)}
+          onClick={() => setEditing(!isEditing)}
         >
           <Pencil data-icon="inline-start" />
           {isEditing ? "Done" : "Edit"}
@@ -266,7 +271,7 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
       <div ref={containerRef}>
         <GridLayout
           width={width}
-          className={isEditing ? "layout layout-editing" : "layout"}
+          className={isEditing && mounted ? "layout layout-editing" : "layout"}
           layout={layout}
           gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT }}
           dragConfig={{

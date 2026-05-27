@@ -100,3 +100,12 @@
 .ansi-white-bg {
   background-color: white;
 }
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-group(root) {
+  animation: none;
+}
