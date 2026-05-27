@@ -32,7 +32,8 @@ export const ERROR_FINGERPRINT_SQL = `
 `;
 
 export const EXCEPTION_LOG_FILTER_SQL = `
-  SeverityNumber >= 17
+  mapContains(ResourceAttributes, 'service.name')
+  AND SeverityNumber >= 17
   AND (
     LogAttributes['exception.type'] != ''
     OR LogAttributes['exception.message'] != ''

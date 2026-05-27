@@ -134,6 +134,7 @@ describe("searchErrorIssues", () => {
     expect(sql).toContain("FROM app.logs");
     expect(sql).toContain("TimestampTime >=");
     expect(sql).toContain("Timestamp >=");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'service.name')");
     expect(sql).toContain("SeverityNumber >= 17");
     expect(sql).toContain("LogAttributes['exception.type'] != ''");
     expect(sql).toContain("LogAttributes['exception.message'] != ''");
@@ -292,6 +293,7 @@ describe("listErrorServices", () => {
 
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
     expect(sql).toContain("SELECT DISTINCT ServiceName AS serviceName");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'service.name')");
     expect(sql).toContain("SeverityNumber >= 17");
     expect(result).toEqual(["api"]);
   });
@@ -307,6 +309,9 @@ describe("error fingerprint SQL", () => {
   });
 
   it("filters exception logs without tenant or prewhere predicates", () => {
+    expect(EXCEPTION_LOG_FILTER_SQL).toContain(
+      "mapContains(ResourceAttributes, 'service.name')",
+    );
     expect(EXCEPTION_LOG_FILTER_SQL).toContain("SeverityNumber >= 17");
     expect(EXCEPTION_LOG_FILTER_SQL).toContain(
       "LogAttributes['exception.type']",
