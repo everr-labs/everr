@@ -69,7 +69,7 @@ export function DashboardPanel({
       )}
     >
       {isEditing && (
-        <div className="absolute top-0 left-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md border border-border bg-card px-1 py-0.5 shadow-sm">
+        <div className="absolute top-0 left-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md border border-border bg-card px-1 py-0.5 shadow-sm">
           <Button
             variant="ghost"
             size="icon-xs"
