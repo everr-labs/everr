@@ -23,8 +23,15 @@
   overflow: visible;
 }
 
-.layout-editing .react-grid-item:hover {
+.layout-editing
+  .react-grid-item:hover:not(.react-draggable-dragging):not(
+    .react-grid-placeholder
+  ) {
   z-index: 2;
+}
+
+.react-grid-item.react-draggable-dragging {
+  z-index: 4;
 }
 
 .react-grid-item > .react-resizable-handle::after {
