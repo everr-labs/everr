@@ -45,6 +45,7 @@ describe("error tracking schemas", () => {
       service: [],
       fingerprint: "",
       sort: "lastSeen",
+      page: 1,
       limit: 50,
     });
   });
@@ -62,9 +63,11 @@ describe("error tracking schemas", () => {
       service: ["api"],
       fingerprint: "",
       sort: "lastSeen",
+      offset: 50,
       limit: 100,
     });
     expect(parsed.service).toEqual(["api"]);
+    expect(parsed.offset).toBe(50);
     expect(parsed.limit).toBe(100);
   });
 
@@ -92,23 +95,25 @@ describe("error tracking schemas", () => {
 
 describe("searchErrorIssues", () => {
   it("groups only OTel exception logs from app.logs", async () => {
-    mockedQuery.mockResolvedValueOnce([
-      {
-        fingerprint: "fp-1",
-        exceptionType: "TypeError",
-        exceptionMessage: "Cannot read properties of undefined",
-        body: "TypeError: Cannot read properties of undefined",
-        latestServiceName: "web",
-        services: ["web"],
-        occurrenceCount: "3",
-        traceCount: "2",
-        firstSeen: "2026-05-26 10:00:00.000000000",
-        lastSeen: "2026-05-26 10:05:00.000000000",
-        latestTraceId: "trace-1",
-        latestSpanId: "span-1",
-        latestTimestamp: "2026-05-26 10:05:00.000000000",
-      },
-    ]);
+    mockedQuery
+      .mockResolvedValueOnce([
+        {
+          fingerprint: "fp-1",
+          exceptionType: "TypeError",
+          exceptionMessage: "Cannot read properties of undefined",
+          body: "TypeError: Cannot read properties of undefined",
+          latestServiceName: "web",
+          services: ["web"],
+          occurrenceCount: "3",
+          traceCount: "2",
+          firstSeen: "2026-05-26 10:00:00.000000000",
+          lastSeen: "2026-05-26 10:05:00.000000000",
+          latestTraceId: "trace-1",
+          latestSpanId: "span-1",
+          latestTimestamp: "2026-05-26 10:05:00.000000000",
+        },
+      ])
+      .mockResolvedValueOnce([{ totalCount: "12" }]);
 
     const result = await searchErrorIssues({
       data: {
@@ -119,11 +124,13 @@ describe("searchErrorIssues", () => {
         fingerprint: "",
         sort: "lastSeen",
         limit: 50,
+        offset: 50,
       },
     });
 
-    expect(mockedQuery).toHaveBeenCalledTimes(1);
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
+    const countSql = mockedQuery.mock.calls[1]?.[0] ?? "";
     expect(sql).toContain("FROM app.logs");
     expect(sql).toContain("TimestampTime >=");
     expect(sql).toContain("Timestamp >=");
@@ -137,23 +144,33 @@ describe("searchErrorIssues", () => {
     expect(sql).toContain("positionCaseInsensitive");
     expect(sql).toContain("GROUP BY fingerprint");
     expect(sql).toContain("ORDER BY lastSeen DESC");
+    expect(sql).toContain("LIMIT {limit:UInt32}");
+    expect(sql).toContain("OFFSET {offset:UInt32}");
     expect(sql).not.toContain("PRE" + "WHERE");
     expect(sql).not.toContain("SQL_" + "everr_tenant_id");
+    expect(countSql).toContain("count() AS totalCount");
+    expect(countSql).toContain("GROUP BY fingerprint");
     expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({
       service: ["web"],
       q: "undefined",
       limit: 50,
+      offset: 50,
     });
-    expect(result[0]).toMatchObject({
+    expect(result.issues[0]).toMatchObject({
       fingerprint: "fp-1",
       occurrenceCount: 3,
       traceCount: 2,
       latestTraceId: "trace-1",
     });
+    expect(result.totalCount).toBe(12);
   });
 
   it("orders by occurrence count when requested", async () => {
-    mockedQuery.mockResolvedValueOnce([]);
+    mockedQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        totalCount: "0",
+      },
+    ]);
 
     await searchErrorIssues({
       data: {
@@ -164,6 +181,7 @@ describe("searchErrorIssues", () => {
         fingerprint: "fp-1",
         sort: "count",
         limit: 25,
+        offset: 0,
       },
     });
 
@@ -309,6 +327,7 @@ describe("error tracking DTOs", () => {
       fingerprint: "",
       occurrence: "",
       sort: "lastSeen",
+      page: 1,
       limit: 50,
     } satisfies ErrorIssueSearch;
     const serverSearch = {
@@ -319,6 +338,7 @@ describe("error tracking DTOs", () => {
       fingerprint: "",
       sort: "count",
       limit: 100,
+      offset: 100,
     } satisfies SearchErrorIssuesInput;
     const detailInput = {
       fingerprint: "abc",

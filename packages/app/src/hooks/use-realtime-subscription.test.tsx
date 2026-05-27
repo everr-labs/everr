@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { THROTTLE_MS } from "./realtime-subscription-machine";
 import { useRealtimeSubscription } from "./use-realtime-subscription";
 
 class MockEventSource {
@@ -20,12 +21,36 @@ class MockEventSource {
 
 vi.stubGlobal("EventSource", MockEventSource);
 
-function wrapper({ children }: { children: ReactNode }) {
-  const queryClient = new QueryClient({
+function createQueryClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+}
+
+function createWrapper(queryClient = createQueryClient()) {
+  return function wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  };
+}
+
+function wrapper({ children }: { children: ReactNode }) {
+  const Wrapper = createWrapper();
+  return <Wrapper>{children}</Wrapper>;
+}
+
+function latestEs(): MockEventSource {
+  const eventSource =
+    MockEventSource.instances[MockEventSource.instances.length - 1];
+  if (!eventSource) throw new Error("Expected an EventSource instance");
+  return eventSource;
+}
+
+function sendUpdate() {
+  latestEs().onopen?.();
+  latestEs().onmessage?.(
+    new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
   );
 }
 
@@ -36,6 +61,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("useRealtimeSubscription — tenant scope", () => {
@@ -55,6 +81,24 @@ describe("useRealtimeSubscription — tenant scope", () => {
     unmount();
 
     expect(MockEventSource.instances[0]?.close).toHaveBeenCalledOnce();
+  });
+
+  it("invalidates runs and errors queries on tenant updates", () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHook(() => useRealtimeSubscription({ scope: "tenant" }), {
+      wrapper: createWrapper(queryClient),
+    });
+    sendUpdate();
+
+    act(() => {
+      vi.advanceTimersByTime(THROTTLE_MS);
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["runs"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["errors"] });
   });
 });
 

@@ -21,6 +21,7 @@ export function useRealtimeSubscription(opts: SubscriptionOpts) {
       onInvalidate: () => {
         if (opts.scope === "tenant") {
           void queryClient.invalidateQueries({ queryKey: ["runs"] });
+          void queryClient.invalidateQueries({ queryKey: ["errors"] });
         } else {
           void queryClient.invalidateQueries({
             queryKey: ["runs", "details", traceId],

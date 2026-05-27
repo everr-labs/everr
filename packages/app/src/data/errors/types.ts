@@ -16,6 +16,11 @@ export type ErrorIssueSummary = {
   latestTimestamp: string;
 };
 
+export type ErrorIssuesResult = {
+  issues: ErrorIssueSummary[];
+  totalCount: number;
+};
+
 export type ErrorOccurrence = {
   fingerprint: string;
   timestamp: string;

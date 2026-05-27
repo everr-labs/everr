@@ -14,7 +14,9 @@ describe("error query options", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-26T11:00:00.000Z"));
 
-    const searchErrorIssues = vi.fn().mockResolvedValue([]);
+    const searchErrorIssues = vi
+      .fn()
+      .mockResolvedValue({ issues: [], totalCount: 0 });
     const options = errorIssuesOptions({
       searchErrorIssues,
       timeRange: { from: "now-1h", to: "now" },
@@ -24,6 +26,7 @@ describe("error query options", () => {
       fingerprint: "",
       sort: "lastSeen",
       limit: 50,
+      offset: 100,
     });
 
     await (options.queryFn as () => Promise<unknown>)();
@@ -34,6 +37,8 @@ describe("error query options", () => {
         toTs: "2026-05-26 11:00:00.000",
         q: "boom",
         service: ["web"],
+        limit: 50,
+        offset: 100,
       }),
     });
     expect(options.refetchInterval).toBe(false);

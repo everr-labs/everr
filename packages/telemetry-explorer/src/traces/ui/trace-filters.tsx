@@ -96,7 +96,7 @@ export function TraceFilters({
         <ToggleGroup
           value={[value.status]}
           variant="outline"
-          size="sm"
+          size="lg"
           spacing={0}
           onValueChange={(next) => {
             const selected = next[0];

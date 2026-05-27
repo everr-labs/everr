@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -79,6 +80,16 @@ function renderWithRouter(children: ReactNode) {
   return render(<RouterProvider router={router} />);
 }
 
+function renderWithQueryClient(children: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  );
+}
+
 describe("ErrorIssueList", () => {
   it("renders grouped issue rows", () => {
     render(
@@ -127,7 +138,7 @@ describe("ErrorFilters", () => {
 
   it("submits search text and sort changes", async () => {
     const onChange = vi.fn();
-    render(
+    renderWithQueryClient(
       <ErrorFilters
         value={defaultValue}
         services={["web", "api"]}
@@ -149,7 +160,7 @@ describe("ErrorFilters", () => {
 
   it("syncs search draft from route state and clears it", async () => {
     const onChange = vi.fn();
-    const { rerender } = render(
+    const { rerender } = renderWithQueryClient(
       <ErrorFilters
         value={{ ...defaultValue, q: "boom" }}
         services={["web", "api"]}
@@ -161,11 +172,19 @@ describe("ErrorFilters", () => {
     expect(input).toHaveValue("boom");
 
     rerender(
-      <ErrorFilters
-        value={{ ...defaultValue, q: "external" }}
-        services={["web", "api"]}
-        onChange={onChange}
-      />,
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+          })
+        }
+      >
+        <ErrorFilters
+          value={{ ...defaultValue, q: "external" }}
+          services={["web", "api"]}
+          onChange={onChange}
+        />
+      </QueryClientProvider>,
     );
     expect(input).toHaveValue("external");
 
@@ -174,9 +193,9 @@ describe("ErrorFilters", () => {
     expect(onChange).toHaveBeenCalledWith({ q: "" });
   });
 
-  it("toggles service filters", async () => {
+  it("uses the logs service filter combobox", async () => {
     const onChange = vi.fn();
-    render(
+    renderWithQueryClient(
       <ErrorFilters
         value={{ ...defaultValue, service: ["web"] }}
         services={["web", "api"]}
@@ -184,16 +203,56 @@ describe("ErrorFilters", () => {
       />,
     );
 
-    const web = screen.getByRole("button", { name: "web" });
-    const api = screen.getByRole("button", { name: "api" });
-    expect(web).toHaveAttribute("aria-pressed", "true");
-    expect(api).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText("Service")).toBeInTheDocument();
+    expect(screen.getByText("web")).toBeInTheDocument();
 
-    await userEvent.click(web);
-    expect(onChange).toHaveBeenCalledWith({ service: [] });
+    await userEvent.click(screen.getByRole("combobox", { name: "Service" }));
+    await userEvent.click(await screen.findByText("api"));
 
-    await userEvent.click(api);
     expect(onChange).toHaveBeenCalledWith({ service: ["web", "api"] });
+  });
+
+  it("places the service filter before the labeled order filter", () => {
+    renderWithQueryClient(
+      <ErrorFilters
+        value={defaultValue}
+        services={["web", "api"]}
+        onChange={() => {}}
+      />,
+    );
+
+    const serviceLabel = screen.getByText("Service");
+    const orderLabel = screen.getByText("Order");
+
+    expect(
+      serviceLabel.compareDocumentPosition(orderLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Order" })).toHaveAttribute(
+      "data-size",
+      "lg",
+    );
+    expect(screen.getByRole("button", { name: "Count" })).toHaveClass(
+      "bg-transparent",
+    );
+  });
+
+  it("keeps stale selected service filters visible so they can be cleared", async () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <ErrorFilters
+        value={{ ...defaultValue, service: ["worker"] }}
+        services={["web", "api"]}
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.getByText("worker")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove worker" }),
+    );
+    expect(onChange).toHaveBeenCalledWith({ service: [] });
   });
 });
 
@@ -271,6 +330,28 @@ describe("error detail components", () => {
     expect(screen.getByText("GET /checkout")).toBeInTheDocument();
     expect(screen.getByText("createCheckoutSession")).toBeInTheDocument();
     expect(screen.getByText("error span")).toBeInTheDocument();
+  });
+
+  it("does not render the related trace panel without a trace id", async () => {
+    renderWithRouter(
+      <ErrorTracePanel
+        occurrence={{ ...occurrence, traceId: "", spanId: "" }}
+        isPending={false}
+        isError={false}
+        onRetry={() => {}}
+        spans={[]}
+      />,
+    );
+
+    await expect(
+      screen.findByText(
+        "No spans were found for this trace.",
+        {},
+        { timeout: 50 },
+      ),
+    ).rejects.toThrow();
+    expect(screen.queryByText("Related trace")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open trace" })).toBeNull();
   });
 
   it("omits trace actions from the occurrences list", () => {

@@ -136,6 +136,25 @@ vi.mock("@/lib/auth.server", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+if (!globalThis.ResizeObserver) {
+  Object.defineProperty(globalThis, "ResizeObserver", {
+    writable: true,
+    value: class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  });
+}
+
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    writable: true,
+    value() {},
+  });
+}
+
+// ---------------------------------------------------------------------------
 afterEach(() => {
   cleanup();
 });

@@ -11,7 +11,8 @@ export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
   fingerprint: z.string().trim().default(""),
   occurrence: z.string().trim().default(""),
   sort: ErrorSortSchema.default("lastSeen"),
-  limit: z.number().int().positive().max(500).default(50),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(500).default(50),
 });
 export type ErrorIssueSearch = z.infer<typeof ErrorIssueSearchSchema>;
 
@@ -22,7 +23,8 @@ export const SearchErrorIssuesInputSchema = z.object({
   service: z.array(z.string()).default([]),
   fingerprint: z.string().trim().default(""),
   sort: ErrorSortSchema.default("lastSeen"),
-  limit: z.number().int().positive().max(500).default(50),
+  limit: z.coerce.number().int().positive().max(500).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 export type SearchErrorIssuesInput = z.infer<
   typeof SearchErrorIssuesInputSchema

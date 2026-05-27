@@ -23,6 +23,7 @@ export type ErrorIssuesOptionsInput<TResult> = {
   fingerprint: string;
   sort: ErrorSort;
   limit: number;
+  offset: number;
 };
 
 export function errorIssuesOptions<TResult>(
@@ -39,6 +40,7 @@ export function errorIssuesOptions<TResult>(
       fingerprint: input.fingerprint,
       sort: input.sort,
       limit: input.limit,
+      offset: input.offset,
     },
   ] as const;
 
@@ -55,6 +57,7 @@ export function errorIssuesOptions<TResult>(
           fingerprint: input.fingerprint,
           sort: input.sort,
           limit: input.limit,
+          offset: input.offset,
         },
       });
     },
