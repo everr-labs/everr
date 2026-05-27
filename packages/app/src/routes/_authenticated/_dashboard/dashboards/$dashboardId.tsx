@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
@@ -18,12 +18,16 @@ export const Route = createFileRoute(
     meta: [{ title: "Everr - Dashboard" }],
   }),
   component: DashboardPage,
-  errorComponent: DashboardNotFound,
+  notFoundComponent: DashboardNotFound,
   loader: async ({ context: { queryClient }, params: { dashboardId } }) => {
-    const dashboard = await queryClient.ensureQueryData(
-      dashboardOptions(dashboardId),
-    );
-    return { name: dashboard.spec.display?.name ?? dashboardId };
+    try {
+      const dashboard = await queryClient.ensureQueryData(
+        dashboardOptions(dashboardId),
+      );
+      return { name: dashboard.spec.display?.name ?? dashboardId };
+    } catch {
+      throw notFound();
+    }
   },
 });
 
