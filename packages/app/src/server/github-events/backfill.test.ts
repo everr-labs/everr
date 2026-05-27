@@ -303,11 +303,11 @@ describe("backfillRepo", () => {
       if (url.includes("/access_tokens")) {
         return mockTokenResponse();
       }
-      if (url.includes("/actions/runs?") && url.includes("branch=main")) {
-        return mockGitHubList("workflow_runs", runs);
-      }
       if (url.includes("/actions/runs?")) {
-        return mockGitHubList("workflow_runs", []);
+        return mockGitHubList(
+          "workflow_runs",
+          url.includes("branch=") ? [] : runs,
+        );
       }
       if (url.includes("/jobs")) {
         const runId = Number(url.match(/runs\/(\d+)\/jobs/)?.[1]);
@@ -364,16 +364,49 @@ describe("backfillRepo", () => {
     expect(result.runsReplayed).toBe(20);
   });
 
-  it("falls back to no branch filter when main and master have no runs", async () => {
-    const { runs, jobs } = makeSingleRunWithJob();
+  it("imports workflow runs from any branch", async () => {
+    const runs = [
+      makeRun({ id: 1, head_branch: "main" }),
+      makeRun({ id: 2, head_branch: "feature/import-me" }),
+    ];
+    const jobs = [
+      [makeJob({ id: 101, run_id: 1, head_branch: "main" })],
+      [makeJob({ id: 201, run_id: 2, head_branch: "feature/import-me" })],
+    ];
+    const runListUrls: string[] = [];
 
     mockFetch.mockImplementation(async (url: string) => {
       if (url.includes("/access_tokens")) return mockTokenResponse();
-      // main and master return empty, unfiltered returns runs
-      if (url.includes("/actions/runs?") && url.includes("branch=")) {
-        return mockGitHubList("workflow_runs", []);
-      }
       if (url.includes("/actions/runs?")) {
+        runListUrls.push(url);
+        if (url.includes("branch=")) {
+          return mockGitHubList("workflow_runs", [runs[0]]);
+        }
+        return mockGitHubList("workflow_runs", runs);
+      }
+      if (url.includes("/jobs")) {
+        const runId = Number(url.match(/runs\/(\d+)\/jobs/)?.[1]);
+        const idx = runs.findIndex((r) => r.id === runId);
+        return mockGitHubList("jobs", idx >= 0 ? jobs[idx] : []);
+      }
+      return mockGitHubList("workflow_runs", []);
+    });
+
+    const { result } = await drainBackfill(999, "org-1", TEST_REPO);
+
+    expect(result.runsReplayed).toBe(2);
+    expect(result.jobsReplayed).toBe(2);
+    expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
+  });
+
+  it("uses no branch filter when listing runs", async () => {
+    const { runs, jobs } = makeSingleRunWithJob();
+    const runListUrls: string[] = [];
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/access_tokens")) return mockTokenResponse();
+      if (url.includes("/actions/runs?")) {
+        runListUrls.push(url);
         return mockGitHubList("workflow_runs", runs);
       }
       if (url.includes("/jobs")) {
@@ -386,6 +419,7 @@ describe("backfillRepo", () => {
 
     expect(result.runsReplayed).toBe(1);
     expect(result.jobsReplayed).toBe(1);
+    expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
   });
 
   it("handles repos with no workflow runs", async () => {

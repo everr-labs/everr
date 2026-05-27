@@ -8,7 +8,7 @@
  * Scope constraints (from spec):
  * - User-selected repos (one or more)
  * - 100 jobs per repo (soft quota — a run that pushes past 100 is fully included)
- * - Branch selection: main → master → no filter (picks first with runs)
+ * - Branch selection: no branch filter; import completed runs from any branch
  * - Only runs with conclusion "success" or "failure"
  *
  * All GitHub API calls (repos, runs, jobs) are made sequentially on purpose to
@@ -33,8 +33,6 @@ const logger = logs.getLogger("@everr/app/github-events/backfill");
 // ---------------------------------------------------------------------------
 
 export const JOB_QUOTA_PER_REPO = 100;
-/** Try main, then master, then no branch filter. Stop at the first with runs. */
-const BRANCH_CANDIDATES: (string | null)[] = ["main", "master", null];
 const VALID_CONCLUSIONS = new Set(["success", "failure"]);
 
 // ---------------------------------------------------------------------------
@@ -397,9 +395,8 @@ export async function listInstallationRepos(
 /**
  * Backfills historical GitHub Actions data for a single repo.
  *
- * Tries main, then master, then no branch filter — stops at the first
- * that returns runs. Replays completed runs and their jobs through the
- * collector pipeline. Stops at 100 jobs per repo (soft quota).
+ * Replays completed runs and their jobs from any branch through the collector
+ * pipeline. Stops at 100 jobs per repo (soft quota).
  */
 export async function* backfillRepo(
   installationId: number,
@@ -432,28 +429,23 @@ export async function* backfillRepo(
   let jobCount = 0;
   let runsProcessed = 0;
 
-  for (const branch of BRANCH_CANDIDATES) {
-    if (jobCount >= JOB_QUOTA_PER_REPO) break;
+  const runsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs?status=completed&per_page=100`;
 
-    const branchParam = branch ? `&branch=${branch}` : "";
-    const runsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs?status=completed${branchParam}&per_page=100`;
+  try {
+    const token = await getInstallationToken(installationId);
 
-    try {
-      const token = await getInstallationToken(installationId);
+    // Collect all valid runs, then dedup in one query
+    const candidateRuns: ApiWorkflowRun[] = [];
+    for await (const run of paginate<ApiWorkflowRun>(
+      token,
+      runsUrl,
+      "workflow_runs",
+    )) {
+      if (!VALID_CONCLUSIONS.has(run.conclusion ?? "")) continue;
+      candidateRuns.push(run);
+    }
 
-      // Collect all valid runs, then dedup in one query
-      const candidateRuns: ApiWorkflowRun[] = [];
-      for await (const run of paginate<ApiWorkflowRun>(
-        token,
-        runsUrl,
-        "workflow_runs",
-      )) {
-        if (!VALID_CONCLUSIONS.has(run.conclusion ?? "")) continue;
-        candidateRuns.push(run);
-      }
-
-      if (candidateRuns.length === 0) continue;
-
+    if (candidateRuns.length > 0) {
       const traceIds = candidateRuns.map((run) =>
         generateWorkflowTraceId(repo.id, run.id, run.run_attempt),
       );
@@ -528,16 +520,10 @@ export async function* backfillRepo(
           result.errors.push(`run ${run.id}: ${msg}`);
         }
       }
-
-      // Found runs on this branch — don't try the next candidate
-      break;
-    } catch (err) {
-      // Branch may not exist (404) — try next
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes("status=404")) {
-        result.errors.push(`branch ${branch ?? "all"}: ${msg}`);
-      }
     }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    result.errors.push(`runs: ${msg}`);
   }
 
   result.durationMs = Date.now() - started;
