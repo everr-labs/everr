@@ -1,14 +1,14 @@
 import type { Panel } from "@/data/dashboards/schema";
 import { PanelShell } from "../panel-shell";
-import type { QueryResultRow, TimeRange } from "./visualizations";
+import type { QueryResultRow, ResolvedTimeRange } from "./visualizations";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";
 
 interface PanelPreviewProps {
   panel: Panel;
   panelKey: string;
   data?: QueryResultRow[];
-  timeRange?: TimeRange;
-  onTimeRangeChange?: (range: TimeRange) => void;
+  timeRange?: ResolvedTimeRange;
+  onTimeRangeChange?: (range: ResolvedTimeRange) => void;
 }
 
 export function PanelPreview({

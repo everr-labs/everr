@@ -7,7 +7,7 @@ import { TimeSeriesChartVisualization } from "./time-series-chart/time-series-ch
 
 export type QueryResultRow = Record<string, string | number | boolean | null>;
 
-export interface TimeRange {
+export interface ResolvedTimeRange {
   from: Date;
   to: Date;
 }
@@ -15,8 +15,8 @@ export interface TimeRange {
 export interface VisualizationProps {
   plugin: PanelPlugin;
   data?: QueryResultRow[];
-  timeRange?: TimeRange;
-  onTimeRangeChange?: (range: TimeRange) => void;
+  timeRange?: ResolvedTimeRange;
+  onTimeRangeChange?: (range: ResolvedTimeRange) => void;
 }
 
 export interface VisualizationSettingsProps {

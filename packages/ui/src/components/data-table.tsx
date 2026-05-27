@@ -14,6 +14,7 @@ interface DataTableProps<T> {
   rowKey: (row: T, index: number) => string;
   emptyState?: ReactNode;
   stickyHeader?: boolean;
+  bordered?: boolean;
 }
 
 export function DataTable<T>({
@@ -22,14 +23,23 @@ export function DataTable<T>({
   rowKey,
   emptyState,
   stickyHeader,
+  bordered,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
     return <>{emptyState}</>;
   }
 
+  const isFirst = (i: number) => i === 0;
+  const isLast = (i: number) => i === columns.length - 1;
+
   return (
-    <div>
-      <table className="w-full border-separate border-spacing-0 text-sm">
+    <div className={bordered ? undefined : "overflow-x-auto"}>
+      <table
+        className={cn(
+          "w-full text-sm",
+          bordered && "border-separate border-spacing-0",
+        )}
+      >
         <thead className={cn(stickyHeader && "sticky top-0 z-10 bg-card")}>
           <tr className="text-left text-muted-foreground">
             {columns.map((col, i) => (
@@ -38,9 +48,14 @@ export function DataTable<T>({
                 className={cn(
                   "whitespace-nowrap",
                   col.className ??
-                    cn(
-                      "border-b border-r border-border px-3 py-2 font-medium last:border-r-0",
-                    ),
+                    (bordered
+                      ? "border-b border-r border-border px-3 py-2 font-medium last:border-r-0"
+                      : cn(
+                          "pb-2",
+                          !isLast(i) && "pr-4",
+                          isFirst(i) && "pl-3",
+                          isLast(i) && "pr-3",
+                        )),
                 )}
               >
                 {col.header}
@@ -48,17 +63,28 @@ export function DataTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody className="[&>tr:last-child>td]:border-b-0">
+        <tbody className={bordered ? "[&>tr:last-child>td]:border-b-0" : ""}>
           {data.map((row, rowIndex) => (
-            <tr key={rowKey(row, rowIndex)} className="hover:bg-muted/50">
+            <tr
+              key={rowKey(row, rowIndex)}
+              className={cn(
+                "hover:bg-muted/50",
+                !bordered && "border-b last:border-0",
+              )}
+            >
               {columns.map((col, i) => (
                 <td
                   key={i}
                   className={
                     col.cellClassName ??
-                    cn(
-                      "border-b border-r border-border px-3 py-2 last:border-r-0",
-                    )
+                    (bordered
+                      ? "border-b border-r border-border px-3 py-2 last:border-r-0"
+                      : cn(
+                          "py-2",
+                          !isLast(i) && "pr-4",
+                          isFirst(i) && "pl-3",
+                          isLast(i) && "pr-3",
+                        ))
                   }
                 >
                   {col.cell(row)}

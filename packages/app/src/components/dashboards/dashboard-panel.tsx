@@ -1,11 +1,11 @@
 import { Button } from "@everr/ui/components/button";
+import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Pencil, X } from "lucide-react";
 import { useCallback } from "react";
 import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
-import { resolveTimeRange, withTimeRange } from "@/lib/time-range";
 import { PanelShell } from "../panel-shell";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";
 

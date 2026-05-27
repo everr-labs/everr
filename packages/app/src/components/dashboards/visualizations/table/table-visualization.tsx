@@ -36,6 +36,7 @@ export function TableVisualization({ plugin, data }: VisualizationProps) {
           columns={columns}
           rowKey={(_, i) => String(i)}
           stickyHeader={plugin.spec.stickyHeader === true}
+          bordered
         />
       </div>
     </div>

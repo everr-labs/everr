@@ -4,6 +4,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@everr/ui/components/resizable";
+import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
@@ -13,7 +14,6 @@ import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions, panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { runPanelQuery } from "@/data/dashboards/server";
-import { resolveTimeRange, withTimeRange } from "@/lib/time-range";
 import { PanelPreview } from "./panel-preview";
 import { QueryEditor } from "./query-editor";
 import type { QueryResultRow } from "./visualizations";
