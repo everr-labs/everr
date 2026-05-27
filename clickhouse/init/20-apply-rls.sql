@@ -30,3 +30,10 @@ ON app.metrics_sum
 FOR SELECT
 USING tenant_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
+
+DROP ROW POLICY IF EXISTS tenant_filter_metrics_histogram ON app.metrics_histogram;
+CREATE ROW POLICY tenant_filter_metrics_histogram
+ON app.metrics_histogram
+FOR SELECT
+USING tenant_id = getSetting('SQL_everr_tenant_id')
+TO app_ro;

@@ -110,6 +110,7 @@ describe("provisionSqlApiOrgUser", () => {
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_logs\` ON app.\`logs\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
     ]);
   });
 });
@@ -124,6 +125,7 @@ describe("deprovisionSqlApiOrgUser", () => {
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_logs\` ON app.\`logs\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\``,
       `DROP USER IF EXISTS \`${ORG_USER}\``,
     ]);
   });
