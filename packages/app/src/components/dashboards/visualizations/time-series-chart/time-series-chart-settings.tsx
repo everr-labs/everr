@@ -47,6 +47,30 @@ export function TimeSeriesChartSettings({
       </div>
 
       <div className="flex flex-col gap-2">
+        <Label>Line width</Label>
+        <ToggleGroup
+          value={[
+            String(typeof spec.lineWidth === "number" ? spec.lineWidth : 1.5),
+          ]}
+          onValueChange={(next) => {
+            if (next[0]) onChange({ ...spec, lineWidth: Number(next[0]) });
+          }}
+          variant="outline"
+          size="sm"
+        >
+          <ToggleGroupItem value="1" aria-label="Thin">
+            Thin
+          </ToggleGroupItem>
+          <ToggleGroupItem value="1.5" aria-label="Normal">
+            Normal
+          </ToggleGroupItem>
+          <ToggleGroupItem value="2.5" aria-label="Thick">
+            Thick
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      <div className="flex flex-col gap-2">
         <Label htmlFor="ts-unit">Unit</Label>
         <Input
           id="ts-unit"

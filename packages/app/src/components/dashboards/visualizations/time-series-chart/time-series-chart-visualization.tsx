@@ -3,13 +3,20 @@ import {
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   CartesianGrid,
+  Customized,
   Line,
   LineChart,
   ReferenceArea,
@@ -48,6 +55,52 @@ function getValueKeys(row: QueryResultRow, timeKey: string): string[] {
   );
 }
 
+function getGroupKeys(row: QueryResultRow, timeKey: string): string[] {
+  return Object.keys(row).filter(
+    (k) => k !== timeKey && typeof row[k] === "string",
+  );
+}
+
+function sanitizeKey(name: string): string {
+  return name.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+function pivotByGroup(
+  rows: QueryResultRow[],
+  timeKey: string,
+  groupKey: string,
+  valueKey: string,
+): {
+  pivoted: QueryResultRow[];
+  seriesKeys: string[];
+  labelMap: Map<string, string>;
+} {
+  const byTimestamp = new Map<string | number, QueryResultRow>();
+  const seriesSet = new Set<string>();
+  const labelMap = new Map<string, string>();
+
+  for (const row of rows) {
+    const ts = row[timeKey];
+    const group = String(row[groupKey]);
+    const key = sanitizeKey(group);
+    const raw = row[valueKey];
+    const value = typeof raw === "string" ? Number(raw) : raw;
+    seriesSet.add(key);
+    labelMap.set(key, group);
+
+    let entry = byTimestamp.get(ts as string | number);
+    if (!entry) {
+      entry = { [timeKey]: ts };
+      byTimestamp.set(ts as string | number, entry);
+    }
+    entry[key] = value;
+  }
+
+  const seriesKeys = [...seriesSet].sort();
+  const pivoted = [...byTimestamp.values()];
+  return { pivoted, seriesKeys, labelMap };
+}
+
 function toTimestamp(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") {
@@ -74,36 +127,27 @@ function createTickFormatter(domain?: [number, number]) {
   };
 }
 
-function formatTooltipLabel(
-  _label: unknown,
-  payload: Array<{ payload?: Record<string, unknown> }>,
-): string {
-  const ts = payload[0]?.payload?.[TS_KEY];
-  if (typeof ts === "number") return new Date(ts).toLocaleString();
-  return String(_label);
-}
-
 const TICK_INTERVALS = [
-  1_000, // 1s
-  5_000, // 5s
-  10_000, // 10s
-  30_000, // 30s
-  60_000, // 1m
-  5 * 60_000, // 5m
-  10 * 60_000, // 10m
-  30 * 60_000, // 30m
-  3_600_000, // 1h
-  3 * 3_600_000, // 3h
-  6 * 3_600_000, // 6h
-  12 * 3_600_000, // 12h
-  86_400_000, // 1d
-  2 * 86_400_000, // 2d
-  3 * 86_400_000, // 3d
-  7 * 86_400_000, // 1w
-  14 * 86_400_000, // 2w
-  30 * 86_400_000, // 1mo
-  90 * 86_400_000, // 3mo
-  365 * 86_400_000, // 1y
+  1_000,
+  5_000,
+  10_000,
+  30_000,
+  60_000,
+  5 * 60_000,
+  10 * 60_000,
+  30 * 60_000,
+  3_600_000,
+  3 * 3_600_000,
+  6 * 3_600_000,
+  12 * 3_600_000,
+  86_400_000,
+  2 * 86_400_000,
+  3 * 86_400_000,
+  7 * 86_400_000,
+  14 * 86_400_000,
+  30 * 86_400_000,
+  90 * 86_400_000,
+  365 * 86_400_000,
 ];
 
 function generateTicks(domain: [number, number], maxTicks: number): number[] {
@@ -188,6 +232,8 @@ export function TimeSeriesChartVisualization({
 }: VisualizationProps) {
   const showLegend = plugin.spec.showLegend === true;
   const connectNulls = plugin.spec.connectNulls === true;
+  const lineWidth =
+    typeof plugin.spec.lineWidth === "number" ? plugin.spec.lineWidth : 1.5;
   const unit = typeof plugin.spec.unit === "string" ? plugin.spec.unit : "";
   const curveType: CurveType =
     typeof plugin.spec.curveType === "string"
@@ -199,6 +245,11 @@ export function TimeSeriesChartVisualization({
   const [maxTicks, setMaxTicks] = useState(6);
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);
+  const [tooltipState, setTooltipState] = useState<{
+    clientX: number;
+    clientY: number;
+    index: number;
+  } | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -215,42 +266,60 @@ export function TimeSeriesChartVisualization({
     return () => observer.disconnect();
   }, []);
 
-  const { chartData, valueKeys, chartConfig, domain, ticks } = useMemo(() => {
-    const dm: [number, number] | undefined = timeRange
-      ? [timeRange.from.getTime(), timeRange.to.getTime()]
-      : undefined;
+  const domain: [number, number] | undefined = useMemo(
+    () =>
+      timeRange
+        ? [timeRange.from.getTime(), timeRange.to.getTime()]
+        : undefined,
+    [timeRange],
+  );
 
+  const { chartData, valueKeys, chartConfig } = useMemo(() => {
     if (!data || data.length === 0) {
-      return {
-        chartData: [],
-        valueKeys: [],
-        chartConfig: {},
-        domain: dm,
-        ticks: dm ? generateTicks(dm, maxTicks) : undefined,
-      };
+      return { chartData: [], valueKeys: [], chartConfig: {} };
     }
 
     const tk = detectTimeKey(data);
     if (!tk) {
-      return {
-        chartData: [],
-        valueKeys: [],
-        chartConfig: {},
-        domain: dm,
-        ticks: dm ? generateTicks(dm, maxTicks) : undefined,
-      };
+      return { chartData: [], valueKeys: [], chartConfig: {} };
     }
 
-    const vk = getValueKeys(data[0]!, tk);
+    const groupKeys = getGroupKeys(data[0]!, tk);
+    const rawValueKeys = getValueKeys(data[0]!, tk);
+
+    let rows: QueryResultRow[];
+    let vk: string[];
+    let labels: Map<string, string> | undefined;
+
+    if (groupKeys.length >= 1 && rawValueKeys.length === 1) {
+      const compositeKey = "__group__";
+      const keyed = data.map((row) => ({
+        ...row,
+        [compositeKey]: groupKeys.map((k) => row[k]).join(" · "),
+      }));
+      const { pivoted, seriesKeys, labelMap } = pivotByGroup(
+        keyed,
+        tk,
+        compositeKey,
+        rawValueKeys[0]!,
+      );
+      rows = pivoted;
+      vk = seriesKeys;
+      labels = labelMap;
+    } else {
+      rows = data;
+      vk = rawValueKeys;
+    }
+
     const config: ChartConfig = {};
     for (let i = 0; i < vk.length; i++) {
       config[vk[i]!] = {
-        label: vk[i],
+        label: labels?.get(vk[i]!) ?? vk[i],
         color: COLORS[i % COLORS.length],
       };
     }
 
-    const mapped = data.map((row) => ({
+    const mapped = rows.map((row) => ({
       ...row,
       [TS_KEY]: toTimestamp(row[tk]),
     }));
@@ -259,25 +328,52 @@ export function TimeSeriesChartVisualization({
     const interval = detectInterval(timestamps);
 
     let filled: Array<Record<string, unknown>>;
-    if (dm && interval && interval > 0) {
-      filled = fillAndClamp(mapped, vk, dm, interval);
-    } else if (dm) {
+    if (domain && interval && interval > 0) {
+      filled = fillAndClamp(mapped, vk, domain, interval);
+    } else if (domain) {
       filled = mapped.filter((r) => {
         const ts = r[TS_KEY] as number;
-        return ts >= dm[0] && ts <= dm[1];
+        return ts >= domain[0] && ts <= domain[1];
       });
     } else {
       filled = mapped;
     }
 
-    return {
-      chartData: filled,
-      valueKeys: vk,
-      chartConfig: config,
-      domain: dm,
-      ticks: dm ? generateTicks(dm, maxTicks) : undefined,
-    };
-  }, [data, timeRange, maxTicks]);
+    return { chartData: filled, valueKeys: vk, chartConfig: config };
+  }, [data, domain]);
+
+  const ticks = useMemo(
+    () => (domain ? generateTicks(domain, maxTicks) : undefined),
+    [domain, maxTicks],
+  );
+
+  const handleChartMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!containerRef.current || !domain || chartData.length === 0) return;
+      const plotRect = getPlotArea(containerRef.current);
+      if (!plotRect) return;
+      const ts = pxToTimestamp(e.clientX, plotRect, domain);
+      let nearest = 0;
+      let minDist = Math.abs((chartData[0]![TS_KEY] as number) - ts);
+      for (let i = 1; i < chartData.length; i++) {
+        const dist = Math.abs((chartData[i]![TS_KEY] as number) - ts);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = i;
+        }
+      }
+      setTooltipState({
+        clientX: e.clientX,
+        clientY: e.clientY,
+        index: nearest,
+      });
+    },
+    [domain, chartData],
+  );
+
+  const handleChartMouseLeave = useCallback(() => {
+    setTooltipState(null);
+  }, []);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -329,20 +425,26 @@ export function TimeSeriesChartVisualization({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
       ref={containerRef}
-      className="h-full w-full select-none"
+      className="relative h-full w-full select-none"
+      onMouseMove={handleChartMouseMove}
+      onMouseLeave={handleChartMouseLeave}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      <ChartContainer config={chartConfig} className="h-full w-full">
+      <ChartContainer
+        config={chartConfig}
+        className="h-full w-full"
+        debounce={100}
+      >
         <LineChart data={chartData} margin={{ left: 12, right: 12, top: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey={TS_KEY}
             type="number"
-            scale="time"
             domain={domain ?? ["dataMin", "dataMax"]}
             ticks={ticks}
             tickLine={false}
@@ -356,10 +458,54 @@ export function TimeSeriesChartVisualization({
             tickMargin={8}
             tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
           />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent labelFormatter={formatTooltipLabel} />
-            }
+          <Customized
+            component={(props: Record<string, unknown>) => {
+              if (!tooltipState) return null;
+              const row = chartData[tooltipState.index];
+              if (!row) return null;
+              const xMap = props.xAxisMap as
+                | Record<string, { scale: (v: number) => number }>
+                | undefined;
+              const yMap = props.yAxisMap as
+                | Record<string, { scale: (v: number) => number }>
+                | undefined;
+              const xScale = xMap ? Object.values(xMap)[0]?.scale : undefined;
+              const yScale = yMap ? Object.values(yMap)[0]?.scale : undefined;
+              if (!xScale || !yScale) return null;
+              const cx = xScale(row[TS_KEY] as number);
+              const offset = props.offset as
+                | { top?: number; height?: number }
+                | undefined;
+              const top = offset?.top ?? 0;
+              const height = offset?.height ?? 0;
+              return (
+                <g>
+                  <line
+                    x1={cx}
+                    x2={cx}
+                    y1={top}
+                    y2={top + height}
+                    stroke="var(--border)"
+                    strokeDasharray="3 3"
+                  />
+                  {valueKeys.map((key) => {
+                    const val = row[key];
+                    if (val == null || typeof val !== "number") return null;
+                    return (
+                      <circle
+                        key={key}
+                        cx={cx}
+                        cy={yScale(val)}
+                        r={4}
+                        fill={chartConfig[key]?.color}
+                        stroke="var(--card)"
+                        strokeWidth={2}
+                      />
+                    );
+                  })}
+                </g>
+              );
+            }}
           />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
           {valueKeys.map((key) => (
@@ -368,7 +514,7 @@ export function TimeSeriesChartVisualization({
               dataKey={key}
               type={curveType}
               stroke={`var(--color-${key})`}
-              strokeWidth={2}
+              strokeWidth={lineWidth}
               dot={false}
               connectNulls={connectNulls}
               isAnimationActive={false}
@@ -386,6 +532,44 @@ export function TimeSeriesChartVisualization({
           )}
         </LineChart>
       </ChartContainer>
+      {tooltipState &&
+        chartData[tooltipState.index] &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-50 rounded-md border border-border bg-card px-3 py-2 text-xs shadow-md"
+            style={{
+              left: tooltipState.clientX + 12,
+              top: tooltipState.clientY + 12,
+            }}
+          >
+            <div className="mb-1 text-muted-foreground">
+              {new Date(
+                chartData[tooltipState.index]![TS_KEY] as number,
+              ).toLocaleString()}
+            </div>
+            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
+              {valueKeys.map((key) => {
+                const val = chartData[tooltipState.index]![key];
+                if (val == null) return null;
+                return (
+                  <Fragment key={key}>
+                    <span
+                      className="inline-block size-2.5 rounded-full"
+                      style={{ backgroundColor: chartConfig[key]?.color }}
+                    />
+                    <span className="text-muted-foreground">
+                      {chartConfig[key]?.label ?? key}
+                    </span>
+                    <span className="text-right font-medium tabular-nums">
+                      {unit ? `${val}${unit}` : String(val)}
+                    </span>
+                  </Fragment>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

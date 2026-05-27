@@ -36,6 +36,7 @@ import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authen
 import { Route as AuthenticatedDashboardReposRouteImport } from './routes/_authenticated/_dashboard/repos'
 import { Route as AuthenticatedDashboardLogsRouteImport } from './routes/_authenticated/_dashboard/logs'
 import { Route as AuthenticatedDashboardIngestKeysRouteImport } from './routes/_authenticated/_dashboard/ingest-keys'
+import { Route as AuthenticatedDashboardErrorsRouteImport } from './routes/_authenticated/_dashboard/errors'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
@@ -49,6 +50,7 @@ import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/stat
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as AuthenticatedDashboardTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/traces/$traceId'
+import { Route as AuthenticatedDashboardErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/errors/$fingerprint'
 import { Route as AuthenticatedDashboardDashboardsNewRouteImport } from './routes/_authenticated/_dashboard/dashboards/new'
 import { Route as AuthenticatedDashboardDashboardsDashboardIdRouteImport } from './routes/_authenticated/_dashboard/dashboards/$dashboardId'
 import { Route as AuthenticatedDashboardCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/checkout.success'
@@ -204,6 +206,12 @@ const AuthenticatedDashboardIngestKeysRoute =
     path: '/ingest-keys',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardErrorsRoute =
+  AuthenticatedDashboardErrorsRouteImport.update({
+    id: '/errors',
+    path: '/errors',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardCostAnalysisRoute =
   AuthenticatedDashboardCostAnalysisRouteImport.update({
     id: '/cost-analysis',
@@ -276,6 +284,12 @@ const AuthenticatedDashboardTracesTraceIdRoute =
     id: '/$traceId',
     path: '/$traceId',
     getParentRoute: () => AuthenticatedDashboardTracesRoute,
+  } as any)
+const AuthenticatedDashboardErrorsFingerprintRoute =
+  AuthenticatedDashboardErrorsFingerprintRouteImport.update({
+    id: '/$fingerprint',
+    path: '/$fingerprint',
+    getParentRoute: () => AuthenticatedDashboardErrorsRoute,
   } as any)
 const AuthenticatedDashboardDashboardsNewRoute =
   AuthenticatedDashboardDashboardsNewRouteImport.update({
@@ -376,6 +390,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
   '/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/logs': typeof AuthenticatedDashboardLogsRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
@@ -401,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/dashboards/$dashboardId': typeof AuthenticatedDashboardDashboardsDashboardIdRoute
   '/dashboards/new': typeof AuthenticatedDashboardDashboardsNewRoute
+  '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -429,6 +445,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
   '/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/logs': typeof AuthenticatedDashboardLogsRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
@@ -452,6 +469,7 @@ export interface FileRoutesByTo {
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/dashboards/$dashboardId': typeof AuthenticatedDashboardDashboardsDashboardIdRoute
   '/dashboards/new': typeof AuthenticatedDashboardDashboardsNewRoute
+  '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -484,6 +502,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
   '/_authenticated/_dashboard/billing': typeof AuthenticatedDashboardBillingRoute
   '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
+  '/_authenticated/_dashboard/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
   '/_authenticated/_dashboard/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/_authenticated/_dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/_authenticated/_dashboard/repos': typeof AuthenticatedDashboardReposRoute
@@ -510,6 +529,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/_authenticated/_dashboard/dashboards/$dashboardId': typeof AuthenticatedDashboardDashboardsDashboardIdRoute
   '/_authenticated/_dashboard/dashboards/new': typeof AuthenticatedDashboardDashboardsNewRoute
+  '/_authenticated/_dashboard/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/_authenticated/_dashboard/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -540,6 +560,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/billing'
     | '/cost-analysis'
+    | '/errors'
     | '/ingest-keys'
     | '/logs'
     | '/repos'
@@ -565,6 +586,7 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/dashboards/$dashboardId'
     | '/dashboards/new'
+    | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
@@ -593,6 +615,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/billing'
     | '/cost-analysis'
+    | '/errors'
     | '/ingest-keys'
     | '/logs'
     | '/repos'
@@ -616,6 +639,7 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/dashboards/$dashboardId'
     | '/dashboards/new'
+    | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
@@ -647,6 +671,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/account'
     | '/_authenticated/_dashboard/billing'
     | '/_authenticated/_dashboard/cost-analysis'
+    | '/_authenticated/_dashboard/errors'
     | '/_authenticated/_dashboard/ingest-keys'
     | '/_authenticated/_dashboard/logs'
     | '/_authenticated/_dashboard/repos'
@@ -673,6 +698,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/checkout/success'
     | '/_authenticated/_dashboard/dashboards/$dashboardId'
     | '/_authenticated/_dashboard/dashboards/new'
+    | '/_authenticated/_dashboard/errors/$fingerprint'
     | '/_authenticated/_dashboard/traces/$traceId'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
@@ -896,6 +922,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardIngestKeysRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/_dashboard/errors': {
+      id: '/_authenticated/_dashboard/errors'
+      path: '/errors'
+      fullPath: '/errors'
+      preLoaderRoute: typeof AuthenticatedDashboardErrorsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/_dashboard/cost-analysis': {
       id: '/_authenticated/_dashboard/cost-analysis'
       path: '/cost-analysis'
@@ -986,6 +1019,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/traces/$traceId'
       preLoaderRoute: typeof AuthenticatedDashboardTracesTraceIdRouteImport
       parentRoute: typeof AuthenticatedDashboardTracesRoute
+    }
+    '/_authenticated/_dashboard/errors/$fingerprint': {
+      id: '/_authenticated/_dashboard/errors/$fingerprint'
+      path: '/$fingerprint'
+      fullPath: '/errors/$fingerprint'
+      preLoaderRoute: typeof AuthenticatedDashboardErrorsFingerprintRouteImport
+      parentRoute: typeof AuthenticatedDashboardErrorsRoute
     }
     '/_authenticated/_dashboard/dashboards/new': {
       id: '/_authenticated/_dashboard/dashboards/new'
@@ -1125,6 +1165,21 @@ const AuthRouteChildren: AuthRouteChildren = {
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
+interface AuthenticatedDashboardErrorsRouteChildren {
+  AuthenticatedDashboardErrorsFingerprintRoute: typeof AuthenticatedDashboardErrorsFingerprintRoute
+}
+
+const AuthenticatedDashboardErrorsRouteChildren: AuthenticatedDashboardErrorsRouteChildren =
+  {
+    AuthenticatedDashboardErrorsFingerprintRoute:
+      AuthenticatedDashboardErrorsFingerprintRoute,
+  }
+
+const AuthenticatedDashboardErrorsRouteWithChildren =
+  AuthenticatedDashboardErrorsRoute._addFileChildren(
+    AuthenticatedDashboardErrorsRouteChildren,
+  )
+
 interface AuthenticatedDashboardRunsTraceIdRouteRouteChildren {
   AuthenticatedDashboardRunsTraceIdTraceRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   AuthenticatedDashboardRunsTraceIdIndexRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRoute
@@ -1185,6 +1240,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
   AuthenticatedDashboardBillingRoute: typeof AuthenticatedDashboardBillingRoute
   AuthenticatedDashboardCostAnalysisRoute: typeof AuthenticatedDashboardCostAnalysisRoute
+  AuthenticatedDashboardErrorsRoute: typeof AuthenticatedDashboardErrorsRouteWithChildren
   AuthenticatedDashboardIngestKeysRoute: typeof AuthenticatedDashboardIngestKeysRoute
   AuthenticatedDashboardLogsRoute: typeof AuthenticatedDashboardLogsRoute
   AuthenticatedDashboardReposRoute: typeof AuthenticatedDashboardReposRoute
@@ -1208,6 +1264,8 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
     AuthenticatedDashboardBillingRoute: AuthenticatedDashboardBillingRoute,
     AuthenticatedDashboardCostAnalysisRoute:
       AuthenticatedDashboardCostAnalysisRoute,
+    AuthenticatedDashboardErrorsRoute:
+      AuthenticatedDashboardErrorsRouteWithChildren,
     AuthenticatedDashboardIngestKeysRoute:
       AuthenticatedDashboardIngestKeysRoute,
     AuthenticatedDashboardLogsRoute: AuthenticatedDashboardLogsRoute,
