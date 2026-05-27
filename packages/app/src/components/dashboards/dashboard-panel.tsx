@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
+import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Pencil, X } from "lucide-react";
@@ -59,12 +60,18 @@ export function DashboardPanel({
   const status = sql && isPending ? "pending" : "success";
 
   return (
-    <div className="relative h-full">
+    <div
+      className={cn(
+        "relative h-full",
+        isEditing && "drag-handle cursor-grab active:cursor-grabbing",
+      )}
+    >
       {isEditing && (
-        <div className="absolute -top-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-border bg-card px-1 py-0.5 shadow-sm">
+        <div className="absolute top-0 left-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md border border-border bg-card px-1 py-0.5 shadow-sm">
           <Button
             variant="ghost"
             size="icon-xs"
+            className="cursor-pointer"
             render={
               <Link
                 to="/dashboards/$dashboardId/panel/$panelKey"
@@ -78,6 +85,7 @@ export function DashboardPanel({
           <Button
             variant="ghost"
             size="icon-xs"
+            className="cursor-pointer"
             onClick={onRemove}
             aria-label="Remove panel"
           >
@@ -89,13 +97,8 @@ export function DashboardPanel({
         title={display.name ?? panelKey}
         description={display.description}
         status={status}
-        className="h-full"
+        className={cn("h-full", isEditing && "pointer-events-none")}
         inset={getVisualizationInset(plugin.kind)}
-        headerClassName={
-          isEditing
-            ? "drag-handle cursor-grab active:cursor-grabbing"
-            : undefined
-        }
       >
         <PanelVisualization
           plugin={plugin}
