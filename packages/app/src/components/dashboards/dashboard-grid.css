@@ -21,7 +21,6 @@
 
 .layout-editing .react-grid-item {
   overflow: visible;
-  z-index: 1;
 }
 
 .layout-editing .react-grid-item:hover {
