@@ -166,11 +166,6 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
       const sourceItem = dashboard.spec.layouts[0]?.spec.items.find(
         (item) => item.content.$ref === panelRefFromKey(panelKey),
       );
-      const maxY =
-        dashboard.spec.layouts[0]?.spec.items.reduce(
-          (max, item) => Math.max(max, item.y + item.height),
-          0,
-        ) ?? 0;
 
       updatePanel(newKey, structuredClone(source));
       updateLayout([
@@ -181,8 +176,8 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
             items: [
               ...(dashboard.spec.layouts[0]?.spec.items ?? []),
               {
-                x: 0,
-                y: maxY,
+                x: sourceItem?.x ?? 0,
+                y: (sourceItem?.y ?? 0) + (sourceItem?.height ?? 8),
                 width: sourceItem?.width ?? 12,
                 height: sourceItem?.height ?? 8,
                 content: { $ref: panelRefFromKey(newKey) },
