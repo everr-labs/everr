@@ -94,6 +94,7 @@ export function FilterCombobox<TData>({
                       variant="ghost"
                       size="icon"
                       className="size-3.5"
+                      aria-label={`Remove ${val}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleSelection(val);
