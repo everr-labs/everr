@@ -181,3 +181,25 @@ SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id
 FROM otel.otel_metrics_exponential_histogram;
+
+-- Metrics (Summary): tenant-enriched read table + MV
+CREATE TABLE IF NOT EXISTS app.metrics_summary
+ENGINE = MergeTree
+PARTITION BY toDate(TimeUnix)
+ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
+SETTINGS index_granularity = 8192
+AS
+SELECT
+  *,
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+FROM otel.otel_metrics_summary
+WHERE 1 = 0;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_summary_mv
+TO app.metrics_summary
+AS
+SELECT
+  *,
+  ResourceAttributes['everr.tenant.id'] AS tenant_id
+FROM otel.otel_metrics_summary;
