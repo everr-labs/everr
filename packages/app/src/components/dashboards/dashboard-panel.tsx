@@ -59,49 +59,51 @@ export function DashboardPanel({
   const status = sql && isPending ? "pending" : "success";
 
   return (
-    <PanelShell
-      title={display.name ?? panelKey}
-      description={display.description}
-      status={status}
-      className="h-full"
-      inset={getVisualizationInset(plugin.kind)}
-      headerClassName={
-        isEditing ? "drag-handle cursor-grab active:cursor-grabbing" : undefined
-      }
-      action={
-        isEditing ? (
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              render={
-                <Link
-                  to="/dashboards/$dashboardId/panel/$panelKey"
-                  params={{ dashboardId, panelKey }}
-                />
-              }
-              aria-label="Edit panel"
-            >
-              <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={onRemove}
-              aria-label="Remove panel"
-            >
-              <X />
-            </Button>
-          </div>
-        ) : undefined
-      }
-    >
-      <PanelVisualization
-        plugin={plugin}
-        data={queryResult?.rows}
-        timeRange={{ from: fromDate, to: toDate }}
-        onTimeRangeChange={handleTimeRangeChange}
-      />
-    </PanelShell>
+    <div className="relative h-full">
+      {isEditing && (
+        <div className="absolute -top-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-border bg-card px-1 py-0.5 shadow-sm">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            render={
+              <Link
+                to="/dashboards/$dashboardId/panel/$panelKey"
+                params={{ dashboardId, panelKey }}
+              />
+            }
+            aria-label="Edit panel"
+          >
+            <Pencil />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onRemove}
+            aria-label="Remove panel"
+          >
+            <X />
+          </Button>
+        </div>
+      )}
+      <PanelShell
+        title={display.name ?? panelKey}
+        description={display.description}
+        status={status}
+        className="h-full"
+        inset={getVisualizationInset(plugin.kind)}
+        headerClassName={
+          isEditing
+            ? "drag-handle cursor-grab active:cursor-grabbing"
+            : undefined
+        }
+      >
+        <PanelVisualization
+          plugin={plugin}
+          data={queryResult?.rows}
+          timeRange={{ from: fromDate, to: toDate }}
+          onTimeRangeChange={handleTimeRangeChange}
+        />
+      </PanelShell>
+    </div>
   );
 }
