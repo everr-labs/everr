@@ -167,6 +167,13 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
         (item) => item.content.$ref === panelRefFromKey(panelKey),
       );
 
+      const insertY = (sourceItem?.y ?? 0) + (sourceItem?.height ?? 8);
+      const newHeight = sourceItem?.height ?? 8;
+      const existingItems = (dashboard.spec.layouts[0]?.spec.items ?? []).map(
+        (item) =>
+          item.y >= insertY ? { ...item, y: item.y + newHeight } : item,
+      );
+
       updatePanel(newKey, structuredClone(source));
       updateLayout([
         {
@@ -174,12 +181,12 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
           spec: {
             ...dashboard.spec.layouts[0]?.spec,
             items: [
-              ...(dashboard.spec.layouts[0]?.spec.items ?? []),
+              ...existingItems,
               {
                 x: sourceItem?.x ?? 0,
-                y: (sourceItem?.y ?? 0) + (sourceItem?.height ?? 8),
+                y: insertY,
                 width: sourceItem?.width ?? 12,
-                height: sourceItem?.height ?? 8,
+                height: newHeight,
                 content: { $ref: panelRefFromKey(newKey) },
               },
             ],
