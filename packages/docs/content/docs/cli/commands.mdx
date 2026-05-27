@@ -49,9 +49,8 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
 ## Local Telemetry
 
 - `everr local start` — start the local OpenTelemetry collector
-- `everr local status` — check whether the local OpenTelemetry collector is running
+- `everr local status` — check whether the local OpenTelemetry collector is running and print local OTLP/SQL URLs
 - `everr local query "<SQL>"` — query local telemetry with read-only SQL
-- `everr local endpoint` — print the current local collector URL
 - `everr wrap -- <command>` — run a command normally and mirror stdout/stderr into local telemetry
   - Requires a running collector; if unavailable, the command is not run
   - Preserves the wrapped command's non-zero exit code

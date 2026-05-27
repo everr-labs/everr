@@ -13,7 +13,7 @@ Prefer real OpenTelemetry for runtime services. Use `everr wrap` only for bounde
 
 1. Run `everr local status`.
 2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
-3. Run `everr local endpoint` and use that OTLP/HTTP URL in exporters.
+3. Use the `otlp:` URL from `everr local status` in exporters.
 4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, and test runner.
 5. Add the smallest standard OTel setup for the stack: `service.name`, traces, logs, useful resource attributes, automatic error capture, and an OTLP/HTTP exporter.
 6. Gate local-only exporters so local collector URLs do not ship in production bundles.
@@ -26,7 +26,7 @@ Prefer real OpenTelemetry for runtime services. Use `everr wrap` only for bounde
 | --- | --- |
 | Check collector state | `everr local status` |
 | Start the CLI collector | `everr local start` |
-| Get the OTLP/HTTP endpoint | `everr local endpoint` |
+| Get the OTLP/HTTP endpoint | `everr local status` |
 | Verify telemetry arrived | `everr local query "<SQL>"` |
 | Capture build/lint output | `everr wrap -- <command>` |
 

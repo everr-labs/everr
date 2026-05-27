@@ -8,16 +8,15 @@ use predicates::str::{contains, diff};
 use support::CliTestEnv;
 
 #[test]
-fn endpoint_prints_only_collector_url() {
+fn endpoint_is_not_a_local_subcommand() {
     let env = CliTestEnv::new();
-    let collector_url = format!("{}\n", everr_core::build::otlp_http_origin());
 
     env.command()
         .args(["local", "endpoint"])
         .assert()
-        .success()
-        .stdout(diff(collector_url))
-        .stderr(diff(""));
+        .failure()
+        .stderr(contains("unrecognized subcommand"))
+        .stderr(contains("endpoint"));
 }
 
 #[test]

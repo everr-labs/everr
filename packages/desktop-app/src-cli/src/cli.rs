@@ -93,8 +93,6 @@ pub enum LocalSubcommand {
     Query(TelemetryQueryArgs),
     /// Check whether the local collector is running.
     Status,
-    /// Print the local collector URL.
-    Endpoint,
 }
 
 #[derive(Args, Debug)]
@@ -391,11 +389,11 @@ mod tests {
             Cli::try_parse_from(["everr", "wrap", "--", "cargo", "test"]).expect("wrap command");
         assert!(matches!(wrap.command, Commands::Wrap(_)));
 
-        let local = Cli::try_parse_from(["everr", "local", "endpoint"]).expect("local command");
+        let local = Cli::try_parse_from(["everr", "local", "status"]).expect("local command");
         let Commands::Local(local) = local.command else {
             panic!("expected local command");
         };
-        assert!(matches!(local.command, LocalSubcommand::Endpoint));
+        assert!(matches!(local.command, LocalSubcommand::Status));
     }
 
     #[test]

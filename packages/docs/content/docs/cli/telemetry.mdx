@@ -27,13 +27,13 @@ Useful flags:
 
 ### `everr local status`
 
-Checks whether the local collector healthcheck is reachable.
+Checks whether the local collector healthcheck is reachable and prints the local OTLP/HTTP and SQL URLs when it is running.
 
 ```shell
 everr local status
 ```
 
-It exits with code `0` when the collector is running and code `2` when it is stopped.
+It exits with code `0` when the collector is running and code `2` when it is stopped. Use the `otlp:` URL from this output when configuring local OpenTelemetry exporters.
 
 ### `everr local query`
 
@@ -46,14 +46,6 @@ everr local query "SELECT Timestamp, ServiceName, SpanName FROM otel_traces ORDE
 Useful flags:
 
 - `--format <table|json|ndjson>` — default `table` on TTY, `ndjson` otherwise.
-
-### `everr local endpoint`
-
-Prints the collector URL for the current build.
-
-```shell
-everr local endpoint
-```
 
 ### `everr wrap`
 
