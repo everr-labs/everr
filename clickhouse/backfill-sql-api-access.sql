@@ -65,7 +65,10 @@ CREATE ROLE IF NOT EXISTS sql_api_role SETTINGS PROFILE 'sql_api_profile';
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
 GRANT SELECT ON app.metrics_gauge TO sql_api_role;
-GRANT SELECT ON app.metrics_sum   TO sql_api_role;
+GRANT SELECT ON app.metrics_sum       TO sql_api_role;
+GRANT SELECT ON app.metrics_histogram              TO sql_api_role;
+GRANT SELECT ON app.metrics_exponential_histogram TO sql_api_role;
+GRANT SELECT ON app.metrics_summary              TO sql_api_role;
 
 -- Clean up accidental/manual system grants. SHOW TABLES handles schema
 -- discovery without exposing storage counters from system.tables or the
@@ -101,4 +104,10 @@ CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_gauge
   ON app.metrics_gauge FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_sum
-  ON app.metrics_sum   FOR SELECT USING 0 TO sql_api_role;
+  ON app.metrics_sum       FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_histogram
+  ON app.metrics_histogram              FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogram
+  ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
+  ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;
