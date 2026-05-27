@@ -49,6 +49,7 @@ const SQL_API_TENANT_TABLES = [
   "metrics_gauge",
   "metrics_sum",
   "metrics_histogram",
+  "metrics_exponential_histogram",
 ] as const;
 
 function sqlApiOrgUserName(organizationId: string): string {
