@@ -3,7 +3,7 @@ import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { Copy, Pencil, X } from "lucide-react";
+import { Copy, Pencil, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
@@ -100,7 +100,7 @@ export function DashboardPanel({
             onClick={onRemove}
             aria-label="Remove panel"
           >
-            <X />
+            <Trash2 />
           </Button>
         </div>
       )}
