@@ -3,7 +3,7 @@ import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { Pencil, X } from "lucide-react";
+import { Copy, Pencil, X } from "lucide-react";
 import { useCallback } from "react";
 import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
@@ -23,6 +23,7 @@ interface DashboardPanelProps {
   dashboardId: string;
   isEditing: boolean;
   onRemove?: () => void;
+  onDuplicate?: () => void;
 }
 
 export function DashboardPanel({
@@ -31,6 +32,7 @@ export function DashboardPanel({
   dashboardId,
   isEditing,
   onRemove,
+  onDuplicate,
 }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
@@ -81,6 +83,15 @@ export function DashboardPanel({
             aria-label="Edit panel"
           >
             <Pencil />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="cursor-pointer"
+            onClick={onDuplicate}
+            aria-label="Duplicate panel"
+          >
+            <Copy />
           </Button>
           <Button
             variant="ghost"

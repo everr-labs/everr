@@ -122,6 +122,47 @@ function generateTicks(domain: [number, number], maxTicks: number): number[] {
   return ticks;
 }
 
+function detectInterval(timestamps: number[]): number | null {
+  if (timestamps.length < 2) return null;
+  const diffs: number[] = [];
+  for (let i = 1; i < timestamps.length; i++) {
+    diffs.push(timestamps[i]! - timestamps[i - 1]!);
+  }
+  diffs.sort((a, b) => a - b);
+  return diffs[Math.floor(diffs.length / 2)]!;
+}
+
+function fillAndClamp(
+  rows: Array<Record<string, unknown>>,
+  valueKeys: string[],
+  domain: [number, number],
+  interval: number,
+): Array<Record<string, unknown>> {
+  const byTs = new Map<number, Record<string, unknown>>();
+  for (const row of rows) {
+    const ts = row[TS_KEY] as number;
+    if (ts >= domain[0] && ts <= domain[1]) {
+      byTs.set(ts, row);
+    }
+  }
+
+  const first = Math.ceil(domain[0] / interval) * interval;
+  const result: Array<Record<string, unknown>> = [];
+  for (let t = first; t <= domain[1]; t += interval) {
+    const existing = byTs.get(t);
+    if (existing) {
+      result.push(existing);
+    } else {
+      const empty: Record<string, unknown> = { [TS_KEY]: t };
+      for (const k of valueKeys) {
+        empty[k] = null;
+      }
+      result.push(empty);
+    }
+  }
+  return result;
+}
+
 function getPlotArea(container: HTMLElement): DOMRect | null {
   const grid = container.querySelector(".recharts-cartesian-grid");
   return grid?.getBoundingClientRect() ?? null;
@@ -146,6 +187,7 @@ export function TimeSeriesChartVisualization({
   onTimeRangeChange,
 }: VisualizationProps) {
   const showLegend = plugin.spec.showLegend === true;
+  const connectNulls = plugin.spec.connectNulls === true;
   const unit = typeof plugin.spec.unit === "string" ? plugin.spec.unit : "";
   const curveType: CurveType =
     typeof plugin.spec.curveType === "string"
@@ -213,8 +255,23 @@ export function TimeSeriesChartVisualization({
       [TS_KEY]: toTimestamp(row[tk]),
     }));
 
+    const timestamps = mapped.map((r) => r[TS_KEY] as number);
+    const interval = detectInterval(timestamps);
+
+    let filled: Array<Record<string, unknown>>;
+    if (dm && interval && interval > 0) {
+      filled = fillAndClamp(mapped, vk, dm, interval);
+    } else if (dm) {
+      filled = mapped.filter((r) => {
+        const ts = r[TS_KEY] as number;
+        return ts >= dm[0] && ts <= dm[1];
+      });
+    } else {
+      filled = mapped;
+    }
+
     return {
-      chartData: mapped,
+      chartData: filled,
       valueKeys: vk,
       chartConfig: config,
       domain: dm,
@@ -313,6 +370,7 @@ export function TimeSeriesChartVisualization({
               stroke={`var(--color-${key})`}
               strokeWidth={2}
               dot={false}
+              connectNulls={connectNulls}
               isAnimationActive={false}
             />
           ))}

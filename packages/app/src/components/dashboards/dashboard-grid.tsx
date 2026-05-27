@@ -157,6 +157,45 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
     [dashboard, setDashboard],
   );
 
+  const handleDuplicatePanel = useCallback(
+    (panelKey: string) => {
+      if (!dashboard) return;
+      const source = dashboard.spec.panels[panelKey];
+      if (!source) return;
+      const newKey = generatePanelKey(dashboard.spec.panels);
+      const sourceItem = dashboard.spec.layouts[0]?.spec.items.find(
+        (item) => item.content.$ref === panelRefFromKey(panelKey),
+      );
+      const maxY =
+        dashboard.spec.layouts[0]?.spec.items.reduce(
+          (max, item) => Math.max(max, item.y + item.height),
+          0,
+        ) ?? 0;
+
+      updatePanel(newKey, structuredClone(source));
+      updateLayout([
+        {
+          kind: "Grid" as const,
+          spec: {
+            ...dashboard.spec.layouts[0]?.spec,
+            items: [
+              ...(dashboard.spec.layouts[0]?.spec.items ?? []),
+              {
+                x: 0,
+                y: maxY,
+                width: sourceItem?.width ?? 12,
+                height: sourceItem?.height ?? 8,
+                content: { $ref: panelRefFromKey(newKey) },
+              },
+            ],
+          },
+        },
+        ...dashboard.spec.layouts.slice(1),
+      ]);
+    },
+    [dashboard, updatePanel, updateLayout],
+  );
+
   const handleSave = useCallback(() => {
     if (!dashboard) return;
     if (isNew) {
@@ -249,6 +288,7 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
                   dashboardId={dashboard.metadata.name}
                   isEditing={isEditing}
                   onRemove={() => handleRemovePanel(item.i)}
+                  onDuplicate={() => handleDuplicatePanel(item.i)}
                 />
               </div>
             );

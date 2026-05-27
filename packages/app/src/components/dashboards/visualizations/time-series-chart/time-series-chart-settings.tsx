@@ -57,6 +57,18 @@ export function TimeSeriesChartSettings({
       </div>
 
       <div className="flex items-center justify-between">
+        <Label htmlFor="ts-connect-nulls">Connect nulls</Label>
+        <Switch
+          id="ts-connect-nulls"
+          size="sm"
+          checked={spec.connectNulls === true}
+          onCheckedChange={(checked) =>
+            onChange({ ...spec, connectNulls: checked })
+          }
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
         <Label htmlFor="ts-legend">Show legend</Label>
         <Switch
           id="ts-legend"
