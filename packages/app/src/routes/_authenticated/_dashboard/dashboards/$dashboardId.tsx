@@ -8,14 +8,22 @@ import { dashboardOptions } from "@/data/dashboards/options";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/dashboards/$dashboardId",
 )({
-  staticData: { breadcrumb: "Dashboard" },
+  staticData: {
+    breadcrumb: (match: { loaderData?: { name: string } }) => [
+      { label: "Dashboards", to: "/dashboards" },
+      { label: match.loaderData?.name ?? "Dashboard" },
+    ],
+  },
   head: () => ({
     meta: [{ title: "Everr - Dashboard" }],
   }),
   component: DashboardPage,
   errorComponent: DashboardNotFound,
   loader: async ({ context: { queryClient }, params: { dashboardId } }) => {
-    await queryClient.prefetchQuery(dashboardOptions(dashboardId));
+    const dashboard = await queryClient.ensureQueryData(
+      dashboardOptions(dashboardId),
+    );
+    return { name: dashboard.spec.display?.name ?? dashboardId };
   },
 });
 

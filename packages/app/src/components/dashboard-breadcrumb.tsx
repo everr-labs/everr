@@ -30,7 +30,7 @@ export function DashboardBreadcrumb() {
       for (const seg of result) {
         crumbs.push({
           label: seg.label,
-          to: match.fullPath,
+          to: seg.to ?? match.fullPath,
           search: seg.search,
         });
       }

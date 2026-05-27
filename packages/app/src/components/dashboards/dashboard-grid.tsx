@@ -10,7 +10,7 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Pencil, Plus, Save } from "lucide-react";
+import { Pencil, Plus, Save } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Layout, LayoutItem } from "react-grid-layout";
 import {
@@ -195,39 +195,31 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <LayoutDashboard className="size-5 text-muted-foreground" />
-          <h1 className="text-lg font-semibold">
-            {dashboard.spec.display?.name ?? dashboard.metadata.name}
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {isEditing && (
-            <>
-              <Button variant="outline" size="sm" onClick={handleAddPanel}>
-                <Plus data-icon="inline-start" />
-                Add Panel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={saveMutation.isPending}
-              >
-                <Save data-icon="inline-start" />
-                {saveMutation.isPending ? "Saving…" : "Save"}
-              </Button>
-            </>
-          )}
-          <Button
-            variant={isEditing ? "default" : "outline"}
-            size="sm"
-            onClick={() => setIsEditing((v) => !v)}
-          >
-            <Pencil data-icon="inline-start" />
-            {isEditing ? "Done" : "Edit"}
-          </Button>
-        </div>
+      <div className="mb-3 flex items-center justify-end gap-2">
+        {isEditing && (
+          <>
+            <Button variant="outline" size="sm" onClick={handleAddPanel}>
+              <Plus data-icon="inline-start" />
+              Add Panel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+            >
+              <Save data-icon="inline-start" />
+              {saveMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </>
+        )}
+        <Button
+          variant={isEditing ? "default" : "outline"}
+          size="sm"
+          onClick={() => setIsEditing((v) => !v)}
+        >
+          <Pencil data-icon="inline-start" />
+          {isEditing ? "Done" : "Edit"}
+        </Button>
       </div>
 
       <div ref={containerRef}>
