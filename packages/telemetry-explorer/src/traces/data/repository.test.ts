@@ -13,6 +13,21 @@ function makeRepo() {
   return new TracesRepository(client);
 }
 
+function traceRows(count: number): TraceSummary[] {
+  return Array.from({ length: count }, (_, i) => ({
+    traceId: `t${i}`,
+    rootName: "GET",
+    rootService: "web",
+    rootNamespace: "",
+    rootStatus: "Ok",
+    startTs: `2026-05-27 21:15:${String(50 - i).padStart(2, "0")}.000`,
+    durationNs: "1500000",
+    spanCount: 3,
+    errorCount: 0,
+    services: ["web"],
+  }));
+}
+
 describe("TracesRepository.search", () => {
   it("returns rows from ClickHouse and forwards the time window + paging", async () => {
     const row: TraceSummary = {
@@ -30,7 +45,7 @@ describe("TracesRepository.search", () => {
     query.mockResolvedValueOnce([row]);
 
     const result = await makeRepo().search({
-      fromTs: "2026-05-20 11:00:00.000",
+      fromTs: "2026-05-20 12:30:00.000",
       toTs: "2026-05-20 13:00:00.000",
       namespace: [],
       service: [],
@@ -46,9 +61,80 @@ describe("TracesRepository.search", () => {
     expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
     expect(sql).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
     expect(params).toMatchObject({
-      fromTs: "2026-05-20 11:00:00.000",
+      fromTs: "2026-05-20 12:30:00.000",
       toTs: "2026-05-20 13:00:00.000",
       limit: 25,
+    });
+  });
+
+  it("uses the selected time range without adaptive narrowing", async () => {
+    query.mockResolvedValueOnce(traceRows(2));
+
+    await makeRepo().search({
+      fromTs: "2026-05-13 21:15:54.183",
+      toTs: "2026-05-27 21:15:54.183",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      limit: 2,
+    });
+
+    expect(query).toHaveBeenCalledTimes(1);
+    const [, params] = query.mock.calls[0] ?? [];
+    expect(params).toMatchObject({
+      fromTs: "2026-05-13 21:15:54.183",
+      toTs: "2026-05-27 21:15:54.183",
+      limit: 2,
+    });
+  });
+
+  it("does not retry wider windows when a page is short", async () => {
+    query.mockResolvedValueOnce(traceRows(1));
+
+    await makeRepo().search({
+      fromTs: "2026-05-13 21:15:54.183",
+      toTs: "2026-05-27 21:15:54.183",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      limit: 2,
+    });
+
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]?.[1]).toMatchObject({
+      fromTs: "2026-05-13 21:15:54.183",
+      toTs: "2026-05-27 21:15:54.183",
+    });
+  });
+
+  it("uses the cursor as the next page upper bound and tie breaker", async () => {
+    query.mockResolvedValueOnce(traceRows(2));
+
+    await makeRepo().search({
+      fromTs: "2026-05-13 21:15:54.183",
+      toTs: "2026-05-27 21:15:54.183",
+      cursorStartTs: "2026-05-27 21:00:00.000",
+      cursorTraceId: "trace-z",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      limit: 2,
+    });
+
+    const [sql, params] = query.mock.calls[0] ?? [];
+    expect(sql).toContain(
+      "startTsRaw < parseDateTime64BestEffort({cursorStartTs:String}, 9)",
+    );
+    expect(sql).toContain("TraceId < {cursorTraceId:String}");
+    expect(sql).toContain("ORDER BY startTsRaw DESC, TraceId DESC");
+    expect(params).toMatchObject({
+      fromTs: "2026-05-13 21:15:54.183",
+      toTs: "2026-05-27 21:00:00.000",
+      cursorStartTs: "2026-05-27 21:00:00.000",
+      cursorTraceId: "trace-z",
     });
   });
 

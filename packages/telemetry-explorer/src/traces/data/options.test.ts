@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { tracesSearchOptions } from "./options";
+import { tracesSearchInfiniteOptions } from "./options";
 import type { TracesRepositoryLike } from "./repository";
 import type { TraceSummary } from "./types";
 
@@ -19,6 +19,7 @@ const baseInput = {
   minMs: undefined,
   maxMs: undefined,
   status: "all" as const,
+  limit: 50,
 };
 
 const rows: TraceSummary[] = [
@@ -36,36 +37,27 @@ const rows: TraceSummary[] = [
   },
 ];
 
-describe("tracesSearchOptions", () => {
-  it("keeps previous rows only when increasing the limit", () => {
-    const previousOptions = tracesSearchOptions({ ...baseInput, limit: 50 });
-    const nextOptions = tracesSearchOptions({ ...baseInput, limit: 100 });
+describe("tracesSearchInfiniteOptions", () => {
+  it("uses the last row as the next cursor when the page is full", () => {
+    const options = tracesSearchInfiniteOptions({ ...baseInput, limit: 1 });
+    const getNextPageParam = options.getNextPageParam as (
+      lastPage: TraceSummary[] | undefined,
+      allPages: TraceSummary[][],
+    ) => unknown;
 
-    const placeholderData = nextOptions.placeholderData as (
-      previousData: TraceSummary[] | undefined,
-      previousQuery: { queryKey: readonly unknown[] },
-    ) => TraceSummary[] | undefined;
-
-    expect(placeholderData(rows, { queryKey: previousOptions.queryKey })).toBe(
-      rows,
-    );
+    expect(getNextPageParam(rows, [rows])).toEqual({
+      startTs: "2026-05-20 12:00:00.000",
+      traceId: "trace-1",
+    });
   });
 
-  it("does not keep previous rows when filters change", () => {
-    const previousOptions = tracesSearchOptions({ ...baseInput, limit: 50 });
-    const nextOptions = tracesSearchOptions({
-      ...baseInput,
-      service: ["api"],
-      limit: 50,
-    });
+  it("stops pagination when the last page is shorter than the page size", () => {
+    const options = tracesSearchInfiniteOptions({ ...baseInput, limit: 2 });
+    const getNextPageParam = options.getNextPageParam as (
+      lastPage: TraceSummary[] | undefined,
+      allPages: TraceSummary[][],
+    ) => unknown;
 
-    const placeholderData = nextOptions.placeholderData as (
-      previousData: TraceSummary[] | undefined,
-      previousQuery: { queryKey: readonly unknown[] },
-    ) => TraceSummary[] | undefined;
-
-    expect(
-      placeholderData(rows, { queryKey: previousOptions.queryKey }),
-    ).toBeUndefined();
+    expect(getNextPageParam(rows, [rows])).toBeUndefined();
   });
 });
