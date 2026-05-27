@@ -9,6 +9,7 @@ export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
   q: z.string().trim().default(""),
   service: z.array(z.string()).default([]),
   fingerprint: z.string().trim().default(""),
+  occurrence: z.string().trim().default(""),
   sort: ErrorSortSchema.default("lastSeen"),
   limit: z.number().int().positive().max(500).default(50),
 });

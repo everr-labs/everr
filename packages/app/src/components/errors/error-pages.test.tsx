@@ -14,8 +14,13 @@ import type { ErrorIssueSummary, ErrorOccurrence } from "@/data/errors/types";
 import { ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
 import { ErrorLatestOccurrence } from "./error-latest-occurrence";
+import {
+  findErrorOccurrenceByKey,
+  getErrorOccurrenceKey,
+} from "./error-occurrence-key";
 import { ErrorOccurrencesList } from "./error-occurrences-list";
 import { ErrorStacktrace } from "./error-stacktrace";
+import { ErrorTracePanel } from "./error-trace-panel";
 import { TraceLink } from "./trace-link";
 
 const issue: ErrorIssueSummary = {
@@ -93,7 +98,7 @@ describe("ErrorIssueList", () => {
       screen.getByText("Cannot read properties of undefined"),
     ).toBeInTheDocument();
     expect(screen.getByText("3 occurrences")).toBeInTheDocument();
-    expect(screen.getByText("2 traces")).toBeInTheDocument();
+    expect(screen.queryByText("2 traces")).not.toBeInTheDocument();
   });
 
   it("renders an empty state", () => {
@@ -193,6 +198,31 @@ describe("ErrorFilters", () => {
 });
 
 describe("error detail components", () => {
+  it("builds stable occurrence navigation keys", () => {
+    expect(getErrorOccurrenceKey(occurrence)).toBe(
+      "2026-05-26 10:05:00.000000000|trace-1|span-1",
+    );
+  });
+
+  it("selects an occurrence by key and falls back to the latest occurrence", () => {
+    const olderOccurrence = {
+      ...occurrence,
+      timestamp: "2026-05-26 10:01:00.000000000",
+      traceId: "trace-older",
+      spanId: "span-older",
+    };
+    const occurrences = [occurrence, olderOccurrence];
+
+    expect(
+      findErrorOccurrenceByKey(
+        occurrences,
+        getErrorOccurrenceKey(olderOccurrence),
+      ),
+    ).toBe(olderOccurrence);
+    expect(findErrorOccurrenceByKey(occurrences, "stale-key")).toBe(occurrence);
+    expect(findErrorOccurrenceByKey(occurrences, "")).toBe(occurrence);
+  });
+
   it("renders latest occurrence metadata and attributes", () => {
     render(<ErrorLatestOccurrence occurrence={occurrence} />);
     expect(screen.getByText("web")).toBeInTheDocument();
@@ -207,14 +237,78 @@ describe("error detail components", () => {
     expect(container.querySelector("code")?.textContent).toBe(stacktrace);
   });
 
-  it("omits trace action when trace id is absent", () => {
-    render(
-      <ErrorOccurrencesList
-        occurrences={[{ ...occurrence, traceId: "" }]}
-        renderTraceLink={({ children }) => <a href="/trace">{children}</a>}
+  it("renders related trace spans with the error span highlighted", async () => {
+    renderWithRouter(
+      <ErrorTracePanel
+        occurrence={occurrence}
+        isPending={false}
+        isError={false}
+        onRetry={() => {}}
+        spans={[
+          {
+            spanId: "root-span",
+            parentSpanId: "",
+            name: "GET /checkout",
+            startTime: 1000,
+            endTime: 1250,
+            duration: 250,
+            conclusion: "error",
+          },
+          {
+            spanId: "span-1",
+            parentSpanId: "root-span",
+            name: "createCheckoutSession",
+            startTime: 1050,
+            endTime: 1200,
+            duration: 150,
+            conclusion: "boom",
+          },
+        ]}
       />,
     );
+
+    expect(await screen.findByText("Related trace")).toBeInTheDocument();
+    expect(screen.getByText("GET /checkout")).toBeInTheDocument();
+    expect(screen.getByText("createCheckoutSession")).toBeInTheDocument();
+    expect(screen.getByText("error span")).toBeInTheDocument();
+  });
+
+  it("omits trace actions from the occurrences list", () => {
+    render(<ErrorOccurrencesList occurrences={[occurrence]} />);
     expect(screen.queryByText("Open trace")).not.toBeInTheDocument();
+  });
+
+  it("renders occurrence navigation and marks the selected occurrence", () => {
+    const olderOccurrence = {
+      ...occurrence,
+      timestamp: "2026-05-26 10:01:00.000000000",
+      traceId: "trace-older",
+      spanId: "span-older",
+    };
+
+    render(
+      <ErrorOccurrencesList
+        occurrences={[occurrence, olderOccurrence]}
+        selectedOccurrenceKey={getErrorOccurrenceKey(olderOccurrence)}
+        renderOccurrenceLink={({ occurrence: item, children, isSelected }) => (
+          <a
+            href={`/errors/fp-1?occurrence=${getErrorOccurrenceKey(item)}`}
+            aria-current={isSelected ? "page" : undefined}
+          >
+            {children}
+          </a>
+        )}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Selected" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "View" })).toHaveAttribute(
+      "href",
+      "/errors/fp-1?occurrence=2026-05-26 10:05:00.000000000|trace-1|span-1",
+    );
   });
 
   it("builds trace links with focused span and narrow window", async () => {

@@ -89,7 +89,7 @@ function ErrorsPage() {
             <Link
               to="/errors/$fingerprint"
               params={{ fingerprint: issueFingerprint }}
-              search={search}
+              search={{ ...search, occurrence: "" }}
               className="block text-foreground no-underline"
             >
               {children}

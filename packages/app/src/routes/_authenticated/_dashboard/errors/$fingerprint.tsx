@@ -13,12 +13,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { ErrorDetailHeader } from "@/components/errors/error-detail-header";
 import { ErrorLatestOccurrence } from "@/components/errors/error-latest-occurrence";
+import {
+  findErrorOccurrenceByKey,
+  getErrorOccurrenceKey,
+} from "@/components/errors/error-occurrence-key";
 import { ErrorOccurrencesList } from "@/components/errors/error-occurrences-list";
 import { ErrorStacktrace } from "@/components/errors/error-stacktrace";
-import { TraceLink } from "@/components/errors/trace-link";
+import { ErrorTracePanel } from "@/components/errors/error-trace-panel";
 import { errorIssueOptions } from "@/data/errors/options";
 import { ErrorIssueSearchSchema } from "@/data/errors/schemas";
 import { getErrorIssue } from "@/data/errors/server";
+import { runSpansOptions } from "@/data/runs/options";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 
 export const Route = createFileRoute(
@@ -46,6 +51,14 @@ function ErrorDetailPage() {
       occurrenceLimit: 50,
     }),
   );
+  const selectedOccurrence = issueQuery.data
+    ? findErrorOccurrenceByKey(issueQuery.data.occurrences, search.occurrence)
+    : undefined;
+  const selectedTraceId = selectedOccurrence?.traceId ?? "";
+  const spansQuery = useQuery({
+    ...runSpansOptions(selectedTraceId),
+    enabled: issueQuery.isSuccess && selectedTraceId.length > 0,
+  });
 
   if (issueQuery.isPending) {
     return (
@@ -54,9 +67,10 @@ function ErrorDetailPage() {
           <Skeleton className="h-5 w-64 max-w-full" />
           <Skeleton className="mt-2 h-3 w-96 max-w-full" />
         </div>
-        <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-3">
           <Skeleton className="h-96" />
-          <Skeleton className="h-96" />
+          <Skeleton className="h-64" />
+          <Skeleton className="h-80" />
         </div>
       </div>
     );
@@ -95,24 +109,53 @@ function ErrorDetailPage() {
   }
 
   const detail = issueQuery.data;
+  const occurrence = selectedOccurrence ?? detail.latest;
+  const selectedOccurrenceKey = getErrorOccurrenceKey(occurrence);
+  const backSearch = { ...search, occurrence: "" };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ErrorDetailHeader issue={detail.summary} backSearch={search} />
-      <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <main className="grid min-w-0 content-start gap-3">
-          <ErrorLatestOccurrence occurrence={detail.latest} />
-          <ErrorStacktrace stacktrace={detail.latest.exceptionStacktrace} />
-        </main>
-        <aside className="min-w-0">
-          <ErrorOccurrencesList
-            occurrences={detail.occurrences}
-            renderTraceLink={({ occurrence, children }) => (
-              <TraceLink occurrence={occurrence}>{children}</TraceLink>
-            )}
+      <ErrorDetailHeader issue={detail.summary} backSearch={backSearch} />
+      <main className="min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto grid max-w-7xl gap-3 p-3">
+          <ErrorStacktrace stacktrace={occurrence.exceptionStacktrace} />
+          <ErrorTracePanel
+            occurrence={occurrence}
+            spans={spansQuery.data ?? []}
+            isPending={spansQuery.isPending && selectedTraceId.length > 0}
+            isError={spansQuery.isError}
+            onRetry={() => void spansQuery.refetch()}
           />
-        </aside>
-      </div>
+          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_26rem]">
+            <ErrorLatestOccurrence occurrence={occurrence} />
+            <ErrorOccurrencesList
+              occurrences={detail.occurrences}
+              selectedOccurrenceKey={selectedOccurrenceKey}
+              renderOccurrenceLink={({
+                occurrence: linkedOccurrence,
+                children,
+                isSelected,
+              }) => (
+                <Link
+                  to="/errors/$fingerprint"
+                  params={{ fingerprint }}
+                  search={{
+                    ...search,
+                    occurrence: getErrorOccurrenceKey(linkedOccurrence),
+                  }}
+                  aria-current={isSelected ? "page" : undefined}
+                  className={buttonVariants({
+                    variant: isSelected ? "secondary" : "outline",
+                    size: "sm",
+                  })}
+                >
+                  {children}
+                </Link>
+              )}
+            />
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

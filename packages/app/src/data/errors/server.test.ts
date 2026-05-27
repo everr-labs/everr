@@ -307,6 +307,7 @@ describe("error tracking DTOs", () => {
       q: "timeout",
       service: ["api"],
       fingerprint: "",
+      occurrence: "",
       sort: "lastSeen",
       limit: 50,
     } satisfies ErrorIssueSearch;
