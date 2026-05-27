@@ -19,6 +19,15 @@ type SpanRow = Omit<Span, "events" | "links"> & {
 const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
 const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
+const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
+
+function resourceAttribute(key: string): string {
+  return `ResourceAttributes['${key}']`;
+}
+
+function resourceAttributeKeyExists(key: string): string {
+  return `mapContains(ResourceAttributes, '${key}')`;
+}
 
 export class TracesRepository {
   private readonly tableName: string;
@@ -54,8 +63,11 @@ export class TracesRepository {
       params.service = input.service;
     }
     if (input.namespace.length > 0) {
+      const namespaceFilter = `${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)} IN {namespace:Array(String)}`;
       spanPreds.push(
-        "ResourceAttributes['service.namespace'] IN {namespace:Array(String)}",
+        input.namespace.includes("")
+          ? namespaceFilter
+          : `${resourceAttributeKeyExists(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)} AND ${namespaceFilter}`,
       );
       params.namespace = input.namespace;
     }
@@ -107,8 +119,8 @@ export class TracesRepository {
              argMinIf(ServiceName, (Timestamp, SpanId), ParentSpanId = ''),
              argMin  (ServiceName, (Timestamp, SpanId))) AS rootService,
           if(countIf(ParentSpanId = '') > 0,
-             argMinIf(ResourceAttributes['service.namespace'], (Timestamp, SpanId), ParentSpanId = ''),
-             argMin  (ResourceAttributes['service.namespace'], (Timestamp, SpanId))) AS rootNamespace,
+             argMinIf(${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)}, (Timestamp, SpanId), ParentSpanId = ''),
+             argMin  (${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)}, (Timestamp, SpanId))) AS rootNamespace,
           if(countIf(ParentSpanId = '') > 0,
              argMinIf(StatusCode,  (Timestamp, SpanId), ParentSpanId = ''),
              argMin  (StatusCode,  (Timestamp, SpanId))) AS rootStatus,
@@ -155,7 +167,7 @@ export class TracesRepository {
         ParentSpanId AS parentSpanId,
         SpanName     AS spanName,
         ServiceName  AS serviceName,
-        ResourceAttributes['service.namespace'] AS serviceNamespace,
+        ${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)} AS serviceNamespace,
         toString(Timestamp)                     AS timestamp,
         toString(toUnixTimestamp64Nano(Timestamp)) AS timestampNs,
         toString(Duration)                      AS duration,
@@ -189,7 +201,7 @@ export class TracesRepository {
     validateTableName(this.tableName);
     const sql = /* sql */ `
       SELECT DISTINCT
-        ResourceAttributes['service.namespace'] AS serviceNamespace,
+        ${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)} AS serviceNamespace,
         ServiceName AS serviceName
       FROM ${this.tableName}
       WHERE ${TIME_WINDOW_SQL}

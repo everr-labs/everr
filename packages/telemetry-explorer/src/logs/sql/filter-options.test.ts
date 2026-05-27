@@ -13,6 +13,9 @@ describe("buildFilterOptionsQuery", () => {
     expect(built.sql).toContain(
       "DISTINCT ResourceAttributes['vcs.repository.name']",
     );
+    expect(built.sql).toContain(
+      "mapContains(ResourceAttributes, 'vcs.repository.name')",
+    );
     expect(typeof built.params.fromTime).toBe("string");
   });
 });

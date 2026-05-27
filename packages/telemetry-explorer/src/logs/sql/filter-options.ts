@@ -3,6 +3,16 @@ import type { LogFilterOptions } from "../schemas";
 import type { BuiltQuery } from "./explorer";
 import { validateTableName } from "./table";
 
+const REPOSITORY_RESOURCE_ATTRIBUTE = "vcs.repository.name";
+
+function resourceAttribute(key: string): string {
+  return `ResourceAttributes['${key}']`;
+}
+
+function resourceAttributeKeyExists(key: string): string {
+  return `mapContains(ResourceAttributes, '${key}')`;
+}
+
 export interface FilterOptionsRowRaw {
   services: string[];
   repos: string[];
@@ -27,11 +37,12 @@ export function buildFilterOptionsQuery(
           LIMIT 100
         )) AS services,
         (SELECT groupArray(v) FROM (
-          SELECT DISTINCT ResourceAttributes['vcs.repository.name'] AS v
+          SELECT DISTINCT ${resourceAttribute(REPOSITORY_RESOURCE_ATTRIBUTE)} AS v
           FROM ${tableName}
           WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
             AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
-            AND ResourceAttributes['vcs.repository.name'] != ''
+            AND ${resourceAttributeKeyExists(REPOSITORY_RESOURCE_ATTRIBUTE)}
+            AND ${resourceAttribute(REPOSITORY_RESOURCE_ATTRIBUTE)} != ''
           ORDER BY v
           LIMIT 100
         )) AS repos
