@@ -7,7 +7,7 @@
  *
  * Scope constraints (from spec):
  * - User-selected repos (one or more)
- * - 100 jobs per repo (soft quota — a run that pushes past 100 is fully included)
+ * - 250 jobs per repo (soft quota — a run that pushes past 250 is fully included)
  * - Branch selection: no branch filter; import completed runs from any branch
  * - Only runs with conclusion "success" or "failure"
  *
@@ -32,7 +32,7 @@ const logger = logs.getLogger("@everr/app/github-events/backfill");
 // Constants
 // ---------------------------------------------------------------------------
 
-export const JOB_QUOTA_PER_REPO = 100;
+export const JOB_QUOTA_PER_REPO = 250;
 const VALID_CONCLUSIONS = new Set(["success", "failure"]);
 
 // ---------------------------------------------------------------------------
@@ -396,7 +396,7 @@ export async function listInstallationRepos(
  * Backfills historical GitHub Actions data for a single repo.
  *
  * Replays completed runs and their jobs from any branch through the collector
- * pipeline. Stops at 100 jobs per repo (soft quota).
+ * pipeline. Stops at 250 jobs per repo (soft quota).
  */
 export async function* backfillRepo(
   installationId: number,

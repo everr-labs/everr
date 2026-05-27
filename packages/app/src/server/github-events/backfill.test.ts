@@ -346,9 +346,9 @@ describe("backfillRepo", () => {
     expect(result.jobsReplayed).toBe(1);
   });
 
-  it("stops after 100 jobs per repo", async () => {
-    // 25 runs with 5 jobs each = 125 jobs, should stop at 100 (20 runs)
-    const runs = Array.from({ length: 25 }, (_, i) =>
+  it("stops after 250 jobs per repo", async () => {
+    // 60 runs with 5 jobs each = 300 jobs, should stop at 250 (50 runs)
+    const runs = Array.from({ length: 60 }, (_, i) =>
       makeRun({ id: i + 1, run_number: i + 1 }),
     );
     const jobsPerRun = runs.map((r) =>
@@ -360,8 +360,8 @@ describe("backfillRepo", () => {
 
     const { result } = await drainBackfill(999, "org-1", TEST_REPO);
 
-    expect(result.jobsReplayed).toBe(100);
-    expect(result.runsReplayed).toBe(20);
+    expect(result.jobsReplayed).toBe(250);
+    expect(result.runsReplayed).toBe(50);
   });
 
   it("imports workflow runs from any branch", async () => {
@@ -464,18 +464,18 @@ describe("backfillRepo", () => {
     // 1 initial + 3 per-run + 1 done = 5
     expect(progressEvents.length).toBe(5);
 
-    // First event should be "importing" with runsProcessed 0 and jobsQuota 100
+    // First event should be "importing" with runsProcessed 0 and jobsQuota 250
     const first = progressEvents[0];
     expect(first.status).toBe("importing");
     expect(first.runsProcessed).toBe(0);
-    expect(first.jobsQuota).toBe(100);
+    expect(first.jobsQuota).toBe(250);
 
     // Last event should be "done"
     const last = progressEvents[progressEvents.length - 1];
     expect(last.status).toBe("done");
     expect(last.runsProcessed).toBe(3);
     expect(last.jobsEnqueued).toBe(3);
-    expect(last.jobsQuota).toBe(100);
+    expect(last.jobsQuota).toBe(250);
 
     // Incremental events should show increasing runsProcessed
     const importingEvents = progressEvents.filter(
