@@ -36,6 +36,21 @@ function bucketIso(date: Date): string {
   return `${date.toISOString().slice(0, 13)}:00:00Z`;
 }
 
+const RESOURCE_ATTRIBUTE_KEYS = {
+  runnerLabels: "cicd.pipeline.worker.labels",
+  jobId: "cicd.pipeline.task.run.id",
+  repo: "vcs.repository.name",
+  workflow: "cicd.pipeline.name",
+} as const;
+
+function resourceAttribute(key: string): string {
+  return `ResourceAttributes['${key}']`;
+}
+
+function nonEmptyResourceAttribute(key: string): string {
+  return `mapContains(ResourceAttributes, '${key}') AND ${resourceAttribute(key)} != ''`;
+}
+
 export const getCostOverview = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -45,16 +60,16 @@ export const getCostOverview = createAuthenticatedServerFn({
 
     const sql = `
       SELECT
-        ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+        ${resourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)} as labels,
         count(*) as totalJobs,
         sum(Duration) / 1000000 as totalDurationMs,
         sum(ceil(Duration / 60000000000.0)) as roundedMinutes,
         sum(sum(ceil(Duration / 60000000000.0))) OVER () as totalBilledMinutes
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-        AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
-        AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-        AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)}
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
+        AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
         AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
         AND SpanAttributes['everr.test.name'] = ''
       GROUP BY labels
@@ -120,22 +135,22 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
 
     const sql = `
       SELECT
-        ResourceAttributes['vcs.repository.name'] as repo,
-        ResourceAttributes['cicd.pipeline.name'] as workflow,
-        ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+        ${resourceAttribute(RESOURCE_ATTRIBUTE_KEYS.repo)} as repo,
+        ${resourceAttribute(RESOURCE_ATTRIBUTE_KEYS.workflow)} as workflow,
+        ${resourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)} as labels,
         count(*) as totalJobs,
         sum(Duration) / 1000000 as totalDurationMs,
         sum(ceil(Duration / 60000000000.0)) as roundedMinutes,
         uniqExact(ResourceAttributes['cicd.pipeline.run.id']) as uniqueRuns
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-        AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
-        AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-        AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)}
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
+        AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
         AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
         AND SpanAttributes['everr.test.name'] = ''
-        AND ResourceAttributes['vcs.repository.name'] != ''
-        AND ResourceAttributes['cicd.pipeline.name'] != ''
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.repo)}
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.workflow)}
       GROUP BY repo, workflow, labels
       ORDER BY totalDurationMs DESC
     `;
@@ -208,26 +223,31 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
     }): Promise<CostOverTimeBreakdown> => {
       const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(timeRange);
       const granularity = getBucketGranularity(fromDate, toDate);
-      const keyExpr =
+      const keyAttribute =
         dimension === "repo"
-          ? "ResourceAttributes['vcs.repository.name']"
-          : "ResourceAttributes['cicd.pipeline.worker.labels']";
+          ? RESOURCE_ATTRIBUTE_KEYS.repo
+          : RESOURCE_ATTRIBUTE_KEYS.runnerLabels;
+      const keyExpr = resourceAttribute(keyAttribute);
+      const dimensionFilter =
+        keyAttribute === RESOURCE_ATTRIBUTE_KEYS.runnerLabels
+          ? ""
+          : `AND ${nonEmptyResourceAttribute(keyAttribute)}`;
 
       const sql = `
       SELECT
         ${bucketExpr(granularity)} as date,
         ${keyExpr} as series,
-        ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+        ${resourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)} as labels,
         sum(Duration) / 1000000 as totalDurationMs,
         sum(ceil(Duration / 60000000000.0)) as roundedMinutes
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-        AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
-        AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-        AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)}
+        AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
+        AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
         AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
         AND SpanAttributes['everr.test.name'] = ''
-        AND ${keyExpr} != ''
+        ${dimensionFilter}
       GROUP BY date, series, labels
       ORDER BY date ASC
     `;

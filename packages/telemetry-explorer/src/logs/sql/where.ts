@@ -1,6 +1,16 @@
 import type { LogLevel } from "../schemas";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 
+const REPOSITORY_RESOURCE_ATTRIBUTE = "vcs.repository.name";
+
+function resourceAttribute(key: string): string {
+  return `ResourceAttributes['${key}']`;
+}
+
+function resourceAttributeKeyExists(key: string): string {
+  return `mapContains(ResourceAttributes, '${key}')`;
+}
+
 export interface WhereInput {
   query?: string;
   levels: LogLevel[];
@@ -25,8 +35,11 @@ export function buildWhereClause(input: WhereInput): string {
     clauses.push("ServiceName IN {services:Array(String)}");
   }
   if (input.repos.length > 0) {
+    const repoFilter = `${resourceAttribute(REPOSITORY_RESOURCE_ATTRIBUTE)} IN {repos:Array(String)}`;
     clauses.push(
-      "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
+      input.repos.includes("")
+        ? repoFilter
+        : `${resourceAttributeKeyExists(REPOSITORY_RESOURCE_ATTRIBUTE)} AND ${repoFilter}`,
     );
   }
   if (input.traceId) {

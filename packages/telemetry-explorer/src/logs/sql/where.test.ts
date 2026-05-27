@@ -49,6 +49,23 @@ describe("buildWhereClause", () => {
     });
     expect(sql).toContain("ServiceName IN {services:Array(String)}");
     expect(sql).toContain(
+      "mapContains(ResourceAttributes, 'vcs.repository.name')",
+    );
+    expect(sql).toContain(
+      "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
+    );
+  });
+
+  it("preserves missing-key semantics when filtering for an empty repo", () => {
+    const sql = buildWhereClause({
+      levels: [],
+      services: [],
+      repos: [""],
+    });
+    expect(sql).not.toContain(
+      "mapContains(ResourceAttributes, 'vcs.repository.name')",
+    );
+    expect(sql).toContain(
       "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
     );
   });

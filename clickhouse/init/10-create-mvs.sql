@@ -52,6 +52,12 @@ SELECT
 FROM otel.otel_traces
 WHERE 1 = 0;
 
+ALTER TABLE app.traces
+  ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+
+ALTER TABLE app.traces
+  ADD INDEX IF NOT EXISTS idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_mv
 TO app.traces
 AS
@@ -73,6 +79,12 @@ SELECT
   CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
 FROM otel.otel_logs
 WHERE 1 = 0;
+
+ALTER TABLE app.logs
+  ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+
+ALTER TABLE app.logs
+  ADD INDEX IF NOT EXISTS idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.logs_mv
 TO app.logs

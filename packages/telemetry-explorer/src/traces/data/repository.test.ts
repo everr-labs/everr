@@ -90,6 +90,34 @@ describe("TracesRepository.search", () => {
     expect(sql).not.toContain("{toTs:DateTime64(9)}");
     expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
     expect(sql).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
+    expect(sql).toContain(
+      "mapContains(ResourceAttributes, 'service.namespace')",
+    );
+    expect(sql).toContain(
+      "ResourceAttributes['service.namespace'] IN {namespace:Array(String)}",
+    );
+  });
+
+  it("preserves missing-key semantics when filtering for an empty namespace", async () => {
+    query.mockResolvedValueOnce([]);
+
+    await makeRepo().search({
+      fromTs: "2026-05-20 11:00:00.000",
+      toTs: "2026-05-20 13:00:00.000",
+      namespace: [""],
+      service: [],
+      name: "",
+      status: "all",
+      limit: 25,
+    });
+
+    const [sql] = query.mock.calls[0] ?? [];
+    expect(sql).not.toContain(
+      "mapContains(ResourceAttributes, 'service.namespace')",
+    );
+    expect(sql).toContain(
+      "ResourceAttributes['service.namespace'] IN {namespace:Array(String)}",
+    );
   });
 
   it("rejects invalid configured table names", async () => {
