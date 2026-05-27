@@ -29,7 +29,7 @@ import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/errors/$fingerprint",
 )({
-  staticData: { breadcrumb: "Error", fullBleed: true },
+  staticData: { breadcrumb: "Detail", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   validateSearch: ErrorIssueSearchSchema,
   component: ErrorDetailPage,
