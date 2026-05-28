@@ -13,6 +13,10 @@ what happened with SQL instead of reconstructing it from terminal scrollback.
 
 ## Start the local collector
 
+Everr Desktop starts the local collector while the desktop app is open. If
+Everr Desktop is running, you do not need to start a separate collector process
+from the CLI.
+
 Check whether the collector is already running:
 
 ```sh
@@ -26,22 +30,15 @@ everr local start
 ```
 
 `everr local start` runs in the foreground and prints the OTLP HTTP endpoint
-when it is ready. You can also open Everr Desktop; the desktop app starts the
-same local collector while it is running.
-
-To print the endpoint without starting a new collector:
-
-```sh
-everr local endpoint
-```
+when it is ready.
 
 ## Point your app at the local endpoint
 
 For local development and tests, configure your OpenTelemetry SDK to export to
-the endpoint printed by `everr local endpoint`.
+the `otlp` endpoint printed by `everr local status` or `everr local start`.
 
 ```sh
-export OTEL_EXPORTER_OTLP_ENDPOINT="$(everr local endpoint)"
+export OTEL_EXPORTER_OTLP_ENDPOINT="<local-otlp-endpoint>"
 export OTEL_SERVICE_NAME="my-app"
 ```
 
