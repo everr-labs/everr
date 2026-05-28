@@ -32,12 +32,6 @@ Authorization: Bearer <your-ingest-key>
 
 Requests without a valid key return **401 Unauthorized**.
 
-<Callout title="Tenant attribution">
-  If you set an `everr.tenant.id` resource attribute in your SDK, it will be
-  **stripped and overwritten** with the value derived from your key. Tenant
-  identity comes from the key, not from the client.
-</Callout>
-
 ## Forwarding from your own collector
 
 If you already run an OpenTelemetry Collector, point its OTLP exporter at Everr:
