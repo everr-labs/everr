@@ -1,0 +1,146 @@
+---
+title: Setup
+description: Set up local telemetry for development.
+---
+
+Local debugging works best when your app, tests, and commands leave a
+queryable trail. Set up the local collector first, export development
+telemetry to it, then use Everr queries as the source of truth while you
+debug.
+
+The intended result is simple: after you reproduce a local issue, you can ask
+what happened with SQL instead of reconstructing it from terminal scrollback.
+
+## Start the local collector
+
+Check whether the collector is already running:
+
+```sh
+everr local status
+```
+
+If it is stopped, start it in a separate terminal:
+
+```sh
+everr local start
+```
+
+`everr local start` runs in the foreground and prints the OTLP HTTP endpoint
+when it is ready. You can also open Everr Desktop; the desktop app starts the
+same local collector while it is running.
+
+To print the endpoint without starting a new collector:
+
+```sh
+everr local endpoint
+```
+
+## Point your app at the local endpoint
+
+For local development and tests, configure your OpenTelemetry SDK to export to
+the endpoint printed by `everr local endpoint`.
+
+```sh
+export OTEL_EXPORTER_OTLP_ENDPOINT="$(everr local endpoint)"
+export OTEL_SERVICE_NAME="my-app"
+```
+
+Some SDKs accept the base endpoint and add signal paths automatically. If your
+SDK asks for per-signal URLs, use:
+
+| Signal  | URL suffix    |
+| ------- | ------------- |
+| Traces  | `/v1/traces`  |
+| Logs    | `/v1/logs`    |
+| Metrics | `/v1/metrics` |
+
+Keep local exporter configuration gated to development and test environments.
+For production export, use [Production Monitoring](/docs/production-monitoring/setup)
+instead of shipping local collector URLs.
+
+If your app does not emit OpenTelemetry yet, use
+[`everr-setup-telemetry`](/docs/getting-started/setup-telemetry) to add the
+smallest standard setup for your stack.
+
+## Capture command output
+
+Use real OpenTelemetry for runtime services. For bounded commands that do not
+emit OpenTelemetry, wrap the command so stdout, stderr, and the exit code land
+in local telemetry:
+
+```sh
+everr wrap -- pnpm test
+```
+
+The command still prints normally and keeps its original exit code. The wrapped
+logs are useful for test failures, lint output, build errors, and short scripts
+that need to be queryable after the terminal output scrolls away.
+
+## Verify fresh telemetry
+
+After starting the collector and exercising the local path, query recent traces:
+
+```sh
+everr local query "
+SELECT Timestamp, ServiceName, SpanName, StatusCode, Duration, TraceId
+FROM otel_traces
+WHERE Timestamp > now() - INTERVAL 30 MINUTE
+ORDER BY Timestamp DESC
+LIMIT 20
+"
+```
+
+Query recent logs:
+
+```sh
+everr local query "
+SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
+FROM otel_logs
+WHERE Timestamp > now() - INTERVAL 30 MINUTE
+ORDER BY Timestamp DESC
+LIMIT 50
+"
+```
+
+Fresh timestamps prove the current app run is exporting. If the newest rows are
+old, reproduce the workflow again after the app starts with the local endpoint
+configured.
+
+## Set up your assistant
+
+Install the Everr skills so your assistant knows when to use local telemetry and
+how to query it:
+
+```sh
+everr skills install everr-use-telemetry everr-setup-telemetry --global
+```
+
+For repository-scoped installation, use `--project` instead of `--global`.
+
+When you ask for help with a local bug, ask for an evidence loop:
+
+```text
+Use Everr local telemetry for this investigation. Check collector status,
+verify fresh traces or logs, query the data before changing code, and add
+targeted debug telemetry if the current data does not explain the behavior.
+```
+
+That gives the assistant a concrete workflow: inspect current telemetry first,
+instrument only the missing facts, reproduce the issue, then compare observed
+state to expected state.
+
+## Troubleshooting
+
+- **Collector stopped.** Run `everr local start` or open Everr Desktop.
+- **No traces or logs.** Confirm the app started after
+  `OTEL_EXPORTER_OTLP_ENDPOINT` was set, then trigger the instrumented path.
+- **Browser telemetry is missing.** Check the browser console for CORS or CSP
+  errors and make sure the local exporter is dev/test gated.
+- **Only command output appears.** `everr wrap` captures stdout and stderr, not
+  application spans. Add OpenTelemetry instrumentation for request flow,
+  database calls, background jobs, and errors.
+- **The assistant cannot explain the bug from telemetry.** Add a small debug
+  span, event, or log for the missing value, then reproduce the issue again.
+
+Next, learn how to [use debug traces](/docs/local-debugging/debug-traces) for
+manual investigations and assistant-led debugging loops.

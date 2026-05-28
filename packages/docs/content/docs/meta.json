@@ -1,3 +1,9 @@
 {
-  "pages": ["app", "features", "cli", "sending-telemetry", "github-action", "reference"]
+  "pages": [
+    "getting-started",
+    "ci-insights",
+    "local-debugging",
+    "production-monitoring",
+    "reference"
+  ]
 }

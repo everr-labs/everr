@@ -1,0 +1,48 @@
+---
+title: Skills
+description: Install bundled Everr skills for supported coding assistants.
+---
+
+## Overview
+
+Everr ships bundled skills for coding assistants that need CI and telemetry context.
+
+- `everr-working-with-ci` explains how to inspect CI runs, jobs, steps, logs, and historical test data.
+- `everr-setup-telemetry` explains how to make apps, services, tests, and commands emit telemetry.
+- `everr-use-telemetry` explains how to query cloud and local telemetry during investigations.
+
+## Install
+
+```shell
+everr skills install everr-working-with-ci everr-setup-telemetry everr-use-telemetry --project
+```
+
+To install every bundled Everr skill instead:
+
+```shell
+everr skills install --all --project
+```
+
+Use `--global` when you want the skills available outside the current repository.
+
+Project installs write the canonical skills to `.agents/skills`. For Claude Code, Everr also creates provider symlinks under `.claude/skills`. Global installs write the skills under `~/.agents/skills` and link them into supported global provider directories.
+
+## Manage installed skills
+
+List installed skills:
+
+```shell
+everr skills list --project
+```
+
+Update installed skills:
+
+```shell
+everr skills update --project
+```
+
+Uninstall a skill:
+
+```shell
+everr skills uninstall everr-use-telemetry --project
+```

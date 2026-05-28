@@ -1,6 +1,10 @@
 import { SiDiscord } from "@icons-pack/react-simple-icons";
+import type { DocsLayoutProps } from "fumadocs-ui/layouts/docs";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { Citrus } from "lucide-react";
+import type { ComponentProps } from "react";
+
+type DocsLayoutOptions = BaseLayoutProps & Pick<DocsLayoutProps, "sidebar">;
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -19,7 +23,7 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       {
-        text: "Documentation",
+        text: "Docs",
         url: "/docs",
       },
       // {
@@ -44,4 +48,27 @@ export function baseOptions(): BaseLayoutProps {
       },
     ],
   };
+}
+
+export function docsOptions(): DocsLayoutOptions {
+  const options = baseOptions();
+
+  return {
+    ...options,
+    searchToggle: {
+      ...options.searchToggle,
+      enabled: false,
+    },
+    sidebar: {
+      collapsible: false,
+    },
+    slots: {
+      ...options.slots,
+      navTitle: DocsSidebarNavTitle,
+    },
+  };
+}
+
+function DocsSidebarNavTitle(_props: ComponentProps<"a">) {
+  return null;
 }

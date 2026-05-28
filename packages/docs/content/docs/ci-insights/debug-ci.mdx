@@ -1,0 +1,100 @@
+---
+title: Debug Your CI
+description: Use Everr to investigate CI failures and regressions.
+---
+
+Everr keeps GitHub Actions run metadata, job and step status, and step
+logs together so your coding assistant can investigate a failing run
+without asking you to paste screenshots, terminal output, or raw GitHub
+Actions logs into chat.
+
+The intended flow is assistant-led: you describe the failing branch,
+commit, pull request, or run, and the assistant uses Everr as its CI
+debugging context.
+
+## Set up the assistant
+
+Install the bundled Everr skills for your coding assistant. The
+important one for CI is `everr-working-with-ci`; it teaches the
+assistant how to start from structured run data, drill into failed jobs
+and steps, fetch the right log slice, compare historical failures when
+needed, and watch the follow-up run after a fix.
+
+See [Skills](/docs/reference/skills) for installation and management.
+
+Your assistant also needs terminal access in the repository where the
+failure happened. Everr resolves repository, branch, and commit context
+from that checkout, which keeps the debugging session anchored to the
+same code the assistant can edit.
+
+## Ask for the outcome
+
+Ask the assistant for the result you want, not for low-level steps.
+Good prompts give it a target and an expected deliverable:
+
+> CI is failing on my current branch. Find the failing job, identify the
+> cause, fix it if the fix is local, and verify the next run.
+
+> Debug GitHub Actions run 1234567890. Tell me whether this is a flaky
+> test or a real regression, then propose the smallest fix.
+
+> The PR checks are red. Use Everr to inspect the failed run and open a
+> patch if the failure is actionable.
+
+The assistant should return a concise diagnosis: what failed, where the
+evidence came from, whether history suggests flakiness or a regression,
+what changed, and what verification is still running or already passed.
+
+## What the assistant does
+
+With `everr-working-with-ci` installed, the assistant follows a
+consistent investigation path:
+
+1. Identify the target run from the current branch, commit, PR context,
+   or run id you provided.
+2. Read structured run state before reading logs, so it knows which
+   workflow, job, and step failed.
+3. Fetch only the relevant log slice for the failed step instead of
+   dumping entire job logs into context.
+4. Use historical telemetry when the answer depends on patterns across
+   runs, such as flaky tests, repeated timeouts, or slow jobs.
+5. Explain the evidence and make the smallest code or configuration
+   change that addresses the failure.
+6. Watch the follow-up CI run and report the final state.
+
+That keeps the debugging loop narrow. The assistant spends its context
+budget on the failing job, the relevant code, and the verification
+signal rather than on copied logs.
+
+## When history matters
+
+Some failures are not explained by a single log line. Ask the assistant
+to compare history when you see symptoms like:
+
+- A test that fails intermittently.
+- A job that times out after usually passing.
+- A workflow that became slower over several runs.
+- A dependency install or network step that fails outside your code.
+- A failure that only appears on one branch, matrix value, or retry
+  attempt.
+
+Everr stores CI telemetry as queryable data, so the assistant can look
+for repeated test names, packages, branches, workflows, and run
+attempts before deciding whether a failure is flaky or caused by your
+change.
+
+## If the assistant gets stuck
+
+If the assistant says it cannot find the run, ask it to verify:
+
+- It is running from the repository that owns the failing workflow.
+- The branch, commit, pull request, or run id you gave it matches the
+  failure you care about.
+- The GitHub App is connected for the repository.
+- Existing run history has been imported if you are asking about an old
+  run.
+
+If the assistant finds the run but not enough detail, ask it to inspect
+the failed job and step before drawing conclusions. The most useful
+answers come from structured run data first, targeted logs second, and
+historical telemetry only when the failure needs comparison.

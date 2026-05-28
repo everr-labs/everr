@@ -1,0 +1,156 @@
+---
+title: Use Debug Traces
+description: Use local traces to debug app behavior.
+---
+
+Debug traces are a shared working memory for you and your coding assistant.
+They are ordinary OpenTelemetry spans, span events, and logs that you add for
+local investigation, then inspect through Everr instead of printing everything
+to stdout.
+
+Use them for the internal values you would normally print while debugging:
+selected ids, state machine phases, cache decisions, feature flags, request
+branches, retry counts, and other facts that explain why the app behaved the way
+it did.
+
+The important shift is the interaction model. Instead of asking an assistant to
+guess from source code, ask it to create a feedback loop: add a small debug
+trace, run or guide a manual test, inspect the recorded internal state, compare
+that state to the expected behavior, then make the next change.
+
+Because the data lands in local telemetry, the evidence stays available after
+the terminal scrolls away, does not bloat stdout, and can be gated so it never
+adds production noise.
+
+## Ask for trace-backed debugging
+
+When a local bug is unclear, give the assistant an explicit trace-first
+instruction:
+
+```text
+Use local debug traces for this investigation. Add the smallest debug spans or
+events needed to explain the unknown state, then inspect the newest local traces
+for those debug span names before changing code again. Tell me what the trace
+proves, what it rules out, and what value is still missing.
+```
+
+This turns the assistant's work into a measured loop. The assistant should not
+only say what it changed; it should show what the app recorded when the workflow
+ran.
+
+## Add a debug span
+
+Ask the assistant to put debug spans around the behavior it is trying to
+understand. Names should be easy to search, and attributes should capture the
+values the assistant needs to verify later.
+
+For example:
+
+```ts
+import { SpanStatusCode, trace } from "@opentelemetry/api";
+
+const tracer = trace.getTracer("checkout-debug");
+
+export async function submitOrder(input: SubmitOrderInput) {
+  const span = tracer.startSpan("debug.checkout.submit_order", {
+    attributes: {
+      "debug.feature": "checkout",
+      "cart.item_count": input.items.length,
+      "payment.method": input.paymentMethod,
+    },
+  });
+
+  try {
+    const quote = await priceOrder(input);
+
+    span.addEvent("quote calculated", {
+      "quote.total_cents": quote.totalCents,
+      "quote.discount_count": quote.discounts.length,
+    });
+
+    return await createOrder(input, quote);
+  } catch (error) {
+    span.recordException(error as Error);
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    throw error;
+  } finally {
+    span.end();
+  }
+}
+```
+
+Use logs for short facts that happen at a point in time. Use spans when the
+timing, parent/child relationship, or final status matters. Use span events when
+you want a compact trail inside one operation.
+
+## Run the assistant loop
+
+A useful assistant loop is:
+
+1. Pick the question the trace should answer.
+2. Add the smallest debug span, event, or log that records the needed value.
+3. Run the app after the instrumentation change.
+4. Ask the agent to manually exercise the broken workflow, or do it yourself if
+   automation is not possible.
+5. Ask the assistant to inspect the newest local trace data for the debug spans
+   it added.
+6. Make the next change only after the trace explains the current behavior.
+
+For example, after you reproduce the bug:
+
+```text
+I reproduced the checkout bug after your instrumentation change. Inspect the
+newest debug.checkout traces and summarize the internal state that led to the
+failure. Do not change code until the trace explains the mismatch.
+```
+
+This keeps the assistant grounded in runtime evidence. If the trace is empty,
+stale, or missing a key value, the next fix is instrumentation, not another
+guess.
+
+## Make manual testing visible
+
+Debug traces also help when the assistant cannot operate the UI directly. You
+can run the app, exercise the workflow yourself, and tell the assistant what you
+tested:
+
+```text
+I manually tested the invite flow just now. Check the latest debug.invite traces
+and tell me whether the modal state, selected role, and submitted payload match
+the expected path.
+```
+
+That gives the assistant a persistent trail of what happened during your manual
+test without requiring you to paste terminal output or rewrite every click.
+
+## Keep a manual test trail
+
+The trail can stay lightweight. Use stable debug span names, keep the relevant
+workflow name in the span attributes, and mention roughly when you tested. Later,
+you can ask the assistant to recover what happened even if the terminal output
+is gone:
+
+```text
+Resume the local checkout investigation from the traces I produced this
+afternoon. Use the debug.checkout traces as the source of truth and compare the
+latest failed attempt with the latest successful checkout trace if one exists.
+```
+
+This turns manual testing into an inspectable trail. You can compare a successful
+attempt with a broken one, hand the workflow name to an agent, or reopen
+yesterday's local investigation without reconstructing it from memory.
+
+## Keep it local and safe
+
+Debug traces should be rich locally and quiet in production.
+
+- Gate debug spans behind a development flag such as
+  `NODE_ENV !== "production"` or an equivalent runtime check.
+- Prefer stable, searchable names and attributes such as `debug.checkout.*`,
+  `debug.feature`, `route.name`, `job.id`, or `test.name`.
+- Capture identifiers and state summaries, not secrets, tokens, emails, request
+  bodies, or full customer payloads.
+- Add one useful signal at each boundary instead of many noisy signals inside a
+  loop.
+- Keep normal production telemetry focused. Local debug traces are for
+  investigation, not permanent product analytics.

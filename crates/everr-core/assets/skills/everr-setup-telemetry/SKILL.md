@@ -15,10 +15,11 @@ Prefer real OpenTelemetry for runtime services. Use `everr wrap` only for bounde
 2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
 3. Use the `otlp:` URL from `everr local status` in exporters.
 4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, and test runner.
-5. Add the smallest standard OTel setup for the stack: `service.name`, traces, logs, useful resource attributes, automatic error capture, and an OTLP/HTTP exporter.
-6. Gate local-only exporters so local collector URLs do not ship in production bundles.
-7. Trigger the instrumented path and verify fresh rows with `everr local query`.
-8. Do not claim setup works until Everr shows new telemetry.
+5. Add the smallest standard OTel setup for the stack: `service.name`, traces, logs, metrics when supported, useful resource attributes, automatic error capture, and an OTLP/HTTP exporter.
+6. Configure endpoint selection for both environments: local development exports to `everr local endpoint`; production exports to `https://ingest.everr.dev/` with an ingest key from the secret manager.
+7. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
+8. Trigger the instrumented path and verify fresh local rows with `everr local query`.
+9. Do not claim setup works until Everr shows new telemetry.
 
 ## Command Choice
 
@@ -68,6 +69,7 @@ For Node.js services:
 For browser apps:
 - Keep local exporters dev/test gated.
 - Use OTLP HTTP exporters only; browser gRPC export is not supported.
+- Capture browser metrics when the browser SDK and runtime support them.
 - Capture document load, user interaction, XHR, fetch, `window.error`, and `window.unhandledrejection` when relevant.
 - Check browser devtools for CORS or CSP errors when telemetry does not arrive.
 
@@ -84,7 +86,27 @@ For Playwright or other E2E tests, capture both the app under test and the test 
 
 ## Production Export
 
-When setting up production telemetry, use Everr's OTLP HTTP ingest endpoint and an organization ingest key from the user's secret manager. Do not invent credentials or hardcode keys. Keep production telemetry lower-noise than local debug telemetry, and keep secrets out of attributes and log bodies.
+When setting up production telemetry, wire the app to Everr's hosted OTLP HTTP ingest endpoint and require an organization ingest key from the user's secret manager.
+
+Use these production defaults:
+
+- Endpoint: `https://ingest.everr.dev/`
+- Header: `Authorization: Bearer <ingest-key>`
+- Secret environment variable: `EVERR_INGEST_KEY`
+- Service identity: a stable `OTEL_SERVICE_NAME` value per service
+
+If the SDK wants per-signal URLs, send traces to `/v1/traces`, logs to `/v1/logs`, and metrics to `/v1/metrics` under the ingest endpoint. If the SDK accepts a base OTLP endpoint and appends signal paths itself, use the base endpoint only.
+
+If no production ingest key exists yet, tell the user to create one in the Everr dashboard from the user menu's **Ingest Keys** page, then store it in the deployment secret manager. Do not invent credentials, print keys, hardcode keys, or commit keys.
+
+Implementation expectations:
+
+- Use the local collector endpoint for development and test runs.
+- Use hosted ingest only when `EVERR_INGEST_KEY` is set.
+- Keep production telemetry lower-noise than local debug telemetry.
+- Keep secrets, tokens, emails, request bodies, and raw customer payloads out of attributes and log bodies.
+- Do not expose `EVERR_INGEST_KEY` in browser bundles. Browser production telemetry should go through a backend or collector that can attach the ingest key server-side.
+- Preserve normal crash and shutdown behavior while flushing telemetry.
 
 ## Verification Queries
 

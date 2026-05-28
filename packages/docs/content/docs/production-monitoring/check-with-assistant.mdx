@@ -1,0 +1,128 @@
+---
+title: Check With Your Assistant
+description: Use your assistant to inspect production telemetry.
+---
+
+Production incidents usually need two kinds of context: what happened at
+runtime, and what the code was trying to do. Everr's `everr-use-telemetry` skill
+connects those two views. It tells your coding assistant how to query production
+telemetry, while the repository tells it which services, routes, spans, logs,
+and attributes are worth looking for.
+
+Run the assistant from the repository that produced the telemetry. That lets it
+inspect OpenTelemetry setup, route handlers, background jobs, and error paths
+before it writes SQL.
+
+## Start with a concrete prompt
+
+Give the assistant the production symptom, the time window, and permission to
+inspect the repository before querying:
+
+```text
+Use the everr-use-telemetry skill. We are investigating production checkout
+failures in this repo from the last hour.
+
+First inspect the code to identify likely service names, routes, span names, log
+messages, and telemetry attributes. Then query Everr cloud telemetry. Start with
+a freshness check, find recent errors or failed spans, pick one representative
+TraceId, and show the full trace before suggesting a fix.
+```
+
+This works better than pasting a log line into a chat because the assistant can
+connect telemetry back to the code that emitted it. It can search for the route,
+handler, queue consumer, database call, span name, log message, or attribute key
+that should appear in production.
+
+## Let code shape the telemetry query
+
+Before querying, a useful assistant should inspect:
+
+- OpenTelemetry SDK setup for `service.name`, resource attributes, exporters,
+  and environment-specific config.
+- Route definitions, RPC handlers, queue consumers, cron jobs, and worker entry
+  points related to the symptom.
+- Span names, log messages, status codes, and attribute names emitted around the
+  suspected path.
+- Correlation fields such as `TraceId`, request ids, job ids, route names, or
+  deployment identifiers.
+
+Then it can query the right cloud tables instead of scanning blindly.
+
+## Investigation loop
+
+A good production investigation usually follows this loop:
+
+1. State the question the telemetry should answer.
+2. Check that production data is fresh.
+3. Query recent errors, failed spans, or slow spans for the relevant time window.
+4. Pick a representative `TraceId`.
+5. Query the full trace in timestamp order.
+6. Compare the failing span or log to the code path that emitted it.
+7. Explain what the data proves, what remains unknown, and the next smallest
+   fix or instrumentation change.
+
+For example, the assistant might start broad:
+
+```sql
+SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
+FROM logs
+WHERE Timestamp > now() - INTERVAL 1 HOUR
+  AND SeverityNumber >= 17
+ORDER BY Timestamp DESC
+LIMIT 50
+```
+
+Then pivot into traces:
+
+```sql
+SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode, StatusMessage
+FROM traces
+WHERE TraceId = '<trace-id>'
+ORDER BY Timestamp ASC
+LIMIT 200
+```
+
+## Useful prompts
+
+For production errors:
+
+```text
+Use everr-use-telemetry to investigate production errors in this repo. Inspect
+the code first so your queries use the right service names, route names, span
+names, and attributes. Query the last 30 minutes of cloud logs and traces, then
+show the most likely failing code path.
+```
+
+For latency:
+
+```text
+Production requests to /api/search are slow. Use the telemetry skill and this
+repo to find the slowest spans for that route over the last hour. Trace one slow
+request end to end, then inspect the code behind the slow span and propose the
+smallest next diagnostic or code change.
+```
+
+For missing telemetry:
+
+```text
+We expect production telemetry for invoice syncs, but the dashboard is empty.
+Use the telemetry skill to check whether any fresh spans or logs exist for the
+related service. If the data is missing or stale, inspect the code and explain
+which instrumentation or exporter configuration should be fixed.
+```
+
+## What to expect back
+
+The assistant should return evidence, not just a theory:
+
+- The exact production question it tried to answer.
+- The queries it ran and the time window they covered.
+- A representative `TraceId`, span, log line, or metric result.
+- The code path connected to that telemetry.
+- A short explanation of what is proven, what is still unknown, and what to do
+  next.
+
+If the relevant data is empty, stale, or missing a key attribute, treat that as
+an instrumentation problem. Ask the assistant to inspect the code path and use
+`everr-setup-telemetry` to add the next targeted span, log, or metric before the
+next production investigation depends on it.
