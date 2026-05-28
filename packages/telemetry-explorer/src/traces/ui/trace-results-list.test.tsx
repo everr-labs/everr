@@ -1,4 +1,3 @@
-import type { UseQueryResult } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -40,18 +39,6 @@ function row(
   };
 }
 
-function queryResult(data: TraceSummary[]): UseQueryResult<TraceSummary[]> {
-  return {
-    data,
-    isPending: false,
-    isFetching: false,
-    isPlaceholderData: false,
-    isError: false,
-    error: null,
-    refetch: vi.fn(),
-  } as unknown as UseQueryResult<TraceSummary[]>;
-}
-
 function renderTraceLink({
   traceId,
   className,
@@ -81,8 +68,13 @@ describe("TraceResultsList", () => {
     ];
     render(
       <TraceResultsList
-        query={queryResult(rows)}
-        limit={50}
+        rows={rows}
+        isPending={false}
+        isError={false}
+        error={null}
+        refetch={() => {}}
+        hasMore={false}
+        isLoadingMore={false}
         renderTraceLink={renderTraceLink}
         onLoadMore={() => {}}
         onClearFilters={() => {}}
@@ -102,8 +94,13 @@ describe("TraceResultsList", () => {
     ];
     const { container } = render(
       <TraceResultsList
-        query={queryResult(rows)}
-        limit={50}
+        rows={rows}
+        isPending={false}
+        isError={false}
+        error={null}
+        refetch={() => {}}
+        hasMore={false}
+        isLoadingMore={false}
         renderTraceLink={renderTraceLink}
         onLoadMore={() => {}}
         onClearFilters={() => {}}
@@ -121,8 +118,13 @@ describe("TraceResultsList", () => {
     const rows = [row({ traceId: "abc123", rootName: "GET /home" })];
     render(
       <TraceResultsList
-        query={queryResult(rows)}
-        limit={50}
+        rows={rows}
+        isPending={false}
+        isError={false}
+        error={null}
+        refetch={() => {}}
+        hasMore={false}
+        isLoadingMore={false}
         renderTraceLink={renderTraceLink}
         onLoadMore={() => {}}
         onClearFilters={() => {}}
@@ -139,8 +141,13 @@ describe("TraceResultsList", () => {
     const onClearFilters = vi.fn();
     render(
       <TraceResultsList
-        query={queryResult([])}
-        limit={50}
+        rows={[]}
+        isPending={false}
+        isError={false}
+        error={null}
+        refetch={() => {}}
+        hasMore={false}
+        isLoadingMore={false}
         renderTraceLink={renderTraceLink}
         onLoadMore={() => {}}
         onClearFilters={onClearFilters}
@@ -154,16 +161,16 @@ describe("TraceResultsList", () => {
     const user = userEvent.setup();
     const onLoadMore = vi.fn();
     const rows = [row({ traceId: "a", rootName: "GET /a" })];
-    const query = {
-      ...queryResult(rows),
-      isFetching: true,
-      isPlaceholderData: true,
-    } as unknown as UseQueryResult<TraceSummary[]>;
 
     render(
       <TraceResultsList
-        query={query}
-        limit={50}
+        rows={rows}
+        isPending={false}
+        isError={false}
+        error={null}
+        refetch={() => {}}
+        hasMore={true}
+        isLoadingMore={true}
         renderTraceLink={renderTraceLink}
         onLoadMore={onLoadMore}
         onClearFilters={() => {}}

@@ -8,7 +8,6 @@ import {
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import type { UseQueryResult } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
@@ -20,8 +19,13 @@ import { serviceColor } from "./shared/service-color";
 const SKELETON_DELAY_MS = 1000;
 
 type Props = {
-  query: UseQueryResult<TraceSummary[]>;
-  limit: number;
+  rows: TraceSummary[];
+  isPending: boolean;
+  isError: boolean;
+  error: Error | null;
+  refetch: () => void;
+  hasMore: boolean;
+  isLoadingMore: boolean;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
   onLoadMore: () => void;
   onClearFilters: () => void;
@@ -36,13 +40,17 @@ export type TraceLinkRenderProps = {
 };
 
 export function TraceResultsList({
-  query,
-  limit,
+  rows,
+  isPending,
+  isError,
+  error,
+  refetch,
+  hasMore,
+  isLoadingMore,
   renderTraceLink,
   onLoadMore,
   onClearFilters,
 }: Props) {
-  const rows = query.data ?? [];
   const maxDuration = useMemo(() => {
     let max = 0n;
     for (const r of rows) {
@@ -52,14 +60,14 @@ export function TraceResultsList({
     return max;
   }, [rows]);
 
-  const showSkeleton = useDelayedFlag(query.isPending, SKELETON_DELAY_MS);
-  if (query.isPending) return showSkeleton ? <ResultsSkeleton /> : null;
-  if (query.isError) {
+  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
+  if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
+  if (isError) {
     return (
       <RetryError
         title="Failed to load traces"
-        message={(query.error as Error).message}
-        onRetry={() => query.refetch()}
+        message={error?.message ?? "Unknown error"}
+        onRetry={refetch}
       />
     );
   }
@@ -67,8 +75,6 @@ export function TraceResultsList({
     return <EmptyState onClearFilters={onClearFilters} />;
   }
 
-  const isLoadingMore = query.isFetching && query.isPlaceholderData;
-  const hasMore = rows.length >= limit || isLoadingMore;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Virtuoso

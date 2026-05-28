@@ -1,9 +1,13 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
+import { type ReactNode, useMemo } from "react";
 import {
   listServiceIdentitiesOptions,
-  tracesSearchOptions,
+  tracesSearchInfiniteOptions,
 } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { SpanStatusFilter } from "../data/schemas";
@@ -45,8 +49,17 @@ export function TracesSearch({
   const identitiesQuery = useQuery(
     listServiceIdentitiesOptions(repo, { timeRange, refresh }),
   );
-  const tracesQuery = useQuery(
-    tracesSearchOptions({
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useInfiniteQuery({
+    ...tracesSearchInfiniteOptions({
       repo,
       timeRange,
       refresh,
@@ -58,7 +71,9 @@ export function TracesSearch({
       status: search.status,
       limit: search.limit,
     }),
-  );
+    placeholderData: keepPreviousData,
+  });
+  const rows = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
@@ -75,12 +90,15 @@ export function TracesSearch({
         onChange={onSearchChange}
       />
       <TraceResultsList
-        query={tracesQuery}
-        limit={search.limit}
+        rows={rows}
+        isPending={isPending}
+        isError={isError}
+        error={error}
+        refetch={refetch}
+        hasMore={hasNextPage}
+        isLoadingMore={isFetchingNextPage}
         renderTraceLink={renderTraceLink}
-        onLoadMore={() =>
-          onSearchChange({ limit: Math.min(search.limit + 50, 500) })
-        }
+        onLoadMore={() => fetchNextPage()}
         onClearFilters={() =>
           onSearchChange({
             namespace: [],

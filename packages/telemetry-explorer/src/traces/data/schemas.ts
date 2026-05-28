@@ -32,6 +32,8 @@ export function toTraceListSearch(
 export const SearchTracesInputSchema = z.object({
   fromTs: z.string().min(1),
   toTs: z.string().min(1),
+  cursorStartTs: z.string().min(1).optional(),
+  cursorTraceId: z.string().min(1).optional(),
   namespace: z.array(z.string()).default([]),
   service: z.array(z.string()).default([]),
   name: z.string().default(""),
