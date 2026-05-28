@@ -4,6 +4,11 @@ import { z } from 'zod';
 /** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export const docs = defineDocs({
   dir: 'content/docs',
+  docs: {
+    postprocess: {
+      includeProcessedMarkdown: true,
+    },
+  },
 });
 
 /** @expected-unused — read by fumadocs build pipeline, not by TS imports. */

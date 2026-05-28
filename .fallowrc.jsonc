@@ -17,6 +17,9 @@
   "entry": [
     // CI scripts invoked directly by GitHub Actions workflows.
     ".github/actions/everr-action/scripts/build-readme.mjs",
+    // Nitro scans these folders as file-based server entry points for docs.
+    "packages/docs/middleware/**/*.{ts,tsx}",
+    "packages/docs/routes/**/*.{ts,tsx}",
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**"
