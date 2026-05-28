@@ -1,5 +1,5 @@
 ---
-title: Setup Monitoring
+title: Resource Monitoring
 description: Drop the everr-action into a workflow to capture per-job runner metrics and ship them to Everr.
 ---
 
@@ -8,6 +8,12 @@ per-job runner metrics (CPU, memory, network, disk) as a workflow
 artifact. Everr ingests the artifact and stitches the samples onto the
 matching check run so you can see resource pressure next to the rest of
 your CI signal.
+
+That resource signal helps you find CI optimization opportunities. If a
+job is CPU-bound, moving it to a larger runner might reduce wall-clock
+time enough to save money despite the higher per-minute rate. If memory,
+disk, or network is the bottleneck, the data points you toward a
+different fix than blindly changing runner size.
 
 ## Quick start
 

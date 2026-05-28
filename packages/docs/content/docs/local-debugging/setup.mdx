@@ -38,7 +38,7 @@ For local development and tests, configure your OpenTelemetry SDK to export to
 the `otlp` endpoint printed by `everr local status` or `everr local start`.
 
 ```sh
-export OTEL_EXPORTER_OTLP_ENDPOINT="<local-otlp-endpoint>"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:54318"
 export OTEL_SERVICE_NAME="my-app"
 ```
 
@@ -73,56 +73,21 @@ The command still prints normally and keeps its original exit code. The wrapped
 logs are useful for test failures, lint output, build errors, and short scripts
 that need to be queryable after the terminal output scrolls away.
 
-## Verify fresh telemetry
-
-After starting the collector and exercising the local path, query recent traces:
-
-```sh
-everr local query "
-SELECT Timestamp, ServiceName, SpanName, StatusCode, Duration, TraceId
-FROM otel_traces
-WHERE Timestamp > now() - INTERVAL 30 MINUTE
-ORDER BY Timestamp DESC
-LIMIT 20
-"
-```
-
-Query recent logs:
-
-```sh
-everr local query "
-SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
-FROM otel_logs
-WHERE Timestamp > now() - INTERVAL 30 MINUTE
-ORDER BY Timestamp DESC
-LIMIT 50
-"
-```
-
-Fresh timestamps prove the current app run is exporting. If the newest rows are
-old, reproduce the workflow again after the app starts with the local endpoint
-configured.
-
 ## Set up your assistant
 
-Install the Everr skills so your assistant knows when to use local telemetry and
-how to query it:
-
-```sh
-everr skills install everr-use-telemetry everr-setup-telemetry --global
-```
-
-For repository-scoped installation, use `--project` instead of `--global`.
+Install the Everr skills from [Skills](/docs/reference/skills) so your
+assistant knows when to use local telemetry and how to query it during an
+investigation.
 
 When you ask for help with a local bug, ask for an evidence loop:
 
 ```text
 Use Everr local telemetry for this investigation. Check collector status,
-verify fresh traces or logs, query the data before changing code, and add
-targeted debug telemetry if the current data does not explain the behavior.
+query recent traces or logs before changing code, and add targeted debug
+telemetry if the current data does not explain the behavior.
 ```
 
-That gives the assistant a concrete workflow: inspect current telemetry first,
+That gives the assistant a concrete workflow: inspect existing telemetry first,
 instrument only the missing facts, reproduce the issue, then compare observed
 state to expected state.
 

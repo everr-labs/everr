@@ -9,8 +9,17 @@ describe("layout options", () => {
     expect(baseOptions().nav?.title).toBeTruthy();
     expect(baseOptions().searchToggle?.enabled).not.toBe(false);
     expect(docs.nav?.title).toBeTruthy();
+    expect(docs.links).not.toContainEqual(
+      expect.objectContaining({ text: "Docs" }),
+    );
     expect(docsNavTitle?.({ href: "/" })).toBeNull();
     expect(docs.searchToggle?.enabled).toBe(false);
     expect(docs.sidebar?.collapsible).toBe(false);
+  });
+
+  it("offsets the docs layout below the shared top navigation", () => {
+    expect(docsOptions().containerProps?.style).toMatchObject({
+      "--fd-banner-height": "3.5rem",
+    });
   });
 });

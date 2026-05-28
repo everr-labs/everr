@@ -1,0 +1,77 @@
+---
+title: Setup a New Repo
+description: Use everr init to connect a repository to Everr and import recent CI history.
+---
+
+Use `everr init` when you add Everr to another repository after the
+first setup flow. It checks the current GitHub repository, verifies that
+the active Everr GitHub App installation can see it, and imports recent
+workflow history when the repository does not already have runs in
+Everr.
+
+## Start from the repository
+
+Run the command from the repository checkout you want to connect:
+
+```sh
+cd path/to/repo
+everr init
+```
+
+`everr init` detects the repository from the `origin` remote, so the
+remote must point at GitHub in `owner/name` form.
+
+```sh
+git remote get-url origin
+```
+
+If you have not logged in yet, authenticate first:
+
+```sh
+everr cloud login
+```
+
+## Check GitHub App access
+
+`everr init` is the reliable check for Everr GitHub App access. It asks
+Everr for the repositories visible to the active GitHub App
+installation and compares that list to the repository detected from
+`origin`.
+
+If the app is not installed for the repository, `everr init` prints a
+message telling you to install or update the Everr GitHub App, then
+rerun `everr init`.
+
+## Import recent runs
+
+When the Everr GitHub App has access and the repository does not have
+runs imported yet, `everr init` asks whether to import workflow history.
+Accept the prompt to start the import.
+
+```txt
+Import workflow history for owner/repo?
+```
+
+The import runs asynchronously. Existing and new workflow data appears
+gradually in Everr as GitHub runs, jobs, steps, and logs are processed.
+
+## Verify the setup
+
+After the import starts, list recent runs from the same repository:
+
+```sh
+everr ci runs --limit 5
+```
+
+For a new workflow execution, you can also watch the current commit:
+
+```sh
+everr ci watch
+```
+
+If no runs appear yet, wait for ingestion to catch up or trigger a new
+GitHub Actions run.
+
+Next, add [Resource Monitoring](/docs/ci-insights/resource-monitoring)
+to any jobs where you want per-job CPU, memory, network, and disk
+metrics.

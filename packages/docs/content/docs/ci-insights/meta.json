@@ -1,5 +1,5 @@
 {
   "title": "CI Insights",
   "defaultOpen": true,
-  "pages": ["setup-monitoring", "debug-ci", "cost-analysis"]
+  "pages": ["setup-new-repo", "resource-monitoring", "debug-ci", "cost-analysis"]
 }
