@@ -60,17 +60,6 @@ get a no-op start and a warning at finalize time.
 | `resource-usage` | no       | `"true"` | Whether to sample per-job resource usage. Set to `"false"` to opt out without removing the step.                                       |
 | `check-run-id`   | no       | `""`     | Check run id for the current workflow job, e.g. `${{ job.check_run_id }}`. The action no-ops with a warning when it is missing.        |
 
-## Opting out
-
-To disable resource sampling on a specific job without removing the
-step:
-
-```yaml
-- uses: everr-labs/everr-action@v0
-  with:
-    resource-usage: "false"
-```
-
 ## Failure modes
 
 The action is designed to never fail the host job. Each of the
