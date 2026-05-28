@@ -16,9 +16,9 @@ Prefer real OpenTelemetry for runtime services. Use `everr wrap` only for bounde
 3. Use the `otlp:` URL from `everr local status` in exporters.
 4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, and test runner.
 5. Add the smallest standard OTel setup for the stack: `service.name`, traces, logs, metrics when supported, useful resource attributes, automatic error capture, and an OTLP/HTTP exporter.
-6. Configure endpoint selection for both environments: local development exports to `everr local endpoint`; production exports to `https://ingest.everr.dev/` with an ingest key from the secret manager.
+6. Configure endpoint selection for both environments: local development exports to the `otlp:` URL from `everr local status`; production exports to `https://ingest.everr.dev/` with an ingest key from the secret manager.
 7. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
-8. Trigger the instrumented path and verify fresh local rows with `everr local query`.
+8. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName` and a recent time window. Use a unique run, request, or test id when available.
 9. Do not claim setup works until Everr shows new telemetry.
 
 ## Command Choice
@@ -110,11 +110,15 @@ Implementation expectations:
 
 ## Verification Queries
 
+Do not treat unfiltered recent rows as proof. Before triggering the app, identify the expected `service.name` and, when practical, add a temporary run, request, or test id as a safe resource or span/log attribute. Verification should prove the telemetry came from the path you just exercised.
+
 Fresh trace check:
 
 ```sql
 SELECT Timestamp, ServiceName, SpanName, TraceId
 FROM otel_traces
+WHERE Timestamp > now() - INTERVAL 10 MINUTE
+  AND ServiceName = '<service-name>'
 ORDER BY Timestamp DESC
 LIMIT 20
 ```
@@ -124,16 +128,20 @@ Fresh log check:
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
 FROM otel_logs
+WHERE Timestamp > now() - INTERVAL 10 MINUTE
+  AND ServiceName = '<service-name>'
 ORDER BY Timestamp DESC
 LIMIT 20
 ```
 
-Run-id check:
+Run-id check, when the instrumented path emits one:
 
 ```sql
 SELECT Timestamp, ServiceName, Body
 FROM otel_logs
-WHERE ResourceAttributes['e2e.run_id'] = '<run-id>'
+WHERE Timestamp > now() - INTERVAL 10 MINUTE
+  AND ServiceName = '<service-name>'
+  AND ResourceAttributes['e2e.run_id'] = '<run-id>'
 ORDER BY Timestamp DESC
 LIMIT 20
 ```

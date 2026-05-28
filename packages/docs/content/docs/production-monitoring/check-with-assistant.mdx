@@ -77,7 +77,8 @@ Then pivot into traces:
 ```sql
 SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode, StatusMessage
 FROM traces
-WHERE TraceId = '<trace-id>'
+WHERE Timestamp > now() - INTERVAL 1 HOUR
+  AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
 LIMIT 200
 ```

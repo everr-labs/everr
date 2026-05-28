@@ -52,36 +52,43 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 const tracer = trace.getTracer("checkout-debug");
 
 export async function submitOrder(input: SubmitOrderInput) {
-  const span = tracer.startSpan("debug.checkout.submit_order", {
-    attributes: {
-      "debug.feature": "checkout",
-      "cart.item_count": input.items.length,
-      "payment.method": input.paymentMethod,
+  return await tracer.startActiveSpan(
+    "debug.checkout.submit_order",
+    {
+      attributes: {
+        "debug.feature": "checkout",
+        "cart.item_count": input.items.length,
+        "payment.method": input.paymentMethod,
+      },
     },
-  });
+    async (span) => {
+      try {
+        const quote = await priceOrder(input);
 
-  try {
-    const quote = await priceOrder(input);
+        span.addEvent("quote calculated", {
+          "quote.total_cents": quote.totalCents,
+          "quote.discount_count": quote.discounts.length,
+        });
 
-    span.addEvent("quote calculated", {
-      "quote.total_cents": quote.totalCents,
-      "quote.discount_count": quote.discounts.length,
-    });
-
-    return await createOrder(input, quote);
-  } catch (error) {
-    span.recordException(error as Error);
-    span.setStatus({ code: SpanStatusCode.ERROR });
-    throw error;
-  } finally {
-    span.end();
-  }
+        return await createOrder(input, quote);
+      } catch (error) {
+        span.recordException(error as Error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 ```
 
 Use logs for short facts that happen at a point in time. Use spans when the
 timing, parent/child relationship, or final status matters. Use span events when
 you want a compact trail inside one operation.
+
+Prefer `startActiveSpan` or `context.with` for debug wrappers so spans and logs
+created inside the wrapped work are linked under the debug span.
 
 ## Run the assistant loop
 

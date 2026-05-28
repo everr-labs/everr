@@ -58,7 +58,10 @@ export function docsOptions(): DocsLayoutOptions {
 
   return {
     ...options,
-    links: options.links?.filter((link) => !isDocsLink(link)),
+    githubUrl: undefined,
+    links: options.links?.filter(
+      (link) => !isDocsLink(link) && !isIconLink(link),
+    ),
     searchToggle: {
       ...options.searchToggle,
       enabled: false,
@@ -80,6 +83,10 @@ export function docsOptions(): DocsLayoutOptions {
 
 function isDocsLink(link: NonNullable<BaseLayoutProps["links"]>[number]) {
   return "text" in link && link.text === "Docs";
+}
+
+function isIconLink(link: NonNullable<BaseLayoutProps["links"]>[number]) {
+  return "type" in link && link.type === "icon";
 }
 
 function DocsSidebarNavTitle(_props: ComponentProps<"a">) {

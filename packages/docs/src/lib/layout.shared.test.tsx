@@ -12,6 +12,10 @@ describe("layout options", () => {
     expect(docs.links).not.toContainEqual(
       expect.objectContaining({ text: "Docs" }),
     );
+    expect(docs.links).not.toContainEqual(
+      expect.objectContaining({ text: "Discord" }),
+    );
+    expect(docs.githubUrl).toBeUndefined();
     expect(docsNavTitle?.({ href: "/" })).toBeNull();
     expect(docs.searchToggle?.enabled).toBe(false);
     expect(docs.sidebar?.collapsible).toBe(false);

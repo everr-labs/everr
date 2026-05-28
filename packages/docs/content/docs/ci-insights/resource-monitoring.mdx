@@ -17,9 +17,10 @@ different fix than blindly changing runner size.
 
 ## Quick start
 
-Add the action as the first step of any job whose resource usage you
-want to track. Pass `${{ job.check_run_id }}` so Everr can stitch the
-uploaded samples onto the matching check run.
+Add the action near the start of any job whose resource usage you want to
+track, after any setup steps you do not need sampled. Pass
+`${{ job.check_run_id }}` so Everr can stitch the uploaded samples onto the
+matching check run.
 
 ```yaml
 jobs:
