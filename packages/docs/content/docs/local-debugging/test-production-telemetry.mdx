@@ -1,0 +1,82 @@
+---
+title: Test Production Telemetry
+description: Validate production telemetry locally before shipping it.
+---
+
+Production telemetry is most useful when it answers the questions you will ask
+during a real investigation. Treat it as part of the development process: add a
+small amount of instrumentation, run the system locally, inspect the resulting
+telemetry, then decide whether the data would help debug the same behavior in
+production.
+
+The goal is not to design every span, log, and metric up front. Start with the
+smallest signal that explains the current workflow, then add pieces as the
+experience of running the system shows what is missing.
+
+## Use the production view locally
+
+Local debugging should feel like the final production workflow. Send your app's
+development telemetry to the local collector, exercise the feature, and inspect
+the rows the same way you expect to inspect production data later.
+
+Ask your assistant to check the telemetry as a product of the change, not only
+the source code:
+
+```text
+Use Everr local telemetry to review this instrumentation. Run or guide the
+workflow, query the newest traces and logs, and tell me whether the emitted
+service names, span names, attributes, errors, and correlation ids would be
+useful for debugging this workflow in production.
+```
+
+That review should answer concrete questions:
+
+- Does fresh telemetry appear after the workflow runs?
+- Are the service name, span names, and log messages easy to search for?
+- Can one failing request, job, or command be followed by `TraceId` or another
+  correlation field?
+- Do the attributes explain the important branch decisions without exposing
+  secrets or customer payloads?
+- If this failed in production, would the current telemetry show the likely
+  cause or the next missing fact?
+
+## Refine from evidence
+
+Use the local telemetry output to make the instrumentation better before it
+ships. If a span is too broad, add one child span around the slow or fragile
+boundary. If a log says an operation failed but not which branch failed, add the
+safe attribute that distinguishes the branches. If every row is technically
+correct but hard to query, improve names and resource attributes.
+
+Keep the loop small:
+
+1. State the production question the telemetry should answer.
+2. Add the smallest span, log, metric, or attribute for that question.
+3. Run the feature locally with the local collector enabled.
+4. Ask the assistant to inspect the newest local telemetry.
+5. Keep, rename, or extend the signal based on what the data proves.
+
+This keeps production telemetry practical. You add signals because they helped
+you understand a real local run, not because an abstract observability checklist
+said they might be useful someday.
+
+## Put it in agent instructions
+
+Adding telemetry should be part of the development process, not a separate
+cleanup task after a feature is already built. Project instructions can make
+that expectation explicit so assistants plan, implement, and verify telemetry
+alongside the behavior they are changing:
+
+```text
+When changing behavior, consider whether the change needs telemetry for local
+debugging and future production investigations. If telemetry is added or changed,
+use Everr local telemetry as part of the development loop: exercise the workflow,
+verify fresh traces or logs, check whether the data would be useful in
+production, and add only the next smallest signal when the current data is
+missing a key fact.
+```
+
+That turns telemetry into normal engineering work. The assistant should not
+wait for an incident to discover which spans, logs, or attributes are missing;
+it should use local runs to shape the production debugging experience while the
+code is still being developed.

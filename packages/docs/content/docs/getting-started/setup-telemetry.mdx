@@ -1,0 +1,52 @@
+---
+title: Setup Telemetry
+description: Use the Everr setup telemetry skill to configure local and production OpenTelemetry.
+---
+
+Use the `everr-setup-telemetry` skill to add OpenTelemetry to your app. The skill inspects your stack, adds the smallest standard setup for your runtime, configures local export to Everr, and verifies that fresh telemetry is visible before considering the setup done.
+
+## Local Collector
+
+For local development, Everr runs an OpenTelemetry collector on your machine.
+
+Local telemetry is meant to give you a fast feedback loop. Use it first to validate that your OpenTelemetry setup is exporting correctly, then use the same data to debug your app locally.
+
+Everr Desktop also includes the same local collector and starts it while the app is open.
+
+Browser apps can send telemetry to the local collector too, including browser metrics exported over OTLP/HTTP from development or test builds.
+
+After your app emits telemetry, verify it locally:
+
+```sh
+everr local query "SELECT Timestamp, ServiceName, SpanName FROM otel_traces ORDER BY Timestamp DESC LIMIT 20"
+```
+
+You can also open Everr Desktop and inspect traces, logs, and metrics there.
+
+## Production Telemetry
+
+For production, create an ingest key from the [Ingest Keys page](https://app.everr.dev/ingest-keys) and store it in your secret manager.
+
+### Set Up The Header
+
+Production telemetry is authenticated with the ingest key as a bearer token:
+
+```text
+Authorization: Bearer <your-ingest-key>
+```
+
+Set the key through your deployment secret manager, for example as `EVERR_INGEST_KEY`, and configure your OTLP/HTTP exporter to send it on every request.
+
+### Forward From A Collector
+
+If you already run an OpenTelemetry Collector, forward telemetry to Everr with an OTLP HTTP exporter:
+
+```yaml
+exporters:
+  otlphttp/everr:
+    endpoint: https://ingest.everr.dev
+    headers:
+      Authorization: "Bearer ${env:EVERR_INGEST_KEY}"
+```
+
+The collector can receive telemetry from your services and attach the ingest key server-side before forwarding traces, logs, and metrics to Everr.

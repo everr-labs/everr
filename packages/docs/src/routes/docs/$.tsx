@@ -12,7 +12,7 @@ import {
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Suspense } from "react";
 import { z } from "zod";
-import { baseOptions } from "@/lib/layout.shared";
+import { docsOptions } from "@/lib/layout.shared";
 import { source } from "@/lib/source";
 
 export const Route = createFileRoute("/docs/$")({
@@ -67,7 +67,7 @@ function Page() {
   const data = useFumadocsLoader(Route.useLoaderData());
 
   return (
-    <DocsLayout {...baseOptions()} tree={data.pageTree}>
+    <DocsLayout {...docsOptions()} tree={data.pageTree}>
       <Suspense>
         {clientLoader.useContent(data.path, {
           className: "",

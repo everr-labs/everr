@@ -1,5 +1,5 @@
 ---
-title: Commands
+title: CLI
 description: Reference for all Everr CLI commands.
 ---
 
@@ -12,6 +12,9 @@ description: Reference for all Everr CLI commands.
 
 - `everr setup` — run the guided setup wizard, including optional skills installation
 - `everr init` — import runs for the current repository
+
+## Skills
+
 - `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]` — list bundled Everr skills
 - `everr skills install [SKILL]... [--all] [--project|--global] [--agent ...] [--force] [--dry-run]` — install bundled skills; omitting `SKILL` in a terminal opens an interactive installer
 - `everr skills update [SKILL]... [--project|--global] [--agent ...] [--dry-run]` — update installed bundled skills
@@ -39,8 +42,9 @@ description: Reference for all Everr CLI commands.
 - `everr ci show <trace_id>` — show jobs and steps for a run
   - `--failed` show only failed jobs and their failed steps
 
-- `everr ci logs <trace_id>` — print step logs (last 1000 lines by default)
-  - `--job-name <job>` / `--step-number <n>` target a specific step
+- `everr ci logs <trace_id> --job-name <job> --step-number <n>` — print step logs (last 1000 lines by default)
+  - `--job-name <job>` / `--job-id <id>` select a job (required)
+  - `--step-number <n>` / `--log-failed` select a step (exactly one required)
   - `--tail <n>` how many lines from the bottom
   - `--limit <n>` / `--offset <n>` raw paging
 

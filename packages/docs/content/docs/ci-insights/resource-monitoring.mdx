@@ -1,5 +1,5 @@
 ---
-title: GitHub Action
+title: Resource Monitoring
 description: Drop the everr-action into a workflow to capture per-job runner metrics and ship them to Everr.
 ---
 
@@ -9,11 +9,18 @@ artifact. Everr ingests the artifact and stitches the samples onto the
 matching check run so you can see resource pressure next to the rest of
 your CI signal.
 
+That resource signal helps you find CI optimization opportunities. If a
+job is CPU-bound, moving it to a larger runner might reduce wall-clock
+time enough to save money despite the higher per-minute rate. If memory,
+disk, or network is the bottleneck, the data points you toward a
+different fix than blindly changing runner size.
+
 ## Quick start
 
-Add the action as the first step of any job whose resource usage you
-want to track. Pass `${{ job.check_run_id }}` so Everr can stitch the
-uploaded samples onto the matching check run.
+Add the action near the start of any job whose resource usage you want to
+track, after any setup steps you do not need sampled. Pass
+`${{ job.check_run_id }}` so Everr can stitch the uploaded samples onto the
+matching check run.
 
 ```yaml
 jobs:
@@ -53,17 +60,6 @@ get a no-op start and a warning at finalize time.
 | ---------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `resource-usage` | no       | `"true"` | Whether to sample per-job resource usage. Set to `"false"` to opt out without removing the step.                                       |
 | `check-run-id`   | no       | `""`     | Check run id for the current workflow job, e.g. `${{ job.check_run_id }}`. The action no-ops with a warning when it is missing.        |
-
-## Opting out
-
-To disable resource sampling on a specific job without removing the
-step:
-
-```yaml
-- uses: everr-labs/everr-action@v0
-  with:
-    resource-usage: "false"
-```
 
 ## Failure modes
 

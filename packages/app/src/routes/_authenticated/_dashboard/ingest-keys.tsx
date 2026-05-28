@@ -66,7 +66,7 @@ function IngestKeysPage() {
           See{" "}
           <a
             className="underline"
-            href="https://everr.dev/docs/sending-telemetry"
+            href="https://everr.dev/docs/production-monitoring/setup"
             target="_blank"
             rel="noreferrer"
           >
