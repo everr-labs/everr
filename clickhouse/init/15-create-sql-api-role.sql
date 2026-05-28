@@ -75,10 +75,8 @@ GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
 -- Keep sql_api_role out of web_app_admin's default roles. Otherwise CH would
 -- auto-activate it on every connection and apply sql_api_profile (readonly=1,
 -- allow_ddl=0, etc.) to web_app_admin's sessions, which would break the
--- CREATE USER / GRANT / CREATE ROW POLICY work it has to do. ADMIN OPTION
--- doesn't require the role to be active, so per-org GRANT sql_api_role still
--- works. web_app_admin's own table access is covered by direct grants in
--- 00-setup.sh and above on app.tenant_retention_source.
+-- CREATE USER / GRANT / CREATE ROW POLICY work it has to do. The app code
+-- uses SET ROLE to activate it only for the GRANT statement.
 ALTER USER web_app_admin DEFAULT ROLE NONE;
 
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
