@@ -5,7 +5,12 @@ import type {
   ListServiceIdentitiesInput,
   SearchTracesInput,
 } from "./schemas";
-import type { ServiceIdentity, Span, TraceSummary } from "./types";
+import type {
+  ServiceIdentity,
+  Span,
+  TraceSummary,
+  TracesSearchResult,
+} from "./types";
 
 type SpanRow = Omit<Span, "events" | "links"> & {
   eventNames: string[];
@@ -39,7 +44,7 @@ export class TracesRepository {
     this.tableName = options.tableName ?? "app.traces";
   }
 
-  async search(input: SearchTracesInput): Promise<TraceSummary[]> {
+  async search(input: SearchTracesInput): Promise<TracesSearchResult> {
     validateTableName(this.tableName);
     // Row-level predicates push down to WHERE in a candidate subquery so the
     // outer aggregate only reads spans belonging to traces with at least one
@@ -51,7 +56,6 @@ export class TracesRepository {
     const params: Record<string, unknown> = {
       fromTs: input.fromTs,
       toTs: input.toTs,
-      limit: input.limit,
     };
 
     if (input.name) {
@@ -108,6 +112,9 @@ export class TracesRepository {
           )`
         : "";
 
+    const havingClause =
+      havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : "";
+
     const sql = /* sql */ `
       WITH aggregated AS (
         SELECT
@@ -134,9 +141,12 @@ export class TracesRepository {
         WHERE ${TIME_WINDOW_SQL}
           ${candidateFilter}
         GROUP BY TraceId
-        ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
-        ORDER BY startTsRaw DESC
+        ${havingClause}
+        -- TraceId is the unique GROUP BY key — deterministic tiebreaker so
+        -- offset paging stays stable when traces share a start time.
+        ORDER BY startTsRaw DESC, TraceId DESC
         LIMIT {limit:UInt32}
+        OFFSET {offset:UInt32}
       )
       SELECT
         TraceId             AS traceId,
@@ -151,7 +161,14 @@ export class TracesRepository {
         services
       FROM aggregated
     `;
-    return this.client.execute<TraceSummary>(sql, params);
+
+    const traces = await this.client.execute<TraceSummary>(sql, {
+      ...params,
+      limit: input.limit,
+      offset: input.offset,
+    });
+
+    return { traces };
   }
 
   // fallow-ignore-next-line unused-class-member

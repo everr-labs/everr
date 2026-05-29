@@ -42,4 +42,22 @@ describe("TraceFilters", () => {
       "bg-transparent",
     );
   });
+
+  it("keeps span name search out of the filters sidebar", () => {
+    renderWithQueryClient(
+      <TraceFilters
+        value={{
+          namespace: [],
+          service: [],
+          name: "",
+          status: "all",
+        }}
+        identities={[]}
+        onChange={() => {}}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.queryByPlaceholderText("Span name contains...")).toBeNull();
+  });
 });

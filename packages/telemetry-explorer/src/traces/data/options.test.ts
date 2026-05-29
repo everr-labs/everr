@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { tracesSearchOptions } from "./options";
+import { tracesSearchInfiniteOptions } from "./options";
 import type { TracesRepositoryLike } from "./repository";
 import type { TraceSummary } from "./types";
 
@@ -36,36 +36,38 @@ const rows: TraceSummary[] = [
   },
 ];
 
-describe("tracesSearchOptions", () => {
-  it("keeps previous rows only when increasing the limit", () => {
-    const previousOptions = tracesSearchOptions({ ...baseInput, limit: 50 });
-    const nextOptions = tracesSearchOptions({ ...baseInput, limit: 100 });
-
-    const placeholderData = nextOptions.placeholderData as (
-      previousData: TraceSummary[] | undefined,
-      previousQuery: { queryKey: readonly unknown[] },
-    ) => TraceSummary[] | undefined;
-
-    expect(placeholderData(rows, { queryKey: previousOptions.queryKey })).toBe(
-      rows,
-    );
-  });
-
-  it("does not keep previous rows when filters change", () => {
-    const previousOptions = tracesSearchOptions({ ...baseInput, limit: 50 });
-    const nextOptions = tracesSearchOptions({
+describe("tracesSearchInfiniteOptions", () => {
+  it("passes the page param as the search offset", async () => {
+    const search = vi.fn(async () => ({ traces: rows }));
+    const options = tracesSearchInfiniteOptions({
       ...baseInput,
-      service: ["api"],
+      repo: { ...repo, search },
       limit: 50,
     });
 
-    const placeholderData = nextOptions.placeholderData as (
-      previousData: TraceSummary[] | undefined,
-      previousQuery: { queryKey: readonly unknown[] },
-    ) => TraceSummary[] | undefined;
+    const result = await options.queryFn?.({ pageParam: 100 } as never);
 
+    expect(result).toEqual({ traces: rows });
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50, offset: 100 }),
+    );
+  });
+
+  it("computes the next offset until a short page ends pagination", () => {
+    const options = tracesSearchInfiniteOptions({ ...baseInput, limit: 2 });
+    const full = { traces: [rows[0], rows[0]] };
+
+    // Full page → next offset = total rows so far.
+    expect(options.getNextPageParam(full, [full], 0, [0])).toBe(2);
+    expect(options.getNextPageParam(full, [full, full], 2, [0, 2])).toBe(4);
+    // Short page → no more pages.
     expect(
-      placeholderData(rows, { queryKey: previousOptions.queryKey }),
+      options.getNextPageParam({ traces: [rows[0]] }, [full], 2, [0, 2]),
     ).toBeUndefined();
+  });
+
+  it("uses initial page param 0", () => {
+    const options = tracesSearchInfiniteOptions({ ...baseInput, limit: 50 });
+    expect(options.initialPageParam).toBe(0);
   });
 });

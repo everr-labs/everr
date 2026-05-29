@@ -13,6 +13,10 @@ export type TraceSummary = {
   services: string[];
 };
 
+export type TracesSearchResult = {
+  traces: TraceSummary[];
+};
+
 export type SpanEvent = {
   name: string;
   timestamp: string;

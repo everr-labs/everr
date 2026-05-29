@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   errorIssueOptions,
-  errorIssuesOptions,
+  errorIssuesInfiniteOptions,
   errorServicesOptions,
 } from "./options";
 
@@ -10,14 +10,12 @@ describe("error query options", () => {
     vi.useRealTimers();
   });
 
-  it("resolves datemath before searching issues", async () => {
+  it("resolves datemath and forwards the page param as offset", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-26T11:00:00.000Z"));
 
-    const searchErrorIssues = vi
-      .fn()
-      .mockResolvedValue({ issues: [], totalCount: 0 });
-    const options = errorIssuesOptions({
+    const searchErrorIssues = vi.fn().mockResolvedValue({ issues: [] });
+    const options = errorIssuesInfiniteOptions({
       searchErrorIssues,
       timeRange: { from: "now-1h", to: "now" },
       refresh: "",
@@ -26,10 +24,11 @@ describe("error query options", () => {
       fingerprint: "",
       sort: "lastSeen",
       limit: 50,
-      offset: 100,
     });
 
-    await (options.queryFn as () => Promise<unknown>)();
+    await (options.queryFn as (ctx: { pageParam: number }) => Promise<unknown>)(
+      { pageParam: 100 },
+    );
 
     expect(searchErrorIssues).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -42,6 +41,28 @@ describe("error query options", () => {
       }),
     });
     expect(options.refetchInterval).toBe(false);
+    expect(options.initialPageParam).toBe(0);
+  });
+
+  it("stops paging when the last page is short", () => {
+    const searchErrorIssues = vi.fn();
+    const options = errorIssuesInfiniteOptions({
+      searchErrorIssues,
+      timeRange: { from: "now-1h", to: "now" },
+      refresh: "",
+      q: "",
+      service: [],
+      fingerprint: "",
+      sort: "lastSeen",
+      limit: 2,
+    });
+    const issue = { fingerprint: "fp" } as never;
+    const full = { issues: [issue, issue] };
+
+    expect(options.getNextPageParam(full, [full], 0, [0])).toBe(2);
+    expect(
+      options.getNextPageParam({ issues: [issue] }, [full], 2, [0, 2]),
+    ).toBeUndefined();
   });
 
   it("resolves datemath before loading issue detail", async () => {

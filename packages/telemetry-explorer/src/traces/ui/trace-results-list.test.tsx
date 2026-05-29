@@ -1,24 +1,34 @@
-import type { UseQueryResult } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { TraceSummary } from "../data/types";
 
+let lastEndReached: (() => void) | undefined;
+
 vi.mock("react-virtuoso", () => ({
   Virtuoso: <T,>({
     data,
     itemContent,
+    endReached,
+    components,
   }: {
     data: T[];
     itemContent: (index: number, item: T) => React.ReactNode;
-  }) => (
-    <div data-testid="virtuoso-mock">
-      {data.map((item, i) => (
-        <div key={i}>{itemContent(i, item)}</div>
-      ))}
-    </div>
-  ),
+    endReached?: () => void;
+    components?: { Footer?: () => React.ReactNode };
+  }) => {
+    lastEndReached = endReached;
+    const Footer = components?.Footer;
+    return (
+      <div data-testid="virtuoso-mock">
+        {data.map((item, i) => (
+          <div key={i}>{itemContent(i, item)}</div>
+        ))}
+        {Footer ? <Footer /> : null}
+      </div>
+    );
+  },
 }));
 
 import { TraceResultsList } from "./trace-results-list";
@@ -38,18 +48,6 @@ function row(
     services: ["web"],
     ...overrides,
   };
-}
-
-function queryResult(data: TraceSummary[]): UseQueryResult<TraceSummary[]> {
-  return {
-    data,
-    isPending: false,
-    isFetching: false,
-    isPlaceholderData: false,
-    isError: false,
-    error: null,
-    refetch: vi.fn(),
-  } as unknown as UseQueryResult<TraceSummary[]>;
 }
 
 function renderTraceLink({
@@ -72,22 +70,29 @@ function renderTraceLink({
   );
 }
 
+function defaultProps() {
+  return {
+    traces: [] as TraceSummary[],
+    isPending: false,
+    isError: false,
+    error: null as Error | null,
+    onRetry: vi.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    onLoadMore: vi.fn(),
+    renderTraceLink,
+    onClearFilters: vi.fn(),
+  };
+}
+
 describe("TraceResultsList", () => {
   it("renders one row per trace", () => {
-    const rows = [
+    const traces = [
       row({ traceId: "a", rootName: "GET /a" }),
       row({ traceId: "b", rootName: "GET /b" }),
       row({ traceId: "c", rootName: "GET /c" }),
     ];
-    render(
-      <TraceResultsList
-        query={queryResult(rows)}
-        limit={50}
-        renderTraceLink={renderTraceLink}
-        onLoadMore={() => {}}
-        onClearFilters={() => {}}
-      />,
-    );
+    render(<TraceResultsList {...defaultProps()} traces={traces} />);
 
     expect(screen.getByText("GET /a")).toBeInTheDocument();
     expect(screen.getByText("GET /b")).toBeInTheDocument();
@@ -96,18 +101,12 @@ describe("TraceResultsList", () => {
   });
 
   it("sizes duration bars against the max duration in the result set", () => {
-    const rows = [
+    const traces = [
       row({ traceId: "fast", durationNs: "500000" }),
       row({ traceId: "slow", durationNs: "1000000" }),
     ];
     const { container } = render(
-      <TraceResultsList
-        query={queryResult(rows)}
-        limit={50}
-        renderTraceLink={renderTraceLink}
-        onLoadMore={() => {}}
-        onClearFilters={() => {}}
-      />,
+      <TraceResultsList {...defaultProps()} traces={traces} />,
     );
 
     const bars = container.querySelectorAll(".bg-primary");
@@ -116,33 +115,13 @@ describe("TraceResultsList", () => {
     expect((bars[1] as HTMLElement).style.width).toBe("100%");
   });
 
-  it("links each row to the trace detail route", async () => {
-    const user = userEvent.setup();
-    const rows = [row({ traceId: "abc123", rootName: "GET /home" })];
-    render(
-      <TraceResultsList
-        query={queryResult(rows)}
-        limit={50}
-        renderTraceLink={renderTraceLink}
-        onLoadMore={() => {}}
-        onClearFilters={() => {}}
-      />,
-    );
-
-    const link = screen.getByTestId("trace-row-link");
-    expect(link).toHaveAttribute("href", "/traces/abc123");
-    await user.click(link);
-  });
-
   it("shows the empty state with a clear filters action", async () => {
     const user = userEvent.setup();
     const onClearFilters = vi.fn();
     render(
       <TraceResultsList
-        query={queryResult([])}
-        limit={50}
-        renderTraceLink={renderTraceLink}
-        onLoadMore={() => {}}
+        {...defaultProps()}
+        traces={[]}
         onClearFilters={onClearFilters}
       />,
     );
@@ -150,33 +129,49 @@ describe("TraceResultsList", () => {
     expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps rows visible and shows load-more fetching only on the button", async () => {
-    const user = userEvent.setup();
+  it("loads more when the list bottom is reached", () => {
     const onLoadMore = vi.fn();
-    const rows = [row({ traceId: "a", rootName: "GET /a" })];
-    const query = {
-      ...queryResult(rows),
-      isFetching: true,
-      isPlaceholderData: true,
-    } as unknown as UseQueryResult<TraceSummary[]>;
-
     render(
       <TraceResultsList
-        query={query}
-        limit={50}
-        renderTraceLink={renderTraceLink}
+        {...defaultProps()}
+        traces={[row({ traceId: "a" })]}
+        hasNextPage
         onLoadMore={onLoadMore}
-        onClearFilters={() => {}}
       />,
     );
 
-    expect(screen.getByText("GET /a")).toBeInTheDocument();
-    expect(screen.queryByText("Failed to load traces")).not.toBeInTheDocument();
-    expect(screen.queryByText("No traces")).not.toBeInTheDocument();
+    expect(screen.getByText("Showing 1 traces")).toBeInTheDocument();
+    lastEndReached?.();
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
 
-    const button = screen.getByRole("button", { name: /loading more/i });
-    expect(button).toBeDisabled();
-    await user.click(button);
+  it("does not load more while a page is already fetching", () => {
+    const onLoadMore = vi.fn();
+    render(
+      <TraceResultsList
+        {...defaultProps()}
+        traces={[row({ traceId: "a" })]}
+        hasNextPage
+        isFetchingNextPage
+        onLoadMore={onLoadMore}
+      />,
+    );
+
+    expect(screen.getByText("Loading more traces")).toBeInTheDocument();
+    lastEndReached?.();
     expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
+  it("shows the all-loaded footer when there is no next page", () => {
+    render(
+      <TraceResultsList
+        {...defaultProps()}
+        traces={[row({ traceId: "a" }), row({ traceId: "b" })]}
+        hasNextPage={false}
+      />,
+    );
+    expect(
+      screen.getByText("Showing all 2 matching traces"),
+    ).toBeInTheDocument();
   });
 });

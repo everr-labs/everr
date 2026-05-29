@@ -4,12 +4,13 @@ import {
   type TimeRange,
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
+import type { TracesSearchResult } from "./types";
 import type { DetailWindow } from "./window";
 
-export type TraceSearchOptionsInput = {
+export type TraceSearchInfiniteInput = {
   repo: TracesRepositoryLike;
   timeRange: TimeRange;
   refresh: string;
@@ -24,13 +25,12 @@ export type TraceSearchOptionsInput = {
 
 const MS_TO_NS = 1_000_000n;
 
-export function tracesSearchOptions(input: TraceSearchOptionsInput) {
+export function tracesSearchInfiniteOptions(input: TraceSearchInfiniteInput) {
   const { repo, refresh, ...key } = input;
   const refreshMs = getRefreshIntervalMs(refresh);
-  const queryKey = ["traces", "search", key] as const;
-  return queryOptions({
-    queryKey,
-    queryFn: async () => {
+  return infiniteQueryOptions({
+    queryKey: ["traces", "search", "infinite", key] as const,
+    queryFn: ({ pageParam }: { pageParam: number }) => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
       return repo.search({
         fromTs: toClickHouseDateTime(fromDate),
@@ -48,60 +48,19 @@ export function tracesSearchOptions(input: TraceSearchOptionsInput) {
             : (BigInt(input.maxMs) * MS_TO_NS).toString(),
         status: input.status,
         limit: input.limit,
+        offset: pageParam,
       });
     },
-    placeholderData: (previousData, previousQuery) =>
-      shouldKeepPreviousSearchRows(queryKey, previousQuery?.queryKey)
-        ? previousData
-        : undefined,
+    initialPageParam: 0,
+    getNextPageParam: (
+      lastPage: TracesSearchResult,
+      allPages: TracesSearchResult[],
+    ) => {
+      if (lastPage.traces.length < input.limit) return undefined;
+      return allPages.reduce((count, page) => count + page.traces.length, 0);
+    },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
-}
-
-type TraceSearchKey = Omit<TraceSearchOptionsInput, "repo" | "refresh">;
-type TraceSearchQueryKey = readonly ["traces", "search", TraceSearchKey];
-
-function shouldKeepPreviousSearchRows(
-  current: TraceSearchQueryKey,
-  previous: readonly unknown[] | undefined,
-): boolean {
-  if (!isTraceSearchQueryKey(previous)) return false;
-  const currentKey = current[2];
-  const previousKey = previous[2];
-  return (
-    currentKey.limit > previousKey.limit &&
-    currentKey.timeRange.from === previousKey.timeRange.from &&
-    currentKey.timeRange.to === previousKey.timeRange.to &&
-    arraysEqual(currentKey.namespace, previousKey.namespace) &&
-    arraysEqual(currentKey.service, previousKey.service) &&
-    currentKey.name === previousKey.name &&
-    currentKey.minMs === previousKey.minMs &&
-    currentKey.maxMs === previousKey.maxMs &&
-    currentKey.status === previousKey.status
-  );
-}
-
-function isTraceSearchQueryKey(
-  key: readonly unknown[] | undefined,
-): key is TraceSearchQueryKey {
-  return key?.[0] === "traces" && key[1] === "search" && isSearchKey(key[2]);
-}
-
-function isSearchKey(value: unknown): value is TraceSearchKey {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<TraceSearchKey>;
-  return (
-    typeof candidate.timeRange?.from === "string" &&
-    typeof candidate.timeRange.to === "string" &&
-    Array.isArray(candidate.namespace) &&
-    Array.isArray(candidate.service) &&
-    typeof candidate.name === "string" &&
-    typeof candidate.limit === "number"
-  );
-}
-
-function arraysEqual(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((value, i) => value === b[i]);
 }
 
 export type GetTraceOptionsInput = {

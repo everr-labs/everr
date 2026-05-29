@@ -7,6 +7,7 @@ const client = { execute: query };
 
 beforeEach(() => {
   query.mockReset();
+  query.mockResolvedValue([]);
 });
 
 function makeRepo() {
@@ -37,18 +38,22 @@ describe("TracesRepository.search", () => {
       name: "",
       status: "all",
       limit: 25,
+      offset: 25,
     });
 
-    expect(result).toEqual([row]);
+    expect(result).toEqual({ traces: [row] });
     expect(query).toHaveBeenCalledTimes(1);
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("FROM app.traces");
     expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
     expect(sql).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
+    expect(sql).toContain("LIMIT {limit:UInt32}");
+    expect(sql).toContain("OFFSET {offset:UInt32}");
     expect(params).toMatchObject({
       fromTs: "2026-05-20 11:00:00.000",
       toTs: "2026-05-20 13:00:00.000",
       limit: 25,
+      offset: 25,
     });
   });
 
@@ -64,6 +69,7 @@ describe("TracesRepository.search", () => {
       name: "",
       status: "all",
       limit: 25,
+      offset: 0,
     });
 
     const [sql] = query.mock.calls[0] ?? [];
@@ -83,6 +89,7 @@ describe("TracesRepository.search", () => {
       name: "",
       status: "all",
       limit: 25,
+      offset: 0,
     });
 
     const [sql] = query.mock.calls[0] ?? [];
@@ -109,6 +116,7 @@ describe("TracesRepository.search", () => {
       name: "",
       status: "all",
       limit: 25,
+      offset: 0,
     });
 
     const [sql] = query.mock.calls[0] ?? [];
@@ -134,6 +142,7 @@ describe("TracesRepository.search", () => {
         name: "",
         status: "all",
         limit: 25,
+        offset: 0,
       }),
     ).rejects.toThrow("invalid table name");
   });
@@ -150,6 +159,7 @@ describe("TracesRepository.search", () => {
       minDurationNs: "1000",
       status: "error",
       limit: 50,
+      offset: 0,
     });
 
     const [sql, params] = query.mock.calls[0] ?? [];
@@ -172,6 +182,7 @@ describe("TracesRepository.search", () => {
         name: "",
         status: "all",
         limit: 25,
+        offset: 0,
       }),
     ).rejects.toThrow("clickhouse exploded");
   });

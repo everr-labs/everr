@@ -8,6 +8,8 @@ import {
 } from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { RefreshCw } from "lucide-react";
+import { useCallback, useMemo } from "react";
+import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "@/data/errors/types";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
 
@@ -16,14 +18,46 @@ export function ErrorIssueList({
   isPending,
   isError,
   onRetry,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
   renderIssueLink,
 }: {
   issues: ErrorIssueSummary[];
   isPending: boolean;
   isError: boolean;
   onRetry: () => void;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  onLoadMore: () => void;
   renderIssueLink: RenderErrorIssueLink;
 }) {
+  const endReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) onLoadMore();
+  }, [hasNextPage, isFetchingNextPage, onLoadMore]);
+
+  const components = useMemo(
+    () => ({
+      Footer: () => (
+        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
+          {isFetchingNextPage ? (
+            <span className="flex items-center gap-2">
+              <Skeleton className="size-2 rounded-full" />
+              Loading more errors
+            </span>
+          ) : hasNextPage ? (
+            <span>Showing {issues.length.toLocaleString()} errors</span>
+          ) : (
+            <span>
+              Showing all {issues.length.toLocaleString()} matching errors
+            </span>
+          )}
+        </div>
+      ),
+    }),
+    [isFetchingNextPage, hasNextPage, issues.length],
+  );
+
   if (isPending) {
     return (
       <div className="flex flex-col">
@@ -74,14 +108,15 @@ export function ErrorIssueList({
   }
 
   return (
-    <ul className="min-w-0 list-none p-0">
-      {issues.map((issue) => (
-        <ErrorIssueRow
-          key={issue.fingerprint}
-          issue={issue}
-          renderIssueLink={renderIssueLink}
-        />
-      ))}
-    </ul>
+    <Virtuoso
+      className="min-h-0 min-w-0 flex-1"
+      data={issues}
+      endReached={endReached}
+      components={components}
+      computeItemKey={(_, issue) => issue.fingerprint}
+      itemContent={(_, issue) => (
+        <ErrorIssueRow issue={issue} renderIssueLink={renderIssueLink} />
+      )}
+    />
   );
 }

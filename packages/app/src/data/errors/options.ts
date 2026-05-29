@@ -4,18 +4,18 @@ import {
   type TimeRange,
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
   GetErrorIssueInput,
   ListErrorServicesInput,
   SearchErrorIssuesInput,
 } from "./schemas";
-import type { ErrorSort } from "./types";
+import type { ErrorIssuesResult, ErrorSort } from "./types";
 
 type ServerFn<TInput, TResult> = (args: { data: TInput }) => Promise<TResult>;
 
-export type ErrorIssuesOptionsInput<TResult> = {
-  searchErrorIssues: ServerFn<SearchErrorIssuesInput, TResult>;
+export type ErrorIssuesInfiniteOptionsInput = {
+  searchErrorIssues: ServerFn<SearchErrorIssuesInput, ErrorIssuesResult>;
   timeRange: TimeRange;
   refresh: string;
   q: string;
@@ -23,30 +23,27 @@ export type ErrorIssuesOptionsInput<TResult> = {
   fingerprint: string;
   sort: ErrorSort;
   limit: number;
-  offset: number;
 };
 
-export function errorIssuesOptions<TResult>(
-  input: ErrorIssuesOptionsInput<TResult>,
+export function errorIssuesInfiniteOptions(
+  input: ErrorIssuesInfiniteOptionsInput,
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
-  const queryKey = [
-    "errors",
-    "issues",
-    {
-      timeRange: input.timeRange,
-      q: input.q,
-      service: input.service,
-      fingerprint: input.fingerprint,
-      sort: input.sort,
-      limit: input.limit,
-      offset: input.offset,
-    },
-  ] as const;
-
-  return queryOptions({
-    queryKey,
-    queryFn: async () => {
+  return infiniteQueryOptions({
+    queryKey: [
+      "errors",
+      "issues",
+      "infinite",
+      {
+        timeRange: input.timeRange,
+        q: input.q,
+        service: input.service,
+        fingerprint: input.fingerprint,
+        sort: input.sort,
+        limit: input.limit,
+      },
+    ] as const,
+    queryFn: ({ pageParam }: { pageParam: number }) => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
       return input.searchErrorIssues({
         data: {
@@ -57,9 +54,17 @@ export function errorIssuesOptions<TResult>(
           fingerprint: input.fingerprint,
           sort: input.sort,
           limit: input.limit,
-          offset: input.offset,
+          offset: pageParam,
         },
       });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (
+      lastPage: ErrorIssuesResult,
+      allPages: ErrorIssuesResult[],
+    ) => {
+      if (lastPage.issues.length < input.limit) return undefined;
+      return allPages.reduce((count, page) => count + page.issues.length, 0);
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });

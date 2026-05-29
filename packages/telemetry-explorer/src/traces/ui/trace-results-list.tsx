@@ -8,8 +8,7 @@ import {
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import type { UseQueryResult } from "@tanstack/react-query";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { addNsToCHDateTime } from "../data/window";
@@ -20,10 +19,15 @@ import { serviceColor } from "./shared/service-color";
 const SKELETON_DELAY_MS = 1000;
 
 type Props = {
-  query: UseQueryResult<TraceSummary[]>;
-  limit: number;
-  renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
+  traces: TraceSummary[];
+  isPending: boolean;
+  isError: boolean;
+  error: Error | null;
+  onRetry: () => void;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
   onLoadMore: () => void;
+  renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
   onClearFilters: () => void;
 };
 
@@ -36,44 +40,74 @@ export type TraceLinkRenderProps = {
 };
 
 export function TraceResultsList({
-  query,
-  limit,
-  renderTraceLink,
+  traces,
+  isPending,
+  isError,
+  error,
+  onRetry,
+  hasNextPage,
+  isFetchingNextPage,
   onLoadMore,
+  renderTraceLink,
   onClearFilters,
 }: Props) {
-  const rows = query.data ?? [];
   const maxDuration = useMemo(() => {
     let max = 0n;
-    for (const r of rows) {
+    for (const r of traces) {
       const d = BigInt(r.durationNs);
       if (d > max) max = d;
     }
     return max;
-  }, [rows]);
+  }, [traces]);
 
-  const showSkeleton = useDelayedFlag(query.isPending, SKELETON_DELAY_MS);
-  if (query.isPending) return showSkeleton ? <ResultsSkeleton /> : null;
-  if (query.isError) {
+  const endReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) onLoadMore();
+  }, [hasNextPage, isFetchingNextPage, onLoadMore]);
+
+  const components = useMemo(
+    () => ({
+      Footer: () => (
+        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
+          {isFetchingNextPage ? (
+            <span className="flex items-center gap-2">
+              <Skeleton className="size-2 rounded-full" />
+              Loading more traces
+            </span>
+          ) : hasNextPage ? (
+            <span>Showing {traces.length.toLocaleString()} traces</span>
+          ) : (
+            <span>
+              Showing all {traces.length.toLocaleString()} matching traces
+            </span>
+          )}
+        </div>
+      ),
+    }),
+    [isFetchingNextPage, hasNextPage, traces.length],
+  );
+
+  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
+  if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
+  if (isError) {
     return (
       <RetryError
         title="Failed to load traces"
-        message={(query.error as Error).message}
-        onRetry={() => query.refetch()}
+        message={error?.message ?? "Unknown error"}
+        onRetry={onRetry}
       />
     );
   }
-  if (rows.length === 0) {
+  if (traces.length === 0) {
     return <EmptyState onClearFilters={onClearFilters} />;
   }
 
-  const isLoadingMore = query.isFetching && query.isPlaceholderData;
-  const hasMore = rows.length >= limit || isLoadingMore;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Virtuoso
         className="flex-1"
-        data={rows}
+        data={traces}
+        endReached={endReached}
+        components={components}
         itemContent={(_, row) => (
           <TraceRow
             row={row}
@@ -82,19 +116,6 @@ export function TraceResultsList({
           />
         )}
       />
-      {hasMore && (
-        <div className="flex justify-center border-t py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground text-xs"
-            onClick={onLoadMore}
-            disabled={isLoadingMore}
-          >
-            {isLoadingMore ? "Loading more..." : "Load more"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
