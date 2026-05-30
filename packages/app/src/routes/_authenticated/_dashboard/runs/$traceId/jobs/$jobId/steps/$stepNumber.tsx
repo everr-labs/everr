@@ -142,7 +142,7 @@ function StepDetailPage() {
   });
 
   const allLogs = useMemo(
-    () => logsData?.pages.flatMap((p) => p.logs) ?? [],
+    () => logsData?.pages.flatMap((p) => p?.logs ?? []) ?? [],
     [logsData?.pages],
   );
 

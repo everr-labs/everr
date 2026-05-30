@@ -59,7 +59,7 @@ export function ErrorIssues({
     placeholderData: keepPreviousData,
   });
   const issues = useMemo(
-    () => (issuesQuery.data?.pages ?? []).flatMap((page) => page.issues),
+    () => (issuesQuery.data?.pages ?? []).flatMap((page) => page?.issues ?? []),
     [issuesQuery.data],
   );
   const servicesQuery = useQuery(

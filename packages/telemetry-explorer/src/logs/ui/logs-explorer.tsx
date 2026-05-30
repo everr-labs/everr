@@ -254,7 +254,10 @@ export function LogsExplorer({
   });
 
   const pages = data?.pages ?? [];
-  const logs = useMemo(() => pages.flatMap((page) => page.logs), [pages]);
+  const logs = useMemo(
+    () => pages.flatMap((page) => page?.logs ?? []),
+    [pages],
+  );
 
   const totalCount = totals?.totalCount;
   const levelCounts = totals?.levelCounts;
