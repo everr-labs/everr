@@ -1,4 +1,8 @@
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
+import {
+  type LogAttributes,
+  logs,
+  SeverityNumber,
+} from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
@@ -21,6 +25,15 @@ type BrowserTelemetryConfig = {
   enabled: boolean;
   endpoint: string;
   serviceName: string;
+};
+
+export type EverrErrorReporter = (
+  error: unknown,
+  extra?: LogAttributes,
+) => void;
+
+export type EverrErrorReporterWindow = Window & {
+  __everrReportError?: EverrErrorReporter;
 };
 
 declare const __EVERR_BROWSER_OTEL__: BrowserTelemetryConfig;
@@ -53,6 +66,28 @@ if (config.enabled && typeof window !== "undefined") {
     errorLogger.emit(logRecord);
     void loggerProvider.forceFlush().catch(() => {});
   }
+
+  // React render crashes are caught by router/error-boundary and never reach
+  // the window "error" event, so expose a reporter the error boundary calls.
+  const reportError = (error: unknown, extra?: LogAttributes) => {
+    const attributes = getExceptionAttributes(error);
+    emitErrorLog({
+      severityNumber: SeverityNumber.ERROR,
+      severityText: "ERROR",
+      body:
+        typeof attributes["exception.message"] === "string"
+          ? attributes["exception.message"]
+          : "Browser error",
+      attributes: {
+        ...attributes,
+        "exception.escaped": true,
+        "url.full": window.location.href,
+        "url.path": window.location.pathname,
+        ...extra,
+      },
+    });
+  };
+  (window as EverrErrorReporterWindow).__everrReportError = reportError;
 
   const provider = new WebTracerProvider({
     resource,
