@@ -10,7 +10,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { RefreshCw } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
-import type { ErrorIssueSummary } from "@/data/errors/types";
+import type { ErrorIssueSummary } from "../data/types";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
 
 export function ErrorIssueList({

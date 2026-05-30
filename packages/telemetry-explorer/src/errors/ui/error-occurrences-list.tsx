@@ -1,7 +1,7 @@
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
-import type { ErrorOccurrence } from "@/data/errors/types";
+import type { ErrorOccurrence } from "../data/types";
 import { getErrorOccurrenceKey } from "./error-occurrence-key";
 import { ErrorServiceBadge } from "./error-service-badge";
 

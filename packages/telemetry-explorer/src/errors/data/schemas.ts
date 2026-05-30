@@ -1,9 +1,15 @@
-// fallow-ignore-file duplicate-export
+import { isValid } from "@everr/datemath";
 import { z } from "zod";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+
+const datemath = z.string().refine(isValid);
+
+export const TimeRangeSearchSchema = z.object({
+  from: datemath.optional(),
+  to: datemath.optional(),
+  refresh: z.string().optional(),
+});
 
 export const ErrorSortSchema = z.enum(["lastSeen", "count"]);
-export type ErrorSort = z.infer<typeof ErrorSortSchema>;
 
 // Issues fetched per infinite-scroll page.
 export const PAGE_SIZE = 50;
@@ -39,6 +45,9 @@ export const GetErrorIssueInputSchema = z.object({
   occurrenceLimit: z.number().int().positive().max(200).default(50),
 });
 export type GetErrorIssueInput = z.infer<typeof GetErrorIssueInputSchema>;
+
+// Input shape the occurrences SQL builder needs.
+export type GetErrorIssuesQueryInput = GetErrorIssueInput;
 
 export const ListErrorServicesInputSchema = z.object({
   fromTs: z.string().min(1),

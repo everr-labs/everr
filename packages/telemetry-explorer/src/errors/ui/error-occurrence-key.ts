@@ -1,4 +1,4 @@
-import type { ErrorOccurrence } from "@/data/errors/types";
+import type { ErrorOccurrence } from "../data/types";
 
 export function getErrorOccurrenceKey(occurrence: ErrorOccurrence): string {
   return [occurrence.timestamp, occurrence.traceId, occurrence.spanId].join(

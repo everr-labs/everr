@@ -1,7 +1,7 @@
 import { Badge } from "@everr/ui/components/badge";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import type { ReactNode } from "react";
-import type { ErrorIssueSummary } from "@/data/errors/types";
+import type { ErrorIssueSummary } from "../data/types";
 import { ErrorServiceBadge } from "./error-service-badge";
 
 export type RenderErrorIssueLink = (input: {

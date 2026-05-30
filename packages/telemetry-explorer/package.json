@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./errors": "./src/errors/index.ts",
     "./logs": "./src/logs/index.ts",
     "./styles.css": "./src/styles.css",
     "./traces": "./src/traces/index.ts"

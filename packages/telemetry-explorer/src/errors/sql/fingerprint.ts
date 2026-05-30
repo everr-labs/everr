@@ -1,4 +1,4 @@
-export const NORMALIZED_EXCEPTION_MESSAGE_SQL = `
+const NORMALIZED_EXCEPTION_MESSAGE_SQL = `
   substring(
     replaceRegexpAll(
       replaceRegexpAll(

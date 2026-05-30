@@ -12,7 +12,7 @@ import {
 } from "@everr/ui/components/toggle-group";
 import { ListFilter, Search, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import type { ErrorSort } from "@/data/errors/types";
+import type { ErrorSort } from "../data/types";
 
 export type ErrorFiltersValue = {
   q: string;
