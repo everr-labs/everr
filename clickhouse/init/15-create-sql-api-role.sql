@@ -56,7 +56,10 @@ CREATE ROLE IF NOT EXISTS sql_api_role SETTINGS PROFILE 'sql_api_profile';
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
 GRANT SELECT ON app.metrics_gauge TO sql_api_role;
-GRANT SELECT ON app.metrics_sum   TO sql_api_role;
+GRANT SELECT ON app.metrics_sum       TO sql_api_role;
+GRANT SELECT ON app.metrics_histogram              TO sql_api_role;
+GRANT SELECT ON app.metrics_exponential_histogram TO sql_api_role;
+GRANT SELECT ON app.metrics_summary              TO sql_api_role;
 
 -- Clean up accidental/manual system grants. SHOW TABLES handles schema
 -- discovery without exposing storage counters from system.tables or the
@@ -72,10 +75,8 @@ GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
 -- Keep sql_api_role out of web_app_admin's default roles. Otherwise CH would
 -- auto-activate it on every connection and apply sql_api_profile (readonly=1,
 -- allow_ddl=0, etc.) to web_app_admin's sessions, which would break the
--- CREATE USER / GRANT / CREATE ROW POLICY work it has to do. ADMIN OPTION
--- doesn't require the role to be active, so per-org GRANT sql_api_role still
--- works. web_app_admin's own table access is covered by direct grants in
--- 00-setup.sh and above on app.tenant_retention_source.
+-- CREATE USER / GRANT / CREATE ROW POLICY work it has to do. The app code
+-- uses SET ROLE to activate it only for the GRANT statement.
 ALTER USER web_app_admin DEFAULT ROLE NONE;
 
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
@@ -101,4 +102,10 @@ CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_gauge
   ON app.metrics_gauge FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_sum
-  ON app.metrics_sum   FOR SELECT USING 0 TO sql_api_role;
+  ON app.metrics_sum       FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_histogram
+  ON app.metrics_histogram              FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogram
+  ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
+  ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;

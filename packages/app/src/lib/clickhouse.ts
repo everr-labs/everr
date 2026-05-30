@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
 
@@ -48,6 +48,9 @@ const SQL_API_TENANT_TABLES = [
   "logs",
   "metrics_gauge",
   "metrics_sum",
+  "metrics_histogram",
+  "metrics_exponential_histogram",
+  "metrics_summary",
 ] as const;
 
 function sqlApiOrgUserName(organizationId: string): string {
@@ -145,8 +148,17 @@ export async function provisionSqlApiOrgUser(
   await clickhouseAdmin.command({
     query: `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
   });
+  // CH 26 requires sql_api_role to be active for WITH ADMIN OPTION to work,
+  // but DEFAULT ROLE NONE keeps it off to avoid the readonly profile. Activate
+  // it in an ephemeral session scoped to just these two statements.
+  const sessionId = randomUUID();
+  await clickhouseAdmin.command({
+    query: "SET ROLE sql_api_role",
+    clickhouse_settings: { session_id: sessionId },
+  });
   await clickhouseAdmin.command({
     query: `GRANT sql_api_role TO \`${username}\``,
+    clickhouse_settings: { session_id: sessionId },
   });
   // DEFAULT ROLE has to come after the GRANT — CH validates the role is
   // already granted to the user before it can be the default.

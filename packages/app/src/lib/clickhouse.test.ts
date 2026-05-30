@@ -104,13 +104,24 @@ describe("provisionSqlApiOrgUser", () => {
     const calls = mockCommand.mock.calls.map(([args]) => args.query);
     expect(calls).toEqual([
       `CREATE USER IF NOT EXISTS \`${ORG_USER}\` IDENTIFIED WITH sha256_password BY '${ORG_PASSWORD}' SETTINGS PROFILE 'sql_api_profile'`,
+      "SET ROLE sql_api_role",
       `GRANT sql_api_role TO \`${ORG_USER}\``,
       `ALTER USER \`${ORG_USER}\` DEFAULT ROLE sql_api_role`,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_traces\` ON app.\`traces\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_logs\` ON app.\`logs\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_exponential_histogram\` ON app.\`metrics_exponential_histogram\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_summary\` ON app.\`metrics_summary\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
     ]);
+
+    const setRoleCall = mockCommand.mock.calls[1][0];
+    const grantCall = mockCommand.mock.calls[2][0];
+    expect(setRoleCall.clickhouse_settings.session_id).toBeDefined();
+    expect(grantCall.clickhouse_settings.session_id).toBe(
+      setRoleCall.clickhouse_settings.session_id,
+    );
   });
 });
 
@@ -124,6 +135,9 @@ describe("deprovisionSqlApiOrgUser", () => {
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_logs\` ON app.\`logs\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_exponential_histogram\` ON app.\`metrics_exponential_histogram\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_summary\` ON app.\`metrics_summary\``,
       `DROP USER IF EXISTS \`${ORG_USER}\``,
     ]);
   });

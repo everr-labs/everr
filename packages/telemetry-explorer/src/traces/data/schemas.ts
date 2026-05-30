@@ -4,9 +4,6 @@ import { TimeRangeSearchSchema } from "../time-range";
 const SpanStatusFilterSchema = z.enum(["ok", "error", "all"]);
 export type SpanStatusFilter = z.infer<typeof SpanStatusFilterSchema>;
 
-// Rows fetched per infinite-scroll page.
-export const PAGE_SIZE = 50;
-
 export const TraceSearchParamsSchema = TimeRangeSearchSchema.extend({
   namespace: z.array(z.string()).default([]),
   service: z.array(z.string()).default([]),
@@ -14,6 +11,7 @@ export const TraceSearchParamsSchema = TimeRangeSearchSchema.extend({
   minMs: z.number().int().nonnegative().optional(),
   maxMs: z.number().int().nonnegative().optional(),
   status: SpanStatusFilterSchema.default("all"),
+  limit: z.number().int().positive().max(500).default(50),
 });
 export type TraceSearchParams = z.infer<typeof TraceSearchParamsSchema>;
 
@@ -34,14 +32,15 @@ export function toTraceListSearch(
 export const SearchTracesInputSchema = z.object({
   fromTs: z.string().min(1),
   toTs: z.string().min(1),
+  cursorStartTs: z.string().min(1).optional(),
+  cursorTraceId: z.string().min(1).optional(),
   namespace: z.array(z.string()).default([]),
   service: z.array(z.string()).default([]),
   name: z.string().default(""),
   minDurationNs: z.string().optional(),
   maxDurationNs: z.string().optional(),
   status: SpanStatusFilterSchema.default("all"),
-  limit: z.coerce.number().int().positive().max(500).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.number().int().positive().max(500).default(50),
 });
 export type SearchTracesInput = z.infer<typeof SearchTracesInputSchema>;
 

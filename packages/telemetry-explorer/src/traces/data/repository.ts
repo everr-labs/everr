@@ -5,12 +5,7 @@ import type {
   ListServiceIdentitiesInput,
   SearchTracesInput,
 } from "./schemas";
-import type {
-  ServiceIdentity,
-  Span,
-  TraceSummary,
-  TracesSearchResult,
-} from "./types";
+import type { ServiceIdentity, Span, TraceSummary } from "./types";
 
 type SpanRow = Omit<Span, "events" | "links"> & {
   eventNames: string[];
@@ -44,18 +39,19 @@ export class TracesRepository {
     this.tableName = options.tableName ?? "app.traces";
   }
 
-  async search(input: SearchTracesInput): Promise<TracesSearchResult> {
+  async search(input: SearchTracesInput): Promise<TraceSummary[]> {
     validateTableName(this.tableName);
     // Row-level predicates push down to WHERE in a candidate subquery so the
     // outer aggregate only reads spans belonging to traces with at least one
     // matching span. Without this, span-level HAVING via countIf forces a
     // full in-window scan + group-by on every tenant span.
     const spanPreds: string[] = [];
-    // Aggregate-level predicates that can't be pushed to WHERE.
-    const havingParts: string[] = [];
+    const aggregateHavingParts: string[] = [];
+    const hasCursor = Boolean(input.cursorStartTs && input.cursorTraceId);
     const params: Record<string, unknown> = {
       fromTs: input.fromTs,
-      toTs: input.toTs,
+      toTs: hasCursor ? input.cursorStartTs : input.toTs,
+      limit: input.limit,
     };
 
     if (input.name) {
@@ -79,11 +75,11 @@ export class TracesRepository {
     // exposes it as a string. Filter on the raw int to avoid a double
     // toString → toUInt64 round-trip per row.
     if (input.minDurationNs !== undefined) {
-      havingParts.push("durationNsRaw >= {minDurationNs:UInt64}");
+      aggregateHavingParts.push("durationNsRaw >= {minDurationNs:UInt64}");
       params.minDurationNs = input.minDurationNs;
     }
     if (input.maxDurationNs !== undefined) {
-      havingParts.push("durationNsRaw <= {maxDurationNs:UInt64}");
+      aggregateHavingParts.push("durationNsRaw <= {maxDurationNs:UInt64}");
       params.maxDurationNs = input.maxDurationNs;
     }
     // Span-level, matching the rest of the filters: 'error' = trace contains
@@ -91,10 +87,27 @@ export class TracesRepository {
     // Unset everywhere). Filtering on the root span alone hides traces whose
     // failure lives in a child.
     if (input.status === "error") {
-      havingParts.push("countIf(StatusCode = 'Error') > 0");
+      aggregateHavingParts.push("countIf(StatusCode = 'Error') > 0");
     } else if (input.status === "ok") {
-      havingParts.push("countIf(StatusCode = 'Error') = 0");
+      aggregateHavingParts.push("countIf(StatusCode = 'Error') = 0");
     }
+
+    const cursorHaving = hasCursor
+      ? `(
+            startTsRaw < parseDateTime64BestEffort({cursorStartTs:String}, 9)
+            OR (
+              startTsRaw = parseDateTime64BestEffort({cursorStartTs:String}, 9)
+              AND TraceId < {cursorTraceId:String}
+            )
+          )`
+      : "";
+    if (hasCursor) {
+      params.cursorStartTs = input.cursorStartTs;
+      params.cursorTraceId = input.cursorTraceId;
+    }
+    const havingParts = cursorHaving
+      ? [...aggregateHavingParts, cursorHaving]
+      : aggregateHavingParts;
 
     // Two-pass when span-level filters are present: the inner subquery uses
     // WHERE to prune spans before reading, then the outer aggregates the full
@@ -111,9 +124,6 @@ export class TracesRepository {
               AND ${spanPreds.join(" AND ")}
           )`
         : "";
-
-    const havingClause =
-      havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : "";
 
     const sql = /* sql */ `
       WITH aggregated AS (
@@ -141,12 +151,9 @@ export class TracesRepository {
         WHERE ${TIME_WINDOW_SQL}
           ${candidateFilter}
         GROUP BY TraceId
-        ${havingClause}
-        -- TraceId is the unique GROUP BY key — deterministic tiebreaker so
-        -- offset paging stays stable when traces share a start time.
+        ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
         ORDER BY startTsRaw DESC, TraceId DESC
         LIMIT {limit:UInt32}
-        OFFSET {offset:UInt32}
       )
       SELECT
         TraceId             AS traceId,
@@ -161,14 +168,7 @@ export class TracesRepository {
         services
       FROM aggregated
     `;
-
-    const traces = await this.client.execute<TraceSummary>(sql, {
-      ...params,
-      limit: input.limit,
-      offset: input.offset,
-    });
-
-    return { traces };
+    return this.client.execute<TraceSummary>(sql, params);
   }
 
   // fallow-ignore-next-line unused-class-member

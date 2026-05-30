@@ -1,9 +1,14 @@
 ---
-title: Sending Telemetry
+title: Setup
 description: Send OpenTelemetry traces, logs, and metrics to Everr from any SDK or collector.
 ---
 
 Everr accepts standard OpenTelemetry (OTLP) traces, metrics, and logs from any SDK or collector. Telemetry is per-tenant: every request must be authenticated with an **ingest key** scoped to your organization.
+
+<Callout title="Browser metrics">
+  Everr does not yet support gathering metrics directly from browsers in
+  production. Browser metrics support is coming soon.
+</Callout>
 
 ## Mint an ingest key
 
@@ -26,12 +31,6 @@ Authorization: Bearer <your-ingest-key>
 ```
 
 Requests without a valid key return **401 Unauthorized**.
-
-<Callout title="Tenant attribution">
-  If you set an `everr.tenant.id` resource attribute in your SDK, it will be
-  **stripped and overwritten** with the value derived from your key. Tenant
-  identity comes from the key, not from the client.
-</Callout>
 
 ## Forwarding from your own collector
 

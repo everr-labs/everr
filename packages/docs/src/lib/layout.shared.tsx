@@ -1,6 +1,13 @@
 import { SiDiscord } from "@icons-pack/react-simple-icons";
+import type { DocsLayoutProps } from "fumadocs-ui/layouts/docs";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { Citrus } from "lucide-react";
+import type { ComponentProps, CSSProperties } from "react";
+
+type DocsLayoutOptions = BaseLayoutProps &
+  Pick<DocsLayoutProps, "containerProps" | "sidebar">;
+
+const docsTopNavHeight = "3.5rem";
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -19,7 +26,7 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       {
-        text: "Documentation",
+        text: "Docs",
         url: "/docs",
       },
       // {
@@ -44,4 +51,44 @@ export function baseOptions(): BaseLayoutProps {
       },
     ],
   };
+}
+
+export function docsOptions(): DocsLayoutOptions {
+  const options = baseOptions();
+
+  return {
+    ...options,
+    githubUrl: undefined,
+    links: options.links?.filter(
+      (link) => !isDocsLink(link) && !isIconLink(link),
+    ),
+    searchToggle: {
+      ...options.searchToggle,
+      enabled: false,
+    },
+    sidebar: {
+      collapsible: false,
+    },
+    containerProps: {
+      style: {
+        "--fd-banner-height": docsTopNavHeight,
+      } as CSSProperties,
+    },
+    slots: {
+      ...options.slots,
+      navTitle: DocsSidebarNavTitle,
+    },
+  };
+}
+
+function isDocsLink(link: NonNullable<BaseLayoutProps["links"]>[number]) {
+  return "text" in link && link.text === "Docs";
+}
+
+function isIconLink(link: NonNullable<BaseLayoutProps["links"]>[number]) {
+  return "type" in link && link.type === "icon";
+}
+
+function DocsSidebarNavTitle(_props: ComponentProps<"a">) {
+  return null;
 }

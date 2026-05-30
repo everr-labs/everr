@@ -38,6 +38,9 @@ Cloud SQL starts with:
 - `logs`
 - `metrics_gauge`
 - `metrics_sum`
+- `metrics_histogram`
+- `metrics_exponential_histogram`
+- `metrics_summary`
 
 Local SQL starts with:
 - `otel_traces`
@@ -75,7 +78,8 @@ Recent errors:
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
 FROM otel_logs
-WHERE SeverityNumber >= 17
+WHERE Timestamp > now() - INTERVAL 1 HOUR
+  AND SeverityNumber >= 17
 ORDER BY Timestamp DESC
 LIMIT 50
 ```

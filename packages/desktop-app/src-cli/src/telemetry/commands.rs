@@ -15,7 +15,6 @@ pub async fn run(args: LocalArgs) -> Result<()> {
             .await
             .context("telemetry query task failed")?,
         LocalSubcommand::Status => run_status().await,
-        LocalSubcommand::Endpoint => run_endpoint(),
     }
 }
 
@@ -40,11 +39,6 @@ async fn run_status() -> Result<()> {
     println!("collector: stopped");
     eprintln!("telemetry collector isn't running - run `everr local start` or open Everr Desktop");
     std::process::exit(2);
-}
-
-fn run_endpoint() -> Result<()> {
-    println!("{}", everr_core::build::otlp_http_origin());
-    Ok(())
 }
 
 fn run_query(args: TelemetryQueryArgs) -> Result<()> {

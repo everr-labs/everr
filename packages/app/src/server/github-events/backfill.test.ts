@@ -303,11 +303,11 @@ describe("backfillRepo", () => {
       if (url.includes("/access_tokens")) {
         return mockTokenResponse();
       }
-      if (url.includes("/actions/runs?") && url.includes("branch=main")) {
-        return mockGitHubList("workflow_runs", runs);
-      }
       if (url.includes("/actions/runs?")) {
-        return mockGitHubList("workflow_runs", []);
+        return mockGitHubList(
+          "workflow_runs",
+          url.includes("branch=") ? [] : runs,
+        );
       }
       if (url.includes("/jobs")) {
         const runId = Number(url.match(/runs\/(\d+)\/jobs/)?.[1]);
@@ -346,9 +346,9 @@ describe("backfillRepo", () => {
     expect(result.jobsReplayed).toBe(1);
   });
 
-  it("stops after 100 jobs per repo", async () => {
-    // 25 runs with 5 jobs each = 125 jobs, should stop at 100 (20 runs)
-    const runs = Array.from({ length: 25 }, (_, i) =>
+  it("stops after 250 jobs per repo", async () => {
+    // 60 runs with 5 jobs each = 300 jobs, should stop at 250 (50 runs)
+    const runs = Array.from({ length: 60 }, (_, i) =>
       makeRun({ id: i + 1, run_number: i + 1 }),
     );
     const jobsPerRun = runs.map((r) =>
@@ -360,20 +360,53 @@ describe("backfillRepo", () => {
 
     const { result } = await drainBackfill(999, "org-1", TEST_REPO);
 
-    expect(result.jobsReplayed).toBe(100);
-    expect(result.runsReplayed).toBe(20);
+    expect(result.jobsReplayed).toBe(250);
+    expect(result.runsReplayed).toBe(50);
   });
 
-  it("falls back to no branch filter when main and master have no runs", async () => {
-    const { runs, jobs } = makeSingleRunWithJob();
+  it("imports workflow runs from any branch", async () => {
+    const runs = [
+      makeRun({ id: 1, head_branch: "main" }),
+      makeRun({ id: 2, head_branch: "feature/import-me" }),
+    ];
+    const jobs = [
+      [makeJob({ id: 101, run_id: 1, head_branch: "main" })],
+      [makeJob({ id: 201, run_id: 2, head_branch: "feature/import-me" })],
+    ];
+    const runListUrls: string[] = [];
 
     mockFetch.mockImplementation(async (url: string) => {
       if (url.includes("/access_tokens")) return mockTokenResponse();
-      // main and master return empty, unfiltered returns runs
-      if (url.includes("/actions/runs?") && url.includes("branch=")) {
-        return mockGitHubList("workflow_runs", []);
-      }
       if (url.includes("/actions/runs?")) {
+        runListUrls.push(url);
+        if (url.includes("branch=")) {
+          return mockGitHubList("workflow_runs", [runs[0]]);
+        }
+        return mockGitHubList("workflow_runs", runs);
+      }
+      if (url.includes("/jobs")) {
+        const runId = Number(url.match(/runs\/(\d+)\/jobs/)?.[1]);
+        const idx = runs.findIndex((r) => r.id === runId);
+        return mockGitHubList("jobs", idx >= 0 ? jobs[idx] : []);
+      }
+      return mockGitHubList("workflow_runs", []);
+    });
+
+    const { result } = await drainBackfill(999, "org-1", TEST_REPO);
+
+    expect(result.runsReplayed).toBe(2);
+    expect(result.jobsReplayed).toBe(2);
+    expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
+  });
+
+  it("uses no branch filter when listing runs", async () => {
+    const { runs, jobs } = makeSingleRunWithJob();
+    const runListUrls: string[] = [];
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/access_tokens")) return mockTokenResponse();
+      if (url.includes("/actions/runs?")) {
+        runListUrls.push(url);
         return mockGitHubList("workflow_runs", runs);
       }
       if (url.includes("/jobs")) {
@@ -386,6 +419,7 @@ describe("backfillRepo", () => {
 
     expect(result.runsReplayed).toBe(1);
     expect(result.jobsReplayed).toBe(1);
+    expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
   });
 
   it("handles repos with no workflow runs", async () => {
@@ -430,18 +464,18 @@ describe("backfillRepo", () => {
     // 1 initial + 3 per-run + 1 done = 5
     expect(progressEvents.length).toBe(5);
 
-    // First event should be "importing" with runsProcessed 0 and jobsQuota 100
+    // First event should be "importing" with runsProcessed 0 and jobsQuota 250
     const first = progressEvents[0];
     expect(first.status).toBe("importing");
     expect(first.runsProcessed).toBe(0);
-    expect(first.jobsQuota).toBe(100);
+    expect(first.jobsQuota).toBe(250);
 
     // Last event should be "done"
     const last = progressEvents[progressEvents.length - 1];
     expect(last.status).toBe("done");
     expect(last.runsProcessed).toBe(3);
     expect(last.jobsEnqueued).toBe(3);
-    expect(last.jobsQuota).toBe(100);
+    expect(last.jobsQuota).toBe(250);
 
     // Incremental events should show increasing runsProcessed
     const importingEvents = progressEvents.filter(

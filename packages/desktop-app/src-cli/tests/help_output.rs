@@ -124,7 +124,7 @@ fn telemetry_help_lists_start_command() {
         .stdout(contains("start"))
         .stdout(contains("query"))
         .stdout(contains("status"))
-        .stdout(contains("endpoint"));
+        .stdout(predicates::str::contains("endpoint").not());
 
     env.command()
         .args(["local", "start", "--help"])

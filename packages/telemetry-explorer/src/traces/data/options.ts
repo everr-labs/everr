@@ -7,10 +7,10 @@ import {
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
-import type { TracesSearchResult } from "./types";
+import type { TraceSummary } from "./types";
 import type { DetailWindow } from "./window";
 
-export type TraceSearchInfiniteInput = {
+export type TraceSearchOptionsInput = {
   repo: TracesRepositoryLike;
   timeRange: TimeRange;
   refresh: string;
@@ -23,18 +23,26 @@ export type TraceSearchInfiniteInput = {
   limit: number;
 };
 
+type TraceSearchCursor = {
+  startTs: string;
+  traceId: string;
+};
+
 const MS_TO_NS = 1_000_000n;
 
-export function tracesSearchInfiniteOptions(input: TraceSearchInfiniteInput) {
+export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
   const { repo, refresh, ...key } = input;
   const refreshMs = getRefreshIntervalMs(refresh);
+  const queryKey = ["traces", "search", "infinite", key] as const;
   return infiniteQueryOptions({
-    queryKey: ["traces", "search", "infinite", key] as const,
-    queryFn: ({ pageParam }: { pageParam: number }) => {
+    queryKey,
+    queryFn: async ({ pageParam }: { pageParam: TraceSearchCursor | null }) => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
       return repo.search({
         fromTs: toClickHouseDateTime(fromDate),
         toTs: toClickHouseDateTime(toDate),
+        cursorStartTs: pageParam?.startTs,
+        cursorTraceId: pageParam?.traceId,
         namespace: input.namespace,
         service: input.service,
         name: input.name,
@@ -48,16 +56,14 @@ export function tracesSearchInfiniteOptions(input: TraceSearchInfiniteInput) {
             : (BigInt(input.maxMs) * MS_TO_NS).toString(),
         status: input.status,
         limit: input.limit,
-        offset: pageParam,
       });
     },
-    initialPageParam: 0,
-    getNextPageParam: (
-      lastPage: TracesSearchResult,
-      allPages: TracesSearchResult[],
-    ) => {
-      if (lastPage.traces.length < input.limit) return undefined;
-      return allPages.reduce((count, page) => count + page.traces.length, 0);
+    initialPageParam: null,
+    getNextPageParam: (lastPage: TraceSummary[] | undefined) => {
+      if (!lastPage || lastPage.length < input.limit) return undefined;
+      const lastRow = lastPage[lastPage.length - 1];
+      if (!lastRow) return undefined;
+      return { startTs: lastRow.startTs, traceId: lastRow.traceId };
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
