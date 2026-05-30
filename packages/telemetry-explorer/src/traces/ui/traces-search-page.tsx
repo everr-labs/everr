@@ -73,7 +73,10 @@ export function TracesSearch({
     }),
     placeholderData: keepPreviousData,
   });
-  const rows = useMemo(() => data?.pages.flat() ?? [], [data]);
+  const rows = useMemo(
+    () => (data?.pages ?? []).flat().filter((row) => row != null),
+    [data],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
