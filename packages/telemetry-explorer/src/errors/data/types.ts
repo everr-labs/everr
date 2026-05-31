@@ -40,3 +40,14 @@ export type ErrorIssueDetail = {
   latest: ErrorOccurrence;
   occurrences: ErrorOccurrence[];
 };
+
+// Source-agnostic span shape for the related-trace panel. The web app maps its
+// runs/CI spans into this; desktop maps telemetry trace spans into this.
+export type RelatedSpan = {
+  spanId: string;
+  parentSpanId: string;
+  name: string;
+  durationMs: number;
+  conclusion?: string;
+  jobName?: string;
+};

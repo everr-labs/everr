@@ -8,6 +8,11 @@ import { AuthenticatedGuard } from "./features/desktop-shell/authenticated-guard
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
 import { SettingsPage } from "./features/desktop-shell/settings-page";
 import { DeveloperPage } from "./features/developer/developer-page";
+import {
+  ErrorDetailPage,
+  ErrorIssueSearchSchema,
+  ErrorsPage,
+} from "./features/errors/errors-page";
 import { LogsPage, LogsSearchSchema } from "./features/logs/logs-page";
 import { NotificationsPage } from "./features/notifications/notifications-page";
 import { OnboardingPage } from "./features/onboarding/onboarding-page";
@@ -80,6 +85,20 @@ const traceDetailRoute = createRoute({
   component: TraceDetailPage,
 });
 
+const errorsRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "/errors",
+  validateSearch: ErrorIssueSearchSchema,
+  component: ErrorsPage,
+});
+
+const errorDetailRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "/errors/$fingerprint",
+  validateSearch: ErrorIssueSearchSchema,
+  component: ErrorDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   onboardingRoute,
   authenticatedRoute.addChildren([
@@ -89,6 +108,8 @@ const routeTree = rootRoute.addChildren([
     logsRoute,
     tracesRoute,
     traceDetailRoute,
+    errorsRoute,
+    errorDetailRoute,
   ]),
 ]);
 

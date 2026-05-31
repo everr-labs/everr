@@ -1,15 +1,11 @@
+import {
+  resourceAttribute,
+  resourceAttributeKeyExists,
+} from "../../sql/resource-attributes";
 import type { LogLevel } from "../schemas";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 
 const REPOSITORY_RESOURCE_ATTRIBUTE = "vcs.repository.name";
-
-function resourceAttribute(key: string): string {
-  return `ResourceAttributes['${key}']`;
-}
-
-function resourceAttributeKeyExists(key: string): string {
-  return `mapContains(ResourceAttributes, '${key}')`;
-}
 
 export interface WhereInput {
   query?: string;

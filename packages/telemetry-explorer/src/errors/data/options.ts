@@ -5,17 +5,10 @@ import {
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import type {
-  GetErrorIssueInput,
-  ListErrorServicesInput,
-  SearchErrorIssuesInput,
-} from "./schemas";
+import type { ErrorsRepositoryLike } from "./repository";
 import type { ErrorIssuesResult, ErrorSort } from "./types";
 
-type ServerFn<TInput, TResult> = (args: { data: TInput }) => Promise<TResult>;
-
-export type ErrorIssuesInfiniteOptionsInput = {
-  searchErrorIssues: ServerFn<SearchErrorIssuesInput, ErrorIssuesResult>;
+export type ErrorIssuesInfiniteInput = {
   timeRange: TimeRange;
   refresh: string;
   q: string;
@@ -26,7 +19,8 @@ export type ErrorIssuesInfiniteOptionsInput = {
 };
 
 export function errorIssuesInfiniteOptions(
-  input: ErrorIssuesInfiniteOptionsInput,
+  repo: ErrorsRepositoryLike,
+  input: ErrorIssuesInfiniteInput,
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return infiniteQueryOptions({
@@ -45,33 +39,34 @@ export function errorIssuesInfiniteOptions(
     ] as const,
     queryFn: ({ pageParam }: { pageParam: number }) => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-      return input.searchErrorIssues({
-        data: {
-          fromTs: toClickHouseDateTime(fromDate),
-          toTs: toClickHouseDateTime(toDate),
-          q: input.q,
-          service: input.service,
-          fingerprint: input.fingerprint,
-          sort: input.sort,
-          limit: input.limit,
-          offset: pageParam,
-        },
+      return repo.searchIssues({
+        fromTs: toClickHouseDateTime(fromDate),
+        toTs: toClickHouseDateTime(toDate),
+        q: input.q,
+        service: input.service,
+        fingerprint: input.fingerprint,
+        sort: input.sort,
+        limit: input.limit,
+        offset: pageParam,
       });
     },
     initialPageParam: 0,
     getNextPageParam: (
-      lastPage: ErrorIssuesResult,
-      allPages: ErrorIssuesResult[],
+      lastPage: ErrorIssuesResult | undefined,
+      allPages: (ErrorIssuesResult | undefined)[],
     ) => {
+      if (!lastPage) return undefined;
       if (lastPage.issues.length < input.limit) return undefined;
-      return allPages.reduce((count, page) => count + page.issues.length, 0);
+      return allPages.reduce(
+        (count, page) => count + (page?.issues.length ?? 0),
+        0,
+      );
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
 }
 
-export type ErrorIssueOptionsInput<TResult> = {
-  getErrorIssue: ServerFn<GetErrorIssueInput, TResult>;
+export type ErrorIssueOptionsInput = {
   fingerprint: string;
   timeRange: TimeRange;
   refresh: string;
@@ -79,8 +74,9 @@ export type ErrorIssueOptionsInput<TResult> = {
   occurrenceLimit: number;
 };
 
-export function errorIssueOptions<TResult>(
-  input: ErrorIssueOptionsInput<TResult>,
+export function errorIssueOptions(
+  repo: ErrorsRepositoryLike,
+  input: ErrorIssueOptionsInput,
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
@@ -92,16 +88,14 @@ export function errorIssueOptions<TResult>(
       input.service,
       input.occurrenceLimit,
     ] as const,
-    queryFn: async () => {
+    queryFn: () => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-      return input.getErrorIssue({
-        data: {
-          fingerprint: input.fingerprint,
-          fromTs: toClickHouseDateTime(fromDate),
-          toTs: toClickHouseDateTime(toDate),
-          service: input.service,
-          occurrenceLimit: input.occurrenceLimit,
-        },
+      return repo.getIssue({
+        fingerprint: input.fingerprint,
+        fromTs: toClickHouseDateTime(fromDate),
+        toTs: toClickHouseDateTime(toDate),
+        service: input.service,
+        occurrenceLimit: input.occurrenceLimit,
       });
     },
     enabled: input.fingerprint.length > 0,
@@ -109,21 +103,18 @@ export function errorIssueOptions<TResult>(
   });
 }
 
-export function errorServicesOptions<TResult>(input: {
-  listErrorServices: ServerFn<ListErrorServicesInput, TResult>;
-  timeRange: TimeRange;
-  refresh: string;
-}) {
+export function errorServicesOptions(
+  repo: ErrorsRepositoryLike,
+  input: { timeRange: TimeRange; refresh: string },
+) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
     queryKey: ["errors", "services", input.timeRange] as const,
-    queryFn: async () => {
+    queryFn: () => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-      return input.listErrorServices({
-        data: {
-          fromTs: toClickHouseDateTime(fromDate),
-          toTs: toClickHouseDateTime(toDate),
-        },
+      return repo.listServices({
+        fromTs: toClickHouseDateTime(fromDate),
+        toTs: toClickHouseDateTime(toDate),
       });
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,

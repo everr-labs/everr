@@ -8,6 +8,7 @@ import {
 import { Link, Outlet } from "@tanstack/react-router";
 import {
   Bell,
+  Bug,
   CircleUser,
   Code,
   LogOut,
@@ -29,6 +30,9 @@ export function AppShell() {
           </SidebarLink>
           <SidebarLink to="/traces" label="Traces">
             <Workflow className="size-[18px]" />
+          </SidebarLink>
+          <SidebarLink to="/errors" label="Errors">
+            <Bug className="size-[18px]" />
           </SidebarLink>
           <SidebarLink to="/settings" label="Settings">
             <Settings className="size-[18px]" />

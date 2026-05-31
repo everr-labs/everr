@@ -3,12 +3,20 @@ import { Button } from "@everr/ui/components/button";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
-import { RefreshCw } from "lucide-react";
-import type { ErrorOccurrence } from "@/data/errors/types";
-import type { Span } from "@/data/runs/schemas";
-import { TraceLink } from "./trace-link";
+import { ExternalLink, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
+import type { ErrorOccurrence, RelatedSpan } from "../data/types";
+import { getErrorTraceWindow } from "./trace-window";
 
-function spanStatusLabel(span: Span, isErrorSpan: boolean): string {
+export type RenderTraceLink = (input: {
+  traceId: string;
+  spanId: string;
+  start: string;
+  end: string;
+  children: ReactNode;
+}) => ReactNode;
+
+function spanStatusLabel(span: RelatedSpan, isErrorSpan: boolean): string {
   if (isErrorSpan) return "error span";
   if (!span.conclusion) return "span";
   if (span.conclusion.length > 28) return "error";
@@ -21,16 +29,20 @@ export function ErrorTracePanel({
   isPending,
   isError,
   onRetry,
+  renderTraceLink,
 }: {
   occurrence: ErrorOccurrence;
-  spans: Span[];
+  spans: RelatedSpan[];
   isPending: boolean;
   isError: boolean;
   onRetry: () => void;
+  renderTraceLink: RenderTraceLink;
 }) {
   const errorSpanId = occurrence.spanId;
 
   if (occurrence.traceId.trim().length === 0) return null;
+
+  const window = getErrorTraceWindow(occurrence.timestamp);
 
   return (
     <section className="min-w-0 rounded-md border bg-background">
@@ -51,7 +63,18 @@ export function ErrorTracePanel({
             ) : null}
           </div>
         </div>
-        <TraceLink occurrence={occurrence}>Open trace</TraceLink>
+        {renderTraceLink({
+          traceId: occurrence.traceId,
+          spanId: occurrence.spanId,
+          start: window.start,
+          end: window.end,
+          children: (
+            <>
+              <ExternalLink data-icon="inline-start" />
+              Open trace
+            </>
+          ),
+        })}
       </div>
 
       <div className="p-3">
@@ -117,7 +140,7 @@ export function ErrorTracePanel({
                       <Badge variant="outline">{span.jobName}</Badge>
                     ) : null}
                     <span className="font-mono">
-                      {formatDuration(span.duration, "ms")}
+                      {formatDuration(span.durationMs, "ms")}
                     </span>
                   </div>
                 </li>

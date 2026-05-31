@@ -1,0 +1,135 @@
+import { Button } from "@everr/ui/components/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@everr/ui/components/empty";
+import { Skeleton } from "@everr/ui/components/skeleton";
+import type { TimeRange } from "@everr/ui/lib/time-range";
+import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
+import { errorIssueOptions } from "../data/options";
+import type { ErrorsRepositoryLike } from "../data/repository";
+import type { ErrorOccurrence } from "../data/types";
+import { ErrorDetailHeader, type RenderBackLink } from "./error-detail-header";
+import { ErrorLatestOccurrence } from "./error-latest-occurrence";
+import {
+  findErrorOccurrenceByKey,
+  getErrorOccurrenceKey,
+} from "./error-occurrence-key";
+import {
+  ErrorOccurrencesList,
+  type RenderOccurrenceLink,
+} from "./error-occurrences-list";
+import { ErrorStacktrace } from "./error-stacktrace";
+
+const OCCURRENCE_LIMIT = 50;
+
+export type ErrorDetailProps = {
+  repo: ErrorsRepositoryLike;
+  fingerprint: string;
+  timeRange: TimeRange;
+  refresh: string;
+  service: string[];
+  /** Selected occurrence key (timestamp|traceId|spanId), or "" for the latest. */
+  occurrence: string;
+  renderBackLink: RenderBackLink;
+  renderOccurrenceLink: RenderOccurrenceLink;
+  /** App supplies the related-trace panel (it owns the spans source). */
+  renderTracePanel?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
+};
+
+export function ErrorDetail({
+  repo,
+  fingerprint,
+  timeRange,
+  refresh,
+  service,
+  occurrence,
+  renderBackLink,
+  renderOccurrenceLink,
+  renderTracePanel,
+}: ErrorDetailProps) {
+  const issueQuery = useQuery(
+    errorIssueOptions(repo, {
+      fingerprint,
+      timeRange,
+      refresh,
+      service,
+      occurrenceLimit: OCCURRENCE_LIMIT,
+    }),
+  );
+
+  if (issueQuery.isPending) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="border-b px-3 py-2">
+          <Skeleton className="h-5 w-64 max-w-full" />
+          <Skeleton className="mt-2 h-3 w-96 max-w-full" />
+        </div>
+        <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-3">
+          <Skeleton className="h-96" />
+          <Skeleton className="h-64" />
+          <Skeleton className="h-80" />
+        </div>
+      </div>
+    );
+  }
+
+  if (issueQuery.isError || !issueQuery.data) {
+    return (
+      <Empty className="min-h-96 border-0">
+        <EmptyHeader>
+          <EmptyTitle>Failed to load error</EmptyTitle>
+          <EmptyDescription>
+            {issueQuery.error?.message ?? "The selected error was not found."}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => issueQuery.refetch()}
+            >
+              <RefreshCw data-icon="inline-start" />
+              Retry
+            </Button>
+            {renderBackLink("Back to errors")}
+          </div>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  const detail = issueQuery.data;
+  const selected =
+    findErrorOccurrenceByKey(detail.occurrences, occurrence) ?? detail.latest;
+  const selectedOccurrenceKey = getErrorOccurrenceKey(selected);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ErrorDetailHeader
+        issue={detail.summary}
+        renderBackLink={renderBackLink}
+      />
+      <main className="min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto grid max-w-7xl gap-3 p-3">
+          <ErrorStacktrace stacktrace={selected.exceptionStacktrace} />
+          {renderTracePanel?.({ occurrence: selected })}
+          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_26rem]">
+            <ErrorLatestOccurrence occurrence={selected} />
+            <ErrorOccurrencesList
+              occurrences={detail.occurrences}
+              selectedOccurrenceKey={selectedOccurrenceKey}
+              renderOccurrenceLink={renderOccurrenceLink}
+            />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

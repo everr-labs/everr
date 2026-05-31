@@ -5,7 +5,8 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
-import { ListFilter } from "lucide-react";
+import { cn } from "@everr/ui/lib/utils";
+import { CornerDownLeft } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import type { ServiceIdentity } from "../data/types";
 
@@ -56,19 +57,13 @@ export function TraceFilters({
   const hasFilters =
     value.namespace.length > 0 ||
     value.service.length > 0 ||
+    value.name.length > 0 ||
     value.minMs !== undefined ||
     value.maxMs !== undefined ||
     value.status !== "all";
 
   return (
-    <aside
-      aria-label="Trace filters"
-      className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
-    >
-      <div className="flex items-center gap-2 text-xs font-medium">
-        <ListFilter className="text-muted-foreground size-3.5" />
-        Filter
-      </div>
+    <div className="flex flex-wrap items-end gap-2">
       <FilterCombobox
         label="Namespace"
         values={value.namespace}
@@ -76,7 +71,6 @@ export function TraceFilters({
         options={namespaceOptions}
         placeholder="All"
         searchPlaceholder="Search namespaces..."
-        className="w-full"
       />
       <FilterCombobox
         label="Service"
@@ -85,8 +79,8 @@ export function TraceFilters({
         options={serviceOptions}
         placeholder="All"
         searchPlaceholder="Search services..."
-        className="w-full"
       />
+      <NameInput value={value.name} onCommit={(name) => onChange({ name })} />
       <DurationInput
         label="Min ms"
         value={value.minMs}
@@ -104,7 +98,6 @@ export function TraceFilters({
           variant="outline"
           size="lg"
           spacing={0}
-          className="w-full"
           onValueChange={(next) => {
             const selected = next[0];
             if (
@@ -117,15 +110,9 @@ export function TraceFilters({
           }}
           aria-label="Status"
         >
-          <ToggleGroupItem value="all" className="flex-1">
-            All
-          </ToggleGroupItem>
-          <ToggleGroupItem value="ok" className="flex-1">
-            Ok
-          </ToggleGroupItem>
-          <ToggleGroupItem value="error" className="flex-1">
-            Error
-          </ToggleGroupItem>
+          <ToggleGroupItem value="all">All</ToggleGroupItem>
+          <ToggleGroupItem value="ok">Ok</ToggleGroupItem>
+          <ToggleGroupItem value="error">Error</ToggleGroupItem>
         </ToggleGroup>
       </div>
       {hasFilters && (
@@ -136,6 +123,7 @@ export function TraceFilters({
             onChange({
               namespace: [],
               service: [],
+              name: "",
               minMs: undefined,
               maxMs: undefined,
               status: "all",
@@ -145,7 +133,65 @@ export function TraceFilters({
           Clear filters
         </button>
       )}
-    </aside>
+    </div>
+  );
+}
+
+function NameInput({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+}) {
+  const id = useId();
+  const [local, setLocal] = useState(value);
+  const lastValueRef = useRef(value);
+  if (lastValueRef.current !== value) {
+    lastValueRef.current = value;
+    setLocal(value);
+  }
+
+  const dirty = local !== value;
+  const commit = () => {
+    if (dirty) onCommit(local);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={id} className="text-muted-foreground text-xs">
+        Name
+      </Label>
+      <div className="relative w-56">
+        <Input
+          id={id}
+          type="text"
+          placeholder="Span name contains..."
+          value={local}
+          onChange={(e) => setLocal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            } else if (e.key === "Escape") {
+              setLocal(value);
+            }
+          }}
+          className={cn(dirty && "pr-8")}
+        />
+        {dirty && (
+          <button
+            type="button"
+            onClick={commit}
+            aria-label="Apply name filter"
+            title="Apply (Enter)"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded"
+          >
+            <CornerDownLeft className="size-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@ import { CopyValueButton } from "@everr/ui/components/detail-panel";
 import { cn } from "@everr/ui/lib/utils";
 import { Clock3, Fingerprint } from "lucide-react";
 import type { ReactNode } from "react";
-import type { ErrorOccurrence } from "@/data/errors/types";
+import type { ErrorOccurrence } from "../data/types";
 import { ErrorServiceBadge } from "./error-service-badge";
 
 function DetailRows({ children }: { children: ReactNode }) {

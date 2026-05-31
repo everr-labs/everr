@@ -1,18 +1,18 @@
 import { Badge } from "@everr/ui/components/badge";
-import { buttonVariants } from "@everr/ui/components/button";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
-import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import type { ErrorIssueSearch } from "@/data/errors/schemas";
-import type { ErrorIssueSummary } from "@/data/errors/types";
+import type { ReactNode } from "react";
+import type { ErrorIssueSummary } from "../data/types";
 import { ErrorServiceBadge } from "./error-service-badge";
+
+export type RenderBackLink = (children: ReactNode) => ReactNode;
 
 export function ErrorDetailHeader({
   issue,
-  backSearch,
+  renderBackLink,
 }: {
   issue: ErrorIssueSummary;
-  backSearch: ErrorIssueSearch;
+  renderBackLink: RenderBackLink;
 }) {
   const title = issue.exceptionType || "Unknown exception";
   const message = issue.exceptionMessage || issue.body || issue.fingerprint;
@@ -31,18 +31,12 @@ export function ErrorDetailHeader({
           <span>Last seen {formatRelativeTime(issue.lastSeen)}</span>
         </div>
       </div>
-      <Link
-        to="/errors"
-        search={backSearch}
-        className={buttonVariants({
-          variant: "outline",
-          size: "sm",
-          className: "shrink-0",
-        })}
-      >
-        <ArrowLeft data-icon="inline-start" />
-        Errors
-      </Link>
+      {renderBackLink(
+        <>
+          <ArrowLeft data-icon="inline-start" />
+          Errors
+        </>,
+      )}
     </header>
   );
 }
