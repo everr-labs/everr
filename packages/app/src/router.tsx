@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { routeTree } from "./routeTree.gen";
+import type { EverrErrorReporterWindow } from "./telemetry/browser";
 
 if (typeof window !== "undefined" && import.meta.env.DEV) {
   void import("./telemetry/browser");
@@ -28,6 +29,11 @@ export const getRouter = () => {
     context: { queryClient },
     // TODO: maybe preload?
     // defaultPreload: "intent",
+    defaultOnCatch: (error) => {
+      (window as EverrErrorReporterWindow).__everrReportError?.(error, {
+        "error.source": "react.error-boundary",
+      });
+    },
     scrollRestoration: true,
     // defaultPreloadStaleTime: 0,
     defaultPendingComponent: () => (
