@@ -1,6 +1,34 @@
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { auth } from "@/lib/auth.server";
+import { getExceptionAttributes } from "@/telemetry/shared";
 import { createClickhouseQuery } from "./clickhouse";
+
+// Server function handler errors are caught by the framework and returned as a
+// failed RPC, so they never hit process-level uncaughtException/unhandledRejection
+// instrumentation. Wrap the handler to emit an exception log before rethrowing,
+// so backend failures land in telemetry (and the Errors UI).
+const errorTelemetryMiddleware = createMiddleware().server(async ({ next }) => {
+  try {
+    return await next();
+  } catch (error) {
+    const attributes = getExceptionAttributes(error);
+    logs.getLogger("everr-web-server-fn-errors").emit({
+      severityNumber: SeverityNumber.ERROR,
+      severityText: "ERROR",
+      body:
+        typeof attributes["exception.message"] === "string"
+          ? attributes["exception.message"]
+          : "Server function error",
+      attributes: {
+        ...attributes,
+        "error.source": "server-fn",
+        "exception.escaped": true,
+      },
+    });
+    throw error;
+  }
+});
 
 const authMiddleware = createMiddleware().server(async ({ request, next }) => {
   const session = await auth.api.getSession({
@@ -44,6 +72,7 @@ export const requireOrgMiddleware = createMiddleware()
 
 export const createAuthenticatedServerFn = createServerFn().middleware([
   requireOrgMiddleware,
+  errorTelemetryMiddleware,
 ]);
 
 /**
@@ -52,5 +81,5 @@ export const createAuthenticatedServerFn = createServerFn().middleware([
  * active organization yet, such as the onboarding flow.
  */
 export const createPartiallyAuthenticatedServerFn = createServerFn().middleware(
-  [authMiddleware],
+  [authMiddleware, errorTelemetryMiddleware],
 );
