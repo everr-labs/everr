@@ -37,7 +37,70 @@ Useful flags: `--branch`, `--current-branch`, `--conclusion`, `--workflow-name`,
 
 Use `everr cloud query "<SQL>"` when the answer needs history, comparison, or aggregation: flaky tests, slow jobs, retries, failure rates, or "real regression?" questions. Start with `traces` for runs/jobs/steps/test spans, `logs` for step logs, and metrics tables for resource signals.
 
-Always include a time filter, scoped repo/branch/run/workflow/job/test filters when known, and a `LIMIT` under 1000. Do not add tenant filters or `PREWHERE`.
+Always include a time filter, scoped repo/branch/run/workflow/job/test filters when known, and a `LIMIT` under 1000. For CI trace queries, include `ServiceName = 'github-actions'`. Do not add tenant filters or `PREWHERE`.
+
+## Querying The Everr DB
+
+Run read-only ClickHouse SQL with `everr cloud query "<SQL>"`. Use `SHOW TABLES`, `DESCRIBE TABLE traces`, or `DESCRIBE TABLE logs` when unsure about columns. Cloud CI data usually starts in `traces`; step log lines are in `logs`; metrics are in `metrics_gauge` and `metrics_sum`.
+
+Common CI attributes:
+- `ResourceAttributes['vcs.repository.name']`: `owner/repo`
+- `ResourceAttributes['vcs.ref.head.name']`: branch
+- `ResourceAttributes['vcs.ref.head.revision']`: commit SHA
+- `ResourceAttributes['cicd.pipeline.name']`: workflow
+- `ResourceAttributes['cicd.pipeline.run.id']`: workflow run id
+- `ResourceAttributes['cicd.pipeline.task.name']`: job
+- `ResourceAttributes['cicd.pipeline.task.run.result']`: job/run result
+- `SpanAttributes['everr.github.workflow_job_step.number']`: step number
+- `ScopeAttributes['cicd.pipeline.task.name']`: job context for logs
+- `LogAttributes['everr.github.workflow_job_step.number']`: log step number
+- `SpanAttributes['everr.test.name']`, `everr.test.result`, `everr.test.duration_seconds`: parsed tests
+
+Recent run history:
+
+```sql
+SELECT
+  max(Timestamp) AS last_seen,
+  TraceId,
+  anyLast(ResourceAttributes['cicd.pipeline.run.id']) AS run_id,
+  anyLast(ResourceAttributes['cicd.pipeline.name']) AS workflow,
+  anyLast(ResourceAttributes['vcs.ref.head.name']) AS branch,
+  anyLast(ResourceAttributes['vcs.ref.head.revision']) AS sha,
+  anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) AS result
+FROM traces
+WHERE Timestamp > now() - INTERVAL 7 DAY
+  AND ServiceName = 'github-actions'
+  AND ResourceAttributes['vcs.repository.name'] = '<owner/repo>'
+  AND ResourceAttributes['cicd.pipeline.run.id'] != ''
+  AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+  AND SpanAttributes['everr.test.name'] = ''
+GROUP BY TraceId
+ORDER BY last_seen DESC
+LIMIT 20
+```
+
+Repeated failure log lines:
+
+```sql
+SELECT
+  anyLast(ResourceAttributes['cicd.pipeline.name']) AS workflow,
+  anyLast(ScopeAttributes['cicd.pipeline.task.name']) AS job,
+  anyLast(LogAttributes['everr.github.workflow_job_step.number']) AS step,
+  uniqExact(TraceId) AS runs,
+  count() AS lines,
+  max(Timestamp) AS last_seen,
+  anyLast(Body) AS sample
+FROM logs
+WHERE Timestamp > now() - INTERVAL 14 DAY
+  AND ResourceAttributes['vcs.repository.name'] = '<owner/repo>'
+  AND (
+    positionCaseInsensitive(Body, 'error') > 0
+    OR positionCaseInsensitive(Body, 'failed') > 0
+  )
+GROUP BY cityHash64(Body)
+ORDER BY runs DESC, lines DESC, last_seen DESC
+LIMIT 50
+```
 
 ## Common Mistakes
 
