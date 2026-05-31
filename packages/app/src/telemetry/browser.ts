@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import {
   type LogAttributes,
   logs,
@@ -71,13 +72,21 @@ if (config.enabled && typeof window !== "undefined") {
   // the window "error" event, so expose a reporter the error boundary calls.
   const reportError = (error: unknown, extra?: LogAttributes) => {
     const attributes = getExceptionAttributes(error);
+    const message =
+      typeof attributes["exception.message"] === "string"
+        ? attributes["exception.message"]
+        : "Browser error";
+
+    const span = trace.getActiveSpan();
+    if (span) {
+      span.recordException(error as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message });
+    }
+
     emitErrorLog({
       severityNumber: SeverityNumber.ERROR,
       severityText: "ERROR",
-      body:
-        typeof attributes["exception.message"] === "string"
-          ? attributes["exception.message"]
-          : "Browser error",
+      body: message,
       attributes: {
         ...attributes,
         "exception.escaped": true,
