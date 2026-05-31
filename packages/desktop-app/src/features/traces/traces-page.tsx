@@ -194,7 +194,7 @@ function TracePageShell({
       <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
         <div
           data-tauri-drag-region
-          className="flex flex-1 items-center self-stretch"
+          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
         >
           <span className="text-sm font-medium text-[var(--settings-text)]">
             {title}

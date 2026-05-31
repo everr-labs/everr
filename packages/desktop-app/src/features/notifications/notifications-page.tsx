@@ -79,64 +79,65 @@ export function NotificationsPage() {
   const now = useNow(30_000);
 
   return (
-    <div className="pt-8">
-      <div className="flex items-start justify-between gap-4 px-5 pb-4">
-        <div className="grid gap-1.5">
-          <h1 className="m-0 text-[clamp(1.4rem,3vw,1.8rem)] font-medium leading-none tracking-[-0.04em]">
-            Runs
-          </h1>
-          <p className="m-0 max-w-[52ch] text-[0.92rem] leading-6 text-[var(--settings-text-muted)]">
-            Recent CI pipeline runs.
-          </p>
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
+        <div
+          data-tauri-drag-region
+          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
+        >
+          <span className="text-sm font-medium text-[var(--settings-text)]">
+            Your CI runs
+          </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
           <TimeRangePicker value={timeRange} onChange={setTimeRange} />
         </div>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {runsQuery.isPending ? (
+          <div className="px-5 py-4">
+            <p className="m-0 text-sm text-[var(--settings-text-muted)]">
+              Loading runs...
+            </p>
+          </div>
+        ) : runs.length === 0 ? (
+          <div className="px-5 py-12">
+            <Empty className="border-none">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Workflow />
+                </EmptyMedia>
+                <EmptyTitle>No runs found</EmptyTitle>
+                <EmptyDescription>
+                  No CI pipeline runs match the selected time range. Try
+                  expanding the range or check back later.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[0.78rem] table-fixed">
+              <thead>
+                <tr className="border-b border-white/[0.06] text-[0.7rem] font-medium uppercase tracking-wider text-[var(--settings-text-muted)]">
+                  <th className="py-2 pl-5 pr-2 font-medium">Workflow</th>
+                  <th className="py-2 px-2 font-medium">Repository</th>
+                  <th className="py-2 px-2 font-medium">Branch</th>
+                  <th className="py-2 px-2 font-medium">Commit</th>
+                  <th className="py-2 px-2 font-medium">Result</th>
+                  <th className="py-2 px-2 font-medium">When</th>
+                  <th className="w-10 py-2 pl-2 pr-5 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => (
+                  <RunRow key={run.traceId} run={run} now={now} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      {runsQuery.isPending ? (
-        <div className="px-5 py-4">
-          <p className="m-0 text-sm text-[var(--settings-text-muted)]">
-            Loading runs...
-          </p>
-        </div>
-      ) : runs.length === 0 ? (
-        <div className="px-5 py-12">
-          <Empty className="border-none">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Workflow />
-              </EmptyMedia>
-              <EmptyTitle>No runs found</EmptyTitle>
-              <EmptyDescription>
-                No CI pipeline runs match the selected time range. Try expanding
-                the range or check back later.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-[0.78rem] table-fixed">
-            <thead>
-              <tr className="border-b border-white/[0.06] text-[0.7rem] font-medium uppercase tracking-wider text-[var(--settings-text-muted)]">
-                <th className="py-2 pl-5 pr-2 font-medium">Workflow</th>
-                <th className="py-2 px-2 font-medium">Repository</th>
-                <th className="py-2 px-2 font-medium">Branch</th>
-                <th className="py-2 px-2 font-medium">Commit</th>
-                <th className="py-2 px-2 font-medium">Result</th>
-                <th className="py-2 px-2 font-medium">When</th>
-                <th className="w-10 py-2 pl-2 pr-5 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => (
-                <RunRow key={run.traceId} run={run} now={now} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

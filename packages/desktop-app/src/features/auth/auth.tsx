@@ -22,6 +22,7 @@ import {
 } from "../desktop-shell/ui";
 import {
   notificationEmailsQueryKey,
+  orgQueryKey,
   runsListQueryKey,
   userProfileQueryKey,
 } from "../notifications/query-keys";
@@ -29,6 +30,16 @@ import {
 type AuthStatus = {
   status: "signed_in" | "signed_out";
   session_path: string;
+};
+
+type UserProfileResponse = {
+  email: string;
+  name: string;
+  profile_url: string | null;
+};
+
+type OrgResponse = {
+  name: string;
 };
 
 type PendingSignIn = {
@@ -76,6 +87,14 @@ function signOut() {
   return invokeCommand<AuthStatus>("sign_out");
 }
 
+function getUserProfile() {
+  return invokeCommand<UserProfileResponse | null>("get_user_profile");
+}
+
+function getOrg() {
+  return invokeCommand<OrgResponse | null>("get_org");
+}
+
 function isPendingSignIn(
   value: SignInResponse | PendingSignIn | null | undefined,
 ): value is PendingSignIn {
@@ -111,6 +130,7 @@ function useNow(tickMs = 1_000) {
 function clearNotificationSettingsCache(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: notificationEmailsQueryKey });
   queryClient.removeQueries({ queryKey: userProfileQueryKey });
+  queryClient.removeQueries({ queryKey: orgQueryKey });
   queryClient.removeQueries({ queryKey: runsListQueryKey });
 }
 
@@ -123,6 +143,22 @@ export function useAuthStatusQuery() {
   return useQuery({
     queryKey: authStatusQueryKey,
     queryFn: getAuthStatus,
+  });
+}
+
+export function useUserProfileQuery(enabled = true) {
+  return useQuery({
+    queryKey: userProfileQueryKey,
+    queryFn: getUserProfile,
+    enabled,
+  });
+}
+
+export function useOrgQuery(enabled = true) {
+  return useQuery({
+    queryKey: orgQueryKey,
+    queryFn: getOrg,
+    enabled,
   });
 }
 

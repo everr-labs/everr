@@ -1,14 +1,21 @@
 import { CopyValueButton } from "@everr/ui/components/detail-panel";
 
-export function ErrorStacktrace({ stacktrace }: { stacktrace: string }) {
+export function ErrorStacktrace({
+  stacktrace,
+  message,
+}: {
+  stacktrace: string;
+  message?: string;
+}) {
   if (stacktrace.trim().length === 0) return null;
+  const copyValue = message ? `${message}\n\n${stacktrace}` : stacktrace;
 
   return (
     <section className="group min-w-0 rounded-md border bg-background p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium">Stacktrace</h2>
         <CopyValueButton
-          value={stacktrace}
+          value={copyValue}
           className="opacity-100 focus-visible:opacity-100"
         />
       </div>

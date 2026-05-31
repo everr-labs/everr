@@ -2,37 +2,48 @@ import { Card, CardContent } from "@everr/ui/components/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
 import { Link, Outlet } from "@tanstack/react-router";
 import {
-  Bell,
   Bug,
   CircleUser,
   Code,
+  GitPullRequestArrow,
   LogOut,
   ScrollText,
   Settings,
   Workflow,
 } from "lucide-react";
-import { useAuthStatusQuery, useSignOutMutation } from "../auth/auth";
+import { useIsFullscreen } from "../../lib/tauri-events";
+import {
+  useAuthStatusQuery,
+  useOrgQuery,
+  useSignOutMutation,
+  useUserProfileQuery,
+} from "../auth/auth";
 
 export function AppShell() {
+  useIsFullscreen();
+
   return (
     <main className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
       <div data-tauri-drag-region className="fixed inset-x-0 top-0 h-9" />
       <Card className="flex flex-row gap-0 h-screen w-full overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)] py-0">
-        <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-12 pb-3">
+        <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-[var(--titlebar-top)] pb-3">
           <NotificationsLink />
           <SidebarLink to="/logs" label="Logs">
             <ScrollText className="size-[18px]" />
           </SidebarLink>
-          <SidebarLink to="/traces" label="Traces">
-            <Workflow className="size-[18px]" />
-          </SidebarLink>
           <SidebarLink to="/errors" label="Errors">
             <Bug className="size-[18px]" />
+          </SidebarLink>
+          <SidebarLink to="/traces" label="Traces">
+            <Workflow className="size-[18px]" />
           </SidebarLink>
           <SidebarLink to="/settings" label="Settings">
             <Settings className="size-[18px]" />
@@ -78,10 +89,10 @@ function NotificationsLink() {
   return (
     <Link
       to="/"
-      aria-label="Runs"
+      aria-label="Your CI runs"
       className="relative flex size-9 items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)] [&.active]:bg-white/[0.08] [&.active]:text-[var(--settings-text)]"
     >
-      <Bell className="size-[18px]" />
+      <GitPullRequestArrow className="size-[18px]" />
     </Link>
   );
 }
@@ -90,6 +101,11 @@ function AuthStatusIndicator() {
   const authStatusQuery = useAuthStatusQuery();
   const signOutMutation = useSignOutMutation();
   const signedIn = authStatusQuery.data?.status === "signed_in";
+  const profileQuery = useUserProfileQuery(signedIn);
+  const orgQuery = useOrgQuery(signedIn);
+  const profile = profileQuery.data;
+  const orgName = orgQuery.data?.name;
+  const displayName = profile?.name || profile?.email;
 
   return (
     <DropdownMenu>
@@ -102,7 +118,31 @@ function AuthStatusIndicator() {
           className={`absolute bottom-1.5 right-1.5 size-2 rounded-full ring-1 ring-[var(--settings-panel)] ${signedIn ? "bg-emerald-500" : "bg-red-400"}`}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="end" sideOffset={8}>
+      <DropdownMenuContent
+        side="right"
+        align="end"
+        sideOffset={8}
+        className="min-w-[220px] max-w-[280px]"
+      >
+        {signedIn && (displayName || orgName) ? (
+          <>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="grid gap-0.5">
+                {displayName ? (
+                  <span className="truncate text-sm font-medium text-[var(--settings-text)]">
+                    {displayName}
+                  </span>
+                ) : null}
+                {orgName ? (
+                  <span className="truncate text-xs font-normal text-[var(--settings-text-muted)]">
+                    {orgName}
+                  </span>
+                ) : null}
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuItem
           disabled={signOutMutation.isPending}
           render={
