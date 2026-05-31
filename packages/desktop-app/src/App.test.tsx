@@ -165,6 +165,9 @@ function renderMainApp(options: RenderMainOptions = {}) {
 
       switch (cmd) {
         case "plugin:window|close":
+          return null;
+        case "plugin:window|is_fullscreen":
+          return false;
         case "get_auth_status":
           return authStatus;
         case "get_pending_sign_in":
@@ -353,7 +356,7 @@ describe("desktop window", () => {
     renderMainApp();
 
     expect(
-      await screen.findByRole("heading", { name: "Runs" }),
+      await screen.findByRole("heading", { name: "Your CI runs" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Authenticate your Everr account"),

@@ -85,9 +85,9 @@ export function NotificationsPage() {
           data-tauri-drag-region
           className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
         >
-          <span className="text-sm font-medium text-[var(--settings-text)]">
+          <h1 className="m-0 text-sm font-medium text-[var(--settings-text)]">
             Your CI runs
-          </span>
+          </h1>
         </div>
         <div className="flex items-center gap-1.5">
           <TimeRangePicker value={timeRange} onChange={setTimeRange} />
