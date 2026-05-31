@@ -7,6 +7,7 @@ import {
   ErrorsRepository,
   ErrorTracePanel,
   getErrorOccurrenceKey,
+  getErrorTraceWindow,
 } from "@everr/telemetry-explorer/errors";
 import {
   getTraceOptions,
@@ -19,12 +20,7 @@ import {
   RefreshPicker,
 } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
-import {
-  type TimeRange,
-  toClickHouseDateTime,
-  withTimeRange,
-} from "@everr/ui/lib/time-range";
-import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
@@ -36,8 +32,6 @@ import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { localSqlClient } from "../logs/local-sql-client";
 
 export { ErrorIssueSearchSchema };
-
-const TRACE_WINDOW_MS = 5 * 60 * 1000;
 
 const localErrorsRepo = new ErrorsRepository(localSqlClient, {
   tableName: "otel_logs",
@@ -178,26 +172,18 @@ export function ErrorDetailPage() {
   );
 }
 
-function traceWindow(timestamp: string): { fromTs: string; toTs: string } {
-  const parsed = parseTimestampAsUTC(timestamp) ?? new Date();
-  return {
-    fromTs: toClickHouseDateTime(new Date(parsed.getTime() - TRACE_WINDOW_MS)),
-    toTs: toClickHouseDateTime(new Date(parsed.getTime() + TRACE_WINDOW_MS)),
-  };
-}
-
 function DesktopErrorTracePanel({
   occurrence,
 }: {
   occurrence: ErrorOccurrence;
 }) {
   const hasTrace = occurrence.traceId.length > 0;
-  const window = traceWindow(occurrence.timestamp);
+  const { start, end } = getErrorTraceWindow(occurrence.timestamp);
   const traceQuery = useQuery({
     ...getTraceOptions({
       repo: localTracesRepo,
       traceId: occurrence.traceId,
-      window,
+      window: { fromTs: start, toTs: end },
       refresh: "",
     }),
     enabled: hasTrace,

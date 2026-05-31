@@ -1,3 +1,7 @@
+import {
+  resourceAttribute,
+  resourceAttributeKeyExists,
+} from "../../sql/resource-attributes";
 import { validateTableName } from "../sql/table";
 import type { SqlClient } from "./client";
 import type {
@@ -20,14 +24,6 @@ const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
 const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
 const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
-
-function resourceAttribute(key: string): string {
-  return `ResourceAttributes['${key}']`;
-}
-
-function resourceAttributeKeyExists(key: string): string {
-  return `mapContains(ResourceAttributes, '${key}')`;
-}
 
 export class TracesRepository {
   private readonly tableName: string;

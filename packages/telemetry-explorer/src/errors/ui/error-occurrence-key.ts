@@ -10,9 +10,6 @@ export function findErrorOccurrenceByKey(
   occurrences: ErrorOccurrence[],
   key: string,
 ): ErrorOccurrence | undefined {
-  if (occurrences.length === 0) return undefined;
-  if (!key) return occurrences[0];
-
   return (
     occurrences.find(
       (occurrence) => getErrorOccurrenceKey(occurrence) === key,

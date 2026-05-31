@@ -1,17 +1,13 @@
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
+import {
+  resourceAttribute,
+  resourceAttributeKeyExists,
+} from "../../sql/resource-attributes";
 import type { LogFilterOptions } from "../schemas";
 import type { BuiltQuery } from "./explorer";
 import { validateTableName } from "./table";
 
 const REPOSITORY_RESOURCE_ATTRIBUTE = "vcs.repository.name";
-
-function resourceAttribute(key: string): string {
-  return `ResourceAttributes['${key}']`;
-}
-
-function resourceAttributeKeyExists(key: string): string {
-  return `mapContains(ResourceAttributes, '${key}')`;
-}
 
 export interface FilterOptionsRowRaw {
   services: string[];

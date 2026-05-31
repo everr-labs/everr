@@ -87,18 +87,21 @@ export class ErrorsRepository {
       },
       this.tableName,
     );
-    const summaryRows = await this.client.execute<ErrorIssueSummaryRow>(
-      summaryQuery.sql,
-      summaryQuery.params,
-    );
+    const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
+    const [summaryRows, occurrenceRows] = await Promise.all([
+      this.client.execute<ErrorIssueSummaryRow>(
+        summaryQuery.sql,
+        summaryQuery.params,
+      ),
+      this.client.execute<ErrorOccurrenceRow>(
+        occurrencesQuery.sql,
+        occurrencesQuery.params,
+      ),
+    ]);
+
     const summary = summaryRows[0] ? mapSummary(summaryRows[0]) : undefined;
     if (!summary) throw new Error("Error issue not found");
 
-    const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
-    const occurrenceRows = await this.client.execute<ErrorOccurrenceRow>(
-      occurrencesQuery.sql,
-      occurrencesQuery.params,
-    );
     const occurrences = occurrenceRows.map(mapOccurrence);
     const latest = occurrences[0];
     if (!latest) throw new Error("Error issue not found");
