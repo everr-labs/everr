@@ -4,6 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
+import { smeeWebhookPlugin } from "./vite.smee";
 
 const config = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -59,6 +60,9 @@ const config = defineConfig(({ mode }) => {
       ],
     },
     plugins: [
+      smeeWebhookPlugin({
+        channel: env.SMEE_CHANNEL,
+      }),
       devtools(),
       tailwindcss(),
       tanstackStart({

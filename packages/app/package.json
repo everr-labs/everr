@@ -83,6 +83,7 @@
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",
     "nitro": "catalog:",
+    "smee-client": "^5.0.0",
     "typescript": "catalog:",
     "vite": "catalog:"
   }
