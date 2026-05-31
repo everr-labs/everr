@@ -89,7 +89,8 @@ Full trace:
 ```sql
 SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode, StatusMessage
 FROM otel_traces
-WHERE TraceId = '<trace-id>'
+WHERE Timestamp > now() - INTERVAL 1 HOUR
+  AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
 LIMIT 200
 ```
@@ -144,14 +145,14 @@ LIMIT 20
 
 For "production users are seeing errors":
 1. Query cloud logs for recent errors.
-2. Pick a representative `TraceId` and query cloud traces for the full request.
+2. Pick a representative `TraceId` and query cloud traces for the full request using the same recent window.
 3. Compare errors by service, route, version, or deploy-related attributes if available.
 4. Explain whether the data points to one service, one path, one release, or a broad outage.
 
 For "my local request is slow":
 1. Run `everr local status`.
 2. Query recent slow spans from `otel_traces`.
-3. Pick the slowest `TraceId` and query the full trace in timestamp order.
+3. Pick the slowest `TraceId` and query the full trace in timestamp order using the same recent window.
 4. If spans are missing around the slow boundary, use `everr-setup-telemetry` to add the next targeted signal.
 
 For "debug this failing local test":

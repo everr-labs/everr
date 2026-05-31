@@ -6,7 +6,7 @@ use std::process::Command as ProcessCommand;
 use anyhow::{Context, Result, bail};
 use everr_core::api::{ApiClient, MeResponse, OrgResponse};
 use everr_core::build;
-use everr_core::skills::{self as core_skills, SkillProvider, SkillScope};
+use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 use everr_core::state::Session;
 
 use crate::auth;
@@ -297,6 +297,12 @@ fn step_install_skills() -> Result<bool> {
     let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
     let provider_statuses = core_skills::provider_statuses(&home_dir);
 
+    if has_global_bundled_skills_installed(&home_dir)? {
+        cli_skills::install_all_for_setup(SkillScope::Global, Vec::new(), true)?;
+        cliclack::log::success("Everr skills installed")?;
+        return Ok(true);
+    }
+
     if interactive {
         cliclack::note(
             "Everr skills",
@@ -374,6 +380,20 @@ fn step_install_skills() -> Result<bool> {
     cliclack::log::success("Everr skills installed")?;
 
     Ok(true)
+}
+
+fn has_global_bundled_skills_installed(home_dir: &Path) -> Result<bool> {
+    let options = SkillOperationOptions {
+        scope: SkillScope::Global,
+        cwd: std::env::current_dir().context("could not determine current directory")?,
+        home_dir: home_dir.to_path_buf(),
+        providers: Vec::new(),
+        skill_names: Vec::new(),
+        all: false,
+        force: false,
+        dry_run: false,
+    };
+    core_skills::has_installed_bundled_skill(&options)
 }
 
 fn print_next_steps() -> Result<()> {

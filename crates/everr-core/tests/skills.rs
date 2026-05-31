@@ -1,8 +1,8 @@
 use std::fs;
 
 use everr_core::skills::{
-    SkillOperationOptions, SkillPathAction, SkillProvider, SkillScope, install_bundled_skills,
-    uninstall_bundled_skills, update_bundled_skills,
+    SkillOperationOptions, SkillPathAction, SkillProvider, SkillScope, bundled_skills,
+    install_bundled_skills, uninstall_bundled_skills, update_bundled_skills,
 };
 use tempfile::tempdir;
 
@@ -20,6 +20,62 @@ fn assert_symlink_to(path: &std::path::Path, target: &std::path::Path) {
         resolved.canonicalize().expect("canonicalize link target"),
         target.canonicalize().expect("canonicalize target")
     );
+}
+
+#[test]
+fn bundles_using_everr_skill_for_conversation_start() {
+    let skills = bundled_skills().expect("list bundled skills");
+    let using_everr = skills
+        .iter()
+        .find(|skill| skill.name == "using-everr")
+        .expect("using-everr skill should be bundled");
+
+    assert!(
+        using_everr
+            .description
+            .contains("starting any conversation")
+    );
+}
+
+#[test]
+fn installs_using_everr_skill_with_must_use_triggers() {
+    let repo = tempdir().expect("repo tempdir");
+    let home = tempdir().expect("home tempdir");
+    let options = SkillOperationOptions {
+        scope: SkillScope::Project,
+        cwd: repo.path().to_path_buf(),
+        home_dir: home.path().to_path_buf(),
+        providers: vec![SkillProvider::Codex],
+        skill_names: vec!["using-everr".to_string()],
+        all: false,
+        force: false,
+        dry_run: false,
+    };
+
+    install_bundled_skills(&options).expect("install using-everr skill");
+
+    let content = fs::read_to_string(repo.path().join(".agents/skills/using-everr/SKILL.md"))
+        .expect("read installed skill");
+    assert!(content.contains("## Must-Use Skill Triggers"));
+    assert!(content.contains("`everr-working-with-ci`"));
+    assert!(content.contains("`everr-use-telemetry`"));
+    assert!(content.contains("`everr-setup-telemetry`"));
+}
+
+#[test]
+fn everr_use_telemetry_bounds_full_trace_queries_by_time() {
+    let content = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/skills/everr-use-telemetry/SKILL.md"),
+    )
+    .expect("read everr-use-telemetry skill");
+
+    assert!(
+        content.contains(
+            "WHERE Timestamp > now() - INTERVAL 1 HOUR\n  AND TraceId = '<trace-id>'"
+        )
+    );
+    assert!(content.contains("using the same recent window"));
 }
 
 #[test]

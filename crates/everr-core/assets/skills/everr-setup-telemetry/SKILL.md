@@ -13,13 +13,13 @@ Prefer real OpenTelemetry for runtime services. Use `everr wrap` only for bounde
 
 1. Run `everr local status`.
 2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
-3. Use the `otlp:` URL from `everr local status` in exporters.
+3. Use the `otlp:` URL from `everr local status` in exporters. Do not guess or mention a default localhost port unless status returned it.
 4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, and test runner.
 5. Add the smallest standard OTel setup for the stack: `service.name`, traces, logs, metrics when supported, useful resource attributes, automatic error capture, and an OTLP/HTTP exporter.
 6. Configure endpoint selection for both environments: local development exports to the `otlp:` URL from `everr local status`; production exports to `https://ingest.everr.dev/` with an ingest key from the secret manager.
 7. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
-8. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName` and a recent time window. Use a unique run, request, or test id when available.
-9. Do not claim setup works until Everr shows new telemetry.
+8. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName`, a recent time window, and a unique run, request, or test id when practical.
+9. Do not claim setup works until query results prove the new telemetry came from the path just exercised.
 
 ## Command Choice
 
@@ -31,6 +31,8 @@ Prefer real OpenTelemetry for runtime services. Use `everr wrap` only for bounde
 | Verify telemetry arrived | `everr local query "<SQL>"` |
 | Capture build/lint output | `everr wrap -- <command>` |
 
+In plans and example commands, keep the endpoint as `<otlp-url-from-status>` until you have actual status output.
+
 `everr local query` accepts ClickHouse-style SQL against the local telemetry store.
 
 ## Runtime Instrumentation
@@ -39,10 +41,12 @@ OpenTelemetry clients can export directly to the local collector. No wrapper is 
 
 When OpenTelemetry is missing:
 - Add the SDK, OTLP/HTTP exporter, and a clear `service.name`.
+- For JavaScript or TypeScript apps, check [OpenTelemetry JS contrib packages](https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages) for integrations that match the frameworks and libraries in use before writing custom instrumentation.
 - Load instrumentation before importing HTTP, database, queue, or framework modules.
 - Add spans around entry points and I/O boundaries when auto-instrumentation is not enough.
 - Capture errors as structured telemetry, not only terminal output.
 - Redact secrets, tokens, emails, and request bodies before export.
+- Prefer instrumenting the app's existing structured logger or adding targeted OTel logs at important boundaries. Do not monkey-patch `console.*` or mirror all console output into telemetry unless it is temporary, development-gated, redacted, and bounded to the specific path being verified.
 
 Do not make high-volume runtime traces or debug logs print to stdout/stderr just so they can be inspected. Export them to Everr and query them.
 
@@ -84,6 +88,16 @@ Use `everr wrap -- <command>` only when the command is not OpenTelemetry-instrum
 
 For Playwright or other E2E tests, capture both the app under test and the test runner's view of browser failures. Add a run id such as `e2e.run_id=<uuid>` to resource attributes, emit page errors, console errors, and request failures as OTel logs, then query by that run id.
 
+## Common Mistakes
+
+| Mistake | Fix |
+| --- | --- |
+| Using `everr status` | Use `everr local status`. The `local` subcommand is required. |
+| Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint. |
+| Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
+| Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
+| Verifying by UI visibility or absence of exporter errors | Run `everr local query` and show rows from the exercised path. |
+
 ## Production Export
 
 When setting up production telemetry, wire the app to Everr's hosted OTLP HTTP ingest endpoint and require an organization ingest key from the user's secret manager.
@@ -110,7 +124,7 @@ Implementation expectations:
 
 ## Verification Queries
 
-Do not treat unfiltered recent rows as proof. Before triggering the app, identify the expected `service.name` and, when practical, add a temporary run, request, or test id as a safe resource or span/log attribute. Verification should prove the telemetry came from the path you just exercised.
+Do not treat UI visibility, lack of exporter errors, or unfiltered recent rows as proof. Before triggering the app, identify the expected `service.name` and, when practical, add a temporary run, request, or test id as a safe resource, span, or log attribute. If you add a marker, the verification query must filter on it. Verification should prove the telemetry came from the path you just exercised.
 
 Fresh trace check:
 
@@ -134,14 +148,30 @@ ORDER BY Timestamp DESC
 LIMIT 20
 ```
 
-Run-id check, when the instrumented path emits one:
+Run-id checks, when the instrumented path emits one:
 
 ```sql
-SELECT Timestamp, ServiceName, Body
+SELECT Timestamp, ServiceName, SpanName, TraceId
+FROM otel_traces
+WHERE Timestamp > now() - INTERVAL 10 MINUTE
+  AND ServiceName = '<service-name>'
+  AND (
+    ResourceAttributes['everr.run_id'] = '<run-id>'
+    OR SpanAttributes['everr.run_id'] = '<run-id>'
+  )
+ORDER BY Timestamp DESC
+LIMIT 20
+```
+
+```sql
+SELECT Timestamp, ServiceName, Body, TraceId
 FROM otel_logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
-  AND ResourceAttributes['e2e.run_id'] = '<run-id>'
+  AND (
+    ResourceAttributes['everr.run_id'] = '<run-id>'
+    OR LogAttributes['everr.run_id'] = '<run-id>'
+  )
 ORDER BY Timestamp DESC
 LIMIT 20
 ```

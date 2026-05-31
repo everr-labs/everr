@@ -54,21 +54,21 @@ fn run_list(args: SkillsListArgs) -> Result<()> {
 }
 
 fn run_install(args: SkillsInstallArgs) -> Result<()> {
-    if args.all && !args.skills.is_empty() {
-        bail!("skill names cannot be provided when --all is set");
-    }
-
     let interactive = is_interactive_terminal();
-    if !args.all && args.skills.is_empty() && !interactive {
-        bail!("provide at least one skill name or use --all");
+    if !args.all {
+        if !interactive {
+            bail!("use --all to install bundled Everr skills");
+        }
+        let install: bool = cliclack::confirm("Install all bundled Everr skills?")
+            .initial_value(true)
+            .interact()?;
+        if !install {
+            cliclack::log::remark("Skipping Everr skills.")?;
+            return Ok(());
+        }
     }
 
     let home_dir = resolve_home_dir()?;
-    let skill_names = if !args.all && args.skills.is_empty() {
-        prompt_skills_to_install()?
-    } else {
-        args.skills
-    };
     let scope = if args.scope.project || args.scope.global {
         resolve_scope(&args.scope)
     } else if interactive {
@@ -89,8 +89,8 @@ fn run_install(args: SkillsInstallArgs) -> Result<()> {
         scope,
         home_dir,
         providers,
-        skill_names,
-        args.all,
+        Vec::new(),
+        true,
         args.force,
         args.dry_run,
     )?;
@@ -295,24 +295,6 @@ fn resolve_home_dir() -> Result<PathBuf> {
 
 fn is_interactive_terminal() -> bool {
     std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
-}
-
-fn prompt_skills_to_install() -> Result<Vec<String>> {
-    let skills = bundled_skills()?;
-    let mut prompt = cliclack::multiselect("Select skills to install").required(true);
-    for skill in &skills {
-        prompt = prompt.item(
-            skill.name.clone(),
-            skill.name.clone(),
-            skill.description.clone(),
-        );
-    }
-    let defaults: Vec<String> = skills.iter().map(|skill| skill.name.clone()).collect();
-    let selected: Vec<String> = prompt.initial_values(defaults).interact()?;
-    if selected.is_empty() {
-        bail!("no skills selected");
-    }
-    Ok(selected)
 }
 
 fn prompt_scope() -> Result<SkillScope> {
