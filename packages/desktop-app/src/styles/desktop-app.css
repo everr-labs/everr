@@ -11,6 +11,22 @@
     background: transparent;
     overscroll-behavior: none;
   }
+
+  /*
+   * Insets that reserve room for the macOS traffic-light buttons (the
+   * "semaphore"): the nav drops its first button below them and page headers
+   * indent their title clear of them. In native fullscreen the buttons are
+   * hidden, so we collapse the insets to reclaim the space.
+   */
+  :root {
+    --titlebar-top: 3rem;
+    --titlebar-inset: 1.75rem;
+  }
+
+  [data-fullscreen="true"] {
+    --titlebar-top: 0.75rem;
+    --titlebar-inset: 0px;
+  }
 }
 
 @theme inline {

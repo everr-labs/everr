@@ -185,6 +185,27 @@ pub(crate) async fn get_user_profile(
     .await
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct OrgInfoResponse {
+    pub name: String,
+}
+
+#[tauri::command]
+pub(crate) async fn get_org(
+    state: State<'_, RuntimeState>,
+) -> CommandResult<Option<OrgInfoResponse>> {
+    let state = state.inner().clone();
+    let app_state = current_app_state(&state).into_command_result()?;
+    let Some(session) = app_state.session else {
+        return Ok(None);
+    };
+    let client = ApiClient::from_session(&session).into_command_result()?;
+    let org = client.get_org().await.into_command_result()?;
+
+    Ok(Some(OrgInfoResponse { name: org.name }))
+}
+
 #[tauri::command]
 pub(crate) fn dismiss_active_notification(
     app: AppHandle,

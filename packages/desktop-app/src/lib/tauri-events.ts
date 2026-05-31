@@ -3,6 +3,49 @@ import type { EventName, UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent } from "react";
 import { safeGetCurrentWindow } from "./tauri";
 
+function setIsFullscreen(value: boolean) {
+  document.documentElement.dataset.fullscreen = value ? "true" : "false";
+}
+
+/**
+ * Tracks whether the main window is in native (macOS) fullscreen, where the
+ * traffic-light buttons are hidden. Used to collapse the titlebar insets so the
+ * UI reclaims the space the semaphore otherwise occupies.
+ */
+export function useIsFullscreen() {
+  useEffect(() => {
+    const appWindow = safeGetCurrentWindow();
+    if (!appWindow) {
+      return;
+    }
+
+    let unlisten: UnlistenFn | undefined;
+    let cancelled = false;
+
+    const sync = () => {
+      void appWindow.isFullscreen().then((value) => {
+        if (!cancelled) {
+          setIsFullscreen(value);
+        }
+      });
+    };
+
+    sync();
+    void appWindow.onResized(sync).then((cleanup) => {
+      if (cancelled) {
+        cleanup();
+      } else {
+        unlisten = cleanup;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+}
+
 export function useTauriEvent<T = unknown>(
   eventName: EventName,
   onEvent: (payload: T) => void,

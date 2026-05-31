@@ -118,7 +118,10 @@ export function ErrorDetail({
       />
       <main className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-7xl gap-3 p-3">
-          <ErrorStacktrace stacktrace={selected.exceptionStacktrace} />
+          <ErrorStacktrace
+            stacktrace={selected.exceptionStacktrace}
+            message={selected.exceptionMessage}
+          />
           {renderTracePanel?.({ occurrence: selected })}
           <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_26rem]">
             <ErrorLatestOccurrence occurrence={selected} />

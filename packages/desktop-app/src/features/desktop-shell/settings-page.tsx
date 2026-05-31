@@ -36,23 +36,25 @@ function BuildInfoSection() {
 
 export function SettingsPage() {
   return (
-    <div className="pt-8">
-      <div className="px-6 pb-5">
-        <div className="grid gap-1.5">
-          <h1 className="m-0 text-[clamp(1.4rem,3vw,1.8rem)] font-medium leading-none tracking-[-0.04em]">
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
+        <div
+          data-tauri-drag-region
+          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
+        >
+          <span className="text-sm font-medium text-[var(--settings-text)]">
             Settings
-          </h1>
-          <p className="m-0 max-w-[52ch] text-[0.92rem] leading-6 text-[var(--settings-text-muted)]">
-            Manage your desktop connection, notifications, and release info.
-          </p>
+          </span>
         </div>
-      </div>
-      <div className="grid divide-y divide-white/[0.06]">
-        <div className="pt-0">
-          <AuthSettingsSection />
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="grid divide-y divide-white/[0.06]">
+          <div className="pt-0">
+            <AuthSettingsSection />
+          </div>
+          <NotificationEmailsSection />
+          <BuildInfoSection />
         </div>
-        <NotificationEmailsSection />
-        <BuildInfoSection />
       </div>
     </div>
   );
