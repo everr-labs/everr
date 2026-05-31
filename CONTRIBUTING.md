@@ -2,17 +2,17 @@
 
 ## Development
 
-### Set up `devtunnels`
+### Set up GitHub webhook forwarding
 
-> [!NOTE]
-> The following steps are for setting up `devtunnels` for the first time. If you have already set up the devtunnel, you can skip to the last step and directly start the tunnel via `devtunnel host`.
-> You may need to repeat the steps if the tunnel is not used for more than 30 days.
+The web app starts a [`smee`](https://smee.io/) client during Vite dev when `SMEE_CHANNEL` is set.
 
-1. Install and setup [`devtunnels`](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/get-started?tabs=macos#install).
-2. Login via `devtunnel user login`
-3. Create a tunnel via `devtunnel create -a -d 'Everr app'`
-4. Configure the tunnel `devtunnel port create -p 5173`
-5. Start the tunnel `devtunnel host`
+1. Create or open a smee channel at `https://smee.io/new`.
+2. Copy the channel id from the generated URL. For example, the channel id for `https://smee.io/abc123` is `abc123`.
+3. Set the channel id in `packages/app/.env`:
+   ```bash
+   SMEE_CHANNEL="abc123"
+   ```
+4. Start the web app with `pnpm dev:web`. The dev server forwards events from `https://smee.io/<SMEE_CHANNEL>` to `http://localhost:5173/webhook/github`.
 
 ### Start ClickHouse
 
@@ -31,7 +31,7 @@ pnpm build
 
 1. On GitHub, go to [Settings -> Developer settings -> GitHub Apps](https://github.com/settings/apps) and click **New GitHub App**.
 2. Choose an app name and set a homepage URL.
-3. Under **Webhook**, enable **Active** and set the webhook URL to your tunnel URL with the receiver path, for example: `https://<your-tunnel>/webhook/github`.
+3. Under **Webhook**, enable **Active** and set the webhook URL to your smee channel URL, for example: `https://smee.io/<SMEE_CHANNEL>`.
 4. Set a webhook secret and store it in both `packages/app/.env` as `GITHUB_APP_WEBHOOK_SECRET` and in `collector/config.yml` as `receivers.githubactions.secret`.
 5. Under **Repository permissions**, set **Actions** to **Read-only**.
 6. Under **Subscribe to events**, select **Workflow job** and **Workflow run**.
