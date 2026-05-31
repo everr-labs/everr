@@ -111,10 +111,11 @@ export class ErrorsRepository {
 
   // fallow-ignore-next-line unused-class-member
   async listServices(input: ListErrorServicesInput): Promise<string[]> {
-    const rows = await this.client.execute<ServiceRow>(
-      buildServicesQuery(this.tableName),
+    const { sql, params } = buildServicesQuery(
       { fromTs: input.fromTs, toTs: input.toTs },
+      this.tableName,
     );
+    const rows = await this.client.execute<ServiceRow>(sql, params);
     return rows.map((row) => row.serviceName).filter(Boolean);
   }
 }

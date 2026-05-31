@@ -152,13 +152,19 @@ export function buildOccurrencesQuery(
   };
 }
 
-export function buildServicesQuery(tableName: string): string {
+export function buildServicesQuery(
+  input: Pick<SearchErrorIssuesInput, "fromTs" | "toTs">,
+  tableName: string,
+): BuiltQuery {
   validateTableName(tableName);
-  return `
+  return {
+    params: { fromTs: input.fromTs, toTs: input.toTs },
+    sql: `
     SELECT DISTINCT ServiceName AS serviceName
     FROM ${tableName}
     WHERE ${timePredicateSql()}
       AND ${EXCEPTION_LOG_FILTER_SQL}
     ORDER BY serviceName
-  `;
+  `,
+  };
 }
