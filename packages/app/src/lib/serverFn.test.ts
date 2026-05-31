@@ -10,6 +10,10 @@ const mocked = vi.hoisted(() => ({
     options: { type: string };
     __handler: FunctionMiddlewareHandler;
   } | null,
+  allDefinitions: [] as Array<{
+    options: { type: string };
+    __handler: FunctionMiddlewareHandler;
+  }>,
   createServerFnMiddleware: vi.fn(),
   createServerFnResult: {},
   getRequest: vi.fn(),
@@ -27,6 +31,8 @@ function getHandler(): FunctionMiddlewareHandler {
 beforeEach(() => {
   vi.resetModules();
   mocked.handler = null;
+  mocked.middlewareDefinition = null;
+  mocked.allDefinitions = [];
   mocked.createServerFnMiddleware.mockReset();
   mocked.createServerFnMiddleware.mockReturnValue(mocked.createServerFnResult);
   mocked.getRequest.mockReset();
@@ -56,6 +62,7 @@ async function loadModule() {
         };
         mocked.handler = composed;
         mocked.middlewareDefinition = definition;
+        mocked.allDefinitions.push(definition);
         return definition;
       },
     };
@@ -85,9 +92,12 @@ describe("createAuthenticatedServerFn", () => {
   it("wires the auth middleware into createServerFn", async () => {
     const { createAuthenticatedServerFn } = await loadModule();
 
+    // allDefinitions order: [errorTelemetryMiddleware, authMiddleware, requireOrgMiddleware]
+    const [errorTelemetryDef, , requireOrgDef] = mocked.allDefinitions;
     expect(createAuthenticatedServerFn).toBe(mocked.createServerFnResult);
     expect(mocked.createServerFnMiddleware).toHaveBeenCalledWith([
-      mocked.middlewareDefinition,
+      requireOrgDef,
+      errorTelemetryDef,
     ]);
   });
 });
