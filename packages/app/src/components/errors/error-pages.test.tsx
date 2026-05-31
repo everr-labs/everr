@@ -7,13 +7,36 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ErrorIssueSummary, ErrorOccurrence } from "@/data/errors/types";
-import { ErrorFilters } from "./error-filters";
+import { ErrorFilters, ErrorSearchForm } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
+
+vi.mock("react-virtuoso", () => ({
+  Virtuoso: <T,>({
+    data,
+    itemContent,
+    components,
+  }: {
+    data: T[];
+    itemContent: (index: number, item: T) => React.ReactNode;
+    components?: { Footer?: () => React.ReactNode };
+  }) => {
+    const Footer = components?.Footer;
+    return (
+      <div data-testid="virtuoso-mock">
+        {data.map((item, i) => (
+          <div key={i}>{itemContent(i, item)}</div>
+        ))}
+        {Footer ? <Footer /> : null}
+      </div>
+    );
+  },
+}));
+
 import { ErrorLatestOccurrence } from "./error-latest-occurrence";
 import {
   findErrorOccurrenceByKey,
@@ -98,6 +121,9 @@ describe("ErrorIssueList", () => {
         isPending={false}
         isError={false}
         onRetry={() => {}}
+        hasNextPage={false}
+        isFetchingNextPage={false}
+        onLoadMore={() => {}}
         renderIssueLink={({ fingerprint, children }) => (
           <a href={`/errors/${fingerprint}`}>{children}</a>
         )}
@@ -119,6 +145,9 @@ describe("ErrorIssueList", () => {
         isPending={false}
         isError={false}
         onRetry={() => {}}
+        hasNextPage={false}
+        isFetchingNextPage={false}
+        onLoadMore={() => {}}
         renderIssueLink={({ children }) => <span>{children}</span>}
       />,
     );
@@ -133,10 +162,25 @@ describe("ErrorFilters", () => {
     service: [],
     fingerprint: "",
     sort: "lastSeen" as const,
-    limit: 50,
   };
 
-  it("submits search text and sort changes", async () => {
+  it("renders sidebar filters without the search input", () => {
+    renderWithQueryClient(
+      <ErrorFilters
+        value={defaultValue}
+        services={["web", "api"]}
+        onChange={() => {}}
+      />,
+    );
+
+    const filters = screen.getByRole("complementary", {
+      name: "Error filters",
+    });
+    expect(filters).toBeInTheDocument();
+    expect(within(filters).queryByPlaceholderText("Search errors")).toBeNull();
+  });
+
+  it("submits sort changes", async () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <ErrorFilters
@@ -146,51 +190,10 @@ describe("ErrorFilters", () => {
       />,
     );
 
-    await userEvent.type(screen.getByPlaceholderText("Search errors"), "boom");
-    await userEvent.click(screen.getByRole("button", { name: "Search" }));
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "boom" }),
-    );
-
     await userEvent.click(screen.getByRole("button", { name: "Count" }));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ sort: "count" }),
     );
-  });
-
-  it("syncs search draft from route state and clears it", async () => {
-    const onChange = vi.fn();
-    const { rerender } = renderWithQueryClient(
-      <ErrorFilters
-        value={{ ...defaultValue, q: "boom" }}
-        services={["web", "api"]}
-        onChange={onChange}
-      />,
-    );
-
-    const input = screen.getByPlaceholderText("Search errors");
-    expect(input).toHaveValue("boom");
-
-    rerender(
-      <QueryClientProvider
-        client={
-          new QueryClient({
-            defaultOptions: { queries: { retry: false } },
-          })
-        }
-      >
-        <ErrorFilters
-          value={{ ...defaultValue, q: "external" }}
-          services={["web", "api"]}
-          onChange={onChange}
-        />
-      </QueryClientProvider>,
-    );
-    expect(input).toHaveValue("external");
-
-    await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(input).toHaveValue("");
-    expect(onChange).toHaveBeenCalledWith({ q: "" });
   });
 
   it("uses the logs service filter combobox", async () => {
@@ -253,6 +256,38 @@ describe("ErrorFilters", () => {
       screen.getByRole("button", { name: "Remove worker" }),
     );
     expect(onChange).toHaveBeenCalledWith({ service: [] });
+  });
+});
+
+describe("ErrorSearchForm", () => {
+  it("submits search text from the top search form", async () => {
+    const onChange = vi.fn();
+    render(<ErrorSearchForm value="" onChange={onChange} />);
+
+    const searchInput = screen.getByRole("searchbox", {
+      name: "Search errors",
+    });
+    await userEvent.type(searchInput, "boom");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(onChange).toHaveBeenCalledWith("boom");
+  });
+
+  it("syncs search draft from route state and clears it", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ErrorSearchForm value="boom" onChange={onChange} />,
+    );
+
+    const input = screen.getByRole("searchbox", { name: "Search errors" });
+    expect(input).toHaveValue("boom");
+
+    rerender(<ErrorSearchForm value="external" onChange={onChange} />);
+    expect(input).toHaveValue("external");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(input).toHaveValue("");
+    expect(onChange).toHaveBeenCalledWith("");
   });
 });
 

@@ -5,14 +5,15 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 export const ErrorSortSchema = z.enum(["lastSeen", "count"]);
 export type ErrorSort = z.infer<typeof ErrorSortSchema>;
 
+// Issues fetched per infinite-scroll page.
+export const PAGE_SIZE = 50;
+
 export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
   q: z.string().trim().default(""),
   service: z.array(z.string()).default([]),
   fingerprint: z.string().trim().default(""),
   occurrence: z.string().trim().default(""),
   sort: ErrorSortSchema.default("lastSeen"),
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(500).default(50),
 });
 export type ErrorIssueSearch = z.infer<typeof ErrorIssueSearchSchema>;
 

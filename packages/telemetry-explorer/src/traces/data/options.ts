@@ -61,7 +61,7 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
     initialPageParam: null,
     getNextPageParam: (lastPage: TraceSummary[] | undefined) => {
       if (!lastPage || lastPage.length < input.limit) return undefined;
-      const lastRow = lastPage.at(-1);
+      const lastRow = lastPage[lastPage.length - 1];
       if (!lastRow) return undefined;
       return { startTs: lastRow.startTs, traceId: lastRow.traceId };
     },

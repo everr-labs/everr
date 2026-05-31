@@ -1,4 +1,3 @@
-import { Button } from "@everr/ui/components/button";
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import {
   InputGroup,
@@ -11,7 +10,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
-import { Search, X } from "lucide-react";
+import { ListFilter, Search, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import type { ErrorSort } from "@/data/errors/types";
 
@@ -20,7 +19,6 @@ export type ErrorFiltersValue = {
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
-  limit: number;
 };
 
 export function ErrorFilters({
@@ -32,7 +30,6 @@ export function ErrorFilters({
   services: string[];
   onChange: (patch: Partial<ErrorFiltersValue>) => void;
 }) {
-  const [qDraft, setQDraft] = useState(value.q);
   const orderLabelId = useId();
   const serviceOptions = [
     ...services,
@@ -44,87 +41,114 @@ export function ErrorFilters({
     select: (data: string[]) => data,
   };
 
+  return (
+    <aside
+      aria-label="Error filters"
+      className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
+    >
+      <div className="flex items-center gap-2 text-xs font-medium">
+        <ListFilter className="text-muted-foreground size-3.5" />
+        Filter
+      </div>
+
+      <FilterCombobox
+        label="Service"
+        values={value.service}
+        onChange={(nextServices) => onChange({ service: nextServices })}
+        options={serviceFilterOptions}
+        placeholder="All services"
+        searchPlaceholder="Search services..."
+        className="w-full"
+      />
+
+      <div className="flex flex-col gap-1">
+        <Label id={orderLabelId} className="text-muted-foreground text-xs">
+          Order
+        </Label>
+        <ToggleGroup
+          value={[value.sort]}
+          size="lg"
+          variant="outline"
+          spacing={0}
+          className="w-full"
+          onValueChange={(next) => {
+            const selected = next[0];
+            if (selected === "lastSeen" || selected === "count") {
+              onChange({ sort: selected });
+            }
+          }}
+          aria-labelledby={orderLabelId}
+        >
+          <ToggleGroupItem
+            value="lastSeen"
+            aria-label="Last seen"
+            className="flex-1"
+          >
+            Last seen
+          </ToggleGroupItem>
+          <ToggleGroupItem value="count" aria-label="Count" className="flex-1">
+            Count
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+    </aside>
+  );
+}
+
+export function ErrorSearchForm({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
   useEffect(() => {
-    setQDraft(value.q);
-  }, [value.q]);
+    setDraft(value);
+  }, [value]);
 
   return (
-    <div className="flex flex-col gap-2 border-b bg-muted/10 px-3 py-2">
-      <form
-        className="flex min-w-0 items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onChange({ q: qDraft.trim() });
-        }}
-      >
-        <InputGroup className="min-w-0 flex-1">
-          <InputGroupAddon>
-            <Search />
-          </InputGroupAddon>
-          <InputGroupInput
-            name="q"
-            value={qDraft}
-            onChange={(event) => setQDraft(event.currentTarget.value)}
-            placeholder="Search errors"
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton type="submit" size="sm">
-              Search
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
-        {value.q ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Clear search"
-            onClick={() => {
-              setQDraft("");
-              onChange({ q: "" });
-            }}
-          >
-            <X />
-          </Button>
-        ) : null}
-      </form>
-
-      <div className="flex flex-wrap items-start gap-2">
-        <FilterCombobox
-          label="Service"
-          values={value.service}
-          onChange={(nextServices) => onChange({ service: nextServices })}
-          options={serviceFilterOptions}
-          placeholder="All services"
-          searchPlaceholder="Search services..."
+    <form
+      className="w-full"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onChange(draft.trim());
+      }}
+    >
+      <label htmlFor="errors-search" className="sr-only">
+        Search errors
+      </label>
+      <InputGroup className="h-8">
+        <InputGroupInput
+          id="errors-search"
+          type="search"
+          name="q"
+          value={draft}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          placeholder="Search errors"
         />
-
-        <div className="flex flex-col gap-1">
-          <Label id={orderLabelId} className="text-muted-foreground text-xs">
-            Order
-          </Label>
-          <ToggleGroup
-            value={[value.sort]}
-            size="lg"
-            variant="outline"
-            spacing={0}
-            onValueChange={(next) => {
-              const selected = next[0];
-              if (selected === "lastSeen" || selected === "count") {
-                onChange({ sort: selected });
-              }
-            }}
-            aria-labelledby={orderLabelId}
-          >
-            <ToggleGroupItem value="lastSeen" aria-label="Last seen">
-              Last seen
-            </ToggleGroupItem>
-            <ToggleGroupItem value="count" aria-label="Count">
-              Count
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-      </div>
-    </div>
+        <InputGroupAddon align="inline-start">
+          <Search />
+        </InputGroupAddon>
+        <InputGroupAddon align="inline-end">
+          {value ? (
+            <InputGroupButton
+              size="icon-xs"
+              aria-label="Clear search"
+              onClick={() => {
+                setDraft("");
+                onChange("");
+              }}
+            >
+              <X />
+            </InputGroupButton>
+          ) : null}
+          <InputGroupButton type="submit" variant="secondary">
+            Search
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
+    </form>
   );
 }

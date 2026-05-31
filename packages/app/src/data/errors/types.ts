@@ -18,7 +18,6 @@ export type ErrorIssueSummary = {
 
 export type ErrorIssuesResult = {
   issues: ErrorIssueSummary[];
-  totalCount: number;
 };
 
 export type ErrorOccurrence = {

@@ -26,10 +26,6 @@ type ErrorIssueSummaryRow = Omit<
   traceCount: string | number;
 };
 
-type ErrorIssuesCountRow = {
-  totalCount: string | number;
-};
-
 type ErrorOccurrenceRow = ErrorOccurrence & {
   resourceAttributes: Record<string, string> | null;
   logAttributes: Record<string, string> | null;
@@ -128,10 +124,12 @@ function buildSummaryQuery(input: SearchErrorIssuesInput): {
     ? "WHERE fingerprint = {fingerprint:String}"
     : "";
   if (input.fingerprint) params.fingerprint = input.fingerprint;
+  // fingerprint is the unique GROUP BY key — append it as a deterministic
+  // tiebreaker so offset paging stays stable across infinite-scroll fetches.
   const orderBy =
     input.sort === "count"
-      ? "occurrenceCount DESC, lastSeen DESC"
-      : "lastSeen DESC, occurrenceCount DESC";
+      ? "occurrenceCount DESC, lastSeen DESC, fingerprint DESC"
+      : "lastSeen DESC, occurrenceCount DESC, fingerprint DESC";
 
   return {
     params,
@@ -157,32 +155,6 @@ function buildSummaryQuery(input: SearchErrorIssuesInput): {
       ORDER BY ${orderBy}
       LIMIT {limit:UInt32}
       OFFSET {offset:UInt32}
-    `,
-  };
-}
-
-function buildSummaryCountQuery(input: SearchErrorIssuesInput): {
-  sql: string;
-  params: Record<string, unknown>;
-} {
-  const cte = buildExceptionLogsCte(input);
-  const params: Record<string, unknown> = { ...cte.params };
-  const fingerprintFilter = input.fingerprint
-    ? "WHERE fingerprint = {fingerprint:String}"
-    : "";
-  if (input.fingerprint) params.fingerprint = input.fingerprint;
-
-  return {
-    params,
-    sql: `
-      WITH ${cte.sql}
-      SELECT count() AS totalCount
-      FROM (
-        SELECT fingerprint
-        FROM exception_logs
-        ${fingerprintFilter}
-        GROUP BY fingerprint
-      )
     `,
   };
 }
@@ -225,23 +197,11 @@ export const searchErrorIssues = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(SearchErrorIssuesInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
     const summaryQuery = buildSummaryQuery(data);
-    const countQuery = buildSummaryCountQuery(data);
-    const clickhouseQuery = clickhouse as ClickhouseContext;
-    const [rows, countRows] = await Promise.all([
-      clickhouseQuery.query<ErrorIssueSummaryRow>(
-        summaryQuery.sql,
-        summaryQuery.params,
-      ),
-      clickhouseQuery.query<ErrorIssuesCountRow>(
-        countQuery.sql,
-        countQuery.params,
-      ),
-    ]);
+    const rows = await (
+      clickhouse as ClickhouseContext
+    ).query<ErrorIssueSummaryRow>(summaryQuery.sql, summaryQuery.params);
 
-    return {
-      issues: rows.map(mapSummary),
-      totalCount: Number(countRows[0]?.totalCount ?? 0),
-    } satisfies ErrorIssuesResult;
+    return { issues: rows.map(mapSummary) } satisfies ErrorIssuesResult;
   });
 
 export const getErrorIssue = createAuthenticatedServerFn({ method: "GET" })
