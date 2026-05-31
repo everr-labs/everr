@@ -43,18 +43,19 @@ Always include a time filter, scoped repo/branch/run/workflow/job/test filters w
 
 Run read-only ClickHouse SQL with `everr cloud query "<SQL>"`. Use `SHOW TABLES`, `DESCRIBE TABLE traces`, or `DESCRIBE TABLE logs` when unsure about columns. Cloud CI data usually starts in `traces`; step log lines are in `logs`; metrics are in `metrics_gauge` and `metrics_sum`.
 
-Common CI attributes:
-- `ResourceAttributes['vcs.repository.name']`: `owner/repo`
-- `ResourceAttributes['vcs.ref.head.name']`: branch
-- `ResourceAttributes['vcs.ref.head.revision']`: commit SHA
-- `ResourceAttributes['cicd.pipeline.name']`: workflow
-- `ResourceAttributes['cicd.pipeline.run.id']`: workflow run id
-- `ResourceAttributes['cicd.pipeline.task.name']`: job
-- `ResourceAttributes['cicd.pipeline.task.run.result']`: job/run result
-- `SpanAttributes['everr.github.workflow_job_step.number']`: step number
-- `ScopeAttributes['cicd.pipeline.task.name']`: job context for logs
-- `LogAttributes['everr.github.workflow_job_step.number']`: log step number
-- `SpanAttributes['everr.test.name']`, `everr.test.result`, `everr.test.duration_seconds`: parsed tests
+Everr CI follows OpenTelemetry semantic conventions where they exist. The conventions used in CI data include:
+- `service.name` as `ServiceName` (`github-actions`)
+- `vcs.repository.name`
+- `vcs.ref.head.name`
+- `vcs.ref.head.revision`
+- `cicd.pipeline.name`
+- `cicd.pipeline.result`
+- `cicd.pipeline.run.id`
+- `cicd.pipeline.task.name`
+- `cicd.pipeline.task.run.id`
+- `cicd.pipeline.task.run.result`
+- `cicd.pipeline.task.run.url.full`
+- `cicd.worker.name`
 
 Recent run history:
 
