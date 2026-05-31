@@ -93,10 +93,7 @@ SELECT
 FROM logs
 WHERE Timestamp > now() - INTERVAL 14 DAY
   AND ResourceAttributes['vcs.repository.name'] = '<owner/repo>'
-  AND (
-    positionCaseInsensitive(Body, 'error') > 0
-    OR positionCaseInsensitive(Body, 'failed') > 0
-  )
+  AND startsWith(Body, '##[error]')
 GROUP BY cityHash64(Body)
 ORDER BY runs DESC, lines DESC, last_seen DESC
 LIMIT 50
