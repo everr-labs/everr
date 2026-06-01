@@ -912,8 +912,10 @@ export type LogsRepositoryLike = Pick<
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @everr/telemetry-explorer exec vitest run src/logs/data/repository.test.ts && pnpm --filter @everr/telemetry-explorer typecheck`
+Run: `pnpm --filter @everr/telemetry-explorer exec vitest run src/logs/data/repository.test.ts`
 Expected: PASS.
+
+> Do NOT run the full-package `typecheck` here. From Task 1 onward the `attributes` field is a required member of the inferred query-input types, but the UI container (`logs-explorer.tsx`) does not supply it until Task 14 — so `pnpm --filter @everr/telemetry-explorer typecheck` reports known errors in `logs-explorer.tsx` (and UI tests) until Task 14 lands. The vitest run above is the gate for this task. The package typecheck goes green at Task 14.
 
 - [ ] **Step 5: Commit**
 
@@ -1012,8 +1014,10 @@ export function logAttributeValuesOptions(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @everr/telemetry-explorer exec vitest run src/logs/data/options.test.ts && pnpm --filter @everr/telemetry-explorer typecheck`
+Run: `pnpm --filter @everr/telemetry-explorer exec vitest run src/logs/data/options.test.ts`
 Expected: PASS.
+
+> As in Task 6, skip the full-package `typecheck` here — `logs-explorer.tsx` still lacks the required `attributes` field until Task 14, so the package typecheck reports known UI errors until then. The vitest run is the gate for this task.
 
 - [ ] **Step 5: Commit**
 
@@ -1066,7 +1070,7 @@ In `remote-repo.ts`, add to the type import: `LogAttributeKey`, `LogAttributeKey
 - [ ] **Step 3: Typecheck**
 
 Run: `pnpm --filter @everr/app typecheck`
-Expected: PASS — `remoteRepo` still satisfies `LogsRepositoryLike` (now including the two new methods).
+Expected: `remoteRepo` satisfies `LogsRepositoryLike` (now including the two new methods) and the new server functions compile. If the app typecheck transitively compiles `@everr/telemetry-explorer` source, it may surface the same known `logs-explorer.tsx` "missing `attributes`" errors that persist until Task 14 — that is expected. Confirm there are **no new errors originating from `server.ts` or `remote-repo.ts`**; those two files must be clean.
 
 - [ ] **Step 4: Commit**
 
