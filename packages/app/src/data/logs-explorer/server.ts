@@ -1,4 +1,6 @@
 import {
+  LogAttributeKeysInputSchema,
+  LogAttributeValuesInputSchema,
   LogHistogramInputSchema,
   LogIdentitySchema,
   LogsExplorerInputSchema,
@@ -49,4 +51,20 @@ export const getLogFilterOptions = createAuthenticatedServerFn({
   .inputValidator(z.object({ timeRange: TimeRangeSchema }))
   .handler(({ data, context: { clickhouse } }) =>
     repoFromContext(clickhouse).filterOptions(data),
+  );
+
+export const getLogAttributeKeys = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(LogAttributeKeysInputSchema)
+  .handler(({ data, context: { clickhouse } }) =>
+    repoFromContext(clickhouse).attributeKeys(data),
+  );
+
+export const getLogAttributeValues = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(LogAttributeValuesInputSchema)
+  .handler(({ data, context: { clickhouse } }) =>
+    repoFromContext(clickhouse).attributeValues(data),
   );
