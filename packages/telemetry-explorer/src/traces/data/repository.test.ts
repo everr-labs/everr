@@ -13,6 +13,16 @@ function makeRepo() {
   return new TracesRepository(client);
 }
 
+// Shared base for search calls — all fields required by SearchTracesInput.
+const searchBase = {
+  namespace: [] as string[],
+  service: [] as string[],
+  name: "",
+  status: "all" as const,
+  attributes: [] as never[],
+  limit: 25,
+};
+
 function traceRows(count: number): TraceSummary[] {
   return Array.from({ length: count }, (_, i) => ({
     traceId: `t${i}`,
@@ -51,6 +61,7 @@ describe("TracesRepository.search", () => {
       service: [],
       name: "",
       status: "all",
+      attributes: [],
       limit: 25,
     });
 
@@ -77,6 +88,7 @@ describe("TracesRepository.search", () => {
       service: [],
       name: "",
       status: "all",
+      attributes: [],
       limit: 2,
     });
 
@@ -99,6 +111,7 @@ describe("TracesRepository.search", () => {
       service: [],
       name: "",
       status: "all",
+      attributes: [],
       limit: 2,
     });
 
@@ -121,6 +134,7 @@ describe("TracesRepository.search", () => {
       service: [],
       name: "",
       status: "all",
+      attributes: [],
       limit: 2,
     });
 
@@ -149,6 +163,7 @@ describe("TracesRepository.search", () => {
       service: [],
       name: "",
       status: "all",
+      attributes: [],
       limit: 25,
     });
 
@@ -168,6 +183,7 @@ describe("TracesRepository.search", () => {
       service: [],
       name: "",
       status: "all",
+      attributes: [],
       limit: 25,
     });
 
@@ -194,6 +210,7 @@ describe("TracesRepository.search", () => {
       service: [],
       name: "",
       status: "all",
+      attributes: [],
       limit: 25,
     });
 
@@ -219,6 +236,7 @@ describe("TracesRepository.search", () => {
         service: [],
         name: "",
         status: "all",
+        attributes: [],
         limit: 25,
       }),
     ).rejects.toThrow("invalid table name");
@@ -235,6 +253,7 @@ describe("TracesRepository.search", () => {
       name: "",
       minDurationNs: "1000",
       status: "error",
+      attributes: [],
       limit: 50,
     });
 
@@ -257,6 +276,7 @@ describe("TracesRepository.search", () => {
         service: [],
         name: "",
         status: "all",
+        attributes: [],
         limit: 25,
       }),
     ).rejects.toThrow("clickhouse exploded");
@@ -371,5 +391,48 @@ describe("TracesRepository.listServiceIdentities", () => {
         toTs: "2026-05-20 13:00:00.000",
       }),
     ).rejects.toThrow("permission denied");
+  });
+});
+
+describe("trace search attribute filtering", () => {
+  it("adds span-level attribute predicates to the candidate subquery", async () => {
+    query.mockResolvedValueOnce([]);
+
+    await makeRepo().search({
+      fromTs: "2026-06-01 00:00:00",
+      toTs: "2026-06-01 01:00:00",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      limit: 50,
+      attributes: [
+        { source: "span", key: "http.route", op: "in", values: ["/x"] },
+      ],
+    });
+
+    const [sql, params] = query.mock.calls[0] ?? [];
+    expect(sql).toContain("SELECT DISTINCT TraceId");
+    expect(sql).toContain("mapContains(SpanAttributes, {attrKey0:String})");
+    expect(params.attrKey0).toBe("http.route");
+    expect(params.attrVals0).toEqual(["/x"]);
+  });
+
+  it("adds no attribute predicates when none are given", async () => {
+    query.mockResolvedValueOnce([]);
+
+    await makeRepo().search({
+      fromTs: "2026-06-01 00:00:00",
+      toTs: "2026-06-01 01:00:00",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      attributes: [],
+      limit: 50,
+    });
+
+    const [, params] = query.mock.calls[0] ?? [];
+    expect(params.attrKey0).toBeUndefined();
   });
 });

@@ -3,6 +3,8 @@ import {
   ListServiceIdentitiesInputSchema,
   SearchTracesInputSchema,
   type SqlClient,
+  TraceAttributeKeysInputSchema,
+  TraceAttributeValuesInputSchema,
   TracesRepository,
 } from "@everr/telemetry-explorer/traces";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
@@ -34,4 +36,20 @@ export const listServiceIdentities = createAuthenticatedServerFn({
   .inputValidator(ListServiceIdentitiesInputSchema)
   .handler(({ data, context: { clickhouse } }) =>
     repoFromContext(clickhouse).listServiceIdentities(data),
+  );
+
+export const getTraceAttributeKeys = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(TraceAttributeKeysInputSchema)
+  .handler(({ data, context: { clickhouse } }) =>
+    repoFromContext(clickhouse).attributeKeys(data),
+  );
+
+export const getTraceAttributeValues = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(TraceAttributeValuesInputSchema)
+  .handler(({ data, context: { clickhouse } }) =>
+    repoFromContext(clickhouse).attributeValues(data),
   );

@@ -44,4 +44,19 @@ describe("buildAttributeValuesQuery", () => {
       "POST",
     ]);
   });
+
+  it("uses an injected time column when provided", () => {
+    const { sql } = buildAttributeValuesQuery(
+      {
+        timeRange: { from: "now-1h", to: "now" },
+        source: "span",
+        key: "http.route",
+      },
+      { tableName: "traces", columnFor, timeColumn: "Timestamp" },
+    );
+    expect(sql).toContain(
+      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
+    );
+    expect(sql).not.toContain("TimestampTime");
+  });
 });

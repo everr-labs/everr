@@ -1,7 +1,27 @@
+import type {
+  AttributeKey,
+  AttributeKeysInput,
+  AttributeValuesInput,
+} from "../../attribute-filter/schemas";
+import {
+  type AttributeKeyRowRaw,
+  buildAttributeKeysQuery,
+  decodeAttributeKeyRows,
+} from "../../attribute-filter/sql/keys";
+import {
+  type AttributeValueRowRaw,
+  buildAttributeValuesQuery,
+  decodeAttributeValueRows,
+} from "../../attribute-filter/sql/values";
+import { buildAttributeClauses } from "../../attribute-filter/sql/where";
 import {
   resourceAttribute,
   resourceAttributeKeyExists,
 } from "../../sql/resource-attributes";
+import {
+  TRACES_ATTRIBUTE_SOURCES,
+  tracesAttributeColumn,
+} from "../sql/attribute-columns";
 import { validateTableName } from "../sql/table";
 import type { SqlClient } from "./client";
 import type {
@@ -67,6 +87,13 @@ export class TracesRepository {
       );
       params.namespace = input.namespace;
     }
+    const attr = buildAttributeClauses(
+      input.attributes ?? [],
+      tracesAttributeColumn,
+    );
+    spanPreds.push(...attr.clauses);
+    Object.assign(params, attr.params);
+
     // durationNsRaw is the inner-aggregate alias (UInt64); the outer query
     // exposes it as a string. Filter on the raw int to avoid a double
     // toString → toUInt64 round-trip per row.
@@ -208,6 +235,31 @@ export class TracesRepository {
   }
 
   // fallow-ignore-next-line unused-class-member
+  async attributeKeys(input: AttributeKeysInput): Promise<AttributeKey[]> {
+    validateTableName(this.tableName);
+    const { sql, params } = buildAttributeKeysQuery(input, {
+      tableName: this.tableName,
+      sources: TRACES_ATTRIBUTE_SOURCES,
+      columnFor: tracesAttributeColumn,
+      timeColumn: "Timestamp",
+    });
+    const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
+    return decodeAttributeKeyRows(rows);
+  }
+
+  // fallow-ignore-next-line unused-class-member
+  async attributeValues(input: AttributeValuesInput): Promise<string[]> {
+    validateTableName(this.tableName);
+    const { sql, params } = buildAttributeValuesQuery(input, {
+      tableName: this.tableName,
+      columnFor: tracesAttributeColumn,
+      timeColumn: "Timestamp",
+    });
+    const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
+    return decodeAttributeValueRows(rows);
+  }
+
+  // fallow-ignore-next-line unused-class-member
   async listServiceIdentities(
     input: ListServiceIdentitiesInput,
   ): Promise<ServiceIdentity[]> {
@@ -233,7 +285,11 @@ export interface TracesRepositoryOptions {
 
 export type TracesRepositoryLike = Pick<
   TracesRepository,
-  "search" | "getTrace" | "listServiceIdentities"
+  | "search"
+  | "getTrace"
+  | "listServiceIdentities"
+  | "attributeKeys"
+  | "attributeValues"
 >;
 
 function rowToSpan(row: SpanRow): Span {

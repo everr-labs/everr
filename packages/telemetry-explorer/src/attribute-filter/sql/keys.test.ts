@@ -38,4 +38,20 @@ describe("buildAttributeKeysQuery", () => {
       decodeAttributeKeyRows([{ key: "http.route", source: "span" }]),
     ).toEqual([{ source: "span", key: "http.route" }]);
   });
+
+  it("uses an injected time column when provided", () => {
+    const { sql } = buildAttributeKeysQuery(
+      { timeRange: { from: "now-1h", to: "now" } },
+      {
+        tableName: "traces",
+        sources: ["resource"],
+        columnFor,
+        timeColumn: "Timestamp",
+      },
+    );
+    expect(sql).toContain(
+      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
+    );
+    expect(sql).not.toContain("TimestampTime");
+  });
 });

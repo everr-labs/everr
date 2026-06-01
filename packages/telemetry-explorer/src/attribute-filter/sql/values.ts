@@ -11,16 +11,21 @@ export interface AttributeValueRowRaw {
 
 export function buildAttributeValuesQuery(
   input: { timeRange: TimeRange; source: AttributeSource; key: string },
-  opts: { tableName: string; columnFor: (source: AttributeSource) => string },
+  opts: {
+    tableName: string;
+    columnFor: (source: AttributeSource) => string;
+    timeColumn?: string;
+  },
 ): BuiltQuery {
   validateTableName(opts.tableName);
+  const timeColumn = opts.timeColumn ?? "TimestampTime";
   const column = opts.columnFor(input.source);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const sql = `
       SELECT DISTINCT ${column}[{key:String}] AS v
       FROM ${opts.tableName}
-      WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
-        AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
+      WHERE ${timeColumn} >= parseDateTimeBestEffort({fromTime:String})
+        AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})
         AND mapContains(${column}, {key:String})
         AND ${column}[{key:String}] != ''
       ORDER BY v

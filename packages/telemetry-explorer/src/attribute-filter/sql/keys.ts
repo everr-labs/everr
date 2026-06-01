@@ -16,16 +16,18 @@ export function buildAttributeKeysQuery(
     tableName: string;
     sources: AttributeSource[];
     columnFor: (source: AttributeSource) => string;
+    timeColumn?: string;
   },
 ): BuiltQuery {
   validateTableName(opts.tableName);
+  const timeColumn = opts.timeColumn ?? "TimestampTime";
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const selects = opts.sources.map(
     (source) => `
         SELECT DISTINCT arrayJoin(mapKeys(${opts.columnFor(source)})) AS key, '${source}' AS source
         FROM ${opts.tableName}
-        WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
-          AND TimestampTime <= parseDateTimeBestEffort({toTime:String})`,
+        WHERE ${timeColumn} >= parseDateTimeBestEffort({fromTime:String})
+          AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})`,
   );
   const sql = `
       SELECT key, source FROM (

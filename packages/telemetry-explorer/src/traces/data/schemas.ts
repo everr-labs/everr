@@ -1,5 +1,18 @@
+import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
+import {
+  AttributeFilterSchema,
+  AttributeSourceSchema,
+} from "../../attribute-filter/schemas";
 import { TimeRangeSearchSchema } from "../time-range";
+
+export type {
+  AttributeFilter,
+  AttributeKey,
+  AttributeOp,
+  AttributeSource,
+} from "../../attribute-filter/schemas";
+export { AttributeFilterSchema } from "../../attribute-filter/schemas";
 
 const SpanStatusFilterSchema = z.enum(["ok", "error", "all"]);
 export type SpanStatusFilter = z.infer<typeof SpanStatusFilterSchema>;
@@ -11,6 +24,7 @@ export const TraceSearchParamsSchema = TimeRangeSearchSchema.extend({
   minMs: z.number().int().nonnegative().optional(),
   maxMs: z.number().int().nonnegative().optional(),
   status: SpanStatusFilterSchema.default("all"),
+  attributes: z.array(AttributeFilterSchema).default([]),
   limit: z.number().int().positive().max(500).default(50),
 });
 export type TraceSearchParams = z.infer<typeof TraceSearchParamsSchema>;
@@ -40,6 +54,7 @@ export const SearchTracesInputSchema = z.object({
   minDurationNs: z.string().optional(),
   maxDurationNs: z.string().optional(),
   status: SpanStatusFilterSchema.default("all"),
+  attributes: z.array(AttributeFilterSchema).default([]),
   limit: z.number().int().positive().max(500).default(50),
 });
 export type SearchTracesInput = z.infer<typeof SearchTracesInputSchema>;
@@ -57,4 +72,20 @@ export const ListServiceIdentitiesInputSchema = z.object({
 });
 export type ListServiceIdentitiesInput = z.infer<
   typeof ListServiceIdentitiesInputSchema
+>;
+
+export const TraceAttributeKeysInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+});
+export type TraceAttributeKeysInput = z.infer<
+  typeof TraceAttributeKeysInputSchema
+>;
+
+export const TraceAttributeValuesInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  source: AttributeSourceSchema,
+  key: z.string().min(1),
+});
+export type TraceAttributeValuesInput = z.infer<
+  typeof TraceAttributeValuesInputSchema
 >;

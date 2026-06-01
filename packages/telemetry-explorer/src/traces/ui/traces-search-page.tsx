@@ -10,7 +10,7 @@ import {
   tracesSearchInfiniteOptions,
 } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
-import type { SpanStatusFilter } from "../data/schemas";
+import type { AttributeFilter, SpanStatusFilter } from "../data/schemas";
 import { TraceFilters } from "./trace-filters";
 import {
   type TraceLinkRenderProps,
@@ -26,6 +26,7 @@ export type TraceSearchValue = {
   minMs: number | undefined;
   maxMs: number | undefined;
   status: SpanStatusFilter;
+  attributes: AttributeFilter[];
   limit: number;
 };
 
@@ -69,6 +70,7 @@ export function TracesSearch({
       minMs: search.minMs,
       maxMs: search.maxMs,
       status: search.status,
+      attributes: search.attributes,
       limit: search.limit,
     }),
     placeholderData: keepPreviousData,

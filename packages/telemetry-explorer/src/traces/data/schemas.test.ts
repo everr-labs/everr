@@ -62,6 +62,7 @@ describe("toTraceListSearch", () => {
       minMs: 10,
       maxMs: 500,
       status: "error",
+      attributes: [],
       limit: 100,
     });
   });
