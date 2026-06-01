@@ -1,10 +1,9 @@
-import { Badge } from "@everr/ui/components/badge";
 import type { TimeRange } from "@everr/ui/lib/time-range";
+import { useState } from "react";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, AttributeSource } from "../schemas";
-import { AttributeFilterRow } from "./attribute-filter-row";
+import { AttributeFilterPill } from "./attribute-filter-pill";
 import { AttributeKeyPicker } from "./attribute-key-picker";
-import { PROMOTED_ATTRIBUTES } from "./attribute-meta";
 
 function filterKey(source: AttributeSource, key: string) {
   return `${source}:${key}`;
@@ -21,10 +20,15 @@ export function AttributeFilterSection({
   attributes: AttributeFilter[];
   onChange: (next: AttributeFilter[]) => void;
 }) {
+  // The filter just added — its pill mounts with its editor open so the user
+  // can pick values immediately.
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
+
   const activeKeys = new Set(attributes.map((f) => filterKey(f.source, f.key)));
 
   const addFilter = (source: AttributeSource, key: string) => {
     if (activeKeys.has(filterKey(source, key))) return;
+    setLastAdded(filterKey(source, key));
     onChange([...attributes, { source, key, op: "in", values: [] }]);
   };
 
@@ -38,41 +42,29 @@ export function AttributeFilterSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-muted-foreground text-xs font-medium">
-        Attributes
-      </span>
-      <div className="flex flex-wrap gap-1">
-        {PROMOTED_ATTRIBUTES.map((promoted) => {
-          const isActive = activeKeys.has(
-            filterKey(promoted.source, promoted.key),
-          );
-          return (
-            <Badge
-              key={promoted.key}
-              variant={isActive ? "default" : "outline"}
-              className="cursor-pointer"
-              aria-pressed={isActive}
-              render={<button type="button" />}
-              onClick={() => addFilter(promoted.source, promoted.key)}
-            >
-              {promoted.label}
-            </Badge>
-          );
-        })}
-      </div>
-      {attributes.map((filter, index) => (
-        <AttributeFilterRow
-          key={filterKey(filter.source, filter.key)}
-          repo={repo}
-          timeRange={timeRange}
-          filter={filter}
-          onChange={(next) => updateAt(index, next)}
-          onRemove={() => removeAt(index)}
-        />
-      ))}
+      <span className="text-muted-foreground text-xs">Attributes</span>
+      {attributes.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {attributes.map((filter, index) => {
+            const key = filterKey(filter.source, filter.key);
+            return (
+              <AttributeFilterPill
+                key={key}
+                repo={repo}
+                timeRange={timeRange}
+                filter={filter}
+                defaultOpen={key === lastAdded}
+                onChange={(next) => updateAt(index, next)}
+                onRemove={() => removeAt(index)}
+              />
+            );
+          })}
+        </div>
+      )}
       <AttributeKeyPicker
         repo={repo}
         timeRange={timeRange}
+        activeKeys={activeKeys}
         onSelect={({ source, key }) => addFilter(source, key)}
       />
     </div>

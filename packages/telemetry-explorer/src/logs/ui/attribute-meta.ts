@@ -7,6 +7,20 @@ export const ATTRIBUTE_OP_LABELS: Record<AttributeOp, string> = {
   missing: "Missing",
 };
 
+// Lowercase connectors used when rendering a filter inline as a pill
+// (e.g. "Environment is production").
+export const ATTRIBUTE_OP_CONNECTORS: Record<AttributeOp, string> = {
+  in: "is",
+  not_in: "is not",
+  exists: "exists",
+  missing: "missing",
+};
+
+// Whether an op takes a list of values (vs. presence-only checks).
+export function opTakesValues(op: AttributeOp): boolean {
+  return op === "in" || op === "not_in";
+}
+
 export const ATTRIBUTE_SOURCE_LABELS: Record<AttributeSource, string> = {
   resource: "Resource",
   log: "Log",

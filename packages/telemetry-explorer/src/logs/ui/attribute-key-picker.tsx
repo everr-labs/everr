@@ -19,15 +19,30 @@ import { useState } from "react";
 import { logAttributeKeysOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeSource, LogAttributeKey } from "../schemas";
-import { ATTRIBUTE_SOURCE_LABELS, attributeLabel } from "./attribute-meta";
+import {
+  ATTRIBUTE_SOURCE_LABELS,
+  attributeLabel,
+  PROMOTED_ATTRIBUTES,
+} from "./attribute-meta";
+
+const SOURCES: AttributeSource[] = ["resource", "log", "scope"];
+
+const filterKey = (source: AttributeSource, key: string) => `${source}:${key}`;
+
+const PROMOTED_KEY_SET = new Set(
+  PROMOTED_ATTRIBUTES.map((p) => filterKey(p.source, p.key)),
+);
 
 export function AttributeKeyPicker({
   repo,
   timeRange,
+  activeKeys,
   onSelect,
 }: {
   repo: LogsRepositoryLike;
   timeRange: TimeRange;
+  // Keys (`source:key`) already in use, hidden from the menu.
+  activeKeys?: ReadonlySet<string>;
   onSelect: (key: { source: AttributeSource; key: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -36,12 +51,49 @@ export function AttributeKeyPicker({
     enabled: open,
   });
 
-  const grouped = (["resource", "log", "scope"] as AttributeSource[]).map(
-    (source) => ({
-      source,
-      keys: keys.filter((k: LogAttributeKey) => k.source === source),
-    }),
+  const isActive = (source: AttributeSource, key: string) =>
+    activeKeys?.has(filterKey(source, key)) ?? false;
+
+  const choose = (source: AttributeSource, key: string) => {
+    onSelect({ source, key });
+    setOpen(false);
+  };
+
+  const renderItem = (source: AttributeSource, key: string) => {
+    const label = attributeLabel(key);
+    return (
+      <CommandItem
+        key={filterKey(source, key)}
+        value={`${source} ${label ?? ""} ${key}`}
+        onSelect={() => choose(source, key)}
+      >
+        {label ? (
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate">{label}</span>
+            <span className="text-muted-foreground truncate font-mono text-[10px]">
+              {key}
+            </span>
+          </span>
+        ) : (
+          <span className="truncate font-mono">{key}</span>
+        )}
+      </CommandItem>
+    );
+  };
+
+  const suggested = PROMOTED_ATTRIBUTES.filter(
+    (p) => !isActive(p.source, p.key),
   );
+
+  const grouped = SOURCES.map((source) => ({
+    source,
+    keys: keys.filter(
+      (k: LogAttributeKey) =>
+        k.source === source &&
+        !isActive(k.source, k.key) &&
+        !PROMOTED_KEY_SET.has(filterKey(k.source, k.key)),
+    ),
+  }));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -55,7 +107,7 @@ export function AttributeKeyPicker({
         }
       >
         <Plus className="size-3.5" />
-        Add filter
+        Filter
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -71,6 +123,11 @@ export function AttributeKeyPicker({
             <CommandEmpty>
               {isLoading ? "Loading..." : "No attributes."}
             </CommandEmpty>
+            {suggested.length > 0 && (
+              <CommandGroup heading="Suggested">
+                {suggested.map((p) => renderItem(p.source, p.key))}
+              </CommandGroup>
+            )}
             {grouped.map(
               (group) =>
                 group.keys.length > 0 && (
@@ -78,32 +135,9 @@ export function AttributeKeyPicker({
                     key={group.source}
                     heading={ATTRIBUTE_SOURCE_LABELS[group.source]}
                   >
-                    {group.keys.map((item: LogAttributeKey) => {
-                      const label = attributeLabel(item.key);
-                      return (
-                        <CommandItem
-                          key={`${item.source}:${item.key}`}
-                          value={`${group.source} ${label ?? ""} ${item.key}`}
-                          onSelect={() => {
-                            onSelect({ source: item.source, key: item.key });
-                            setOpen(false);
-                          }}
-                        >
-                          {label ? (
-                            <span className="flex min-w-0 flex-col">
-                              <span className="truncate">{label}</span>
-                              <span className="text-muted-foreground truncate font-mono text-[10px]">
-                                {item.key}
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="truncate font-mono">
-                              {item.key}
-                            </span>
-                          )}
-                        </CommandItem>
-                      );
-                    })}
+                    {group.keys.map((item: LogAttributeKey) =>
+                      renderItem(item.source, item.key),
+                    )}
                   </CommandGroup>
                 ),
             )}

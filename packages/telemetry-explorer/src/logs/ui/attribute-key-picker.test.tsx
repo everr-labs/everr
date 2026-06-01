@@ -4,31 +4,22 @@ import { describe, expect, it, vi } from "vitest";
 import type { LogsRepositoryLike } from "../data/repository";
 import { AttributeKeyPicker } from "./attribute-key-picker";
 
-// base-ui popover/positioner may reference ResizeObserver, which jsdom lacks.
-if (!globalThis.ResizeObserver) {
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as unknown as typeof ResizeObserver;
-}
-
 const timeRange = { from: "now-1h", to: "now" };
 
-function renderPicker() {
+function renderPicker(activeKeys?: ReadonlySet<string>) {
   const repo = {
     attributeKeys: vi.fn().mockResolvedValue([
       { source: "resource", key: "vcs.repository.name" },
       { source: "log", key: "custom.unknown.thing" },
     ]),
   } as unknown as LogsRepositoryLike;
-  const client = new QueryClient();
   const onSelect = vi.fn();
   render(
-    <QueryClientProvider client={client}>
+    <QueryClientProvider client={new QueryClient()}>
       <AttributeKeyPicker
         repo={repo}
         timeRange={timeRange}
+        activeKeys={activeKeys}
         onSelect={onSelect}
       />
     </QueryClientProvider>,
@@ -37,21 +28,33 @@ function renderPicker() {
 }
 
 describe("AttributeKeyPicker", () => {
-  it("shows a friendly name + raw key for known attributes and the raw key alone for unknown ones", async () => {
+  it("pins promoted attributes under a Suggested group", async () => {
     renderPicker();
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByText("Filter"));
 
-    // Known attribute: friendly label as the primary line, raw key as subtext.
-    expect(await screen.findByText("Repository")).toBeInTheDocument();
+    expect(await screen.findByText("Suggested")).toBeInTheDocument();
+    // Promoted "Repository" shows its friendly name + raw key under Suggested.
+    expect(screen.getByText("Repository")).toBeInTheDocument();
     expect(screen.getByText("vcs.repository.name")).toBeInTheDocument();
+  });
 
-    // Unknown attribute: only the raw key is shown.
-    expect(screen.getByText("custom.unknown.thing")).toBeInTheDocument();
+  it("shows discovered non-promoted keys (raw key when unknown)", async () => {
+    renderPicker();
+    fireEvent.click(screen.getByText("Filter"));
+    expect(await screen.findByText("custom.unknown.thing")).toBeInTheDocument();
+  });
+
+  it("hides keys that are already active", async () => {
+    renderPicker(new Set(["resource:vcs.repository.name"]));
+    fireEvent.click(screen.getByText("Filter"));
+    // Wait for the query to resolve via a still-present item.
+    await screen.findByText("custom.unknown.thing");
+    expect(screen.queryByText("Repository")).not.toBeInTheDocument();
   });
 
   it("matches a known item when searching by its raw key", async () => {
     renderPicker();
-    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.click(screen.getByText("Filter"));
     await screen.findByText("Repository");
 
     fireEvent.change(screen.getByPlaceholderText("Search attributes..."), {

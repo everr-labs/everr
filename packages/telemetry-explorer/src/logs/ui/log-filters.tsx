@@ -153,6 +153,7 @@ export function LogFiltersBar({
         attributes={attributes}
         onChange={(nextAttributes) => onChange({ attributes: nextAttributes })}
       />
+      <Separator />
       <TraceFilter
         traceId={traceId}
         onChange={(nextTraceId) => onChange({ traceId: nextTraceId })}

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ATTRIBUTE_OP_CONNECTORS,
   ATTRIBUTE_OP_LABELS,
   ATTRIBUTE_SOURCE_LABELS,
   attributeLabel,
+  opTakesValues,
   PROMOTED_ATTRIBUTES,
 } from "./attribute-meta";
 
@@ -46,5 +48,19 @@ describe("attribute metadata", () => {
     for (const promoted of PROMOTED_ATTRIBUTES) {
       expect(promoted.label).toBe(attributeLabel(promoted.key));
     }
+  });
+
+  it("provides a lowercase connector for every op", () => {
+    expect(ATTRIBUTE_OP_CONNECTORS.in).toBe("is");
+    expect(ATTRIBUTE_OP_CONNECTORS.not_in).toBe("is not");
+    expect(ATTRIBUTE_OP_CONNECTORS.exists).toBe("exists");
+    expect(ATTRIBUTE_OP_CONNECTORS.missing).toBe("missing");
+  });
+
+  it("knows which ops take values", () => {
+    expect(opTakesValues("in")).toBe(true);
+    expect(opTakesValues("not_in")).toBe(true);
+    expect(opTakesValues("exists")).toBe(false);
+    expect(opTakesValues("missing")).toBe(false);
   });
 });
