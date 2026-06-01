@@ -10,9 +10,10 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash, ListFilter, X } from "lucide-react";
 import { useState } from "react";
-import { logRepoFilterOptions, logServiceFilterOptions } from "../data/options";
+import { logServiceFilterOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
-import type { LogLevel } from "../schemas";
+import type { AttributeFilter, LogLevel } from "../schemas";
+import { AttributeFilterSection } from "./attribute-filter-section";
 import { LOG_LEVEL_META, LOG_LEVELS } from "./log-level-meta";
 
 export interface LogFiltersBarProps {
@@ -20,13 +21,13 @@ export interface LogFiltersBarProps {
   timeRange: TimeRange;
   levels: LogLevel[];
   services: string[];
-  repos: string[];
+  attributes: AttributeFilter[];
   traceId: string | undefined;
   levelCounts?: Record<LogLevel, number>;
   onChange: (patch: {
     levels?: LogLevel[];
     services?: string[];
-    repos?: string[];
+    attributes?: AttributeFilter[];
     traceId?: string;
   }) => void;
 }
@@ -90,7 +91,7 @@ export function LogFiltersBar({
   timeRange,
   levels,
   services,
-  repos,
+  attributes,
   traceId,
   levelCounts,
   onChange,
@@ -145,14 +146,12 @@ export function LogFiltersBar({
         searchPlaceholder="Search services..."
         className="w-full"
       />
-      <FilterCombobox
-        label="Source"
-        values={repos}
-        onChange={(nextRepos) => onChange({ repos: nextRepos })}
-        options={logRepoFilterOptions(repo, { timeRange })}
-        placeholder="All sources"
-        searchPlaceholder="Search sources..."
-        className="w-full"
+      <Separator />
+      <AttributeFilterSection
+        repo={repo}
+        timeRange={timeRange}
+        attributes={attributes}
+        onChange={(nextAttributes) => onChange({ attributes: nextAttributes })}
       />
       <TraceFilter
         traceId={traceId}
