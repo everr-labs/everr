@@ -24,7 +24,7 @@ describe("LogsRepository.explorer", () => {
       timeRange: { from: "now-1h", to: "now" },
       levels: [],
       services: [],
-      repos: [],
+      attributes: [],
       limit: 200,
       offset: 0,
     });
@@ -43,7 +43,7 @@ describe("LogsRepository.totals", () => {
       timeRange: { from: "now-1h", to: "now" },
       levels: ["error"],
       services: [],
-      repos: [],
+      attributes: [],
     });
     expect(result.totalCount).toBe(1);
   });
@@ -59,7 +59,7 @@ describe("LogsRepository with custom tableName", () => {
         timeRange: { from: "now-1h", to: "now" },
         levels: [],
         services: [],
-        repos: [],
+        attributes: [],
         limit: 50,
         offset: 0,
       })

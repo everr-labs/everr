@@ -42,7 +42,7 @@ describe("getLogsExplorer", () => {
         query: "timeout",
         levels: ["error"],
         services: ["github-actions"],
-        repos: ["everr-labs/everr"],
+        attributes: [],
         traceId: "trace-1",
         limit: 50,
         offset: 100,
@@ -71,7 +71,6 @@ describe("getLogsExplorer", () => {
       query: "timeout",
       levels: ["error"],
       services: ["github-actions"],
-      repos: ["everr-labs/everr"],
       traceId: "trace-1",
       limit: 50,
       offset: 100,
@@ -177,7 +176,7 @@ describe("getLogsTotals", () => {
         },
         levels: ["error", "warning"],
         services: [],
-        repos: [],
+        attributes: [],
       },
     });
 
@@ -216,7 +215,7 @@ describe("getLogsTotals", () => {
         },
         levels: [],
         services: [],
-        repos: [],
+        attributes: [],
       },
     });
 
@@ -248,7 +247,7 @@ describe("getLogsHistogram", () => {
         query: "timeout",
         levels: ["error", "warning"],
         services: ["github-actions"],
-        repos: ["everr-labs/everr"],
+        attributes: [],
         traceId: "trace-1",
         histogramBuckets: 24,
       },
@@ -276,11 +275,10 @@ describe("getLogsHistogram", () => {
 });
 
 describe("getLogFilterOptions", () => {
-  it("returns distinct services and repositories for the time range", async () => {
+  it("returns distinct services for the time range", async () => {
     mockedQuery.mockResolvedValueOnce([
       {
         services: ["github-actions"],
-        repos: ["everr-labs/everr"],
       },
     ]);
 
@@ -299,7 +297,6 @@ describe("getLogFilterOptions", () => {
     );
     expect(result).toEqual({
       services: ["github-actions"],
-      repos: ["everr-labs/everr"],
     });
   });
 });

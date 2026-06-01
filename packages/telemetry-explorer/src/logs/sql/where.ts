@@ -1,18 +1,11 @@
-import {
-  resourceAttribute,
-  resourceAttributeKeyExists,
-} from "../../sql/resource-attributes";
 import type { AttributeFilter, LogLevel } from "../schemas";
 import { attributeColumn } from "./attribute-columns";
 import { LOG_LEVEL_EXPR } from "./level-expr";
-
-const REPOSITORY_RESOURCE_ATTRIBUTE = "vcs.repository.name";
 
 export interface WhereInput {
   query?: string;
   levels: LogLevel[];
   services: string[];
-  repos?: string[];
   attributes?: AttributeFilter[];
   traceId?: string;
   includeLevels?: boolean;
@@ -39,15 +32,6 @@ export function buildWhereClause(input: WhereInput): WhereResult {
   if (input.services.length > 0) {
     clauses.push("ServiceName IN {services:Array(String)}");
   }
-  if (input.repos && input.repos.length > 0) {
-    const repoFilter = `${resourceAttribute(REPOSITORY_RESOURCE_ATTRIBUTE)} IN {repos:Array(String)}`;
-    clauses.push(
-      input.repos.includes("")
-        ? repoFilter
-        : `${resourceAttributeKeyExists(REPOSITORY_RESOURCE_ATTRIBUTE)} AND ${repoFilter}`,
-    );
-  }
-
   (input.attributes ?? []).forEach((filter, index) => {
     const column = attributeColumn(filter.source);
     const keyParam = `attrKey${index}`;

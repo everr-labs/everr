@@ -83,16 +83,6 @@ export function logServiceFilterOptions(
   };
 }
 
-export function logRepoFilterOptions(
-  repo: LogsRepositoryLike,
-  input: { timeRange: TimeRange },
-) {
-  return {
-    ...logFilterOptionsBase(repo, input),
-    select: (data: LogFilterOptions) => data.repos,
-  };
-}
-
 export function logAttributeKeysOptions(
   repo: LogsRepositoryLike,
   input: { timeRange: TimeRange },

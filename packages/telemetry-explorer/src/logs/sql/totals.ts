@@ -37,7 +37,6 @@ export function buildTotalsQuery(
       query: input.query,
       levels: input.levels,
       services: input.services,
-      repos: input.repos,
       traceId: input.traceId,
       ...where.params,
     },

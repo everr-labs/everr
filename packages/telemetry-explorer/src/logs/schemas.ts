@@ -29,7 +29,6 @@ export type AttributeFilter = z.infer<typeof AttributeFilterSchema>;
 export const LogsSearchFiltersShape = {
   levels: z.array(LogLevelSchema).default([]),
   services: z.array(z.string()).default([]),
-  repos: z.array(z.string()).optional(),
   attributes: z.array(AttributeFilterSchema).default([]),
 } as const;
 
@@ -111,7 +110,6 @@ export interface LogsTotalsResult {
 
 export interface LogFilterOptions {
   services: string[];
-  repos: string[];
 }
 
 export const LogAttributeKeysInputSchema = z.object({

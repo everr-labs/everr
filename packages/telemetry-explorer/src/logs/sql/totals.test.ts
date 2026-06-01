@@ -7,7 +7,7 @@ describe("buildTotalsQuery", () => {
       timeRange: { from: "now-1h", to: "now" },
       levels: ["error"],
       services: [],
-      repos: [],
+      attributes: [],
     });
     expect(built.sql).toContain("countIf(level = 'error') AS error");
     expect(built.sql).toContain("countIf(level = 'unknown') AS unknown");
