@@ -10,10 +10,15 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash, ListFilter, X } from "lucide-react";
 import { useState } from "react";
+import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { logServiceFilterOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, LogLevel } from "../schemas";
-import { AttributeFilterSection } from "./attribute-filter-section";
+import {
+  LOGS_ATTRIBUTE_SOURCES_UI,
+  LOGS_EXCLUDED_KEYS,
+  LOGS_PROMOTED_ATTRIBUTES,
+} from "./log-attribute-config";
 import { LOG_LEVEL_META, LOG_LEVELS } from "./log-level-meta";
 
 export interface LogFiltersBarProps {
@@ -149,8 +154,12 @@ export function LogFiltersBar({
       <Separator />
       <AttributeFilterSection
         repo={repo}
+        domain="logs"
         timeRange={timeRange}
         attributes={attributes}
+        promotedAttributes={LOGS_PROMOTED_ATTRIBUTES}
+        excludedKeys={LOGS_EXCLUDED_KEYS}
+        sources={LOGS_ATTRIBUTE_SOURCES_UI}
         onChange={(nextAttributes) => onChange({ attributes: nextAttributes })}
       />
       <Separator />

@@ -129,7 +129,7 @@ export class LogsRepository {
       columnFor: logsAttributeColumn,
     });
     const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
-    return decodeAttributeKeyRows(rows) as LogAttributeKey[];
+    return decodeAttributeKeyRows(rows);
   }
 
   async attributeValues(input: LogAttributeValuesInput): Promise<string[]> {
