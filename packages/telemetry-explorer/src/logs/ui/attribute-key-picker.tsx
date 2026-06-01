@@ -33,6 +33,10 @@ const PROMOTED_KEY_SET = new Set(
   PROMOTED_ATTRIBUTES.map((p) => filterKey(p.source, p.key)),
 );
 
+// Keys surfaced by a dedicated top-level filter, hidden here to avoid offering
+// a redundant attribute chip. `service.name` backs the Service filter.
+const EXCLUDED_KEY_SET = new Set([filterKey("resource", "service.name")]);
+
 export function AttributeKeyPicker({
   repo,
   timeRange,
@@ -81,8 +85,17 @@ export function AttributeKeyPicker({
     );
   };
 
+  // Promoted keys are only suggested when they actually appear in the current
+  // range — otherwise we'd offer a chip that can never narrow these logs and
+  // hide the empty state behind it.
+  const discoveredKeySet = new Set(
+    keys.map((k: LogAttributeKey) => filterKey(k.source, k.key)),
+  );
+
   const suggested = PROMOTED_ATTRIBUTES.filter(
-    (p) => !isActive(p.source, p.key),
+    (p) =>
+      !isActive(p.source, p.key) &&
+      discoveredKeySet.has(filterKey(p.source, p.key)),
   );
 
   const grouped = SOURCES.map((source) => ({
@@ -91,7 +104,8 @@ export function AttributeKeyPicker({
       (k: LogAttributeKey) =>
         k.source === source &&
         !isActive(k.source, k.key) &&
-        !PROMOTED_KEY_SET.has(filterKey(k.source, k.key)),
+        !PROMOTED_KEY_SET.has(filterKey(k.source, k.key)) &&
+        !EXCLUDED_KEY_SET.has(filterKey(k.source, k.key)),
     ),
   }));
 

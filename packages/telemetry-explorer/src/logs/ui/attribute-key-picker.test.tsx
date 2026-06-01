@@ -6,12 +6,15 @@ import { AttributeKeyPicker } from "./attribute-key-picker";
 
 const timeRange = { from: "now-1h", to: "now" };
 
-function renderPicker(activeKeys?: ReadonlySet<string>) {
+function renderPicker(
+  activeKeys?: ReadonlySet<string>,
+  keys: { source: string; key: string }[] = [
+    { source: "resource", key: "vcs.repository.name" },
+    { source: "log", key: "custom.unknown.thing" },
+  ],
+) {
   const repo = {
-    attributeKeys: vi.fn().mockResolvedValue([
-      { source: "resource", key: "vcs.repository.name" },
-      { source: "log", key: "custom.unknown.thing" },
-    ]),
+    attributeKeys: vi.fn().mockResolvedValue(keys),
   } as unknown as LogsRepositoryLike;
   const onSelect = vi.fn();
   render(
@@ -50,6 +53,31 @@ describe("AttributeKeyPicker", () => {
     // Wait for the query to resolve via a still-present item.
     await screen.findByText("custom.unknown.thing");
     expect(screen.queryByText("Repository")).not.toBeInTheDocument();
+  });
+
+  it("omits promoted attributes absent from the discovered range", async () => {
+    renderPicker(undefined, [{ source: "log", key: "custom.unknown.thing" }]);
+    fireEvent.click(screen.getByText("Filter"));
+    await screen.findByText("custom.unknown.thing");
+    expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
+    expect(screen.queryByText("Repository")).not.toBeInTheDocument();
+  });
+
+  it("hides service.name since it has a dedicated Service filter", async () => {
+    renderPicker(undefined, [
+      { source: "resource", key: "service.name" },
+      { source: "log", key: "custom.unknown.thing" },
+    ]);
+    fireEvent.click(screen.getByText("Filter"));
+    await screen.findByText("custom.unknown.thing");
+    expect(screen.queryByText("service.name")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state when the range has no attributes", async () => {
+    renderPicker(undefined, []);
+    fireEvent.click(screen.getByText("Filter"));
+    expect(await screen.findByText("No attributes.")).toBeInTheDocument();
+    expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
   });
 
   it("matches a known item when searching by its raw key", async () => {
