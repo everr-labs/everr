@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { AttributeSource } from "../schemas";
 import { buildAttributeKeysQuery, decodeAttributeKeyRows } from "./keys";
 
-const columnFor = (s: AttributeSource) =>
-  ({ resource: "ResourceAttributes", span: "SpanAttributes" })[s] ?? "";
+const COLUMNS: Partial<Record<AttributeSource, string>> = {
+  resource: "ResourceAttributes",
+  span: "SpanAttributes",
+};
+const columnFor = (s: AttributeSource) => COLUMNS[s] ?? "";
 
 describe("buildAttributeKeysQuery", () => {
   it("unions a SELECT per requested source and binds the time range", () => {
