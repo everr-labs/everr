@@ -38,7 +38,7 @@ function LogsExplorerPage() {
     q: filters.q,
     levels: filters.levels,
     services: filters.services,
-    repos: filters.repos,
+    attributes: filters.attributes,
     traceId: filters.traceId,
     showVolume,
   };
