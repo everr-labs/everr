@@ -51,7 +51,11 @@ export function AttributeFilterRow({
         onValueChange={(op) => onChange({ ...filter, op: op as AttributeOp })}
       >
         <SelectTrigger className="h-7 text-xs">
-          <SelectValue />
+          {/* base-ui Select.Value renders the raw value unless given a
+              formatter; map the op key to its human label. */}
+          <SelectValue>
+            {(op) => (op ? ATTRIBUTE_OP_LABELS[op as AttributeOp] : null)}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {OPS.map((op) => (
