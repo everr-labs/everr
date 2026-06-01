@@ -123,4 +123,50 @@ describe("buildWhereClause", () => {
     });
     expect(clause).toContain("TraceId = {traceId:String}");
   });
+
+  it("treats an in filter with no values as a no-op (pending)", () => {
+    const { clause, params } = buildWhereClause({
+      levels: [],
+      services: [],
+      attributes: [
+        {
+          source: "resource",
+          key: "deployment.environment",
+          op: "in",
+          values: [],
+        },
+      ],
+    });
+    expect(clause).not.toContain("attrKey0");
+    expect(clause).not.toContain("IN {attrVals0");
+    expect(params).toEqual({});
+  });
+
+  it("treats a not_in filter with no values as a no-op (pending)", () => {
+    const { clause, params } = buildWhereClause({
+      levels: [],
+      services: [],
+      attributes: [
+        { source: "log", key: "http.method", op: "not_in", values: [] },
+      ],
+    });
+    expect(clause).not.toContain("attrKey0");
+    expect(params).toEqual({});
+  });
+
+  it("keeps positional param names when an earlier filter is a pending no-op", () => {
+    const { clause, params } = buildWhereClause({
+      levels: [],
+      services: [],
+      attributes: [
+        { source: "resource", key: "a", op: "in", values: [] },
+        { source: "log", key: "b", op: "in", values: ["x"] },
+      ],
+    });
+    // first filter (index 0) is skipped; second keeps its index-1 names
+    expect(params).toEqual({ attrKey1: "b", attrVals1: ["x"] });
+    expect(clause).toContain(
+      "LogAttributes[{attrKey1:String}] IN {attrVals1:Array(String)}",
+    );
+  });
 });

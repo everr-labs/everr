@@ -38,25 +38,30 @@ export function buildWhereClause(input: WhereInput): WhereResult {
     const valsParam = `attrVals${index}`;
     const contains = `mapContains(${column}, {${keyParam}:String})`;
     const access = `${column}[{${keyParam}:String}]`;
-    params[keyParam] = filter.key;
 
     switch (filter.op) {
       case "in":
+        if (filter.values.length === 0) return;
+        params[keyParam] = filter.key;
         clauses.push(
           `${contains} AND ${access} IN {${valsParam}:Array(String)}`,
         );
         params[valsParam] = filter.values;
         break;
       case "not_in":
+        if (filter.values.length === 0) return;
+        params[keyParam] = filter.key;
         clauses.push(
           `(NOT ${contains} OR ${access} NOT IN {${valsParam}:Array(String)})`,
         );
         params[valsParam] = filter.values;
         break;
       case "exists":
+        params[keyParam] = filter.key;
         clauses.push(contains);
         break;
       case "missing":
+        params[keyParam] = filter.key;
         clauses.push(`NOT ${contains}`);
         break;
     }
