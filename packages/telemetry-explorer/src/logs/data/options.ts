@@ -1,6 +1,8 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
+  AttributeSource,
+  LogAttributeKey,
   LogFilterOptions,
   LogHistogramInput,
   LogIdentity,
@@ -88,5 +90,33 @@ export function logRepoFilterOptions(
   return {
     ...logFilterOptionsBase(repo, input),
     select: (data: LogFilterOptions) => data.repos,
+  };
+}
+
+export function logAttributeKeysOptions(
+  repo: LogsRepositoryLike,
+  input: { timeRange: TimeRange },
+) {
+  return {
+    queryKey: ["logs", "attributeKeys", input.timeRange] as const,
+    queryFn: () => repo.attributeKeys(input),
+    select: (data: LogAttributeKey[]) => data,
+  };
+}
+
+export function logAttributeValuesOptions(
+  repo: LogsRepositoryLike,
+  input: { timeRange: TimeRange; source: AttributeSource; key: string },
+) {
+  return {
+    queryKey: [
+      "logs",
+      "attributeValues",
+      input.timeRange,
+      input.source,
+      input.key,
+    ] as const,
+    queryFn: () => repo.attributeValues(input),
+    select: (data: string[]) => data,
   };
 }
