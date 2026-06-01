@@ -188,7 +188,9 @@ export function LogsExplorer({
   renderRunLink,
   resolveJobId,
 }: LogsExplorerProps) {
-  const { showVolume, q, levels, services, attributes, traceId } = search;
+  // Default `attributes` to [] so a consumer that hand-builds the search object
+  // without it (e.g. an external embedder) can't crash the filter UI on `.map`.
+  const { showVolume, q, levels, services, attributes = [], traceId } = search;
 
   const [selectedLogState, setSelectedLogState] = useState<{
     log: LogExplorerRow;
