@@ -12,10 +12,25 @@ export const LogLevelSchema = z.enum([
 
 export type LogLevel = z.infer<typeof LogLevelSchema>;
 
+export const AttributeSourceSchema = z.enum(["resource", "log", "scope"]);
+export type AttributeSource = z.infer<typeof AttributeSourceSchema>;
+
+export const AttributeOpSchema = z.enum(["in", "not_in", "exists", "missing"]);
+export type AttributeOp = z.infer<typeof AttributeOpSchema>;
+
+export const AttributeFilterSchema = z.object({
+  source: AttributeSourceSchema,
+  key: z.string().min(1),
+  op: AttributeOpSchema,
+  values: z.array(z.string()).default([]),
+});
+export type AttributeFilter = z.infer<typeof AttributeFilterSchema>;
+
 export const LogsSearchFiltersShape = {
   levels: z.array(LogLevelSchema).default([]),
   services: z.array(z.string()).default([]),
   repos: z.array(z.string()).default([]),
+  attributes: z.array(AttributeFilterSchema).default([]),
 } as const;
 
 const LogsFilterShape = {
@@ -97,4 +112,23 @@ export interface LogsTotalsResult {
 export interface LogFilterOptions {
   services: string[];
   repos: string[];
+}
+
+export const LogAttributeKeysInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+});
+export type LogAttributeKeysInput = z.infer<typeof LogAttributeKeysInputSchema>;
+
+export const LogAttributeValuesInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+  source: AttributeSourceSchema,
+  key: z.string().min(1),
+});
+export type LogAttributeValuesInput = z.infer<
+  typeof LogAttributeValuesInputSchema
+>;
+
+export interface LogAttributeKey {
+  source: AttributeSource;
+  key: string;
 }
