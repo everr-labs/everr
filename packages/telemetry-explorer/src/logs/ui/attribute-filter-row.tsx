@@ -12,7 +12,7 @@ import { X } from "lucide-react";
 import { logAttributeValuesOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, AttributeOp } from "../schemas";
-import { ATTRIBUTE_OP_LABELS } from "./attribute-meta";
+import { ATTRIBUTE_OP_LABELS, attributeLabel } from "./attribute-meta";
 
 const OPS: AttributeOp[] = ["in", "not_in", "exists", "missing"];
 
@@ -30,13 +30,23 @@ export function AttributeFilterRow({
   onRemove: () => void;
 }) {
   const showValues = filter.op === "in" || filter.op === "not_in";
+  const label = attributeLabel(filter.key);
 
   return (
     <div className="flex flex-col gap-1 rounded-md border p-2">
       <div className="flex items-center justify-between gap-1">
-        <span className="truncate font-mono text-xs" title={filter.key}>
-          {filter.key}
-        </span>
+        {label ? (
+          <span className="flex min-w-0 flex-col" title={filter.key}>
+            <span className="truncate text-xs font-medium">{label}</span>
+            <span className="text-muted-foreground truncate font-mono text-[10px]">
+              {filter.key}
+            </span>
+          </span>
+        ) : (
+          <span className="truncate font-mono text-xs" title={filter.key}>
+            {filter.key}
+          </span>
+        )}
         <Button
           variant="ghost"
           size="icon-xs"

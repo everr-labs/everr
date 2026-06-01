@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ATTRIBUTE_OP_LABELS,
   ATTRIBUTE_SOURCE_LABELS,
+  attributeLabel,
   PROMOTED_ATTRIBUTES,
 } from "./attribute-meta";
 
@@ -29,5 +30,21 @@ describe("attribute metadata", () => {
       },
       { source: "resource", key: "host.name", label: "Host" },
     ]);
+  });
+
+  it("returns a friendly label for a known attribute key", () => {
+    expect(attributeLabel("vcs.repository.name")).toBe("Repository");
+    expect(attributeLabel("deployment.environment")).toBe("Environment");
+    expect(attributeLabel("service.name")).toBe("Service");
+  });
+
+  it("returns undefined for an unknown attribute key", () => {
+    expect(attributeLabel("custom.unknown.thing")).toBeUndefined();
+  });
+
+  it("derives promoted labels from the known-attribute dictionary", () => {
+    for (const promoted of PROMOTED_ATTRIBUTES) {
+      expect(promoted.label).toBe(attributeLabel(promoted.key));
+    }
   });
 });

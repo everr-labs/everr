@@ -19,7 +19,7 @@ import { useState } from "react";
 import { logAttributeKeysOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeSource, LogAttributeKey } from "../schemas";
-import { ATTRIBUTE_SOURCE_LABELS } from "./attribute-meta";
+import { ATTRIBUTE_SOURCE_LABELS, attributeLabel } from "./attribute-meta";
 
 export function AttributeKeyPicker({
   repo,
@@ -78,18 +78,32 @@ export function AttributeKeyPicker({
                     key={group.source}
                     heading={ATTRIBUTE_SOURCE_LABELS[group.source]}
                   >
-                    {group.keys.map((item: LogAttributeKey) => (
-                      <CommandItem
-                        key={`${item.source}:${item.key}`}
-                        value={`${group.source} ${item.key}`}
-                        onSelect={() => {
-                          onSelect({ source: item.source, key: item.key });
-                          setOpen(false);
-                        }}
-                      >
-                        <span className="truncate">{item.key}</span>
-                      </CommandItem>
-                    ))}
+                    {group.keys.map((item: LogAttributeKey) => {
+                      const label = attributeLabel(item.key);
+                      return (
+                        <CommandItem
+                          key={`${item.source}:${item.key}`}
+                          value={`${group.source} ${label ?? ""} ${item.key}`}
+                          onSelect={() => {
+                            onSelect({ source: item.source, key: item.key });
+                            setOpen(false);
+                          }}
+                        >
+                          {label ? (
+                            <span className="flex min-w-0 flex-col">
+                              <span className="truncate">{label}</span>
+                              <span className="text-muted-foreground truncate font-mono text-[10px]">
+                                {item.key}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="truncate font-mono">
+                              {item.key}
+                            </span>
+                          )}
+                        </CommandItem>
+                      );
+                    })}
                   </CommandGroup>
                 ),
             )}
