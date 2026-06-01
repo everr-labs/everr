@@ -1,7 +1,9 @@
+import { buildAttributeClauses } from "../../attribute-filter/sql/where";
 import type {
   GetErrorIssuesQueryInput,
   SearchErrorIssuesInput,
 } from "../data/schemas";
+import { errorsAttributeColumn } from "./attribute-columns";
 import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
 import { validateTableName } from "./table";
 
@@ -28,7 +30,10 @@ function buildBaseParams(
 }
 
 function buildExceptionLogsCte(
-  input: Pick<SearchErrorIssuesInput, "fromTs" | "toTs" | "q" | "service">,
+  input: Pick<
+    SearchErrorIssuesInput,
+    "fromTs" | "toTs" | "q" | "service" | "attributes"
+  >,
   tableName: string,
 ): BuiltQuery {
   const params = buildBaseParams(input);
@@ -45,6 +50,13 @@ function buildExceptionLogsCte(
     )`);
     params.q = input.q;
   }
+
+  const attr = buildAttributeClauses(
+    input.attributes ?? [],
+    errorsAttributeColumn,
+  );
+  filters.push(...attr.clauses);
+  Object.assign(params, attr.params);
 
   return {
     params,
@@ -122,7 +134,10 @@ export function buildOccurrencesQuery(
   tableName: string,
 ): BuiltQuery {
   validateTableName(tableName);
-  const cte = buildExceptionLogsCte({ ...input, q: "" }, tableName);
+  const cte = buildExceptionLogsCte(
+    { ...input, q: "", attributes: [] },
+    tableName,
+  );
   return {
     params: {
       ...cte.params,
@@ -153,17 +168,27 @@ export function buildOccurrencesQuery(
 }
 
 export function buildServicesQuery(
-  input: Pick<SearchErrorIssuesInput, "fromTs" | "toTs">,
+  input: Pick<SearchErrorIssuesInput, "fromTs" | "toTs" | "attributes">,
   tableName: string,
 ): BuiltQuery {
   validateTableName(tableName);
+  const params: Record<string, unknown> = {
+    fromTs: input.fromTs,
+    toTs: input.toTs,
+  };
+  const filters = [timePredicateSql(), EXCEPTION_LOG_FILTER_SQL];
+  const attr = buildAttributeClauses(
+    input.attributes ?? [],
+    errorsAttributeColumn,
+  );
+  filters.push(...attr.clauses);
+  Object.assign(params, attr.params);
   return {
-    params: { fromTs: input.fromTs, toTs: input.toTs },
+    params,
     sql: `
     SELECT DISTINCT ServiceName AS serviceName
     FROM ${tableName}
-    WHERE ${timePredicateSql()}
-      AND ${EXCEPTION_LOG_FILTER_SQL}
+    WHERE ${filters.join("\n      AND ")}
     ORDER BY serviceName
   `,
   };

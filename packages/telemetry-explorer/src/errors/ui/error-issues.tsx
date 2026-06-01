@@ -51,6 +51,7 @@ export function ErrorIssues({
       fingerprint: search.fingerprint,
       sort: search.sort,
       limit: PAGE_SIZE,
+      attributes: [],
     }),
     placeholderData: keepPreviousData,
   });
@@ -59,7 +60,7 @@ export function ErrorIssues({
     [issuesQuery.data],
   );
   const servicesQuery = useQuery(
-    errorServicesOptions(repo, { timeRange, refresh }),
+    errorServicesOptions(repo, { timeRange, refresh, attributes: [] }),
   );
 
   return (
