@@ -54,18 +54,11 @@ export function attributeLabel(key: string): string | undefined {
   return KNOWN_ATTRIBUTE_LABELS[key];
 }
 
-export interface PromotedAttribute {
-  source: AttributeSource;
-  key: string;
-  label: string;
-}
-
-// Labels are derived from KNOWN_ATTRIBUTE_LABELS so the chips, picker, and rows
-// stay in sync.
-export const PROMOTED_ATTRIBUTES: PromotedAttribute[] = (
-  [
-    { source: "resource", key: "vcs.repository.name" },
-    { source: "resource", key: "deployment.environment" },
-    { source: "resource", key: "host.name" },
-  ] as const
-).map((p) => ({ ...p, label: KNOWN_ATTRIBUTE_LABELS[p.key] ?? p.key }));
+// Quick-pick keys surfaced under "Suggested" in the picker. Their display
+// names come from attributeLabel(), same as every other key — keep these keys
+// in KNOWN_ATTRIBUTE_LABELS so they render with a friendly name.
+export const PROMOTED_ATTRIBUTES: { source: AttributeSource; key: string }[] = [
+  { source: "resource", key: "vcs.repository.name" },
+  { source: "resource", key: "deployment.environment" },
+  { source: "resource", key: "host.name" },
+];

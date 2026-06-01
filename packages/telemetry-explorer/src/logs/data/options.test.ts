@@ -65,6 +65,5 @@ describe("logAttributeValuesOptions", () => {
       "log",
       "http.method",
     ]);
-    expect(opts.select(["GET"])).toEqual(["GET"]);
   });
 });

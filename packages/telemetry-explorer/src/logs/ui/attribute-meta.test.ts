@@ -24,13 +24,9 @@ describe("attribute metadata", () => {
 
   it("promotes repository, environment, and host as resource attributes", () => {
     expect(PROMOTED_ATTRIBUTES).toEqual([
-      { source: "resource", key: "vcs.repository.name", label: "Repository" },
-      {
-        source: "resource",
-        key: "deployment.environment",
-        label: "Environment",
-      },
-      { source: "resource", key: "host.name", label: "Host" },
+      { source: "resource", key: "vcs.repository.name" },
+      { source: "resource", key: "deployment.environment" },
+      { source: "resource", key: "host.name" },
     ]);
   });
 
@@ -44,9 +40,9 @@ describe("attribute metadata", () => {
     expect(attributeLabel("custom.unknown.thing")).toBeUndefined();
   });
 
-  it("derives promoted labels from the known-attribute dictionary", () => {
+  it("only promotes keys that resolve to a friendly label", () => {
     for (const promoted of PROMOTED_ATTRIBUTES) {
-      expect(promoted.label).toBe(attributeLabel(promoted.key));
+      expect(attributeLabel(promoted.key)).toBeDefined();
     }
   });
 
