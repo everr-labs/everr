@@ -46,7 +46,7 @@ fn old_ai_instruction_commands_are_removed() {
 }
 
 #[test]
-fn skills_install_project_creates_canonical_skill_and_provider_symlink() {
+fn skills_install_all_project_creates_canonical_skills_and_provider_symlink() {
     let env = CliTestEnv::new();
     let repo = env.home_dir.join("repo");
     fs::create_dir_all(&repo).expect("create repo");
@@ -56,14 +56,17 @@ fn skills_install_project_creates_canonical_skill_and_provider_symlink() {
         .args([
             "skills",
             "install",
-            "everr-working-with-ci",
+            "--all",
             "--project",
             "--agent",
             "claude-code",
         ])
         .assert()
         .success()
-        .stdout(contains("Installed 1 skill: everr-working-with-ci"));
+        .stdout(contains("Installed"))
+        .stdout(contains("everr-working-with-ci"))
+        .stdout(contains("everr-setup-telemetry"))
+        .stdout(contains("everr-use-telemetry"));
 
     assert!(
         repo.join(".agents/skills/everr-working-with-ci/SKILL.md")
@@ -81,7 +84,18 @@ fn skills_install_without_selection_requires_interactive_terminal() {
         .args(["skills", "install"])
         .assert()
         .failure()
-        .stderr(contains("provide at least one skill name or use --all"));
+        .stderr(contains("use --all"));
+}
+
+#[test]
+fn skills_install_rejects_named_skills() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["skills", "install", "everr-use-telemetry", "--global"])
+        .assert()
+        .failure()
+        .stderr(contains("unexpected argument"));
 }
 
 #[test]
@@ -89,17 +103,11 @@ fn skills_install_global_creates_provider_symlink() {
     let env = CliTestEnv::new();
 
     env.command()
-        .args([
-            "skills",
-            "install",
-            "everr-use-telemetry",
-            "--global",
-            "--agent",
-            "codex",
-        ])
+        .args(["skills", "install", "--all", "--global", "--agent", "codex"])
         .assert()
         .success()
-        .stdout(contains("Installed 1 skill: everr-use-telemetry"));
+        .stdout(contains("Installed"))
+        .stdout(contains("everr-use-telemetry"));
 
     assert!(
         env.home_dir
@@ -118,21 +126,10 @@ fn skills_update_without_scope_checks_global_skills() {
     let repo = env.home_dir.join("repo");
     fs::create_dir_all(&repo).expect("create repo");
 
-    env.command()
-        .args([
-            "skills",
-            "install",
-            "everr-use-telemetry",
-            "--global",
-            "--agent",
-            "codex",
-        ])
-        .assert()
-        .success();
-
     let skill_doc = env
         .home_dir
         .join(".agents/skills/everr-use-telemetry/SKILL.md");
+    fs::create_dir_all(skill_doc.parent().expect("skill parent")).expect("create skill parent");
     fs::write(&skill_doc, "local edits").expect("edit global skill");
 
     env.command()
@@ -200,6 +197,48 @@ fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
     );
     #[cfg(unix)]
     assert_symlink(&repo.join(".claude/skills/everr-working-with-ci"));
+}
+
+#[test]
+fn setup_syncs_all_global_skills_when_any_global_skill_exists() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+    env.write_session("http://127.0.0.1:0", "token-123");
+
+    let existing_skill = env
+        .home_dir
+        .join(".agents/skills/everr-use-telemetry/SKILL.md");
+    fs::create_dir_all(existing_skill.parent().expect("skill parent"))
+        .expect("create skill parent");
+    fs::write(&existing_skill, "local edits").expect("write edited skill");
+
+    env.command_with_api_base_url("http://127.0.0.1:0")
+        .current_dir(&repo)
+        .arg("setup")
+        .write_stdin("\n")
+        .assert()
+        .success()
+        .stderr(contains("Already logged in"));
+
+    let content = fs::read_to_string(&existing_skill).expect("read synced skill");
+    assert!(content.contains("name: everr-use-telemetry"));
+    assert!(!content.contains("local edits"));
+    assert!(
+        env.home_dir
+            .join(".agents/skills/everr-working-with-ci/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        env.home_dir
+            .join(".agents/skills/everr-setup-telemetry/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        !repo
+            .join(".agents/skills/everr-working-with-ci/SKILL.md")
+            .exists()
+    );
 }
 
 #[test]

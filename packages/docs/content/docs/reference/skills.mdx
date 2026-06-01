@@ -7,6 +7,7 @@ description: Install bundled Everr skills for supported coding assistants.
 
 Everr ships bundled skills for coding assistants that need CI and telemetry context.
 
+- `using-everr` explains what Everr is and when the Everr skills must be used.
 - `everr-working-with-ci` explains how to inspect CI runs, jobs, steps, logs, and historical test data.
 - `everr-setup-telemetry` explains how to make apps, services, tests, and commands emit telemetry.
 - `everr-use-telemetry` explains how to query cloud and local telemetry during investigations.
@@ -14,14 +15,10 @@ Everr ships bundled skills for coding assistants that need CI and telemetry cont
 ## Install
 
 ```shell
-everr skills install everr-working-with-ci everr-setup-telemetry everr-use-telemetry --project
-```
-
-To install every bundled Everr skill instead:
-
-```shell
 everr skills install --all --project
 ```
+
+The installer manages bundled Everr skills as a set.
 
 Use `--global` when you want the skills available outside the current repository.
 

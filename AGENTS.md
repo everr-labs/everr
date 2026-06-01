@@ -36,3 +36,5 @@ When adding or modifying CLI commands, follow the rules in [`docs/cli-guidelines
 ## Everr CLI
 
 Use `everr-dev` (not `everr`) when running CLI commands in this workspace if available.
+Do not mention `everr-dev` in skills.
+Fall-back to everr when everr-dev fails.

@@ -361,6 +361,18 @@ pub fn installed_update_skill_names(options: &SkillOperationOptions) -> Result<V
     Ok(names.into_iter().collect())
 }
 
+pub fn has_installed_bundled_skill(options: &SkillOperationOptions) -> Result<bool> {
+    for skill in bundled_skills()? {
+        if skill_path_exists(options, &skill.name) {
+            return Ok(true);
+        }
+    }
+
+    Ok(LEGACY_SKILL_RENAMES
+        .iter()
+        .any(|(legacy_name, _)| skill_path_exists(options, legacy_name)))
+}
+
 pub fn normalize_update_skill_names(skill_names: &[String]) -> Result<Vec<String>> {
     let available: BTreeSet<String> = bundled_skills()?.into_iter().map(|s| s.name).collect();
     let mut names = BTreeSet::new();
