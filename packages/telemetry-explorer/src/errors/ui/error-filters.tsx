@@ -6,26 +6,41 @@ import {
   InputGroupInput,
 } from "@everr/ui/components/input-group";
 import { Label } from "@everr/ui/components/label";
+import { Separator } from "@everr/ui/components/separator";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { ListFilter, Search, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
+import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import type { ErrorsRepositoryLike } from "../data/repository";
+import type { AttributeFilter } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
+import {
+  ERRORS_ATTRIBUTE_SOURCES_UI,
+  ERRORS_EXCLUDED_KEYS,
+  ERRORS_PROMOTED_ATTRIBUTES,
+} from "./error-attribute-config";
 
 export type ErrorFiltersValue = {
   q: string;
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
+  attributes: AttributeFilter[];
 };
 
 export function ErrorFilters({
+  repo,
+  timeRange,
   value,
   services,
   onChange,
 }: {
+  repo: ErrorsRepositoryLike;
+  timeRange: TimeRange;
   value: ErrorFiltersValue;
   services: string[];
   onChange: (patch: Partial<ErrorFiltersValue>) => void;
@@ -59,6 +74,18 @@ export function ErrorFilters({
         placeholder="All services"
         searchPlaceholder="Search services..."
         className="w-full"
+      />
+
+      <Separator />
+      <AttributeFilterSection
+        repo={repo}
+        domain="errors"
+        timeRange={timeRange}
+        attributes={value.attributes}
+        promotedAttributes={ERRORS_PROMOTED_ATTRIBUTES}
+        excludedKeys={ERRORS_EXCLUDED_KEYS}
+        sources={ERRORS_ATTRIBUTE_SOURCES_UI}
+        onChange={(attributes) => onChange({ attributes })}
       />
 
       <div className="flex flex-col gap-1">

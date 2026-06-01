@@ -34,6 +34,7 @@ vi.mock("react-virtuoso", () => ({
   },
 }));
 
+import type { ErrorsRepositoryLike } from "../data/repository";
 import { ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
 import { ErrorTracePanel } from "./error-trace-panel";
@@ -88,10 +89,22 @@ describe("ErrorIssueList", () => {
 describe("ErrorFilters", () => {
   it("emits sort changes", async () => {
     const onChange = vi.fn();
+    const repo = {
+      attributeKeys: vi.fn().mockResolvedValue([]),
+      attributeValues: vi.fn().mockResolvedValue([]),
+    } as unknown as ErrorsRepositoryLike;
     render(
       withQueryClient(
         <ErrorFilters
-          value={{ q: "", service: [], fingerprint: "", sort: "lastSeen" }}
+          repo={repo}
+          timeRange={{ from: "now-1h", to: "now" }}
+          value={{
+            q: "",
+            service: [],
+            fingerprint: "",
+            sort: "lastSeen",
+            attributes: [],
+          }}
           services={["web", "api"]}
           onChange={onChange}
         />,

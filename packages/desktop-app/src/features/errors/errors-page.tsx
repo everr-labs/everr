@@ -43,7 +43,7 @@ const localTracesRepo = new TracesRepository(localSqlClient, {
 export function ErrorsPage() {
   const search = useSearch({ strict: false }) as ErrorIssueSearch;
   const navigate = useNavigate();
-  const { timeRange, q, service, fingerprint, sort, refresh } =
+  const { timeRange, q, service, fingerprint, sort, refresh, attributes } =
     withTimeRange(search);
 
   return (
@@ -70,7 +70,7 @@ export function ErrorsPage() {
         repo={localErrorsRepo}
         timeRange={timeRange}
         refresh={refresh ?? ""}
-        search={{ q, service, fingerprint, sort }}
+        search={{ q, service, fingerprint, sort, attributes }}
         onSearchChange={(patch) =>
           navigate({
             to: "/errors",
