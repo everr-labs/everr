@@ -23,7 +23,7 @@ Fresh trace query:
 
 ```sql
 SELECT Timestamp, ServiceName, SpanName, StatusCode, TraceId
-FROM otel_traces
+FROM traces
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
 ORDER BY Timestamp DESC
@@ -34,7 +34,7 @@ Fresh log query:
 
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
-FROM otel_logs
+FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
 ORDER BY Timestamp DESC
@@ -45,7 +45,7 @@ Marker trace query:
 
 ```sql
 SELECT Timestamp, ServiceName, SpanName, TraceId
-FROM otel_traces
+FROM traces
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
   AND (
@@ -60,7 +60,7 @@ Marker log query:
 
 ```sql
 SELECT Timestamp, ServiceName, Body, TraceId
-FROM otel_logs
+FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
   AND (

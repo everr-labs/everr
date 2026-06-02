@@ -219,7 +219,8 @@ fn skills_update_without_scope_refreshes_telemetry_rules() {
         .stdout(contains("everr-setup-telemetry"));
 
     let content = fs::read_to_string(rule_path).expect("read updated rule");
-    assert!(content.contains("OpenTelemetry-native signals"));
+    assert!(content.contains("FROM traces"));
+    assert!(content.contains("FROM logs"));
     assert!(!content.contains("stale rule"));
 }
 

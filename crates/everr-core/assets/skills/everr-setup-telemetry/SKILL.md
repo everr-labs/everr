@@ -88,7 +88,7 @@ Do not optimize local debug telemetry for storage cost. Rich local evidence is u
 Use `everr wrap -- <command>` only when the command is not OpenTelemetry-instrumented and the task needs its output in local telemetry.
 
 - The wrapped command runs only when the local collector is available.
-- stdout and stderr lines are mirrored into `otel_logs`.
+- stdout and stderr lines are mirrored into `logs`.
 - The service name is `everr-wrap-<cmd>`.
 - The wrapped command keeps its original exit code.
 

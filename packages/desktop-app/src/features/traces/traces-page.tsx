@@ -30,9 +30,7 @@ import { localSqlClient } from "../logs/local-sql-client";
 
 export { TraceDetailParamsSchema, TraceSearchParamsSchema };
 
-const localTracesRepo = new TracesRepository(localSqlClient, {
-  tableName: "otel_traces",
-});
+const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function TracesPage() {
   const search = useSearch({ strict: false }) as TraceSearchParams;

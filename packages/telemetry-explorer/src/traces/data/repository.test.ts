@@ -57,7 +57,7 @@ describe("TracesRepository.search", () => {
     expect(result).toEqual([row]);
     expect(query).toHaveBeenCalledTimes(1);
     const [sql, params] = query.mock.calls[0] ?? [];
-    expect(sql).toContain("FROM app.traces");
+    expect(sql).toContain("FROM traces");
     expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
     expect(sql).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
     expect(params).toMatchObject({
@@ -154,7 +154,7 @@ describe("TracesRepository.search", () => {
 
     const [sql] = query.mock.calls[0] ?? [];
     expect(sql).toContain("FROM otel_traces");
-    expect(sql).not.toContain("FROM app.traces");
+    expect(sql).not.toContain("FROM traces");
   });
 
   it("uses string timestamp parameters for local sql transport compatibility", async () => {

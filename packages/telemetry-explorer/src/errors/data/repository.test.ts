@@ -9,8 +9,8 @@ beforeEach(() => {
   execute.mockResolvedValue([]);
 });
 
-function makeRepo(tableName = "app.logs") {
-  return new ErrorsRepository(client, { tableName });
+function makeRepo(tableName?: string) {
+  return new ErrorsRepository(client, tableName ? { tableName } : undefined);
 }
 
 describe("ErrorsRepository.searchIssues", () => {
@@ -46,7 +46,7 @@ describe("ErrorsRepository.searchIssues", () => {
 
     expect(execute).toHaveBeenCalledTimes(1);
     const [sql, params] = execute.mock.calls[0] ?? [];
-    expect(sql).toContain("FROM app.logs");
+    expect(sql).toContain("FROM logs");
     expect(sql).toContain("SeverityNumber >= 17");
     expect(sql).toContain("GROUP BY fingerprint");
     expect(sql).toContain(
@@ -93,7 +93,7 @@ describe("ErrorsRepository.searchIssues", () => {
     });
     const [sql] = execute.mock.calls[0] ?? [];
     expect(sql).toContain("FROM otel_logs");
-    expect(sql).not.toContain("FROM app.logs");
+    expect(sql).not.toContain("FROM logs");
   });
 
   it("rejects invalid table names", async () => {

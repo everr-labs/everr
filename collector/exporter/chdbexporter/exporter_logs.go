@@ -61,6 +61,9 @@ func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
 		if createTableErr := createLogsTable(ctx, e.cfg, e.db, e.logger); createTableErr != nil {
 			return createTableErr
 		}
+		if createViewErr := createLocalLogsView(ctx, e.cfg, e.db); createViewErr != nil {
+			return createViewErr
+		}
 	}
 
 	err = e.detectSchemaFeatures(ctx)

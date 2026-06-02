@@ -87,7 +87,7 @@ Recent error spans:
 
 ```sql
 SELECT Timestamp, ServiceName, SpanName, StatusMessage, TraceId
-FROM otel_traces
+FROM traces
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
   AND StatusCode = 'Error'
@@ -99,7 +99,7 @@ Recent exception logs:
 
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body, LogAttributes, TraceId
-FROM otel_logs
+FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
   AND SeverityNumber >= 17

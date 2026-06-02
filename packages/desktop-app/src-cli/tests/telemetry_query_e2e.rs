@@ -64,7 +64,7 @@ fn telemetry_query_happy_path() {
         .args([
             "local",
             "query",
-            "SELECT count() AS c FROM otel_logs",
+            "SELECT count() AS c FROM logs",
             "--format",
             "ndjson",
         ])

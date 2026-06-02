@@ -62,6 +62,9 @@ func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 		if err != nil {
 			return err
 		}
+		if err := createLocalMetricsViews(ctx, e.cfg, e.db); err != nil {
+			return err
+		}
 	}
 
 	return nil

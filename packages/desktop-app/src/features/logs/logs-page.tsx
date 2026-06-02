@@ -37,10 +37,7 @@ export function LogsPage() {
   const queryClient = useQueryClient();
   const isFetching = useIsFetching() > 0;
 
-  const repo = useMemo(
-    () => new LogsRepository(localSqlClient, { tableName: "otel_logs" }),
-    [],
-  );
+  const repo = useMemo(() => new LogsRepository(localSqlClient), []);
 
   const timeRange: TimeRange = {
     from: search.from ?? DEFAULT_TIME_RANGE.from,
