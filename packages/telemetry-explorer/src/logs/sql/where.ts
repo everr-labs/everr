@@ -1,5 +1,6 @@
+import { buildAttributeClauses } from "../../attribute-filter/sql/where";
 import type { AttributeFilter, LogLevel } from "../schemas";
-import { attributeColumn } from "./attribute-columns";
+import { logsAttributeColumn } from "./attribute-columns";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 
 export interface WhereInput {
@@ -32,40 +33,13 @@ export function buildWhereClause(input: WhereInput): WhereResult {
   if (input.services.length > 0) {
     clauses.push("ServiceName IN {services:Array(String)}");
   }
-  (input.attributes ?? []).forEach((filter, index) => {
-    const column = attributeColumn(filter.source);
-    const keyParam = `attrKey${index}`;
-    const valsParam = `attrVals${index}`;
-    const contains = `mapContains(${column}, {${keyParam}:String})`;
-    const access = `${column}[{${keyParam}:String}]`;
 
-    switch (filter.op) {
-      case "in":
-        if (filter.values.length === 0) return;
-        params[keyParam] = filter.key;
-        clauses.push(
-          `${contains} AND ${access} IN {${valsParam}:Array(String)}`,
-        );
-        params[valsParam] = filter.values;
-        break;
-      case "not_in":
-        if (filter.values.length === 0) return;
-        params[keyParam] = filter.key;
-        clauses.push(
-          `(NOT ${contains} OR ${access} NOT IN {${valsParam}:Array(String)})`,
-        );
-        params[valsParam] = filter.values;
-        break;
-      case "exists":
-        params[keyParam] = filter.key;
-        clauses.push(contains);
-        break;
-      case "missing":
-        params[keyParam] = filter.key;
-        clauses.push(`NOT ${contains}`);
-        break;
-    }
-  });
+  const attr = buildAttributeClauses(
+    input.attributes ?? [],
+    logsAttributeColumn,
+  );
+  clauses.push(...attr.clauses);
+  Object.assign(params, attr.params);
 
   if (input.traceId) {
     clauses.push("TraceId = {traceId:String}");

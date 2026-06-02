@@ -25,10 +25,11 @@ export const ATTRIBUTE_SOURCE_LABELS: Record<AttributeSource, string> = {
   resource: "Resource",
   log: "Log",
   scope: "Scope",
+  span: "Span",
 };
 
-// Friendly display names for well-known attribute keys, keyed by the raw key.
-// Easy to extend; unknown keys fall back to the raw key in the UI.
+// Friendly display names for well-known OTel attribute keys, keyed by raw key.
+// Unknown keys fall back to the raw key in the UI.
 const KNOWN_ATTRIBUTE_LABELS: Record<string, string> = {
   "service.name": "Service",
   "service.namespace": "Namespace",
@@ -48,17 +49,18 @@ const KNOWN_ATTRIBUTE_LABELS: Record<string, string> = {
   "k8s.namespace.name": "K8s namespace",
   "k8s.node.name": "Node",
   "container.name": "Container",
+  "http.route": "Route",
+  "http.request.method": "HTTP method",
+  "db.system": "DB system",
+  "rpc.method": "RPC method",
 };
 
 export function attributeLabel(key: string): string | undefined {
   return KNOWN_ATTRIBUTE_LABELS[key];
 }
 
-// Quick-pick keys surfaced under "Suggested" in the picker. Their display
-// names come from attributeLabel(), same as every other key — keep these keys
-// in KNOWN_ATTRIBUTE_LABELS so they render with a friendly name.
-export const PROMOTED_ATTRIBUTES: { source: AttributeSource; key: string }[] = [
-  { source: "resource", key: "vcs.repository.name" },
-  { source: "resource", key: "deployment.environment" },
-  { source: "resource", key: "host.name" },
-];
+// A promoted ("Suggested") attribute, supplied per domain.
+export interface PromotedAttribute {
+  source: AttributeSource;
+  key: string;
+}

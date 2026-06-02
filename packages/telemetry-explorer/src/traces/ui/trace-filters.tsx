@@ -1,14 +1,24 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { Separator } from "@everr/ui/components/separator";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import { CornerDownLeft } from "lucide-react";
+import { CornerDownLeft, ListFilter } from "lucide-react";
 import { useId, useRef, useState } from "react";
+import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import type { TracesRepositoryLike } from "../data/repository";
+import type { AttributeFilter } from "../data/schemas";
 import type { ServiceIdentity } from "../data/types";
+import {
+  TRACES_ATTRIBUTE_SOURCES_UI,
+  TRACES_EXCLUDED_KEYS,
+  TRACES_PROMOTED_ATTRIBUTES,
+} from "./trace-attribute-config";
 
 type StatusValue = "ok" | "error" | "all";
 
@@ -19,15 +29,20 @@ type FilterValue = {
   minMs?: number;
   maxMs?: number;
   status: StatusValue;
+  attributes: AttributeFilter[];
 };
 
 type TraceFiltersProps = {
+  repo: TracesRepositoryLike;
+  timeRange: TimeRange;
   value: FilterValue;
   identities: ServiceIdentity[];
   onChange: (patch: Partial<FilterValue>) => void;
 };
 
 export function TraceFilters({
+  repo,
+  timeRange,
   value,
   identities,
   onChange,
@@ -60,37 +75,19 @@ export function TraceFilters({
     value.name.length > 0 ||
     value.minMs !== undefined ||
     value.maxMs !== undefined ||
-    value.status !== "all";
+    value.status !== "all" ||
+    value.attributes.length > 0;
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <FilterCombobox
-        label="Namespace"
-        values={value.namespace}
-        onChange={(next) => onChange({ namespace: next })}
-        options={namespaceOptions}
-        placeholder="All"
-        searchPlaceholder="Search namespaces..."
-      />
-      <FilterCombobox
-        label="Service"
-        values={value.service}
-        onChange={(next) => onChange({ service: next })}
-        options={serviceOptions}
-        placeholder="All"
-        searchPlaceholder="Search services..."
-      />
-      <NameInput value={value.name} onCommit={(name) => onChange({ name })} />
-      <DurationInput
-        label="Min ms"
-        value={value.minMs}
-        onCommit={(minMs) => onChange({ minMs })}
-      />
-      <DurationInput
-        label="Max ms"
-        value={value.maxMs}
-        onCommit={(maxMs) => onChange({ maxMs })}
-      />
+    <aside
+      aria-label="Trace filters"
+      className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
+    >
+      <div className="flex items-center gap-2 text-xs font-medium">
+        <ListFilter className="text-muted-foreground size-3.5" />
+        Filter
+      </div>
+
       <div className="flex flex-col gap-1">
         <Label className="text-muted-foreground text-xs">Status</Label>
         <ToggleGroup
@@ -98,6 +95,7 @@ export function TraceFilters({
           variant="outline"
           size="lg"
           spacing={0}
+          className="w-full"
           onValueChange={(next) => {
             const selected = next[0];
             if (
@@ -110,15 +108,72 @@ export function TraceFilters({
           }}
           aria-label="Status"
         >
-          <ToggleGroupItem value="all">All</ToggleGroupItem>
-          <ToggleGroupItem value="ok">Ok</ToggleGroupItem>
-          <ToggleGroupItem value="error">Error</ToggleGroupItem>
+          <ToggleGroupItem value="all" className="flex-1">
+            All
+          </ToggleGroupItem>
+          <ToggleGroupItem value="ok" className="flex-1">
+            Ok
+          </ToggleGroupItem>
+          <ToggleGroupItem value="error" className="flex-1">
+            Error
+          </ToggleGroupItem>
         </ToggleGroup>
       </div>
+
+      <Separator />
+
+      <FilterCombobox
+        label="Namespace"
+        values={value.namespace}
+        onChange={(next) => onChange({ namespace: next })}
+        options={namespaceOptions}
+        placeholder="All"
+        searchPlaceholder="Search namespaces..."
+        className="w-full"
+      />
+      <FilterCombobox
+        label="Service"
+        values={value.service}
+        onChange={(next) => onChange({ service: next })}
+        options={serviceOptions}
+        placeholder="All"
+        searchPlaceholder="Search services..."
+        className="w-full"
+      />
+
+      <Separator />
+
+      <NameInput value={value.name} onCommit={(name) => onChange({ name })} />
+      <div className="flex gap-2">
+        <DurationInput
+          label="Min ms"
+          value={value.minMs}
+          onCommit={(minMs) => onChange({ minMs })}
+        />
+        <DurationInput
+          label="Max ms"
+          value={value.maxMs}
+          onCommit={(maxMs) => onChange({ maxMs })}
+        />
+      </div>
+
+      <Separator />
+
+      <AttributeFilterSection
+        repo={repo}
+        domain="traces"
+        timeRange={timeRange}
+        attributes={value.attributes}
+        promotedAttributes={TRACES_PROMOTED_ATTRIBUTES}
+        excludedKeys={TRACES_EXCLUDED_KEYS}
+        sources={TRACES_ATTRIBUTE_SOURCES_UI}
+        onChange={(attributes) => onChange({ attributes })}
+      />
+
       {hasFilters && (
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground self-end text-xs underline"
+          className="text-muted-foreground hover:text-foreground self-start text-xs underline"
           onClick={() =>
             onChange({
               namespace: [],
@@ -127,13 +182,14 @@ export function TraceFilters({
               minMs: undefined,
               maxMs: undefined,
               status: "all",
+              attributes: [],
             })
           }
         >
           Clear filters
         </button>
       )}
-    </div>
+    </aside>
   );
 }
 
@@ -162,7 +218,7 @@ function NameInput({
       <Label htmlFor={id} className="text-muted-foreground text-xs">
         Name
       </Label>
-      <div className="relative w-56">
+      <div className="relative w-full">
         <Input
           id={id}
           type="text"

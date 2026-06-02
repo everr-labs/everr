@@ -1,5 +1,12 @@
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
+import {
+  type AttributeKey,
+  type AttributeKeysInput,
+  type AttributeValuesInput,
+  attributesField,
+  attributeValuesInputSchema,
+} from "../attribute-filter/schemas";
 
 export const LogLevelSchema = z.enum([
   "error",
@@ -12,24 +19,36 @@ export const LogLevelSchema = z.enum([
 
 export type LogLevel = z.infer<typeof LogLevelSchema>;
 
-export const AttributeSourceSchema = z.enum(["resource", "log", "scope"]);
-export type AttributeSource = z.infer<typeof AttributeSourceSchema>;
+export type {
+  AttributeFilter,
+  AttributeOp,
+  AttributeSource,
+} from "../attribute-filter/schemas";
+// Re-export the shared attribute types under both generic and historical names.
+export {
+  AttributeFilterSchema,
+  AttributeOpSchema,
+  AttributeSourceSchema,
+} from "../attribute-filter/schemas";
 
-export const AttributeOpSchema = z.enum(["in", "not_in", "exists", "missing"]);
-export type AttributeOp = z.infer<typeof AttributeOpSchema>;
+export type LogAttributeKey = AttributeKey;
+export type LogAttributeKeysInput = AttributeKeysInput;
+export type LogAttributeValuesInput = AttributeValuesInput;
 
-export const AttributeFilterSchema = z.object({
-  source: AttributeSourceSchema,
-  key: z.string().min(1),
-  op: AttributeOpSchema,
-  values: z.array(z.string()).default([]),
+export const LogAttributeKeysInputSchema = z.object({
+  timeRange: TimeRangeSchema,
 });
-export type AttributeFilter = z.infer<typeof AttributeFilterSchema>;
+
+export const LogAttributeValuesInputSchema = attributeValuesInputSchema([
+  "resource",
+  "log",
+  "scope",
+]);
 
 export const LogsSearchFiltersShape = {
   levels: z.array(LogLevelSchema).default([]),
   services: z.array(z.string()).default([]),
-  attributes: z.array(AttributeFilterSchema).default([]),
+  attributes: attributesField(["resource", "log", "scope"]),
 } as const;
 
 const LogsFilterShape = {
@@ -110,23 +129,4 @@ export interface LogsTotalsResult {
 
 export interface LogFilterOptions {
   services: string[];
-}
-
-export const LogAttributeKeysInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-});
-export type LogAttributeKeysInput = z.infer<typeof LogAttributeKeysInputSchema>;
-
-export const LogAttributeValuesInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  source: AttributeSourceSchema,
-  key: z.string().min(1),
-});
-export type LogAttributeValuesInput = z.infer<
-  typeof LogAttributeValuesInputSchema
->;
-
-export interface LogAttributeKey {
-  source: AttributeSource;
-  key: string;
 }

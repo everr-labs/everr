@@ -16,44 +16,48 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { logAttributeKeysOptions } from "../data/options";
-import type { LogsRepositoryLike } from "../data/repository";
-import type { AttributeSource, LogAttributeKey } from "../schemas";
+import { attributeKeysOptions } from "../options";
+import type { AttributeRepositoryLike } from "../repository";
+import type { AttributeKey, AttributeSource } from "../schemas";
+import { ATTRIBUTE_KEY_PER_SOURCE_LIMIT } from "../sql/keys";
 import {
   ATTRIBUTE_SOURCE_LABELS,
   attributeLabel,
-  PROMOTED_ATTRIBUTES,
+  type PromotedAttribute,
 } from "./attribute-meta";
-
-const SOURCES: AttributeSource[] = ["resource", "log", "scope"];
 
 const filterKey = (source: AttributeSource, key: string) => `${source}:${key}`;
 
-const PROMOTED_KEY_SET = new Set(
-  PROMOTED_ATTRIBUTES.map((p) => filterKey(p.source, p.key)),
-);
-
-// Keys surfaced by a dedicated top-level filter, hidden here to avoid offering
-// a redundant attribute chip. `service.name` backs the Service filter.
-const EXCLUDED_KEY_SET = new Set([filterKey("resource", "service.name")]);
-
 export function AttributeKeyPicker({
   repo,
+  domain,
   timeRange,
   activeKeys,
+  promotedAttributes,
+  excludedKeys,
+  sources,
   onSelect,
 }: {
-  repo: LogsRepositoryLike;
+  repo: AttributeRepositoryLike;
+  domain: string;
   timeRange: TimeRange;
   // Keys (`source:key`) already in use, hidden from the menu.
   activeKeys?: ReadonlySet<string>;
+  promotedAttributes: PromotedAttribute[];
+  // Keys (`source:key`) surfaced by a dedicated top-level filter, hidden here.
+  excludedKeys: ReadonlySet<string>;
+  sources: AttributeSource[];
   onSelect: (key: { source: AttributeSource; key: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { data: keys = [], isLoading } = useQuery({
-    ...logAttributeKeysOptions(repo, { timeRange }),
+    ...attributeKeysOptions(repo, { timeRange }, { domain }),
     enabled: open,
   });
+
+  const promotedKeySet = new Set(
+    promotedAttributes.map((p) => filterKey(p.source, p.key)),
+  );
 
   const isActive = (source: AttributeSource, key: string) =>
     activeKeys?.has(filterKey(source, key)) ?? false;
@@ -86,28 +90,39 @@ export function AttributeKeyPicker({
   };
 
   // Promoted keys are only suggested when they actually appear in the current
-  // range — otherwise we'd offer a chip that can never narrow these logs and
+  // range — otherwise we'd offer a chip that can never narrow these rows and
   // hide the empty state behind it.
   const discoveredKeySet = new Set(
-    keys.map((k: LogAttributeKey) => filterKey(k.source, k.key)),
+    keys.map((k: AttributeKey) => filterKey(k.source, k.key)),
   );
 
-  const suggested = PROMOTED_ATTRIBUTES.filter(
+  const suggested = promotedAttributes.filter(
     (p) =>
       !isActive(p.source, p.key) &&
+      // A promoted key that also has a dedicated top-level filter is excluded
+      // here too, so it can't be added a second time as an attribute chip.
+      !excludedKeys.has(filterKey(p.source, p.key)) &&
       discoveredKeySet.has(filterKey(p.source, p.key)),
   );
 
-  const grouped = SOURCES.map((source) => ({
+  const grouped = sources.map((source) => ({
     source,
     keys: keys.filter(
-      (k: LogAttributeKey) =>
+      (k: AttributeKey) =>
         k.source === source &&
         !isActive(k.source, k.key) &&
-        !PROMOTED_KEY_SET.has(filterKey(k.source, k.key)) &&
-        !EXCLUDED_KEY_SET.has(filterKey(k.source, k.key)),
+        !promotedKeySet.has(filterKey(k.source, k.key)) &&
+        !excludedKeys.has(filterKey(k.source, k.key)),
     ),
   }));
+
+  // A source that returned a full page was likely truncated by the per-source
+  // cap; surface that so a missing key on a wide range isn't mistaken for absent.
+  const truncated = sources.some(
+    (source) =>
+      keys.filter((k: AttributeKey) => k.source === source).length >=
+      ATTRIBUTE_KEY_PER_SOURCE_LIMIT,
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -149,15 +164,15 @@ export function AttributeKeyPicker({
                     key={group.source}
                     heading={ATTRIBUTE_SOURCE_LABELS[group.source]}
                   >
-                    {group.keys.map((item: LogAttributeKey) =>
+                    {group.keys.map((item: AttributeKey) =>
                       renderItem(item.source, item.key),
                     )}
                   </CommandGroup>
                 ),
             )}
-            {keys.length >= 500 && (
+            {truncated && (
               <div className="text-muted-foreground px-2 py-1 text-xs">
-                Showing first 500 attributes
+                Showing the most common attributes per source
               </div>
             )}
           </CommandList>

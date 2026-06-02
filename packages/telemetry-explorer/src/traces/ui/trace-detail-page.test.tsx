@@ -21,6 +21,8 @@ const repo = {
   search: vi.fn(),
   getTrace: vi.fn(),
   listServiceIdentities: vi.fn(),
+  attributeKeys: vi.fn(async () => []),
+  attributeValues: vi.fn(async () => []),
 };
 
 const span: Span = {

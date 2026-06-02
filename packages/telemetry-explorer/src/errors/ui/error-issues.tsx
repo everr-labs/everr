@@ -10,6 +10,7 @@ import {
   errorServicesOptions,
 } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
+import type { AttributeFilter } from "../data/schemas";
 import { PAGE_SIZE } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
 import { ErrorFilters, ErrorSearchForm } from "./error-filters";
@@ -23,6 +24,7 @@ export type ErrorIssuesSearchValue = {
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
+  attributes: AttributeFilter[];
 };
 
 export type ErrorIssuesProps = {
@@ -51,6 +53,7 @@ export function ErrorIssues({
       fingerprint: search.fingerprint,
       sort: search.sort,
       limit: PAGE_SIZE,
+      attributes: search.attributes,
     }),
     placeholderData: keepPreviousData,
   });
@@ -59,7 +62,11 @@ export function ErrorIssues({
     [issuesQuery.data],
   );
   const servicesQuery = useQuery(
-    errorServicesOptions(repo, { timeRange, refresh }),
+    errorServicesOptions(repo, {
+      timeRange,
+      refresh,
+      attributes: search.attributes,
+    }),
   );
 
   return (
@@ -74,6 +81,8 @@ export function ErrorIssues({
 
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <ErrorFilters
+            repo={repo}
+            timeRange={timeRange}
             value={search}
             services={servicesQuery.data ?? []}
             onChange={onSearchChange}

@@ -1,15 +1,19 @@
-import { type AttributeSource, AttributeSourceSchema } from "../schemas";
+import type { AttributeSource } from "../../attribute-filter/schemas";
 
-const COLUMNS: Record<AttributeSource, string> = {
+const COLUMNS: Record<string, string> = {
   resource: "ResourceAttributes",
   log: "LogAttributes",
   scope: "ScopeAttributes",
 };
 
-export const ATTRIBUTE_SOURCES = AttributeSourceSchema.options;
+export const LOGS_ATTRIBUTE_SOURCES: AttributeSource[] = [
+  "resource",
+  "log",
+  "scope",
+];
 
-export function attributeColumn(source: AttributeSource): string {
+export function logsAttributeColumn(source: AttributeSource): string {
   const column = COLUMNS[source];
-  if (!column) throw new Error(`Unknown attribute source: ${source}`);
+  if (!column) throw new Error(`Unknown logs attribute source: ${source}`);
   return column;
 }

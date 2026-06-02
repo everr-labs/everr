@@ -7,6 +7,8 @@ const repo: TracesRepositoryLike = {
   search: vi.fn(),
   getTrace: vi.fn(),
   listServiceIdentities: vi.fn(),
+  attributeKeys: vi.fn(async () => []),
+  attributeValues: vi.fn(async () => []),
 };
 
 const baseInput = {
@@ -19,6 +21,7 @@ const baseInput = {
   minMs: undefined,
   maxMs: undefined,
   status: "all" as const,
+  attributes: [],
   limit: 50,
 };
 

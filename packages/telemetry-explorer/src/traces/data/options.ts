@@ -5,6 +5,7 @@ import {
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
 import type { TraceSummary } from "./types";
@@ -20,6 +21,7 @@ export type TraceSearchOptionsInput = {
   minMs: number | undefined;
   maxMs: number | undefined;
   status: SpanStatusFilter;
+  attributes: AttributeFilter[];
   limit: number;
 };
 
@@ -55,6 +57,7 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
             ? undefined
             : (BigInt(input.maxMs) * MS_TO_NS).toString(),
         status: input.status,
+        attributes: input.attributes,
         limit: input.limit,
       });
     },

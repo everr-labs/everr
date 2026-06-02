@@ -31,7 +31,7 @@ function ErrorsPage() {
   useRealtimeSubscription({ scope: "tenant" });
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { timeRange, q, service, fingerprint, sort, refresh } =
+  const { timeRange, q, service, fingerprint, sort, refresh, attributes } =
     withTimeRange(search);
 
   return (
@@ -39,7 +39,7 @@ function ErrorsPage() {
       repo={remoteErrorsRepo}
       timeRange={timeRange}
       refresh={refresh ?? ""}
-      search={{ q, service, fingerprint, sort }}
+      search={{ q, service, fingerprint, sort, attributes }}
       onSearchChange={(patch) =>
         navigate({
           search: (prev) => ({ ...prev, ...patch }),

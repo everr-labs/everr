@@ -5,6 +5,7 @@ import {
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { ErrorsRepositoryLike } from "./repository";
 import type { ErrorIssuesResult, ErrorSort } from "./types";
 
@@ -16,6 +17,7 @@ export type ErrorIssuesInfiniteInput = {
   fingerprint: string;
   sort: ErrorSort;
   limit: number;
+  attributes: AttributeFilter[];
 };
 
 export function errorIssuesInfiniteOptions(
@@ -35,6 +37,7 @@ export function errorIssuesInfiniteOptions(
         fingerprint: input.fingerprint,
         sort: input.sort,
         limit: input.limit,
+        attributes: input.attributes,
       },
     ] as const,
     queryFn: ({ pageParam }: { pageParam: number }) => {
@@ -48,6 +51,7 @@ export function errorIssuesInfiniteOptions(
         sort: input.sort,
         limit: input.limit,
         offset: pageParam,
+        attributes: input.attributes,
       });
     },
     initialPageParam: 0,
@@ -105,16 +109,26 @@ export function errorIssueOptions(
 
 export function errorServicesOptions(
   repo: ErrorsRepositoryLike,
-  input: { timeRange: TimeRange; refresh: string },
+  input: {
+    timeRange: TimeRange;
+    refresh: string;
+    attributes: AttributeFilter[];
+  },
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
-    queryKey: ["errors", "services", input.timeRange] as const,
+    queryKey: [
+      "errors",
+      "services",
+      input.timeRange,
+      input.attributes,
+    ] as const,
     queryFn: () => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
       return repo.listServices({
         fromTs: toClickHouseDateTime(fromDate),
         toTs: toClickHouseDateTime(toDate),
+        attributes: input.attributes,
       });
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,

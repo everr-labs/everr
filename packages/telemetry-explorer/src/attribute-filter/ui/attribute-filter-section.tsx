@@ -1,9 +1,10 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useState } from "react";
-import type { LogsRepositoryLike } from "../data/repository";
+import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter, AttributeSource } from "../schemas";
 import { AttributeFilterPill } from "./attribute-filter-pill";
 import { AttributeKeyPicker } from "./attribute-key-picker";
+import type { PromotedAttribute } from "./attribute-meta";
 
 function filterKey(source: AttributeSource, key: string) {
   return `${source}:${key}`;
@@ -11,13 +12,21 @@ function filterKey(source: AttributeSource, key: string) {
 
 export function AttributeFilterSection({
   repo,
+  domain,
   timeRange,
   attributes,
+  promotedAttributes,
+  excludedKeys,
+  sources,
   onChange,
 }: {
-  repo: LogsRepositoryLike;
+  repo: AttributeRepositoryLike;
+  domain: string;
   timeRange: TimeRange;
   attributes: AttributeFilter[];
+  promotedAttributes: PromotedAttribute[];
+  excludedKeys: ReadonlySet<string>;
+  sources: AttributeSource[];
   onChange: (next: AttributeFilter[]) => void;
 }) {
   // The filter just added — its pill mounts with its editor open so the user
@@ -51,6 +60,7 @@ export function AttributeFilterSection({
               <AttributeFilterPill
                 key={key}
                 repo={repo}
+                domain={domain}
                 timeRange={timeRange}
                 filter={filter}
                 defaultOpen={key === lastAdded}
@@ -63,8 +73,12 @@ export function AttributeFilterSection({
       )}
       <AttributeKeyPicker
         repo={repo}
+        domain={domain}
         timeRange={timeRange}
         activeKeys={activeKeys}
+        promotedAttributes={promotedAttributes}
+        excludedKeys={excludedKeys}
+        sources={sources}
         onSelect={({ source, key }) => addFilter(source, key)}
       />
     </div>

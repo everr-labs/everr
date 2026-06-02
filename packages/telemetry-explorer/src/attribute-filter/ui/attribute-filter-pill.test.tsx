@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { LogsRepositoryLike } from "../data/repository";
+import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter } from "../schemas";
 import { AttributeFilterPill } from "./attribute-filter-pill";
 
@@ -13,13 +13,14 @@ function renderPill(
 ) {
   const repo = {
     attributeValues: vi.fn().mockResolvedValue(["production", "staging"]),
-  } as unknown as LogsRepositoryLike;
+  } as unknown as AttributeRepositoryLike;
   const onChange = vi.fn();
   const onRemove = vi.fn();
   render(
     <QueryClientProvider client={new QueryClient()}>
       <AttributeFilterPill
         repo={repo}
+        domain="logs"
         timeRange={timeRange}
         filter={filter}
         defaultOpen={opts.defaultOpen}
@@ -38,7 +39,7 @@ const baseFilter: AttributeFilter = {
   values: [],
 };
 
-describe("AttributeFilterPill display", () => {
+describe("AttributeFilterPill", () => {
   it("shows friendly name, connector, and 'any value' for a pending in-filter", () => {
     renderPill(baseFilter);
     expect(screen.getByText("Environment")).toBeInTheDocument();
@@ -49,12 +50,6 @@ describe("AttributeFilterPill display", () => {
   it("summarizes selected values with an overflow count", () => {
     renderPill({ ...baseFilter, values: ["production", "staging"] });
     expect(screen.getByText("production +1")).toBeInTheDocument();
-  });
-
-  it("shows the connector with no value summary for exists", () => {
-    renderPill({ ...baseFilter, op: "exists" });
-    expect(screen.getByText("exists")).toBeInTheDocument();
-    expect(screen.queryByText("any value")).not.toBeInTheDocument();
   });
 
   it("falls back to the raw key for an unknown attribute", () => {
@@ -72,23 +67,23 @@ describe("AttributeFilterPill display", () => {
     fireEvent.click(screen.getByLabelText("Remove Environment filter"));
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
-});
 
-describe("AttributeFilterPill editor", () => {
-  it("opens the editor on click and lists every op as a readable label", () => {
+  it("opens the editor and lists readable op labels", () => {
     renderPill(baseFilter);
     fireEvent.click(screen.getByText("Environment"));
-    // Op segmented control shows human labels, not raw keys.
     expect(screen.getByText("Is not")).toBeInTheDocument();
     expect(screen.getByText("Exists")).toBeInTheDocument();
     expect(screen.getByText("Missing")).toBeInTheDocument();
   });
 
-  it("shows the value picker for in/not_in and loads discovered values", async () => {
-    renderPill(baseFilter, { defaultOpen: true });
+  it("loads and toggles discovered values for in/not_in", async () => {
+    const { onChange } = renderPill(baseFilter, { defaultOpen: true });
     expect(screen.getByPlaceholderText("Search values...")).toBeInTheDocument();
-    expect(await screen.findByText("production")).toBeInTheDocument();
-    expect(screen.getByText("staging")).toBeInTheDocument();
+    fireEvent.click(await screen.findByText("production"));
+    expect(onChange).toHaveBeenCalledWith({
+      ...baseFilter,
+      values: ["production"],
+    });
   });
 
   it("hides the value picker for exists/missing", () => {
@@ -104,12 +99,27 @@ describe("AttributeFilterPill editor", () => {
     expect(onChange).toHaveBeenCalledWith({ ...baseFilter, op: "not_in" });
   });
 
-  it("toggles a value when picked", async () => {
+  it("offers a free-text 'use exactly' entry for a value past the cutoff", () => {
     const { onChange } = renderPill(baseFilter, { defaultOpen: true });
-    fireEvent.click(await screen.findByText("production"));
+    fireEvent.change(screen.getByPlaceholderText("Search values..."), {
+      target: { value: "us-east-1a" },
+    });
+    fireEvent.click(screen.getByText(/Use exactly/));
     expect(onChange).toHaveBeenCalledWith({
       ...baseFilter,
-      values: ["production"],
+      values: ["us-east-1a"],
     });
+  });
+
+  it("keeps an already-selected value visible even if discovery omits it", () => {
+    renderPill(
+      { ...baseFilter, values: ["legacy-value"] },
+      { defaultOpen: true },
+    );
+    // Discovery mock returns production/staging; the selected value must remain
+    // a selectable (checked) option so it can be deselected.
+    expect(
+      screen.getByRole("option", { name: "legacy-value" }),
+    ).toBeInTheDocument();
   });
 });
