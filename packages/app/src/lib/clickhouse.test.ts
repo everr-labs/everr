@@ -4,15 +4,23 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(
-  () => ({
-    mockQuery: vi.fn(),
-    mockInsert: vi.fn(),
-    mockCommand: vi.fn(),
-    mockJson: vi.fn(),
-    MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
-  }),
-);
+const {
+  mockQuery,
+  mockInsert,
+  mockCommand,
+  mockJson,
+  mockInstrumentClickhouseOperation,
+  MASTER_KEY,
+} = vi.hoisted(() => ({
+  mockQuery: vi.fn(),
+  mockInsert: vi.fn(),
+  mockCommand: vi.fn(),
+  mockJson: vi.fn(),
+  mockInstrumentClickhouseOperation: vi.fn(
+    async (_attributes: unknown, run: () => Promise<unknown>) => run(),
+  ),
+  MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
+}));
 
 vi.mock("@clickhouse/client", () => ({
   createClient: vi.fn(() => ({
@@ -34,11 +42,18 @@ vi.mock("@/env", () => ({
   },
 }));
 
+vi.mock("@/telemetry/clickhouse", () => ({
+  clickhouseOperationFromSql: (sql: string) =>
+    /^\s*([a-z]+)/i.exec(sql)?.[1]?.toUpperCase() ?? "QUERY",
+  instrumentClickhouseOperation: mockInstrumentClickhouseOperation,
+}));
+
 vi.unmock("@/lib/clickhouse");
 
 import {
   deprovisionSqlApiOrgUser,
   provisionSqlApiOrgUser,
+  query,
   querySqlApi,
 } from "./clickhouse";
 
@@ -56,15 +71,39 @@ const SQL_API_BACKFILL_SQL = readFileSync(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockInstrumentClickhouseOperation.mockImplementation(
+    async (_attributes: unknown, run: () => Promise<unknown>) => run(),
+  );
   mockJson.mockReturnValue([]);
   mockQuery.mockResolvedValue({ json: mockJson });
   mockCommand.mockResolvedValue(undefined);
+});
+
+describe("query", () => {
+  it("wraps app ClickHouse reads in telemetry", async () => {
+    await query("SELECT {n:UInt8}", ORG, { n: 1 });
+
+    expect(mockInstrumentClickhouseOperation).toHaveBeenCalledWith(
+      {
+        client: "app",
+        operation: "SELECT",
+      },
+      expect.any(Function),
+    );
+  });
 });
 
 describe("querySqlApi", () => {
   it("authenticates per-query as the org user and forwards query params", async () => {
     await querySqlApi("SELECT {n:UInt8}", ORG, { n: 1 });
 
+    expect(mockInstrumentClickhouseOperation).toHaveBeenCalledWith(
+      {
+        client: "sql_api",
+        operation: "SELECT",
+      },
+      expect.any(Function),
+    );
     expect(mockQuery).toHaveBeenCalledWith({
       query: "SELECT {n:UInt8}",
       query_params: { n: 1 },

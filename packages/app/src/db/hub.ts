@@ -1,3 +1,4 @@
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { NotificationHub, type Topic } from "./notification-hub";
 import type { NotifyPayload } from "./notify";
 
@@ -10,7 +11,10 @@ function ensureStarted(): void {
     started = true;
     hub.start().catch((err) => {
       started = false;
-      console.error("[NotificationHub] failed to start", err);
+      serverLogger.error(
+        "notification_hub.start.failed",
+        exceptionAttributes(err),
+      );
     });
   }
 }

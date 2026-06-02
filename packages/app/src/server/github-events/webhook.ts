@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
 import { env } from "@/env";
+import { serverLogger } from "@/telemetry/logger";
 import { headersToRecord } from "./headers";
 import { enqueueWebhookEvent } from "./runtime";
 
@@ -36,30 +37,28 @@ async function handleInstallationEvent(args: {
   try {
     parsedBody = JSON.parse(args.bodyText);
   } catch {
-    console.warn("[github webhook] invalid json payload", {
-      eventType: args.eventType,
+    serverLogger.warn("github.webhook.invalid_json", {
+      "github.event.type": args.eventType,
     });
     return new Response("invalid json payload", { status: 400 });
   }
 
   const parsed = installationEventSchema.safeParse(parsedBody);
   if (!parsed.success) {
-    console.warn("[github webhook] invalid installation payload shape", {
-      eventType: args.eventType,
-      validationError: parsed.error.message,
+    serverLogger.warn("github.webhook.invalid_installation_payload", {
+      "github.event.type": args.eventType,
+      "validation.error": parsed.error.message,
     });
     return new Response("invalid payload shape", { status: 400 });
   }
 
   const installationId = parsed.data.installation?.id;
+  const action = parsed.data.action ?? "unknown";
   if (!installationId) {
-    console.warn(
-      "[github webhook] installation event missing installation.id",
-      {
-        eventType: args.eventType,
-        action: parsed.data.action,
-      },
-    );
+    serverLogger.warn("github.webhook.missing_installation_id", {
+      "github.event.action": action,
+      "github.event.type": args.eventType,
+    });
     return new Response("missing installation.id", { status: 400 });
   }
 
@@ -75,22 +74,22 @@ async function handleInstallationEvent(args: {
 
     if (nextStatus) {
       await setGithubInstallationStatus(installationId, nextStatus);
-      console.info("[github installation] status updated", {
-        installationId,
-        action: parsed.data.action,
-        status: nextStatus,
+      serverLogger.info("github.installation.status_updated", {
+        "github.event.action": action,
+        "github.installation.id": installationId,
+        "github.installation.status": nextStatus,
       });
     } else {
-      console.info("[github installation] event received (no status change)", {
-        installationId,
-        action: parsed.data.action,
+      serverLogger.info("github.installation.event_no_status_change", {
+        "github.event.action": action,
+        "github.installation.id": installationId,
       });
     }
   } else {
-    console.info("[github installation] repositories event received", {
-      installationId,
-      eventType: args.eventType,
-      action: parsed.data.action,
+    serverLogger.info("github.installation.repositories_event_received", {
+      "github.event.action": action,
+      "github.event.type": args.eventType,
+      "github.installation.id": installationId,
     });
   }
 

@@ -1,0 +1,90 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const telemetryMocks = vi.hoisted(() => {
+  const span = {
+    end: vi.fn(),
+    setAttribute: vi.fn(),
+    setStatus: vi.fn(),
+  };
+
+  return {
+    recordTelemetryError: vi.fn(),
+    startActiveSpan: vi.fn(
+      async (
+        _name: string,
+        _options: unknown,
+        run: (span: {
+          end: () => void;
+          setAttribute: () => void;
+          setStatus: () => void;
+        }) => Promise<Response>,
+      ) => run(span),
+    ),
+    span,
+  };
+});
+
+vi.mock("./node", () => ({
+  getTelemetryTracer: () => ({
+    startActiveSpan: telemetryMocks.startActiveSpan,
+  }),
+  recordTelemetryError: telemetryMocks.recordTelemetryError,
+  SpanKind: { SERVER: 1 },
+  SpanStatusCode: { ERROR: 2 },
+}));
+
+import { instrumentServerFetch } from "./server";
+
+describe("instrumentServerFetch", () => {
+  beforeEach(() => {
+    telemetryMocks.recordTelemetryError.mockClear();
+    telemetryMocks.startActiveSpan.mockClear();
+    telemetryMocks.span.end.mockClear();
+    telemetryMocks.span.setAttribute.mockClear();
+    telemetryMocks.span.setStatus.mockClear();
+  });
+
+  it("records 5xx responses as server response errors", async () => {
+    const response = await instrumentServerFetch(
+      new Request("http://localhost/api/cli/sql", { method: "POST" }),
+      () => new Response("{}", { status: 500 }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(telemetryMocks.recordTelemetryError).toHaveBeenCalledWith(
+      expect.any(Error),
+      {
+        "error.handled": false,
+        "error.source": "server.response",
+        "http.request.method": "POST",
+        "http.response.status_code": 500,
+        "http.route": "/api/cli/sql",
+        "url.path": "/api/cli/sql",
+      },
+    );
+    expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
+  });
+
+  it("parameterizes TanStack dev serverFn IDs in server span names and attributes", async () => {
+    await instrumentServerFetch(
+      new Request(
+        "http://localhost/_serverFn/eyJmaWxlIjoiL3NyYy9yb3V0ZXMvX19yb290LnRzeD90c3Mtc2VydmVyZm4tc3BsaXQiLCJleHBvcnQiOiJnZXRTZXNzaW9uX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ",
+      ),
+      () => new Response("{}", { status: 200 }),
+    );
+
+    expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
+      "GET /_serverFn/:id",
+      {
+        attributes: {
+          "http.request.method": "GET",
+          "http.route": "/_serverFn/:id",
+          "url.path": "/_serverFn/:id",
+          "url.scheme": "http",
+        },
+        kind: 1,
+      },
+      expect.any(Function),
+    );
+  });
+});

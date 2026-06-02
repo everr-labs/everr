@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 export type NotifyPayload = {
   tenantId: string;
@@ -25,6 +26,10 @@ export async function notifyWorkflowUpdate(
     const payloadJson = JSON.stringify(payload);
     await db.execute(sql`SELECT pg_notify('workflows', ${payloadJson})`);
   } catch (err) {
-    console.error("[notify] pg_notify failed", err);
+    serverLogger.error("postgres.notify.failed", {
+      ...exceptionAttributes(err),
+      "messaging.destination.name": "workflows",
+      "messaging.system": "postgresql",
+    });
   }
 }

@@ -1,6 +1,10 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
+import {
+  clickhouseOperationFromSql,
+  instrumentClickhouseOperation,
+} from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
 // against ClickHouse Cloud (server keep-alive ~10s). Set just under the server
@@ -29,14 +33,18 @@ export async function query<T>(
     throw new Error("Missing ClickHouse tenant context");
   }
 
-  const result = await clickhouse.query({
-    query,
-    query_params,
-    format: "JSONEachRow",
-    clickhouse_settings: {
-      SQL_everr_tenant_id: organizationId,
-    },
-  });
+  const result = await instrumentClickhouseOperation(
+    { client: "app", operation: clickhouseOperationFromSql(query) },
+    () =>
+      clickhouse.query({
+        query,
+        query_params,
+        format: "JSONEachRow",
+        clickhouse_settings: {
+          SQL_everr_tenant_id: organizationId,
+        },
+      }),
+  );
 
   return result.json<T>();
 }
@@ -84,16 +92,20 @@ export async function querySqlApi<T>(
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
 
-  const result = await clickhouse.query({
-    query,
-    query_params,
-    format: "JSONEachRow",
-    auth: { username, password },
-    // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
-    // org gets its own counters. The header value is server-derived from
-    // session.activeOrganizationId — never forwarded from CLI input.
-    http_headers: { "X-ClickHouse-Quota": username },
-  });
+  const result = await instrumentClickhouseOperation(
+    { client: "sql_api", operation: clickhouseOperationFromSql(query) },
+    () =>
+      clickhouse.query({
+        query,
+        query_params,
+        format: "JSONEachRow",
+        auth: { username, password },
+        // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
+        // org gets its own counters. The header value is server-derived from
+        // session.activeOrganizationId — never forwarded from CLI input.
+        http_headers: { "X-ClickHouse-Quota": username },
+      }),
+  );
 
   return result.json<T>();
 }
@@ -115,24 +127,33 @@ const clickhouseAdmin = createClient({
   keep_alive: clickhouseKeepAlive,
 });
 
+type AdminCommandOptions = Omit<
+  Parameters<typeof clickhouseAdmin.command>[0],
+  "query"
+>;
+
 export async function upsertTenantRetention(row: {
   tenantId: string;
   tracesDays: number;
   logsDays: number;
   metricsDays: number;
 }): Promise<void> {
-  await clickhouseAdmin.insert({
-    table: "app.tenant_retention_source",
-    values: [
-      {
-        tenant_id: row.tenantId,
-        traces_days: row.tracesDays,
-        logs_days: row.logsDays,
-        metrics_days: row.metricsDays,
-      },
-    ],
-    format: "JSONEachRow",
-  });
+  await instrumentClickhouseOperation(
+    { client: "admin", operation: "INSERT" },
+    () =>
+      clickhouseAdmin.insert({
+        table: "app.tenant_retention_source",
+        values: [
+          {
+            tenant_id: row.tenantId,
+            traces_days: row.tracesDays,
+            logs_days: row.logsDays,
+            metrics_days: row.metricsDays,
+          },
+        ],
+        format: "JSONEachRow",
+      }),
+  );
 }
 
 // Create the per-org ClickHouse user, set its profile + default role, grant
@@ -145,32 +166,28 @@ export async function provisionSqlApiOrgUser(
   const password = sqlApiOrgPassword(organizationId);
   const tenantLiteral = `'${organizationId}'`;
 
-  await clickhouseAdmin.command({
-    query: `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
-  });
+  await adminCommand(
+    `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
+  );
   // CH 26 requires sql_api_role to be active for WITH ADMIN OPTION to work,
   // but DEFAULT ROLE NONE keeps it off to avoid the readonly profile. Activate
   // it in an ephemeral session scoped to just these two statements.
   const sessionId = randomUUID();
-  await clickhouseAdmin.command({
-    query: "SET ROLE sql_api_role",
+  await adminCommand("SET ROLE sql_api_role", {
     clickhouse_settings: { session_id: sessionId },
   });
-  await clickhouseAdmin.command({
-    query: `GRANT sql_api_role TO \`${username}\``,
+  await adminCommand(`GRANT sql_api_role TO \`${username}\``, {
     clickhouse_settings: { session_id: sessionId },
   });
   // DEFAULT ROLE has to come after the GRANT — CH validates the role is
   // already granted to the user before it can be the default.
-  await clickhouseAdmin.command({
-    query: `ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`,
-  });
+  await adminCommand(`ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`);
 
   for (const table of SQL_API_TENANT_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
-    await clickhouseAdmin.command({
-      query: `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
-    });
+    await adminCommand(
+      `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
+    );
   }
 }
 
@@ -183,12 +200,21 @@ export async function deprovisionSqlApiOrgUser(
 
   for (const table of SQL_API_TENANT_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
-    await clickhouseAdmin.command({
-      query: `DROP ROW POLICY IF EXISTS \`${policy}\` ON app.\`${table}\``,
-    });
+    await adminCommand(
+      `DROP ROW POLICY IF EXISTS \`${policy}\` ON app.\`${table}\``,
+    );
   }
 
-  await clickhouseAdmin.command({
-    query: `DROP USER IF EXISTS \`${username}\``,
-  });
+  await adminCommand(`DROP USER IF EXISTS \`${username}\``);
+}
+
+function adminCommand(query: string, options: AdminCommandOptions = {}) {
+  return instrumentClickhouseOperation(
+    { client: "admin", operation: clickhouseOperationFromSql(query) },
+    () =>
+      clickhouseAdmin.command({
+        query,
+        ...options,
+      }),
+  );
 }

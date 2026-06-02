@@ -21,6 +21,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { workflowRuns } from "@/db/schema";
 import { githubEnv } from "@/env/github";
+import { serverLogger } from "@/telemetry/logger";
 import { getInstallationToken, paginate } from "./github-api";
 import { enqueueWebhookEvent } from "./runtime";
 import { generateWorkflowTraceId } from "./trace-id";
@@ -402,11 +403,11 @@ export async function* backfillRepo(
 ): AsyncGenerator<BackfillProgress> {
   const started = Date.now();
 
-  console.info("[backfill] starting repo import", {
-    installationId,
-    organizationId,
-    repo: repo.full_name,
-    repoId: repo.id,
+  serverLogger.info("github.backfill.repo_import.start", {
+    "github.installation.id": installationId,
+    "github.repository.full_name": repo.full_name,
+    "github.repository.id": repo.id,
+    "organization.id": organizationId,
   });
 
   const result: BackfillResult = {
@@ -519,18 +520,25 @@ export async function* backfillRepo(
   }
 
   result.durationMs = Date.now() - started;
-  const finishLog = result.errors.length > 0 ? console.warn : console.info;
-  finishLog("[backfill] finished repo import", {
-    installationId,
-    organizationId,
-    repo: repo.full_name,
-    repoId: repo.id,
-    runsReplayed: result.runsReplayed,
-    runsSkipped: result.runsSkipped,
-    jobsReplayed: result.jobsReplayed,
-    errors: result.errors.length,
-    durationMs: result.durationMs,
-  });
+  const finishAttributes = {
+    "duration.ms": result.durationMs,
+    "github.installation.id": installationId,
+    "github.repository.full_name": repo.full_name,
+    "github.repository.id": repo.id,
+    "organization.id": organizationId,
+    "result.error_count": result.errors.length,
+    "result.jobs_replayed": result.jobsReplayed,
+    "result.runs_replayed": result.runsReplayed,
+    "result.runs_skipped": result.runsSkipped,
+  };
+  if (result.errors.length > 0) {
+    serverLogger.warn(
+      "github.backfill.repo_import.complete_with_errors",
+      finishAttributes,
+    );
+  } else {
+    serverLogger.info("github.backfill.repo_import.complete", finishAttributes);
+  }
 
   yield {
     status: "done",

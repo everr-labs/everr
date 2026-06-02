@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { env } from "@/env";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 interface SendEmailParams {
   to: string;
@@ -24,7 +25,12 @@ class ResendMailer implements Mailer {
   send({ to, subject, text }: SendEmailParams): void {
     void this.resend.emails
       .send({ from: this.from, to, subject, text })
-      .catch((err) => console.error("[mailer] resend error:", err));
+      .catch((err) =>
+        serverLogger.error("mailer.send.failed", {
+          ...exceptionAttributes(err),
+          "mailer.provider": "resend",
+        }),
+      );
   }
 }
 
@@ -44,7 +50,12 @@ class NodemailerMailer implements Mailer {
   send({ to, subject, text }: SendEmailParams): void {
     void this.transport
       .sendMail({ from: this.from, to, subject, text })
-      .catch((err) => console.error("[mailer] nodemailer error:", err));
+      .catch((err) =>
+        serverLogger.error("mailer.send.failed", {
+          ...exceptionAttributes(err),
+          "mailer.provider": "nodemailer",
+        }),
+      );
   }
 }
 

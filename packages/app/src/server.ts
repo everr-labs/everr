@@ -5,10 +5,32 @@ import {
 } from "@tanstack/react-start/server";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "@/db/client";
+import {
+  getTelemetryTracer,
+  recordTelemetryError,
+  SpanKind,
+} from "@/telemetry/node";
+import { instrumentServerFetch } from "@/telemetry/server";
 
-console.log("[startup] Migrating database...");
-await migrate(db, { migrationsFolder: "./drizzle" });
-console.log("[startup] Database migrated.");
+const startupTracer = getTelemetryTracer("everr-app.startup");
+
+await startupTracer.startActiveSpan(
+  "startup.database_migration",
+  { kind: SpanKind.INTERNAL },
+  async (span) => {
+    try {
+      await migrate(db, { migrationsFolder: "./drizzle" });
+    } catch (error) {
+      recordTelemetryError(error, {
+        "error.handled": false,
+        "error.source": "startup.database_migration",
+      });
+      throw error;
+    } finally {
+      span.end();
+    }
+  },
+);
 
 const handler = defineHandlerCallback((ctx) => {
   return defaultStreamHandler(ctx);
@@ -17,5 +39,6 @@ const handler = defineHandlerCallback((ctx) => {
 const startFetch = createStartHandler(handler);
 
 export default {
-  fetch: (...args: Parameters<typeof startFetch>) => startFetch(...args),
+  fetch: (...args: Parameters<typeof startFetch>) =>
+    instrumentServerFetch(args[0], () => startFetch(...args)),
 };

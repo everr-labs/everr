@@ -8,6 +8,7 @@ import {
   JOB_QUOTA_PER_REPO,
   listInstallationRepos,
 } from "@/server/github-events/backfill";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 async function getInstallationsForOrganization(organizationId: string) {
   return db
@@ -106,11 +107,11 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
           }
         }
       } catch (err) {
-        console.error("[onboarding] failed to import repo", {
-          err,
-          installationId: active.installationId,
-          organizationId: session.session.activeOrganizationId,
-          repo: repo.full_name,
+        serverLogger.error("onboarding.repo_import.failed", {
+          ...exceptionAttributes(err),
+          "github.installation.id": active.installationId,
+          "github.repository.full_name": repo.full_name,
+          "organization.id": session.session.activeOrganizationId,
         });
         totalErrors++;
         yield {
