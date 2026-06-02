@@ -19,9 +19,18 @@ describe("buildAttributeKeysQuery", () => {
     expect(sql).toContain("mapKeys(SpanAttributes)");
     expect(sql).toContain("'span' AS source");
     expect(sql).toContain("UNION ALL");
-    expect(sql).toContain("LIMIT 500");
     expect(params.fromTime).toBeDefined();
     expect(params.toTime).toBeDefined();
+  });
+
+  it("caps each source independently (no single global limit)", () => {
+    const { sql } = buildAttributeKeysQuery(
+      { timeRange: { from: "now-1h", to: "now" } },
+      { tableName: "traces", sources: ["resource", "span"], columnFor },
+    );
+    // One LIMIT per source subquery, not one global cap after the union.
+    expect(sql.match(/LIMIT 200/g)).toHaveLength(2);
+    expect(sql).not.toContain("LIMIT 500");
   });
 
   it("rejects an invalid table name", () => {

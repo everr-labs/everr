@@ -19,6 +19,7 @@ import { useState } from "react";
 import { attributeKeysOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeKey, AttributeSource } from "../schemas";
+import { ATTRIBUTE_KEY_PER_SOURCE_LIMIT } from "../sql/keys";
 import {
   ATTRIBUTE_SOURCE_LABELS,
   attributeLabel,
@@ -112,6 +113,14 @@ export function AttributeKeyPicker({
     ),
   }));
 
+  // A source that returned a full page was likely truncated by the per-source
+  // cap; surface that so a missing key on a wide range isn't mistaken for absent.
+  const truncated = sources.some(
+    (source) =>
+      keys.filter((k: AttributeKey) => k.source === source).length >=
+      ATTRIBUTE_KEY_PER_SOURCE_LIMIT,
+  );
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -158,9 +167,9 @@ export function AttributeKeyPicker({
                   </CommandGroup>
                 ),
             )}
-            {keys.length >= 500 && (
+            {truncated && (
               <div className="text-muted-foreground px-2 py-1 text-xs">
-                Showing first 500 attributes
+                Showing the most common attributes per source
               </div>
             )}
           </CommandList>

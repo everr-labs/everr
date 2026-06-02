@@ -3,7 +3,10 @@ import { validateTableName } from "../../sql/table";
 import type { AttributeKey, AttributeSource } from "../schemas";
 import type { BuiltQuery } from "./types";
 
-const KEY_LIMIT = 500;
+// Cap each source independently so one high-cardinality map (e.g. log/span)
+// can't fill a single global limit and crowd out keys from the others. Key
+// names are low-cardinality in practice, so this effectively shows them all.
+export const ATTRIBUTE_KEY_PER_SOURCE_LIMIT = 200;
 
 export interface AttributeKeyRowRaw {
   key: string;
@@ -24,18 +27,21 @@ export function buildAttributeKeysQuery(
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const selects = opts.sources.map(
     (source) => `
-        SELECT DISTINCT arrayJoin(mapKeys(${opts.columnFor(source)})) AS key, '${source}' AS source
-        FROM ${opts.tableName}
-        WHERE ${timeColumn} >= parseDateTimeBestEffort({fromTime:String})
-          AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})`,
+        SELECT key, source FROM (
+          SELECT DISTINCT arrayJoin(mapKeys(${opts.columnFor(source)})) AS key, '${source}' AS source
+          FROM ${opts.tableName}
+          WHERE ${timeColumn} >= parseDateTimeBestEffort({fromTime:String})
+            AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})
+        )
+        WHERE key != ''
+        ORDER BY key
+        LIMIT ${ATTRIBUTE_KEY_PER_SOURCE_LIMIT}`,
   );
   const sql = `
       SELECT key, source FROM (
         ${selects.join("\n        UNION ALL\n")}
       )
-      WHERE key != ''
       ORDER BY source, key
-      LIMIT ${KEY_LIMIT}
       `;
   return { sql, params: { fromTime: fromISO, toTime: toISO } };
 }
