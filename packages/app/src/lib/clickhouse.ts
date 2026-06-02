@@ -1,10 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
-import {
-  clickhouseOperationFromSql,
-  instrumentClickhouseOperation,
-} from "@/telemetry/clickhouse";
+import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
 // against ClickHouse Cloud (server keep-alive ~10s). Set just under the server
@@ -34,7 +31,7 @@ export async function query<T>(
   }
 
   const result = await instrumentClickhouseOperation(
-    { client: "app", operation: clickhouseOperationFromSql(query) },
+    { client: "app", operation: "QUERY" },
     () =>
       clickhouse.query({
         query,
@@ -93,7 +90,7 @@ export async function querySqlApi<T>(
   const password = sqlApiOrgPassword(organizationId);
 
   const result = await instrumentClickhouseOperation(
-    { client: "sql_api", operation: clickhouseOperationFromSql(query) },
+    { client: "sql_api", operation: "QUERY" },
     () =>
       clickhouse.query({
         query,
@@ -210,7 +207,7 @@ export async function deprovisionSqlApiOrgUser(
 
 function adminCommand(query: string, options: AdminCommandOptions = {}) {
   return instrumentClickhouseOperation(
-    { client: "admin", operation: clickhouseOperationFromSql(query) },
+    { client: "admin", operation: "QUERY" },
     () =>
       clickhouseAdmin.command({
         query,

@@ -39,11 +39,6 @@ export async function instrumentClickhouseOperation<T>(
   );
 }
 
-export function clickhouseOperationFromSql(sql: string) {
-  const operation = /^\s*([a-z]+)/i.exec(sql)?.[1]?.toUpperCase();
-  return operation && knownOperations.has(operation) ? operation : "QUERY";
-}
-
 function clickhouseAttributes({
   client,
   operation,
@@ -54,15 +49,3 @@ function clickhouseAttributes({
     "db.system.name": "clickhouse",
   };
 }
-
-const knownOperations = new Set([
-  "ALTER",
-  "CREATE",
-  "DELETE",
-  "DROP",
-  "GRANT",
-  "INSERT",
-  "OPTIMIZE",
-  "SELECT",
-  "SET",
-]);

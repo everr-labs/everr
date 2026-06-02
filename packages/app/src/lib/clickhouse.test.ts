@@ -43,8 +43,6 @@ vi.mock("@/env", () => ({
 }));
 
 vi.mock("@/telemetry/clickhouse", () => ({
-  clickhouseOperationFromSql: (sql: string) =>
-    /^\s*([a-z]+)/i.exec(sql)?.[1]?.toUpperCase() ?? "QUERY",
   instrumentClickhouseOperation: mockInstrumentClickhouseOperation,
 }));
 
@@ -86,7 +84,7 @@ describe("query", () => {
     expect(mockInstrumentClickhouseOperation).toHaveBeenCalledWith(
       {
         client: "app",
-        operation: "SELECT",
+        operation: "QUERY",
       },
       expect.any(Function),
     );
@@ -100,7 +98,7 @@ describe("querySqlApi", () => {
     expect(mockInstrumentClickhouseOperation).toHaveBeenCalledWith(
       {
         client: "sql_api",
-        operation: "SELECT",
+        operation: "QUERY",
       },
       expect.any(Function),
     );
@@ -157,6 +155,10 @@ describe("provisionSqlApiOrgUser", () => {
 
     const setRoleCall = mockCommand.mock.calls[1][0];
     const grantCall = mockCommand.mock.calls[2][0];
+    expect(mockInstrumentClickhouseOperation.mock.calls[0][0]).toEqual({
+      client: "admin",
+      operation: "QUERY",
+    });
     expect(setRoleCall.clickhouse_settings.session_id).toBeDefined();
     expect(grantCall.clickhouse_settings.session_id).toBe(
       setRoleCall.clickhouse_settings.session_id,
