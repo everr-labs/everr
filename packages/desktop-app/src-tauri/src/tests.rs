@@ -10,6 +10,7 @@ use crate::notifications::{
     notification_hover_uses_native_panel_geometry, notification_window_uses_native_panel,
 };
 use crate::settings::build_wizard_status_response;
+use crate::startup::sync_installed_global_skills_from_paths;
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
     NotificationQueue, APP_NAME, DEV_APP_NAME,
@@ -300,4 +301,36 @@ fn sync_installed_cli_replaces_outdated_binary() {
         std::fs::read(&installed).expect("read installed cli"),
         b"new-cli"
     );
+}
+
+#[test]
+fn startup_skill_sync_removes_stale_global_rule_files() {
+    let temp = tempdir().expect("tempdir");
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("cwd");
+    std::fs::create_dir_all(&home).expect("create home");
+    std::fs::create_dir_all(&cwd).expect("create cwd");
+
+    let options = everr_core::skills::SkillOperationOptions {
+        scope: everr_core::skills::SkillScope::Global,
+        cwd: cwd.clone(),
+        home_dir: home.clone(),
+        providers: vec![everr_core::skills::SkillProvider::Codex],
+        skill_names: vec!["everr-setup-telemetry".to_string()],
+        all: false,
+        dry_run: false,
+    };
+    everr_core::skills::install_bundled_skills(&options).expect("install bundled skill");
+
+    let skill_dir = home.join(".agents/skills/everr-setup-telemetry");
+    let stale_rule = skill_dir.join("rules/obsolete.md");
+    std::fs::write(&stale_rule, "obsolete").expect("write stale rule");
+
+    assert!(
+        sync_installed_global_skills_from_paths(&home, &cwd).expect("sync installed skills"),
+        "sync should report a change"
+    );
+
+    assert!(!stale_rule.exists());
+    assert!(skill_dir.join("rules/nodejs.md").is_file());
 }

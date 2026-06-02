@@ -6,11 +6,9 @@
  */
 
 import { createSign } from "node:crypto";
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import QuickLRU from "quick-lru";
 import { githubEnv } from "@/env/github";
-
-const logger = logs.getLogger("@everr/app/github-events/github-api");
+import { serverLogger } from "@/telemetry/logger";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -89,6 +87,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function urlPath(value: string): string {
+  try {
+    return new URL(value).pathname;
+  } catch {
+    return "unknown";
+  }
+}
+
 function extractNextLink(link: string | null): string | null {
   if (!link) return null;
   const match = link.match(/<([^>]+)>;\s*rel="next"/);
@@ -126,17 +132,12 @@ export async function* paginate<T>(
         );
       }
       const retryAfter = Number(resp.headers.get("retry-after") ?? "60");
-      logger.emit({
-        severityNumber: SeverityNumber.WARN,
-        severityText: "WARN",
-        body: "github-api: rate limited, sleeping before retry",
-        attributes: {
-          "url.full": nextUrl,
-          "http.response.status_code": resp.status,
-          "github.rate_limit.retry_after_seconds": retryAfter,
-          "github.rate_limit.attempt": rateLimitRetries,
-          "github.rate_limit.max_attempts": MAX_RATE_LIMIT_RETRIES,
-        },
+      serverLogger.warn("github.api.rate_limited", {
+        "http.response.status_code": resp.status,
+        "retry.after.seconds": retryAfter,
+        "retry.attempt": rateLimitRetries,
+        "retry.max_attempts": MAX_RATE_LIMIT_RETRIES,
+        "url.path": urlPath(nextUrl),
       });
       await sleep(retryAfter * 1000);
       continue;

@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import { dbEnv } from "@/env/db";
+import { serverLogger } from "@/telemetry/logger";
 import type { NotifyPayload } from "./notify";
 
 export type Topic = "tenant" | "trace" | "commit" | "author";
@@ -135,9 +136,9 @@ export class NotificationHub {
     if (this.stopped) return;
     if (this.reconnectTimer) return;
     if (this.consecutiveFailures >= MAX_RETRIES) {
-      console.error(
-        `[NotificationHub] gave up reconnecting after ${MAX_RETRIES} consecutive failures`,
-      );
+      serverLogger.error("notification_hub.reconnect.give_up", {
+        "retry.max_attempts": MAX_RETRIES,
+      });
       return;
     }
 

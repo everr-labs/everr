@@ -33,7 +33,7 @@ If an Everr command fails, investigate why: collector stopped, stale app, wrong 
 
 ## Tables And Columns
 
-Cloud SQL starts with:
+SQL starts with the same query-facing table names for local and cloud:
 - `traces`
 - `logs`
 - `metrics_gauge`
@@ -41,11 +41,6 @@ Cloud SQL starts with:
 - `metrics_histogram`
 - `metrics_exponential_histogram`
 - `metrics_summary`
-
-Local SQL starts with:
-- `otel_traces`
-- `otel_logs`
-- metrics tables for sums, gauges, histograms, exponential histograms, and summaries
 
 Useful trace columns: `Timestamp`, `TraceId`, `SpanId`, `ParentSpanId`, `ServiceName`, `ScopeName`, `SpanName`, `SpanKind`, `Duration`, `StatusCode`, `StatusMessage`, `SpanAttributes`, `ResourceAttributes`.
 
@@ -62,13 +57,13 @@ Use `DESCRIBE TABLE <table>` when you need exact local metric columns.
 - Do not add tenant filters; Everr already enforces tenant isolation.
 - Do not use `PREWHERE` unless the user explicitly asks.
 
-## Useful Local Queries
+## Useful Queries
 
 Fresh traces:
 
 ```sql
 SELECT Timestamp, ServiceName, SpanName, StatusCode, Duration, TraceId
-FROM otel_traces
+FROM traces
 ORDER BY Timestamp DESC
 LIMIT 20
 ```
@@ -77,7 +72,7 @@ Recent errors:
 
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
-FROM otel_logs
+FROM logs
 WHERE Timestamp > now() - INTERVAL 1 HOUR
   AND SeverityNumber >= 17
 ORDER BY Timestamp DESC
@@ -88,7 +83,7 @@ Full trace:
 
 ```sql
 SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode, StatusMessage
-FROM otel_traces
+FROM traces
 WHERE Timestamp > now() - INTERVAL 1 HOUR
   AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
@@ -99,23 +94,10 @@ Slow spans:
 
 ```sql
 SELECT Timestamp, ServiceName, SpanName, Duration, TraceId
-FROM otel_traces
+FROM traces
 WHERE Timestamp > now() - INTERVAL 30 MINUTE
 ORDER BY Duration DESC
 LIMIT 20
-```
-
-## Useful Cloud Queries
-
-Recent production errors:
-
-```sql
-SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
-FROM logs
-WHERE Timestamp > now() - INTERVAL 1 HOUR
-  AND SeverityNumber >= 17
-ORDER BY Timestamp DESC
-LIMIT 50
 ```
 
 Recent failed spans:
@@ -151,7 +133,7 @@ For "production users are seeing errors":
 
 For "my local request is slow":
 1. Run `everr local status`.
-2. Query recent slow spans from `otel_traces`.
+2. Query recent slow spans from `traces`.
 3. Pick the slowest `TraceId` and query the full trace in timestamp order using the same recent window.
 4. If spans are missing around the slow boundary, use `everr-setup-telemetry` to add the next targeted signal.
 

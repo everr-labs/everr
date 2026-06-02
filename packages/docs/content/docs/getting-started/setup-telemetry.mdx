@@ -18,7 +18,7 @@ Browser apps can send telemetry to the local collector too, including browser me
 After your app emits telemetry, verify it locally:
 
 ```sh
-everr local query "SELECT Timestamp, ServiceName, SpanName FROM otel_traces ORDER BY Timestamp DESC LIMIT 20"
+everr local query "SELECT Timestamp, ServiceName, SpanName FROM traces ORDER BY Timestamp DESC LIMIT 20"
 ```
 
 You can also open Everr Desktop and inspect traces, logs, and metrics there.

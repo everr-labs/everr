@@ -15,7 +15,7 @@ function repoFromContext(clickhouse: {
   const client: SqlClient = {
     execute: (sql, params) => clickhouse.query(sql, params),
   };
-  return new ErrorsRepository(client, { tableName: "app.logs" });
+  return new ErrorsRepository(client);
 }
 
 export const searchErrorIssues = createAuthenticatedServerFn({ method: "GET" })

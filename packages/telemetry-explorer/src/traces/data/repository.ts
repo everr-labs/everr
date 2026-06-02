@@ -58,7 +58,7 @@ export class TracesRepository {
     private readonly client: SqlClient,
     options: TracesRepositoryOptions = {},
   ) {
-    this.tableName = options.tableName ?? "app.traces";
+    this.tableName = options.tableName ?? "traces";
   }
 
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {

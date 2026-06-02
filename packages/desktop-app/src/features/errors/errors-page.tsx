@@ -33,12 +33,8 @@ import { localSqlClient } from "../logs/local-sql-client";
 
 export { ErrorIssueSearchSchema };
 
-const localErrorsRepo = new ErrorsRepository(localSqlClient, {
-  tableName: "otel_logs",
-});
-const localTracesRepo = new TracesRepository(localSqlClient, {
-  tableName: "otel_traces",
-});
+const localErrorsRepo = new ErrorsRepository(localSqlClient);
+const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function ErrorsPage() {
   const search = useSearch({ strict: false }) as ErrorIssueSearch;

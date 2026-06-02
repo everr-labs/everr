@@ -17,16 +17,14 @@
  */
 
 import { createHash, createHmac } from "node:crypto";
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { workflowRuns } from "@/db/schema";
 import { githubEnv } from "@/env/github";
+import { serverLogger } from "@/telemetry/logger";
 import { getInstallationToken, paginate } from "./github-api";
 import { enqueueWebhookEvent } from "./runtime";
 import { generateWorkflowTraceId } from "./trace-id";
-
-const logger = logs.getLogger("@everr/app/github-events/backfill");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -405,16 +403,11 @@ export async function* backfillRepo(
 ): AsyncGenerator<BackfillProgress> {
   const started = Date.now();
 
-  logger.emit({
-    severityNumber: SeverityNumber.INFO,
-    severityText: "INFO",
-    body: "backfill: starting repo import",
-    attributes: {
-      "github.installation_id": installationId,
-      "github.organization_id": organizationId,
-      "vcs.repository.name": repo.full_name,
-      "vcs.repository.id": repo.id,
-    },
+  serverLogger.info("github.backfill.repo_import.start", {
+    "github.installation.id": installationId,
+    "github.repository.full_name": repo.full_name,
+    "github.repository.id": repo.id,
+    "organization.id": organizationId,
   });
 
   const result: BackfillResult = {
@@ -527,23 +520,25 @@ export async function* backfillRepo(
   }
 
   result.durationMs = Date.now() - started;
-  logger.emit({
-    severityNumber:
-      result.errors.length > 0 ? SeverityNumber.WARN : SeverityNumber.INFO,
-    severityText: result.errors.length > 0 ? "WARN" : "INFO",
-    body: "backfill: finished repo import",
-    attributes: {
-      "github.installation_id": installationId,
-      "github.organization_id": organizationId,
-      "vcs.repository.name": repo.full_name,
-      "vcs.repository.id": repo.id,
-      "backfill.runs_replayed": result.runsReplayed,
-      "backfill.runs_skipped": result.runsSkipped,
-      "backfill.jobs_replayed": result.jobsReplayed,
-      "backfill.errors": result.errors.length,
-      "backfill.duration_ms": result.durationMs,
-    },
-  });
+  const finishAttributes = {
+    "duration.ms": result.durationMs,
+    "github.installation.id": installationId,
+    "github.repository.full_name": repo.full_name,
+    "github.repository.id": repo.id,
+    "organization.id": organizationId,
+    "result.error_count": result.errors.length,
+    "result.jobs_replayed": result.jobsReplayed,
+    "result.runs_replayed": result.runsReplayed,
+    "result.runs_skipped": result.runsSkipped,
+  };
+  if (result.errors.length > 0) {
+    serverLogger.warn(
+      "github.backfill.repo_import.complete_with_errors",
+      finishAttributes,
+    );
+  } else {
+    serverLogger.info("github.backfill.repo_import.complete", finishAttributes);
+  }
 
   yield {
     status: "done",

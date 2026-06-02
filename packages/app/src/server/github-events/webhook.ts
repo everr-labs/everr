@@ -1,14 +1,12 @@
 import { verify } from "@octokit/webhooks-methods";
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
 import { env } from "@/env";
+import { serverLogger } from "@/telemetry/logger";
 import { headersToRecord } from "./headers";
 import { enqueueWebhookEvent } from "./runtime";
-
-const logger = logs.getLogger("@everr/app/github-events/webhook");
 
 const installationEventSchema = z.object({
   action: z.string().optional(),
@@ -39,39 +37,27 @@ async function handleInstallationEvent(args: {
   try {
     parsedBody = JSON.parse(args.bodyText);
   } catch {
-    logger.emit({
-      severityNumber: SeverityNumber.WARN,
-      severityText: "WARN",
-      body: "github webhook: invalid json payload",
-      attributes: { "github.event.type": args.eventType },
+    serverLogger.warn("github.webhook.invalid_json", {
+      "github.event.type": args.eventType,
     });
     return new Response("invalid json payload", { status: 400 });
   }
 
   const parsed = installationEventSchema.safeParse(parsedBody);
   if (!parsed.success) {
-    logger.emit({
-      severityNumber: SeverityNumber.WARN,
-      severityText: "WARN",
-      body: "github webhook: invalid installation payload shape",
-      attributes: {
-        "github.event.type": args.eventType,
-        "validation.error": parsed.error.message,
-      },
+    serverLogger.warn("github.webhook.invalid_installation_payload", {
+      "github.event.type": args.eventType,
+      "validation.error": parsed.error.message,
     });
     return new Response("invalid payload shape", { status: 400 });
   }
 
   const installationId = parsed.data.installation?.id;
+  const action = parsed.data.action ?? "unknown";
   if (!installationId) {
-    logger.emit({
-      severityNumber: SeverityNumber.WARN,
-      severityText: "WARN",
-      body: "github webhook: installation event missing installation.id",
-      attributes: {
-        "github.event.type": args.eventType,
-        "github.event.action": parsed.data.action,
-      },
+    serverLogger.warn("github.webhook.missing_installation_id", {
+      "github.event.action": action,
+      "github.event.type": args.eventType,
     });
     return new Response("missing installation.id", { status: 400 });
   }
@@ -88,37 +74,22 @@ async function handleInstallationEvent(args: {
 
     if (nextStatus) {
       await setGithubInstallationStatus(installationId, nextStatus);
-      logger.emit({
-        severityNumber: SeverityNumber.INFO,
-        severityText: "INFO",
-        body: "github installation: status updated",
-        attributes: {
-          "github.installation_id": installationId,
-          "github.event.action": parsed.data.action,
-          "github.installation.status": nextStatus,
-        },
+      serverLogger.info("github.installation.status_updated", {
+        "github.event.action": action,
+        "github.installation.id": installationId,
+        "github.installation.status": nextStatus,
       });
     } else {
-      logger.emit({
-        severityNumber: SeverityNumber.INFO,
-        severityText: "INFO",
-        body: "github installation: event received (no status change)",
-        attributes: {
-          "github.installation_id": installationId,
-          "github.event.action": parsed.data.action,
-        },
+      serverLogger.info("github.installation.event_no_status_change", {
+        "github.event.action": action,
+        "github.installation.id": installationId,
       });
     }
   } else {
-    logger.emit({
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      body: "github installation: repositories event received",
-      attributes: {
-        "github.installation_id": installationId,
-        "github.event.type": args.eventType,
-        "github.event.action": parsed.data.action,
-      },
+    serverLogger.info("github.installation.repositories_event_received", {
+      "github.event.action": action,
+      "github.event.type": args.eventType,
+      "github.installation.id": installationId,
     });
   }
 

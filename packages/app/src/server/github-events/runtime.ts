@@ -1,5 +1,6 @@
 import { type Job, PgBoss } from "pg-boss";
 import { db, pool } from "@/db/client";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { replayWebhookToCollector } from "./collector";
 import { GH_EVENTS_CONFIG } from "./config";
 import { firstHeader } from "./headers";
@@ -55,10 +56,15 @@ const WORK_OPTS = { localConcurrency: GH_EVENTS_CONFIG.workerCount };
 async function startGitHubEventsRuntime(): Promise<PgBoss> {
   if (boss) return boss;
 
-  console.log("[startup] Starting GitHub events runtime...");
+  serverLogger.info("github_events.runtime.start");
   boss = createBoss();
 
-  boss.on("error", console.error);
+  boss.on("error", (error) => {
+    serverLogger.error(
+      "github_events.pg_boss.error",
+      exceptionAttributes(error),
+    );
+  });
 
   await boss.start();
 
@@ -74,9 +80,9 @@ async function startGitHubEventsRuntime(): Promise<PgBoss> {
           await processCollectorJob(job);
         } catch (error) {
           if (error instanceof TerminalEventError) {
-            console.error("[gh-collector] terminal error, not retrying", {
-              jobId: job.id,
-              error: error.message,
+            serverLogger.error("github_events.collector.terminal_error", {
+              ...exceptionAttributes(error),
+              "pg_boss.job.id": job.id,
             });
             return;
           }
@@ -93,9 +99,9 @@ async function startGitHubEventsRuntime(): Promise<PgBoss> {
           await processStatusJob(job);
         } catch (error) {
           if (error instanceof TerminalEventError) {
-            console.error("[gh-status] terminal error, not retrying", {
-              jobId: job.id,
-              error: error.message,
+            serverLogger.error("github_events.status.terminal_error", {
+              ...exceptionAttributes(error),
+              "pg_boss.job.id": job.id,
             });
             return;
           }

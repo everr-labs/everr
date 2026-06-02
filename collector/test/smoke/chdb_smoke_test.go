@@ -90,7 +90,7 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 	waitForSQLResponse(
 		t,
 		fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort),
-		`SELECT count() AS c FROM otel_logs`,
+		`SELECT count() AS c FROM logs`,
 		10*time.Second,
 		func(body string) bool { return strings.Contains(body, `"c":1`) },
 	)
@@ -98,7 +98,7 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 	resp, err := http.Post(
 		fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort),
 		"text/plain",
-		strings.NewReader(`INSERT INTO otel_logs VALUES (1)`),
+		strings.NewReader("INSERT INTO otel_logs FORMAT JSONEachRow\n{}"),
 	)
 	if err != nil {
 		t.Fatalf("sql insert request: %v", err)
@@ -146,7 +146,7 @@ func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 	waitForSQLResponse(
 		t,
 		fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort),
-		`SELECT count() AS c FROM otel_logs`,
+		`SELECT count() AS c FROM logs`,
 		10*time.Second,
 		func(body string) bool { return strings.Contains(body, `"c":1`) },
 	)
@@ -162,7 +162,7 @@ func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 		sqlURL,
 		"text/plain",
 		strings.NewReader(
-			`SELECT count() AS c FROM otel_logs WHERE Body = {body:String} AND SeverityText IN {levels:Array(String)}`,
+			`SELECT count() AS c FROM logs WHERE Body = {body:String} AND SeverityText IN {levels:Array(String)}`,
 		),
 	)
 	if err != nil {
