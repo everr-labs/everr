@@ -1,10 +1,10 @@
 {
   "pages": [
     "getting-started",
-    "ci-insights",
-    "test-analytics",
     "local-debugging",
     "production-monitoring",
+    "ci-insights",
+    "test-analytics",
     "reference"
   ]
 }
