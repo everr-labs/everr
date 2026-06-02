@@ -1,11 +1,11 @@
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
-  AttributeFilterSchema,
   type AttributeKey,
   type AttributeKeysInput,
   AttributeSourceSchema,
   type AttributeValuesInput,
+  attributesField,
 } from "../attribute-filter/schemas";
 
 export const LogLevelSchema = z.enum([
@@ -43,12 +43,13 @@ export const LogAttributeValuesInputSchema = z.object({
   timeRange: TimeRangeSchema,
   source: AttributeSourceSchema,
   key: z.string().min(1),
+  search: z.string().optional(),
 });
 
 export const LogsSearchFiltersShape = {
   levels: z.array(LogLevelSchema).default([]),
   services: z.array(z.string()).default([]),
-  attributes: z.array(AttributeFilterSchema).default([]),
+  attributes: attributesField(["resource", "log", "scope"]),
 } as const;
 
 const LogsFilterShape = {

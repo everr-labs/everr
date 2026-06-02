@@ -10,7 +10,12 @@ export interface AttributeValueRowRaw {
 }
 
 export function buildAttributeValuesQuery(
-  input: { timeRange: TimeRange; source: AttributeSource; key: string },
+  input: {
+    timeRange: TimeRange;
+    source: AttributeSource;
+    key: string;
+    search?: string;
+  },
   opts: {
     tableName: string;
     columnFor: (source: AttributeSource) => string;
@@ -21,17 +26,34 @@ export function buildAttributeValuesQuery(
   const timeColumn = opts.timeColumn ?? "TimestampTime";
   const column = opts.columnFor(input.source);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
+  const params: Record<string, unknown> = {
+    fromTime: fromISO,
+    toTime: toISO,
+    key: input.key,
+  };
+  const filters = [
+    `${timeColumn} >= parseDateTimeBestEffort({fromTime:String})`,
+    `${timeColumn} <= parseDateTimeBestEffort({toTime:String})`,
+    `mapContains(${column}, {key:String})`,
+    `${column}[{key:String}] != ''`,
+  ];
+  // Server-side substring match so high-cardinality values past the LIMIT
+  // cutoff remain reachable — the user types and the matching slice is fetched.
+  const search = input.search?.trim();
+  if (search) {
+    filters.push(
+      `positionCaseInsensitive(${column}[{key:String}], {valueSearch:String}) > 0`,
+    );
+    params.valueSearch = search;
+  }
   const sql = `
       SELECT DISTINCT ${column}[{key:String}] AS v
       FROM ${opts.tableName}
-      WHERE ${timeColumn} >= parseDateTimeBestEffort({fromTime:String})
-        AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})
-        AND mapContains(${column}, {key:String})
-        AND ${column}[{key:String}] != ''
+      WHERE ${filters.join("\n        AND ")}
       ORDER BY v
       LIMIT ${VALUE_LIMIT}
       `;
-  return { sql, params: { fromTime: fromISO, toTime: toISO, key: input.key } };
+  return { sql, params };
 }
 
 export function decodeAttributeValueRows(

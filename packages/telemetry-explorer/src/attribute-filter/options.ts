@@ -15,7 +15,12 @@ export function attributeKeysOptions(
 
 export function attributeValuesOptions(
   repo: AttributeRepositoryLike,
-  input: { timeRange: TimeRange; source: AttributeSource; key: string },
+  input: {
+    timeRange: TimeRange;
+    source: AttributeSource;
+    key: string;
+    search?: string;
+  },
   opts: { domain: string },
 ) {
   return {
@@ -25,6 +30,7 @@ export function attributeValuesOptions(
       input.timeRange,
       input.source,
       input.key,
+      input.search ?? "",
     ] as const,
     queryFn: () => repo.attributeValues(input),
   };

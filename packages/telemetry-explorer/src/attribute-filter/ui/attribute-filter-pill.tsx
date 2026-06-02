@@ -15,7 +15,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { attributeValuesOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter, AttributeOp } from "../schemas";
@@ -49,10 +49,26 @@ function PillEditor({
 }) {
   const name = attributeLabel(filter.key);
   const showValues = opTakesValues(filter.op);
-  const { data: values = [], isLoading } = useQuery({
+
+  // Debounce the search box so each keystroke doesn't fire a query; the
+  // matching slice is fetched server-side so values past the discovery cutoff
+  // stay reachable.
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), 200);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  const { data: values = [], isFetching } = useQuery({
     ...attributeValuesOptions(
       repo,
-      { timeRange, source: filter.source, key: filter.key },
+      {
+        timeRange,
+        source: filter.source,
+        key: filter.key,
+        search: debouncedSearch || undefined,
+      },
       { domain },
     ),
     enabled: showValues,
@@ -64,6 +80,16 @@ function PillEditor({
       : [...filter.values, value];
     onChange({ ...filter, values: next });
   };
+
+  // Always keep selected values visible, even when the current search page
+  // doesn't include them, so they stay deselectable.
+  const selectedMissing = filter.values.filter((v) => !values.includes(v));
+  const displayValues = [...selectedMissing, ...values];
+
+  // Let the user commit a known value that's past the discovery cutoff.
+  const trimmedSearch = search.trim();
+  const canAddExact =
+    trimmedSearch.length > 0 && !displayValues.includes(trimmedSearch);
 
   return (
     <div className="flex flex-col">
@@ -97,18 +123,35 @@ function PillEditor({
       </div>
 
       {showValues ? (
-        <Command className="*-data-[slot=command-input-wrapper]:p-0 rounded-none border-t p-0">
+        <Command
+          shouldFilter={false}
+          className="*-data-[slot=command-input-wrapper]:p-0 rounded-none border-t p-0"
+        >
           <CommandInput
+            value={search}
+            onValueChange={setSearch}
             wrapperClassName="p-0 border-b"
             inputGroupClassName="border-none rounded-none bg-transparent h-8"
             placeholder="Search values..."
           />
           <CommandList>
             <CommandEmpty>
-              {isLoading ? "Loading..." : "No values."}
+              {isFetching ? "Loading..." : "No values."}
             </CommandEmpty>
+            {canAddExact ? (
+              <CommandGroup>
+                <CommandItem
+                  value={`__exact__:${trimmedSearch}`}
+                  onSelect={() => toggleValue(trimmedSearch)}
+                >
+                  <span className="truncate">
+                    Use exactly “{trimmedSearch}”
+                  </span>
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
             <CommandGroup>
-              {values.map((value: string) => (
+              {displayValues.map((value: string) => (
                 <CommandItem
                   key={value}
                   value={value}

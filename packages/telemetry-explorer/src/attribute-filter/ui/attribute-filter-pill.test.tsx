@@ -98,4 +98,28 @@ describe("AttributeFilterPill", () => {
     fireEvent.click(screen.getByText("Is not"));
     expect(onChange).toHaveBeenCalledWith({ ...baseFilter, op: "not_in" });
   });
+
+  it("offers a free-text 'use exactly' entry for a value past the cutoff", () => {
+    const { onChange } = renderPill(baseFilter, { defaultOpen: true });
+    fireEvent.change(screen.getByPlaceholderText("Search values..."), {
+      target: { value: "us-east-1a" },
+    });
+    fireEvent.click(screen.getByText(/Use exactly/));
+    expect(onChange).toHaveBeenCalledWith({
+      ...baseFilter,
+      values: ["us-east-1a"],
+    });
+  });
+
+  it("keeps an already-selected value visible even if discovery omits it", () => {
+    renderPill(
+      { ...baseFilter, values: ["legacy-value"] },
+      { defaultOpen: true },
+    );
+    // Discovery mock returns production/staging; the selected value must remain
+    // a selectable (checked) option so it can be deselected.
+    expect(
+      screen.getByRole("option", { name: "legacy-value" }),
+    ).toBeInTheDocument();
+  });
 });

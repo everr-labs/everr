@@ -2,8 +2,8 @@ import { isValid } from "@everr/datemath";
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
-  AttributeFilterSchema,
   AttributeSourceSchema,
+  attributesField,
 } from "../../attribute-filter/schemas";
 
 export type {
@@ -33,7 +33,7 @@ export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
   fingerprint: z.string().trim().default(""),
   occurrence: z.string().trim().default(""),
   sort: ErrorSortSchema.default("lastSeen"),
-  attributes: z.array(AttributeFilterSchema).default([]),
+  attributes: attributesField(["resource", "log", "scope"]),
 });
 export type ErrorIssueSearch = z.infer<typeof ErrorIssueSearchSchema>;
 
@@ -46,7 +46,7 @@ export const SearchErrorIssuesInputSchema = z.object({
   sort: ErrorSortSchema.default("lastSeen"),
   limit: z.coerce.number().int().positive().max(500).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-  attributes: z.array(AttributeFilterSchema).default([]),
+  attributes: attributesField(["resource", "log", "scope"]),
 });
 export type SearchErrorIssuesInput = z.infer<
   typeof SearchErrorIssuesInputSchema
@@ -67,7 +67,7 @@ export type GetErrorIssuesQueryInput = GetErrorIssueInput;
 export const ListErrorServicesInputSchema = z.object({
   fromTs: z.string().min(1),
   toTs: z.string().min(1),
-  attributes: z.array(AttributeFilterSchema).default([]),
+  attributes: attributesField(["resource", "log", "scope"]),
 });
 export type ListErrorServicesInput = z.infer<
   typeof ListErrorServicesInputSchema
@@ -84,6 +84,7 @@ export const ErrorAttributeValuesInputSchema = z.object({
   timeRange: TimeRangeSchema,
   source: AttributeSourceSchema,
   key: z.string().min(1),
+  search: z.string().optional(),
 });
 export type ErrorAttributeValuesInput = z.infer<
   typeof ErrorAttributeValuesInputSchema

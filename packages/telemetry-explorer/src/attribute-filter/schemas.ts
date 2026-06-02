@@ -23,6 +23,22 @@ export const AttributeFilterSchema = z.object({
 });
 export type AttributeFilter = z.infer<typeof AttributeFilterSchema>;
 
+// Per-domain `attributes` field. Each domain only supports a subset of sources
+// (logs/errors: resource|log|scope; traces: resource|span); a saved filter or
+// URL carrying an unsupported source must be rejected at the validation
+// boundary rather than throwing later in the column mapper. The element type
+// stays the shared AttributeFilter (superset) so a narrowed source union does
+// not ripple through the UI and data layers.
+export function attributesField(allowed: readonly AttributeSource[]) {
+  const supported = new Set<AttributeSource>(allowed);
+  return z
+    .array(AttributeFilterSchema)
+    .default([])
+    .refine((filters) => filters.every((f) => supported.has(f.source)), {
+      message: `attribute source must be one of: ${allowed.join(", ")}`,
+    });
+}
+
 export interface AttributeKey {
   source: AttributeSource;
   key: string;
@@ -36,4 +52,7 @@ export interface AttributeValuesInput {
   timeRange: TimeRange;
   source: AttributeSource;
   key: string;
+  // Optional server-side substring filter on the value, for high-cardinality
+  // attributes whose values fall past the discovery cutoff.
+  search?: string;
 }

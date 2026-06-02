@@ -15,7 +15,7 @@ describe("attribute options", () => {
     expect(opts.queryKey).toEqual(["traces", "attributeKeys", timeRange]);
   });
 
-  it("namespaces the values query by domain, source, and key", () => {
+  it("namespaces the values query by domain, source, key, and search", () => {
     const opts = attributeValuesOptions(
       repo,
       { timeRange, source: "span", key: "http.route" },
@@ -27,6 +27,23 @@ describe("attribute options", () => {
       timeRange,
       "span",
       "http.route",
+      "",
+    ]);
+  });
+
+  it("includes the search term in the values query key", () => {
+    const opts = attributeValuesOptions(
+      repo,
+      { timeRange, source: "span", key: "http.route", search: "/api" },
+      { domain: "traces" },
+    );
+    expect(opts.queryKey).toEqual([
+      "traces",
+      "attributeValues",
+      timeRange,
+      "span",
+      "http.route",
+      "/api",
     ]);
   });
 });

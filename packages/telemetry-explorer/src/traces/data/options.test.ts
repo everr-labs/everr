@@ -87,6 +87,13 @@ describe("trace attribute options", () => {
         source: "span",
         key: "http.route",
       }).queryKey,
-    ).toEqual(["traces", "attributeValues", timeRange, "span", "http.route"]);
+    ).toEqual([
+      "traces",
+      "attributeValues",
+      timeRange,
+      "span",
+      "http.route",
+      "",
+    ]);
   });
 });

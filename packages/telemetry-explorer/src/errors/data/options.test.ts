@@ -119,6 +119,13 @@ describe("error attribute options", () => {
         source: "log",
         key: "http.method",
       }).queryKey,
-    ).toEqual(["errors", "attributeValues", timeRange, "log", "http.method"]);
+    ).toEqual([
+      "errors",
+      "attributeValues",
+      timeRange,
+      "log",
+      "http.method",
+      "",
+    ]);
   });
 });

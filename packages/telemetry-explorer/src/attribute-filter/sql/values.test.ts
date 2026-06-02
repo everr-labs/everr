@@ -23,6 +23,38 @@ describe("buildAttributeValuesQuery", () => {
     expect(sql).toContain("LIMIT 100");
     expect(params.key).toBe("http.route");
     expect(params.fromTime).toBeDefined();
+    expect(sql).not.toContain("positionCaseInsensitive");
+    expect(params.valueSearch).toBeUndefined();
+  });
+
+  it("adds a substring filter when a search term is given", () => {
+    const { sql, params } = buildAttributeValuesQuery(
+      {
+        timeRange: { from: "now-1h", to: "now" },
+        source: "span",
+        key: "http.route",
+        search: "/api",
+      },
+      { tableName: "traces", columnFor },
+    );
+    expect(sql).toContain(
+      "positionCaseInsensitive(SpanAttributes[{key:String}], {valueSearch:String}) > 0",
+    );
+    expect(params.valueSearch).toBe("/api");
+  });
+
+  it("ignores a blank search term", () => {
+    const { sql, params } = buildAttributeValuesQuery(
+      {
+        timeRange: { from: "now-1h", to: "now" },
+        source: "span",
+        key: "http.route",
+        search: "   ",
+      },
+      { tableName: "traces", columnFor },
+    );
+    expect(sql).not.toContain("positionCaseInsensitive");
+    expect(params.valueSearch).toBeUndefined();
   });
 
   it("rejects an invalid table name", () => {

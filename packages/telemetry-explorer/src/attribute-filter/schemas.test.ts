@@ -8,7 +8,25 @@ import {
   AttributeOpSchema,
   AttributeSourceSchema,
   type AttributeValuesInput,
+  attributesField,
 } from "./schemas";
+
+describe("attributesField", () => {
+  const logsAttrs = attributesField(["resource", "log", "scope"]);
+
+  it("defaults to [] and accepts supported sources", () => {
+    expect(logsAttrs.parse(undefined)).toEqual([]);
+    expect(
+      logsAttrs.parse([{ source: "log", key: "k", op: "exists" }]),
+    ).toEqual([{ source: "log", key: "k", op: "exists", values: [] }]);
+  });
+
+  it("rejects a filter whose source the domain does not support", () => {
+    expect(() =>
+      logsAttrs.parse([{ source: "span", key: "k", op: "exists" }]),
+    ).toThrow();
+  });
+});
 
 describe("attribute-filter schemas", () => {
   it("accepts all four sources (superset across domains)", () => {
