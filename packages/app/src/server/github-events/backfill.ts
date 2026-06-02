@@ -17,7 +17,6 @@
  */
 
 import { createHash, createHmac } from "node:crypto";
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { workflowRuns } from "@/db/schema";
@@ -25,8 +24,6 @@ import { githubEnv } from "@/env/github";
 import { getInstallationToken, paginate } from "./github-api";
 import { enqueueWebhookEvent } from "./runtime";
 import { generateWorkflowTraceId } from "./trace-id";
-
-const logger = logs.getLogger("@everr/app/github-events/backfill");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -405,16 +402,11 @@ export async function* backfillRepo(
 ): AsyncGenerator<BackfillProgress> {
   const started = Date.now();
 
-  logger.emit({
-    severityNumber: SeverityNumber.INFO,
-    severityText: "INFO",
-    body: "backfill: starting repo import",
-    attributes: {
-      "github.installation_id": installationId,
-      "github.organization_id": organizationId,
-      "vcs.repository.name": repo.full_name,
-      "vcs.repository.id": repo.id,
-    },
+  console.info("[backfill] starting repo import", {
+    installationId,
+    organizationId,
+    repo: repo.full_name,
+    repoId: repo.id,
   });
 
   const result: BackfillResult = {
@@ -527,22 +519,17 @@ export async function* backfillRepo(
   }
 
   result.durationMs = Date.now() - started;
-  logger.emit({
-    severityNumber:
-      result.errors.length > 0 ? SeverityNumber.WARN : SeverityNumber.INFO,
-    severityText: result.errors.length > 0 ? "WARN" : "INFO",
-    body: "backfill: finished repo import",
-    attributes: {
-      "github.installation_id": installationId,
-      "github.organization_id": organizationId,
-      "vcs.repository.name": repo.full_name,
-      "vcs.repository.id": repo.id,
-      "backfill.runs_replayed": result.runsReplayed,
-      "backfill.runs_skipped": result.runsSkipped,
-      "backfill.jobs_replayed": result.jobsReplayed,
-      "backfill.errors": result.errors.length,
-      "backfill.duration_ms": result.durationMs,
-    },
+  const finishLog = result.errors.length > 0 ? console.warn : console.info;
+  finishLog("[backfill] finished repo import", {
+    installationId,
+    organizationId,
+    repo: repo.full_name,
+    repoId: repo.id,
+    runsReplayed: result.runsReplayed,
+    runsSkipped: result.runsSkipped,
+    jobsReplayed: result.jobsReplayed,
+    errors: result.errors.length,
+    durationMs: result.durationMs,
   });
 
   yield {

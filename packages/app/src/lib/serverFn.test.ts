@@ -92,12 +92,11 @@ describe("createAuthenticatedServerFn", () => {
   it("wires the auth middleware into createServerFn", async () => {
     const { createAuthenticatedServerFn } = await loadModule();
 
-    // allDefinitions order: [errorTelemetryMiddleware, authMiddleware, requireOrgMiddleware]
-    const [errorTelemetryDef, , requireOrgDef] = mocked.allDefinitions;
+    // allDefinitions order: [authMiddleware, requireOrgMiddleware]
+    const [, requireOrgDef] = mocked.allDefinitions;
     expect(createAuthenticatedServerFn).toBe(mocked.createServerFnResult);
     expect(mocked.createServerFnMiddleware).toHaveBeenCalledWith([
       requireOrgDef,
-      errorTelemetryDef,
     ]);
   });
 });
