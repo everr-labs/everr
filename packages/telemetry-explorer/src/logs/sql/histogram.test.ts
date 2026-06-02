@@ -25,7 +25,7 @@ describe("buildHistogramQuery", () => {
       timeRange: { from: "2026-03-09T00:00:00Z", to: "2026-03-09T01:00:00Z" },
       levels: [],
       services: [],
-      repos: [],
+      attributes: [],
       histogramBuckets: 60,
     });
     expect(built.sql).toContain("INTERVAL 60 SECOND");

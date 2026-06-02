@@ -1,4 +1,6 @@
 import {
+  ErrorAttributeKeysInputSchema,
+  ErrorAttributeValuesInputSchema,
   ErrorsRepository,
   GetErrorIssueInputSchema,
   ListErrorServicesInputSchema,
@@ -32,4 +34,20 @@ export const listErrorServices = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(ListErrorServicesInputSchema)
   .handler(({ data, context: { clickhouse } }) =>
     repoFromContext(clickhouse).listServices(data),
+  );
+
+export const getErrorAttributeKeys = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(ErrorAttributeKeysInputSchema)
+  .handler(({ data, context: { clickhouse } }) =>
+    repoFromContext(clickhouse).attributeKeys(data),
+  );
+
+export const getErrorAttributeValues = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(ErrorAttributeValuesInputSchema)
+  .handler(({ data, context: { clickhouse } }) =>
+    repoFromContext(clickhouse).attributeValues(data),
   );

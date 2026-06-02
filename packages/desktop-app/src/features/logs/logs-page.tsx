@@ -51,7 +51,7 @@ export function LogsPage() {
     q: search.q,
     levels: search.levels,
     services: search.services,
-    repos: search.repos,
+    attributes: search.attributes,
     traceId: search.traceId,
     showVolume: search.showVolume,
   };

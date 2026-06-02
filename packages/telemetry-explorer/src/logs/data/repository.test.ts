@@ -24,7 +24,7 @@ describe("LogsRepository.explorer", () => {
       timeRange: { from: "now-1h", to: "now" },
       levels: [],
       services: [],
-      repos: [],
+      attributes: [],
       limit: 200,
       offset: 0,
     });
@@ -43,7 +43,7 @@ describe("LogsRepository.totals", () => {
       timeRange: { from: "now-1h", to: "now" },
       levels: ["error"],
       services: [],
-      repos: [],
+      attributes: [],
     });
     expect(result.totalCount).toBe(1);
   });
@@ -59,7 +59,7 @@ describe("LogsRepository with custom tableName", () => {
         timeRange: { from: "now-1h", to: "now" },
         levels: [],
         services: [],
-        repos: [],
+        attributes: [],
         limit: 50,
         offset: 0,
       })
@@ -81,5 +81,33 @@ describe("LogsRepository.detail", () => {
         bodyHash: "h",
       }),
     ).rejects.toThrow(/not found/i);
+  });
+});
+
+describe("LogsRepository attribute discovery", () => {
+  it("attributeKeys decodes rows from the key query", async () => {
+    const client = fakeClient([
+      { key: "host.name", source: "resource" },
+      { key: "http.method", source: "log" },
+    ]);
+    const repo = new LogsRepository(client);
+    const keys = await repo.attributeKeys({
+      timeRange: { from: "now-1h", to: "now" },
+    });
+    expect(keys).toEqual([
+      { key: "host.name", source: "resource" },
+      { key: "http.method", source: "log" },
+    ]);
+  });
+
+  it("attributeValues decodes the v column", async () => {
+    const client = fakeClient([{ v: "GET" }, { v: "POST" }]);
+    const repo = new LogsRepository(client);
+    const values = await repo.attributeValues({
+      timeRange: { from: "now-1h", to: "now" },
+      source: "log",
+      key: "http.method",
+    });
+    expect(values).toEqual(["GET", "POST"]);
   });
 });

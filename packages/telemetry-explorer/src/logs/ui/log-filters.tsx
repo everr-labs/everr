@@ -10,9 +10,15 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash, ListFilter, X } from "lucide-react";
 import { useState } from "react";
-import { logRepoFilterOptions, logServiceFilterOptions } from "../data/options";
+import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import { logServiceFilterOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
-import type { LogLevel } from "../schemas";
+import type { AttributeFilter, LogLevel } from "../schemas";
+import {
+  LOGS_ATTRIBUTE_SOURCES_UI,
+  LOGS_EXCLUDED_KEYS,
+  LOGS_PROMOTED_ATTRIBUTES,
+} from "./log-attribute-config";
 import { LOG_LEVEL_META, LOG_LEVELS } from "./log-level-meta";
 
 export interface LogFiltersBarProps {
@@ -20,13 +26,13 @@ export interface LogFiltersBarProps {
   timeRange: TimeRange;
   levels: LogLevel[];
   services: string[];
-  repos: string[];
+  attributes: AttributeFilter[];
   traceId: string | undefined;
   levelCounts?: Record<LogLevel, number>;
   onChange: (patch: {
     levels?: LogLevel[];
     services?: string[];
-    repos?: string[];
+    attributes?: AttributeFilter[];
     traceId?: string;
   }) => void;
 }
@@ -90,7 +96,7 @@ export function LogFiltersBar({
   timeRange,
   levels,
   services,
-  repos,
+  attributes,
   traceId,
   levelCounts,
   onChange,
@@ -145,15 +151,18 @@ export function LogFiltersBar({
         searchPlaceholder="Search services..."
         className="w-full"
       />
-      <FilterCombobox
-        label="Source"
-        values={repos}
-        onChange={(nextRepos) => onChange({ repos: nextRepos })}
-        options={logRepoFilterOptions(repo, { timeRange })}
-        placeholder="All sources"
-        searchPlaceholder="Search sources..."
-        className="w-full"
+      <Separator />
+      <AttributeFilterSection
+        repo={repo}
+        domain="logs"
+        timeRange={timeRange}
+        attributes={attributes}
+        promotedAttributes={LOGS_PROMOTED_ATTRIBUTES}
+        excludedKeys={LOGS_EXCLUDED_KEYS}
+        sources={LOGS_ATTRIBUTE_SOURCES_UI}
+        onChange={(nextAttributes) => onChange({ attributes: nextAttributes })}
       />
+      <Separator />
       <TraceFilter
         traceId={traceId}
         onChange={(nextTraceId) => onChange({ traceId: nextTraceId })}

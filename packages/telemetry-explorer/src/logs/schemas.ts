@@ -1,5 +1,12 @@
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
+import {
+  type AttributeKey,
+  type AttributeKeysInput,
+  type AttributeValuesInput,
+  attributesField,
+  attributeValuesInputSchema,
+} from "../attribute-filter/schemas";
 
 export const LogLevelSchema = z.enum([
   "error",
@@ -12,10 +19,36 @@ export const LogLevelSchema = z.enum([
 
 export type LogLevel = z.infer<typeof LogLevelSchema>;
 
+export type {
+  AttributeFilter,
+  AttributeOp,
+  AttributeSource,
+} from "../attribute-filter/schemas";
+// Re-export the shared attribute types under both generic and historical names.
+export {
+  AttributeFilterSchema,
+  AttributeOpSchema,
+  AttributeSourceSchema,
+} from "../attribute-filter/schemas";
+
+export type LogAttributeKey = AttributeKey;
+export type LogAttributeKeysInput = AttributeKeysInput;
+export type LogAttributeValuesInput = AttributeValuesInput;
+
+export const LogAttributeKeysInputSchema = z.object({
+  timeRange: TimeRangeSchema,
+});
+
+export const LogAttributeValuesInputSchema = attributeValuesInputSchema([
+  "resource",
+  "log",
+  "scope",
+]);
+
 export const LogsSearchFiltersShape = {
   levels: z.array(LogLevelSchema).default([]),
   services: z.array(z.string()).default([]),
-  repos: z.array(z.string()).default([]),
+  attributes: attributesField(["resource", "log", "scope"]),
 } as const;
 
 const LogsFilterShape = {
@@ -96,5 +129,4 @@ export interface LogsTotalsResult {
 
 export interface LogFilterOptions {
   services: string[];
-  repos: string[];
 }

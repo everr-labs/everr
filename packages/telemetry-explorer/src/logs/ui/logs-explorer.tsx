@@ -23,7 +23,7 @@ import {
   logsTotalsOptions,
 } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
-import type { LogExplorerRow, LogLevel } from "../schemas";
+import type { AttributeFilter, LogExplorerRow, LogLevel } from "../schemas";
 import { LogFiltersBar } from "./log-filters";
 import { LogHistogram } from "./log-histogram";
 import { LogInspectorPanel } from "./log-inspector";
@@ -34,7 +34,7 @@ export interface LogsExplorerSearch {
   q?: string;
   levels: LogLevel[];
   services: string[];
-  repos: string[];
+  attributes: AttributeFilter[];
   traceId?: string;
   showVolume: boolean;
 }
@@ -188,7 +188,9 @@ export function LogsExplorer({
   renderRunLink,
   resolveJobId,
 }: LogsExplorerProps) {
-  const { showVolume, q, levels, services, repos, traceId } = search;
+  // Default `attributes` to [] so a consumer that hand-builds the search object
+  // without it (e.g. an external embedder) can't crash the filter UI on `.map`.
+  const { showVolume, q, levels, services, attributes = [], traceId } = search;
 
   const [selectedLogState, setSelectedLogState] = useState<{
     log: LogExplorerRow;
@@ -201,14 +203,14 @@ export function LogsExplorer({
     q,
     levels,
     services,
-    repos,
+    attributes,
     traceId,
   }));
 
   // Sync from search prop when it changes externally (back/forward, link nav, time range).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    setFilters({ q, levels, services, repos, traceId });
+    setFilters({ q, levels, services, attributes, traceId });
   }, [search]);
 
   const applyFilters = (updates: Partial<typeof filters>) => {
@@ -221,7 +223,7 @@ export function LogsExplorer({
     query: filters.q,
     levels: filters.levels,
     services: filters.services,
-    repos: filters.repos,
+    attributes: filters.attributes,
     traceId: filters.traceId,
   };
 
@@ -329,7 +331,7 @@ export function LogsExplorer({
               timeRange={timeRange}
               levels={filters.levels}
               services={filters.services}
-              repos={filters.repos}
+              attributes={filters.attributes}
               traceId={filters.traceId}
               levelCounts={levelCounts}
               onChange={(patch) => applyFilters(patch)}

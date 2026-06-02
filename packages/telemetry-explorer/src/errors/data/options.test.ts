@@ -17,6 +17,8 @@ function makeRepo(
       occurrences: [],
     })),
     listServices: vi.fn(async () => []),
+    attributeKeys: vi.fn(async () => []),
+    attributeValues: vi.fn(async () => []),
     ...overrides,
   };
 }
@@ -29,6 +31,7 @@ const baseInput = {
   fingerprint: "",
   sort: "lastSeen" as const,
   limit: 50,
+  attributes: [],
 };
 
 describe("errorIssuesInfiniteOptions", () => {
@@ -88,6 +91,7 @@ describe("errorIssueOptions / errorServicesOptions", () => {
     const options = errorServicesOptions(makeRepo(), {
       timeRange: { from: "now-1h", to: "now" },
       refresh: "5s",
+      attributes: [],
     });
     expect(options.queryKey[0]).toBe("errors");
     expect(options.queryKey[1]).toBe("services");

@@ -1,3 +1,23 @@
+import type {
+  AttributeKey,
+  AttributeKeysInput,
+  AttributeValuesInput,
+} from "../../attribute-filter/schemas";
+import {
+  type AttributeKeyRowRaw,
+  buildAttributeKeysQuery,
+  decodeAttributeKeyRows,
+} from "../../attribute-filter/sql/keys";
+import {
+  type AttributeValueRowRaw,
+  buildAttributeValuesQuery,
+  decodeAttributeValueRows,
+} from "../../attribute-filter/sql/values";
+import {
+  ERRORS_ATTRIBUTE_SOURCES,
+  errorsAttributeColumn,
+} from "../sql/attribute-columns";
+import { EXCEPTION_LOG_FILTER_SQL } from "../sql/fingerprint";
 import {
   buildOccurrencesQuery,
   buildServicesQuery,
@@ -84,6 +104,7 @@ export class ErrorsRepository {
         sort: "lastSeen",
         limit: 1,
         offset: 0,
+        attributes: [],
       },
       this.tableName,
     );
@@ -112,15 +133,45 @@ export class ErrorsRepository {
   // fallow-ignore-next-line unused-class-member
   async listServices(input: ListErrorServicesInput): Promise<string[]> {
     const { sql, params } = buildServicesQuery(
-      { fromTs: input.fromTs, toTs: input.toTs },
+      { fromTs: input.fromTs, toTs: input.toTs, attributes: input.attributes },
       this.tableName,
     );
     const rows = await this.client.execute<ServiceRow>(sql, params);
     return rows.map((row) => row.serviceName).filter(Boolean);
   }
+
+  // fallow-ignore-next-line unused-class-member
+  async attributeKeys(input: AttributeKeysInput): Promise<AttributeKey[]> {
+    const { sql, params } = buildAttributeKeysQuery(input, {
+      tableName: this.tableName,
+      sources: ERRORS_ATTRIBUTE_SOURCES,
+      columnFor: errorsAttributeColumn,
+      // Discovery must see the same rows the issue/services queries do —
+      // exception logs only — so we never offer a key that yields no issues.
+      rowPredicate: EXCEPTION_LOG_FILTER_SQL,
+    });
+    const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
+    return decodeAttributeKeyRows(rows);
+  }
+
+  // fallow-ignore-next-line unused-class-member
+  async attributeValues(input: AttributeValuesInput): Promise<string[]> {
+    const { sql, params } = buildAttributeValuesQuery(input, {
+      tableName: this.tableName,
+      columnFor: errorsAttributeColumn,
+      // Same exception-log scope as the issue queries (see attributeKeys).
+      rowPredicate: EXCEPTION_LOG_FILTER_SQL,
+    });
+    const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
+    return decodeAttributeValueRows(rows);
+  }
 }
 
 export type ErrorsRepositoryLike = Pick<
   ErrorsRepository,
-  "searchIssues" | "getIssue" | "listServices"
+  | "searchIssues"
+  | "getIssue"
+  | "listServices"
+  | "attributeKeys"
+  | "attributeValues"
 >;

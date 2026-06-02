@@ -1,4 +1,7 @@
 import type {
+  LogAttributeKey,
+  LogAttributeKeysInput,
+  LogAttributeValuesInput,
   LogDetail,
   LogFilterOptions,
   LogHistogramBucket,
@@ -12,6 +15,8 @@ import type {
 } from "@everr/telemetry-explorer/logs";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import {
+  getLogAttributeKeys,
+  getLogAttributeValues,
   getLogDetail,
   getLogFilterOptions,
   getLogsExplorer,
@@ -30,4 +35,8 @@ export const remoteRepo: LogsRepositoryLike = {
     getLogDetail({ data: identity }),
   filterOptions: (input: { timeRange: TimeRange }): Promise<LogFilterOptions> =>
     getLogFilterOptions({ data: input }),
+  attributeKeys: (input: LogAttributeKeysInput): Promise<LogAttributeKey[]> =>
+    getLogAttributeKeys({ data: input }),
+  attributeValues: (input: LogAttributeValuesInput): Promise<string[]> =>
+    getLogAttributeValues({ data: input }),
 };

@@ -10,7 +10,7 @@ import {
   tracesSearchInfiniteOptions,
 } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
-import type { SpanStatusFilter } from "../data/schemas";
+import type { AttributeFilter, SpanStatusFilter } from "../data/schemas";
 import { TraceFilters } from "./trace-filters";
 import {
   type TraceLinkRenderProps,
@@ -26,6 +26,7 @@ export type TraceSearchValue = {
   minMs: number | undefined;
   maxMs: number | undefined;
   status: SpanStatusFilter;
+  attributes: AttributeFilter[];
   limit: number;
 };
 
@@ -69,6 +70,7 @@ export function TracesSearch({
       minMs: search.minMs,
       maxMs: search.maxMs,
       status: search.status,
+      attributes: search.attributes,
       limit: search.limit,
     }),
     placeholderData: keepPreviousData,
@@ -79,8 +81,10 @@ export function TracesSearch({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+    <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
       <TraceFilters
+        repo={repo}
+        timeRange={timeRange}
         value={{
           namespace: search.namespace,
           service: search.service,
@@ -88,32 +92,36 @@ export function TracesSearch({
           minMs: search.minMs,
           maxMs: search.maxMs,
           status: search.status,
+          attributes: search.attributes,
         }}
         identities={identitiesQuery.data ?? []}
         onChange={onSearchChange}
       />
-      <TraceResultsList
-        rows={rows}
-        isPending={isPending}
-        isError={isError}
-        error={error}
-        refetch={refetch}
-        hasMore={hasNextPage}
-        isLoadingMore={isFetchingNextPage}
-        renderTraceLink={renderTraceLink}
-        onLoadMore={() => fetchNextPage()}
-        onClearFilters={() =>
-          onSearchChange({
-            namespace: [],
-            service: [],
-            name: "",
-            minMs: undefined,
-            maxMs: undefined,
-            status: "all",
-            limit: 50,
-          })
-        }
-      />
+      <main className="flex min-h-0 min-w-0 flex-col p-4">
+        <TraceResultsList
+          rows={rows}
+          isPending={isPending}
+          isError={isError}
+          error={error}
+          refetch={refetch}
+          hasMore={hasNextPage}
+          isLoadingMore={isFetchingNextPage}
+          renderTraceLink={renderTraceLink}
+          onLoadMore={() => fetchNextPage()}
+          onClearFilters={() =>
+            onSearchChange({
+              namespace: [],
+              service: [],
+              name: "",
+              minMs: undefined,
+              maxMs: undefined,
+              status: "all",
+              attributes: [],
+              limit: 50,
+            })
+          }
+        />
+      </main>
     </div>
   );
 }

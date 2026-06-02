@@ -42,6 +42,7 @@ describe("ErrorsRepository.searchIssues", () => {
       sort: "lastSeen",
       limit: 50,
       offset: 50,
+      attributes: [],
     });
 
     expect(execute).toHaveBeenCalledTimes(1);
@@ -72,6 +73,7 @@ describe("ErrorsRepository.searchIssues", () => {
       sort: "count",
       limit: 25,
       offset: 0,
+      attributes: [],
     });
     const [sql] = execute.mock.calls[0] ?? [];
     expect(sql).toContain("WHERE fingerprint = {fingerprint:String}");
@@ -90,6 +92,7 @@ describe("ErrorsRepository.searchIssues", () => {
       sort: "lastSeen",
       limit: 50,
       offset: 0,
+      attributes: [],
     });
     const [sql] = execute.mock.calls[0] ?? [];
     expect(sql).toContain("FROM otel_logs");
@@ -107,6 +110,7 @@ describe("ErrorsRepository.searchIssues", () => {
         sort: "lastSeen",
         limit: 50,
         offset: 0,
+        attributes: [],
       }),
     ).rejects.toThrow("invalid table name");
   });
@@ -174,9 +178,30 @@ describe("ErrorsRepository.listServices", () => {
     const services = await makeRepo().listServices({
       fromTs: "2026-05-26 10:00:00",
       toTs: "2026-05-26 11:00:00",
+      attributes: [],
     });
     expect(services).toEqual(["web", "api"]);
     const [sql] = execute.mock.calls[0] ?? [];
     expect(sql).toContain("SELECT DISTINCT ServiceName");
+  });
+});
+
+describe("ErrorsRepository attribute discovery", () => {
+  it("scopes attributeKeys to exception logs", async () => {
+    await makeRepo().attributeKeys({
+      timeRange: { from: "now-1h", to: "now" },
+    });
+    const [sql] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("SeverityNumber >= 17");
+  });
+
+  it("scopes attributeValues to exception logs", async () => {
+    await makeRepo().attributeValues({
+      timeRange: { from: "now-1h", to: "now" },
+      source: "log",
+      key: "exception.type",
+    });
+    const [sql] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("SeverityNumber >= 17");
   });
 });

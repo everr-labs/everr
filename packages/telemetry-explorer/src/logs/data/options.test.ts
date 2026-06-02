@@ -8,13 +8,15 @@ const repo: LogsRepositoryLike = {
   histogram: vi.fn(),
   detail: vi.fn(),
   filterOptions: vi.fn(),
+  attributeKeys: vi.fn(),
+  attributeValues: vi.fn(),
 };
 
 const input = {
   timeRange: { from: "now-1h", to: "now" },
   levels: [],
   services: [],
-  repos: [],
+  attributes: [],
   limit: 100,
 };
 

@@ -1,5 +1,18 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
+import {
+  type AttributeKeyRowRaw,
+  buildAttributeKeysQuery,
+  decodeAttributeKeyRows,
+} from "../../attribute-filter/sql/keys";
+import {
+  type AttributeValueRowRaw,
+  buildAttributeValuesQuery,
+  decodeAttributeValueRows,
+} from "../../attribute-filter/sql/values";
 import type {
+  LogAttributeKey,
+  LogAttributeKeysInput,
+  LogAttributeValuesInput,
   LogDetail,
   LogFilterOptions,
   LogHistogramBucket,
@@ -10,6 +23,10 @@ import type {
   LogsTotalsInput,
   LogsTotalsResult,
 } from "../schemas";
+import {
+  LOGS_ATTRIBUTE_SOURCES,
+  logsAttributeColumn,
+} from "../sql/attribute-columns";
 import {
   buildDetailQuery,
   type DetailRowRaw,
@@ -102,9 +119,36 @@ export class LogsRepository {
     const rows = await this.client.execute<FilterOptionsRowRaw>(sql, params);
     return decodeFilterOptionsRows(rows);
   }
+
+  async attributeKeys(
+    input: LogAttributeKeysInput,
+  ): Promise<LogAttributeKey[]> {
+    const { sql, params } = buildAttributeKeysQuery(input, {
+      tableName: this.tableName,
+      sources: LOGS_ATTRIBUTE_SOURCES,
+      columnFor: logsAttributeColumn,
+    });
+    const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
+    return decodeAttributeKeyRows(rows);
+  }
+
+  async attributeValues(input: LogAttributeValuesInput): Promise<string[]> {
+    const { sql, params } = buildAttributeValuesQuery(input, {
+      tableName: this.tableName,
+      columnFor: logsAttributeColumn,
+    });
+    const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
+    return decodeAttributeValueRows(rows);
+  }
 }
 
 export type LogsRepositoryLike = Pick<
   LogsRepository,
-  "explorer" | "totals" | "histogram" | "detail" | "filterOptions"
+  | "explorer"
+  | "totals"
+  | "histogram"
+  | "detail"
+  | "filterOptions"
+  | "attributeKeys"
+  | "attributeValues"
 >;

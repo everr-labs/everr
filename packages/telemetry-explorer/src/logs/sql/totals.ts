@@ -14,7 +14,7 @@ export function buildTotalsQuery(
   const tableName = opts.tableName ?? "logs";
   validateTableName(tableName);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
-  const facetWhereClause = buildWhereClause({ ...input, includeLevels: false });
+  const where = buildWhereClause({ ...input, includeLevels: false });
   const sql = `
       SELECT
         countIf(level = 'error') AS error,
@@ -26,7 +26,7 @@ export function buildTotalsQuery(
       FROM (
         SELECT ${LOG_LEVEL_EXPR} AS level
         FROM ${tableName}
-        WHERE ${facetWhereClause}
+        WHERE ${where.clause}
       )
       `;
   return {
@@ -37,8 +37,8 @@ export function buildTotalsQuery(
       query: input.query,
       levels: input.levels,
       services: input.services,
-      repos: input.repos,
       traceId: input.traceId,
+      ...where.params,
     },
   };
 }

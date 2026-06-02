@@ -27,7 +27,7 @@ export function buildExplorerQuery(
   const tableName = opts.tableName ?? "logs";
   validateTableName(tableName);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
-  const whereClause = buildWhereClause(input);
+  const where = buildWhereClause(input);
   const sql = `
       SELECT
         Timestamp AS timestampRaw,
@@ -38,7 +38,7 @@ export function buildExplorerQuery(
         ServiceName AS serviceName,
         toString(cityHash64(Body)) AS bodyHash
       FROM ${tableName}
-      WHERE ${whereClause}
+      WHERE ${where.clause}
       ORDER BY Timestamp DESC
       LIMIT {limit:UInt32}
       OFFSET {offset:UInt32}
@@ -51,10 +51,10 @@ export function buildExplorerQuery(
       query: input.query,
       levels: input.levels,
       services: input.services,
-      repos: input.repos,
       traceId: input.traceId,
       limit: input.limit,
       offset: input.offset,
+      ...where.params,
     },
   };
 }

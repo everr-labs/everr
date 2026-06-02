@@ -61,32 +61,13 @@ export function logsHistogramOptions(
   });
 }
 
-function logFilterOptionsBase(
+export function logServiceFilterOptions(
   repo: LogsRepositoryLike,
   input: { timeRange: TimeRange },
 ) {
   return {
     queryKey: ["logs", "filterOptions", input.timeRange] as const,
     queryFn: () => repo.filterOptions(input),
-  };
-}
-
-export function logServiceFilterOptions(
-  repo: LogsRepositoryLike,
-  input: { timeRange: TimeRange },
-) {
-  return {
-    ...logFilterOptionsBase(repo, input),
     select: (data: LogFilterOptions) => data.services,
-  };
-}
-
-export function logRepoFilterOptions(
-  repo: LogsRepositoryLike,
-  input: { timeRange: TimeRange },
-) {
-  return {
-    ...logFilterOptionsBase(repo, input),
-    select: (data: LogFilterOptions) => data.repos,
   };
 }

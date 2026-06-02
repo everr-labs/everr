@@ -43,6 +43,7 @@ function TracesSearchPage() {
         minMs: search.minMs,
         maxMs: search.maxMs,
         status: search.status,
+        attributes: search.attributes,
         limit: search.limit,
       }}
       onSearchChange={(patch) =>

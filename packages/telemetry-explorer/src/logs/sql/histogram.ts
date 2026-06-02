@@ -67,7 +67,7 @@ export function buildHistogramQuery(
   const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(
     input.timeRange,
   );
-  const whereClause = buildWhereClause(input);
+  const where = buildWhereClause(input);
   const intervalSeconds = bucketSeconds(
     fromDate,
     toDate,
@@ -86,7 +86,7 @@ export function buildHistogramQuery(
       FROM (
         SELECT TimestampTime, ${LOG_LEVEL_EXPR} AS level
         FROM ${tableName}
-        WHERE ${whereClause}
+        WHERE ${where.clause}
       )
       GROUP BY bucket
       ORDER BY bucket ASC
@@ -99,8 +99,8 @@ export function buildHistogramQuery(
       query: input.query,
       levels: input.levels,
       services: input.services,
-      repos: input.repos,
       traceId: input.traceId,
+      ...where.params,
     },
     intervalSeconds,
     fromDate,
