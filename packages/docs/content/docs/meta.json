@@ -1,9 +1,11 @@
 {
   "pages": [
+    "overview",
     "getting-started",
-    "ci-insights",
     "local-debugging",
     "production-monitoring",
+    "ci-insights",
+    "test-analytics",
     "reference"
   ]
 }

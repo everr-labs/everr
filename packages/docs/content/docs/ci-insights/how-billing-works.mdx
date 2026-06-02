@@ -1,0 +1,69 @@
+---
+title: How CI Billing Works
+description: Understand how GitHub Actions charges runner time and why Everr treats cost as an estimate.
+---
+
+Before you optimize CI cost, it helps to understand how the bill is actually
+produced. CI cost is hard to reason about from a single workflow run: a
+five-minute run can be cheap or expensive depending on how many jobs ran in
+parallel, which runner labels they used, whether the jobs retried, and how much
+rounding the billing system applied.
+
+This page explains the model Everr uses to turn GitHub Actions job data into a
+cost estimate. For the practical workflow of finding and fixing expensive CI,
+see [Cost Analysis](/docs/ci-insights/cost-analysis).
+
+## Billing is per job, not per workflow
+
+GitHub Actions billing is based on runner time, not on workflow wall-clock
+time. The important unit is the job.
+
+For each job:
+
+1. GitHub measures how long the job ran on its runner.
+2. Partial minutes are rounded up to the nearest whole minute.
+3. The rounded minutes are charged at the rate for that runner type.
+
+In practice:
+
+```txt
+job billed minutes = ceil(job duration in seconds / 60)
+job estimated cost = job billed minutes * runner rate
+workflow estimated cost = sum(job estimated cost for every job)
+```
+
+## Why parallel jobs don't save money
+
+Parallel jobs do not make billing minutes disappear. If a workflow has five
+Linux jobs that each run for two minutes, the workflow may finish in about two
+minutes of wall time, but it used about ten billed runner minutes.
+
+This is the most common surprise in CI cost: a workflow that *feels* fast can
+still be expensive because the cost is the sum of every job's rounded runner
+time, regardless of how much of it overlapped.
+
+## Why retries and rounding add up
+
+Retries count again. A job that fails after five minutes and then succeeds
+after ten more minutes used two job attempts, and each attempt is rounded
+separately.
+
+Rounding compounds when many short jobs run. Ten jobs that each take 15 seconds
+of real work still bill ten whole minutes, because each one rounds up to a full
+minute on its own.
+
+## Why Everr's cost is an estimate
+
+Runner type matters too. Standard Linux, Windows, macOS, larger, GPU, ARM, and
+third-party hosted runners all have different rates. Public repositories,
+included plan minutes, enterprise discounts, budgets, and storage charges can
+change what appears on your final provider invoice, so Everr treats cost as an
+estimate from runner usage rather than as the billing source of truth.
+
+Use the estimate to compare workflows and runner choices against each other and
+to spot trends — not to reconcile an invoice to the cent.
+
+For the current provider details, see GitHub's [Actions billing
+docs](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+and [Actions runner pricing
+reference](https://docs.github.com/en/billing/reference/actions-runner-pricing).
