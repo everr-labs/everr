@@ -1,4 +1,4 @@
-import type { TimeRange } from "@everr/ui/lib/time-range";
+import { type TimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 
 // Superset of every domain's attribute maps. Logs/errors use resource|log|scope;
@@ -55,4 +55,26 @@ export interface AttributeValuesInput {
   // Optional server-side substring filter on the value, for high-cardinality
   // attributes whose values fall past the discovery cutoff.
   search?: string;
+}
+
+// Per-domain server-fn validator for value discovery. Like attributesField, it
+// rejects a source the domain doesn't support at the validation boundary
+// instead of letting the column mapper throw. The inferred `source` stays the
+// wide AttributeSource (refine, not a narrowed enum) so the inferred input type
+// remains assignable to AttributeValuesInput.
+export function attributeValuesInputSchema(
+  allowed: readonly AttributeSource[],
+) {
+  const supported = new Set<AttributeSource>(allowed);
+  return z
+    .object({
+      timeRange: TimeRangeSchema,
+      source: AttributeSourceSchema,
+      key: z.string().min(1),
+      search: z.string().optional(),
+    })
+    .refine((input) => supported.has(input.source), {
+      message: `attribute source must be one of: ${allowed.join(", ")}`,
+      path: ["source"],
+    });
 }

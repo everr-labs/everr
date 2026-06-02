@@ -2,8 +2,8 @@ import { isValid } from "@everr/datemath";
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
-  AttributeSourceSchema,
   attributesField,
+  attributeValuesInputSchema,
 } from "../../attribute-filter/schemas";
 
 export type {
@@ -80,12 +80,11 @@ export type ErrorAttributeKeysInput = z.infer<
   typeof ErrorAttributeKeysInputSchema
 >;
 
-export const ErrorAttributeValuesInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  source: AttributeSourceSchema,
-  key: z.string().min(1),
-  search: z.string().optional(),
-});
+export const ErrorAttributeValuesInputSchema = attributeValuesInputSchema([
+  "resource",
+  "log",
+  "scope",
+]);
 export type ErrorAttributeValuesInput = z.infer<
   typeof ErrorAttributeValuesInputSchema
 >;

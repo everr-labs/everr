@@ -3,9 +3,9 @@ import { z } from "zod";
 import {
   type AttributeKey,
   type AttributeKeysInput,
-  AttributeSourceSchema,
   type AttributeValuesInput,
   attributesField,
+  attributeValuesInputSchema,
 } from "../attribute-filter/schemas";
 
 export const LogLevelSchema = z.enum([
@@ -39,12 +39,11 @@ export const LogAttributeKeysInputSchema = z.object({
   timeRange: TimeRangeSchema,
 });
 
-export const LogAttributeValuesInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  source: AttributeSourceSchema,
-  key: z.string().min(1),
-  search: z.string().optional(),
-});
+export const LogAttributeValuesInputSchema = attributeValuesInputSchema([
+  "resource",
+  "log",
+  "scope",
+]);
 
 export const LogsSearchFiltersShape = {
   levels: z.array(LogLevelSchema).default([]),

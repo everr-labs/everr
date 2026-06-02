@@ -9,6 +9,7 @@ import {
   AttributeSourceSchema,
   type AttributeValuesInput,
   attributesField,
+  attributeValuesInputSchema,
 } from "./schemas";
 
 describe("attributesField", () => {
@@ -24,6 +25,30 @@ describe("attributesField", () => {
   it("rejects a filter whose source the domain does not support", () => {
     expect(() =>
       logsAttrs.parse([{ source: "span", key: "k", op: "exists" }]),
+    ).toThrow();
+  });
+});
+
+describe("attributeValuesInputSchema", () => {
+  const tracesValues = attributeValuesInputSchema(["resource", "span"]);
+
+  it("accepts a supported source", () => {
+    expect(
+      tracesValues.parse({
+        timeRange: { from: "now-1h", to: "now" },
+        source: "span",
+        key: "http.route",
+      }).source,
+    ).toBe("span");
+  });
+
+  it("rejects a source the domain does not support", () => {
+    expect(() =>
+      tracesValues.parse({
+        timeRange: { from: "now-1h", to: "now" },
+        source: "log",
+        key: "k",
+      }),
     ).toThrow();
   });
 });

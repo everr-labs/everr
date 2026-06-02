@@ -1,8 +1,8 @@
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
-  AttributeSourceSchema,
   attributesField,
+  attributeValuesInputSchema,
 } from "../../attribute-filter/schemas";
 import { TimeRangeSearchSchema } from "../time-range";
 
@@ -81,12 +81,10 @@ export type TraceAttributeKeysInput = z.infer<
   typeof TraceAttributeKeysInputSchema
 >;
 
-export const TraceAttributeValuesInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  source: AttributeSourceSchema,
-  key: z.string().min(1),
-  search: z.string().optional(),
-});
+export const TraceAttributeValuesInputSchema = attributeValuesInputSchema([
+  "resource",
+  "span",
+]);
 export type TraceAttributeValuesInput = z.infer<
   typeof TraceAttributeValuesInputSchema
 >;
