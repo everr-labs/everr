@@ -1,5 +1,6 @@
 {
   "pages": [
+    "overview",
     "getting-started",
     "local-debugging",
     "production-monitoring",

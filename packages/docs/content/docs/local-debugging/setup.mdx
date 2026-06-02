@@ -79,7 +79,7 @@ Install the Everr skills from [Skills](/docs/reference/skills) so your
 assistant knows when to use local telemetry and how to query it during an
 investigation.
 
-When you ask for help with a local bug, ask for an evidence loop:
+When you ask for help with a local bug, ask for an [evidence loop](/docs/overview):
 
 ```text
 Use Everr local telemetry for this investigation. Check collector status,
@@ -87,9 +87,8 @@ query recent traces or logs before changing code, and add targeted debug
 telemetry if the current data does not explain the behavior.
 ```
 
-That gives the assistant a concrete workflow: inspect existing telemetry first,
-instrument only the missing facts, reproduce the issue, then compare observed
-state to expected state.
+That points the assistant at existing telemetry first and at instrumenting only
+the facts that are still missing, instead of guessing from source code.
 
 ## Troubleshooting
 
