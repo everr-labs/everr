@@ -103,4 +103,27 @@ describe("buildAttributeValuesQuery", () => {
     );
     expect(sql).not.toContain("TimestampTime");
   });
+
+  it("uses an injected time-bound parser for both bounds", () => {
+    const { sql } = buildAttributeValuesQuery(
+      {
+        timeRange: { from: "now-1h", to: "now" },
+        source: "span",
+        key: "http.route",
+      },
+      {
+        tableName: "traces",
+        columnFor,
+        timeColumn: "Timestamp",
+        timeBound: (p) => `parseDateTime64BestEffort({${p}:String}, 9)`,
+      },
+    );
+    expect(sql).toContain(
+      "Timestamp >= parseDateTime64BestEffort({fromTime:String}, 9)",
+    );
+    expect(sql).toContain(
+      "Timestamp <= parseDateTime64BestEffort({toTime:String}, 9)",
+    );
+    expect(sql).not.toContain("parseDateTimeBestEffort(");
+  });
 });

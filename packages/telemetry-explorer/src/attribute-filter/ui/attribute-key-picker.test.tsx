@@ -81,6 +81,32 @@ describe("AttributeKeyPicker", () => {
     expect(screen.queryByText("service.name")).not.toBeInTheDocument();
   });
 
+  it("does not suggest a promoted key that also has a dedicated filter", async () => {
+    const repo = {
+      // Discovered and promoted, but also excluded by a top-level filter.
+      attributeKeys: vi
+        .fn()
+        .mockResolvedValue([{ source: "resource", key: "service.name" }]),
+    } as unknown as AttributeRepositoryLike;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AttributeKeyPicker
+          repo={repo}
+          domain="logs"
+          timeRange={timeRange}
+          promotedAttributes={[{ source: "resource", key: "service.name" }]}
+          excludedKeys={new Set(["resource:service.name"])}
+          sources={SOURCES}
+          onSelect={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByText("Filter"));
+    expect(await screen.findByText("No attributes.")).toBeInTheDocument();
+    expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
+    expect(screen.queryByText("service.name")).not.toBeInTheDocument();
+  });
+
   it("shows the empty state when the range has no attributes", async () => {
     renderPicker(undefined, []);
     fireEvent.click(screen.getByText("Filter"));

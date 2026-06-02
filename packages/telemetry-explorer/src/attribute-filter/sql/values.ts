@@ -20,6 +20,10 @@ export function buildAttributeValuesQuery(
     tableName: string;
     columnFor: (source: AttributeSource) => string;
     timeColumn?: string;
+    // Parses a {param:String} time bound to the column's type. Defaults to
+    // second precision; a DateTime64 table (e.g. traces) must pass the matching
+    // parser so values don't disagree with the rows the data queries return.
+    timeBound?: (param: string) => string;
     // Extra boolean SQL ANDed into the scan so discovery only sees the same
     // rows the domain's data queries do (e.g. errors restricts to exception
     // logs). Must be a static, param-free predicate.
@@ -28,6 +32,8 @@ export function buildAttributeValuesQuery(
 ): BuiltQuery {
   validateTableName(opts.tableName);
   const timeColumn = opts.timeColumn ?? "TimestampTime";
+  const timeBound =
+    opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const column = opts.columnFor(input.source);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const params: Record<string, unknown> = {
@@ -36,8 +42,8 @@ export function buildAttributeValuesQuery(
     key: input.key,
   };
   const filters = [
-    `${timeColumn} >= parseDateTimeBestEffort({fromTime:String})`,
-    `${timeColumn} <= parseDateTimeBestEffort({toTime:String})`,
+    `${timeColumn} >= ${timeBound("fromTime")}`,
+    `${timeColumn} <= ${timeBound("toTime")}`,
     `mapContains(${column}, {key:String})`,
     `${column}[{key:String}] != ''`,
   ];

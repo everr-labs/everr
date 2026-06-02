@@ -99,6 +99,9 @@ export function AttributeKeyPicker({
   const suggested = promotedAttributes.filter(
     (p) =>
       !isActive(p.source, p.key) &&
+      // A promoted key that also has a dedicated top-level filter is excluded
+      // here too, so it can't be added a second time as an attribute chip.
+      !excludedKeys.has(filterKey(p.source, p.key)) &&
       discoveredKeySet.has(filterKey(p.source, p.key)),
   );
 

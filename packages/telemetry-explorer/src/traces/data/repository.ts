@@ -45,6 +45,12 @@ const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
 const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
 
+// Traces store Timestamp as DateTime64(9); attribute discovery must parse its
+// bounds the same way the search queries do, or sub-second rows near the upper
+// bound get dropped and the offered keys/values disagree with the results.
+const tracesTimeBound = (param: string) =>
+  `parseDateTime64BestEffort({${param}:String}, 9)`;
+
 export class TracesRepository {
   private readonly tableName: string;
 
@@ -87,12 +93,47 @@ export class TracesRepository {
       );
       params.namespace = input.namespace;
     }
+    // Positive operators (in/exists) keep the "any-span match" semantics of the
+    // candidate subquery: a trace qualifies if one of its spans carries the
+    // attribute. Negative operators (not_in/missing) cannot: a trace would
+    // match `missing http.route` merely because its DB span lacks the key, even
+    // though its server span has it. Evaluate those at the trace level instead,
+    // as the complement — exclude every trace that has *any* span satisfying the
+    // positive sense (in ↔ not_in, exists ↔ missing).
+    const attributes = input.attributes ?? [];
     const attr = buildAttributeClauses(
-      input.attributes ?? [],
+      attributes.filter((f) => f.op === "in" || f.op === "exists"),
       tracesAttributeColumn,
     );
     spanPreds.push(...attr.clauses);
     Object.assign(params, attr.params);
+
+    const negativeTraceClauses: string[] = [];
+    attributes
+      .filter((f) => f.op === "not_in" || f.op === "missing")
+      .forEach((filter, i) => {
+        const positiveSense =
+          filter.op === "not_in"
+            ? { ...filter, op: "in" as const }
+            : { ...filter, op: "exists" as const };
+        // Param namespace disjoint from the positive clauses above.
+        const built = buildAttributeClauses(
+          [positiveSense],
+          tracesAttributeColumn,
+          attributes.length + i,
+        );
+        // `not_in` with no values is a no-op, matching buildAttributeClauses.
+        if (built.clauses.length === 0) return;
+        negativeTraceClauses.push(
+          `TraceId NOT IN (
+            SELECT DISTINCT TraceId
+            FROM ${this.tableName}
+            WHERE ${TIME_WINDOW_SQL}
+              AND ${built.clauses.join(" AND ")}
+          )`,
+        );
+        Object.assign(params, built.params);
+      });
 
     // durationNsRaw is the inner-aggregate alias (UInt64); the outer query
     // exposes it as a string. Filter on the raw int to avoid a double
@@ -148,6 +189,10 @@ export class TracesRepository {
           )`
         : "";
 
+    const negativeFilter = negativeTraceClauses
+      .map((clause) => `\n          AND ${clause}`)
+      .join("");
+
     const sql = /* sql */ `
       WITH aggregated AS (
         SELECT
@@ -172,7 +217,7 @@ export class TracesRepository {
           groupUniqArray(ServiceName)             AS services
         FROM ${this.tableName}
         WHERE ${TIME_WINDOW_SQL}
-          ${candidateFilter}
+          ${candidateFilter}${negativeFilter}
         GROUP BY TraceId
         ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
         ORDER BY startTsRaw DESC, TraceId DESC
@@ -242,6 +287,7 @@ export class TracesRepository {
       sources: TRACES_ATTRIBUTE_SOURCES,
       columnFor: tracesAttributeColumn,
       timeColumn: "Timestamp",
+      timeBound: tracesTimeBound,
     });
     const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
     return decodeAttributeKeyRows(rows);
@@ -254,6 +300,7 @@ export class TracesRepository {
       tableName: this.tableName,
       columnFor: tracesAttributeColumn,
       timeColumn: "Timestamp",
+      timeBound: tracesTimeBound,
     });
     const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
     return decodeAttributeValueRows(rows);

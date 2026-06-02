@@ -20,6 +20,10 @@ export function buildAttributeKeysQuery(
     sources: AttributeSource[];
     columnFor: (source: AttributeSource) => string;
     timeColumn?: string;
+    // Parses a {param:String} time bound to the column's type. Defaults to
+    // second precision; a DateTime64 table (e.g. traces) must pass the matching
+    // parser so discovery doesn't drop sub-second rows the data queries keep.
+    timeBound?: (param: string) => string;
     // Extra boolean SQL ANDed into each source scan so discovery only sees the
     // same rows the domain's data queries do (e.g. errors restricts to
     // exception logs). Must be a static, param-free predicate.
@@ -28,6 +32,8 @@ export function buildAttributeKeysQuery(
 ): BuiltQuery {
   validateTableName(opts.tableName);
   const timeColumn = opts.timeColumn ?? "TimestampTime";
+  const timeBound =
+    opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const scope = opts.rowPredicate
     ? `\n            AND (${opts.rowPredicate})`
     : "";
@@ -37,8 +43,8 @@ export function buildAttributeKeysQuery(
         SELECT key, source FROM (
           SELECT DISTINCT arrayJoin(mapKeys(${opts.columnFor(source)})) AS key, '${source}' AS source
           FROM ${opts.tableName}
-          WHERE ${timeColumn} >= parseDateTimeBestEffort({fromTime:String})
-            AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})${scope}
+          WHERE ${timeColumn} >= ${timeBound("fromTime")}
+            AND ${timeColumn} <= ${timeBound("toTime")}${scope}
         )
         WHERE key != ''
         ORDER BY key

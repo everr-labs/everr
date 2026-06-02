@@ -418,6 +418,70 @@ describe("trace search attribute filtering", () => {
     expect(params.attrVals0).toEqual(["/x"]);
   });
 
+  it("evaluates missing as a trace-level exclusion, not an any-span match", async () => {
+    query.mockResolvedValueOnce([]);
+
+    await makeRepo().search({
+      ...searchBase,
+      fromTs: "2026-06-01 00:00:00",
+      toTs: "2026-06-01 01:00:00",
+      limit: 50,
+      attributes: [
+        { source: "span", key: "http.route", op: "missing", values: [] },
+      ],
+    });
+
+    const [sql, params] = query.mock.calls[0] ?? [];
+    // A trace is excluded when *any* span has the key, rather than matched when
+    // any span lacks it — otherwise every trace with a keyless DB span matches.
+    expect(sql).toContain("TraceId NOT IN (");
+    expect(sql).toContain("mapContains(SpanAttributes,");
+    // No "any-span" candidate IN subquery, since there is no positive operator.
+    expect(sql).not.toContain("AND TraceId IN (");
+    expect(Object.values(params)).toContain("http.route");
+  });
+
+  it("evaluates not_in as the trace-level complement of in", async () => {
+    query.mockResolvedValueOnce([]);
+
+    await makeRepo().search({
+      ...searchBase,
+      fromTs: "2026-06-01 00:00:00",
+      toTs: "2026-06-01 01:00:00",
+      limit: 50,
+      attributes: [
+        { source: "span", key: "http.route", op: "in", values: ["/keep"] },
+        { source: "span", key: "db.system", op: "not_in", values: ["redis"] },
+      ],
+    });
+
+    const [sql, params] = query.mock.calls[0] ?? [];
+    // Positive `in` rides the any-span candidate subquery...
+    expect(sql).toContain("AND TraceId IN (");
+    // ...and `not_in` excludes traces that have a span with the value present.
+    expect(sql).toContain("TraceId NOT IN (");
+    expect(Object.values(params)).toContainEqual(["/keep"]);
+    expect(Object.values(params)).toContainEqual(["redis"]);
+    expect(Object.values(params)).toContain("db.system");
+  });
+
+  it("treats not_in with no values as a no-op", async () => {
+    query.mockResolvedValueOnce([]);
+
+    await makeRepo().search({
+      ...searchBase,
+      fromTs: "2026-06-01 00:00:00",
+      toTs: "2026-06-01 01:00:00",
+      limit: 50,
+      attributes: [
+        { source: "span", key: "http.route", op: "not_in", values: [] },
+      ],
+    });
+
+    const [sql] = query.mock.calls[0] ?? [];
+    expect(sql).not.toContain("TraceId NOT IN (");
+  });
+
   it("adds no attribute predicates when none are given", async () => {
     query.mockResolvedValueOnce([]);
 

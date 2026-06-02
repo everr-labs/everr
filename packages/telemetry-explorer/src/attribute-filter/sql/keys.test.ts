@@ -77,4 +77,24 @@ describe("buildAttributeKeysQuery", () => {
     );
     expect(sql).not.toContain("TimestampTime");
   });
+
+  it("uses an injected time-bound parser for both bounds", () => {
+    const { sql } = buildAttributeKeysQuery(
+      { timeRange: { from: "now-1h", to: "now" } },
+      {
+        tableName: "traces",
+        sources: ["resource"],
+        columnFor,
+        timeColumn: "Timestamp",
+        timeBound: (p) => `parseDateTime64BestEffort({${p}:String}, 9)`,
+      },
+    );
+    expect(sql).toContain(
+      "Timestamp >= parseDateTime64BestEffort({fromTime:String}, 9)",
+    );
+    expect(sql).toContain(
+      "Timestamp <= parseDateTime64BestEffort({toTime:String}, 9)",
+    );
+    expect(sql).not.toContain("parseDateTimeBestEffort(");
+  });
 });
