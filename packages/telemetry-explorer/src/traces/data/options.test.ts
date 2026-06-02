@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  traceAttributeKeysOptions,
-  traceAttributeValuesOptions,
-  tracesSearchInfiniteOptions,
-} from "./options";
+import { tracesSearchInfiniteOptions } from "./options";
 import type { TracesRepositoryLike } from "./repository";
 import type { TraceSummary } from "./types";
 
@@ -66,34 +62,5 @@ describe("tracesSearchInfiniteOptions", () => {
     ) => unknown;
 
     expect(getNextPageParam(rows, [rows])).toBeUndefined();
-  });
-});
-
-const timeRange = { from: "now-1h", to: "now" };
-
-describe("trace attribute options", () => {
-  it("namespaces keys query under the traces domain", () => {
-    expect(traceAttributeKeysOptions(repo, { timeRange }).queryKey).toEqual([
-      "traces",
-      "attributeKeys",
-      timeRange,
-    ]);
-  });
-
-  it("namespaces values query by source and key", () => {
-    expect(
-      traceAttributeValuesOptions(repo, {
-        timeRange,
-        source: "span",
-        key: "http.route",
-      }).queryKey,
-    ).toEqual([
-      "traces",
-      "attributeValues",
-      timeRange,
-      "span",
-      "http.route",
-      "",
-    ]);
   });
 });

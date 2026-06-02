@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  errorAttributeKeysOptions,
-  errorAttributeValuesOptions,
   errorIssueOptions,
   errorIssuesInfiniteOptions,
   errorServicesOptions,
@@ -98,34 +96,5 @@ describe("errorIssueOptions / errorServicesOptions", () => {
     expect(options.queryKey[0]).toBe("errors");
     expect(options.queryKey[1]).toBe("services");
     expect(options.refetchInterval).toBe(5000);
-  });
-});
-
-const repo = {} as ErrorsRepositoryLike;
-const timeRange = { from: "now-1h", to: "now" };
-
-describe("error attribute options", () => {
-  it("namespaces keys query under the errors domain", () => {
-    expect(errorAttributeKeysOptions(repo, { timeRange }).queryKey).toEqual([
-      "errors",
-      "attributeKeys",
-      timeRange,
-    ]);
-  });
-  it("namespaces values query by source and key", () => {
-    expect(
-      errorAttributeValuesOptions(repo, {
-        timeRange,
-        source: "log",
-        key: "http.method",
-      }).queryKey,
-    ).toEqual([
-      "errors",
-      "attributeValues",
-      timeRange,
-      "log",
-      "http.method",
-      "",
-    ]);
   });
 });

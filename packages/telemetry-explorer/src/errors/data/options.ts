@@ -5,14 +5,7 @@ import {
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import {
-  attributeKeysOptions,
-  attributeValuesOptions,
-} from "../../attribute-filter/options";
-import type {
-  AttributeFilter,
-  AttributeSource,
-} from "../../attribute-filter/schemas";
+import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { ErrorsRepositoryLike } from "./repository";
 import type { ErrorIssuesResult, ErrorSort } from "./types";
 
@@ -140,18 +133,4 @@ export function errorServicesOptions(
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
-}
-
-export function errorAttributeKeysOptions(
-  repo: ErrorsRepositoryLike,
-  input: { timeRange: TimeRange },
-) {
-  return attributeKeysOptions(repo, input, { domain: "errors" });
-}
-
-export function errorAttributeValuesOptions(
-  repo: ErrorsRepositoryLike,
-  input: { timeRange: TimeRange; source: AttributeSource; key: string },
-) {
-  return attributeValuesOptions(repo, input, { domain: "errors" });
 }

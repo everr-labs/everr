@@ -5,14 +5,7 @@ import {
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import {
-  attributeKeysOptions,
-  attributeValuesOptions,
-} from "../../attribute-filter/options";
-import type {
-  AttributeFilter,
-  AttributeSource,
-} from "../../attribute-filter/schemas";
+import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
 import type { TraceSummary } from "./types";
@@ -123,18 +116,4 @@ export function listServiceIdentitiesOptions(
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
-}
-
-export function traceAttributeKeysOptions(
-  repo: TracesRepositoryLike,
-  input: { timeRange: TimeRange },
-) {
-  return attributeKeysOptions(repo, input, { domain: "traces" });
-}
-
-export function traceAttributeValuesOptions(
-  repo: TracesRepositoryLike,
-  input: { timeRange: TimeRange; source: AttributeSource; key: string },
-) {
-  return attributeValuesOptions(repo, input, { domain: "traces" });
 }
