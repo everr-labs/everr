@@ -13,43 +13,11 @@ dashboard and hand to a coding assistant. The goal is not just to show a bill;
 it is to show which workflows, repositories, and runner choices are worth
 changing.
 
-## How billing minutes work
-
-GitHub Actions billing is based on runner time, not on workflow wall-clock
-time. The important unit is the job.
-
-For each job:
-
-1. GitHub measures how long the job ran on its runner.
-2. Partial minutes are rounded up to the nearest whole minute.
-3. The rounded minutes are charged at the rate for that runner type.
-
-In practice:
-
-```txt
-job billed minutes = ceil(job duration in seconds / 60)
-job estimated cost = job billed minutes * runner rate
-workflow estimated cost = sum(job estimated cost for every job)
-```
-
-That means parallel jobs do not make billing minutes disappear. If a workflow
-has five Linux jobs that each run for two minutes, the workflow may finish in
-about two minutes of wall time, but it used about ten billed runner minutes.
-
-Retries also count again. A job that fails after five minutes and then succeeds
-after ten more minutes used two job attempts, and each attempt is rounded
-separately.
-
-Runner type matters too. Standard Linux, Windows, macOS, larger, GPU, ARM, and
-third-party hosted runners all have different rates. Public repositories,
-included plan minutes, enterprise discounts, budgets, and storage charges can
-change what appears on your final provider invoice, so Everr treats cost as an
-estimate from runner usage rather than as the billing source of truth.
-
-For the current provider details, see GitHub's [Actions billing
-docs](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
-and [Actions runner pricing
-reference](https://docs.github.com/en/billing/reference/actions-runner-pricing).
+Cost is estimated per job from runner time, so parallel jobs, retries, and
+per-minute rounding all change the bill in ways a single run's wall-clock time
+hides. If those numbers ever look surprising, read [How CI Billing
+Works](/docs/ci-insights/how-billing-works) for the full model behind Everr's
+estimates.
 
 ## Working with a coding assistant
 
@@ -105,11 +73,8 @@ moving lint to Linux" or "reduce rounding waste by merging three sub-minute
 jobs."
 
 If you use Everr's bundled skills, install them so assistants know how to fetch
-CI context directly:
-
-```sh
-everr skills install --all --project
-```
+CI context directly. See [Skills](/docs/reference/skills) for installation and
+management.
 
 ## How to find optimization work
 
