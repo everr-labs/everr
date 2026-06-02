@@ -17,6 +17,7 @@ import {
   ERRORS_ATTRIBUTE_SOURCES,
   errorsAttributeColumn,
 } from "../sql/attribute-columns";
+import { EXCEPTION_LOG_FILTER_SQL } from "../sql/fingerprint";
 import {
   buildOccurrencesQuery,
   buildServicesQuery,
@@ -145,6 +146,9 @@ export class ErrorsRepository {
       tableName: this.tableName,
       sources: ERRORS_ATTRIBUTE_SOURCES,
       columnFor: errorsAttributeColumn,
+      // Discovery must see the same rows the issue/services queries do —
+      // exception logs only — so we never offer a key that yields no issues.
+      rowPredicate: EXCEPTION_LOG_FILTER_SQL,
     });
     const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
     return decodeAttributeKeyRows(rows);
@@ -155,6 +159,8 @@ export class ErrorsRepository {
     const { sql, params } = buildAttributeValuesQuery(input, {
       tableName: this.tableName,
       columnFor: errorsAttributeColumn,
+      // Same exception-log scope as the issue queries (see attributeKeys).
+      rowPredicate: EXCEPTION_LOG_FILTER_SQL,
     });
     const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
     return decodeAttributeValueRows(rows);

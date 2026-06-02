@@ -20,10 +20,17 @@ export function buildAttributeKeysQuery(
     sources: AttributeSource[];
     columnFor: (source: AttributeSource) => string;
     timeColumn?: string;
+    // Extra boolean SQL ANDed into each source scan so discovery only sees the
+    // same rows the domain's data queries do (e.g. errors restricts to
+    // exception logs). Must be a static, param-free predicate.
+    rowPredicate?: string;
   },
 ): BuiltQuery {
   validateTableName(opts.tableName);
   const timeColumn = opts.timeColumn ?? "TimestampTime";
+  const scope = opts.rowPredicate
+    ? `\n            AND (${opts.rowPredicate})`
+    : "";
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const selects = opts.sources.map(
     (source) => `
@@ -31,7 +38,7 @@ export function buildAttributeKeysQuery(
           SELECT DISTINCT arrayJoin(mapKeys(${opts.columnFor(source)})) AS key, '${source}' AS source
           FROM ${opts.tableName}
           WHERE ${timeColumn} >= parseDateTimeBestEffort({fromTime:String})
-            AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})
+            AND ${timeColumn} <= parseDateTimeBestEffort({toTime:String})${scope}
         )
         WHERE key != ''
         ORDER BY key

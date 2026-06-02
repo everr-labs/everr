@@ -185,3 +185,23 @@ describe("ErrorsRepository.listServices", () => {
     expect(sql).toContain("SELECT DISTINCT ServiceName");
   });
 });
+
+describe("ErrorsRepository attribute discovery", () => {
+  it("scopes attributeKeys to exception logs", async () => {
+    await makeRepo().attributeKeys({
+      timeRange: { from: "now-1h", to: "now" },
+    });
+    const [sql] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("SeverityNumber >= 17");
+  });
+
+  it("scopes attributeValues to exception logs", async () => {
+    await makeRepo().attributeValues({
+      timeRange: { from: "now-1h", to: "now" },
+      source: "log",
+      key: "exception.type",
+    });
+    const [sql] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("SeverityNumber >= 17");
+  });
+});

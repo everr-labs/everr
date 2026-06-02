@@ -20,6 +20,10 @@ export function buildAttributeValuesQuery(
     tableName: string;
     columnFor: (source: AttributeSource) => string;
     timeColumn?: string;
+    // Extra boolean SQL ANDed into the scan so discovery only sees the same
+    // rows the domain's data queries do (e.g. errors restricts to exception
+    // logs). Must be a static, param-free predicate.
+    rowPredicate?: string;
   },
 ): BuiltQuery {
   validateTableName(opts.tableName);
@@ -37,6 +41,9 @@ export function buildAttributeValuesQuery(
     `mapContains(${column}, {key:String})`,
     `${column}[{key:String}] != ''`,
   ];
+  if (opts.rowPredicate) {
+    filters.push(`(${opts.rowPredicate})`);
+  }
   // Server-side substring match so high-cardinality values past the LIMIT
   // cutoff remain reachable — the user types and the matching slice is fetched.
   const search = input.search?.trim();

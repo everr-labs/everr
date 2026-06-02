@@ -23,6 +23,20 @@ describe("buildAttributeKeysQuery", () => {
     expect(params.toTime).toBeDefined();
   });
 
+  it("scopes each source scan with an optional row predicate", () => {
+    const { sql } = buildAttributeKeysQuery(
+      { timeRange: { from: "now-1h", to: "now" } },
+      {
+        tableName: "logs",
+        sources: ["resource", "span"],
+        columnFor,
+        rowPredicate: "SeverityNumber >= 17",
+      },
+    );
+    // One scoped predicate per source scan.
+    expect(sql.match(/SeverityNumber >= 17/g)).toHaveLength(2);
+  });
+
   it("caps each source independently (no single global limit)", () => {
     const { sql } = buildAttributeKeysQuery(
       { timeRange: { from: "now-1h", to: "now" } },

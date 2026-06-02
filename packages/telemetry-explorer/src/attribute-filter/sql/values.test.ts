@@ -43,6 +43,18 @@ describe("buildAttributeValuesQuery", () => {
     expect(params.valueSearch).toBe("/api");
   });
 
+  it("scopes the scan with an optional row predicate", () => {
+    const { sql } = buildAttributeValuesQuery(
+      {
+        timeRange: { from: "now-1h", to: "now" },
+        source: "span",
+        key: "http.route",
+      },
+      { tableName: "traces", columnFor, rowPredicate: "SeverityNumber >= 17" },
+    );
+    expect(sql).toContain("(SeverityNumber >= 17)");
+  });
+
   it("ignores a blank search term", () => {
     const { sql, params } = buildAttributeValuesQuery(
       {
