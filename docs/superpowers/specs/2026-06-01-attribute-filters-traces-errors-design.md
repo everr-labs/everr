@@ -77,7 +77,7 @@ export function buildAttributeClauses(
 Preserves the existing logs semantics exactly:
 
 - `in`: empty values → no-op (skip). Else `mapContains(col,{k}) AND col[{k}] IN {vals}`.
-- `not_in`: empty values → no-op. Else `(NOT mapContains(col,{k}) OR col[{k}] NOT IN {vals})` (includes missing-key rows).
+- `not_in`: empty values → no-op. Else `(mapContains(col,{k}) AND col[{k}] NOT IN {vals})` — requires the key to be present (present-with-a-different-value); missing-key rows are the `missing` op's job, keeping the operators a clean partition (`in ∪ not_in = exists`).
 - `exists`: `mapContains(col,{k})`.
 - `missing`: `NOT mapContains(col,{k})`.
 

@@ -30,10 +30,13 @@ export function buildAttributeClauses(
         params[valsParam] = filter.values;
         break;
       case "not_in":
+        // Require the key to exist: "is not" means present-with-a-different
+        // value, not absent. The dedicated `missing` op covers absence, which
+        // keeps the four operators a clean partition (in ∪ not_in = exists).
         if (filter.values.length === 0) return;
         params[keyParam] = filter.key;
         clauses.push(
-          `(NOT ${contains} OR ${access} NOT IN {${valsParam}:Array(String)})`,
+          `(${contains} AND ${access} NOT IN {${valsParam}:Array(String)})`,
         );
         params[valsParam] = filter.values;
         break;

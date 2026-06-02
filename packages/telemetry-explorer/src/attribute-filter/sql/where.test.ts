@@ -32,13 +32,13 @@ describe("buildAttributeClauses", () => {
     });
   });
 
-  it("treats not_in as including missing-key rows", () => {
+  it("treats not_in as present-with-a-different-value (excludes missing)", () => {
     const { clauses } = buildAttributeClauses(
       [{ source: "log", key: "http.method", op: "not_in", values: ["GET"] }],
       columnFor,
     );
     expect(clauses[0]).toBe(
-      "(NOT mapContains(LogAttributes, {attrKey0:String}) OR LogAttributes[{attrKey0:String}] NOT IN {attrVals0:Array(String)})",
+      "(mapContains(LogAttributes, {attrKey0:String}) AND LogAttributes[{attrKey0:String}] NOT IN {attrVals0:Array(String)})",
     );
   });
 

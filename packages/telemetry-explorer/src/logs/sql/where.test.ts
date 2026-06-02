@@ -67,7 +67,7 @@ describe("buildWhereClause", () => {
     });
   });
 
-  it("builds a NOT IN attribute clause that includes logs missing the key", () => {
+  it("builds a NOT IN attribute clause requiring the key to be present", () => {
     const { clause } = buildWhereClause({
       levels: [],
       services: [],
@@ -76,7 +76,7 @@ describe("buildWhereClause", () => {
       ],
     });
     expect(clause).toContain(
-      "(NOT mapContains(LogAttributes, {attrKey0:String}) OR LogAttributes[{attrKey0:String}] NOT IN {attrVals0:Array(String)})",
+      "(mapContains(LogAttributes, {attrKey0:String}) AND LogAttributes[{attrKey0:String}] NOT IN {attrVals0:Array(String)})",
     );
   });
 
