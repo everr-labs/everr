@@ -5,7 +5,7 @@ description: Use the Everr setup telemetry skill to configure local and producti
 
 Use the `everr-setup-telemetry` skill to add OpenTelemetry to your app. The skill inspects your stack, adds the smallest standard setup for your runtime, configures local export to Everr, and verifies that fresh telemetry is visible before considering the setup done.
 
-## Local Collector
+## Local collector
 
 For local development, Everr runs an OpenTelemetry collector on your machine.
 
@@ -23,11 +23,11 @@ everr local query "SELECT Timestamp, ServiceName, SpanName FROM otel_traces ORDE
 
 You can also open Everr Desktop and inspect traces, logs, and metrics there.
 
-## Production Telemetry
+## Production telemetry
 
-For production, create an ingest key from the [Ingest Keys page](https://app.everr.dev/ingest-keys) and store it in your secret manager.
+For production, create an ingest key from the [Ingest Keys page](https://app.everr.dev/ingest-keys) and store it in your secret manager. See [Production Monitoring](/docs/production-monitoring/setup) for the full minting and forwarding reference.
 
-### Set Up The Header
+### Set up the header
 
 Production telemetry is authenticated with the ingest key as a bearer token:
 
@@ -37,7 +37,7 @@ Authorization: Bearer <your-ingest-key>
 
 Set the key through your deployment secret manager, for example as `EVERR_INGEST_KEY`, and configure your OTLP/HTTP exporter to send it on every request.
 
-### Forward From A Collector
+### Forward from a collector
 
 If you already run an OpenTelemetry Collector, forward telemetry to Everr with an OTLP HTTP exporter:
 
@@ -50,3 +50,11 @@ exporters:
 ```
 
 The collector can receive telemetry from your services and attach the ingest key server-side before forwarding traces, logs, and metrics to Everr.
+
+## Next steps
+
+With telemetry flowing, continue to:
+
+- [Local Debugging](/docs/local-debugging/setup) — use the local feedback loop to debug your app.
+- [CI Insights](/docs/ci-insights/setup-new-repo) — connect repositories and monitor GitHub Actions.
+- [Production Monitoring](/docs/production-monitoring/setup) — send and inspect production telemetry.
