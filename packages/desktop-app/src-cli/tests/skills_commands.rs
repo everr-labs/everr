@@ -72,8 +72,61 @@ fn skills_install_all_project_creates_canonical_skills_and_provider_symlink() {
         repo.join(".agents/skills/everr-working-with-ci/SKILL.md")
             .is_file()
     );
+    assert!(
+        repo.join(".agents/skills/everr-setup-telemetry/rules/nodejs.md")
+            .is_file()
+    );
+    assert!(
+        repo.join(".agents/skills/everr-setup-telemetry/rules/error-tracking.md")
+            .is_file()
+    );
+    assert!(
+        repo.join(".agents/skills/everr-setup-telemetry/rules/rust.md")
+            .is_file()
+    );
     #[cfg(unix)]
     assert_symlink(&repo.join(".claude/skills/everr-working-with-ci"));
+}
+
+#[test]
+fn skills_install_all_project_restores_missing_telemetry_rules() {
+    let env = CliTestEnv::new();
+    let repo = env.home_dir.join("repo");
+    fs::create_dir_all(&repo).expect("create repo");
+
+    env.command()
+        .current_dir(&repo)
+        .args([
+            "skills",
+            "install",
+            "--all",
+            "--project",
+            "--agent",
+            "claude-code",
+        ])
+        .assert()
+        .success();
+
+    let rules_dir = repo.join(".agents/skills/everr-setup-telemetry/rules");
+    fs::remove_dir_all(&rules_dir).expect("remove installed rules");
+
+    env.command()
+        .current_dir(&repo)
+        .args([
+            "skills",
+            "install",
+            "--all",
+            "--project",
+            "--agent",
+            "claude-code",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("Installed"));
+
+    assert!(rules_dir.join("nodejs.md").is_file());
+    assert!(rules_dir.join("error-tracking.md").is_file());
+    assert!(rules_dir.join("rust.md").is_file());
 }
 
 #[test]
@@ -142,6 +195,32 @@ fn skills_update_without_scope_checks_global_skills() {
     let content = fs::read_to_string(skill_doc).expect("read updated skill");
     assert!(content.contains("name: everr-use-telemetry"));
     assert!(!content.contains("local edits"));
+}
+
+#[test]
+fn skills_update_without_scope_refreshes_telemetry_rules() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["skills", "install", "--all", "--global", "--agent", "codex"])
+        .assert()
+        .success();
+
+    let rule_path = env
+        .home_dir
+        .join(".agents/skills/everr-setup-telemetry/rules/error-tracking.md");
+    fs::write(&rule_path, "stale rule").expect("write stale rule");
+
+    env.command()
+        .args(["skills", "update"])
+        .assert()
+        .success()
+        .stdout(contains("Updated"))
+        .stdout(contains("everr-setup-telemetry"));
+
+    let content = fs::read_to_string(rule_path).expect("read updated rule");
+    assert!(content.contains("OpenTelemetry-native signals"));
+    assert!(!content.contains("stale rule"));
 }
 
 #[test]

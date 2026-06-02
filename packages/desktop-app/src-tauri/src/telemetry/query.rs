@@ -12,11 +12,7 @@ fn default_url() -> String {
     format!("http://127.0.0.1:{SQL_HTTP_PORT}/sql")
 }
 
-pub async fn post_sql(
-    url: &str,
-    sql: &str,
-    params: &HashMap<String, Value>,
-) -> Result<Vec<Value>> {
+pub async fn post_sql(url: &str, sql: &str, params: &HashMap<String, Value>) -> Result<Vec<Value>> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .build()
@@ -34,12 +30,15 @@ pub async fn post_sql(
         .await
         .with_context(|| format!("POST {url}"))?;
     let status = resp.status();
-    let body = resp.text().await.with_context(|| format!("read response body from {url}"))?;
+    let body = resp
+        .text()
+        .await
+        .with_context(|| format!("read response body from {url}"))?;
     match status {
         StatusCode::OK => parse_ndjson(&body),
-        StatusCode::SERVICE_UNAVAILABLE => {
-            Err(anyhow!("telemetry collector is busy — try again in a moment"))
-        }
+        StatusCode::SERVICE_UNAVAILABLE => Err(anyhow!(
+            "telemetry collector is busy — try again in a moment"
+        )),
         other => Err(anyhow!("unexpected status {other}: {body}")),
     }
 }
@@ -71,7 +70,10 @@ mod tests {
     use std::io::{Read, Write};
     use std::net::TcpListener;
 
-    fn spawn_server(status: u16, body: &'static str) -> (String, std::sync::mpsc::Receiver<String>) {
+    fn spawn_server(
+        status: u16,
+        body: &'static str,
+    ) -> (String, std::sync::mpsc::Receiver<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
@@ -99,7 +101,9 @@ mod tests {
     #[tokio::test]
     async fn surfaces_unavailable() {
         let (url, _) = spawn_server(503, "");
-        let err = post_sql(&url, "SELECT 1", &HashMap::new()).await.unwrap_err();
+        let err = post_sql(&url, "SELECT 1", &HashMap::new())
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("busy"));
     }
 

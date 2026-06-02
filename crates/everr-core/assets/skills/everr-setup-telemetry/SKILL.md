@@ -1,25 +1,46 @@
 ---
 name: everr-setup-telemetry
-description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, OTLP exporters, local collector setup, production-like local signals, debug telemetry, service.name, missing or stale spans/logs/metrics, or instrumentation verification.
+description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, or instrumentation verification.
 ---
 
 # Setup Telemetry With Everr
 
-Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr. Local telemetry lets development match production behavior closely, and debug telemetry lets the agent collect extra evidence without guessing.
+Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr. 
 
-Prefer real OpenTelemetry for runtime services. Use `everr wrap` only for bounded build, lint, or one-off commands that do not emit OpenTelemetry.
+Local telemetry lets development match production behavior closely, and debug telemetry lets the agent collect extra evidence locally without guessing from the code.
+
+## Rule Loading
+
+Always read the relevant rule files before editing instrumentation. Use the table below to load the minimum guidance for the code path being changed.
+
+| Use case / rule | Description |
+| --- | --- |
+| `resolve-values` | Resolve configuration values from the codebase before hardcoding or asking |
+| `resources` | Resource attributes: service identity, version, environment, instance |
+| `spans` | Spans: naming, kind, status, attributes, and hygiene |
+| `logs` | Logs: structured logging, severity, trace correlation, delivery |
+| `metrics` | Metrics: instrument types, naming, units, and cardinality |
+| `error-tracking` | Error tracking: exceptions, release context, crash capture |
+| `sensitive-data` | PII prevention, sanitization, hashing, redaction |
+| `validation` | Telemetry validation locally and after deployment |
+| `nodejs` | Node.js instrumentation setup and runtime pitfalls |
+| `nextjs` | Next.js App Router, server/client split, trace propagation |
+| `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
+
+For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `sensitive-data`, `validation`, and the signal/runtime rules that match the task.
 
 ## Default Workflow
 
 1. Run `everr local status`.
 2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
-3. Use the `otlp:` URL from `everr local status` in exporters. Do not guess or mention a default localhost port unless status returned it.
-4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, and test runner.
-5. Add the smallest standard OTel setup for the stack: `service.name`, traces, logs, metrics when supported, useful resource attributes, automatic error capture, and an OTLP/HTTP exporter.
-6. Configure endpoint selection for both environments: local development exports to the `otlp:` URL from `everr local status`; production exports to `https://ingest.everr.dev/` with an ingest key from the secret manager.
-7. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
-8. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName`, a recent time window, and a unique run, request, or test id when practical.
-9. Do not claim setup works until query results prove the new telemetry came from the path just exercised.
+3. Use the `otlp:` URL from `everr local status` in local exporters. Do not guess or mention a default localhost port unless status returned it.
+4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, test runner, deployment manifests, and existing environment variables.
+5. Resolve `service.name`, `service.version`, `deployment.environment.name`, OTLP endpoint, and auth configuration using `rules/resolve-values.md`.
+6. Add the smallest standard OTel setup for the stack: stable service identity, useful resource attributes, traces, logs, metrics when supported, automatic error capture, safe redaction, and an OTLP/HTTP exporter.
+7. Configure endpoint selection for both environments: local development exports to the `otlp:` URL from `everr local status`; production exports to `https://ingest.everr.dev/` with an ingest key from the secret manager.
+8. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
+9. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName`, a recent time window, and a unique run, request, or test id when practical.
+10. Do not claim setup works until query results prove the new telemetry came from the path just exercised.
 
 ## Command Choice
 
@@ -40,12 +61,13 @@ In plans and example commands, keep the endpoint as `<otlp-url-from-status>` unt
 OpenTelemetry clients can export directly to the local collector. No wrapper is needed for instrumented apps.
 
 When OpenTelemetry is missing:
+
 - Add the SDK, OTLP/HTTP exporter, and a clear `service.name`.
-- For JavaScript or TypeScript apps, check [OpenTelemetry JS contrib packages](https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages) for integrations that match the frameworks and libraries in use before writing custom instrumentation.
+- Check for official or community auto-instrumentation that matches the runtime and libraries before writing custom instrumentation.
 - Load instrumentation before importing HTTP, database, queue, or framework modules.
 - Add spans around entry points and I/O boundaries when auto-instrumentation is not enough.
 - Capture errors as structured telemetry, not only terminal output.
-- Redact secrets, tokens, emails, and request bodies before export.
+- Redact secrets, tokens, emails, request bodies, auth headers, cookies, and raw customer payloads before export.
 - Prefer instrumenting the app's existing structured logger or adding targeted OTel logs at important boundaries. Do not monkey-patch `console.*` or mirror all console output into telemetry unless it is temporary, development-gated, redacted, and bounded to the specific path being verified.
 
 Do not make high-volume runtime traces or debug logs print to stdout/stderr just so they can be inspected. Export them to Everr and query them.
@@ -61,22 +83,6 @@ Use debug telemetry when normal telemetry does not explain local behavior yet.
 
 Do not optimize local debug telemetry for storage cost. Rich local evidence is usually cheaper than another round of guessing.
 
-## JavaScript Defaults
-
-For Node.js services:
-- Prefer `@opentelemetry/auto-instrumentations-node` with `@opentelemetry/sdk-node`.
-- For ESM apps, load instrumentation with `node --import ./instrumentation.mjs app.js` or the project startup hook.
-- For CommonJS or zero-code setup, `NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"` is acceptable.
-- If configuring endpoints in code, send traces to `<endpoint>/v1/traces`, logs to `<endpoint>/v1/logs`, and metrics to `<endpoint>/v1/metrics`.
-- Record `uncaughtException` and `unhandledRejection`, flush telemetry, then preserve the original crash behavior.
-
-For browser apps:
-- Keep local exporters dev/test gated.
-- Use OTLP HTTP exporters only; browser gRPC export is not supported.
-- Capture browser metrics when the browser SDK and runtime support them.
-- Capture document load, user interaction, XHR, fetch, `window.error`, and `window.unhandledrejection` when relevant.
-- Check browser devtools for CORS or CSP errors when telemetry does not arrive.
-
 ## Build, Lint, And Test Commands
 
 Use `everr wrap -- <command>` only when the command is not OpenTelemetry-instrumented and the task needs its output in local telemetry.
@@ -88,16 +94,6 @@ Use `everr wrap -- <command>` only when the command is not OpenTelemetry-instrum
 
 For Playwright or other E2E tests, capture both the app under test and the test runner's view of browser failures. Add a run id such as `e2e.run_id=<uuid>` to resource attributes, emit page errors, console errors, and request failures as OTel logs, then query by that run id.
 
-## Common Mistakes
-
-| Mistake | Fix |
-| --- | --- |
-| Using `everr status` | Use `everr local status`. The `local` subcommand is required. |
-| Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint. |
-| Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
-| Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
-| Verifying by UI visibility or absence of exporter errors | Run `everr local query` and show rows from the exercised path. |
-
 ## Production Export
 
 When setting up production telemetry, wire the app to Everr's hosted OTLP HTTP ingest endpoint and require an organization ingest key from the user's secret manager.
@@ -107,9 +103,7 @@ Use these production defaults:
 - Endpoint: `https://ingest.everr.dev/`
 - Header: `Authorization: Bearer <ingest-key>`
 - Secret environment variable: `EVERR_INGEST_KEY`
-- Service identity: a stable `OTEL_SERVICE_NAME` value per service
-
-If the SDK wants per-signal URLs, send traces to `/v1/traces`, logs to `/v1/logs`, and metrics to `/v1/metrics` under the ingest endpoint. If the SDK accepts a base OTLP endpoint and appends signal paths itself, use the base endpoint only.
+- Service identity: a stable `service.name` hardcoded in the setup module for each service
 
 If no production ingest key exists yet, tell the user to create one in the Everr dashboard from the user menu's **Ingest Keys** page, then store it in the deployment secret manager. Do not invent credentials, print keys, hardcode keys, or commit keys.
 
@@ -122,56 +116,18 @@ Implementation expectations:
 - Do not expose `EVERR_INGEST_KEY` in browser bundles. Browser production telemetry should go through a backend or collector that can attach the ingest key server-side.
 - Preserve normal crash and shutdown behavior while flushing telemetry.
 
-## Verification Queries
+## Validation
 
-Do not treat UI visibility, lack of exporter errors, or unfiltered recent rows as proof. Before triggering the app, identify the expected `service.name` and, when practical, add a temporary run, request, or test id as a safe resource, span, or log attribute. If you add a marker, the verification query must filter on it. Verification should prove the telemetry came from the path you just exercised.
+Do not claim telemetry works until you have exercised the instrumented path and queried fresh telemetry that proves it.
 
-Fresh trace check:
+See `rules/validation.md` for the full validation checklist.
 
-```sql
-SELECT Timestamp, ServiceName, SpanName, TraceId
-FROM otel_traces
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-ORDER BY Timestamp DESC
-LIMIT 20
-```
+## Common Mistakes
 
-Fresh log check:
-
-```sql
-SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
-FROM otel_logs
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-ORDER BY Timestamp DESC
-LIMIT 20
-```
-
-Run-id checks, when the instrumented path emits one:
-
-```sql
-SELECT Timestamp, ServiceName, SpanName, TraceId
-FROM otel_traces
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-  AND (
-    ResourceAttributes['everr.run_id'] = '<run-id>'
-    OR SpanAttributes['everr.run_id'] = '<run-id>'
-  )
-ORDER BY Timestamp DESC
-LIMIT 20
-```
-
-```sql
-SELECT Timestamp, ServiceName, Body, TraceId
-FROM otel_logs
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-  AND (
-    ResourceAttributes['everr.run_id'] = '<run-id>'
-    OR LogAttributes['everr.run_id'] = '<run-id>'
-  )
-ORDER BY Timestamp DESC
-LIMIT 20
-```
+| Mistake | Fix |
+| --- | --- |
+| Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint. |
+| Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
+| Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
+| Verifying by UI visibility or absence of exporter errors | Run `everr local query` and show rows from the exercised path. |
+| Exposing `EVERR_INGEST_KEY` to the browser | Route browser telemetry through a backend or collector that attaches credentials server-side. |
