@@ -30,11 +30,11 @@ mod tests;
 
 use commands::{
     copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt, dismiss_active_notification,
-    get_active_notification, get_auth_status, get_build_info, get_notification_emails,
-    get_pending_sign_in, get_runs_list, get_user_profile, get_wizard_status,
-    open_notification_target, open_run_in_browser, open_sign_in_browser, poll_sign_in,
-    reset_dev_onboarding, set_notification_emails, sign_out, start_sign_in,
-    trigger_test_notification,
+    get_active_notification, get_auth_status, get_build_info, get_collector_status,
+    get_notification_emails, get_pending_sign_in, get_runs_list, get_user_profile,
+    get_wizard_status, open_notification_target, open_run_in_browser, open_sign_in_browser,
+    poll_sign_in, reset_dev_onboarding, restart_collector, set_notification_emails, sign_out,
+    start_sign_in, trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -242,7 +242,12 @@ pub fn run() {
 
             let sidecar =
                 tauri::async_runtime::block_on(telemetry::sidecar::Sidecar::start(app.handle()));
+            let collector_state = sidecar.state();
             app.manage(sidecar);
+            telemetry::sidecar::start_collector_state_event_loop(
+                app.handle().clone(),
+                collector_state,
+            );
 
             build_tray(app.handle())?;
             if wizard_incomplete(&runtime)? {
@@ -270,6 +275,8 @@ pub fn run() {
             get_notification_emails,
             set_notification_emails,
             get_build_info,
+            get_collector_status,
+            restart_collector,
             get_user_profile,
             get_runs_list,
             open_run_in_browser,

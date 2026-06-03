@@ -29,6 +29,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
 export { ErrorIssueSearchSchema };
@@ -62,29 +63,31 @@ export function ErrorsPage() {
         })
       }
     >
-      <ErrorIssues
-        repo={localErrorsRepo}
-        timeRange={timeRange}
-        refresh={refresh ?? ""}
-        search={{ q, service, fingerprint, sort, attributes }}
-        onSearchChange={(patch) =>
-          navigate({
-            to: "/errors",
-            search: (prev) => ({ ...prev, ...patch }),
-            replace: true,
-          })
-        }
-        renderIssueLink={({ fingerprint: issueFingerprint, children }) => (
-          <Link
-            to="/errors/$fingerprint"
-            params={{ fingerprint: issueFingerprint }}
-            search={(prev) => ({ ...prev, occurrence: "" })}
-            className="block text-foreground no-underline"
-          >
-            {children}
-          </Link>
-        )}
-      />
+      <LocalTelemetryGate>
+        <ErrorIssues
+          repo={localErrorsRepo}
+          timeRange={timeRange}
+          refresh={refresh ?? ""}
+          search={{ q, service, fingerprint, sort, attributes }}
+          onSearchChange={(patch) =>
+            navigate({
+              to: "/errors",
+              search: (prev) => ({ ...prev, ...patch }),
+              replace: true,
+            })
+          }
+          renderIssueLink={({ fingerprint: issueFingerprint, children }) => (
+            <Link
+              to="/errors/$fingerprint"
+              params={{ fingerprint: issueFingerprint }}
+              search={(prev) => ({ ...prev, occurrence: "" })}
+              className="block text-foreground no-underline"
+            >
+              {children}
+            </Link>
+          )}
+        />
+      </LocalTelemetryGate>
     </ErrorsPageShell>
   );
 }
@@ -119,51 +122,53 @@ export function ErrorDetailPage() {
         })
       }
     >
-      <ErrorDetail
-        repo={localErrorsRepo}
-        fingerprint={fingerprint}
-        timeRange={timeRange}
-        refresh={refresh ?? ""}
-        service={service}
-        occurrence={search.occurrence}
-        renderBackLink={(children) => (
-          <Link
-            to="/errors"
-            search={(prev) => ({ ...prev, occurrence: "" })}
-            className={buttonVariants({
-              variant: "outline",
-              size: "sm",
-              className: "shrink-0",
-            })}
-          >
-            {children}
-          </Link>
-        )}
-        renderOccurrenceLink={({
-          occurrence: linkedOccurrence,
-          children,
-          isSelected,
-        }) => (
-          <Link
-            to="/errors/$fingerprint"
-            params={{ fingerprint }}
-            search={(prev) => ({
-              ...prev,
-              occurrence: getErrorOccurrenceKey(linkedOccurrence),
-            })}
-            aria-current={isSelected ? "page" : undefined}
-            className={buttonVariants({
-              variant: isSelected ? "secondary" : "outline",
-              size: "sm",
-            })}
-          >
-            {children}
-          </Link>
-        )}
-        renderTracePanel={({ occurrence }) => (
-          <DesktopErrorTracePanel occurrence={occurrence} />
-        )}
-      />
+      <LocalTelemetryGate>
+        <ErrorDetail
+          repo={localErrorsRepo}
+          fingerprint={fingerprint}
+          timeRange={timeRange}
+          refresh={refresh ?? ""}
+          service={service}
+          occurrence={search.occurrence}
+          renderBackLink={(children) => (
+            <Link
+              to="/errors"
+              search={(prev) => ({ ...prev, occurrence: "" })}
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "shrink-0",
+              })}
+            >
+              {children}
+            </Link>
+          )}
+          renderOccurrenceLink={({
+            occurrence: linkedOccurrence,
+            children,
+            isSelected,
+          }) => (
+            <Link
+              to="/errors/$fingerprint"
+              params={{ fingerprint }}
+              search={(prev) => ({
+                ...prev,
+                occurrence: getErrorOccurrenceKey(linkedOccurrence),
+              })}
+              aria-current={isSelected ? "page" : undefined}
+              className={buttonVariants({
+                variant: isSelected ? "secondary" : "outline",
+                size: "sm",
+              })}
+            >
+              {children}
+            </Link>
+          )}
+          renderTracePanel={({ occurrence }) => (
+            <DesktopErrorTracePanel occurrence={occurrence} />
+          )}
+        />
+      </LocalTelemetryGate>
     </ErrorsPageShell>
   );
 }

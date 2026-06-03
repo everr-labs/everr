@@ -17,6 +17,7 @@ use crate::settings::{
     current_app_state, emit_auth_changed, emit_settings_changed, reset_dev_onboarding_inner,
     update_persisted_state, update_settings, wizard_status_response,
 };
+use crate::telemetry::sidecar::{CollectorStatusResponse, Sidecar};
 use crate::{
     current_base_url, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
     PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
@@ -167,6 +168,20 @@ pub(crate) fn get_build_info() -> CommandResult<BuildInfoResponse> {
         release_sha: env!("EVERR_RELEASE_SHA"),
         release_short_sha: env!("EVERR_RELEASE_SHORT_SHA"),
     })
+}
+
+#[tauri::command]
+pub(crate) fn get_collector_status(
+    sidecar: State<'_, Sidecar>,
+) -> CommandResult<CollectorStatusResponse> {
+    Ok(sidecar.status())
+}
+
+#[tauri::command]
+pub(crate) async fn restart_collector(
+    sidecar: State<'_, Sidecar>,
+) -> CommandResult<CollectorStatusResponse> {
+    Ok(sidecar.restart().await)
 }
 
 #[tauri::command]

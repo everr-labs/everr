@@ -17,6 +17,7 @@ import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef } from "react";
 import { z } from "zod";
+import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "./local-sql-client";
 
 export const LogsSearchSchema = z.object({
@@ -107,29 +108,31 @@ export function LogsPage() {
         </div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <LogsExplorer
-          repo={repo}
-          timeRange={timeRange}
-          search={explorerSearch}
-          onSearchChange={(next) =>
-            navigate({
-              to: "/logs",
-              search: (prev) => ({ ...prev, ...next }),
-              replace: true,
-            })
-          }
-          onTimeRangeSelect={(from, to) =>
-            navigate({
-              to: "/logs",
-              search: (prev) => ({
-                ...prev,
-                from: from.toISOString(),
-                to: to.toISOString(),
-              }),
-              replace: true,
-            })
-          }
-        />
+        <LocalTelemetryGate>
+          <LogsExplorer
+            repo={repo}
+            timeRange={timeRange}
+            search={explorerSearch}
+            onSearchChange={(next) =>
+              navigate({
+                to: "/logs",
+                search: (prev) => ({ ...prev, ...next }),
+                replace: true,
+              })
+            }
+            onTimeRangeSelect={(from, to) =>
+              navigate({
+                to: "/logs",
+                search: (prev) => ({
+                  ...prev,
+                  from: from.toISOString(),
+                  to: to.toISOString(),
+                }),
+                replace: true,
+              })
+            }
+          />
+        </LocalTelemetryGate>
       </div>
     </div>
   );
