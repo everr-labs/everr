@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FilterSidebar } from "./filter-sidebar";
 
@@ -23,7 +23,7 @@ describe("FilterSidebar", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows Clear all only when filters are active and calls onClear", async () => {
+  it("shows Clear all only when filters are active and calls onClear", () => {
     const onClear = vi.fn();
     const { rerender } = render(
       <FilterSidebar
@@ -43,7 +43,7 @@ describe("FilterSidebar", () => {
         <div />
       </FilterSidebar>,
     );
-    screen.getByRole("button", { name: "Clear all" }).click();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 });
