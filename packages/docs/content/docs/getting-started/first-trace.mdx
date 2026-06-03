@@ -23,7 +23,7 @@ on your machine so the loop is fast and nothing leaves your laptop.
 Make sure the CLI is installed and you have finished `everr setup`. If not, see
 [Install](/docs/getting-started/install) first.
 
-## Step 1 — Start the local collector
+## Start the local collector
 
 The local collector receives your telemetry on your machine. Start it in its own
 terminal:
@@ -34,9 +34,9 @@ everr local start
 
 It runs in the foreground and prints the OTLP HTTP endpoint when it is ready.
 Leave it running. (If you use Everr Desktop, the collector already runs while
-the app is open — you can skip this step and confirm with `everr local status`.)
+the app is open, so you can skip this step and confirm with `everr local status`.)
 
-## Step 2 — Send telemetry from your app
+## Send telemetry from your app
 
 Point your app's OpenTelemetry exporter at the endpoint the collector printed.
 If your app already emits OpenTelemetry, set these in the environment you run it
@@ -53,13 +53,13 @@ If your app does not emit OpenTelemetry yet, ask your coding assistant to run th
 `everr-setup-telemetry` skill. It inspects your stack, adds the smallest standard
 setup for your runtime, and points it at the local collector for you.
 
-## Step 3 — Exercise your app
+## Exercise your app
 
-Run your app and trigger the path you want to see — load a page, call an
+Run your app and trigger the path you want to see: load a page, call an
 endpoint, or run the instrumented command. The collector records telemetry as
 your app emits it.
 
-## Step 4 — Query your first trace
+## Query your first trace
 
 Now ask the local store what it received:
 
@@ -79,7 +79,7 @@ the instrumented path again.
 
 You now have the core loop: emit telemetry, run the workflow, and query what
 happened instead of reconstructing it from terminal scrollback. Everything else
-in Everr — local debugging, CI insights, and production monitoring — reuses this
+in Everr (local debugging, CI insights, and production monitoring) reuses this
 same loop.
 
 ## Next steps
