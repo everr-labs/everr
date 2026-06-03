@@ -5,25 +5,54 @@ use std::time::{Duration, Instant};
 use nix::errno::Errno;
 use nix::sys::signal::{killpg, Signal};
 use nix::unistd::Pid;
-use tauri::AppHandle;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 use tokio::process::{Child, Command};
-use tokio::sync::watch;
+use tokio::sync::{mpsc, oneshot, watch};
+use tokio::task::{JoinError, JoinHandle};
 use tokio::time::{sleep, timeout};
 
 use crate::telemetry::ports::{HEALTHCHECK_PORT, OTLP_HTTP_PORT};
 
 pub const COLLECTOR_START_ARGS: [&str; 3] = ["local", "start", "--quiet"];
+pub const COLLECTOR_CHANGED_EVENT: &str = "everr://collector-changed";
 
 #[derive(Debug, Clone)]
 pub enum TelemetryState {
     Starting,
-    Ready { otlp_endpoint: String },
-    Disabled { reason: String },
+    Ready {
+        otlp_endpoint: String,
+    },
+    /// Intentionally stopped (app shutdown).
+    Stopped,
+    /// Failed to start or exited unexpectedly.
+    Disabled {
+        reason: String,
+    },
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectorStatusResponse {
+    pub status: &'static str,
+    pub reason: Option<String>,
+    pub otlp_endpoint: String,
+    pub sql_endpoint: String,
+    pub health_endpoint: String,
+    pub telemetry_dir: Option<String>,
+}
+
+/// Commands sent to the supervisor task that owns the collector process.
+enum SupervisorCommand {
+    Restart(oneshot::Sender<CollectorStatusResponse>),
+    Shutdown(oneshot::Sender<()>),
+}
+
+/// Handle to the collector supervisor. All process state lives in the
+/// supervisor task; this struct only carries channels to talk to it, so there
+/// is no shared mutable process state to guard.
 pub struct Sidecar {
-    child: std::sync::Arc<std::sync::Mutex<Option<Child>>>,
-    state_tx: watch::Sender<TelemetryState>,
+    cmd_tx: mpsc::Sender<SupervisorCommand>,
     state_rx: watch::Receiver<TelemetryState>,
 }
 
@@ -32,93 +61,267 @@ impl Sidecar {
         self.state_rx.clone()
     }
 
-    /// Starts the collector from inside Tauri's `setup()` callback.
-    pub async fn start(app: &AppHandle) -> Self {
-        kill_orphaned_collector();
-
-        let cli_path = match crate::cli::bundled_cli_path(app) {
-            Ok(path) => path,
-            Err(err) => {
-                return Self::disabled(format!("bundled CLI: {err}"));
-            }
-        };
-
-        let (tx, rx) = watch::channel(TelemetryState::Starting);
-        let child = match spawn_cli_collector(&cli_path).await {
-            Ok(child) => child,
-            Err(err) => {
-                return Self::disabled(format!("CLI collector spawn: {err}"));
-            }
-        };
-        let child = std::sync::Arc::new(std::sync::Mutex::new(Some(child)));
-
-        tokio::spawn(monitor_child(child.clone(), tx.clone()));
-        tokio::spawn(monitor_readiness(tx.clone(), tx.subscribe()));
-
-        Self {
-            child,
-            state_tx: tx,
-            state_rx: rx,
-        }
+    pub fn status(&self) -> CollectorStatusResponse {
+        status_response(&self.state_rx.borrow())
     }
 
-    fn disabled(reason: String) -> Self {
-        let (tx, rx) = watch::channel(TelemetryState::Disabled {
-            reason: reason.clone(),
-        });
-        Self {
-            child: std::sync::Arc::new(std::sync::Mutex::new(None)),
-            state_tx: tx,
-            state_rx: rx,
+    /// Starts the collector from inside Tauri's `setup()` callback.
+    pub async fn start(app: &AppHandle) -> Self {
+        let (state_tx, state_rx) = watch::channel(TelemetryState::Starting);
+        let (cmd_tx, cmd_rx) = mpsc::channel(8);
+
+        // Spawn the first generation up front so an immediate failure surfaces
+        // as `Disabled` before we hand the supervisor over.
+        kill_orphaned_collector();
+        let child = match spawn_collector(app).await {
+            Ok(child) => Some(child),
+            Err(reason) => {
+                let _ = state_tx.send(TelemetryState::Disabled { reason });
+                None
+            }
+        };
+
+        let supervisor = Supervisor {
+            app: app.clone(),
+            state_tx,
+            child,
+            readiness: None,
+        };
+        // `tauri::async_runtime::spawn` works regardless of the current runtime
+        // context (`start` runs inside Tauri's synchronous `setup`).
+        tauri::async_runtime::spawn(supervisor.run(cmd_rx));
+
+        Self { cmd_tx, state_rx }
+    }
+
+    pub async fn restart(&self) -> CollectorStatusResponse {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .cmd_tx
+            .send(SupervisorCommand::Restart(reply_tx))
+            .await
+            .is_err()
+        {
+            return self.status();
         }
+        reply_rx.await.unwrap_or_else(|_| self.status())
     }
 
     pub async fn shutdown(&self) {
-        let Some(mut child) = self.child.lock().unwrap().take() else {
-            return;
-        };
-        let Some(pid) = child.id() else {
-            let _ = child.kill().await;
-            return;
-        };
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .cmd_tx
+            .send(SupervisorCommand::Shutdown(reply_tx))
+            .await
+            .is_ok()
+        {
+            let _ = reply_rx.await;
+        }
+    }
+}
 
-        let process_group = Pid::from_raw(pid as i32);
-        match killpg(process_group, Signal::SIGTERM) {
-            Ok(()) => {}
-            Err(Errno::ESRCH) => {
-                let _ = self.state_tx.send(TelemetryState::Disabled {
-                    reason: "shutdown".into(),
-                });
-                return;
+/// Owns the collector `Child` and its readiness probe, and is the single writer
+/// of `TelemetryState`. Because everything lives in one task, restarts and
+/// shutdowns are serialized for free and no stale generation can race the
+/// current one.
+struct Supervisor {
+    app: AppHandle,
+    state_tx: watch::Sender<TelemetryState>,
+    child: Option<Child>,
+    readiness: Option<JoinHandle<String>>,
+}
+
+impl Supervisor {
+    async fn run(mut self, mut cmd_rx: mpsc::Receiver<SupervisorCommand>) {
+        if self.child.is_some() {
+            self.readiness = Some(tokio::spawn(probe_ready()));
+        }
+
+        loop {
+            tokio::select! {
+                // The collector exited on its own.
+                res = wait_child(&mut self.child), if self.child.is_some() => {
+                    self.abort_readiness();
+                    self.child = None;
+                    let _ = self.state_tx.send(TelemetryState::Disabled {
+                        reason: exit_reason(res),
+                    });
+                }
+                // The readiness probe for the current generation passed.
+                res = wait_handle(&mut self.readiness), if self.readiness.is_some() => {
+                    self.readiness = None;
+                    if let Ok(otlp_endpoint) = res {
+                        let _ = self.state_tx.send(TelemetryState::Ready { otlp_endpoint });
+                    }
+                }
+                cmd = cmd_rx.recv() => match cmd {
+                    Some(SupervisorCommand::Restart(reply)) => self.handle_restart(reply).await,
+                    Some(SupervisorCommand::Shutdown(reply)) => {
+                        self.teardown().await;
+                        let _ = self.state_tx.send(TelemetryState::Stopped);
+                        let _ = reply.send(());
+                        return;
+                    }
+                    None => {
+                        self.teardown().await;
+                        return;
+                    }
+                },
             }
-            Err(err) => {
-                eprintln!("[collector] SIGTERM failed: {err}; hard-killing process group");
-                hard_kill_process_group(process_group, &mut child).await;
-                let _ = self.state_tx.send(TelemetryState::Disabled {
-                    reason: "shutdown".into(),
-                });
-                return;
+        }
+    }
+
+    async fn handle_restart(&mut self, reply: oneshot::Sender<CollectorStatusResponse>) {
+        self.teardown().await;
+        kill_orphaned_collector();
+
+        match spawn_collector(&self.app).await {
+            Ok(child) => {
+                self.child = Some(child);
+                self.readiness = Some(tokio::spawn(probe_ready()));
+                let _ = self.state_tx.send(TelemetryState::Starting);
+            }
+            Err(reason) => {
+                let _ = self.state_tx.send(TelemetryState::Disabled { reason });
             }
         }
 
-        let deadline = Duration::from_secs(3);
-        match timeout(deadline, child.wait()).await {
-            Ok(Ok(_)) => { /* clean exit */ }
-            Ok(Err(err)) => {
-                eprintln!("[collector] wait after SIGTERM failed: {err}");
-            }
-            Err(_) => {
-                eprintln!(
-                    "[collector] did not exit within 3s of SIGTERM; hard-killing process group"
-                );
-                hard_kill_process_group(process_group, &mut child).await;
-            }
-        }
-
-        let _ = self.state_tx.send(TelemetryState::Disabled {
-            reason: "shutdown".into(),
+        // Reply once the new generation settles. The waiter only observes the
+        // state channel — the main loop keeps driving the transitions — so it
+        // can't deadlock against this task.
+        let state_rx = self.state_tx.subscribe();
+        tokio::spawn(async move {
+            let status = wait_until_settled(state_rx, Duration::from_secs(12)).await;
+            let _ = reply.send(status);
         });
     }
+
+    /// Stops the current collector and cancels its readiness probe, leaving the
+    /// supervisor with no live generation.
+    async fn teardown(&mut self) {
+        self.abort_readiness();
+        stop_child(&mut self.child).await;
+    }
+
+    fn abort_readiness(&mut self) {
+        if let Some(handle) = self.readiness.take() {
+            handle.abort();
+        }
+    }
+}
+
+/// Awaits the child's exit, or pends forever when there is no child.
+async fn wait_child(child: &mut Option<Child>) -> std::io::Result<std::process::ExitStatus> {
+    match child {
+        Some(child) => child.wait().await,
+        None => std::future::pending().await,
+    }
+}
+
+/// Awaits the readiness probe handle, or pends forever when there is none.
+async fn wait_handle(handle: &mut Option<JoinHandle<String>>) -> Result<String, JoinError> {
+    match handle {
+        Some(handle) => handle.await,
+        None => std::future::pending().await,
+    }
+}
+
+fn exit_reason(res: std::io::Result<std::process::ExitStatus>) -> String {
+    match res {
+        Ok(status) => format!("collector CLI terminated: {status}"),
+        Err(err) => format!("collector CLI wait failed: {err}"),
+    }
+}
+
+/// Polls the collector healthcheck until it passes, returning the OTLP endpoint.
+async fn probe_ready() -> String {
+    let endpoint = format!("http://127.0.0.1:{HEALTHCHECK_PORT}/");
+    loop {
+        if everr_core::collector::wait_healthcheck(&endpoint, Duration::from_secs(3)).await {
+            return format!("http://127.0.0.1:{OTLP_HTTP_PORT}");
+        }
+        eprintln!("[collector] healthcheck not ready after 3s; continuing background wait");
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+async fn spawn_collector(app: &AppHandle) -> Result<Child, String> {
+    let cli_path =
+        crate::cli::bundled_cli_path(app).map_err(|err| format!("bundled CLI: {err}"))?;
+    spawn_cli_collector(&cli_path)
+        .await
+        .map_err(|err| format!("CLI collector spawn: {err}"))
+}
+
+/// Terminates the collector process group (SIGTERM, then SIGKILL on timeout)
+/// and clears the slot.
+async fn stop_child(slot: &mut Option<Child>) {
+    let Some(mut child) = slot.take() else {
+        return;
+    };
+    let Some(pid) = child.id() else {
+        let _ = child.kill().await;
+        return;
+    };
+
+    let process_group = Pid::from_raw(pid as i32);
+    match killpg(process_group, Signal::SIGTERM) {
+        Ok(()) => {}
+        Err(Errno::ESRCH) => return,
+        Err(err) => {
+            eprintln!("[collector] SIGTERM failed: {err}; hard-killing process group");
+            hard_kill_process_group(process_group, &mut child).await;
+            return;
+        }
+    }
+
+    match timeout(Duration::from_secs(3), child.wait()).await {
+        Ok(Ok(_)) => { /* clean exit */ }
+        Ok(Err(err)) => eprintln!("[collector] wait after SIGTERM failed: {err}"),
+        Err(_) => {
+            eprintln!("[collector] did not exit within 3s of SIGTERM; hard-killing process group");
+            hard_kill_process_group(process_group, &mut child).await;
+        }
+    }
+}
+
+fn status_response(state: &TelemetryState) -> CollectorStatusResponse {
+    let otlp_endpoint = match state {
+        TelemetryState::Ready { otlp_endpoint } => otlp_endpoint.clone(),
+        _ => everr_core::build::otlp_http_origin(),
+    };
+    let (status, reason) = match state {
+        TelemetryState::Starting => ("starting", None),
+        TelemetryState::Ready { .. } => ("running", None),
+        TelemetryState::Stopped => ("stopped", None),
+        TelemetryState::Disabled { reason } => ("failed", Some(reason.clone())),
+    };
+
+    CollectorStatusResponse {
+        status,
+        reason,
+        otlp_endpoint,
+        sql_endpoint: everr_core::build::sql_http_origin(),
+        health_endpoint: everr_core::build::healthcheck_origin(),
+        telemetry_dir: everr_core::build::telemetry_dir()
+            .ok()
+            .map(|path| path.display().to_string()),
+    }
+}
+
+pub fn start_collector_state_event_loop(
+    app: AppHandle,
+    mut state_rx: watch::Receiver<TelemetryState>,
+) {
+    // Called from Tauri's synchronous `setup()` (outside a Tokio runtime
+    // context), so use the Tauri runtime spawner rather than `tokio::spawn`.
+    tauri::async_runtime::spawn(async move {
+        let _ = app.emit(COLLECTOR_CHANGED_EVENT, status_response(&state_rx.borrow()));
+        while state_rx.changed().await.is_ok() {
+            let status = status_response(&state_rx.borrow_and_update());
+            let _ = app.emit(COLLECTOR_CHANGED_EVENT, status);
+        }
+    });
 }
 
 async fn hard_kill_process_group(process_group: Pid, child: &mut Child) {
@@ -142,92 +345,51 @@ fn kill_orphaned_collector() {
     everr_core::collector::kill_processes_on_port(HEALTHCHECK_PORT, "orphaned collector process");
 }
 
+/// Waits until the collector leaves the `Starting` state (or the deadline
+/// elapses), returning the resulting status snapshot.
+async fn wait_until_settled(
+    mut state_rx: watch::Receiver<TelemetryState>,
+    deadline: Duration,
+) -> CollectorStatusResponse {
+    let start = Instant::now();
+    loop {
+        if !matches!(&*state_rx.borrow(), TelemetryState::Starting) {
+            return status_response(&state_rx.borrow());
+        }
+        let Some(remaining) = deadline.checked_sub(start.elapsed()) else {
+            return status_response(&state_rx.borrow());
+        };
+        if timeout(remaining, state_rx.changed()).await.is_err() {
+            return status_response(&state_rx.borrow());
+        }
+        if state_rx.has_changed().is_err() {
+            return status_response(&state_rx.borrow());
+        }
+    }
+}
+
 pub async fn wait_for_disabled_state(
     mut state_rx: watch::Receiver<TelemetryState>,
     deadline: Duration,
 ) -> bool {
-    if matches!(&*state_rx.borrow(), TelemetryState::Disabled { .. }) {
+    let is_disabled = |state: &TelemetryState| matches!(state, TelemetryState::Disabled { .. });
+    if is_disabled(&state_rx.borrow()) {
         return true;
     }
 
     let start = Instant::now();
     loop {
         let Some(remaining) = deadline.checked_sub(start.elapsed()) else {
-            return matches!(&*state_rx.borrow(), TelemetryState::Disabled { .. });
+            return is_disabled(&state_rx.borrow());
         };
-
         match timeout(remaining, state_rx.changed()).await {
             Ok(Ok(())) => {
-                if matches!(
-                    &*state_rx.borrow_and_update(),
-                    TelemetryState::Disabled { .. }
-                ) {
+                if is_disabled(&state_rx.borrow_and_update()) {
                     return true;
                 }
             }
-            Ok(Err(_)) => return matches!(&*state_rx.borrow(), TelemetryState::Disabled { .. }),
-            Err(_) => return matches!(&*state_rx.borrow(), TelemetryState::Disabled { .. }),
+            Ok(Err(_)) | Err(_) => return is_disabled(&state_rx.borrow()),
         }
-    }
-}
-
-async fn monitor_child(
-    child: std::sync::Arc<std::sync::Mutex<Option<Child>>>,
-    state_tx: watch::Sender<TelemetryState>,
-) {
-    loop {
-        let status = {
-            let mut guard = child.lock().unwrap();
-            let Some(child) = guard.as_mut() else {
-                break;
-            };
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    guard.take();
-                    Some(Ok(status))
-                }
-                Ok(None) => None,
-                Err(err) => Some(Err(err)),
-            }
-        };
-
-        match status {
-            Some(Ok(status)) => {
-                let _ = state_tx.send(TelemetryState::Disabled {
-                    reason: format!("collector CLI terminated: {status}"),
-                });
-                break;
-            }
-            Some(Err(err)) => {
-                let _ = state_tx.send(TelemetryState::Disabled {
-                    reason: format!("collector CLI wait failed: {err}"),
-                });
-                break;
-            }
-            None => sleep(Duration::from_millis(250)).await,
-        }
-    }
-}
-
-async fn monitor_readiness(
-    state_tx: watch::Sender<TelemetryState>,
-    state_rx: watch::Receiver<TelemetryState>,
-) {
-    let endpoint = format!("http://127.0.0.1:{HEALTHCHECK_PORT}/");
-    loop {
-        if everr_core::collector::wait_healthcheck(&endpoint, Duration::from_secs(3)).await {
-            let _ = state_tx.send(TelemetryState::Ready {
-                otlp_endpoint: format!("http://127.0.0.1:{OTLP_HTTP_PORT}"),
-            });
-            break;
-        }
-
-        if matches!(*state_rx.borrow(), TelemetryState::Disabled { .. }) {
-            break;
-        }
-
-        eprintln!("[collector] healthcheck not ready after 3s; continuing background wait");
-        sleep(Duration::from_secs(1)).await;
     }
 }
 
@@ -242,15 +404,8 @@ pub async fn spawn_cli_collector_detached(
             .env("EVERR_SKIP_ORPHANED_COLLECTOR_KILL", "1");
     })
     .await?;
-    let child = std::sync::Arc::new(std::sync::Mutex::new(Some(child)));
-    let (tx, rx) = watch::channel(TelemetryState::Starting);
-    tokio::spawn(monitor_child(child.clone(), tx.clone()));
     Ok(DetachedSidecar {
-        inner: Sidecar {
-            child,
-            state_tx: tx,
-            state_rx: rx,
-        },
+        child: tokio::sync::Mutex::new(Some(child)),
     })
 }
 
@@ -289,30 +444,28 @@ async fn spawn_cli_collector_with(
     Ok(child)
 }
 
+/// A standalone collector process used by tests. Owns its `Child` directly and
+/// drives readiness on demand via [`DetachedSidecar::wait_ready`].
 pub struct DetachedSidecar {
-    inner: Sidecar,
+    child: tokio::sync::Mutex<Option<Child>>,
 }
 
 impl DetachedSidecar {
     pub async fn wait_ready(&self) -> TelemetryState {
         let endpoint = format!("http://127.0.0.1:{HEALTHCHECK_PORT}/");
         if everr_core::collector::wait_healthcheck(&endpoint, Duration::from_secs(10)).await {
-            let otlp = format!("http://127.0.0.1:{OTLP_HTTP_PORT}");
-            let state = TelemetryState::Ready {
-                otlp_endpoint: otlp,
-            };
-            let _ = self.inner.state_tx.send(state.clone());
-            state
+            TelemetryState::Ready {
+                otlp_endpoint: format!("http://127.0.0.1:{OTLP_HTTP_PORT}"),
+            }
         } else {
-            let state = TelemetryState::Disabled {
+            TelemetryState::Disabled {
                 reason: "healthcheck timeout".into(),
-            };
-            let _ = self.inner.state_tx.send(state.clone());
-            state
+            }
         }
     }
 
     pub async fn shutdown(&self) {
-        self.inner.shutdown().await;
+        let mut guard = self.child.lock().await;
+        stop_child(&mut guard).await;
     }
 }

@@ -26,6 +26,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
 export { TraceDetailParamsSchema, TraceSearchParamsSchema };
@@ -58,38 +59,40 @@ export function TracesPage() {
         })
       }
     >
-      <TracesSearch
-        repo={localTracesRepo}
-        timeRange={timeRange}
-        refresh={refresh}
-        search={{
-          namespace: search.namespace,
-          service: search.service,
-          name: search.name,
-          minMs: search.minMs,
-          maxMs: search.maxMs,
-          status: search.status,
-          attributes: search.attributes,
-          limit: search.limit,
-        }}
-        onSearchChange={(patch) =>
-          navigate({
-            to: "/traces",
-            search: (prev) => ({ ...prev, ...patch }),
-            replace: true,
-          })
-        }
-        renderTraceLink={({ traceId, start, end, className, children }) => (
-          <Link
-            to="/traces/$traceId"
-            params={{ traceId }}
-            search={(prev) => ({ ...prev, start, end })}
-            className={className}
-          >
-            {children}
-          </Link>
-        )}
-      />
+      <LocalTelemetryGate>
+        <TracesSearch
+          repo={localTracesRepo}
+          timeRange={timeRange}
+          refresh={refresh}
+          search={{
+            namespace: search.namespace,
+            service: search.service,
+            name: search.name,
+            minMs: search.minMs,
+            maxMs: search.maxMs,
+            status: search.status,
+            attributes: search.attributes,
+            limit: search.limit,
+          }}
+          onSearchChange={(patch) =>
+            navigate({
+              to: "/traces",
+              search: (prev) => ({ ...prev, ...patch }),
+              replace: true,
+            })
+          }
+          renderTraceLink={({ traceId, start, end, className, children }) => (
+            <Link
+              to="/traces/$traceId"
+              params={{ traceId }}
+              search={(prev) => ({ ...prev, start, end })}
+              className={className}
+            >
+              {children}
+            </Link>
+          )}
+        />
+      </LocalTelemetryGate>
     </TracePageShell>
   );
 }
@@ -126,25 +129,27 @@ export function TraceDetailPage() {
         })
       }
     >
-      <TraceDetail
-        repo={localTracesRepo}
-        traceId={traceId}
-        search={search}
-        onBack={() =>
-          navigate({
-            to: "/traces",
-            search: toTraceListSearch(search),
-          })
-        }
-        onSpanChange={(spanId) =>
-          navigate({
-            to: "/traces/$traceId",
-            params: { traceId },
-            search: (prev) => ({ ...prev, span: spanId }),
-            replace: true,
-          })
-        }
-      />
+      <LocalTelemetryGate>
+        <TraceDetail
+          repo={localTracesRepo}
+          traceId={traceId}
+          search={search}
+          onBack={() =>
+            navigate({
+              to: "/traces",
+              search: toTraceListSearch(search),
+            })
+          }
+          onSpanChange={(spanId) =>
+            navigate({
+              to: "/traces/$traceId",
+              params: { traceId },
+              search: (prev) => ({ ...prev, span: spanId }),
+              replace: true,
+            })
+          }
+        />
+      </LocalTelemetryGate>
     </TracePageShell>
   );
 }

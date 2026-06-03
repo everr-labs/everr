@@ -1,6 +1,12 @@
+import { Button } from "@everr/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
+import { RotateCw } from "lucide-react";
 import { invokeCommand } from "@/lib/tauri";
 import { AuthSettingsSection } from "../auth/auth";
+import {
+  useCollectorStatusQuery,
+  useRestartCollectorMutation,
+} from "../local-telemetry/collector-status";
 import { NotificationEmailsSection } from "../notifications/notification-emails-section";
 import { SettingsSection } from "./ui";
 
@@ -34,6 +40,61 @@ function BuildInfoSection() {
   );
 }
 
+function LocalTelemetrySection() {
+  const statusQuery = useCollectorStatusQuery();
+  const restartMutation = useRestartCollectorMutation();
+  const status = statusQuery.data;
+
+  return (
+    <SettingsSection
+      title="Local telemetry"
+      description="Collector status and local endpoints used by Logs, Errors, and Traces."
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          disabled={restartMutation.isPending}
+          onClick={() => restartMutation.mutate()}
+        >
+          <RotateCw data-icon="inline-start" />
+          {restartMutation.isPending ? "Restarting" : "Restart collector"}
+        </Button>
+      }
+    >
+      <dl className="grid max-w-[680px] grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+        <dt className="text-[var(--settings-text-muted)]">Status</dt>
+        <dd className="m-0 font-mono text-[var(--settings-text)]">
+          {status?.status ?? (statusQuery.isPending ? "loading" : "unknown")}
+        </dd>
+        {status?.reason ? (
+          <>
+            <dt className="text-[var(--settings-text-muted)]">Reason</dt>
+            <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
+              {status.reason}
+            </dd>
+          </>
+        ) : null}
+        <dt className="text-[var(--settings-text-muted)]">OTLP</dt>
+        <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
+          {status?.otlpEndpoint ?? "unknown"}
+        </dd>
+        <dt className="text-[var(--settings-text-muted)]">SQL</dt>
+        <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
+          {status?.sqlEndpoint ?? "unknown"}
+        </dd>
+        <dt className="text-[var(--settings-text-muted)]">Health</dt>
+        <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
+          {status?.healthEndpoint ?? "unknown"}
+        </dd>
+        <dt className="text-[var(--settings-text-muted)]">Data</dt>
+        <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
+          {status?.telemetryDir ?? "unknown"}
+        </dd>
+      </dl>
+    </SettingsSection>
+  );
+}
+
 export function SettingsPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -53,6 +114,7 @@ export function SettingsPage() {
             <AuthSettingsSection />
           </div>
           <NotificationEmailsSection />
+          <LocalTelemetrySection />
           <BuildInfoSection />
         </div>
       </div>

@@ -45,6 +45,15 @@ type TestNotificationResponse = {
   status: "shown" | "queued";
 };
 
+type CollectorStatus = {
+  status: "starting" | "running" | "failed" | "stopped";
+  reason?: string;
+  otlpEndpoint: string;
+  sqlEndpoint: string;
+  healthEndpoint: string;
+  telemetryDir?: string;
+};
+
 type RunListItem = {
   traceId: string;
   runId: string;
@@ -70,6 +79,8 @@ type MainCommand =
   | "reset_dev_onboarding"
   | "trigger_test_notification"
   | "get_build_info"
+  | "get_collector_status"
+  | "restart_collector"
   | "get_runs_list"
   | "open_run_in_browser"
   | "copy_run_auto_fix_prompt";
@@ -80,6 +91,7 @@ type RenderMainOptions = {
   testNotification?: TestNotificationResponse;
   pendingSignIn?: PendingSignIn | null;
   runs?: RunListItem[];
+  collectorStatus?: CollectorStatus;
   commandOverrides?: Partial<Record<MainCommand, (args: unknown) => unknown>>;
 };
 
@@ -149,6 +161,18 @@ function renderMainApp(options: RenderMainOptions = {}) {
     () => options.testNotification ?? { status: "shown" },
   );
   let runs = options.runs ?? [];
+  const runningCollectorStatus = {
+    status: "running",
+    otlpEndpoint: "http://127.0.0.1:54318",
+    sqlEndpoint: "http://127.0.0.1:54320",
+    healthEndpoint: "http://127.0.0.1:54319",
+    telemetryDir: "/tmp/everr/telemetry-dev",
+  } satisfies CollectorStatus;
+  let collectorStatus = options.collectorStatus ?? runningCollectorStatus;
+  const restartCollectorSpy = vi.fn(() => {
+    collectorStatus = runningCollectorStatus;
+    return collectorStatus;
+  });
 
   mockWindows("main");
   mockIPC(
@@ -209,6 +233,10 @@ function renderMainApp(options: RenderMainOptions = {}) {
             release_sha: "unknown",
             release_short_sha: "unknown",
           };
+        case "get_collector_status":
+          return collectorStatus;
+        case "restart_collector":
+          return restartCollectorSpy();
         case "get_runs_list":
           return runs;
         case "open_run_in_browser":
@@ -228,6 +256,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
     openSignInBrowserSpy,
     resetDevOnboardingSpy,
     triggerTestNotificationSpy,
+    restartCollectorSpy,
     setRuns(next: RunListItem[]) {
       runs = next;
     },
@@ -626,6 +655,105 @@ describe("runs list", () => {
     expect(screen.getByText("release/v2")).toBeInTheDocument();
     expect(screen.getByText("failure")).toBeInTheDocument();
     expect(screen.getByText("success")).toBeInTheDocument();
+  });
+});
+
+describe("local telemetry collector", () => {
+  it("shows an inline restart action when logs are unavailable", async () => {
+    const { restartCollectorSpy } = renderMainApp({
+      collectorStatus: {
+        status: "failed",
+        reason: "collector exited",
+        otlpEndpoint: "http://127.0.0.1:54318",
+        sqlEndpoint: "http://127.0.0.1:54320",
+        healthEndpoint: "http://127.0.0.1:54319",
+        telemetryDir: "/tmp/everr/telemetry-dev",
+      },
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/logs" });
+    });
+
+    expect(
+      await screen.findByText("Local telemetry unavailable"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("collector exited")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restart collector" }));
+
+    await waitFor(() => {
+      expect(restartCollectorSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("shows local telemetry diagnostics in settings", async () => {
+    renderMainApp({
+      collectorStatus: {
+        status: "running",
+        otlpEndpoint: "http://127.0.0.1:54318",
+        sqlEndpoint: "http://127.0.0.1:54320",
+        healthEndpoint: "http://127.0.0.1:54319",
+        telemetryDir: "/tmp/everr/telemetry-dev",
+      },
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    expect(await screen.findByText("Local telemetry")).toBeInTheDocument();
+    expect(await screen.findByText("running")).toBeInTheDocument();
+    expect(screen.getByText("http://127.0.0.1:54318")).toBeInTheDocument();
+    expect(screen.getByText("http://127.0.0.1:54320")).toBeInTheDocument();
+  });
+
+  it("shows a starting gate while the collector is starting", async () => {
+    renderMainApp({
+      collectorStatus: {
+        status: "starting",
+        otlpEndpoint: "http://127.0.0.1:54318",
+        sqlEndpoint: "http://127.0.0.1:54320",
+        healthEndpoint: "http://127.0.0.1:54319",
+        telemetryDir: "/tmp/everr/telemetry-dev",
+      },
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/logs" });
+    });
+
+    expect(
+      await screen.findByText("Starting local telemetry"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The local collector is starting."),
+    ).toBeInTheDocument();
+  });
+
+  it("restarts the collector from the settings page", async () => {
+    const { restartCollectorSpy } = renderMainApp({
+      collectorStatus: {
+        status: "failed",
+        reason: "collector exited",
+        otlpEndpoint: "http://127.0.0.1:54318",
+        sqlEndpoint: "http://127.0.0.1:54320",
+        healthEndpoint: "http://127.0.0.1:54319",
+        telemetryDir: "/tmp/everr/telemetry-dev",
+      },
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/settings" });
+    });
+
+    expect(await screen.findByText("Local telemetry")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restart collector" }));
+
+    await waitFor(() => {
+      expect(restartCollectorSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });
 
