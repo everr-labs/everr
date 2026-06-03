@@ -96,6 +96,19 @@ describe("parseLogs", () => {
     expect(groups).toHaveLength(0);
   });
 
+  it("treats null bodies as empty log lines", () => {
+    const { lines, groups } = parseLogs([
+      {
+        timestamp: "2025-01-01T00:00:00Z",
+        body: null as unknown as string,
+      },
+    ]);
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0].body).toBe("");
+    expect(groups).toHaveLength(0);
+  });
+
   it("parses groups", () => {
     const { lines, groups } = parseLogs([
       { timestamp: "2025-01-01T00:00:00Z", body: "##[group]Setup" },
