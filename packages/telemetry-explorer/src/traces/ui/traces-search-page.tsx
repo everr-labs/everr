@@ -19,6 +19,10 @@ import {
 
 export type { TraceLinkRenderProps };
 
+// How many traces each infinite-query page fetches. Not user-tunable, so it
+// lives here rather than in the URL search params.
+const TRACES_PAGE_SIZE = 50;
+
 export type TraceSearchValue = {
   namespace: string[];
   service: string[];
@@ -27,7 +31,6 @@ export type TraceSearchValue = {
   maxMs: number | undefined;
   status: SpanStatusFilter;
   attributes: AttributeFilter[];
-  limit: number;
 };
 
 export type TracesSearchProps = {
@@ -71,7 +74,7 @@ export function TracesSearch({
       maxMs: search.maxMs,
       status: search.status,
       attributes: search.attributes,
-      limit: search.limit,
+      limit: TRACES_PAGE_SIZE,
     }),
     placeholderData: keepPreviousData,
   });
@@ -97,7 +100,7 @@ export function TracesSearch({
         identities={identitiesQuery.data ?? []}
         onChange={onSearchChange}
       />
-      <main className="flex min-h-0 min-w-0 flex-col p-4">
+      <main className="flex min-h-0 min-w-0 flex-col">
         <TraceResultsList
           rows={rows}
           isPending={isPending}
@@ -117,7 +120,6 @@ export function TracesSearch({
               maxMs: undefined,
               status: "all",
               attributes: [],
-              limit: 50,
             })
           }
         />

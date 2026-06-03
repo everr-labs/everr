@@ -8,14 +8,17 @@ vi.mock("react-virtuoso", () => ({
   Virtuoso: <T,>({
     data,
     itemContent,
+    components,
   }: {
     data: T[];
     itemContent: (index: number, item: T) => React.ReactNode;
+    components?: { Footer?: () => React.ReactNode };
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
         <div key={i}>{itemContent(i, item)}</div>
       ))}
+      {components?.Footer ? <components.Footer /> : null}
     </div>
   ),
 }));
@@ -157,9 +160,7 @@ describe("TraceResultsList", () => {
     expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps rows visible and shows load-more fetching only on the button", async () => {
-    const user = userEvent.setup();
-    const onLoadMore = vi.fn();
+  it("keeps rows visible while loading more pages", () => {
     const rows = [row({ traceId: "a", rootName: "GET /a" })];
 
     render(
@@ -172,7 +173,7 @@ describe("TraceResultsList", () => {
         hasMore={true}
         isLoadingMore={true}
         renderTraceLink={renderTraceLink}
-        onLoadMore={onLoadMore}
+        onLoadMore={() => {}}
         onClearFilters={() => {}}
       />,
     );
@@ -180,10 +181,6 @@ describe("TraceResultsList", () => {
     expect(screen.getByText("GET /a")).toBeInTheDocument();
     expect(screen.queryByText("Failed to load traces")).not.toBeInTheDocument();
     expect(screen.queryByText("No traces")).not.toBeInTheDocument();
-
-    const button = screen.getByRole("button", { name: /loading more/i });
-    expect(button).toBeDisabled();
-    await user.click(button);
-    expect(onLoadMore).not.toHaveBeenCalled();
+    expect(screen.getByText(/loading more traces/i)).toBeInTheDocument();
   });
 });

@@ -12,9 +12,9 @@ import {
 } from "@tanstack/react-router";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 
-// Keep the URL clean: the schema fills in defaults (empty arrays, "all",
-// limit, …) during validation, so without this every navigation would
-// serialize them back into the query string.
+// Keep the URL clean: the schema fills in defaults (empty arrays, "all", …)
+// during validation, so without this every navigation would serialize them
+// back into the query string.
 const defaultSearch = TraceSearchParamsSchema.parse({});
 
 export const Route = createFileRoute("/_authenticated/_dashboard/traces")({
@@ -51,7 +51,6 @@ function TracesSearchPage() {
         maxMs: search.maxMs,
         status: search.status,
         attributes: search.attributes,
-        limit: search.limit,
       }}
       onSearchChange={(patch) =>
         navigate({

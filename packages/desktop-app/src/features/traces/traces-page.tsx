@@ -70,7 +70,6 @@ export function TracesPage() {
           maxMs: search.maxMs,
           status: search.status,
           attributes: search.attributes,
-          limit: search.limit,
         }}
         onSearchChange={(patch) =>
           navigate({
