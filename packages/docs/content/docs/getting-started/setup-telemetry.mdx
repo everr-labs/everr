@@ -1,29 +1,46 @@
 ---
 title: Setup Telemetry
-description: Use the Everr setup telemetry skill to configure local and production OpenTelemetry.
+description: Get telemetry flowing to the local collector, see your first trace, and point production at Everr.
 ---
 
-Use the `everr-setup-telemetry` skill to add OpenTelemetry to your app. The skill inspects your stack, adds the smallest standard setup for your runtime, configures local export to Everr, and verifies that fresh telemetry is visible before considering the setup done.
+The fastest way to understand Everr is to get one trace into it. This page walks the local feedback loop end to end (start the collector, send telemetry from your app, and query the result), then points you at production.
 
-## Local collector
+If your app does not emit OpenTelemetry yet, ask your coding assistant to run the `everr-setup-telemetry` skill. It inspects your stack, adds the smallest standard setup for your runtime, points it at the local collector, and verifies that fresh telemetry shows up. The steps below are that same path done by hand.
 
-For local development, Everr runs an OpenTelemetry collector on your machine.
+## Start the local collector
 
-Local telemetry is meant to give you a fast feedback loop. Use it first to validate that your OpenTelemetry setup is exporting correctly, then use the same data to debug your app locally.
+The local collector receives your telemetry on your machine, so the feedback loop is fast and nothing leaves your laptop. Start it in its own terminal:
 
-Everr Desktop also includes the same local collector and starts it while the app is open.
+```sh
+everr local start
+```
 
-Browser apps can send telemetry to the local collector too, including browser metrics exported over OTLP/HTTP from development or test builds.
+It runs in the foreground and prints the OTLP HTTP endpoint when it is ready. Everr Desktop runs the same collector while it is open, so if Desktop is running you can skip this and read the endpoint from `everr local status`.
 
-After your app emits telemetry, verify it locally:
+## Point your app at the local endpoint
+
+Configure your OpenTelemetry SDK to export to the endpoint the collector printed:
+
+```sh
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:54318"
+export OTEL_SERVICE_NAME="my-app"
+```
+
+Use the exact endpoint from `everr local start` or `everr local status`, and keep this export gated to development and test environments. Browser apps can export to the same collector too, including browser metrics over OTLP/HTTP from dev or test builds.
+
+## Exercise your app and query the trace
+
+Run your app and trigger the path you want to see: load a page, call an endpoint, or run the instrumented command. Then ask the local store what it received:
 
 ```sh
 everr local query "SELECT Timestamp, ServiceName, SpanName FROM otel_traces ORDER BY Timestamp DESC LIMIT 20"
 ```
 
-You can also open Everr Desktop and inspect traces, logs, and metrics there.
+You should see recent rows with your `ServiceName` and the span names your app produced. That is your first trace in Everr. You can also open Everr Desktop to browse traces, logs, and metrics visually.
 
-## Production telemetry
+If no rows appear, confirm the collector is running (`everr local status`) and that your app started after `OTEL_EXPORTER_OTLP_ENDPOINT` was set, then trigger the path again.
+
+## Send production telemetry
 
 For production, mint an ingest key from the [Ingest Keys page](https://app.everr.dev/ingest-keys), store it in your secret manager, and configure your OTLP/HTTP exporter (or your own OpenTelemetry Collector) to send the key as a bearer token on every request.
 
@@ -33,6 +50,6 @@ See [Production Monitoring](/docs/production-monitoring/setup) for the ingest en
 
 With telemetry flowing, continue to:
 
-- [Local Debugging](/docs/local-debugging/setup) — use the local feedback loop to debug your app.
+- [Local Debugging](/docs/local-debugging/setup) — turn this loop into an assistant-led debugging workflow.
 - [Production Monitoring](/docs/production-monitoring/setup) — send and inspect production telemetry.
 - [CI Insights](/docs/ci-insights/setup-new-repo) — connect repositories and monitor GitHub Actions.
