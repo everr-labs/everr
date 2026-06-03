@@ -13,7 +13,6 @@ describe("TraceDetailParamsSchema", () => {
       minMs: 10,
       maxMs: 500,
       status: "error",
-      limit: 100,
       start: "2026-05-21T10:12:00.000Z",
       end: "2026-05-21T10:12:02.000Z",
       span: "span-1",
@@ -26,7 +25,6 @@ describe("TraceDetailParamsSchema", () => {
       minMs: 10,
       maxMs: 500,
       status: "error",
-      limit: 100,
       start: "2026-05-21T10:12:00.000Z",
       end: "2026-05-21T10:12:02.000Z",
       span: "span-1",
@@ -46,7 +44,6 @@ describe("toTraceListSearch", () => {
       minMs: 10,
       maxMs: 500,
       status: "error",
-      limit: 100,
       start: "2026-05-21T10:12:00.000Z",
       end: "2026-05-21T10:12:02.000Z",
       span: "span-1",
@@ -63,7 +60,6 @@ describe("toTraceListSearch", () => {
       maxMs: 500,
       status: "error",
       attributes: [],
-      limit: 100,
     });
   });
 });
