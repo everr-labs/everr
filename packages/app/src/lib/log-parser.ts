@@ -74,7 +74,8 @@ export function parseLogs(logs: LogEntry[]): {
 
   for (let i = 0; i < logs.length; i++) {
     const log = logs[i];
-    const marker = parseGitHubMarker(log.body);
+    const body = log.body ?? "";
+    const marker = parseGitHubMarker(body);
 
     if (marker?.type === "group") {
       const id = `group-${groupId++}`;
@@ -91,20 +92,20 @@ export function parseLogs(logs: LogEntry[]): {
       }
       lines.push({
         timestamp: log.timestamp,
-        body: log.body,
+        body,
         isGroupEnd: true,
       });
     } else if (marker) {
       // error, warning, notice, debug markers
       lines.push({
         timestamp: log.timestamp,
-        body: log.body,
+        body,
         markerType: marker.type,
       });
     } else {
       lines.push({
         timestamp: log.timestamp,
-        body: log.body,
+        body,
       });
     }
   }

@@ -19,10 +19,10 @@ const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
   skip: "skip",
 };
 
-function mapLogRow(row: { timestamp: string; body: string }): LogEntry {
+function mapLogRow(row: { timestamp: string; body: string | null }): LogEntry {
   return {
     timestamp: normalizeTimestampToUtc(row.timestamp),
-    body: row.body,
+    body: row.body ?? "",
   };
 }
 
@@ -118,7 +118,7 @@ async function getRawStepLogs(
 
   const result = await clickhouse.query<{
     timestamp: string;
-    body: string;
+    body: string | null;
   }>(sql, {
     traceId: params.traceId,
     stepNumber: params.stepNumber,
