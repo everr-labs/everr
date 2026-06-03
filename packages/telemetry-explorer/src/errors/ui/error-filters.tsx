@@ -58,6 +58,9 @@ export function ErrorFilters({
   const { dedicated: dedicatedAttributes, rest: pickerAttributes } =
     splitDedicatedAttributes(value.attributes, [ENVIRONMENT_ATTRIBUTE]);
 
+  // "Clear all" resets active filters only. Sort is an ordering preference (it
+  // always has a value), and q is owned by the separate search bar, so neither
+  // counts toward hasActiveFilters nor is reset by onClear.
   const hasActiveFilters =
     value.service.length > 0 || value.attributes.length > 0;
 
