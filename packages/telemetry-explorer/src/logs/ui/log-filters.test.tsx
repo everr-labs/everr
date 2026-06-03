@@ -47,6 +47,14 @@ describe("LogFiltersBar", () => {
         {...baseProps}
         levels={["error"]}
         services={["api"]}
+        attributes={[
+          {
+            source: "resource",
+            key: "deployment.environment",
+            op: "in",
+            values: ["prod"],
+          },
+        ]}
         traceId="abc"
         onChange={onChange}
       />,
@@ -58,5 +66,38 @@ describe("LogFiltersBar", () => {
       attributes: [],
       traceId: undefined,
     });
+  });
+
+  it("deployment.environment renders in the Environment combobox and NOT as an attribute pill", () => {
+    // Invariant: deployment.environment is a dedicated combobox filter. It must
+    // be split out of the attributes passed to AttributeFilterSection so it
+    // never appears as a generic attribute pill in the "Attributes" section.
+    // A leaked pill would mean the env value shows up twice and a
+    // "Remove Environment filter" button would exist.
+    renderWithQueryClient(
+      <LogFiltersBar
+        {...baseProps}
+        attributes={[
+          {
+            source: "resource",
+            key: "deployment.environment",
+            op: "in",
+            values: ["prod"],
+          },
+        ]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    // The selected value "prod" must appear exactly once — as a badge inside
+    // the Environment combobox button. If the env filter leaked into
+    // AttributeFilterSection it would render a second time in the pill.
+    expect(screen.getAllByText("prod")).toHaveLength(1);
+
+    // A leaked attribute pill for deployment.environment would render a remove
+    // button with this aria-label. It must not exist.
+    expect(
+      screen.queryByRole("button", { name: "Remove Environment filter" }),
+    ).not.toBeInTheDocument();
   });
 });
