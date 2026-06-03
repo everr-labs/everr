@@ -7,10 +7,14 @@ import {
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { cn } from "@everr/ui/lib/utils";
-import { CornerDownLeft, ListFilter } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import { AttributeValueCombobox } from "../../filters/ui/attribute-value-combobox";
+import {
+  ENVIRONMENT_ATTRIBUTE,
+  splitDedicatedAttributes,
+} from "../../filters/ui/dedicated-attributes";
+import { FilterSidebar } from "../../filters/ui/filter-sidebar";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ServiceIdentity } from "../data/types";
@@ -25,7 +29,6 @@ type StatusValue = "ok" | "error" | "all";
 type FilterValue = {
   namespace: string[];
   service: string[];
-  name: string;
   minMs?: number;
   maxMs?: number;
   status: StatusValue;
@@ -69,25 +72,32 @@ export function TraceFilters({
     serviceList,
   );
 
-  const hasFilters =
+  const { dedicated: dedicatedAttributes, rest: pickerAttributes } =
+    splitDedicatedAttributes(value.attributes, [ENVIRONMENT_ATTRIBUTE]);
+
+  const hasActiveFilters =
     value.namespace.length > 0 ||
     value.service.length > 0 ||
-    value.name.length > 0 ||
     value.minMs !== undefined ||
     value.maxMs !== undefined ||
     value.status !== "all" ||
     value.attributes.length > 0;
 
   return (
-    <aside
-      aria-label="Trace filters"
-      className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
+    <FilterSidebar
+      label="Trace filters"
+      hasActiveFilters={hasActiveFilters}
+      onClear={() =>
+        onChange({
+          namespace: [],
+          service: [],
+          minMs: undefined,
+          maxMs: undefined,
+          status: "all",
+          attributes: [],
+        })
+      }
     >
-      <div className="flex items-center gap-2 text-xs font-medium">
-        <ListFilter className="text-muted-foreground size-3.5" />
-        Filter
-      </div>
-
       <div className="flex flex-col gap-1">
         <Label className="text-muted-foreground text-xs">Status</Label>
         <ToggleGroup
@@ -141,9 +151,21 @@ export function TraceFilters({
         className="w-full"
       />
 
+      <AttributeValueCombobox
+        repo={repo}
+        domain="traces"
+        timeRange={timeRange}
+        source={ENVIRONMENT_ATTRIBUTE.source}
+        attributeKey={ENVIRONMENT_ATTRIBUTE.key}
+        label="Environment"
+        placeholder="All environments"
+        searchPlaceholder="Search environments..."
+        attributes={value.attributes}
+        onChange={(attributes) => onChange({ attributes })}
+      />
+
       <Separator />
 
-      <NameInput value={value.name} onCommit={(name) => onChange({ name })} />
       <div className="flex gap-2">
         <DurationInput
           label="Min ms"
@@ -163,91 +185,15 @@ export function TraceFilters({
         repo={repo}
         domain="traces"
         timeRange={timeRange}
-        attributes={value.attributes}
+        attributes={pickerAttributes}
         promotedAttributes={TRACES_PROMOTED_ATTRIBUTES}
         excludedKeys={TRACES_EXCLUDED_KEYS}
         sources={TRACES_ATTRIBUTE_SOURCES_UI}
-        onChange={(attributes) => onChange({ attributes })}
+        onChange={(attributes) =>
+          onChange({ attributes: [...dedicatedAttributes, ...attributes] })
+        }
       />
-
-      {hasFilters && (
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground self-start text-xs underline"
-          onClick={() =>
-            onChange({
-              namespace: [],
-              service: [],
-              name: "",
-              minMs: undefined,
-              maxMs: undefined,
-              status: "all",
-              attributes: [],
-            })
-          }
-        >
-          Clear filters
-        </button>
-      )}
-    </aside>
-  );
-}
-
-function NameInput({
-  value,
-  onCommit,
-}: {
-  value: string;
-  onCommit: (next: string) => void;
-}) {
-  const id = useId();
-  const [local, setLocal] = useState(value);
-  const lastValueRef = useRef(value);
-  if (lastValueRef.current !== value) {
-    lastValueRef.current = value;
-    setLocal(value);
-  }
-
-  const dirty = local !== value;
-  const commit = () => {
-    if (dirty) onCommit(local);
-  };
-
-  return (
-    <div className="flex flex-col gap-1">
-      <Label htmlFor={id} className="text-muted-foreground text-xs">
-        Name
-      </Label>
-      <div className="relative w-full">
-        <Input
-          id={id}
-          type="text"
-          placeholder="Span name contains..."
-          value={local}
-          onChange={(e) => setLocal(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commit();
-            } else if (e.key === "Escape") {
-              setLocal(value);
-            }
-          }}
-          className={cn(dirty && "pr-8")}
-        />
-        {dirty && (
-          <button
-            type="button"
-            onClick={commit}
-            aria-label="Apply name filter"
-            title="Apply (Enter)"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded"
-          >
-            <CornerDownLeft className="size-3.5" />
-          </button>
-        )}
-      </div>
-    </div>
+    </FilterSidebar>
   );
 }
 
