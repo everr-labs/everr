@@ -153,99 +153,99 @@ function TraceRow({
   renderTraceLink: (props: TraceLinkRenderProps) => React.ReactNode;
 }) {
   const end = addNsToCHDateTime(row.startTs, BigInt(row.durationNs));
-  const className =
-    "hover:bg-muted/50 flex items-center gap-3 border-b px-3 py-1.5 text-sm leading-tight";
   const started = parseTimestampAsUTC(row.startTs);
-  return renderTraceLink({
-    traceId: row.traceId,
-    start: row.startTs,
-    end,
-    className,
-    children: (
-      <>
-        <span
-          className="size-2 shrink-0 rounded-full"
-          style={{
-            backgroundColor: serviceColor(row.rootNamespace, row.rootService),
-          }}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 leading-tight">
-            {row.errorCount > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span
-                      role="img"
-                      aria-label={`${row.errorCount} ${
-                        row.errorCount === 1 ? "error" : "errors"
-                      }`}
-                      className="text-destructive flex shrink-0 items-center"
-                    />
-                  }
-                >
-                  <TriangleAlert className="size-3.5" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  {row.errorCount} {row.errorCount === 1 ? "error" : "errors"}
-                </TooltipContent>
-              </Tooltip>
-            )}
-            <span className="truncate font-medium">{row.rootName}</span>
-            <TraceIdBadge traceId={row.traceId} />
-          </div>
-          <div className="text-muted-foreground truncate text-xs leading-tight">
-            {row.rootService}
-          </div>
+  // The link wraps only the name but its `after` pseudo-element stretches over
+  // the whole row, so the entire row navigates while the copy control and
+  // tooltips stay as siblings (lifted above the overlay with z-10) instead of
+  // nested interactive elements inside the anchor.
+  return (
+    <div className="hover:bg-muted/50 relative flex items-center gap-3 border-b px-3 py-1.5 text-sm leading-tight">
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={{
+          backgroundColor: serviceColor(row.rootNamespace, row.rootService),
+        }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 leading-tight">
+          {row.errorCount > 0 && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    role="img"
+                    aria-label={`${row.errorCount} ${
+                      row.errorCount === 1 ? "error" : "errors"
+                    }`}
+                    className="text-destructive relative z-10 flex shrink-0 items-center"
+                  />
+                }
+              >
+                <TriangleAlert className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>
+                {row.errorCount} {row.errorCount === 1 ? "error" : "errors"}
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {renderTraceLink({
+            traceId: row.traceId,
+            start: row.startTs,
+            end,
+            className:
+              "min-w-0 truncate font-medium after:absolute after:inset-0 after:content-['']",
+            children: row.rootName,
+          })}
+          <TraceIdBadge traceId={row.traceId} />
         </div>
-        <div className="flex w-32 shrink-0 flex-col items-end gap-1">
-          <span className="tabular-nums">
-            {formatDuration(Number(row.durationNs), "ns")}
-          </span>
-          <DurationBar
-            durationNs={BigInt(row.durationNs)}
-            maxDurationNs={maxDuration}
-          />
+        <div className="text-muted-foreground truncate text-xs leading-tight">
+          {row.rootService}
         </div>
-        <span className="text-muted-foreground hidden w-14 text-right text-xs tabular-nums md:inline">
-          {row.spanCount} {row.spanCount === 1 ? "span" : "spans"}
+      </div>
+      <div className="flex w-32 shrink-0 flex-col items-end gap-1">
+        <span className="tabular-nums">
+          {formatDuration(Number(row.durationNs), "ns")}
         </span>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span className="text-muted-foreground hidden w-20 text-right text-xs tabular-nums lg:inline" />
-            }
-          >
-            {formatTimestampTimeOfDay(row.startTs)}
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            {started ? (
-              <span className="flex flex-col gap-0.5">
-                <span className="tabular-nums">{started.toLocaleString()}</span>
-                <span className="text-background/70">
-                  {formatRelativeTime(row.startTs)}
-                </span>
+        <DurationBar
+          durationNs={BigInt(row.durationNs)}
+          maxDurationNs={maxDuration}
+        />
+      </div>
+      <span className="text-muted-foreground hidden w-14 text-right text-xs tabular-nums md:inline">
+        {row.spanCount} {row.spanCount === 1 ? "span" : "spans"}
+      </span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="text-muted-foreground relative z-10 hidden w-20 text-right text-xs tabular-nums lg:inline" />
+          }
+        >
+          {formatTimestampTimeOfDay(row.startTs)}
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          {started ? (
+            <span className="flex flex-col gap-0.5">
+              <span className="tabular-nums">{started.toLocaleString()}</span>
+              <span className="text-background/70">
+                {formatRelativeTime(row.startTs)}
               </span>
-            ) : (
-              row.startTs
-            )}
-          </TooltipContent>
-        </Tooltip>
-      </>
-    ),
-  });
+            </span>
+          ) : (
+            row.startTs
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
 }
 
 function TraceIdBadge({ traceId }: { traceId: string }) {
   const [copied, setCopied] = useState(false);
   const short = traceId.slice(0, 8);
 
-  // The whole row is wrapped in a link, so stop the click from navigating or
-  // bubbling to the router before copying the full id to the clipboard.
-  const copy = (event: {
-    preventDefault: () => void;
-    stopPropagation: () => void;
-  }) => {
+  // The badge sits above the row's stretched link overlay, but still guard the
+  // click so copying never navigates or bubbles to the router.
+  const copy = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     void navigator.clipboard?.writeText(traceId).then(() => setCopied(true));
@@ -255,16 +255,11 @@ function TraceIdBadge({ traceId }: { traceId: string }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          // biome-ignore lint/a11y/useSemanticElements: A button would nest inside the row's anchor.
-          <span
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             aria-label="Copy trace ID"
-            className="text-muted-foreground hover:text-foreground group inline-flex shrink-0 cursor-pointer items-center gap-1 font-mono text-xs font-normal"
+            className="text-muted-foreground hover:text-foreground group relative z-10 inline-flex shrink-0 cursor-pointer items-center gap-1 font-mono text-xs font-normal"
             onClick={copy}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") copy(event);
-            }}
             onMouseLeave={() => setCopied(false)}
           />
         }
