@@ -8,14 +8,27 @@ vi.mock("react-virtuoso", () => ({
   Virtuoso: <T,>({
     data,
     itemContent,
+    components,
+    endReached,
   }: {
     data: T[];
     itemContent: (index: number, item: T) => React.ReactNode;
+    components?: { Footer?: () => React.ReactNode };
+    endReached?: () => void;
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
         <div key={i}>{itemContent(i, item)}</div>
       ))}
+      {/* Lets tests simulate scrolling to the bottom of the virtual list. */}
+      <button
+        type="button"
+        data-testid="virtuoso-end-reached"
+        onClick={() => endReached?.()}
+      >
+        end
+      </button>
+      {components?.Footer ? <components.Footer /> : null}
     </div>
   ),
 }));
@@ -157,7 +170,31 @@ describe("TraceResultsList", () => {
     expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps rows visible and shows load-more fetching only on the button", async () => {
+  it("fetches the next page when the list reaches the end", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    const rows = [row({ traceId: "a", rootName: "GET /a" })];
+
+    render(
+      <TraceResultsList
+        rows={rows}
+        isPending={false}
+        isError={false}
+        error={null}
+        refetch={() => {}}
+        hasMore={true}
+        isLoadingMore={false}
+        renderTraceLink={renderTraceLink}
+        onLoadMore={onLoadMore}
+        onClearFilters={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByTestId("virtuoso-end-reached"));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fetch again while a page is already loading", async () => {
     const user = userEvent.setup();
     const onLoadMore = vi.fn();
     const rows = [row({ traceId: "a", rootName: "GET /a" })];
@@ -178,12 +215,37 @@ describe("TraceResultsList", () => {
     );
 
     expect(screen.getByText("GET /a")).toBeInTheDocument();
-    expect(screen.queryByText("Failed to load traces")).not.toBeInTheDocument();
-    expect(screen.queryByText("No traces")).not.toBeInTheDocument();
+    expect(screen.getByText(/loading more traces/i)).toBeInTheDocument();
 
-    const button = screen.getByRole("button", { name: /loading more/i });
-    expect(button).toBeDisabled();
-    await user.click(button);
+    await user.click(screen.getByTestId("virtuoso-end-reached"));
+    expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch past the last page", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    const rows = [row({ traceId: "a", rootName: "GET /a" })];
+
+    render(
+      <TraceResultsList
+        rows={rows}
+        isPending={false}
+        isError={false}
+        error={null}
+        refetch={() => {}}
+        hasMore={false}
+        isLoadingMore={false}
+        renderTraceLink={renderTraceLink}
+        onLoadMore={onLoadMore}
+        onClearFilters={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByText(/showing all 1 matching traces/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("virtuoso-end-reached"));
     expect(onLoadMore).not.toHaveBeenCalled();
   });
 });

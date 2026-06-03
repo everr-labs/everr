@@ -7,8 +7,19 @@ import {
 } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import { type ReactNode, useMemo } from "react";
+import {
+  formatRelativeTime,
+  formatTimestampTimeOfDay,
+  parseTimestampAsUTC,
+} from "@everr/ui/lib/timestamp";
+import { Check, Copy, TriangleAlert } from "lucide-react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { addNsToCHDateTime } from "../data/window";
@@ -17,6 +28,7 @@ import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";
 
 const SKELETON_DELAY_MS = 1000;
+const VIRTUOSO_OVERSCAN = 600;
 
 type Props = {
   rows: TraceSummary[];
@@ -60,6 +72,34 @@ export function TraceResultsList({
     return max;
   }, [rows]);
 
+  const endReached = useCallback(() => {
+    if (hasMore && !isLoadingMore) onLoadMore();
+  }, [hasMore, isLoadingMore, onLoadMore]);
+
+  const itemContent = useCallback(
+    (_index: number, row: TraceSummary) => (
+      <TraceRow
+        row={row}
+        maxDuration={maxDuration}
+        renderTraceLink={renderTraceLink}
+      />
+    ),
+    [maxDuration, renderTraceLink],
+  );
+
+  const components = useMemo(
+    () => ({
+      Footer: () => (
+        <ResultsFooter
+          count={rows.length}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+        />
+      ),
+    }),
+    [rows.length, hasMore, isLoadingMore],
+  );
+
   const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
   if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
   if (isError) {
@@ -77,30 +117,28 @@ export function TraceResultsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <ResultsHeader />
       <Virtuoso
-        className="flex-1"
+        className="min-h-0 flex-1"
         data={rows}
-        itemContent={(_, row) => (
-          <TraceRow
-            row={row}
-            maxDuration={maxDuration}
-            renderTraceLink={renderTraceLink}
-          />
-        )}
+        increaseViewportBy={VIRTUOSO_OVERSCAN}
+        endReached={endReached}
+        computeItemKey={(_, row) => row.traceId}
+        itemContent={itemContent}
+        components={components}
       />
-      {hasMore && (
-        <div className="flex justify-center border-t py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground text-xs"
-            onClick={onLoadMore}
-            disabled={isLoadingMore}
-          >
-            {isLoadingMore ? "Loading more..." : "Load more"}
-          </Button>
-        </div>
-      )}
+    </div>
+  );
+}
+
+function ResultsHeader() {
+  return (
+    <div className="text-muted-foreground bg-background flex items-center gap-3 border-b px-3 py-1.5 text-xs font-medium">
+      <span className="size-2 shrink-0" />
+      <span className="min-w-0 flex-1">Trace</span>
+      <span className="w-32 text-right">Duration</span>
+      <span className="hidden w-14 text-right md:inline">Spans</span>
+      <span className="hidden w-20 text-right lg:inline">Started</span>
     </div>
   );
 }
@@ -115,54 +153,166 @@ function TraceRow({
   renderTraceLink: (props: TraceLinkRenderProps) => React.ReactNode;
 }) {
   const end = addNsToCHDateTime(row.startTs, BigInt(row.durationNs));
-  const className =
-    "hover:bg-muted/50 flex items-center gap-3 border-b px-3 py-2";
-  return renderTraceLink({
-    traceId: row.traceId,
-    start: row.startTs,
-    end,
-    className,
-    children: (
-      <>
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{
-            backgroundColor: serviceColor(row.rootNamespace, row.rootService),
-          }}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{row.rootName}</div>
-          <div className="text-muted-foreground truncate text-xs">
-            {row.rootService}
-          </div>
+  const started = parseTimestampAsUTC(row.startTs);
+  // The link wraps only the name but its `after` pseudo-element stretches over
+  // the whole row, so the entire row navigates while the copy control and
+  // tooltips stay as siblings (lifted above the overlay with z-10) instead of
+  // nested interactive elements inside the anchor.
+  return (
+    <div className="hover:bg-muted/50 relative flex items-center gap-3 border-b px-3 py-1.5 text-sm leading-tight">
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={{
+          backgroundColor: serviceColor(row.rootNamespace, row.rootService),
+        }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 leading-tight">
+          {row.errorCount > 0 && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    role="img"
+                    aria-label={`${row.errorCount} ${
+                      row.errorCount === 1 ? "error" : "errors"
+                    }`}
+                    className="text-destructive relative z-10 flex shrink-0 items-center"
+                  />
+                }
+              >
+                <TriangleAlert className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>
+                {row.errorCount} {row.errorCount === 1 ? "error" : "errors"}
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {renderTraceLink({
+            traceId: row.traceId,
+            start: row.startTs,
+            end,
+            className:
+              "min-w-0 truncate font-medium after:absolute after:inset-0 after:content-['']",
+            children: row.rootName,
+          })}
+          <TraceIdBadge traceId={row.traceId} />
         </div>
+        <div className="text-muted-foreground truncate text-xs leading-tight">
+          {row.rootService}
+        </div>
+      </div>
+      <div className="flex w-32 shrink-0 flex-col items-end gap-1">
+        <span className="tabular-nums">
+          {formatDuration(Number(row.durationNs), "ns")}
+        </span>
         <DurationBar
           durationNs={BigInt(row.durationNs)}
           maxDurationNs={maxDuration}
         />
-        <div className="w-20 text-right text-sm tabular-nums">
-          {formatDuration(Number(row.durationNs), "ns")}
-        </div>
-        <div className="text-muted-foreground w-16 text-right text-xs">
-          {row.spanCount} spans
-        </div>
-        {row.errorCount > 0 ? (
-          <span className="text-destructive w-16 text-right text-xs">
-            {row.errorCount} err
-          </span>
+      </div>
+      <span className="text-muted-foreground hidden w-14 text-right text-xs tabular-nums md:inline">
+        {row.spanCount} {row.spanCount === 1 ? "span" : "spans"}
+      </span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="text-muted-foreground relative z-10 hidden w-20 text-right text-xs tabular-nums lg:inline" />
+          }
+        >
+          {formatTimestampTimeOfDay(row.startTs)}
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          {started ? (
+            <span className="flex flex-col gap-0.5">
+              <span className="tabular-nums">{started.toLocaleString()}</span>
+              <span className="text-background/70">
+                {formatRelativeTime(row.startTs)}
+              </span>
+            </span>
+          ) : (
+            row.startTs
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+function TraceIdBadge({ traceId }: { traceId: string }) {
+  const [copied, setCopied] = useState(false);
+  const short = traceId.slice(0, 8);
+
+  // The badge sits above the row's stretched link overlay, but still guard the
+  // click so copying never navigates or bubbles to the router.
+  const copy = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void navigator.clipboard?.writeText(traceId).then(() => setCopied(true));
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label="Copy trace ID"
+            className="text-muted-foreground hover:text-foreground group relative z-10 inline-flex shrink-0 cursor-pointer items-center gap-1 font-mono text-xs font-normal"
+            onClick={copy}
+            onMouseLeave={() => setCopied(false)}
+          />
+        }
+      >
+        {short}
+        {copied ? (
+          <Check className="size-3" />
         ) : (
-          <span className="w-16" />
+          <Copy className="size-3 opacity-0 transition-opacity group-hover:opacity-70" />
         )}
-      </>
-    ),
-  });
+      </TooltipTrigger>
+      <TooltipContent>
+        {copied ? "Copied!" : <span className="font-mono">{traceId}</span>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function ResultsFooter({
+  count,
+  hasMore,
+  isLoadingMore,
+}: {
+  count: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+}) {
+  return (
+    <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
+      {isLoadingMore ? (
+        <span className="flex items-center gap-2">
+          <Skeleton className="size-2 rounded-full" />
+          Loading more traces
+        </span>
+      ) : hasMore ? (
+        <span>Showing {count.toLocaleString()} traces</span>
+      ) : (
+        <span>Showing all {count.toLocaleString()} matching traces</span>
+      )}
+    </div>
+  );
 }
 
 function ResultsSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <Skeleton key={i} className="h-10 w-full" />
+    <div className="flex min-h-0 flex-1 flex-col">
+      {Array.from({ length: 12 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 border-b px-3 py-1.5">
+          <Skeleton className="size-2 shrink-0 rounded-full" />
+          <Skeleton className="h-4 min-w-0 flex-1" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="hidden h-3 w-14 lg:block" />
+        </div>
       ))}
     </div>
   );
