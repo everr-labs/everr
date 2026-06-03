@@ -8,9 +8,15 @@ import {
 import { Separator } from "@everr/ui/components/separator";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import { Hash, ListFilter, X } from "lucide-react";
+import { Hash, X } from "lucide-react";
 import { useState } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import { AttributeValueCombobox } from "../../filters/ui/attribute-value-combobox";
+import {
+  ENVIRONMENT_ATTRIBUTE,
+  splitDedicatedAttributes,
+} from "../../filters/ui/dedicated-attributes";
+import { FilterSidebar } from "../../filters/ui/filter-sidebar";
 import { logServiceFilterOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, LogLevel } from "../schemas";
@@ -108,13 +114,28 @@ export function LogFiltersBar({
     onChange({ levels: nextLevels });
   };
 
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
-      <div className="flex items-center gap-2 text-xs font-medium">
-        <ListFilter className="text-muted-foreground size-3.5" />
-        Filter
-      </div>
+  const { dedicated: dedicatedAttributes, rest: pickerAttributes } =
+    splitDedicatedAttributes(attributes, [ENVIRONMENT_ATTRIBUTE]);
 
+  const hasActiveFilters =
+    levels.length > 0 ||
+    services.length > 0 ||
+    attributes.length > 0 ||
+    traceId !== undefined;
+
+  return (
+    <FilterSidebar
+      label="Log filters"
+      hasActiveFilters={hasActiveFilters}
+      onClear={() =>
+        onChange({
+          levels: [],
+          services: [],
+          attributes: [],
+          traceId: undefined,
+        })
+      }
+    >
       <div className="space-y-1">
         {LOG_LEVELS.map((level) => (
           <button
@@ -151,22 +172,41 @@ export function LogFiltersBar({
         searchPlaceholder="Search services..."
         className="w-full"
       />
-      <Separator />
-      <AttributeFilterSection
+
+      <AttributeValueCombobox
         repo={repo}
         domain="logs"
         timeRange={timeRange}
+        source={ENVIRONMENT_ATTRIBUTE.source}
+        attributeKey={ENVIRONMENT_ATTRIBUTE.key}
+        label="Environment"
+        placeholder="All environments"
+        searchPlaceholder="Search environments..."
         attributes={attributes}
-        promotedAttributes={LOGS_PROMOTED_ATTRIBUTES}
-        excludedKeys={LOGS_EXCLUDED_KEYS}
-        sources={LOGS_ATTRIBUTE_SOURCES_UI}
-        onChange={(nextAttributes) => onChange({ attributes: nextAttributes })}
+        onChange={(next) => onChange({ attributes: next })}
       />
+
       <Separator />
+
       <TraceFilter
         traceId={traceId}
         onChange={(nextTraceId) => onChange({ traceId: nextTraceId })}
       />
-    </div>
+
+      <Separator />
+
+      <AttributeFilterSection
+        repo={repo}
+        domain="logs"
+        timeRange={timeRange}
+        attributes={pickerAttributes}
+        promotedAttributes={LOGS_PROMOTED_ATTRIBUTES}
+        excludedKeys={LOGS_EXCLUDED_KEYS}
+        sources={LOGS_ATTRIBUTE_SOURCES_UI}
+        onChange={(next) =>
+          onChange({ attributes: [...dedicatedAttributes, ...next] })
+        }
+      />
+    </FilterSidebar>
   );
 }
