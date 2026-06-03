@@ -75,6 +75,9 @@ export function TraceFilters({
   const { dedicated: dedicatedAttributes, rest: pickerAttributes } =
     splitDedicatedAttributes(value.attributes, [ENVIRONMENT_ATTRIBUTE]);
 
+  // "Clear all" resets the sidebar filters only. The span-name search lives in
+  // the header search bar (with its own clear control), so it is not part of
+  // hasActiveFilters nor reset by onClear.
   const hasActiveFilters =
     value.namespace.length > 0 ||
     value.service.length > 0 ||
