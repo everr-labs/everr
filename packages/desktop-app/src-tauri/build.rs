@@ -7,6 +7,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=EVERR_PLATFORM_VERSION");
     println!("cargo:rerun-if-env-changed=EVERR_RELEASE_SHA");
     println!("cargo:rerun-if-env-changed=EVERR_RELEASE_SHORT_SHA");
+    println!("cargo:rerun-if-env-changed=EVERR_INGEST_KEY");
 
     let content = std::fs::read_to_string(&tauri_conf).expect("failed to read tauri.conf.json");
     let json: serde_json::Value =

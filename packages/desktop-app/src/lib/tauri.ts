@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { type InvokeArgs, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export const AUTH_CHANGED_EVENT = "everr://auth-changed";
@@ -12,7 +12,7 @@ export const NOTIFICATION_WINDOW_LABEL = "notification";
 
 export function invokeCommand<TResult>(
   command: string,
-  args?: Record<string, unknown>,
+  args?: InvokeArgs,
 ): Promise<TResult> {
   return invoke<TResult>(command, args);
 }

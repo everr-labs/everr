@@ -5,4 +5,3 @@
 pub mod client;
 pub mod collector;
 pub mod commands;
-pub mod sibling;

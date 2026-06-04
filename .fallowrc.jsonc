@@ -34,7 +34,15 @@
   // Error subclasses commonly set `name` and are discriminated via
   // `err.name === "..."` rather than `instanceof`; fallow can't see those
   // string-comparison references.
-  "usedClassMembers": [{ "extends": "Error", "members": ["name"] }],
+  // OpenTelemetry's BatchLogRecordProcessor invokes export/shutdown/forceFlush
+  // through the LogRecordExporter interface at runtime, never by name in our code.
+  "usedClassMembers": [
+    { "extends": "Error", "members": ["name"] },
+    {
+      "implements": "LogRecordExporter",
+      "members": ["export", "shutdown", "forceFlush"]
+    }
+  ],
   "duplicates": {
     // TanStack Router's generated route tree contains many structurally
     // identical declarations by design — not actionable copy-paste.

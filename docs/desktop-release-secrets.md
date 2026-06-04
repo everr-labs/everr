@@ -1,6 +1,6 @@
 # Desktop Release Keys And Secrets
 
-This guide sets up the secrets used by `.github/workflows/build-signed-desktop-release.yml`.
+This guide sets up the secrets used by `.github/workflows/deploy-desktop-app.yml`.
 That workflow builds the macOS desktop app, signs it, notarizes it with Apple, signs the Tauri updater archive, creates checksums, creates a GitHub artifact attestation, and uploads one Actions artifact for the deploy repo to download.
 
 ## Required Apple Access
@@ -10,6 +10,7 @@ You need:
 - A paid Apple Developer Program team.
 - Permission to create or use a Developer ID Application certificate.
 - Permission to create App Store Connect API keys.
+- Permission to create or access an Everr ingest key for desktop telemetry.
 - Admin access to this GitHub repository's Actions secrets.
 
 Apple only allows the Apple Developer account holder to create Developer ID Application certificates. If you are not the account holder, ask them to create the certificate from your CSR or export an existing release certificate for CI.
@@ -103,11 +104,21 @@ Make sure the printed public key matches `plugins.updater.pubkey` in `packages/d
 
 Keep the private key backed up somewhere safe. If it is lost, existing installs will not trust updates signed with a new key.
 
+## Create The Desktop Telemetry Ingest Key
+
+The packaged desktop app sends production telemetry from the Rust side to Everr hosted ingest. The browser webview does not receive this key; browser logs are relayed to Rust and exported from there.
+
+Create an ingest key in Everr and store it as this GitHub repository secret:
+
+- `EVERR_INGEST_KEY`
+
+The release workflow requires this secret before building. During the Tauri release build, Rust reads it as a compile-time environment variable so the packaged app can authenticate to `https://ingest.everr.dev/` on customer machines.
+
 ## Run The Workflow
 
-Workflow: **Build Signed Desktop Release**
+Workflow: **Deploy Desktop App**
 
-It runs automatically on pushes to `main`. You can also run it manually from GitHub Actions. CI uses the commit SHA as the release identity and generates the numeric Tauri/macOS updater version from the checked-in development version plus the workflow run number.
+Run it manually from GitHub Actions. CI uses the commit SHA as the release identity and generates the numeric Tauri/macOS updater version from the checked-in development version plus the workflow run number.
 
 The uploaded artifact is named:
 
@@ -187,6 +198,7 @@ spctl --assess --type open --verbose everr-app/everr-macos-arm64.dmg
 - **No Developer ID Application identity found**: the `.p12` probably did not include the private key, or the wrong certificate type was exported.
 - **Tauri cannot notarize**: check `APPLE_API_ISSUER`, `APPLE_API_KEY_ID`, and `APPLE_API_PRIVATE_KEY`.
 - **Missing updater signature**: check `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+- **Missing desktop telemetry ingest key**: create `EVERR_INGEST_KEY` in GitHub repository secrets.
 - **Updater does not trust the build**: the public key in `tauri.conf.json` does not match the private key in GitHub secrets.
 - **Deploy repo cannot download the artifact**: the token used in the deploy repo needs permission to read Actions artifacts from `everr-labs/everr`.
 

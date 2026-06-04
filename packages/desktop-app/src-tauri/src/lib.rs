@@ -20,6 +20,7 @@ mod cli;
 mod commands;
 mod crash_log;
 mod notifications;
+pub mod otel;
 mod settings;
 mod startup;
 pub mod telemetry;
@@ -31,7 +32,7 @@ mod tests;
 use commands::{
     copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt, dismiss_active_notification,
     get_active_notification, get_auth_status, get_build_info, get_collector_status,
-    get_notification_emails, get_pending_sign_in, get_runs_list, get_user_profile,
+    get_notification_emails, get_org, get_pending_sign_in, get_runs_list, get_user_profile,
     get_wizard_status, open_notification_target, open_run_in_browser, open_sign_in_browser,
     poll_sign_in, reset_dev_onboarding, restart_collector, set_notification_emails, sign_out,
     start_sign_in, trigger_test_notification,
@@ -187,8 +188,14 @@ impl NotificationQueue {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     crash_log::install_panic_hook();
+    let (telemetry_guard, relay_state, telemetry_context) =
+        otel::init_telemetry().expect("telemetry init failed");
+    let startup_telemetry_context = telemetry_context.clone();
+    let shutdown_telemetry_context = telemetry_context.clone();
 
     tauri::Builder::default()
+        .manage(relay_state)
+        .manage(telemetry_context.clone())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -211,7 +218,9 @@ pub fn run() {
                 }
             }
         })
-        .setup(|app| {
+        .setup(move |app| {
+            otel::log_app_started(&startup_telemetry_context);
+
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
@@ -278,20 +287,26 @@ pub fn run() {
             get_collector_status,
             restart_collector,
             get_user_profile,
+            get_org,
             get_runs_list,
             open_run_in_browser,
             copy_run_auto_fix_prompt,
+            otel::get_telemetry_context,
+            otel::relay_telemetry,
             telemetry::query::telemetry_sql_query
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
+        .run(move |app, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Some(sidecar) = app.try_state::<telemetry::sidecar::Sidecar>() {
                     tauri::async_runtime::block_on(sidecar.shutdown());
                 }
+                otel::log_app_stopped(&shutdown_telemetry_context);
             }
         });
+
+    drop(telemetry_guard);
 }
 
 fn current_auth_config() -> AuthConfig {

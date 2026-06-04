@@ -35,6 +35,8 @@ pub(crate) fn install_panic_hook() {
             .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
             .unwrap_or_else(|| "unknown location".to_string());
 
+        let stacktrace = format!("PANIC at {location}: {message}");
+        emit_rust_exception("panic", "Panic", &message, &stacktrace, false);
         write_log(&format!("PANIC at {location}: {message}"));
         default_hook(info);
     }));
@@ -43,7 +45,47 @@ pub(crate) fn install_panic_hook() {
 pub(crate) fn log_error(context: &str, error: &anyhow::Error) {
     let message = format!("ERROR [{context}]: {error:#}");
     eprintln!("[everr-app] {message}");
+    emit_rust_exception(
+        context,
+        "RustError",
+        &error.to_string(),
+        &format!("{error:#}"),
+        true,
+    );
     write_log(&message);
+}
+
+fn emit_rust_exception(
+    context: &str,
+    exception_type: &'static str,
+    exception_message: &str,
+    exception_stacktrace: &str,
+    handled: bool,
+) {
+    let exception_message = sanitize_error_message(exception_message);
+
+    tracing::event!(
+        target: "everr.rust.error",
+        tracing::Level::ERROR,
+        {
+            event.name = "everr.rust.error",
+            everr.error.context = context,
+            exception.type = exception_type,
+            exception.message = exception_message.as_str(),
+            exception.stacktrace = exception_stacktrace,
+            error.handled = handled,
+        },
+        "everr.rust.error"
+    );
+}
+
+fn sanitize_error_message(message: &str) -> String {
+    message
+        .lines()
+        .next()
+        .unwrap_or("unknown error")
+        .trim()
+        .to_string()
 }
 
 fn write_log(message: &str) {

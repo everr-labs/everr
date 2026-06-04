@@ -22,4 +22,12 @@ describe("desktop release workflow", () => {
       'spctl --assess --type open --context context:primary-signature --verbose "$dmg_path"',
     );
   });
+
+  it("requires and passes the desktop telemetry ingest key for release builds", async () => {
+    const workflow = await readFile(workflowPath, "utf8");
+
+    expect(workflow).toContain("EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}");
+    expect(workflow).toContain("EVERR_INGEST_KEY \\");
+    expect(workflow).toContain("pnpm --dir packages/desktop-app build:desktop:ci");
+  });
 });

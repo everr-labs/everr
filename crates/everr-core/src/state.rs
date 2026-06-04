@@ -107,7 +107,6 @@ impl AppStateStore {
     }
 
     pub fn load_state(&self) -> Result<AppState> {
-        let _lock = self.lock_shared()?;
         self.load_state_unlocked()
     }
 
@@ -227,14 +226,10 @@ impl AppStateStore {
     }
 
     fn lock_exclusive(&self) -> Result<fs::File> {
-        self.acquire_lock(true)
+        self.acquire_lock()
     }
 
-    fn lock_shared(&self) -> Result<fs::File> {
-        self.acquire_lock(false)
-    }
-
-    fn acquire_lock(&self, exclusive: bool) -> Result<fs::File> {
+    fn acquire_lock(&self) -> Result<fs::File> {
         let lock_path = self.session_file_path()?.with_extension("lock");
         if let Some(parent) = lock_path.parent() {
             fs::create_dir_all(parent)
@@ -242,12 +237,9 @@ impl AppStateStore {
         }
         let lock_file = fs::File::create(&lock_path)
             .with_context(|| format!("failed to create lock file {}", lock_path.display()))?;
-        if exclusive {
-            lock_file.lock_exclusive()
-        } else {
-            lock_file.lock_shared()
-        }
-        .with_context(|| format!("failed to acquire lock on {}", lock_path.display()))?;
+        lock_file
+            .lock_exclusive()
+            .with_context(|| format!("failed to acquire lock on {}", lock_path.display()))?;
         Ok(lock_file)
     }
 }
@@ -558,6 +550,35 @@ mod tests {
                 "tmp file should be cleaned up after atomic rename"
             );
             assert_eq!(store.load_state().expect("load state"), state);
+        });
+    }
+
+    #[test]
+    fn load_state_does_not_create_lock_file() {
+        with_temp_config_home(|store| {
+            let state = AppState {
+                session: Some(Session {
+                    api_base_url: "https://app.example.com".to_string(),
+                    token: "token-123".to_string(),
+                }),
+                settings: AppSettings::default(),
+            };
+            store.save_state(&state).expect("save state");
+
+            let lock_path = store
+                .session_file_path()
+                .expect("path")
+                .with_extension("lock");
+            assert!(
+                !lock_path.exists(),
+                "save_state should not create a lock file"
+            );
+
+            assert_eq!(store.load_state().expect("load state"), state);
+            assert!(
+                !lock_path.exists(),
+                "load_state should not create a lock file"
+            );
         });
     }
 

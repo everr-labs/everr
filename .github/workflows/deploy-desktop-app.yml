@@ -64,6 +64,7 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+          EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -77,6 +78,7 @@ jobs:
             APPLE_CERTIFICATE \
             APPLE_CERTIFICATE_PASSWORD \
             APPLE_KEYCHAIN_PASSWORD \
+            EVERR_INGEST_KEY \
             TAURI_SIGNING_PRIVATE_KEY \
             TAURI_SIGNING_PRIVATE_KEY_PASSWORD
           do
@@ -155,6 +157,7 @@ jobs:
       - name: Build signed desktop release
         env:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm --dir packages/desktop-app build:desktop:ci
