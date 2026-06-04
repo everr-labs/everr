@@ -477,6 +477,11 @@ fn cloud_query_posts_sql_and_renders_ndjson_rows() {
         .stderr(predicate::str::is_empty());
 
     mock.assert();
+
+    assert!(
+        !env.session_path().with_extension("lock").exists(),
+        "cloud query should not create a session lock for read-only auth"
+    );
 }
 
 #[test]

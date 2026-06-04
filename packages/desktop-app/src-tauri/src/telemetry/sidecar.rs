@@ -31,6 +31,11 @@ pub enum TelemetryState {
     },
 }
 
+struct CollectorFailureException {
+    exception_type: &'static str,
+    exception_message: &'static str,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectorStatusResponse {
@@ -76,7 +81,7 @@ impl Sidecar {
         let child = match spawn_collector(app).await {
             Ok(child) => Some(child),
             Err(reason) => {
-                let _ = state_tx.send(TelemetryState::Disabled { reason });
+                set_collector_state(&state_tx, TelemetryState::Disabled { reason });
                 None
             }
         };
@@ -143,7 +148,7 @@ impl Supervisor {
                 res = wait_child(&mut self.child), if self.child.is_some() => {
                     self.abort_readiness();
                     self.child = None;
-                    let _ = self.state_tx.send(TelemetryState::Disabled {
+                    set_collector_state(&self.state_tx, TelemetryState::Disabled {
                         reason: exit_reason(res),
                     });
                 }
@@ -151,14 +156,14 @@ impl Supervisor {
                 res = wait_handle(&mut self.readiness), if self.readiness.is_some() => {
                     self.readiness = None;
                     if let Ok(otlp_endpoint) = res {
-                        let _ = self.state_tx.send(TelemetryState::Ready { otlp_endpoint });
+                        set_collector_state(&self.state_tx, TelemetryState::Ready { otlp_endpoint });
                     }
                 }
                 cmd = cmd_rx.recv() => match cmd {
                     Some(SupervisorCommand::Restart(reply)) => self.handle_restart(reply).await,
                     Some(SupervisorCommand::Shutdown(reply)) => {
                         self.teardown().await;
-                        let _ = self.state_tx.send(TelemetryState::Stopped);
+                        set_collector_state(&self.state_tx, TelemetryState::Stopped);
                         let _ = reply.send(());
                         return;
                     }
@@ -179,10 +184,10 @@ impl Supervisor {
             Ok(child) => {
                 self.child = Some(child);
                 self.readiness = Some(tokio::spawn(probe_ready()));
-                let _ = self.state_tx.send(TelemetryState::Starting);
+                set_collector_state(&self.state_tx, TelemetryState::Starting);
             }
             Err(reason) => {
-                let _ = self.state_tx.send(TelemetryState::Disabled { reason });
+                set_collector_state(&self.state_tx, TelemetryState::Disabled { reason });
             }
         }
 
@@ -230,6 +235,99 @@ fn exit_reason(res: std::io::Result<std::process::ExitStatus>) -> String {
     match res {
         Ok(status) => format!("collector CLI terminated: {status}"),
         Err(err) => format!("collector CLI wait failed: {err}"),
+    }
+}
+
+fn set_collector_state(state_tx: &watch::Sender<TelemetryState>, state: TelemetryState) {
+    let previous = state_tx.borrow().clone();
+    log_collector_status_change(Some(&previous), &state);
+    let _ = state_tx.send(state);
+}
+
+fn log_collector_status_change(previous: Option<&TelemetryState>, next: &TelemetryState) {
+    let previous_status = previous.map(collector_status_name).unwrap_or("unknown");
+    let status = collector_status_name(next);
+    let Some(event_name) = collector_status_event_name(status) else {
+        return;
+    };
+
+    if let Some(exception) = collector_failure_exception_for_state(next) {
+        tracing::event!(
+            target: "everr.collector",
+            tracing::Level::ERROR,
+            {
+                event.name = event_name,
+                everr.collector.previous_status = previous_status,
+                everr.collector.status = status,
+                exception.type = exception.exception_type,
+                exception.message = exception.exception_message,
+                error.handled = false,
+            },
+            "{}",
+            event_name
+        );
+        return;
+    }
+
+    tracing::event!(
+        target: "everr.collector",
+        tracing::Level::INFO,
+        {
+            event.name = event_name,
+            everr.collector.previous_status = previous_status,
+            everr.collector.status = status,
+        },
+        "{}",
+        event_name
+    );
+}
+
+fn collector_status_event_name(status: &str) -> Option<&'static str> {
+    match status {
+        "running" => Some("everr.collector.status.running"),
+        "failed" => Some("everr.collector.status.failed"),
+        "stopped" => Some("everr.collector.status.stopped"),
+        _ => None,
+    }
+}
+
+fn collector_status_name(state: &TelemetryState) -> &'static str {
+    match state {
+        TelemetryState::Starting => "starting",
+        TelemetryState::Ready { .. } => "running",
+        TelemetryState::Stopped => "stopped",
+        TelemetryState::Disabled { .. } => "failed",
+    }
+}
+
+fn collector_failure_exception_for_state(
+    state: &TelemetryState,
+) -> Option<CollectorFailureException> {
+    let TelemetryState::Disabled { reason } = state else {
+        return None;
+    };
+
+    Some(collector_failure_exception(reason))
+}
+
+fn collector_failure_exception(reason: &str) -> CollectorFailureException {
+    if reason.starts_with("collector CLI terminated:") {
+        return CollectorFailureException {
+            exception_type: "CollectorExitError",
+            exception_message: "collector exited unexpectedly",
+        };
+    }
+
+    if reason.starts_with("collector CLI wait failed:") {
+        return CollectorFailureException {
+            exception_type: "CollectorWaitError",
+            exception_message: "collector process wait failed",
+        };
+    }
+
+    CollectorFailureException {
+        exception_type: "CollectorStartError",
+        exception_message: "collector failed to start",
     }
 }
 
@@ -467,5 +565,46 @@ impl DetachedSidecar {
     pub async fn shutdown(&self) {
         let mut guard = self.child.lock().await;
         stop_child(&mut guard).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{collector_failure_exception, status_response, TelemetryState};
+
+    #[test]
+    fn collector_status_response_matches_api_statuses() {
+        assert_eq!(
+            status_response(&TelemetryState::Starting).status,
+            "starting"
+        );
+        assert_eq!(
+            status_response(&TelemetryState::Ready {
+                otlp_endpoint: "http://127.0.0.1:54318".into(),
+            })
+            .status,
+            "running"
+        );
+        assert_eq!(status_response(&TelemetryState::Stopped).status, "stopped");
+        assert_eq!(
+            status_response(&TelemetryState::Disabled {
+                reason: "test".into(),
+            })
+            .status,
+            "failed"
+        );
+    }
+
+    #[test]
+    fn collector_failures_are_reported_as_sanitized_exceptions() {
+        let exit = collector_failure_exception("collector CLI terminated: exit status: 1");
+        assert_eq!(exit.exception_type, "CollectorExitError");
+        assert_eq!(exit.exception_message, "collector exited unexpectedly");
+
+        let spawn =
+            collector_failure_exception("CLI collector spawn: /Users/alice/secret/path missing");
+        assert_eq!(spawn.exception_type, "CollectorStartError");
+        assert_eq!(spawn.exception_message, "collector failed to start");
+        assert!(!spawn.exception_message.contains("/Users/alice"));
     }
 }

@@ -6,7 +6,7 @@ use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvid
 use everr_core::state_watcher::StateChange;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::broadcast;
 
 use crate::cli::sync_installed_cli;
@@ -181,5 +181,20 @@ async fn install_update_if_available(app: &AppHandle) -> Result<bool> {
     };
 
     update.download_and_install(|_, _| {}, || {}).await?;
+    log_app_update_executed(&update);
     Ok(true)
+}
+
+fn log_app_update_executed(update: &Update) {
+    tracing::event!(
+        target: "everr.app.update",
+        tracing::Level::INFO,
+        {
+            event.name = "everr.app.update.executed",
+            everr.app.update.current_version = update.current_version.as_str(),
+            everr.app.update.version = update.version.as_str(),
+            everr.app.update.target = update.target.as_str(),
+        },
+        "everr.app.update.executed"
+    );
 }

@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -8,19 +9,56 @@ use nix::sys::signal::{Signal, kill};
 #[cfg(unix)]
 use nix::unistd::Pid;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HealthcheckResult {
+    Running,
+    Unavailable,
+    NetworkBlocked,
+}
+
 pub async fn wait_healthcheck(endpoint: &str, deadline: Duration) -> bool {
+    matches!(
+        wait_healthcheck_result(endpoint, deadline).await,
+        HealthcheckResult::Running
+    )
+}
+
+pub async fn wait_healthcheck_result(endpoint: &str, deadline: Duration) -> HealthcheckResult {
     let start = Instant::now();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(500))
         .build()
         .expect("reqwest client");
+    let mut network_blocked = false;
     while start.elapsed() < deadline {
-        if let Ok(resp) = client.get(endpoint).send().await {
-            if resp.status().is_success() {
-                return true;
+        match client.get(endpoint).send().await {
+            Ok(resp) if resp.status().is_success() => return HealthcheckResult::Running,
+            Ok(_) => {}
+            Err(err) => {
+                if error_chain_contains_permission_denied(&err) {
+                    network_blocked = true;
+                }
             }
         }
         sleep(Duration::from_millis(100)).await;
+    }
+
+    if network_blocked {
+        HealthcheckResult::NetworkBlocked
+    } else {
+        HealthcheckResult::Unavailable
+    }
+}
+
+fn error_chain_contains_permission_denied(err: &(dyn Error + 'static)) -> bool {
+    let mut current = Some(err);
+    while let Some(source) = current {
+        if let Some(io_err) = source.downcast_ref::<std::io::Error>() {
+            if io_err.kind() == std::io::ErrorKind::PermissionDenied {
+                return true;
+            }
+        }
+        current = source.source();
     }
     false
 }
@@ -98,7 +136,6 @@ pub fn kill_processes_on_port(_port: u16, _label: &str) {}
 
 #[cfg(test)]
 mod tests {
-    #[cfg(unix)]
     use std::io;
     #[cfg(unix)]
     use std::net::{TcpListener, TcpStream};
@@ -154,6 +191,13 @@ mod tests {
             !pids.contains(&(child.id() as i32)),
             "connected client pid should not be present in {pids:?}"
         );
+    }
+
+    #[test]
+    fn permission_denied_errors_are_network_blocked() {
+        let err = io::Error::from(io::ErrorKind::PermissionDenied);
+
+        assert!(super::error_chain_contains_permission_denied(&err));
     }
 
     #[cfg(unix)]

@@ -6,7 +6,10 @@ use serde_json::Value;
 use crate::cli::{LocalArgs, LocalSubcommand, TelemetryFormat, TelemetryQueryArgs};
 use crate::telemetry::client::{QueryClient, Rows};
 use crate::telemetry::collector;
-use crate::telemetry::sibling;
+
+const COLLECTOR_UNAVAILABLE_MESSAGE: &str =
+    "telemetry collector isn't running — run `everr local start` or open Everr Desktop";
+const LOCALHOST_NETWORK_BLOCKED_MESSAGE: &str = "can't reach the telemetry collector because local network access is blocked for this process — allow access to 127.0.0.1 or run the query outside the sandbox";
 
 pub async fn run(args: LocalArgs) -> Result<()> {
     match args.command {
@@ -23,35 +26,41 @@ async fn run_status() -> Result<()> {
         "{}/",
         everr_core::build::healthcheck_origin().trim_end_matches('/')
     );
-    let running = everr_core::collector::wait_healthcheck(
+    let status = everr_core::collector::wait_healthcheck_result(
         &health_endpoint,
         std::time::Duration::from_secs(1),
     )
     .await;
 
-    if running {
-        println!("collector: running");
-        println!("otlp: {}", everr_core::build::otlp_http_origin());
-        println!("sql: {}", everr_core::build::sql_http_origin());
-        return Ok(());
+    match status {
+        everr_core::collector::HealthcheckResult::Running => {
+            println!("collector: running");
+            println!("otlp: {}", everr_core::build::otlp_http_origin());
+            println!("sql: {}", everr_core::build::sql_http_origin());
+            Ok(())
+        }
+        everr_core::collector::HealthcheckResult::NetworkBlocked => {
+            println!("collector: unreachable");
+            eprintln!("{LOCALHOST_NETWORK_BLOCKED_MESSAGE}");
+            std::process::exit(2);
+        }
+        everr_core::collector::HealthcheckResult::Unavailable => {
+            println!("collector: stopped");
+            eprintln!(
+                "telemetry collector isn't running - run `everr local start` or open Everr Desktop"
+            );
+            std::process::exit(2);
+        }
     }
-
-    println!("collector: stopped");
-    eprintln!("telemetry collector isn't running - run `everr local start` or open Everr Desktop");
-    std::process::exit(2);
 }
 
 fn run_query(args: TelemetryQueryArgs) -> Result<()> {
-    sibling::maybe_emit_banner();
-
     let client = QueryClient::new(everr_core::build::sql_http_origin());
     let rows = match client.query(&args.sql) {
         Ok(rows) => rows,
         Err(err) => {
             if is_connect_error(&err) {
-                eprintln!(
-                    "telemetry collector isn't running — run `everr local start` or open Everr Desktop"
-                );
+                eprintln!("{}", connection_failure_message(&err));
                 std::process::exit(2);
             }
             return Err(err).context("query failed");
@@ -74,6 +83,23 @@ fn is_connect_error(err: &anyhow::Error) -> bool {
         cause
             .downcast_ref::<reqwest::Error>()
             .map(|source| source.is_connect())
+            .unwrap_or(false)
+    })
+}
+
+fn connection_failure_message(err: &anyhow::Error) -> &'static str {
+    if is_permission_denied(err) {
+        return LOCALHOST_NETWORK_BLOCKED_MESSAGE;
+    }
+
+    COLLECTOR_UNAVAILABLE_MESSAGE
+}
+
+fn is_permission_denied(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .map(|source| source.kind() == std::io::ErrorKind::PermissionDenied)
             .unwrap_or(false)
     })
 }
@@ -118,5 +144,19 @@ fn value_to_cell(value: &Value) -> String {
         Value::Null => String::new(),
         Value::String(s) => s.clone(),
         _ => value.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::anyhow;
+
+    use super::connection_failure_message;
+
+    #[test]
+    fn permission_denied_connection_mentions_sandbox_network_access() {
+        let err = anyhow!(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+
+        assert!(connection_failure_message(&err).contains("network access is blocked"));
     }
 }
