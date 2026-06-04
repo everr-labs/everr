@@ -155,18 +155,7 @@ async function startGitHubEventsRuntime(): Promise<PgBoss> {
     "gh-collector",
     WORK_OPTS,
     context.bind(ROOT_CONTEXT, async (jobs) => {
-      await Promise.all(
-        jobs.map(async (job) => {
-          try {
-            await processCollectorJob(job);
-          } catch (error) {
-            if (error instanceof TerminalEventError) {
-              return;
-            }
-            throw error;
-          }
-        }),
-      );
+      await Promise.all(jobs.map((job) => processCollectorJob(job)));
     }),
   );
 
@@ -174,18 +163,7 @@ async function startGitHubEventsRuntime(): Promise<PgBoss> {
     "gh-status",
     WORK_OPTS,
     context.bind(ROOT_CONTEXT, async (jobs) => {
-      await Promise.all(
-        jobs.map(async (job) => {
-          try {
-            await processStatusJob(job);
-          } catch (error) {
-            if (error instanceof TerminalEventError) {
-              return;
-            }
-            throw error;
-          }
-        }),
-      );
+      await Promise.all(jobs.map((job) => processStatusJob(job)));
     }),
   );
 
