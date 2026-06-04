@@ -18,6 +18,13 @@ describe("parse", () => {
     });
   });
 
+  it("parses absolute anchor with a space between date and time", () => {
+    expect(parse("2024-01-15 10:30:00.123")).toEqual({
+      anchor: "2024-01-15 10:30:00.123",
+      ops: [],
+    });
+  });
+
   it("parses now with subtract", () => {
     expect(parse("now-7d")).toEqual({
       anchor: "now",
@@ -73,7 +80,7 @@ describe("parse", () => {
     }
   });
 
-  it("strips whitespace", () => {
+  it("ignores whitespace around operators", () => {
     expect(parse("now - 7d")).toEqual(parse("now-7d"));
   });
 
