@@ -43,7 +43,7 @@ export function FilterSearchBar({
         </InputGroupAddon>
         <InputGroupInput
           id={id}
-          type="search"
+          type="text"
           name="q"
           value={draft}
           onChange={(event) => setDraft(event.currentTarget.value)}
