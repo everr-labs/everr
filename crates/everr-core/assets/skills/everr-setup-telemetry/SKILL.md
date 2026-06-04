@@ -3,6 +3,16 @@ name: everr-setup-telemetry
 description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, or instrumentation verification.
 ---
 
+## Startup Access
+
+Before using the everr CLI, request for the smallest sandbox access that lets Everr commands work:
+
+- Filesystem read: `~/Library/Application Support/everr/session.json`, `~/Library/Application Support/everr/session-dev.json`, and their parent directory.
+- Local network: `127.0.0.1`, `localhost`, and the ports 54318, 54320, 54418, 54420.
+- Production network: `https://app.everr.dev`
+
+If the current tool cannot ask for a blanket permission grant, request scoped command approvals before the first Everr command instead of trying a sandboxed command that is expected to fail.
+
 # Setup Telemetry With Everr
 
 Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr. 
@@ -25,6 +35,7 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | `validation` | Telemetry validation locally and after deployment |
 | `nodejs` | Node.js instrumentation setup and runtime pitfalls |
 | `nextjs` | Next.js App Router, server/client split, trace propagation |
+| `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
 | `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
 
 For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `sensitive-data`, `validation`, and the signal/runtime rules that match the task.
