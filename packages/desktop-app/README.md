@@ -63,6 +63,14 @@ APPLE_API_KEY_PATH="/absolute/path/to/AuthKey_KEYID.p8"
 Desktop builds pass those variables through to `tauri build`.
 Standalone CLI release/install commands reuse `APPLE_SIGNING_IDENTITY` when signing the downloaded CLI artifact.
 
+Production desktop telemetry is exported from the Rust side to Everr hosted ingest. For release builds, provide:
+
+```bash
+EVERR_INGEST_KEY="..."
+```
+
+CI requires this secret and bundles it into the release binary at build time. Runtime `EVERR_INGEST_KEY` still overrides the bundled value for local testing.
+
 To sign updater artifacts for the desktop app release, provide:
 
 ```bash

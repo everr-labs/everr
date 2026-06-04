@@ -429,6 +429,27 @@ export function resolveDesktopReleaseIdentity({
   };
 }
 
+export function resolveDesktopReleaseIngestKey({
+  env = process.env,
+  required = false,
+}: {
+  env?: NodeJS.ProcessEnv;
+  required?: boolean;
+} = {}) {
+  const ingestKey = env.EVERR_INGEST_KEY?.trim();
+  if (ingestKey) {
+    return ingestKey;
+  }
+
+  if (required) {
+    throw new Error(
+      "EVERR_INGEST_KEY is required for CI desktop release builds so bundled production telemetry can authenticate to Everr ingest.",
+    );
+  }
+
+  return undefined;
+}
+
 export async function writeDesktopReleaseTauriConfigOverride({
   outputPath,
   platformVersion,

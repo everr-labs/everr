@@ -52,6 +52,7 @@ fn backend_telemetry_defaults_to_info_when_rust_log_is_absent() {
 #[test]
 fn backend_telemetry_is_logs_only_with_session_resource_attributes() {
     let otel = include_str!("../src/otel.rs");
+    let build = include_str!("../build.rs");
 
     assert!(otel.contains("SdkLoggerProvider"));
     assert!(otel.contains("LogExporter::builder()"));
@@ -65,6 +66,11 @@ fn backend_telemetry_is_logs_only_with_session_resource_attributes() {
     assert!(otel.contains("browser_logger"));
     assert!(otel.contains("create_log_record"));
     assert!(otel.contains("browser_logger.emit"));
+    assert!(otel.contains("option_env!(\"EVERR_INGEST_KEY\")"));
+    assert!(otel.contains("https://ingest.everr.dev"));
+    assert!(otel.contains("Authorization"));
+    assert!(otel.contains("Bearer {key}"));
+    assert!(build.contains("cargo:rerun-if-env-changed=EVERR_INGEST_KEY"));
     assert!(!otel.contains("SpanExporter::builder()"));
     assert!(!otel.contains("MetricExporter::builder()"));
     assert!(!otel.contains("tracing_opentelemetry"));

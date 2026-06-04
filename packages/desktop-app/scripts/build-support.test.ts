@@ -10,6 +10,7 @@ import {
   defaultDesktopVersionPaths,
   publishCliArtifact,
   readDesktopTauriConfigVersion,
+  resolveDesktopReleaseIngestKey,
   resolveDesktopReleaseIdentity,
   sha256File,
   type DesktopVersionPaths,
@@ -159,6 +160,25 @@ describe("build-support version helpers", () => {
     Object.assign(defaultDesktopVersionPaths, paths);
 
     await expect(readDesktopTauriConfigVersion()).resolves.toBe("0.1.0");
+  });
+
+  it("resolves the release ingest key without logging or normalizing its value", () => {
+    expect(
+      resolveDesktopReleaseIngestKey({
+        env: {
+          EVERR_INGEST_KEY: "  ingest-key-value  ",
+        },
+      }),
+    ).toBe("ingest-key-value");
+  });
+
+  it("requires the release ingest key for CI desktop builds", () => {
+    expect(() =>
+      resolveDesktopReleaseIngestKey({
+        env: {},
+        required: true,
+      }),
+    ).toThrow(/EVERR_INGEST_KEY/);
   });
 });
 

@@ -235,13 +235,16 @@ impl TelemetryConfig {
     fn from_env(
         context: TelemetryContext,
     ) -> Result<Option<Self>, Box<dyn std::error::Error + Send + Sync>> {
-        let endpoint = match env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
-            Ok(endpoint) => endpoint,
-            Err(_) if env::var("EVERR_INGEST_KEY").is_ok() => "https://ingest.everr.dev".into(),
-            Err(_) => everr_core::build::otlp_http_origin(),
-        };
+        let ingest_key = ingest_key();
+        let endpoint = env_value("OTEL_EXPORTER_OTLP_ENDPOINT").unwrap_or_else(|| {
+            if ingest_key.is_some() {
+                "https://ingest.everr.dev".into()
+            } else {
+                everr_core::build::otlp_http_origin()
+            }
+        });
 
-        let headers = env::var("EVERR_INGEST_KEY")
+        let headers = ingest_key
             .map(|key| HashMap::from([("Authorization".to_string(), format!("Bearer {key}"))]))
             .unwrap_or_default();
 
@@ -250,6 +253,31 @@ impl TelemetryConfig {
             headers,
             context,
         }))
+    }
+}
+
+fn env_value(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .and_then(|value| non_empty_value(&value))
+}
+
+fn ingest_key() -> Option<String> {
+    env_value("EVERR_INGEST_KEY").or_else(|| {
+        if tauri::is_dev() {
+            None
+        } else {
+            option_env!("EVERR_INGEST_KEY").and_then(non_empty_value)
+        }
+    })
+}
+
+fn non_empty_value(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
     }
 }
 
