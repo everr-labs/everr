@@ -8,12 +8,9 @@ import {
 } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useId, useRef, useState } from "react";
-import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
-import { AttributeValueCombobox } from "../../filters/ui/attribute-value-combobox";
-import {
-  ENVIRONMENT_ATTRIBUTE,
-  splitDedicatedAttributes,
-} from "../../filters/ui/dedicated-attributes";
+import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
+import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
+import { EnvironmentFilter } from "../../filters/ui/environment-filter";
 import { FilterSidebar } from "../../filters/ui/filter-sidebar";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
@@ -71,9 +68,6 @@ export function TraceFilters({
     ["traces", "filter", "services", serviceList] as const,
     serviceList,
   );
-
-  const { dedicated: dedicatedAttributes, rest: pickerAttributes } =
-    splitDedicatedAttributes(value.attributes, [ENVIRONMENT_ATTRIBUTE]);
 
   // "Clear all" resets the sidebar filters only. The span-name search lives in
   // the header search bar (with its own clear control), so it is not part of
@@ -154,15 +148,10 @@ export function TraceFilters({
         className="w-full"
       />
 
-      <AttributeValueCombobox
+      <EnvironmentFilter
         repo={repo}
         domain="traces"
         timeRange={timeRange}
-        source={ENVIRONMENT_ATTRIBUTE.source}
-        attributeKey={ENVIRONMENT_ATTRIBUTE.key}
-        label="Environment"
-        placeholder="All environments"
-        searchPlaceholder="Search environments..."
         attributes={value.attributes}
         onChange={(attributes) => onChange({ attributes })}
       />
@@ -184,17 +173,16 @@ export function TraceFilters({
 
       <Separator />
 
-      <AttributeFilterSection
+      <DedicatedAttributeSection
         repo={repo}
         domain="traces"
         timeRange={timeRange}
-        attributes={pickerAttributes}
+        attributes={value.attributes}
+        dedicated={[ENVIRONMENT_ATTRIBUTE]}
         promotedAttributes={TRACES_PROMOTED_ATTRIBUTES}
         excludedKeys={TRACES_EXCLUDED_KEYS}
         sources={TRACES_ATTRIBUTE_SOURCES_UI}
-        onChange={(attributes) =>
-          onChange({ attributes: [...dedicatedAttributes, ...attributes] })
-        }
+        onChange={(attributes) => onChange({ attributes })}
       />
     </FilterSidebar>
   );

@@ -12,9 +12,9 @@ export const TRACES_PROMOTED_ATTRIBUTES: PromotedAttribute[] = [
 ];
 
 // service.name backs the Service filter; service.namespace backs the Namespace
-// filter; deployment.environment backs the dedicated Environment filter.
+// filter. deployment.environment is also excluded, but that is derived from the
+// dedicated-attribute list passed to DedicatedAttributeSection, not listed here.
 export const TRACES_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:service.name",
   "resource:service.namespace",
-  "resource:deployment.environment",
 ]);

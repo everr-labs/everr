@@ -7,12 +7,9 @@ import {
 } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useId } from "react";
-import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
-import { AttributeValueCombobox } from "../../filters/ui/attribute-value-combobox";
-import {
-  ENVIRONMENT_ATTRIBUTE,
-  splitDedicatedAttributes,
-} from "../../filters/ui/dedicated-attributes";
+import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
+import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
+import { EnvironmentFilter } from "../../filters/ui/environment-filter";
 import { FilterSidebar } from "../../filters/ui/filter-sidebar";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
@@ -54,9 +51,6 @@ export function ErrorFilters({
     queryFn: async () => serviceOptions,
     select: (data: string[]) => data,
   };
-
-  const { dedicated: dedicatedAttributes, rest: pickerAttributes } =
-    splitDedicatedAttributes(value.attributes, [ENVIRONMENT_ATTRIBUTE]);
 
   // "Clear all" resets active filters only. Sort is an ordering preference (it
   // always has a value), and q is owned by the separate search bar, so neither
@@ -113,32 +107,26 @@ export function ErrorFilters({
         className="w-full"
       />
 
-      <AttributeValueCombobox
+      <EnvironmentFilter
         repo={repo}
         domain="errors"
         timeRange={timeRange}
-        source={ENVIRONMENT_ATTRIBUTE.source}
-        attributeKey={ENVIRONMENT_ATTRIBUTE.key}
-        label="Environment"
-        placeholder="All environments"
-        searchPlaceholder="Search environments..."
         attributes={value.attributes}
         onChange={(attributes) => onChange({ attributes })}
       />
 
       <Separator />
 
-      <AttributeFilterSection
+      <DedicatedAttributeSection
         repo={repo}
         domain="errors"
         timeRange={timeRange}
-        attributes={pickerAttributes}
+        attributes={value.attributes}
+        dedicated={[ENVIRONMENT_ATTRIBUTE]}
         promotedAttributes={ERRORS_PROMOTED_ATTRIBUTES}
         excludedKeys={ERRORS_EXCLUDED_KEYS}
         sources={ERRORS_ATTRIBUTE_SOURCES_UI}
-        onChange={(attributes) =>
-          onChange({ attributes: [...dedicatedAttributes, ...attributes] })
-        }
+        onChange={(attributes) => onChange({ attributes })}
       />
     </FilterSidebar>
   );

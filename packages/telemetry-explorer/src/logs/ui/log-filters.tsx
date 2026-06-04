@@ -10,12 +10,9 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash, X } from "lucide-react";
 import { useState } from "react";
-import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
-import { AttributeValueCombobox } from "../../filters/ui/attribute-value-combobox";
-import {
-  ENVIRONMENT_ATTRIBUTE,
-  splitDedicatedAttributes,
-} from "../../filters/ui/dedicated-attributes";
+import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
+import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
+import { EnvironmentFilter } from "../../filters/ui/environment-filter";
 import { FilterSidebar } from "../../filters/ui/filter-sidebar";
 import { logServiceFilterOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
@@ -114,9 +111,6 @@ export function LogFiltersBar({
     onChange({ levels: nextLevels });
   };
 
-  const { dedicated: dedicatedAttributes, rest: pickerAttributes } =
-    splitDedicatedAttributes(attributes, [ENVIRONMENT_ATTRIBUTE]);
-
   const hasActiveFilters =
     levels.length > 0 ||
     services.length > 0 ||
@@ -173,15 +167,10 @@ export function LogFiltersBar({
         className="w-full"
       />
 
-      <AttributeValueCombobox
+      <EnvironmentFilter
         repo={repo}
         domain="logs"
         timeRange={timeRange}
-        source={ENVIRONMENT_ATTRIBUTE.source}
-        attributeKey={ENVIRONMENT_ATTRIBUTE.key}
-        label="Environment"
-        placeholder="All environments"
-        searchPlaceholder="Search environments..."
         attributes={attributes}
         onChange={(next) => onChange({ attributes: next })}
       />
@@ -195,17 +184,16 @@ export function LogFiltersBar({
 
       <Separator />
 
-      <AttributeFilterSection
+      <DedicatedAttributeSection
         repo={repo}
         domain="logs"
         timeRange={timeRange}
-        attributes={pickerAttributes}
+        attributes={attributes}
+        dedicated={[ENVIRONMENT_ATTRIBUTE]}
         promotedAttributes={LOGS_PROMOTED_ATTRIBUTES}
         excludedKeys={LOGS_EXCLUDED_KEYS}
         sources={LOGS_ATTRIBUTE_SOURCES_UI}
-        onChange={(next) =>
-          onChange({ attributes: [...dedicatedAttributes, ...next] })
-        }
+        onChange={(next) => onChange({ attributes: next })}
       />
     </FilterSidebar>
   );
