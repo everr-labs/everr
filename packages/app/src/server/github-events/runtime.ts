@@ -161,10 +161,6 @@ async function startGitHubEventsRuntime(): Promise<PgBoss> {
             await processCollectorJob(job);
           } catch (error) {
             if (error instanceof TerminalEventError) {
-              serverLogger.error("github_events.collector.terminal_error", {
-                ...exceptionAttributes(error),
-                "pg_boss.job.id": job.id,
-              });
               return;
             }
             throw error;
@@ -184,10 +180,6 @@ async function startGitHubEventsRuntime(): Promise<PgBoss> {
             await processStatusJob(job);
           } catch (error) {
             if (error instanceof TerminalEventError) {
-              serverLogger.error("github_events.status.terminal_error", {
-                ...exceptionAttributes(error),
-                "pg_boss.job.id": job.id,
-              });
               return;
             }
             throw error;
