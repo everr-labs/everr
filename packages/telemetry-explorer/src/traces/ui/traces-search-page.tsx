@@ -5,6 +5,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
+import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import {
   listServiceIdentitiesOptions,
   tracesSearchInfiniteOptions,
@@ -84,46 +85,59 @@ export function TracesSearch({
   );
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
-      <TraceFilters
-        repo={repo}
-        timeRange={timeRange}
-        value={{
-          namespace: search.namespace,
-          service: search.service,
-          name: search.name,
-          minMs: search.minMs,
-          maxMs: search.maxMs,
-          status: search.status,
-          attributes: search.attributes,
-        }}
-        identities={identitiesQuery.data ?? []}
-        onChange={onSearchChange}
-      />
-      <main className="flex min-h-0 min-w-0 flex-col">
-        <TraceResultsList
-          rows={rows}
-          isPending={isPending}
-          isError={isError}
-          error={error}
-          refetch={refetch}
-          hasMore={hasNextPage}
-          isLoadingMore={isFetchingNextPage}
-          renderTraceLink={renderTraceLink}
-          onLoadMore={() => fetchNextPage()}
-          onClearFilters={() =>
-            onSearchChange({
-              namespace: [],
-              service: [],
-              name: "",
-              minMs: undefined,
-              maxMs: undefined,
-              status: "all",
-              attributes: [],
-            })
-          }
-        />
-      </main>
+    <div className="min-h-0 flex-1 overflow-hidden">
+      <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="border-b bg-muted/10 px-3 py-2">
+          <FilterSearchBar
+            id="traces-search"
+            label="Filter traces by span name"
+            value={search.name}
+            onChange={(name) => onSearchChange({ name })}
+            placeholder="Filter by span name"
+          />
+        </div>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+          <TraceFilters
+            repo={repo}
+            timeRange={timeRange}
+            value={{
+              namespace: search.namespace,
+              service: search.service,
+              minMs: search.minMs,
+              maxMs: search.maxMs,
+              status: search.status,
+              attributes: search.attributes,
+            }}
+            identities={identitiesQuery.data ?? []}
+            onChange={onSearchChange}
+          />
+          <main className="flex min-h-0 min-w-0 flex-col">
+            <TraceResultsList
+              rows={rows}
+              isPending={isPending}
+              isError={isError}
+              error={error}
+              refetch={refetch}
+              hasMore={hasNextPage}
+              isLoadingMore={isFetchingNextPage}
+              renderTraceLink={renderTraceLink}
+              onLoadMore={() => fetchNextPage()}
+              onClearFilters={() =>
+                onSearchChange({
+                  namespace: [],
+                  service: [],
+                  name: "",
+                  minMs: undefined,
+                  maxMs: undefined,
+                  status: "all",
+                  attributes: [],
+                })
+              }
+            />
+          </main>
+        </div>
+      </section>
     </div>
   );
 }

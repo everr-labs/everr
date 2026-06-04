@@ -1,10 +1,4 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@everr/ui/components/input-group";
 import { Label } from "@everr/ui/components/label";
 import { Separator } from "@everr/ui/components/separator";
 import {
@@ -12,9 +6,11 @@ import {
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { ListFilter, Search, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
-import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import { useId } from "react";
+import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
+import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
+import { EnvironmentFilter } from "../../filters/ui/environment-filter";
+import { FilterSidebar } from "../../filters/ui/filter-sidebar";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
@@ -56,38 +52,18 @@ export function ErrorFilters({
     select: (data: string[]) => data,
   };
 
+  // "Clear all" resets active filters only. Sort is an ordering preference (it
+  // always has a value), and q is owned by the separate search bar, so neither
+  // counts toward hasActiveFilters nor is reset by onClear.
+  const hasActiveFilters =
+    value.service.length > 0 || value.attributes.length > 0;
+
   return (
-    <aside
-      aria-label="Error filters"
-      className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
+    <FilterSidebar
+      label="Error filters"
+      hasActiveFilters={hasActiveFilters}
+      onClear={() => onChange({ service: [], attributes: [] })}
     >
-      <div className="flex items-center gap-2 text-xs font-medium">
-        <ListFilter className="text-muted-foreground size-3.5" />
-        Filter
-      </div>
-
-      <FilterCombobox
-        label="Service"
-        values={value.service}
-        onChange={(nextServices) => onChange({ service: nextServices })}
-        options={serviceFilterOptions}
-        placeholder="All services"
-        searchPlaceholder="Search services..."
-        className="w-full"
-      />
-
-      <Separator />
-      <AttributeFilterSection
-        repo={repo}
-        domain="errors"
-        timeRange={timeRange}
-        attributes={value.attributes}
-        promotedAttributes={ERRORS_PROMOTED_ATTRIBUTES}
-        excludedKeys={ERRORS_EXCLUDED_KEYS}
-        sources={ERRORS_ATTRIBUTE_SOURCES_UI}
-        onChange={(attributes) => onChange({ attributes })}
-      />
-
       <div className="flex flex-col gap-1">
         <Label id={orderLabelId} className="text-muted-foreground text-xs">
           Order
@@ -118,64 +94,40 @@ export function ErrorFilters({
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-    </aside>
-  );
-}
 
-export function ErrorSearchForm({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
+      <Separator />
 
-  useEffect(() => {
-    setDraft(value);
-  }, [value]);
+      <FilterCombobox
+        label="Service"
+        values={value.service}
+        onChange={(nextServices) => onChange({ service: nextServices })}
+        options={serviceFilterOptions}
+        placeholder="All services"
+        searchPlaceholder="Search services..."
+        className="w-full"
+      />
 
-  return (
-    <form
-      className="w-full"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onChange(draft.trim());
-      }}
-    >
-      <label htmlFor="errors-search" className="sr-only">
-        Search errors
-      </label>
-      <InputGroup className="h-8">
-        <InputGroupInput
-          id="errors-search"
-          type="search"
-          name="q"
-          value={draft}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          placeholder="Search errors"
-        />
-        <InputGroupAddon align="inline-start">
-          <Search />
-        </InputGroupAddon>
-        <InputGroupAddon align="inline-end">
-          {value ? (
-            <InputGroupButton
-              size="icon-xs"
-              aria-label="Clear search"
-              onClick={() => {
-                setDraft("");
-                onChange("");
-              }}
-            >
-              <X />
-            </InputGroupButton>
-          ) : null}
-          <InputGroupButton type="submit" variant="secondary">
-            Search
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
-    </form>
+      <EnvironmentFilter
+        repo={repo}
+        domain="errors"
+        timeRange={timeRange}
+        attributes={value.attributes}
+        onChange={(attributes) => onChange({ attributes })}
+      />
+
+      <Separator />
+
+      <DedicatedAttributeSection
+        repo={repo}
+        domain="errors"
+        timeRange={timeRange}
+        attributes={value.attributes}
+        dedicated={[ENVIRONMENT_ATTRIBUTE]}
+        promotedAttributes={ERRORS_PROMOTED_ATTRIBUTES}
+        excludedKeys={ERRORS_EXCLUDED_KEYS}
+        sources={ERRORS_ATTRIBUTE_SOURCES_UI}
+        onChange={(attributes) => onChange({ attributes })}
+      />
+    </FilterSidebar>
   );
 }
