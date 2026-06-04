@@ -100,4 +100,23 @@ describe("LogFiltersBar", () => {
       screen.queryByRole("button", { name: "Remove Environment filter" }),
     ).not.toBeInTheDocument();
   });
+
+  it("syncs the Trace input when the traceId prop is cleared externally", () => {
+    // Regression: the Trace input held a local draft seeded once from traceId.
+    // When traceId is cleared elsewhere (e.g. "Clear all" / link navigation),
+    // the input must follow it — otherwise it shows a stale id and reapplies it
+    // on Enter.
+    const { rerender } = renderWithQueryClient(
+      <LogFiltersBar {...baseProps} traceId="abc123" onChange={vi.fn()} />,
+    );
+    const input = screen.getByLabelText("Trace") as HTMLInputElement;
+    expect(input.value).toBe("abc123");
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <LogFiltersBar {...baseProps} traceId={undefined} onChange={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    expect((screen.getByLabelText("Trace") as HTMLInputElement).value).toBe("");
+  });
 });

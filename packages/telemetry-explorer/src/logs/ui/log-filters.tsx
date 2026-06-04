@@ -9,7 +9,7 @@ import { Separator } from "@everr/ui/components/separator";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
 import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
 import { EnvironmentFilter } from "../../filters/ui/environment-filter";
@@ -52,6 +52,14 @@ function TraceFilter({
   onChange: (traceId?: string) => void;
 }) {
   const [value, setValue] = useState(traceId ?? "");
+  // Resync the draft when the trace id changes externally (e.g. "Clear all",
+  // link navigation, back/forward) so the input doesn't keep — and reapply — a
+  // stale value.
+  const lastTraceIdRef = useRef(traceId);
+  if (lastTraceIdRef.current !== traceId) {
+    lastTraceIdRef.current = traceId;
+    setValue(traceId ?? "");
+  }
 
   return (
     <form
