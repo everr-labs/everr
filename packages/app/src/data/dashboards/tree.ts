@@ -24,6 +24,12 @@ export interface DashboardTree {
 const byName = (a: { name: string }, b: { name: string }) =>
   a.name.localeCompare(b.name);
 
+const folderOrder = (a: FolderSummary, b: FolderSummary) =>
+  byName(a, b) || a.id.localeCompare(b.id);
+
+const dashboardOrder = (a: DashboardSummary, b: DashboardSummary) =>
+  byName(a, b) || a.slug.localeCompare(b.slug);
+
 export function buildTree(
   folders: FolderSummary[],
   dashboards: DashboardSummary[],
@@ -50,15 +56,17 @@ export function buildTree(
   }
 
   const build = (parentId: string | null): FolderNode[] =>
-    [...(childFolders.get(parentId) ?? [])].sort(byName).map((folder) => ({
+    [...(childFolders.get(parentId) ?? [])].sort(folderOrder).map((folder) => ({
       folder,
       subfolders: build(folder.id),
-      dashboards: [...(childDashboards.get(folder.id) ?? [])].sort(byName),
+      dashboards: [...(childDashboards.get(folder.id) ?? [])].sort(
+        dashboardOrder,
+      ),
     }));
 
   return {
     folders: build(null),
-    dashboards: [...(childDashboards.get(null) ?? [])].sort(byName),
+    dashboards: [...(childDashboards.get(null) ?? [])].sort(dashboardOrder),
   };
 }
 
@@ -145,17 +153,20 @@ export function searchItems(
   query: string,
 ): SearchResults {
   const q = query.trim().toLowerCase();
+  if (!q) {
+    return { folders: [], dashboards: [] };
+  }
   return {
     folders: folders
       .filter((f) => f.name.toLowerCase().includes(q))
-      .sort(byName)
+      .sort(folderOrder)
       .map((folder) => ({
         folder,
         path: folderPath(folders, folder.parentId),
       })),
     dashboards: dashboards
       .filter((d) => d.name.toLowerCase().includes(q))
-      .sort(byName)
+      .sort(dashboardOrder)
       .map((dashboard) => ({
         dashboard,
         path: folderPath(folders, dashboard.folderId),

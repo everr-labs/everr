@@ -63,6 +63,21 @@ describe("buildTree", () => {
     expect(tree.folders.map((n) => n.folder.id)).toEqual(["f-lost"]);
     expect(tree.dashboards.map((d) => d.slug)).toEqual(["d-lost"]);
   });
+
+  it("breaks name ties deterministically by id/slug", () => {
+    const tree = buildTree(
+      [
+        { id: "f2", parentId: null, name: "Same" },
+        { id: "f1", parentId: null, name: "Same" },
+      ],
+      [
+        { slug: "d2", name: "Same", folderId: null },
+        { slug: "d1", name: "Same", folderId: null },
+      ],
+    );
+    expect(tree.folders.map((n) => n.folder.id)).toEqual(["f1", "f2"]);
+    expect(tree.dashboards.map((d) => d.slug)).toEqual(["d1", "d2"]);
+  });
 });
 
 describe("flattenFolders", () => {
@@ -125,5 +140,16 @@ describe("searchItems", () => {
     const folderResult = searchItems(folders, dashboards, "api");
     expect(folderResult.folders.map((m) => m.folder.id)).toEqual(["f-api"]);
     expect(folderResult.folders[0]?.path).toBe("Production");
+  });
+
+  it("returns nothing for an empty or whitespace query", () => {
+    expect(searchItems(folders, dashboards, "")).toEqual({
+      folders: [],
+      dashboards: [],
+    });
+    expect(searchItems(folders, dashboards, "   ")).toEqual({
+      folders: [],
+      dashboards: [],
+    });
   });
 });

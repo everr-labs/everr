@@ -39,7 +39,7 @@ export function NameDialog({
   }, [open, initialName]);
 
   const handleConfirm = () => {
-    if (name.trim()) onConfirm(name.trim());
+    if (name.trim() && !isPending) onConfirm(name.trim());
   };
 
   return (

@@ -8,8 +8,7 @@ import {
 } from "@everr/ui/components/dialog";
 import { cn } from "@everr/ui/lib/utils";
 import { Folder, House } from "lucide-react";
-import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { type FolderSummary, flattenFolders } from "@/data/dashboards/tree";
 
 interface FolderListProps {
@@ -25,6 +24,7 @@ export function FolderList({
   onChange,
   disabledIds,
 }: FolderListProps) {
+  const flat = useMemo(() => flattenFolders(folders), [folders]);
   return (
     <div className="border-border max-h-64 overflow-y-auto rounded-md border p-1">
       <FolderRow
@@ -34,7 +34,7 @@ export function FolderList({
         selected={value === null}
         onClick={() => onChange(null)}
       />
-      {flattenFolders(folders).map(({ folder, depth }) => (
+      {flat.map(({ folder, depth }) => (
         <FolderRow
           key={folder.id}
           name={folder.name}
