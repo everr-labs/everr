@@ -16,18 +16,13 @@ jobs:
   build:
     name: Build, Sign, Notarize
     runs-on: blacksmith-6vcpu-macos-15
-    timeout-minutes: 60
+    timeout-minutes: 25
     env:
       EVERR_DESKTOP_PUBLIC_BASE_URL: https://everr.dev/everr-app
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Collect resource usage
-        uses: ./.github/actions/everr-action
-        with:
-          check-run-id: ${{ job.check_run_id }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -195,6 +190,7 @@ jobs:
           path: target/desktop-release
           if-no-files-found: error
           retention-days: 14
+          compression-level: 0
 
       - name: Write release summary
         run: |
