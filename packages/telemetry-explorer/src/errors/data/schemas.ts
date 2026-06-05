@@ -14,12 +14,23 @@ export type {
 } from "../../attribute-filter/schemas";
 export { AttributeFilterSchema } from "../../attribute-filter/schemas";
 
-const datemath = z.string().refine(isValid);
+const optionalDatemath = z.preprocess(
+  (value) => (typeof value === "string" && isValid(value) ? value : undefined),
+  z.string().optional(),
+);
+const optionalSearchString = z.preprocess(
+  (value) => (typeof value === "string" ? value : undefined),
+  z.string().optional(),
+);
+const searchString = z.preprocess(
+  (value) => (typeof value === "string" ? value : ""),
+  z.string().trim(),
+);
 
 export const TimeRangeSearchSchema = z.object({
-  from: datemath.optional(),
-  to: datemath.optional(),
-  refresh: z.string().optional(),
+  from: optionalDatemath,
+  to: optionalDatemath,
+  refresh: optionalSearchString,
 });
 
 export const ErrorSortSchema = z.enum(["lastSeen", "count"]);
@@ -28,12 +39,12 @@ export const ErrorSortSchema = z.enum(["lastSeen", "count"]);
 export const PAGE_SIZE = 50;
 
 export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
-  q: z.string().trim().default(""),
-  service: z.array(z.string()).default([]),
-  fingerprint: z.string().trim().default(""),
-  occurrence: z.string().trim().default(""),
-  sort: ErrorSortSchema.default("lastSeen"),
-  attributes: attributesField(["resource", "log", "scope"]),
+  q: searchString,
+  service: z.array(z.string()).catch([]).default([]),
+  fingerprint: searchString,
+  occurrence: searchString,
+  sort: ErrorSortSchema.default("lastSeen").catch("lastSeen"),
+  attributes: attributesField(["resource", "log", "scope"]).catch([]),
 });
 export type ErrorIssueSearch = z.infer<typeof ErrorIssueSearchSchema>;
 

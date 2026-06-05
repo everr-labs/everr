@@ -13,19 +13,21 @@ import {
   RefreshPicker,
 } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
-import {
-  DEFAULT_TIME_RANGE,
-  type TimeRange,
-  withTimeRange,
-} from "@everr/ui/lib/time-range";
+import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
+  Outlet,
+  useMatch,
   useNavigate,
   useParams,
   useSearch,
 } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import {
+  DetailRouteDialog,
+  useDetailRouteDialogClose,
+} from "@/components/detail-route-dialog";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
@@ -34,6 +36,34 @@ export { TraceDetailParamsSchema, TraceSearchParamsSchema };
 const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function TracesPage() {
+  const traceDetailMatch = useMatch({
+    from: "/authenticated/traces/$traceId",
+    shouldThrow: false,
+  });
+  const search = useSearch({ strict: false }) as TraceDetailParams;
+  const navigate = useNavigate();
+
+  // Always keep the list mounted in the same position so opening/closing the
+  // modal never remounts it (a remount resets the virtualized list and re-runs
+  // queries, which shows up as a flash on close).
+  return (
+    <>
+      <TracesListView />
+      {traceDetailMatch && (
+        <DetailRouteDialog
+          title="Trace detail"
+          onClose={() =>
+            navigate({ to: "/traces", search: toTraceListSearch(search) })
+          }
+        >
+          <Outlet />
+        </DetailRouteDialog>
+      )}
+    </>
+  );
+}
+
+function TracesListView() {
   const search = useSearch({ strict: false }) as TraceSearchParams;
   const navigate = useNavigate();
   const { timeRange } = withTimeRange(search);
@@ -100,56 +130,32 @@ export function TraceDetailPage() {
   const { traceId } = useParams({ strict: false }) as { traceId: string };
   const search = useSearch({ strict: false }) as TraceDetailParams;
   const navigate = useNavigate();
-  const timeRange: TimeRange = {
-    from: search.from ?? DEFAULT_TIME_RANGE.from,
-    to: search.to ?? DEFAULT_TIME_RANGE.to,
-  };
-  const refresh = search.refresh ?? "";
-
+  // Inside the modal, ask the dialog to close through the route owner so the
+  // dialog stays open until navigation removes it.
+  const closeDialog = useDetailRouteDialogClose();
   return (
-    <TracePageShell
-      title="Trace"
-      timeRange={timeRange}
-      refresh={refresh}
-      onTimeRangeChange={(range) =>
-        navigate({
-          to: "/traces/$traceId",
-          params: { traceId },
-          search: (prev) => ({ ...prev, from: range.from, to: range.to }),
-          replace: true,
-        })
-      }
-      onRefreshChange={(value) =>
-        navigate({
-          to: "/traces/$traceId",
-          params: { traceId },
-          search: (prev) => ({ ...prev, refresh: value || undefined }),
-          replace: true,
-        })
-      }
-    >
-      <LocalTelemetryGate>
-        <TraceDetail
-          repo={localTracesRepo}
-          traceId={traceId}
-          search={search}
-          onBack={() =>
-            navigate({
-              to: "/traces",
-              search: toTraceListSearch(search),
-            })
+    <LocalTelemetryGate>
+      <TraceDetail
+        repo={localTracesRepo}
+        traceId={traceId}
+        search={search}
+        onBack={() => {
+          if (closeDialog) {
+            closeDialog();
+            return;
           }
-          onSpanChange={(spanId) =>
-            navigate({
-              to: "/traces/$traceId",
-              params: { traceId },
-              search: (prev) => ({ ...prev, span: spanId }),
-              replace: true,
-            })
-          }
-        />
-      </LocalTelemetryGate>
-    </TracePageShell>
+          navigate({ to: "/traces", search: toTraceListSearch(search) });
+        }}
+        onSpanChange={(spanId) =>
+          navigate({
+            to: "/traces/$traceId",
+            params: { traceId },
+            search: (prev) => ({ ...prev, span: spanId }),
+            replace: true,
+          })
+        }
+      />
+    </LocalTelemetryGate>
   );
 }
 

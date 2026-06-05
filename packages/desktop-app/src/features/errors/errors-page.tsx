@@ -24,11 +24,17 @@ import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
+  Outlet,
+  useMatch,
   useNavigate,
   useParams,
   useSearch,
 } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import {
+  DetailRouteDialog,
+  useDetailRouteDialogClose,
+} from "@/components/detail-route-dialog";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
@@ -38,6 +44,34 @@ const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function ErrorsPage() {
+  const errorDetailMatch = useMatch({
+    from: "/authenticated/errors/$fingerprint",
+    shouldThrow: false,
+  });
+  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const navigate = useNavigate();
+
+  // Always keep the list mounted in the same position so opening/closing the
+  // modal never remounts it (a remount resets the virtualized list and re-runs
+  // queries, which shows up as a flash on close).
+  return (
+    <>
+      <ErrorsListView />
+      {errorDetailMatch && (
+        <DetailRouteDialog
+          title="Error detail"
+          onClose={() =>
+            navigate({ to: "/errors", search: { ...search, occurrence: "" } })
+          }
+        >
+          <Outlet />
+        </DetailRouteDialog>
+      )}
+    </>
+  );
+}
+
+function ErrorsListView() {
   const search = useSearch({ strict: false }) as ErrorIssueSearch;
   const navigate = useNavigate();
   const { timeRange, q, service, fingerprint, sort, refresh, attributes } =
@@ -51,14 +85,14 @@ export function ErrorsPage() {
       onTimeRangeChange={(range) =>
         navigate({
           to: "/errors",
-          search: (prev) => ({ ...prev, from: range.from, to: range.to }),
+          search: { ...search, from: range.from, to: range.to },
           replace: true,
         })
       }
       onRefreshChange={(value) =>
         navigate({
           to: "/errors",
-          search: (prev) => ({ ...prev, refresh: value || undefined }),
+          search: { ...search, refresh: value || undefined },
           replace: true,
         })
       }
@@ -72,7 +106,7 @@ export function ErrorsPage() {
           onSearchChange={(patch) =>
             navigate({
               to: "/errors",
-              search: (prev) => ({ ...prev, ...patch }),
+              search: { ...search, ...patch },
               replace: true,
             })
           }
@@ -80,7 +114,7 @@ export function ErrorsPage() {
             <Link
               to="/errors/$fingerprint"
               params={{ fingerprint: issueFingerprint }}
-              search={(prev) => ({ ...prev, occurrence: "" })}
+              search={{ ...search, occurrence: "" }}
               className="block text-foreground no-underline"
             >
               {children}
@@ -98,78 +132,56 @@ export function ErrorDetailPage() {
   };
   const search = useSearch({ strict: false }) as ErrorIssueSearch;
   const navigate = useNavigate();
+  // Inside the modal, ask the dialog to close through the route owner so the
+  // dialog stays open until navigation removes it.
+  const closeDialog = useDetailRouteDialogClose();
   const { timeRange, service, refresh } = withTimeRange(search);
 
   return (
-    <ErrorsPageShell
-      title="Error"
-      timeRange={timeRange}
-      refresh={refresh ?? ""}
-      onTimeRangeChange={(range) =>
-        navigate({
-          to: "/errors/$fingerprint",
-          params: { fingerprint },
-          search: (prev) => ({ ...prev, from: range.from, to: range.to }),
-          replace: true,
-        })
-      }
-      onRefreshChange={(value) =>
-        navigate({
-          to: "/errors/$fingerprint",
-          params: { fingerprint },
-          search: (prev) => ({ ...prev, refresh: value || undefined }),
-          replace: true,
-        })
-      }
-    >
-      <LocalTelemetryGate>
-        <ErrorDetail
-          repo={localErrorsRepo}
-          fingerprint={fingerprint}
-          timeRange={timeRange}
-          refresh={refresh ?? ""}
-          service={service}
-          occurrence={search.occurrence}
-          renderBackLink={(children) => (
-            <Link
-              to="/errors"
-              search={(prev) => ({ ...prev, occurrence: "" })}
-              className={buttonVariants({
-                variant: "outline",
-                size: "sm",
-                className: "shrink-0",
-              })}
-            >
-              {children}
-            </Link>
-          )}
-          renderOccurrenceLink={({
-            occurrence: linkedOccurrence,
-            children,
-            isSelected,
-          }) => (
-            <Link
-              to="/errors/$fingerprint"
-              params={{ fingerprint }}
-              search={(prev) => ({
-                ...prev,
-                occurrence: getErrorOccurrenceKey(linkedOccurrence),
-              })}
-              aria-current={isSelected ? "page" : undefined}
-              className={buttonVariants({
-                variant: isSelected ? "secondary" : "outline",
-                size: "sm",
-              })}
-            >
-              {children}
-            </Link>
-          )}
-          renderTracePanel={({ occurrence }) => (
-            <DesktopErrorTracePanel occurrence={occurrence} />
-          )}
-        />
-      </LocalTelemetryGate>
-    </ErrorsPageShell>
+    <LocalTelemetryGate>
+      <ErrorDetail
+        repo={localErrorsRepo}
+        fingerprint={fingerprint}
+        timeRange={timeRange}
+        refresh={refresh ?? ""}
+        service={service}
+        occurrence={search.occurrence}
+        onBack={() => {
+          if (closeDialog) {
+            closeDialog();
+            return;
+          }
+          navigate({
+            to: "/errors",
+            search: { ...search, occurrence: "" },
+          });
+        }}
+        renderOccurrenceLink={({
+          occurrence: linkedOccurrence,
+          children,
+          isSelected,
+        }) => (
+          <Link
+            to="/errors/$fingerprint"
+            params={{ fingerprint }}
+            search={{
+              ...search,
+              occurrence: getErrorOccurrenceKey(linkedOccurrence),
+            }}
+            aria-current={isSelected ? "page" : undefined}
+            className={buttonVariants({
+              variant: isSelected ? "secondary" : "outline",
+              size: "sm",
+            })}
+          >
+            {children}
+          </Link>
+        )}
+        renderTracePanel={({ occurrence }) => (
+          <DesktopErrorTracePanel occurrence={occurrence} />
+        )}
+      />
+    </LocalTelemetryGate>
   );
 }
 

@@ -1,6 +1,6 @@
 import {
   ErrorDetail,
-  ErrorIssueSearchSchema,
+  type ErrorIssueSearch,
   type ErrorOccurrence,
   ErrorTracePanel,
   getErrorOccurrenceKey,
@@ -8,24 +8,23 @@ import {
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { runSpansOptions } from "@/data/runs/options";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/errors/$fingerprint",
-)({
-  staticData: { breadcrumb: "Detail", fullBleed: true },
-  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
-  validateSearch: ErrorIssueSearchSchema,
-  component: ErrorDetailPage,
-});
-
-function ErrorDetailPage() {
+export function ErrorDetailRouteContent({
+  fingerprint,
+  search,
+  detailTo,
+  onBack,
+}: {
+  fingerprint: string;
+  search: ErrorIssueSearch;
+  detailTo: "/errors/$fingerprint" | "/errors/$fingerprint/modal";
+  onBack: () => void;
+}) {
   useRealtimeSubscription({ scope: "tenant" });
-  const { fingerprint } = Route.useParams();
-  const search = Route.useSearch();
   const { timeRange, service, refresh } = withTimeRange(search);
 
   return (
@@ -36,26 +35,14 @@ function ErrorDetailPage() {
       refresh={refresh ?? ""}
       service={service}
       occurrence={search.occurrence}
-      renderBackLink={(children) => (
-        <Link
-          to="/errors"
-          search={{ ...search, occurrence: "" }}
-          className={buttonVariants({
-            variant: "outline",
-            size: "sm",
-            className: "shrink-0",
-          })}
-        >
-          {children}
-        </Link>
-      )}
+      onBack={onBack}
       renderOccurrenceLink={({
         occurrence: linkedOccurrence,
         children,
         isSelected,
       }) => (
         <Link
-          to="/errors/$fingerprint"
+          to={detailTo}
           params={{ fingerprint }}
           search={{
             ...search,
