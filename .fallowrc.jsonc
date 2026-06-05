@@ -24,6 +24,10 @@
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
   ],
+  "ignorePatterns": [
+    // Generic components not yet used by any entry point — consumed in subsequent tasks.
+    "packages/app/src/components/dashboards/name-dialog.tsx"
+  ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
   "dynamicallyLoaded": ["packages/docs/content/**/*.{md,mdx}"],
