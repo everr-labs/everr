@@ -24,14 +24,7 @@
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
   ],
-  "ignorePatterns": [
-    // Generic components not yet used by any entry point — consumed in subsequent tasks.
-    "packages/app/src/components/dashboards/name-dialog.tsx",
-    "packages/app/src/components/dashboards/folder-picker.tsx",
-    "packages/app/src/components/dashboards/delete-dashboard-dialog.tsx",
-    "packages/app/src/components/dashboards/delete-folder-dialog.tsx",
-    "packages/app/src/components/dashboards/dashboard-tree.tsx"
-  ],
+  "ignorePatterns": [],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
   "dynamicallyLoaded": ["packages/docs/content/**/*.{md,mdx}"],
@@ -97,12 +90,10 @@
       // Dashboard query options and mutation hooks — will be consumed by UI components in subsequent tasks.
       "file": "packages/app/src/data/dashboards/options.ts",
       "exports": [
-        "folderListOptions",
         "useSaveDashboard",
         "useDeleteDashboard",
         "useRenameDashboard",
         "useMoveDashboard",
-        "useCreateFolder",
         "useRenameFolder",
         "useMoveFolder",
         "useDeleteFolder"

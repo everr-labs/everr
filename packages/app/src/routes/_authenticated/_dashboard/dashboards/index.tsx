@@ -2,9 +2,15 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { LayoutDashboard, Plus, SearchIcon } from "lucide-react";
+import { FolderPlus, LayoutDashboard, Plus, SearchIcon } from "lucide-react";
 import { useState } from "react";
-import { dashboardListOptions } from "@/data/dashboards/options";
+import { DashboardTree } from "@/components/dashboards/dashboard-tree";
+import { NameDialog } from "@/components/dashboards/name-dialog";
+import {
+  dashboardListOptions,
+  folderListOptions,
+  useCreateFolder,
+} from "@/data/dashboards/options";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/dashboards/")({
   staticData: { breadcrumb: "Dashboards" },
@@ -15,12 +21,22 @@ export const Route = createFileRoute("/_authenticated/_dashboard/dashboards/")({
 });
 
 function DashboardsIndexPage() {
-  const { data: dashboards, isLoading } = useQuery(dashboardListOptions());
-  const [search, setSearch] = useState("");
-
-  const filtered = dashboards?.filter((d) =>
-    d.name.toLowerCase().includes(search.toLowerCase()),
+  const { data: dashboards, isLoading: dashboardsLoading } = useQuery(
+    dashboardListOptions(),
   );
+  const { data: folders, isLoading: foldersLoading } = useQuery(
+    folderListOptions(),
+  );
+  const [search, setSearch] = useState("");
+  // null = dialog closed; "root" sentinel = create at root; uuid = subfolder
+  const [createParentId, setCreateParentId] = useState<string | null>(null);
+  const createFolder = useCreateFolder();
+
+  const isLoading = dashboardsLoading || foldersLoading;
+  const isEmpty =
+    !isLoading &&
+    (dashboards?.length ?? 0) === 0 &&
+    (folders?.length ?? 0) === 0;
 
   return (
     <div>
@@ -29,10 +45,20 @@ function DashboardsIndexPage() {
           <LayoutDashboard className="size-5 text-muted-foreground" />
           <h1 className="text-lg font-semibold">Dashboards</h1>
         </div>
-        <Button size="sm" render={<Link to="/dashboards/new" />}>
-          <Plus data-icon="inline-start" />
-          New Dashboard
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCreateParentId("root")}
+          >
+            <FolderPlus data-icon="inline-start" />
+            New Folder
+          </Button>
+          <Button size="sm" render={<Link to="/dashboards/new" />}>
+            <Plus data-icon="inline-start" />
+            New Dashboard
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4 max-w-sm">
@@ -47,43 +73,51 @@ function DashboardsIndexPage() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
 
-      {filtered && filtered.length === 0 && (
+      {isEmpty && (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
           <LayoutDashboard className="size-10" />
-          <p className="text-sm">
-            {search ? "No dashboards match your search" : "No dashboards yet"}
-          </p>
-          {!search && (
-            <Button
-              variant="outline"
-              size="sm"
-              render={<Link to="/dashboards/new" />}
-            >
-              <Plus data-icon="inline-start" />
-              Create your first dashboard
-            </Button>
-          )}
+          <p className="text-sm">No dashboards yet</p>
+          <Button
+            variant="outline"
+            size="sm"
+            render={<Link to="/dashboards/new" />}
+          >
+            <Plus data-icon="inline-start" />
+            Create your first dashboard
+          </Button>
         </div>
       )}
 
-      {filtered && filtered.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((d) => (
-            <Link
-              key={d.slug}
-              to="/dashboards/$dashboardId"
-              params={{ dashboardId: d.slug }}
-              className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent"
-            >
-              <div className="flex items-center gap-2">
-                <LayoutDashboard className="size-4 text-muted-foreground" />
-                <span className="font-medium">{d.name}</span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{d.slug}</p>
-            </Link>
-          ))}
-        </div>
+      {!isLoading && !isEmpty && (
+        <DashboardTree
+          folders={folders ?? []}
+          dashboards={dashboards ?? []}
+          search={search}
+          onCreateSubfolder={(parentId) => setCreateParentId(parentId)}
+        />
       )}
+
+      <NameDialog
+        open={createParentId !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreateParentId(null);
+        }}
+        title={createParentId === "root" ? "New folder" : "New subfolder"}
+        confirmLabel="Create"
+        isPending={createFolder.isPending}
+        onConfirm={(name) => {
+          createFolder.mutate(
+            {
+              name,
+              parentId:
+                createParentId === "root"
+                  ? undefined
+                  : (createParentId ?? undefined),
+            },
+            { onSuccess: () => setCreateParentId(null) },
+          );
+        }}
+      />
     </div>
   );
 }

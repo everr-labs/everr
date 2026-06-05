@@ -19,7 +19,7 @@ interface FolderListProps {
   disabledIds?: Set<string>;
 }
 
-export function FolderList({
+function FolderList({
   folders,
   value,
   onChange,
