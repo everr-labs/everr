@@ -118,12 +118,15 @@ The release workflow requires this secret before building. During the Tauri rele
 
 Workflow: **Deploy Desktop App**
 
-Run it manually from GitHub Actions. CI uses the commit SHA as the release identity and generates the numeric Tauri/macOS updater version from the checked-in development version plus the workflow run number.
+The workflow runs on `main` pushes from the Changesets version PR. It releases
+only when the merged diff deletes a `.changeset` file that targets
+`@everr/desktop-app`, and it uses the checked-in desktop app version as the
+Tauri/macOS updater version.
 
 The uploaded artifact is named:
 
 ```text
-everr-desktop-release-<git-sha>
+everr-desktop-release-<version>
 ```
 
 It contains:
@@ -151,7 +154,7 @@ Using the GitHub CLI:
 ```bash
 gh run download <run-id> \
   --repo everr-labs/everr \
-  --name everr-desktop-release-<git-sha> \
+  --name everr-desktop-release-<version> \
   --dir ./desktop-release
 ```
 
@@ -164,7 +167,7 @@ Using `actions/download-artifact` in the deploy repo:
     github-token: ${{ secrets.EVERR_SOURCE_REPO_TOKEN }}
     repository: everr-labs/everr
     run-id: ${{ inputs.source_run_id }}
-    name: everr-desktop-release-${{ inputs.source_sha }}
+    name: ${{ inputs.artifact_name }}
     path: ./desktop-release
 ```
 

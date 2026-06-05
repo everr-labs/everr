@@ -10,11 +10,47 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".changeset/**"
+      - ".github/workflows/deploy-desktop-app.yml"
+      - "packages/desktop-app/CHANGELOG.md"
+      - "packages/desktop-app/package.json"
+      - "packages/desktop-app/scripts/desktop-release-gate.ts"
+      - "packages/desktop-app/src-tauri/Cargo.toml"
+      - "packages/desktop-app/src-tauri/tauri.conf.json"
 
 jobs:
+  release-gate:
+    name: Check Desktop Changeset Release
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      should_release: ${{ steps.gate.outputs.should_release }}
+      version: ${{ steps.gate.outputs.version }}
+      artifact_name: ${{ steps.gate.outputs.artifact_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Evaluate desktop release gate
+        id: gate
+        run: |
+          node packages/desktop-app/scripts/desktop-release-gate.ts \
+            --base "${{ github.event.before }}" \
+            --head "${{ github.sha }}"
+
   build:
     name: Build, Sign, Notarize
+    needs: release-gate
+    if: needs.release-gate.outputs.should_release == 'true'
     runs-on: blacksmith-6vcpu-macos-15
     timeout-minutes: 60
     env:
@@ -191,7 +227,7 @@ jobs:
         id: upload-desktop-release
         uses: actions/upload-artifact@v4
         with:
-          name: everr-desktop-release-${{ github.sha }}
+          name: everr-desktop-release-${{ needs.release-gate.outputs.version }}
           path: target/desktop-release
           if-no-files-found: error
           retention-days: 14
@@ -201,7 +237,7 @@ jobs:
           {
             echo "## Desktop release artifact"
             echo
-            echo "- Artifact name: everr-desktop-release-${GITHUB_SHA}"
+            echo "- Artifact name: ${{ needs.release-gate.outputs.artifact_name }}"
             echo "- Artifact ID: ${{ steps.upload-desktop-release.outputs.artifact-id }}"
             echo "- Artifact digest: ${{ steps.upload-desktop-release.outputs.artifact-digest }}"
             echo
@@ -221,18 +257,11 @@ jobs:
   notify-deploy:
     name: Notify Deploy Repo
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: build
+    needs:
+      - release-gate
+      - build
+    if: needs.release-gate.outputs.should_release == 'true'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Read desktop app version
-        id: version
-        run: |
-          set -euo pipefail
-          version="$(node -p "require('./packages/desktop-app/package.json').version")"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
@@ -253,6 +282,6 @@ jobs:
               "source_repo": "${{ github.repository }}",
               "run_id": "${{ github.run_id }}",
               "sha": "${{ github.sha }}",
-              "version": "${{ steps.version.outputs.version }}",
-              "artifact_name": "everr-desktop-release-${{ github.sha }}"
+              "version": "${{ needs.release-gate.outputs.version }}",
+              "artifact_name": "${{ needs.release-gate.outputs.artifact_name }}"
             }

@@ -26,10 +26,9 @@ CI uses the same release path through:
 pnpm build:desktop:ci
 ```
 
-CI uses the commit SHA as the human release identity and generates the numeric
-Tauri/macOS updater version from the checked-in development version plus the
-workflow run number. The checked-in version stays as the local development
-fallback.
+CI releases only when the Changesets version PR consumes a changeset for
+`@everr/desktop-app`. The checked-in Changesets version is the Tauri/macOS
+updater version; the commit SHA is kept only as release metadata.
 
 Install the signed release CLI into `~/.local/bin` only when you explicitly opt in:
 

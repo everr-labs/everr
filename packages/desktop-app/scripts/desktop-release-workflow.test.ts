@@ -12,7 +12,29 @@ describe("desktop release workflow", () => {
 
     expect(workflow).toContain("name: Deploy Desktop App");
     expect(workflow).toContain("event-type: desktop-app-release");
-    expect(workflow).toContain('"artifact_name": "everr-desktop-release-${{ github.sha }}"');
+    expect(workflow).toContain(
+      '"artifact_name": "${{ needs.release-gate.outputs.artifact_name }}"',
+    );
+  });
+
+  it("runs from main pushes and not manual dispatch", async () => {
+    const workflow = await readFile(workflowPath, "utf8");
+
+    expect(workflow).toContain("push:");
+    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("packages/desktop-app/package.json");
+    expect(workflow).not.toContain("workflow_dispatch");
+  });
+
+  it("gates releases on a consumed desktop app changeset", async () => {
+    const workflow = await readFile(workflowPath, "utf8");
+
+    expect(workflow).toContain("release-gate:");
+    expect(workflow).toContain("node packages/desktop-app/scripts/desktop-release-gate.ts");
+    expect(workflow).toContain("if: needs.release-gate.outputs.should_release == 'true'");
+    expect(workflow).toContain(
+      "name: everr-desktop-release-${{ needs.release-gate.outputs.version }}",
+    );
   });
 
   it("assesses the DMG with the primary-signature Gatekeeper context", async () => {

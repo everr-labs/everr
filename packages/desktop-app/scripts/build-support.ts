@@ -15,7 +15,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
-import { parse as parseVersion, valid as validVersion } from "semver";
+import { valid as validVersion } from "semver";
 import { $ } from "zx";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -342,30 +342,6 @@ function releaseShortSha(releaseSha: string) {
   return releaseSha === "unknown" ? "unknown" : releaseSha.slice(0, 7);
 }
 
-function normalizeGithubRunNumber(value: string) {
-  const trimmed = value.trim();
-  if (!/^[1-9][0-9]*$/.test(trimmed)) {
-    throw new Error(
-      `GITHUB_RUN_NUMBER must be a positive integer to generate a desktop platform version; got "${value}".`,
-    );
-  }
-
-  return trimmed;
-}
-
-function buildGithubActionsPlatformVersion(fallbackVersion: string, githubRunNumber: string) {
-  const parsed = parseVersion(normalizeDesktopVersion(fallbackVersion));
-  if (!parsed) {
-    throw new Error(
-      `Unsupported desktop app version "${fallbackVersion}". Expected a semantic version in the form X.Y.Z.`,
-    );
-  }
-
-  return normalizeDesktopVersion(
-    `${parsed.major}.${parsed.minor}.${parsed.patch + Number(githubRunNumber)}`,
-  );
-}
-
 function normalizeReleaseSha(value: string) {
   const trimmed = value.trim();
   if (!/^[0-9a-f]{7,40}$/i.test(trimmed)) {
@@ -396,19 +372,15 @@ export function resolveDesktopReleaseIdentity({
       platformVersion,
       releaseSha,
       releaseShortSha: envReleaseShortSha || releaseShortSha(releaseSha),
-      source: env.GITHUB_SHA && env.GITHUB_RUN_NUMBER ? "github-actions" : "local",
+      source: env.GITHUB_SHA ? "github-actions" : "local",
     };
   }
 
   const githubSha = env.GITHUB_SHA?.trim();
-  const githubRunNumber = env.GITHUB_RUN_NUMBER?.trim();
 
-  if (githubSha && githubRunNumber) {
+  if (githubSha) {
     const releaseSha = normalizeReleaseSha(githubSha);
-    const platformVersion = buildGithubActionsPlatformVersion(
-      fallbackVersion,
-      normalizeGithubRunNumber(githubRunNumber),
-    );
+    const platformVersion = normalizeDesktopVersion(fallbackVersion);
 
     return {
       platformVersion,

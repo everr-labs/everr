@@ -61,7 +61,7 @@ afterEach(async () => {
 });
 
 describe("build-support version helpers", () => {
-  it("derives CI release identity from GitHub Actions env vars", () => {
+  it("uses the checked-in desktop version for GitHub Actions release identity", () => {
     expect(
       resolveDesktopReleaseIdentity({
         env: {
@@ -72,7 +72,7 @@ describe("build-support version helpers", () => {
         fallbackSha: "localsha",
       }),
     ).toEqual({
-      platformVersion: "0.1.1264",
+      platformVersion: "0.1.30",
       releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       releaseShortSha: "82efe1c",
       source: "github-actions",
@@ -114,8 +114,8 @@ describe("build-support version helpers", () => {
     });
   });
 
-  it("rejects invalid generated platform versions", () => {
-    expect(() =>
+  it("does not use GitHub run number when resolving release identity", () => {
+    expect(
       resolveDesktopReleaseIdentity({
         env: {
           GITHUB_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
@@ -124,7 +124,12 @@ describe("build-support version helpers", () => {
         fallbackVersion: "0.1.30",
         fallbackSha: "localsha",
       }),
-    ).toThrow(/GITHUB_RUN_NUMBER/);
+    ).toEqual({
+      platformVersion: "0.1.30",
+      releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
+      releaseShortSha: "82efe1c",
+      source: "github-actions",
+    });
   });
 
   it("writes a Tauri config override with the generated platform version", async () => {
