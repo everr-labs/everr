@@ -554,9 +554,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => blocker.reset?.()}>
-              Stay
-            </AlertDialogCancel>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {

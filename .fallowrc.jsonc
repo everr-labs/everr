@@ -70,7 +70,7 @@
       "exports": ["*"]
     },
     {
-      // Dashboard Zod schemas — API surface consumed by server functions not yet wired up.
+      // Dashboard Zod schemas — Perses-compat surface (variables/datasources) kept schema-only by design.
       "file": "packages/app/src/data/dashboards/schema.ts",
       "exports": ["*"]
     }
