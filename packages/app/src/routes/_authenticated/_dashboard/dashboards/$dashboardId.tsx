@@ -1,9 +1,16 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useEffect } from "react";
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions } from "@/data/dashboards/options";
+import { dashboardSearchDefaults } from "@/data/dashboards/time-defaults";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/dashboards/$dashboardId",
@@ -53,6 +60,23 @@ function DashboardPage() {
       setDashboard(data);
     }
   }, [data, dashboard, setDashboard]);
+
+  const search = useSearch({ from: "/_authenticated/_dashboard" });
+  const navigate = useNavigate();
+  const seededFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (seededFor.current === dashboardId) return;
+    seededFor.current = dashboardId;
+    const patch = dashboardSearchDefaults(data.spec, search);
+    if (patch) {
+      void navigate({
+        to: ".",
+        search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }),
+        replace: true,
+      });
+    }
+  }, [dashboardId, data, search, navigate]);
 
   if (!dashboard) return null;
 
