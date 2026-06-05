@@ -80,23 +80,23 @@
       "exports": [
         "saveDashboard",
         "deleteDashboard",
-        "listFolders",
         "createFolder",
         "renameFolder",
-        "deleteFolder",
-        "renameDashboard",
-        "moveDashboard",
-        "moveFolder"
+        "deleteFolder"
       ]
     },
     {
-      // Dashboard mutation hooks — will be consumed by UI components in subsequent tasks.
+      // Dashboard query options and mutation hooks — will be consumed by UI components in subsequent tasks.
       "file": "packages/app/src/data/dashboards/options.ts",
       "exports": [
+        "folderListOptions",
         "useSaveDashboard",
         "useDeleteDashboard",
+        "useRenameDashboard",
+        "useMoveDashboard",
         "useCreateFolder",
         "useRenameFolder",
+        "useMoveFolder",
         "useDeleteFolder"
       ]
     }

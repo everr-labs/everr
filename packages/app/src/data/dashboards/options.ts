@@ -10,12 +10,17 @@ import {
   deleteFolder,
   getDashboard,
   listDashboards,
+  listFolders,
+  moveDashboard,
+  moveFolder,
+  renameDashboard,
   renameFolder,
   runPanelQuery,
   saveDashboard,
 } from "./server";
 
 const dashboardsQueryKey = ["dashboards"] as const;
+const foldersQueryKey = ["dashboard-folders"] as const;
 
 export const dashboardOptions = (dashboardId: string) =>
   queryOptions({
@@ -27,6 +32,12 @@ export const dashboardListOptions = () =>
   queryOptions({
     queryKey: [...dashboardsQueryKey, "list"],
     queryFn: () => listDashboards(),
+  });
+
+export const folderListOptions = () =>
+  queryOptions({
+    queryKey: foldersQueryKey,
+    queryFn: () => listFolders(),
   });
 
 export const panelQueryOptions = (sql: string, from?: string, to?: string) =>
@@ -68,7 +79,35 @@ export function useDeleteDashboard() {
   });
 }
 
-const foldersQueryKey = ["dashboard-folders"] as const;
+export function useRenameDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { slug: string; name: string }) =>
+      renameDashboard({ data: vars }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dashboardsQueryKey });
+      toast.success("Dashboard renamed");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to rename");
+    },
+  });
+}
+
+export function useMoveDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { slug: string; folderId: string | null }) =>
+      moveDashboard({ data: vars }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dashboardsQueryKey });
+      toast.success("Dashboard moved");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to move");
+    },
+  });
+}
 
 export function useCreateFolder() {
   const qc = useQueryClient();
@@ -97,6 +136,22 @@ export function useRenameFolder() {
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : "Failed to rename folder",
+      );
+    },
+  });
+}
+
+export function useMoveFolder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { folderId: string; parentId: string | null }) =>
+      moveFolder({ data: vars }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: foldersQueryKey });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to move folder",
       );
     },
   });
