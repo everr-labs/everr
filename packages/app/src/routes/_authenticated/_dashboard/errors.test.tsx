@@ -136,7 +136,7 @@ describe("/errors route", () => {
           fingerprint={fingerprint}
           search={search}
           detailTo="/errors/$fingerprint/modal"
-          onBack={() => undefined}
+          onClose={() => undefined}
         />
       );
     }

@@ -47,7 +47,7 @@ function TraceDetailModalRoute() {
       <TraceDetailRouteContent
         traceId={traceId}
         search={search}
-        onBack={() =>
+        onClose={() =>
           navigate({
             to: "/traces",
             search: toTraceListSearch(search),

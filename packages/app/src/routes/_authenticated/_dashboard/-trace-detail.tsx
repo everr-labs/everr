@@ -53,11 +53,13 @@ export function TraceDetailRouteContent({
   traceId,
   search,
   onBack,
+  onClose,
   onSpanChange,
 }: {
   traceId: string;
   search: TraceDetailParams;
-  onBack: () => void;
+  onBack?: () => void;
+  onClose?: () => void;
   onSpanChange: (spanId: string | undefined) => void;
 }) {
   return (
@@ -66,6 +68,7 @@ export function TraceDetailRouteContent({
       traceId={traceId}
       search={search}
       onBack={onBack}
+      onClose={onClose}
       onSpanChange={onSpanChange}
     />
   );

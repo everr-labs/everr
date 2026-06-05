@@ -17,11 +17,13 @@ export function ErrorDetailRouteContent({
   search,
   detailTo,
   onBack,
+  onClose,
 }: {
   fingerprint: string;
   search: ErrorIssueSearch;
   detailTo: "/errors/$fingerprint" | "/errors/$fingerprint/modal";
-  onBack: () => void;
+  onBack?: () => void;
+  onClose?: () => void;
 }) {
   const { timeRange, service, refresh } = withTimeRange(search);
 
@@ -34,6 +36,7 @@ export function ErrorDetailRouteContent({
       service={service}
       occurrence={search.occurrence}
       onBack={onBack}
+      onClose={onClose}
       renderOccurrenceLink={({
         occurrence: linkedOccurrence,
         children,

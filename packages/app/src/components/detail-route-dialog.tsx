@@ -41,7 +41,7 @@ export function DetailRouteDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="top-2 right-2 bottom-2 left-2 flex h-auto w-auto max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-lg p-0 sm:max-w-none"
+        className="flex h-[90vh] w-[90vw] max-w-none gap-0 overflow-hidden rounded-lg p-0 sm:max-w-none"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{title}</DialogTitle>
