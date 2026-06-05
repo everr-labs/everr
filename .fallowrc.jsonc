@@ -24,7 +24,6 @@
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
   ],
-  "ignorePatterns": [],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
   "dynamicallyLoaded": ["packages/docs/content/**/*.{md,mdx}"],
@@ -74,30 +73,6 @@
       // Dashboard Zod schemas — API surface consumed by server functions not yet wired up.
       "file": "packages/app/src/data/dashboards/schema.ts",
       "exports": ["*"]
-    },
-    {
-      // Dashboard server functions — will be consumed in subsequent tasks.
-      "file": "packages/app/src/data/dashboards/server.ts",
-      "exports": [
-        "saveDashboard",
-        "deleteDashboard",
-        "createFolder",
-        "renameFolder",
-        "deleteFolder"
-      ]
-    },
-    {
-      // Dashboard query options and mutation hooks — will be consumed by UI components in subsequent tasks.
-      "file": "packages/app/src/data/dashboards/options.ts",
-      "exports": [
-        "useSaveDashboard",
-        "useDeleteDashboard",
-        "useRenameDashboard",
-        "useMoveDashboard",
-        "useRenameFolder",
-        "useMoveFolder",
-        "useDeleteFolder"
-      ]
     }
   ]
 }
