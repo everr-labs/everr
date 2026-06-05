@@ -1,6 +1,6 @@
 # Dashboard Feature — Current Status
 
-_Last updated: 2026-06-05 (branch `gio/perses-dashboard-route`)._
+_Last updated: 2026-06-05 (branch `gio/dashboard-v1-polish`)._
 
 Custom dashboards built on a [Perses](https://perses.dev)-compatible data model, backed by Postgres, querying ClickHouse.
 
@@ -10,7 +10,8 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Postgres tables `dashboards` + `dashboard_folders` (org-scoped, unique slug per org, self-referencing folder nesting, cascade FKs) — `packages/app/src/db/schema/app.ts`
 - ✅ Random 12-char dashboard IDs (`[a-z0-9]`, server-generated, Web Crypto). IDs are never derived from names; renaming never changes the URL
 - ✅ Create is insert-only (`createDashboard`), save is update-only (`saveDashboard`) — overwriting an existing dashboard by creating a same-named one is impossible
-- 🟡 Schema defines `variables`, `datasources`, `duration`, `refreshInterval` — **no UI or runtime support yet** (schema-only, for Perses compatibility)
+- ✅ `duration` / `refreshInterval` have full UI + runtime support (see Time range below)
+- 🟡 Schema defines `variables`, `datasources` — **no UI or runtime support yet** (schema-only, for Perses compatibility)
 
 ## Dashboards index (`/dashboards`)
 
@@ -28,7 +29,8 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Toolbar kebab (saved dashboards): Rename (applies immediately, updates breadcrumb via `router.invalidate()`), Move to folder, Delete
 - ✅ Saving an existing dashboard preserves its folder assignment
 - ✅ Not-found route component; breadcrumb from loader data
-- ❌ Unsaved-changes protection — no dirty tracking, route blocker, or `beforeunload`; navigating away silently discards edits
+- ✅ Unsaved-changes protection — dirty tracking in the store, route blocker with Stay / Discard & leave dialog, `beforeunload` on tab close; the panel editor mounts the same blocker so edits stay protected there too
+- ✅ Toolbar kebab → Settings: per-dashboard default time range + auto-refresh interval (applies immediately, like Rename)
 
 ## New dashboard flow (`/dashboards/new`)
 
@@ -42,27 +44,24 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ ClickHouse SQL editor (CodeMirror, ClickHouse dialect) with Run Query against the org-scoped ClickHouse context
 - ✅ Display options: title, description, per-visualization settings
 - 🟡 Single query per panel (`queries[0]`), query plugin hardcoded to `ClickHouseSQL`
-- ❌ Panel-level error states for failed queries are minimal
+- ✅ Panel-level error states — grid panels and the editor preview render failed queries with the error message (auto-run and manual Run Query)
 
 ## Visualizations (`packages/app/src/components/dashboards/visualizations/`)
 
 - ✅ **TimeSeriesChart** — auto-pivot multi-series, custom portal tooltip, legend, unit, line width, connect-nulls, gap filling, time-range clamping, drag-to-zoom (`onTimeRangeChange`)
 - ✅ **Table** — flush-content table view with settings
-- ❌ **StatChart** — selectable in the chart-type picker but has **no renderer** (falls back to a kind-name placeholder)
+- ✅ **StatChart** — calculation (last/first/mean/min/max/sum), unit suffix, optional sparkline, absolute/percent threshold coloring (value + sparkline)
 
 ## Time range
 
 - ✅ Global time-range picker (URL search params) drives all panel queries; chart zoom writes back to the URL
-- ❌ Per-dashboard `duration` / auto-`refreshInterval` (schema-only, see above)
+- ✅ Per-dashboard `duration` / auto-`refreshInterval` — saved via toolbar kebab → Settings; seeds the URL params once per visit when absent (explicit URL params always win, shareable links untouched)
 
 ## Testing
 
-- ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check and insert-only/update-only split (`server.test.ts`)
-- ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior)
+- ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check, insert-only/update-only split, slug-collision retry, unique-violation mapping, settings update (`server.test.ts`), store dirty tracking (`dashboard-store.test.ts`), stat calculations/thresholds (`stat-calculations.test.ts`), duration/refresh seeding (`time-defaults.test.ts`)
+- ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior, StatChart, unsaved-changes dialogs + beforeunload, panel error states, settings seeding incl. URL-wins, duplicate-folder error, aria-labels)
 
 ## Known rough edges
 
-- Duplicate folder name (same parent) surfaces the raw SQL unique-constraint error in the toast instead of a friendly message
-- Tree/toolbar kebab buttons are icon-only without `aria-label`s
-- Slug collision on create (astronomically unlikely at 36^12) has no retry — would surface as a raw DB error toast
-- `renameDashboard` does a read-modify-write of the full spec; a concurrent full-spec save in the same window can be clobbered (accepted at current scale)
+- `renameDashboard` and `updateDashboardSettings` do a read-modify-write of the full spec; a concurrent full-spec save in the same window can be clobbered (accepted at current scale)
