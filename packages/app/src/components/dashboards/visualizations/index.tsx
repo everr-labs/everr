@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { PanelPlugin } from "@/data/dashboards/schema";
+import { StatChartVisualization } from "./stat-chart/stat-chart-visualization";
 import { TableSettings } from "./table/table-settings";
 import { TableVisualization } from "./table/table-visualization";
 import { TimeSeriesChartSettings } from "./time-series-chart/time-series-chart-settings";
@@ -31,6 +32,9 @@ interface VisualizationEntry {
 }
 
 const registry: Record<string, VisualizationEntry> = {
+  StatChart: {
+    component: StatChartVisualization,
+  },
   Table: {
     component: TableVisualization,
     settings: TableSettings,

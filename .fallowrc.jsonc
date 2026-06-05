@@ -75,9 +75,9 @@
       "exports": ["*"]
     },
     {
-      // Stat calculation helpers — CALCULATIONS and isCalculationType consumed by Task 7/8 (stat-chart component + settings).
+      // Stat calculation helpers — CALCULATIONS consumed by Task 8 (stat-chart settings).
       "file": "packages/app/src/components/dashboards/visualizations/stat-chart/stat-calculations.ts",
-      "exports": ["CALCULATIONS", "isCalculationType"]
+      "exports": ["CALCULATIONS"]
     }
   ]
 }
