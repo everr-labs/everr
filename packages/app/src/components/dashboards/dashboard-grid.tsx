@@ -7,10 +7,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@everr/ui/components/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@everr/ui/components/dropdown-menu";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import { useNavigate } from "@tanstack/react-router";
-import { Pencil, Plus, Save } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  EllipsisVertical,
+  FolderInput,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Layout, LayoutItem } from "react-grid-layout";
 import {
@@ -24,9 +39,19 @@ import {
   rglToPerses,
 } from "@/data/dashboards/convert";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
-import { useSaveDashboard } from "@/data/dashboards/options";
+import {
+  dashboardListOptions,
+  folderListOptions,
+  useDeleteDashboard,
+  useMoveDashboard,
+  useRenameDashboard,
+  useSaveDashboard,
+} from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
+import { DeleteDashboardDialog } from "./delete-dashboard-dialog";
+import { FolderList, FolderPickerDialog } from "./folder-picker";
+import { NameDialog } from "./name-dialog";
 
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
@@ -48,9 +73,10 @@ function slugify(name: string): string {
 
 interface DashboardGridProps {
   isNew?: boolean;
+  defaultFolderId?: string | null;
 }
 
-export function DashboardGrid({ isNew }: DashboardGridProps) {
+export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const navigate = useNavigate();
   const dashboard = useDashboardStore((s) => s.dashboard);
   const updatePanel = useDashboardStore((s) => s.updatePanel);
@@ -67,6 +93,24 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
   }, []);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [saveFolderId, setSaveFolderId] = useState<string | null>(
+    defaultFolderId ?? null,
+  );
+  const [manageAction, setManageAction] = useState<
+    "rename" | "move" | "delete" | null
+  >(null);
+
+  const router = useRouter();
+  const renameMutation = useRenameDashboard();
+  const moveMutation = useMoveDashboard();
+  const deleteMutation = useDeleteDashboard();
+
+  const { data: folders } = useQuery(folderListOptions());
+  const { data: dashboardList } = useQuery(dashboardListOptions());
+  const currentFolderId =
+    dashboardList?.find((d) => d.slug === dashboard?.metadata.name)?.folderId ??
+    null;
+
   const nameInputRef = useRef<HTMLInputElement>(null);
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
@@ -224,7 +268,7 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
       display: { ...dashboard.spec.display, name: saveName.trim() },
     };
     saveMutation.mutate(
-      { slug, spec },
+      { slug, spec, folderId: saveFolderId ?? undefined },
       {
         onSuccess: (data) => {
           setShowSaveDialog(false);
@@ -235,7 +279,7 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
         },
       },
     );
-  }, [dashboard, saveName, saveMutation, navigate]);
+  }, [dashboard, saveName, saveFolderId, saveMutation, navigate]);
 
   if (!dashboard) return null;
 
@@ -266,6 +310,33 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
           <Pencil data-icon="inline-start" />
           {isEditing ? "Done" : "Edit"}
         </Button>
+        {!isNew && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon" />}
+            >
+              <EllipsisVertical />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setManageAction("rename")}>
+                <Pencil />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setManageAction("move")}>
+                <FolderInput />
+                Move to folder
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setManageAction("delete")}
+              >
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       <div ref={containerRef}>
@@ -325,6 +396,14 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
               autoFocus
             />
           </div>
+          <div className="flex flex-col gap-2">
+            <Label>Folder</Label>
+            <FolderList
+              folders={folders ?? []}
+              value={saveFolderId}
+              onChange={setSaveFolderId}
+            />
+          </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowSaveDialog(false)}>
               Cancel
@@ -338,6 +417,69 @@ export function DashboardGrid({ isNew }: DashboardGridProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NameDialog
+        open={manageAction === "rename"}
+        onOpenChange={(open) => {
+          if (!open) setManageAction(null);
+        }}
+        title="Rename dashboard"
+        initialName={dashboard.spec.display?.name ?? ""}
+        confirmLabel="Rename"
+        isPending={renameMutation.isPending}
+        onConfirm={(name) => {
+          renameMutation.mutate(
+            { slug: dashboard.metadata.name, name },
+            {
+              onSuccess: () => {
+                setDashboard({
+                  ...dashboard,
+                  spec: {
+                    ...dashboard.spec,
+                    display: { ...dashboard.spec.display, name },
+                  },
+                });
+                void router.invalidate();
+                setManageAction(null);
+              },
+            },
+          );
+        }}
+      />
+
+      <FolderPickerDialog
+        open={manageAction === "move"}
+        onOpenChange={(open) => {
+          if (!open) setManageAction(null);
+        }}
+        title="Move dashboard"
+        folders={folders ?? []}
+        initialFolderId={currentFolderId}
+        isPending={moveMutation.isPending}
+        onConfirm={(folderId) => {
+          moveMutation.mutate(
+            { slug: dashboard.metadata.name, folderId },
+            { onSuccess: () => setManageAction(null) },
+          );
+        }}
+      />
+
+      <DeleteDashboardDialog
+        open={manageAction === "delete"}
+        onOpenChange={(open) => {
+          if (!open) setManageAction(null);
+        }}
+        name={dashboard.spec.display?.name ?? dashboard.metadata.name}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => {
+          deleteMutation.mutate(dashboard.metadata.name, {
+            onSuccess: () => {
+              setManageAction(null);
+              navigate({ to: "/dashboards" });
+            },
+          });
+        }}
+      />
     </div>
   );
 }
