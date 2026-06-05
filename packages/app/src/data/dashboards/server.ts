@@ -30,6 +30,14 @@ export function generateDashboardSlug(): string {
   return slug;
 }
 
+const PG_UNIQUE_VIOLATION = "23505";
+
+function isUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  if ((error as { code?: unknown }).code === PG_UNIQUE_VIOLATION) return true;
+  return isUniqueViolation((error as { cause?: unknown }).cause);
+}
+
 export const getDashboard = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -68,21 +76,32 @@ export const createDashboard = createAuthenticatedServerFn({
   .handler(async ({ data: { spec, folderId }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
-    const [row] = await db
-      .insert(dashboards)
-      .values({
-        organizationId: orgId,
-        slug: generateDashboardSlug(),
-        spec: spec as DashboardSpec,
-        folderId: folderId ?? null,
-      })
-      .returning({ slug: dashboards.slug });
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const [row] = await db
+          .insert(dashboards)
+          .values({
+            organizationId: orgId,
+            slug: generateDashboardSlug(),
+            spec: spec as DashboardSpec,
+            folderId: folderId ?? null,
+          })
+          .returning({ slug: dashboards.slug });
 
-    if (!row) {
-      throw new Error("Failed to create dashboard");
+        if (!row) {
+          throw new Error("Failed to create dashboard");
+        }
+
+        return { slug: row.slug };
+      } catch (error) {
+        // Astronomically unlikely slug collision — regenerate and retry.
+        if (!isUniqueViolation(error) || attempt === MAX_ATTEMPTS) {
+          throw error;
+        }
+      }
     }
-
-    return { slug: row.slug };
+    throw new Error("Failed to create dashboard");
   });
 
 export const saveDashboard = createAuthenticatedServerFn({
@@ -282,16 +301,23 @@ export const createFolder = createAuthenticatedServerFn({
   .handler(async ({ data: { name, parentId }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
-    const [row] = await db
-      .insert(dashboardFolders)
-      .values({
-        organizationId: orgId,
-        parentId: parentId ?? null,
-        name,
-      })
-      .returning({ id: dashboardFolders.id });
+    try {
+      const [row] = await db
+        .insert(dashboardFolders)
+        .values({
+          organizationId: orgId,
+          parentId: parentId ?? null,
+          name,
+        })
+        .returning({ id: dashboardFolders.id });
 
-    return { id: row?.id };
+      return { id: row?.id };
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error("A folder with this name already exists here");
+      }
+      throw error;
+    }
   });
 
 export const renameFolder = createAuthenticatedServerFn({
@@ -301,15 +327,22 @@ export const renameFolder = createAuthenticatedServerFn({
   .handler(async ({ data: { folderId, name }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
-    await db
-      .update(dashboardFolders)
-      .set({ name, updatedAt: new Date() })
-      .where(
-        and(
-          eq(dashboardFolders.id, folderId),
-          eq(dashboardFolders.organizationId, orgId),
-        ),
-      );
+    try {
+      await db
+        .update(dashboardFolders)
+        .set({ name, updatedAt: new Date() })
+        .where(
+          and(
+            eq(dashboardFolders.id, folderId),
+            eq(dashboardFolders.organizationId, orgId),
+          ),
+        );
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new Error("A folder with this name already exists here");
+      }
+      throw error;
+    }
 
     return { id: folderId };
   });

@@ -54,8 +54,10 @@ vi.mock("@/db/schema", () => ({
 
 import {
   createDashboard,
+  createFolder,
   generateDashboardSlug,
   moveFolder,
+  renameFolder,
   saveDashboard,
   updateDashboardSettings,
 } from "./server";
@@ -276,5 +278,103 @@ describe("updateDashboardSettings", () => {
     };
     expect(setArg.spec).not.toHaveProperty("duration");
     expect(setArg.spec).not.toHaveProperty("refreshInterval");
+  });
+});
+
+function uniqueViolation(): Error {
+  return Object.assign(
+    new Error("duplicate key value violates unique constraint"),
+    { code: "23505" },
+  );
+}
+
+describe("createFolder – duplicate name", () => {
+  it("maps a unique violation to a friendly error", async () => {
+    insertImpl = () => {
+      throw uniqueViolation();
+    };
+    await expect(
+      createFolder({ data: { name: "Production" } }),
+    ).rejects.toThrow("A folder with this name already exists here");
+  });
+
+  it("recognizes a unique violation wrapped in error.cause", async () => {
+    insertImpl = () => {
+      throw Object.assign(new Error("query failed"), {
+        cause: uniqueViolation(),
+      });
+    };
+    await expect(
+      createFolder({ data: { name: "Production" } }),
+    ).rejects.toThrow("A folder with this name already exists here");
+  });
+
+  it("rethrows unrelated errors untouched", async () => {
+    insertImpl = () => {
+      throw new Error("connection refused");
+    };
+    await expect(
+      createFolder({ data: { name: "Production" } }),
+    ).rejects.toThrow("connection refused");
+  });
+});
+
+describe("renameFolder – duplicate name", () => {
+  it("maps a unique violation to a friendly error", async () => {
+    updateImpl = () => {
+      throw uniqueViolation();
+    };
+    await expect(
+      renameFolder({
+        data: {
+          folderId: "11111111-1111-1111-1111-111111111111",
+          name: "Production",
+        },
+      }),
+    ).rejects.toThrow("A folder with this name already exists here");
+  });
+});
+
+describe("createDashboard – slug collision retry", () => {
+  it("retries on slug collision and succeeds", async () => {
+    let attempts = 0;
+    insertImpl = () => {
+      attempts++;
+      if (attempts < 3) throw uniqueViolation();
+      return [{ slug: "zzzzzzzzzzzz" }];
+    };
+
+    const result = await createDashboard({
+      data: { spec: { panels: {}, layouts: [] } },
+    });
+
+    expect(result.slug).toBe("zzzzzzzzzzzz");
+    expect(attempts).toBe(3);
+  });
+
+  it("gives up after three attempts", async () => {
+    let attempts = 0;
+    insertImpl = () => {
+      attempts++;
+      throw uniqueViolation();
+    };
+
+    await expect(
+      createDashboard({ data: { spec: { panels: {}, layouts: [] } } }),
+    ).rejects.toThrow();
+    expect(attempts).toBe(3);
+  });
+
+  it("does not retry on unrelated insert errors", async () => {
+    let attempts = 0;
+    insertImpl = () => {
+      attempts++;
+      throw new Error("connection refused");
+    };
+
+    await expect(
+      createDashboard({ data: { spec: { panels: {}, layouts: [] } } }),
+    ).rejects.toThrow("connection refused");
+    expect(attempts).toBe(1);
   });
 });
