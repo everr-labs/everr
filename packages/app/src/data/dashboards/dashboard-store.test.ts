@@ -56,8 +56,11 @@ describe("dashboard store dirty tracking", () => {
 
   it("patchDashboard replaces the dashboard and marks dirty", () => {
     useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore.getState().patchDashboard(makeDashboard());
+    useDashboardStore.getState().patchDashboard(makeDashboard("patched"));
     expect(useDashboardStore.getState().isDirty).toBe(true);
+    expect(useDashboardStore.getState().dashboard?.metadata.name).toBe(
+      "patched",
+    );
   });
 
   it("markSaved clears dirty", () => {

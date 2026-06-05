@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@everr/ui/components/alert-dialog";
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -17,7 +27,7 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useBlocker, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   EllipsisVertical,
   FolderInput,
@@ -73,7 +83,10 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const dashboard = useDashboardStore((s) => s.dashboard);
   const updatePanel = useDashboardStore((s) => s.updatePanel);
   const updateLayout = useDashboardStore((s) => s.updateLayout);
-  const setDashboard = useDashboardStore((s) => s.setDashboard);
+  const patchDashboard = useDashboardStore((s) => s.patchDashboard);
+  const updateDisplayName = useDashboardStore((s) => s.updateDisplayName);
+  const markSaved = useDashboardStore((s) => s.markSaved);
+  const resetStore = useDashboardStore((s) => s.reset);
 
   const saveMutation = useSaveDashboard();
   const createMutation = useCreateDashboard();
@@ -103,6 +116,16 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const currentFolderId =
     dashboardList?.find((d) => d.slug === dashboard?.metadata.name)?.folderId ??
     null;
+
+  const panelEditPrefix = `/dashboards/${isNew ? "new" : (dashboard?.metadata.name ?? "")}/panel/`;
+  const blocker = useBlocker({
+    shouldBlockFn: ({ next }) => {
+      if (!useDashboardStore.getState().isDirty) return false;
+      return !next.pathname.startsWith(panelEditPrefix);
+    },
+    enableBeforeUnload: () => useDashboardStore.getState().isDirty,
+    withResolver: true,
+  });
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const { width, containerRef } = useContainerWidth({
@@ -176,7 +199,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
     (panelKey: string) => {
       if (!dashboard) return;
       const { [panelKey]: _, ...remainingPanels } = dashboard.spec.panels;
-      setDashboard({
+      patchDashboard({
         ...dashboard,
         spec: {
           ...dashboard.spec,
@@ -196,7 +219,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
         },
       });
     },
-    [dashboard, setDashboard],
+    [dashboard, patchDashboard],
   );
 
   const handleDuplicatePanel = useCallback(
@@ -247,11 +270,11 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       setShowSaveDialog(true);
       return;
     }
-    saveMutation.mutate({
-      slug: dashboard.metadata.name,
-      spec: dashboard.spec,
-    });
-  }, [dashboard, saveMutation, isNew]);
+    saveMutation.mutate(
+      { slug: dashboard.metadata.name, spec: dashboard.spec },
+      { onSuccess: () => markSaved() },
+    );
+  }, [dashboard, saveMutation, isNew, markSaved]);
 
   const handleConfirmSave = useCallback(() => {
     if (!dashboard || !saveName.trim()) return;
@@ -263,6 +286,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       { spec, folderId: saveFolderId ?? undefined },
       {
         onSuccess: (data) => {
+          markSaved();
           setShowSaveDialog(false);
           navigate({
             to: "/dashboards/$dashboardId",
@@ -271,7 +295,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
         },
       },
     );
-  }, [dashboard, saveName, saveFolderId, createMutation, navigate]);
+  }, [dashboard, saveName, saveFolderId, createMutation, navigate, markSaved]);
 
   if (!dashboard) return null;
 
@@ -424,13 +448,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
             { slug: dashboard.metadata.name, name },
             {
               onSuccess: () => {
-                setDashboard({
-                  ...dashboard,
-                  spec: {
-                    ...dashboard.spec,
-                    display: { ...dashboard.spec.display, name },
-                  },
-                });
+                updateDisplayName(name);
                 void router.invalidate();
                 setManageAction(null);
               },
@@ -472,6 +490,37 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
           });
         }}
       />
+
+      <AlertDialog
+        open={blocker.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes on this dashboard. If you leave now, your
+              changes will be discarded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => blocker.reset?.()}>
+              Stay
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                resetStore();
+                blocker.proceed?.();
+              }}
+            >
+              Discard &amp; leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
