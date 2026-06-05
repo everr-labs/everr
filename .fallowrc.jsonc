@@ -29,7 +29,8 @@
     "packages/app/src/components/dashboards/name-dialog.tsx",
     "packages/app/src/components/dashboards/folder-picker.tsx",
     "packages/app/src/components/dashboards/delete-dashboard-dialog.tsx",
-    "packages/app/src/components/dashboards/delete-folder-dialog.tsx"
+    "packages/app/src/components/dashboards/delete-folder-dialog.tsx",
+    "packages/app/src/components/dashboards/dashboard-tree.tsx"
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
