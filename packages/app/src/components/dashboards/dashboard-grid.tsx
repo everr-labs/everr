@@ -34,6 +34,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Settings2,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -57,9 +58,11 @@ import {
   useMoveDashboard,
   useRenameDashboard,
   useSaveDashboard,
+  useUpdateDashboardSettings,
 } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
+import { DashboardSettingsDialog } from "./dashboard-settings-dialog";
 import { DeleteDashboardDialog } from "./delete-dashboard-dialog";
 import { FolderList, FolderPickerDialog } from "./folder-picker";
 import { NameDialog } from "./name-dialog";
@@ -102,14 +105,16 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const [saveFolderId, setSaveFolderId] = useState<string | null>(
     defaultFolderId ?? null,
   );
+  const setDashboard = useDashboardStore((s) => s.setDashboard);
   const [manageAction, setManageAction] = useState<
-    "rename" | "move" | "delete" | null
+    "rename" | "move" | "delete" | "settings" | null
   >(null);
 
   const router = useRouter();
   const renameMutation = useRenameDashboard();
   const moveMutation = useMoveDashboard();
   const deleteMutation = useDeleteDashboard();
+  const settingsMutation = useUpdateDashboardSettings();
 
   const { data: folders } = useQuery(folderListOptions());
   const { data: dashboardList } = useQuery(dashboardListOptions());
@@ -342,6 +347,10 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
                 <FolderInput />
                 Move to folder
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setManageAction("settings")}>
+                <Settings2 />
+                Settings
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
@@ -488,6 +497,39 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
               navigate({ to: "/dashboards" });
             },
           });
+        }}
+      />
+
+      <DashboardSettingsDialog
+        open={manageAction === "settings"}
+        onOpenChange={(open) => {
+          if (!open) setManageAction(null);
+        }}
+        initialDuration={dashboard.spec.duration}
+        initialRefreshInterval={dashboard.spec.refreshInterval}
+        isPending={settingsMutation.isPending}
+        onConfirm={({ duration, refreshInterval }) => {
+          settingsMutation.mutate(
+            { slug: dashboard.metadata.name, duration, refreshInterval },
+            {
+              onSuccess: () => {
+                if (!useDashboardStore.getState().isDirty) {
+                  setDashboard({
+                    ...dashboard,
+                    spec: {
+                      ...dashboard.spec,
+                      ...(duration ? { duration } : { duration: undefined }),
+                      ...(refreshInterval
+                        ? { refreshInterval }
+                        : { refreshInterval: undefined }),
+                    },
+                  });
+                }
+                void router.invalidate();
+                setManageAction(null);
+              },
+            },
+          );
         }}
       />
 

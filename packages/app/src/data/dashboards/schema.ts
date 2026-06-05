@@ -195,6 +195,12 @@ export const renameDashboardInput = z.object({
   name: z.string().min(1).max(200),
 });
 
+export const updateDashboardSettingsInput = z.object({
+  slug: z.string().min(1),
+  duration: z.string().optional(),
+  refreshInterval: z.string().optional(),
+});
+
 export const moveDashboardInput = z.object({
   slug: z.string().min(1),
   folderId: z.string().uuid().nullable(),

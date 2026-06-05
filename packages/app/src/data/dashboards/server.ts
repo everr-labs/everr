@@ -16,6 +16,7 @@ import {
   renameDashboardInput,
   renameFolderInput,
   saveDashboardInput,
+  updateDashboardSettingsInput,
 } from "./schema";
 
 const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -159,6 +160,45 @@ export const renameDashboard = createAuthenticatedServerFn({
       .where(eq(dashboards.id, row.id));
 
     return { slug, name };
+  });
+
+export const updateDashboardSettings = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(updateDashboardSettingsInput)
+  .handler(async ({ data: { slug, duration, refreshInterval }, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+
+    const [row] = await db
+      .select({ id: dashboards.id, spec: dashboards.spec })
+      .from(dashboards)
+      .where(
+        and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
+      )
+      .limit(1);
+
+    if (!row) {
+      throw new Error(`Dashboard "${slug}" not found`);
+    }
+
+    const spec = { ...row.spec };
+    if (duration) {
+      spec.duration = duration;
+    } else {
+      delete spec.duration;
+    }
+    if (refreshInterval) {
+      spec.refreshInterval = refreshInterval;
+    } else {
+      delete spec.refreshInterval;
+    }
+
+    await db
+      .update(dashboards)
+      .set({ spec, updatedAt: new Date() })
+      .where(eq(dashboards.id, row.id));
+
+    return { slug };
   });
 
 export const moveDashboard = createAuthenticatedServerFn({

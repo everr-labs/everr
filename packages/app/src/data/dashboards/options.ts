@@ -18,6 +18,7 @@ import {
   renameFolder,
   runPanelQuery,
   saveDashboard,
+  updateDashboardSettings,
 } from "./server";
 
 const dashboardsQueryKey = ["dashboards"] as const;
@@ -108,6 +109,26 @@ export function useRenameDashboard() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to rename");
+    },
+  });
+}
+
+export function useUpdateDashboardSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      slug: string;
+      duration?: string;
+      refreshInterval?: string;
+    }) => updateDashboardSettings({ data: vars }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dashboardsQueryKey });
+      toast.success("Dashboard settings updated");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update settings",
+      );
     },
   });
 }
