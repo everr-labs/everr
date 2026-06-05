@@ -84,24 +84,4 @@ describe("DetailRouteDialog", () => {
       "true",
     );
   });
-
-  it("deduplicates close requests while the route close is pending", () => {
-    const closeDeferred = createDeferred();
-    const onClose = vi.fn(() => closeDeferred.promise);
-
-    render(
-      <DetailRouteDialog title="Detail" onClose={onClose}>
-        <ContextCloseButton />
-      </DetailRouteDialog>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Context close" }));
-    fireEvent.click(screen.getByRole("button", { name: "Primitive close" }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("dialog-root")).toHaveAttribute(
-      "data-open",
-      "true",
-    );
-  });
 });

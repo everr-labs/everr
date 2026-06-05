@@ -85,26 +85,6 @@ describe("DetailRouteDialog", () => {
     );
   });
 
-  it("deduplicates close requests while the route close is pending", () => {
-    const closeDeferred = createDeferred();
-    const onClose = vi.fn(() => closeDeferred.promise);
-
-    render(
-      <DetailRouteDialog title="Detail" onClose={onClose}>
-        <ContextCloseButton />
-      </DetailRouteDialog>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Context close" }));
-    fireEvent.click(screen.getByRole("button", { name: "Primitive close" }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("dialog-root")).toHaveAttribute(
-      "data-open",
-      "true",
-    );
-  });
-
   it("reserves the desktop titlebar space for visible macOS semaphore controls", () => {
     render(
       <DetailRouteDialog title="Detail" onClose={vi.fn()}>

@@ -5,13 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@everr/ui/components/dialog";
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useRef,
-} from "react";
+import { createContext, type ReactNode, useCallback, useContext } from "react";
 
 const DetailRouteDialogCloseContext = createContext<(() => void) | null>(null);
 
@@ -34,31 +28,8 @@ export function DetailRouteDialog({
   children: ReactNode;
   onClose: () => Promise<unknown> | undefined;
 }) {
-  // The route tree owns whether this dialog exists. Keeping the primitive open
-  // while mounted avoids a closed dialog rendering over the still-active detail
-  // route during navigation.
-  const closePendingRef = useRef(false);
-
   const close = useCallback(() => {
-    if (closePendingRef.current) return;
-    closePendingRef.current = true;
-
-    let closeResult: Promise<unknown> | undefined;
-    try {
-      closeResult = onClose();
-    } catch {
-      closePendingRef.current = false;
-      return;
-    }
-
-    void Promise.resolve(closeResult).then(
-      () => {
-        closePendingRef.current = false;
-      },
-      () => {
-        closePendingRef.current = false;
-      },
-    );
+    void onClose();
   }, [onClose]);
 
   return (

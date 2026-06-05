@@ -60,3 +60,6 @@ terraform.tfvars.json
 .fallow/
 .superpowers/
 .worktrees/
+
+.auth
+.pnpm-store
