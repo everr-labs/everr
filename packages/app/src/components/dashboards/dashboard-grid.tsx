@@ -334,7 +334,13 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
         {!isNew && (
           <DropdownMenu>
             <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon" />}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Dashboard actions"
+                />
+              }
             >
               <EllipsisVertical />
             </DropdownMenuTrigger>

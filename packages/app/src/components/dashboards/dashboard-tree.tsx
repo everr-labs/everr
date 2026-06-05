@@ -306,6 +306,8 @@ function FolderRows({
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} folder ${node.folder.name}`}
+          aria-expanded={isExpanded}
           onClick={() => onToggle(node.folder.id)}
         >
           {isExpanded ? (
@@ -409,13 +411,14 @@ function SearchFolderRow({
   );
 }
 
-function KebabTrigger() {
+function KebabTrigger({ label }: { label: string }) {
   return (
     <DropdownMenuTrigger
       render={
         <Button
           variant="ghost"
           size="icon-xs"
+          aria-label={label}
           className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
         />
       }
@@ -435,7 +438,7 @@ function FolderMenu({
   const navigate = useNavigate();
   return (
     <DropdownMenu>
-      <KebabTrigger />
+      <KebabTrigger label={`Folder actions: ${folder.name}`} />
       <DropdownMenuContent align="end">
         <DropdownMenuItem
           onClick={() =>
@@ -486,7 +489,7 @@ function DashboardMenu({
 }) {
   return (
     <DropdownMenu>
-      <KebabTrigger />
+      <KebabTrigger label={`Dashboard actions: ${dashboard.name}`} />
       <DropdownMenuContent align="end">
         <DropdownMenuItem
           onClick={() => onAction({ type: "rename-dashboard", dashboard })}
