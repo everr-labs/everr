@@ -73,6 +73,11 @@
       // Dashboard Zod schemas — API surface consumed by server functions not yet wired up.
       "file": "packages/app/src/data/dashboards/schema.ts",
       "exports": ["*"]
+    },
+    {
+      // Stat calculation helpers — CALCULATIONS and isCalculationType consumed by Task 7/8 (stat-chart component + settings).
+      "file": "packages/app/src/components/dashboards/visualizations/stat-chart/stat-calculations.ts",
+      "exports": ["CALCULATIONS", "isCalculationType"]
     }
   ]
 }
