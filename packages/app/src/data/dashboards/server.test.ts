@@ -3,12 +3,13 @@ import { db } from "@/db/client";
 
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder.
-// Individual tests configure `selectImpl` / `updateImpl` to return whatever
-// data they need.
+// Individual tests configure `selectImpl` / `updateImpl` / `insertImpl` to
+// return whatever data they need.
 // ---------------------------------------------------------------------------
 
 let selectImpl: () => unknown = () => undefined;
 let updateImpl: () => unknown = () => ({ returning: () => [] });
+let insertImpl: () => unknown = () => [{ slug: "aaaaaaaaaaaa" }];
 
 vi.mock("@/db/client", () => {
   const selectChain = {
@@ -20,10 +21,15 @@ vi.mock("@/db/client", () => {
     set: vi.fn(() => updateChain),
     where: vi.fn(() => updateImpl()),
   };
+  const insertChain = {
+    values: vi.fn(() => insertChain),
+    returning: vi.fn(() => insertImpl()),
+  };
   return {
     db: {
       select: vi.fn(() => selectChain),
       update: vi.fn(() => updateChain),
+      insert: vi.fn(() => insertChain),
     },
   };
 });
@@ -46,7 +52,12 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import { moveFolder } from "./server";
+import {
+  createDashboard,
+  generateDashboardSlug,
+  moveFolder,
+  saveDashboard,
+} from "./server";
 
 const mockedDb = vi.mocked(db);
 
@@ -54,6 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   selectImpl = () => undefined;
   updateImpl = () => ({ returning: () => [] });
+  insertImpl = () => [{ slug: "aaaaaaaaaaaa" }];
 });
 
 // ---------------------------------------------------------------------------
@@ -145,5 +157,67 @@ describe("moveFolder – cycle check", () => {
     expect(result).toEqual({ id: "folder-a" });
     // Only 2 select calls should have been made (not infinite)
     expect(mockedDb.select).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateDashboardSlug
+// ---------------------------------------------------------------------------
+
+describe("generateDashboardSlug", () => {
+  it("produces a 12-character string matching /^[a-z0-9]{12}$/", () => {
+    const slug = generateDashboardSlug();
+    expect(slug).toMatch(/^[a-z0-9]{12}$/);
+  });
+
+  it("two consecutive calls produce different slugs (probabilistic)", () => {
+    const a = generateDashboardSlug();
+    const b = generateDashboardSlug();
+    expect(a).not.toBe(b);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// saveDashboard – update-only behavior
+// ---------------------------------------------------------------------------
+
+describe("saveDashboard – update-only", () => {
+  it("rejects with 'not found' when no matching row exists", async () => {
+    // select returns an empty array → no existing dashboard
+    selectImpl = () => [];
+
+    await expect(
+      saveDashboard({
+        data: {
+          slug: "some-slug",
+          spec: { panels: {}, layouts: [] },
+        },
+      }),
+    ).rejects.toThrow('Dashboard "some-slug" not found');
+
+    // update must NOT have been called
+    expect(mockedDb.update).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createDashboard – insert-only behavior
+// ---------------------------------------------------------------------------
+
+describe("createDashboard", () => {
+  it("issues an insert and returns a slug matching the 12-char pattern", async () => {
+    const fakeSlug = "ab3de6gh9012";
+    insertImpl = () => [{ slug: fakeSlug }];
+
+    const result = await createDashboard({
+      data: { spec: { panels: {}, layouts: [] } },
+    });
+
+    expect(result.slug).toBe(fakeSlug);
+    expect(result.slug).toMatch(/^[a-z0-9]{12}$/);
+
+    // insert was called, update was not
+    expect(mockedDb.insert).toHaveBeenCalledTimes(1);
+    expect(mockedDb.update).not.toHaveBeenCalled();
   });
 });

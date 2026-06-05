@@ -42,6 +42,7 @@ import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import {
   dashboardListOptions,
   folderListOptions,
+  useCreateDashboard,
   useDeleteDashboard,
   useMoveDashboard,
   useRenameDashboard,
@@ -62,15 +63,6 @@ function generatePanelKey(panels: Record<string, Panel>): string {
   return `panel${i}`;
 }
 
-function slugify(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || `dashboard-${Date.now()}`
-  );
-}
-
 interface DashboardGridProps {
   isNew?: boolean;
   defaultFolderId?: string | null;
@@ -84,6 +76,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const setDashboard = useDashboardStore((s) => s.setDashboard);
 
   const saveMutation = useSaveDashboard();
+  const createMutation = useCreateDashboard();
 
   const isEditing = useDashboardStore((s) => s.isEditing);
   const setEditing = useDashboardStore((s) => s.setEditing);
@@ -262,13 +255,12 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
 
   const handleConfirmSave = useCallback(() => {
     if (!dashboard || !saveName.trim()) return;
-    const slug = slugify(saveName);
     const spec = {
       ...dashboard.spec,
       display: { ...dashboard.spec.display, name: saveName.trim() },
     };
-    saveMutation.mutate(
-      { slug, spec, folderId: saveFolderId ?? undefined },
+    createMutation.mutate(
+      { spec, folderId: saveFolderId ?? undefined },
       {
         onSuccess: (data) => {
           setShowSaveDialog(false);
@@ -279,7 +271,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
         },
       },
     );
-  }, [dashboard, saveName, saveFolderId, saveMutation, navigate]);
+  }, [dashboard, saveName, saveFolderId, createMutation, navigate]);
 
   if (!dashboard) return null;
 
@@ -410,9 +402,9 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
             </Button>
             <Button
               onClick={handleConfirmSave}
-              disabled={!saveName.trim() || saveMutation.isPending}
+              disabled={!saveName.trim() || createMutation.isPending}
             >
-              {saveMutation.isPending ? "Saving…" : "Save"}
+              {createMutation.isPending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

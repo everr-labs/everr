@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
@@ -6,6 +7,7 @@ import { dashboardFolders, dashboards } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import type { Dashboard, DashboardSpec } from "./schema";
 import {
+  createDashboardInput,
   createFolderInput,
   dashboardSpecSchema,
   deleteDashboardInput,
@@ -16,6 +18,17 @@ import {
   renameFolderInput,
   saveDashboardInput,
 } from "./schema";
+
+const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+export function generateDashboardSlug(): string {
+  const bytes = randomBytes(12);
+  let slug = "";
+  for (const byte of bytes) {
+    slug += SLUG_ALPHABET[byte % SLUG_ALPHABET.length];
+  }
+  return slug;
+}
 
 export const getDashboard = createAuthenticatedServerFn({
   method: "GET",
@@ -48,6 +61,30 @@ export const getDashboard = createAuthenticatedServerFn({
     } satisfies Dashboard;
   });
 
+export const createDashboard = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(createDashboardInput)
+  .handler(async ({ data: { spec, folderId }, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+
+    const [row] = await db
+      .insert(dashboards)
+      .values({
+        organizationId: orgId,
+        slug: generateDashboardSlug(),
+        spec: spec as DashboardSpec,
+        folderId: folderId ?? null,
+      })
+      .returning({ slug: dashboards.slug });
+
+    if (!row) {
+      throw new Error("Failed to create dashboard");
+    }
+
+    return { slug: row.slug };
+  });
+
 export const saveDashboard = createAuthenticatedServerFn({
   method: "POST",
 })
@@ -63,23 +100,18 @@ export const saveDashboard = createAuthenticatedServerFn({
       )
       .limit(1);
 
-    if (existing) {
-      await db
-        .update(dashboards)
-        .set({
-          spec: spec as DashboardSpec,
-          updatedAt: new Date(),
-          ...(folderId !== undefined ? { folderId } : {}),
-        })
-        .where(eq(dashboards.id, existing.id));
-    } else {
-      await db.insert(dashboards).values({
-        organizationId: orgId,
-        slug,
-        spec: spec as DashboardSpec,
-        folderId: folderId ?? null,
-      });
+    if (!existing) {
+      throw new Error(`Dashboard "${slug}" not found`);
     }
+
+    await db
+      .update(dashboards)
+      .set({
+        spec: spec as DashboardSpec,
+        updatedAt: new Date(),
+        ...(folderId !== undefined ? { folderId } : {}),
+      })
+      .where(eq(dashboards.id, existing.id));
 
     return { slug };
   });

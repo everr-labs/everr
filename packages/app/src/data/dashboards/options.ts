@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  createDashboard,
   createFolder,
   deleteDashboard,
   deleteFolder,
@@ -58,6 +59,23 @@ export function useSaveDashboard() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dashboardsQueryKey });
       toast.success("Dashboard saved");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to save");
+    },
+  });
+}
+
+export function useCreateDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      spec: Parameters<typeof createDashboard>[0]["data"]["spec"];
+      folderId?: string;
+    }) => createDashboard({ data: vars }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dashboardsQueryKey });
+      toast.success("Dashboard created");
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to save");

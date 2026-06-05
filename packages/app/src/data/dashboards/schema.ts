@@ -166,6 +166,11 @@ export const saveDashboardInput = z.object({
   folderId: z.string().uuid().optional(),
 });
 
+export const createDashboardInput = z.object({
+  spec: dashboardSpecSchema,
+  folderId: z.string().uuid().optional(),
+});
+
 export const deleteDashboardInput = z.object({
   slug: z.string().min(1),
 });
