@@ -8,7 +8,7 @@ import {
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { getTraceOptions } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
@@ -35,6 +35,7 @@ export type TraceDetailProps = {
   traceId: string;
   search: TraceDetailSearch;
   onBack?: () => void;
+  onClose?: () => void;
   onSpanChange: (spanId: string | undefined) => void;
 };
 
@@ -43,6 +44,7 @@ export function TraceDetail({
   traceId,
   search,
   onBack,
+  onClose,
   onSpanChange,
 }: TraceDetailProps) {
   const { span: focusedSpan } = search;
@@ -97,7 +99,12 @@ export function TraceDetail({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TraceHeader spans={spans} traceId={traceId} onBack={onBack} />
+      <TraceHeader
+        spans={spans}
+        traceId={traceId}
+        onBack={onBack}
+        onClose={onClose}
+      />
       <TimelineView
         key={traceId}
         spans={spans}
@@ -112,16 +119,29 @@ function TraceHeader({
   spans,
   traceId,
   onBack,
+  onClose,
 }: {
   spans: Span[];
   traceId: string;
   onBack?: () => void;
+  onClose?: () => void;
 }) {
   const root = useMemo(() => pickRootSpan(spans), [spans]);
   if (!root) return null;
   return (
     <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
-      {onBack && (
+      {onClose ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Close"
+          title="Close"
+          onClick={onClose}
+        >
+          <X />
+        </Button>
+      ) : onBack ? (
         <Button
           type="button"
           variant="ghost"
@@ -132,7 +152,7 @@ function TraceHeader({
         >
           <ArrowLeft />
         </Button>
-      )}
+      ) : null}
       <span
         className="size-2.5 rounded-full"
         style={{

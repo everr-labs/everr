@@ -78,9 +78,11 @@ const tracesRoute = createRoute({
   component: TracesPage,
 });
 
+// Nested under the list route so desktop detail pages only render through the
+// parent dialog route.
 const traceDetailRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: "/traces/$traceId",
+  getParentRoute: () => tracesRoute,
+  path: "$traceId",
   validateSearch: TraceDetailParamsSchema,
   component: TraceDetailPage,
 });
@@ -93,8 +95,8 @@ const errorsRoute = createRoute({
 });
 
 const errorDetailRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: "/errors/$fingerprint",
+  getParentRoute: () => errorsRoute,
+  path: "$fingerprint",
   validateSearch: ErrorIssueSearchSchema,
   component: ErrorDetailPage,
 });
@@ -106,10 +108,8 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     developerRoute,
     logsRoute,
-    tracesRoute,
-    traceDetailRoute,
-    errorsRoute,
-    errorDetailRoute,
+    tracesRoute.addChildren([traceDetailRoute]),
+    errorsRoute.addChildren([errorDetailRoute]),
   ]),
 ]);
 

@@ -8,7 +8,6 @@ export {
 export * from "./data/schemas";
 export * from "./data/types";
 export { ErrorDetail, type ErrorDetailProps } from "./ui/error-detail";
-export type { RenderBackLink } from "./ui/error-detail-header";
 export {
   ErrorIssues,
   type ErrorIssuesProps,

@@ -66,7 +66,9 @@ Useful trace columns: `Timestamp`, `TraceId`, `SpanId`, `ParentSpanId`, `Service
 
 Useful log columns: `Timestamp`, `TraceId`, `SpanId`, `ServiceName`, `ScopeName`, `SeverityText`, `SeverityNumber`, `Body`, `LogAttributes`, `ResourceAttributes`.
 
-**Before assuming attribute names** (like `SpanAttributes['http.route']` or `SpanAttributes['db.statement']`), discover what exists with `DESCRIBE TABLE <table>` or by sampling a few rows. OTel attribute naming conventions vary across languages and frameworks.
+`Duration` is nanoseconds (`UInt64`): divide by `1e9` for seconds, `1e6` for milliseconds.
+
+`SpanAttributes`, `LogAttributes`, and `ResourceAttributes` are key/value maps; read a key with `Column['key']`. **Before assuming attribute names** (like `SpanAttributes['http.route']` or `SpanAttributes['db.statement']`), discover what exists with `DESCRIBE TABLE <table>` or by sampling a few rows. OTel attribute naming conventions vary across languages and frameworks.
 
 ## Useful Queries
 

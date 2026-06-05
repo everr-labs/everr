@@ -7,24 +7,31 @@ import {
   createFileRoute,
   Link,
   Outlet,
-  useMatch,
+  stripSearchParams,
 } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+
+const defaultSearch = ErrorIssueSearchSchema.parse({});
 
 export const Route = createFileRoute("/_authenticated/_dashboard/errors")({
   staticData: { breadcrumb: "Errors", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Errors" }] }),
   validateSearch: ErrorIssueSearchSchema,
+  search: { middlewares: [stripSearchParams(defaultSearch)] },
   component: ErrorsRoute,
 });
 
 function ErrorsRoute() {
-  const errorDetailMatch = useMatch({
-    from: "/_authenticated/_dashboard/errors/$fingerprint",
-    shouldThrow: false,
-  });
-  return errorDetailMatch ? <Outlet /> : <ErrorsPage />;
+  // Always keep the list mounted in the same position so opening/closing the
+  // modal never remounts it (a remount resets the virtualized list and re-runs
+  // queries, which shows up as a flash on close).
+  return (
+    <>
+      <ErrorsPage />
+      <Outlet />
+    </>
+  );
 }
 
 function ErrorsPage() {
@@ -48,7 +55,7 @@ function ErrorsPage() {
       }
       renderIssueLink={({ fingerprint: issueFingerprint, children }) => (
         <Link
-          to="/errors/$fingerprint"
+          to="/errors/$fingerprint/modal"
           params={{ fingerprint: issueFingerprint }}
           search={{ ...search, occurrence: "" }}
           className="block text-foreground no-underline"

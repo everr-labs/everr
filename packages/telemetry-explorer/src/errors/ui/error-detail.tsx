@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { errorIssueOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorOccurrence } from "../data/types";
-import { ErrorDetailHeader, type RenderBackLink } from "./error-detail-header";
+import { ErrorDetailHeader } from "./error-detail-header";
 import { ErrorLatestOccurrence } from "./error-latest-occurrence";
 import {
   findErrorOccurrenceByKey,
@@ -36,7 +36,8 @@ export type ErrorDetailProps = {
   service: string[];
   /** Selected occurrence key (timestamp|traceId|spanId), or "" for the latest. */
   occurrence: string;
-  renderBackLink: RenderBackLink;
+  onBack?: () => void;
+  onClose?: () => void;
   renderOccurrenceLink: RenderOccurrenceLink;
   /** App supplies the related-trace panel (it owns the spans source). */
   renderTracePanel?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
@@ -49,7 +50,8 @@ export function ErrorDetail({
   refresh,
   service,
   occurrence,
-  renderBackLink,
+  onBack,
+  onClose,
   renderOccurrenceLink,
   renderTracePanel,
 }: ErrorDetailProps) {
@@ -66,14 +68,9 @@ export function ErrorDetail({
   if (issueQuery.isPending) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="border-b px-3 py-2">
+        <div className="border-b px-4 py-3">
           <Skeleton className="h-5 w-64 max-w-full" />
           <Skeleton className="mt-2 h-3 w-96 max-w-full" />
-        </div>
-        <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-3">
-          <Skeleton className="h-96" />
-          <Skeleton className="h-64" />
-          <Skeleton className="h-80" />
         </div>
       </div>
     );
@@ -98,7 +95,11 @@ export function ErrorDetail({
               <RefreshCw data-icon="inline-start" />
               Retry
             </Button>
-            {renderBackLink("Back to errors")}
+            {onBack && (
+              <Button type="button" variant="outline" onClick={onBack}>
+                Back to errors
+              </Button>
+            )}
           </div>
         </EmptyContent>
       </Empty>
@@ -114,7 +115,8 @@ export function ErrorDetail({
     <div className="flex min-h-0 flex-1 flex-col">
       <ErrorDetailHeader
         issue={detail.summary}
-        renderBackLink={renderBackLink}
+        onBack={onBack}
+        onClose={onClose}
       />
       <main className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-7xl gap-3 p-3">
