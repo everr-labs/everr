@@ -37,6 +37,7 @@ export type ErrorDetailProps = {
   /** Selected occurrence key (timestamp|traceId|spanId), or "" for the latest. */
   occurrence: string;
   onBack?: () => void;
+  onClose?: () => void;
   renderOccurrenceLink: RenderOccurrenceLink;
   /** App supplies the related-trace panel (it owns the spans source). */
   renderTracePanel?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
@@ -50,6 +51,7 @@ export function ErrorDetail({
   service,
   occurrence,
   onBack,
+  onClose,
   renderOccurrenceLink,
   renderTracePanel,
 }: ErrorDetailProps) {
@@ -111,7 +113,11 @@ export function ErrorDetail({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ErrorDetailHeader issue={detail.summary} onBack={onBack} />
+      <ErrorDetailHeader
+        issue={detail.summary}
+        onBack={onBack}
+        onClose={onClose}
+      />
       <main className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-7xl gap-3 p-3">
           <ErrorStacktrace

@@ -139,7 +139,7 @@ export function TraceDetailPage() {
         repo={localTracesRepo}
         traceId={traceId}
         search={search}
-        onBack={() => {
+        onClose={() => {
           if (closeDialog) {
             closeDialog();
             return;

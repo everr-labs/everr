@@ -146,7 +146,7 @@ export function ErrorDetailPage() {
         refresh={refresh ?? ""}
         service={service}
         occurrence={search.occurrence}
-        onBack={() => {
+        onClose={() => {
           if (closeDialog) {
             closeDialog();
             return;

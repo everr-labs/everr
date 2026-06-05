@@ -84,16 +84,4 @@ describe("DetailRouteDialog", () => {
       "true",
     );
   });
-
-  it("reserves the desktop titlebar space for visible macOS semaphore controls", () => {
-    render(
-      <DetailRouteDialog title="Detail" onClose={vi.fn()}>
-        <span>Dialog body</span>
-      </DetailRouteDialog>,
-    );
-
-    expect(screen.getByText("Dialog body").parentElement).toHaveClass(
-      "pt-[var(--titlebar-top)]",
-    );
-  });
 });

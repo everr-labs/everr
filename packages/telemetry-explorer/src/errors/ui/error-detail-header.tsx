@@ -1,23 +1,37 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import type { ErrorIssueSummary } from "../data/types";
 import { ErrorServiceBadge } from "./error-service-badge";
 
 export function ErrorDetailHeader({
   issue,
   onBack,
+  onClose,
 }: {
   issue: ErrorIssueSummary;
   onBack?: () => void;
+  onClose?: () => void;
 }) {
   const title = issue.exceptionType || "Unknown exception";
   const message = issue.exceptionMessage || issue.body || issue.fingerprint;
 
   return (
     <header className="flex shrink-0 items-start gap-3 border-b px-4 py-3">
-      {onBack && (
+      {onClose ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Close"
+          title="Close"
+          onClick={onClose}
+          className="shrink-0"
+        >
+          <X />
+        </Button>
+      ) : onBack ? (
         <Button
           type="button"
           variant="ghost"
@@ -29,7 +43,7 @@ export function ErrorDetailHeader({
         >
           <ArrowLeft />
         </Button>
-      )}
+      ) : null}
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-lg font-semibold">{title}</h1>
         <p className="truncate text-xs text-muted-foreground">{message}</p>
