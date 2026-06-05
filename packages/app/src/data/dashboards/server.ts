@@ -10,6 +10,9 @@ import {
   dashboardSpecSchema,
   deleteDashboardInput,
   deleteFolderInput,
+  moveDashboardInput,
+  moveFolderInput,
+  renameDashboardInput,
   renameFolderInput,
   saveDashboardInput,
 } from "./schema";
@@ -65,8 +68,8 @@ export const saveDashboard = createAuthenticatedServerFn({
         .update(dashboards)
         .set({
           spec: spec as DashboardSpec,
-          folderId: folderId ?? null,
           updatedAt: new Date(),
+          ...(folderId !== undefined ? { folderId } : {}),
         })
         .where(eq(dashboards.id, existing.id));
     } else {
@@ -97,6 +100,69 @@ export const deleteDashboard = createAuthenticatedServerFn({
     return { deleted: true };
   });
 
+export const renameDashboard = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(renameDashboardInput)
+  .handler(async ({ data: { slug, name }, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+
+    const [row] = await db
+      .select({ id: dashboards.id, spec: dashboards.spec })
+      .from(dashboards)
+      .where(
+        and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
+      )
+      .limit(1);
+
+    if (!row) {
+      throw new Error(`Dashboard "${slug}" not found`);
+    }
+
+    await db
+      .update(dashboards)
+      .set({
+        spec: { ...row.spec, display: { ...row.spec.display, name } },
+        updatedAt: new Date(),
+      })
+      .where(eq(dashboards.id, row.id));
+
+    return { slug, name };
+  });
+
+export const moveDashboard = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(moveDashboardInput)
+  .handler(async ({ data: { slug, folderId }, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+
+    if (folderId !== null) {
+      const [folder] = await db
+        .select({ id: dashboardFolders.id })
+        .from(dashboardFolders)
+        .where(
+          and(
+            eq(dashboardFolders.id, folderId),
+            eq(dashboardFolders.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!folder) {
+        throw new Error("Target folder not found");
+      }
+    }
+
+    await db
+      .update(dashboards)
+      .set({ folderId, updatedAt: new Date() })
+      .where(
+        and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
+      );
+
+    return { slug };
+  });
+
 export const listDashboards = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context }) => {
@@ -105,6 +171,7 @@ export const listDashboards = createAuthenticatedServerFn({
   const rows = await db
     .select({
       slug: dashboards.slug,
+      folderId: dashboards.folderId,
       displayName: sql<string>`spec->'display'->>'name'`,
     })
     .from(dashboards)
@@ -113,6 +180,7 @@ export const listDashboards = createAuthenticatedServerFn({
   return rows.map((r) => ({
     slug: r.slug,
     name: r.displayName ?? r.slug,
+    folderId: r.folderId,
   }));
 });
 
@@ -160,6 +228,51 @@ export const renameFolder = createAuthenticatedServerFn({
     await db
       .update(dashboardFolders)
       .set({ name, updatedAt: new Date() })
+      .where(
+        and(
+          eq(dashboardFolders.id, folderId),
+          eq(dashboardFolders.organizationId, orgId),
+        ),
+      );
+
+    return { id: folderId };
+  });
+
+export const moveFolder = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(moveFolderInput)
+  .handler(async ({ data: { folderId, parentId }, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+
+    // Cycle check: walk up from the target parent; if we reach the folder
+    // being moved, the move would create a cycle.
+    let current = parentId;
+    while (current !== null) {
+      if (current === folderId) {
+        throw new Error(
+          "Cannot move a folder into itself or one of its subfolders",
+        );
+      }
+      const [row] = await db
+        .select({ parentId: dashboardFolders.parentId })
+        .from(dashboardFolders)
+        .where(
+          and(
+            eq(dashboardFolders.id, current),
+            eq(dashboardFolders.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!row) {
+        throw new Error("Target folder not found");
+      }
+      current = row.parentId;
+    }
+
+    await db
+      .update(dashboardFolders)
+      .set({ parentId, updatedAt: new Date() })
       .where(
         and(
           eq(dashboardFolders.id, folderId),

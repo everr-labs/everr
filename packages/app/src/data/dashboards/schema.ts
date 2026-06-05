@@ -184,3 +184,18 @@ export const deleteFolderInput = z.object({
   folderId: z.string().uuid(),
   mode: z.enum(["cascade", "move-to-root"]),
 });
+
+export const renameDashboardInput = z.object({
+  slug: z.string().min(1),
+  name: z.string().min(1).max(200),
+});
+
+export const moveDashboardInput = z.object({
+  slug: z.string().min(1),
+  folderId: z.string().uuid().nullable(),
+});
+
+export const moveFolderInput = z.object({
+  folderId: z.string().uuid(),
+  parentId: z.string().uuid().nullable(),
+});

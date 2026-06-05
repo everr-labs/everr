@@ -83,7 +83,10 @@
         "listFolders",
         "createFolder",
         "renameFolder",
-        "deleteFolder"
+        "deleteFolder",
+        "renameDashboard",
+        "moveDashboard",
+        "moveFolder"
       ]
     },
     {
