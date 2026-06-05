@@ -48,7 +48,7 @@ export function DeleteFolderDialog({
           <DialogDescription>
             {isEmpty
               ? `This will delete the empty folder "${name}".`
-              : `"${name}" contains ${contentsLabel(dashboardCount, folderCount)}. Choose what happens to its contents.`}
+              : `"${name}" contains ${contentsLabel(dashboardCount, folderCount)} in total. Delete everything, or move its top-level contents to root — subfolders keep what's inside them.`}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
