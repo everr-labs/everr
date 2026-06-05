@@ -9,7 +9,7 @@ import {
 import { cn } from "@everr/ui/lib/utils";
 import { Folder, House } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type FolderSummary, flattenFolders } from "@/data/dashboards/tree";
 
 interface FolderListProps {
@@ -106,9 +106,13 @@ export function FolderPickerDialog({
   onConfirm,
 }: FolderPickerDialogProps) {
   const [selected, setSelected] = useState<string | null>(initialFolderId);
+  const wasOpen = useRef(false);
 
   useEffect(() => {
-    if (open) setSelected(initialFolderId);
+    if (open && !wasOpen.current) {
+      setSelected(initialFolderId);
+    }
+    wasOpen.current = open;
   }, [open, initialFolderId]);
 
   return (
