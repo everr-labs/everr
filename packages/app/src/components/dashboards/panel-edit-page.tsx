@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@everr/ui/components/alert-dialog";
 import { Button } from "@everr/ui/components/button";
 import {
   ResizableHandle,
@@ -6,7 +16,12 @@ import {
 } from "@everr/ui/components/resizable";
 import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import {
+  Link,
+  useBlocker,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -55,6 +70,17 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   const storeDashboard = useDashboardStore((s) => s.dashboard);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
   const updatePanel = useDashboardStore((s) => s.updatePanel);
+  const resetStore = useDashboardStore((s) => s.reset);
+
+  const dashboardPrefix = `/dashboards/${dashboardId}`;
+  const blocker = useBlocker({
+    shouldBlockFn: ({ next }) => {
+      if (!useDashboardStore.getState().isDirty) return false;
+      return !next.pathname.startsWith(dashboardPrefix);
+    },
+    enableBeforeUnload: () => useDashboardStore.getState().isDirty,
+    withResolver: true,
+  });
 
   const { data: fetchedDashboard } = useQuery({
     ...dashboardOptions(dashboardId),
@@ -144,6 +170,34 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
 
   return (
     <div className="flex h-full flex-col">
+      <AlertDialog
+        open={blocker.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes on this dashboard. If you leave now, your
+              changes will be discarded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                resetStore();
+                blocker.proceed?.();
+              }}
+            >
+              Discard &amp; leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex items-center justify-between border-b px-4 py-2">
         <div className="flex items-center gap-3">
           <Link

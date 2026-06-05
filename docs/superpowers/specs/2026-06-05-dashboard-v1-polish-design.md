@@ -29,6 +29,7 @@ New `packages/app/src/components/dashboards/visualizations/stat-chart/` with `st
 - Add `isDirty` to the zustand store (`data/dashboards/dashboard-store.ts`). Set by `updatePanel`, `updateLayout`, panel add/remove/duplicate, and editor Apply. Cleared by `setDashboard` (load/reset) and after a successful save.
 - TanStack Router `useBlocker` on `/dashboards/$dashboardId`: blocks in-app navigation while dirty, **except** to the same dashboard's panel editor (`/dashboards/$dashboardId/panel/*`), which is part of editing. Confirm dialog: **Stay** / **Discard & leave**; discard resets the store from loader data and proceeds.
 - `beforeunload` handler registered while dirty, for tab close/reload.
+- The panel editor mounts the same blocker (scoped to leaving `/dashboards/<id>` entirely), so a dirty dashboard stays protected while editing a panel.
 - Server-side actions (rename/move/delete) are unaffected; rename already updates the store via `router.invalidate()`.
 
 ## 3. Panel-level error states
