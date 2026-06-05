@@ -24,7 +24,6 @@ import {
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions, panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
@@ -105,11 +104,16 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   }, [panel, draft]);
 
   const savedSql = panel ? getQuerySql(panel) : "";
-  const { data: autoResult } = useQuery(panelQueryOptions(savedSql, from, to));
+  const {
+    data: autoResult,
+    isError: autoIsError,
+    error: autoError,
+  } = useQuery(panelQueryOptions(savedSql, from, to));
 
   const [manualResult, setManualResult] = useState<
     QueryResultRow[] | undefined
   >();
+  const [manualError, setManualError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
   const handleRunQuery = useCallback(
@@ -118,12 +122,13 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
       try {
         const result = await runPanelQuery({ data: { sql, from, to } });
         setManualResult(result.rows);
+        setManualError(null);
         queryClient.setQueryData(
           panelQueryOptions(sql, from, to).queryKey,
           result,
         );
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Query failed");
+        setManualError(error instanceof Error ? error.message : "Query failed");
       } finally {
         setIsRunning(false);
       }
@@ -132,6 +137,13 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   );
 
   const queryResult = manualResult ?? autoResult?.rows;
+  const queryErrorMessage =
+    manualError ??
+    (autoIsError && !manualResult
+      ? autoError instanceof Error
+        ? autoError.message
+        : String(autoError)
+      : undefined);
 
   if (!dashboard) return null;
 
@@ -234,6 +246,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
                   panel={draft}
                   panelKey={panelKey}
                   data={queryResult}
+                  errorMessage={queryErrorMessage ?? undefined}
                   timeRange={{ from: fromDate, to: toDate }}
                   onTimeRangeChange={handleTimeRangeChange}
                 />
