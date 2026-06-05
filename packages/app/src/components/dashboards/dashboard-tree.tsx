@@ -377,12 +377,8 @@ function DashboardRow({
       >
         <LayoutDashboard className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate text-sm">{dashboard.name}</span>
-        {path ? (
+        {path && (
           <span className="truncate text-xs text-muted-foreground">{path}</span>
-        ) : (
-          <span className="truncate text-xs text-muted-foreground">
-            {dashboard.slug}
-          </span>
         )}
       </Link>
       <DashboardMenu dashboard={dashboard} onAction={onAction} />

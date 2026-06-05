@@ -78,7 +78,7 @@ export function useCreateDashboard() {
       toast.success("Dashboard created");
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to save");
+      toast.error(error instanceof Error ? error.message : "Failed to create");
     },
   });
 }
