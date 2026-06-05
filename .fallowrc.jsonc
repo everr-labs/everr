@@ -26,7 +26,8 @@
   ],
   "ignorePatterns": [
     // Generic components not yet used by any entry point — consumed in subsequent tasks.
-    "packages/app/src/components/dashboards/name-dialog.tsx"
+    "packages/app/src/components/dashboards/name-dialog.tsx",
+    "packages/app/src/components/dashboards/folder-picker.tsx"
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
