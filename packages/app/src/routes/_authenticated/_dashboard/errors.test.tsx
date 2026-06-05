@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { Route as ErrorsFileRoute } from "./errors";
 
 describe("/errors route", () => {
-  it("renders the detail child route for an error fingerprint", async () => {
+  function renderErrorsRoute(initialEntry: string) {
     const rootRoute = createRootRoute({
       component: Outlet,
     });
@@ -29,6 +29,7 @@ describe("/errors route", () => {
     const errorsRoute = createRoute({
       getParentRoute: () => dashboardRoute,
       path: "errors",
+      validateSearch: ErrorsFileRoute.options.validateSearch,
       component: ErrorsFileRoute.options.component,
     });
     const errorDetailRoute = createRoute({
@@ -45,7 +46,7 @@ describe("/errors route", () => {
     ]);
     const router = createRouter({
       routeTree,
-      history: createMemoryHistory({ initialEntries: ["/errors/fp-1"] }),
+      history: createMemoryHistory({ initialEntries: [initialEntry] }),
     });
 
     const queryClient = new QueryClient({
@@ -56,6 +57,20 @@ describe("/errors route", () => {
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>,
+    );
+  }
+
+  it("renders the detail child route for an error fingerprint", async () => {
+    renderErrorsRoute("/errors/fp-1");
+
+    expect(
+      await screen.findByText("Error detail child route"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the detail child route with absolute time search params", async () => {
+    renderErrorsRoute(
+      "/errors/fp-1?from=2026-06-04%2018%3A45%3A10.869&to=2026-06-04%2018%3A55%3A10.869",
     );
 
     expect(

@@ -56,7 +56,6 @@ pub struct SkillOperationOptions {
     pub providers: Vec<SkillProvider>,
     pub skill_names: Vec<String>,
     pub all: bool,
-    pub force: bool,
     pub dry_run: bool,
 }
 
@@ -151,7 +150,6 @@ pub fn install_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOp
         let canonical_changed = sync_bundled_skill_dir(
             dir,
             &canonical_dir,
-            options.force,
             options.dry_run,
             skill_name,
             &mut changes,
@@ -168,7 +166,6 @@ pub fn install_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOp
                 skill_name,
                 &canonical_dir,
                 &provider_dir,
-                options.force,
                 options.dry_run,
                 &mut changes,
             )?;
@@ -188,7 +185,6 @@ pub fn install_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOp
 
 pub fn update_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOperationSummary> {
     let mut options = options.clone();
-    options.force = true;
     if !options.all && options.skill_names.is_empty() {
         options.skill_names = installed_update_skill_names(&options)?;
     } else if !options.all {
@@ -518,7 +514,6 @@ fn global_provider_skills_dir(home_dir: &Path, provider: SkillProvider) -> PathB
 fn sync_bundled_skill_dir(
     dir: &Dir<'_>,
     target: &Path,
-    force: bool,
     dry_run: bool,
     skill_name: &str,
     changes: &mut Vec<SkillPathChange>,
@@ -555,13 +550,24 @@ fn sync_bundled_skill_dir(
             });
             Ok(false)
         }
-        ExistingDirState::Different => {
-            if !force {
-                bail!(
-                    "destination differs: {} (use --force to overwrite)",
-                    target.display()
-                );
+        ExistingDirState::MissingBundledFiles(files) => {
+            if !dry_run {
+                write_bundled_files(target, &files)?;
             }
+            changes.push(SkillPathChange {
+                skill: skill_name.to_string(),
+                provider: None,
+                path: target.display().to_string(),
+                canonical_path: None,
+                action: if dry_run {
+                    SkillPathAction::WouldWrite
+                } else {
+                    SkillPathAction::Written
+                },
+            });
+            Ok(true)
+        }
+        ExistingDirState::Different => {
             if !dry_run {
                 remove_any(target)?;
                 write_bundled_dir(dir, target)?;
@@ -585,6 +591,7 @@ fn sync_bundled_skill_dir(
 enum ExistingDirState {
     Missing,
     Same,
+    MissingBundledFiles(BTreeMap<String, Vec<u8>>),
     Different,
 }
 
@@ -599,10 +606,43 @@ fn existing_dir_state(dir: &Dir<'_>, target: &Path) -> Result<ExistingDirState> 
     let expected = bundled_file_map(dir)?;
     let actual = file_map(target)?;
     if expected == actual {
-        Ok(ExistingDirState::Same)
-    } else {
-        Ok(ExistingDirState::Different)
+        return Ok(ExistingDirState::Same);
     }
+
+    if actual.keys().all(|path| expected.contains_key(path)) {
+        let common_files_match = actual
+            .iter()
+            .all(|(path, contents)| expected.get(path) == Some(contents));
+        if common_files_match {
+            let missing: BTreeMap<String, Vec<u8>> = expected
+                .into_iter()
+                .filter(|(path, _)| !actual.contains_key(path))
+                .collect();
+            let missing_files_absent =
+                missing.keys().all(
+                    |relative| match fs::symlink_metadata(target.join(relative)) {
+                        Ok(_) => false,
+                        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+                    },
+                );
+            if missing_files_absent {
+                return Ok(ExistingDirState::MissingBundledFiles(missing));
+            }
+        }
+    }
+
+    Ok(ExistingDirState::Different)
+}
+
+fn write_bundled_files(target: &Path, files: &BTreeMap<String, Vec<u8>>) -> Result<()> {
+    for (relative, contents) in files {
+        let path = target.join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+        }
+        fs::write(&path, contents).with_context(|| format!("write {}", path.display()))?;
+    }
+    Ok(())
 }
 
 fn bundled_file_map(dir: &Dir<'_>) -> Result<BTreeMap<String, Vec<u8>>> {
@@ -683,7 +723,6 @@ fn link_provider_dir(
     skill_name: &str,
     canonical_dir: &Path,
     provider_dir: &Path,
-    force: bool,
     dry_run: bool,
     changes: &mut Vec<SkillPathChange>,
 ) -> Result<()> {
@@ -699,12 +738,6 @@ fn link_provider_dir(
     }
 
     if provider_dir.exists() || fs::symlink_metadata(provider_dir).is_ok() {
-        if !force {
-            bail!(
-                "destination differs: {} (use --force to overwrite)",
-                provider_dir.display()
-            );
-        }
         if !dry_run {
             remove_any(provider_dir)?;
         }

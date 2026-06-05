@@ -8,7 +8,7 @@ import { buildWhereClause } from "./where";
 export interface ExplorerRowRaw {
   timestampRaw: string;
   level: LogLevel;
-  body: string;
+  body: string | null;
   traceId: string;
   spanId: string;
   serviceName: string;
@@ -78,6 +78,6 @@ export function mapExplorerRow(row: ExplorerRowRaw): LogExplorerRow {
     identity,
     timestamp: normalizeTimestampToUtc(row.timestampRaw),
     level: row.level,
-    body: row.body,
+    body: row.body ?? "",
   };
 }

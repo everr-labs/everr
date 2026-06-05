@@ -9,10 +9,11 @@ export const TRACES_ATTRIBUTE_SOURCES_UI: AttributeSource[] = [
 export const TRACES_PROMOTED_ATTRIBUTES: PromotedAttribute[] = [
   { source: "span", key: "http.route" },
   { source: "span", key: "db.system" },
-  { source: "resource", key: "deployment.environment" },
 ];
 
-// service.name backs the Service filter; service.namespace backs the Namespace filter.
+// service.name backs the Service filter; service.namespace backs the Namespace
+// filter. deployment.environment is also excluded, but that is derived from the
+// dedicated-attribute list passed to DedicatedAttributeSection, not listed here.
 export const TRACES_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:service.name",
   "resource:service.namespace",

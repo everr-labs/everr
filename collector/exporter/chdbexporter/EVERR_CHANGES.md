@@ -18,7 +18,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 - Kept `NewFactory()` for normal component factory shape, but exporters started from it now fail clearly with `chdb handle is required`.
 - Replaced runtime ClickHouse network connections with a local `internal.ChDBConn` adapter.
 - The adapter runs DDL and queries through the shared chDB handle, and converts upstream prepared-batch inserts into `JSONEachRow` inserts for chDB.
-- Insert sends update the local `.last_flush` sentinel used by sibling-build detection.
+- Insert sends update the local `.last_flush` sentinel.
 - Default TTL is now `7d`.
 - Validation no longer requires a ClickHouse endpoint; endpoint/DSN helpers remain only for compatibility with upstream config tests and table-name/database helpers.
 - The test Makefile now prepares `libchdb.so` before running tests.

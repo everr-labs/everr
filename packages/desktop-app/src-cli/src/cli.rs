@@ -151,9 +151,6 @@ pub struct SkillsInstallArgs {
     /// Provider to install for
     #[arg(long = "agent", value_enum)]
     pub agents: Vec<SkillAgentArg>,
-    /// Overwrite existing differing skill files
-    #[arg(long)]
-    pub force: bool,
     /// Preview without writing files
     #[arg(long)]
     pub dry_run: bool,
@@ -769,6 +766,10 @@ mod tests {
         let err = Cli::try_parse_from(["everr", "skills", "install", "--copy"])
             .expect_err("skills install should not accept --copy");
         assert!(err.to_string().contains("--copy"));
+
+        let err = Cli::try_parse_from(["everr", "skills", "install", "--force"])
+            .expect_err("skills install should not accept --force");
+        assert!(err.to_string().contains("--force"));
     }
 
     #[test]

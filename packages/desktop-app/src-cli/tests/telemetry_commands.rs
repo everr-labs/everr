@@ -2,8 +2,13 @@ mod support;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::time::Duration;
+use std::time::SystemTime;
 
+use predicates::prelude::PredicateBooleanExt;
 use predicates::str::{contains, diff};
 use support::CliTestEnv;
 
@@ -60,6 +65,35 @@ fn query_connection_error_mentions_start_command() {
         .stderr(contains("Everr Desktop"));
 }
 
+#[cfg(unix)]
+#[test]
+fn query_does_not_emit_sibling_build_staleness_banner() {
+    let env = CliTestEnv::new();
+    let this_chdb = env.telemetry_dir().join("chdb");
+    let sibling_chdb = env
+        .telemetry_dir()
+        .parent()
+        .expect("telemetry dir has parent")
+        .join("telemetry")
+        .join("chdb");
+    std::fs::create_dir_all(&this_chdb).expect("create current telemetry chdb dir");
+    std::fs::create_dir_all(&sibling_chdb).expect("create sibling telemetry chdb dir");
+
+    let this_flush = this_chdb.join(".last_flush");
+    let sibling_flush = sibling_chdb.join(".last_flush");
+    std::fs::write(&this_flush, b"").expect("write current sentinel");
+    std::fs::write(&sibling_flush, b"").expect("write sibling sentinel");
+    set_mtime(&this_flush, SystemTime::UNIX_EPOCH);
+    set_mtime(&sibling_flush, SystemTime::now());
+
+    env.command()
+        .env("EVERR_SQL_HTTP_ORIGIN", "http://127.0.0.1:9")
+        .args(["local", "query", "SHOW TABLES"])
+        .assert()
+        .code(2)
+        .stderr(contains("wrong sidecar").not());
+}
+
 fn spawn_health_server(status: u16) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind health server");
     let addr = listener.local_addr().expect("read health addr");
@@ -88,4 +122,24 @@ fn read_request(stream: &mut TcpStream) {
             return;
         }
     }
+}
+
+#[cfg(unix)]
+fn set_mtime(path: &Path, mtime: SystemTime) {
+    let duration = mtime
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("mtime must be after unix epoch");
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path has no nul bytes");
+    let times = [
+        libc::timeval {
+            tv_sec: duration.as_secs() as libc::time_t,
+            tv_usec: duration.subsec_micros() as libc::suseconds_t,
+        },
+        libc::timeval {
+            tv_sec: duration.as_secs() as libc::time_t,
+            tv_usec: duration.subsec_micros() as libc::suseconds_t,
+        },
+    ];
+    let result = unsafe { libc::utimes(path.as_ptr(), times.as_ptr()) };
+    assert_eq!(result, 0, "set file mtime");
 }

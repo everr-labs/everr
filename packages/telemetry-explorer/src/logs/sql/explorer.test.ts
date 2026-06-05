@@ -68,4 +68,17 @@ describe("mapExplorerRow", () => {
     expect(row.timestamp).toMatch(/^2026-03-09T12:00:00/);
     expect(row.identity.bodyHash).toBe("h");
   });
+
+  it("normalizes null bodies to empty strings", () => {
+    const row = mapExplorerRow({
+      timestampRaw: "2026-03-09 12:00:00",
+      level: "info",
+      body: null,
+      traceId: "t",
+      spanId: "s",
+      serviceName: "svc",
+      bodyHash: "h",
+    });
+    expect(row.body).toBe("");
+  });
 });

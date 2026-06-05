@@ -92,16 +92,12 @@ created inside the wrapped work are linked under the debug span.
 
 ## Run the assistant loop
 
-A useful assistant loop is:
-
-1. Pick the question the trace should answer.
-2. Add the smallest debug span, event, or log that records the needed value.
-3. Run the app after the instrumentation change.
-4. Ask the agent to manually exercise the broken workflow, or do it yourself if
-   automation is not possible.
-5. Ask the assistant to inspect the newest local trace data for the debug spans
-   it added.
-6. Make the next change only after the trace explains the current behavior.
+This is the [evidence loop](/docs/overview) with debug traces as the signal:
+pick the question the trace should answer, add the smallest debug span or event
+for it, run the app, then exercise the broken workflow. Ask the agent to drive
+it, or do it yourself when automation is not possible. Have the assistant
+inspect the newest traces for the debug span names it added, and make the next
+change only after the trace explains the current behavior.
 
 For example, after you reproduce the bug:
 

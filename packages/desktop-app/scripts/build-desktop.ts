@@ -7,6 +7,7 @@ import {
   installCliBinary,
   loadBuildEnvFile,
   readDesktopTauriConfigVersion,
+  resolveDesktopReleaseIngestKey,
   repoDir,
   resolveDesktopReleaseIdentity,
   writeDesktopReleaseTauriConfigOverride,
@@ -57,6 +58,10 @@ export async function buildDesktop(args = process.argv.slice(2)) {
     throw new Error("--install is not supported for CI desktop builds.");
   }
 
+  const releaseIngestKey = resolveDesktopReleaseIngestKey({
+    required: ciBuild,
+  });
+
   await rm(desktopReleaseDir, { recursive: true, force: true });
 
   const fallbackVersion = await readDesktopTauriConfigVersion();
@@ -69,6 +74,7 @@ export async function buildDesktop(args = process.argv.slice(2)) {
     EVERR_PLATFORM_VERSION: identity.platformVersion,
     EVERR_RELEASE_SHA: identity.releaseSha,
     EVERR_RELEASE_SHORT_SHA: identity.releaseShortSha,
+    ...(releaseIngestKey ? { EVERR_INGEST_KEY: releaseIngestKey } : {}),
   });
 
   if (ciBuild) {

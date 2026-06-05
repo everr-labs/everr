@@ -89,7 +89,7 @@ function RouteComponent() {
   return (
     <SidebarProvider>
       <AppSidebar style={{ viewTransitionName: "sidebar" }} />
-      <SidebarInset className="h-screen">
+      <SidebarInset className="h-screen min-w-0">
         <header
           className="flex h-12 border-b border-sidebar-border px-3 bg-sidebar"
           style={{ viewTransitionName: "topnav" }}

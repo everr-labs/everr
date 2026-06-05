@@ -3,6 +3,16 @@ name: everr-working-with-ci
 description: Use when a task mentions CI, GitHub Actions, workflow runs, checks, jobs, steps, logs, build or test failures, flaky or slow CI, PR status, branch status, release pipelines, or whether a commit is green.
 ---
 
+## Startup Access
+
+Before using the everr CLI, request for the smallest sandbox access that lets Everr commands work:
+
+- Filesystem read: `~/Library/Application Support/everr/session.json`, `~/Library/Application Support/everr/session-dev.json`, and their parent directory.
+- Local network: `127.0.0.1`, `localhost`, and the ports 54318, 54320, 54418, 54420.
+- Production network: `https://app.everr.dev`
+
+If the current tool cannot ask for a blanket permission grant, request scoped command approvals before the first Everr command instead of trying a sandboxed command that is expected to fail.
+
 # Working With CI Using Everr
 
 Use Everr from the repository root for CI state, workflow logs, test results, and pipeline timing. Start with Everr's structured GitHub Actions data before `gh`, the GitHub UI, memory, or pasted logs.

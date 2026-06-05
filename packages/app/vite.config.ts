@@ -8,20 +8,8 @@ import { smeeWebhookPlugin } from "./vite.smee";
 
 const config = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const browserTelemetryEnabled = mode === "development";
-  const browserTelemetryEndpoint =
-    env.VITE_OTEL_EXPORTER_OTLP_ENDPOINT ||
-    env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-    "http://127.0.0.1:54318";
 
   return {
-    define: {
-      __EVERR_BROWSER_OTEL__: JSON.stringify({
-        enabled: browserTelemetryEnabled,
-        endpoint: browserTelemetryEnabled ? browserTelemetryEndpoint : "",
-        serviceName: "everr-web-browser",
-      }),
-    },
     server: {
       allowedHosts: ["host.docker.internal"],
       host: "0.0.0.0",

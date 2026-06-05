@@ -5,6 +5,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import {
   errorIssuesInfiniteOptions,
   errorServicesOptions,
@@ -13,7 +14,7 @@ import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import { PAGE_SIZE } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
-import { ErrorFilters, ErrorSearchForm } from "./error-filters";
+import { ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
 import type { RenderErrorIssueLink } from "./error-issue-row";
 
@@ -73,9 +74,12 @@ export function ErrorIssues({
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
         <div className="border-b bg-muted/10 px-3 py-2">
-          <ErrorSearchForm
+          <FilterSearchBar
+            id="errors-search"
+            label="Search errors"
             value={search.q}
             onChange={(q) => onSearchChange({ q })}
+            placeholder="Search errors"
           />
         </div>
 

@@ -1,0 +1,53 @@
+---
+title: Your First Trace
+description: Start the local collector, send telemetry from your app, and query your first trace.
+---
+
+This is the shortest path to working observability with Everr: start the local collector, send telemetry from your own app, and query the result. By the end you'll have one row of real telemetry you produced and the query that found it. That's the local feedback loop everything else builds on, and it all stays on your machine.
+
+If your app does not emit OpenTelemetry yet, ask your coding assistant to run the `everr-setup-telemetry` skill. It inspects your stack, adds the smallest standard setup for your runtime, points it at the local collector, and verifies that fresh telemetry shows up. The steps below are that same path by hand.
+
+## Before you start
+
+Make sure the CLI is installed and you've run `everr setup`. If not, start with [Install](/docs/getting-started/install).
+
+## Start the local collector
+
+The local collector receives your telemetry on your machine. Start it in its own terminal:
+
+```sh
+everr local start
+```
+
+It runs in the foreground and prints the OTLP HTTP endpoint when it's ready. Everr Desktop runs the same collector while it's open, so if Desktop is running you can skip this and read the endpoint from `everr local status`.
+
+## Point your app at the local endpoint
+
+Configure your OpenTelemetry SDK to export to the endpoint the collector printed:
+
+```sh
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:54318"
+export OTEL_SERVICE_NAME="my-app"
+```
+
+Use the exact endpoint from `everr local start` or `everr local status`, and keep this export gated to development and test environments. Browser apps can export to the same collector too.
+
+## Exercise your app and query the trace
+
+Run your app and trigger the path you want to see: load a page, call an endpoint, or run the instrumented command. Then ask the local store what it received:
+
+```sh
+everr local query "SELECT Timestamp, ServiceName, SpanName FROM traces ORDER BY Timestamp DESC LIMIT 20"
+```
+
+You should see recent rows with your `ServiceName` and the span names your app produced. That's your first trace in Everr. You can also open Everr Desktop to browse traces, logs, and metrics visually.
+
+If no rows appear, confirm the collector is running (`everr local status`) and that your app started after `OTEL_EXPORTER_OTLP_ENDPOINT` was set, then trigger the path again.
+
+## Next steps
+
+You now have the core loop: emit telemetry, run the workflow, and query what happened instead of reconstructing it from terminal scrollback. Everything else in Everr reuses it.
+
+- [Local Debugging](/docs/local-debugging/setup) — turn this loop into an assistant-led debugging workflow.
+- [Production Monitoring](/docs/production-monitoring/setup) — mint an ingest key and send the same telemetry from your deployed services.
+- [CI Insights](/docs/ci-insights/setup-new-repo) — connect repositories and monitor GitHub Actions.

@@ -1,9 +1,3 @@
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@everr/ui/components/input-group";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
@@ -13,10 +7,10 @@ import {
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
-import { Search, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import {
   logsExplorerInfiniteOptions,
   logsHistogramOptions,
@@ -277,45 +271,13 @@ export function LogsExplorer({
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
         <div className="border-b bg-muted/10 px-3 py-2">
-          <form
-            className="w-full"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              const newQ = String(form.get("q") ?? "").trim();
-              applyFilters({ q: newQ || undefined });
-            }}
-          >
-            <label htmlFor="logs-search" className="sr-only">
-              Search logs
-            </label>
-            <InputGroup className="h-8">
-              <InputGroupAddon>
-                <Search />
-              </InputGroupAddon>
-              <InputGroupInput
-                id="logs-search"
-                key={filters.q ?? ""}
-                name="q"
-                defaultValue={filters.q ?? ""}
-                placeholder="Search messages, errors, IDs"
-              />
-              <InputGroupAddon align="inline-end">
-                {filters.q ? (
-                  <InputGroupButton
-                    size="icon-xs"
-                    aria-label="Clear query"
-                    onClick={() => applyFilters({ q: undefined })}
-                  >
-                    <X />
-                  </InputGroupButton>
-                ) : null}
-                <InputGroupButton type="submit" variant="secondary">
-                  Search
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-          </form>
+          <FilterSearchBar
+            id="logs-search"
+            label="Search logs"
+            value={filters.q ?? ""}
+            onChange={(q) => applyFilters({ q: q || undefined })}
+            placeholder="Search messages, errors, IDs"
+          />
         </div>
 
         <div
@@ -325,18 +287,16 @@ export function LogsExplorer({
               "lg:grid-cols-[220px_minmax(0,1fr)_320px] xl:grid-cols-[260px_minmax(0,1fr)_360px]",
           )}
         >
-          <aside className="bg-muted/15 min-h-0 border-b lg:border-r lg:border-b-0">
-            <LogFiltersBar
-              repo={repo}
-              timeRange={timeRange}
-              levels={filters.levels}
-              services={filters.services}
-              attributes={filters.attributes}
-              traceId={filters.traceId}
-              levelCounts={levelCounts}
-              onChange={(patch) => applyFilters(patch)}
-            />
-          </aside>
+          <LogFiltersBar
+            repo={repo}
+            timeRange={timeRange}
+            levels={filters.levels}
+            services={filters.services}
+            attributes={filters.attributes}
+            traceId={filters.traceId}
+            levelCounts={levelCounts}
+            onChange={(patch) => applyFilters(patch)}
+          />
 
           <main className="min-h-0 min-w-0">
             <div className="flex h-full min-h-0 flex-col">

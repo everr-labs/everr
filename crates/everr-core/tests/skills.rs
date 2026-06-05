@@ -48,7 +48,6 @@ fn installs_using_everr_skill_with_must_use_triggers() {
         providers: vec![SkillProvider::Codex],
         skill_names: vec!["using-everr".to_string()],
         all: false,
-        force: false,
         dry_run: false,
     };
 
@@ -71,11 +70,190 @@ fn everr_use_telemetry_bounds_full_trace_queries_by_time() {
     .expect("read everr-use-telemetry skill");
 
     assert!(
-        content.contains(
-            "WHERE Timestamp > now() - INTERVAL 1 HOUR\n  AND TraceId = '<trace-id>'"
-        )
+        content.contains("WHERE Timestamp > now() - INTERVAL 1 HOUR\n  AND TraceId = '<trace-id>'")
     );
     assert!(content.contains("using the same recent window"));
+}
+
+#[test]
+fn installs_skill_rule_subdirectories() {
+    let repo = tempdir().expect("repo tempdir");
+    let home = tempdir().expect("home tempdir");
+    let options = SkillOperationOptions {
+        scope: SkillScope::Project,
+        cwd: repo.path().to_path_buf(),
+        home_dir: home.path().to_path_buf(),
+        providers: vec![SkillProvider::Codex],
+        skill_names: vec!["everr-setup-telemetry".to_string()],
+        all: false,
+        dry_run: false,
+    };
+
+    install_bundled_skills(&options).expect("install telemetry setup skill");
+
+    let rule_path = repo
+        .path()
+        .join(".agents/skills/everr-setup-telemetry/rules/nodejs.md");
+    let content = fs::read_to_string(rule_path).expect("read installed rule");
+    assert!(content.contains("# Node.js Instrumentation"));
+    assert!(content.contains("telemetry-setup.ts"));
+
+    let error_rule_path = repo
+        .path()
+        .join(".agents/skills/everr-setup-telemetry/rules/error-tracking.md");
+    let error_content = fs::read_to_string(error_rule_path).expect("read installed error rule");
+    assert!(error_content.contains("# Error Tracking"));
+    assert!(error_content.contains("OpenTelemetry-native signals"));
+
+    let rust_rule_path = repo
+        .path()
+        .join(".agents/skills/everr-setup-telemetry/rules/rust.md");
+    let rust_content = fs::read_to_string(rust_rule_path).expect("read installed rust rule");
+    assert!(rust_content.contains("# Rust Instrumentation"));
+    assert!(rust_content.contains("telemetry_setup.rs"));
+}
+
+#[test]
+fn nextjs_rule_documents_server_setup_without_browser_instrumentation() {
+    let content = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/skills/everr-setup-telemetry/rules/nextjs.md"),
+    )
+    .expect("read nextjs rule");
+
+    assert!(content.contains("src/instrumentation.ts"));
+    assert!(content.contains("process.env.NEXT_RUNTIME !== 'nodejs'"));
+    assert!(content.contains("resourceFromAttributes"));
+    assert!(content.contains("BatchLogRecordProcessor"));
+    assert!(content.contains("PeriodicExportingMetricReader"));
+    assert!(content.contains("uncaughtException"));
+    assert!(content.contains("unhandledRejection"));
+    assert!(content.contains("## Local Collector Configuration"));
+    assert!(content.contains("## Production Configuration"));
+    assert!(content.contains("OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>"));
+    assert!(content.contains("EVERR_INGEST_KEY=<secret-manager-reference>"));
+    assert!(content.contains("process.env.EVERR_INGEST_KEY"));
+
+    let lower_content = content.to_ascii_lowercase();
+    assert!(!content.contains("OTEL_EXPORTER_OTLP_PROTOCOL="));
+    assert!(!content.contains("OTEL_SERVICE_VERSION="));
+    assert!(!content.contains("OTEL_DEPLOYMENT_ENVIRONMENT_NAME="));
+    assert!(!content.contains("OTEL_TRACES_SAMPLER="));
+    assert!(!content.contains("OTEL_TRACES_SAMPLER_ARG="));
+    assert!(!content.contains("OTEL_EXPORTER_OTLP_HEADERS="));
+    assert!(!content.contains("OTEL_EXPORTER_OTLP_${"));
+    assert!(!content.contains("OTEL_SERVICE_VERSION"));
+    assert!(!content.contains("OTEL_DEPLOYMENT_ENVIRONMENT_NAME"));
+    assert!(!content.contains("NEXT_OTEL_VERBOSE"));
+    assert!(!lower_content.contains("browser"));
+    assert!(!lower_content.contains("client"));
+    assert!(!lower_content.contains("next_public_"));
+    assert!(!lower_content.contains("instrumentation-client"));
+    assert!(!lower_content.contains("access-control-allow-headers"));
+    assert!(!lower_content.contains("custom helpers"));
+    assert!(!lower_content.contains("custom server helpers"));
+    assert!(!lower_content.contains("otel-collector:4318"));
+    assert!(!lower_content.contains("local compose stack"));
+    assert!(!lower_content.contains("collector service name"));
+}
+
+#[test]
+fn nodejs_rule_prefers_telemetry_setup_module_over_register_flags() {
+    let content = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/skills/everr-setup-telemetry/rules/nodejs.md"),
+    )
+    .expect("read nodejs rule");
+
+    assert!(content.contains("telemetry-setup.ts"));
+    assert!(content.contains("import './telemetry-setup'"));
+    assert!(content.contains("@opentelemetry/sdk-node"));
+    assert!(content.contains("@opentelemetry/auto-instrumentations-node"));
+    assert!(content.contains("OTEL_SERVICE_NAME"));
+    assert!(content.contains("EVERR_INGEST_KEY"));
+    assert!(!content.contains("@opentelemetry/auto-instrumentations-node/register"));
+    assert!(!content.contains("NODE_OPTIONS"));
+}
+
+#[test]
+fn rust_rule_documents_tracing_based_setup_with_minimal_env() {
+    let content = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/skills/everr-setup-telemetry/rules/rust.md"),
+    )
+    .expect("read rust rule");
+
+    assert!(content.contains("# Rust Instrumentation"));
+    assert!(content.contains("telemetry_setup.rs"));
+    assert!(content.contains("tracing-opentelemetry"));
+    assert!(content.contains("opentelemetry-appender-tracing"));
+    assert!(content.contains("opentelemetry_otlp::SpanExporter::builder()"));
+    assert!(content.contains("OTEL_SERVICE_NAME"));
+    assert!(content.contains("EVERR_INGEST_KEY"));
+    assert!(!content.contains("OTEL_TRACES_EXPORTER="));
+    assert!(!content.contains("OTEL_METRICS_EXPORTER="));
+    assert!(!content.contains("OTEL_LOGS_EXPORTER="));
+    assert!(!content.contains("OTEL_EXPORTER_OTLP_HEADERS="));
+}
+
+#[test]
+fn install_adds_missing_rule_files() {
+    let repo = tempdir().expect("repo tempdir");
+    let home = tempdir().expect("home tempdir");
+    let skill_dir = repo.path().join(".agents/skills/everr-setup-telemetry");
+    fs::create_dir_all(&skill_dir).expect("create existing skill dir");
+    let bundled_skill = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/skills/everr-setup-telemetry/SKILL.md"),
+    )
+    .expect("read bundled skill");
+    fs::write(skill_dir.join("SKILL.md"), bundled_skill).expect("write existing skill");
+
+    let options = SkillOperationOptions {
+        scope: SkillScope::Project,
+        cwd: repo.path().to_path_buf(),
+        home_dir: home.path().to_path_buf(),
+        providers: vec![SkillProvider::Codex],
+        skill_names: vec!["everr-setup-telemetry".to_string()],
+        all: false,
+        dry_run: false,
+    };
+
+    install_bundled_skills(&options).expect("install missing rule files");
+
+    assert!(skill_dir.join("rules/error-tracking.md").is_file());
+}
+
+#[test]
+fn install_overwrites_modified_rule() {
+    let repo = tempdir().expect("repo tempdir");
+    let home = tempdir().expect("home tempdir");
+    let skill_dir = repo.path().join(".agents/skills/everr-setup-telemetry");
+    fs::create_dir_all(skill_dir.join("rules")).expect("create existing skill dir");
+    let bundled_skill = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/skills/everr-setup-telemetry/SKILL.md"),
+    )
+    .expect("read bundled skill");
+    fs::write(skill_dir.join("SKILL.md"), bundled_skill).expect("write existing skill");
+    fs::write(skill_dir.join("rules/error-tracking.md"), "local edits").expect("edit rule");
+
+    let options = SkillOperationOptions {
+        scope: SkillScope::Project,
+        cwd: repo.path().to_path_buf(),
+        home_dir: home.path().to_path_buf(),
+        providers: vec![SkillProvider::Codex],
+        skill_names: vec!["everr-setup-telemetry".to_string()],
+        all: false,
+        dry_run: false,
+    };
+
+    install_bundled_skills(&options).expect("install should replace modified rule");
+
+    let content =
+        fs::read_to_string(skill_dir.join("rules/error-tracking.md")).expect("read replaced rule");
+    assert!(content.contains("# Error Tracking"));
+    assert!(!content.contains("local edits"));
 }
 
 #[test]
@@ -93,7 +271,6 @@ fn installs_project_skills_to_canonical_agents_dir_and_symlinks_claude() {
         ],
         skill_names: vec!["everr-working-with-ci".to_string()],
         all: false,
-        force: false,
         dry_run: false,
     };
 
@@ -140,7 +317,6 @@ fn installs_global_skills_to_agents_dir_and_symlinks_providers() {
         ],
         skill_names: vec!["everr-use-telemetry".to_string()],
         all: false,
-        force: false,
         dry_run: false,
     };
 
@@ -176,7 +352,6 @@ fn dry_run_reports_changes_without_writing_files() {
         providers: vec![SkillProvider::Codex],
         skill_names: vec!["everr-working-with-ci".to_string()],
         all: false,
-        force: false,
         dry_run: true,
     };
 
@@ -220,7 +395,6 @@ fn update_rewrites_modified_installed_skill() {
         providers: vec![SkillProvider::Codex],
         skill_names: vec!["everr-working-with-ci".to_string()],
         all: false,
-        force: false,
         dry_run: false,
     };
     install_bundled_skills(&options).expect("install skill");
@@ -268,7 +442,6 @@ fn update_replaces_installed_legacy_skill_with_new_skill() {
         providers: vec![SkillProvider::ClaudeCode],
         skill_names: Vec::new(),
         all: false,
-        force: false,
         dry_run: false,
     };
 
@@ -296,7 +469,7 @@ fn update_replaces_installed_legacy_skill_with_new_skill() {
 }
 
 #[test]
-fn install_refuses_to_overwrite_modified_skill_without_force() {
+fn install_overwrites_modified_skill() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");
     let canonical = repo.path().join(".agents/skills/everr-working-with-ci");
@@ -310,17 +483,19 @@ fn install_refuses_to_overwrite_modified_skill_without_force() {
         providers: vec![SkillProvider::Codex],
         skill_names: vec!["everr-working-with-ci".to_string()],
         all: false,
-        force: false,
         dry_run: false,
     };
 
-    let error = install_bundled_skills(&options).expect_err("conflict should fail");
-    assert!(error.to_string().contains("--force"));
+    install_bundled_skills(&options).expect("install should replace modified skill");
+
+    let content = fs::read_to_string(canonical.join("SKILL.md")).expect("read updated skill");
+    assert!(content.contains("name: everr-working-with-ci"));
+    assert!(!content.contains("local edits"));
 }
 
 #[test]
 #[cfg(unix)]
-fn force_replaces_existing_provider_symlink() {
+fn install_replaces_existing_provider_symlink() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");
     let wrong_target = tempdir().expect("wrong target tempdir");
@@ -335,7 +510,6 @@ fn force_replaces_existing_provider_symlink() {
         providers: vec![SkillProvider::ClaudeCode],
         skill_names: vec!["everr-working-with-ci".to_string()],
         all: false,
-        force: true,
         dry_run: false,
     };
 
@@ -349,7 +523,7 @@ fn force_replaces_existing_provider_symlink() {
 
 #[test]
 #[cfg(unix)]
-fn force_removes_dangling_provider_symlink() {
+fn install_removes_dangling_provider_symlink() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");
     let provider_link = home.path().join(".cursor/skills/everr-use-telemetry");
@@ -364,7 +538,6 @@ fn force_removes_dangling_provider_symlink() {
         providers: vec![SkillProvider::Cursor],
         skill_names: vec!["everr-use-telemetry".to_string()],
         all: false,
-        force: true,
         dry_run: false,
     };
 
@@ -387,7 +560,6 @@ fn uninstall_removes_canonical_and_provider_links() {
         providers: vec![SkillProvider::Codex, SkillProvider::ClaudeCode],
         skill_names: vec!["everr-working-with-ci".to_string()],
         all: false,
-        force: false,
         dry_run: false,
     };
 

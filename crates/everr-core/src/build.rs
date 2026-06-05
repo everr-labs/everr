@@ -136,23 +136,11 @@ pub fn telemetry_dir() -> anyhow::Result<PathBuf> {
     Ok(base.join(SESSION_NAMESPACE).join(TELEMETRY_SUBDIR))
 }
 
-/// Resolve the sibling telemetry directory — used by the CLI for the
-/// "wrong build" failure-mode detection. Returns the release dir when this
-/// build is debug, and vice versa.
-pub fn telemetry_dir_sibling() -> anyhow::Result<PathBuf> {
-    let base = dirs::data_local_dir().context("failed to resolve user local data dir")?;
-    #[cfg(debug_assertions)]
-    let sibling = "telemetry";
-    #[cfg(not(debug_assertions))]
-    let sibling = "telemetry-dev";
-    Ok(base.join(SESSION_NAMESPACE).join(sibling))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         build_type_label, default_api_base_url, default_session_file_name, session_namespace,
-        telemetry_dir, telemetry_dir_sibling,
+        telemetry_dir,
     };
 
     #[test]
@@ -175,14 +163,6 @@ mod tests {
         // On debug builds the last two components are `everr` then `telemetry-dev`.
         assert_eq!(components[0], "telemetry-dev");
         assert_eq!(components[1], "everr");
-    }
-
-    #[test]
-    fn telemetry_dir_sibling_differs_from_primary_and_shares_parent() {
-        let primary = telemetry_dir().expect("resolve telemetry dir");
-        let sibling = telemetry_dir_sibling().expect("resolve sibling telemetry dir");
-        assert_ne!(primary, sibling);
-        assert_eq!(primary.parent(), sibling.parent());
     }
 
     #[test]

@@ -1,4 +1,3 @@
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -9,9 +8,7 @@ import {
   JOB_QUOTA_PER_REPO,
   listInstallationRepos,
 } from "@/server/github-events/backfill";
-import { getExceptionAttributes } from "@/telemetry/shared";
-
-const logger = logs.getLogger("@everr/app/data/onboarding");
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 async function getInstallationsForOrganization(organizationId: string) {
   return db
@@ -110,16 +107,11 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
           }
         }
       } catch (err) {
-        logger.emit({
-          severityNumber: SeverityNumber.ERROR,
-          severityText: "ERROR",
-          body: "onboarding: failed to import repo",
-          attributes: {
-            ...getExceptionAttributes(err),
-            "github.installation_id": active.installationId,
-            "github.organization_id": session.session.activeOrganizationId,
-            "vcs.repository.name": repo.full_name,
-          },
+        serverLogger.error("onboarding.repo_import.failed", {
+          ...exceptionAttributes(err),
+          "github.installation.id": active.installationId,
+          "github.repository.full_name": repo.full_name,
+          "organization.id": session.session.activeOrganizationId,
         });
         totalErrors++;
         yield {

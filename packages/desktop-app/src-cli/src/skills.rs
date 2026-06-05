@@ -85,15 +85,7 @@ fn run_install(args: SkillsInstallArgs) -> Result<()> {
     } else {
         resolve_providers(&args.agents)
     };
-    let options = operation_options(
-        scope,
-        home_dir,
-        providers,
-        Vec::new(),
-        true,
-        args.force,
-        args.dry_run,
-    )?;
+    let options = operation_options(scope, home_dir, providers, Vec::new(), true, args.dry_run)?;
     let summary = install_bundled_skills(&options)?;
     print_summary("Installed", "Would install", &summary);
     Ok(())
@@ -114,7 +106,6 @@ fn run_update(args: SkillsUpdateArgs) -> Result<()> {
         providers,
         args.skills,
         false,
-        true,
         args.dry_run,
     )?;
     let summary = update_bundled_skills(&options)?;
@@ -142,7 +133,6 @@ fn update_installed_scopes(
             providers.clone(),
             Vec::new(),
             false,
-            true,
             dry_run,
         )?;
         let installed: BTreeSet<String> =
@@ -216,7 +206,6 @@ fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {
         resolve_providers(&args.agents),
         args.skills,
         args.all,
-        false,
         args.dry_run,
     )?;
     let summary = uninstall_bundled_skills(&options)?;
@@ -227,7 +216,6 @@ fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {
 pub(crate) fn install_all_for_setup(
     scope: SkillScope,
     providers: Vec<SkillProvider>,
-    force: bool,
 ) -> Result<()> {
     let cwd = std::env::current_dir().context("could not determine current directory")?;
     let home_dir = resolve_home_dir()?;
@@ -238,7 +226,6 @@ pub(crate) fn install_all_for_setup(
         providers,
         skill_names: Vec::new(),
         all: true,
-        force,
         dry_run: false,
     };
     let summary = install_bundled_skills(&options)?;
@@ -252,7 +239,6 @@ fn operation_options(
     providers: Vec<SkillProvider>,
     skills: Vec<String>,
     all: bool,
-    force: bool,
     dry_run: bool,
 ) -> Result<SkillOperationOptions> {
     Ok(SkillOperationOptions {
@@ -262,7 +248,6 @@ fn operation_options(
         providers,
         skill_names: skills,
         all,
-        force,
         dry_run,
     })
 }

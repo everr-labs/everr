@@ -43,6 +43,7 @@ import {
 } from "@/lib/email.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import { resolveRetention } from "@/lib/retention";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
   id: string;
@@ -92,8 +93,8 @@ async function getMarkedDeviceOrganizationId(
 async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
   const orgId = data.customer.externalId;
   if (!orgId) {
-    console.warn("[polar webhook] subscription has no externalId", {
-      subscriptionId: data.id,
+    serverLogger.warn("polar.webhook.subscription_missing_external_id", {
+      "polar.subscription.id": data.id,
     });
     return;
   }
@@ -210,10 +211,10 @@ export const auth = betterAuth({
 
                 activeOrganizationId = newMembership[0]?.organizationId ?? null;
               } catch (error) {
-                console.error(
-                  "[auto-org] failed to create personal organization",
-                  { userId: session.userId, error },
-                );
+                serverLogger.error("auto_org.create_personal_org.failed", {
+                  ...exceptionAttributes(error),
+                  "user.id": session.userId,
+                });
               }
             }
           }
@@ -272,9 +273,9 @@ export const auth = betterAuth({
               } catch (error) {
                 // Marking the device code with the active org is purely an
                 // enhancement; never let a DB failure break /device/approve.
-                console.error(
-                  "[cli-device-organization] failed to mark device code",
-                  { error },
+                serverLogger.error(
+                  "cli_device_organization.mark.failed",
+                  exceptionAttributes(error),
                 );
               }
 
@@ -305,9 +306,9 @@ export const auth = betterAuth({
               fallbackEmail: creator.email,
             });
           } catch (error) {
-            console.error("[polar] failed to create customer for org", {
-              orgId: organization.id,
-              error,
+            serverLogger.error("polar.customer.create_for_org.failed", {
+              ...exceptionAttributes(error),
+              "organization.id": organization.id,
             });
           }
 
@@ -323,9 +324,9 @@ export const auth = betterAuth({
               metricsDays: retention.metricsDays,
             });
           } catch (error) {
-            console.error("[retention] failed to seed retention for org", {
-              orgId: organization.id,
-              error,
+            serverLogger.error("retention.seed_for_org.failed", {
+              ...exceptionAttributes(error),
+              "organization.id": organization.id,
             });
           }
 
@@ -336,9 +337,9 @@ export const auth = betterAuth({
           try {
             await provisionSqlApiOrgUser(organization.id);
           } catch (error) {
-            console.error("[sql-api] failed to provision org user", {
-              orgId: organization.id,
-              error,
+            serverLogger.error("sql_api.org_user.provision.failed", {
+              ...exceptionAttributes(error),
+              "organization.id": organization.id,
             });
           }
         },
@@ -346,9 +347,9 @@ export const auth = betterAuth({
           try {
             await deprovisionSqlApiOrgUser(organization.id);
           } catch (error) {
-            console.error("[sql-api] failed to deprovision org user", {
-              orgId: organization.id,
-              error,
+            serverLogger.error("sql_api.org_user.deprovision.failed", {
+              ...exceptionAttributes(error),
+              "organization.id": organization.id,
             });
           }
         },

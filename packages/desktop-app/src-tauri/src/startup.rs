@@ -1,10 +1,12 @@
+use std::path::Path;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 use everr_core::state_watcher::StateChange;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::broadcast;
 
 use crate::cli::sync_installed_cli;
@@ -19,9 +21,42 @@ pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {
         crate::crash_log::log_error("sync installed CLI", &error);
     }
 
+    if let Err(error) = sync_installed_global_skills() {
+        crate::crash_log::log_error("sync installed skills", &error);
+    }
+
     if let Err(error) = ensure_background_launch(app) {
         crate::crash_log::log_error("enable background launch", &error);
     }
+}
+
+pub(crate) fn sync_installed_global_skills() -> Result<bool> {
+    let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
+    let cwd = std::env::current_dir().context("could not determine current directory")?;
+    sync_installed_global_skills_from_paths(&home_dir, &cwd)
+}
+
+pub(crate) fn sync_installed_global_skills_from_paths(home_dir: &Path, cwd: &Path) -> Result<bool> {
+    let probe_options = SkillOperationOptions {
+        scope: SkillScope::Global,
+        cwd: cwd.to_path_buf(),
+        home_dir: home_dir.to_path_buf(),
+        providers: SkillProvider::ALL.to_vec(),
+        skill_names: Vec::new(),
+        all: false,
+        dry_run: false,
+    };
+    if !core_skills::has_installed_bundled_skill(&probe_options)? {
+        return Ok(false);
+    }
+
+    let summary = core_skills::update_bundled_skills(&probe_options)?;
+    Ok(summary.changes.iter().any(|change| {
+        !matches!(
+            change.action,
+            core_skills::SkillPathAction::Unchanged | core_skills::SkillPathAction::Missing
+        )
+    }))
 }
 
 fn ensure_background_launch(app: &AppHandle) -> Result<()> {
@@ -146,5 +181,20 @@ async fn install_update_if_available(app: &AppHandle) -> Result<bool> {
     };
 
     update.download_and_install(|_, _| {}, || {}).await?;
+    log_app_update_executed(&update);
     Ok(true)
+}
+
+fn log_app_update_executed(update: &Update) {
+    tracing::event!(
+        target: "everr.app.update",
+        tracing::Level::INFO,
+        {
+            event.name = "everr.app.update.executed",
+            everr.app.update.current_version = update.current_version.as_str(),
+            everr.app.update.version = update.version.as_str(),
+            everr.app.update.target = update.target.as_str(),
+        },
+        "everr.app.update.executed"
+    );
 }

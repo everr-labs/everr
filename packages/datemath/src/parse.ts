@@ -21,7 +21,7 @@ const VALID_UNITS = new Set<string>(["s", "m", "h", "d", "w", "M", "y"]);
  * ```
  */
 export function parse(expression: string): DateMathExpression {
-  const input = expression.replace(/\s/g, "");
+  const input = normalizeExpression(expression);
 
   if (input.length === 0) {
     throw new DateMathError("Empty expression", expression);
@@ -59,6 +59,23 @@ export function parse(expression: string): DateMathExpression {
   const ops = parseMathOps(mathPart, expression);
 
   return { anchor, ops };
+}
+
+function normalizeExpression(expression: string): string {
+  const trimmed = expression.trim();
+  const separatorIndex = trimmed.indexOf("||");
+
+  if (separatorIndex !== -1) {
+    const anchor = trimmed.slice(0, separatorIndex).trim();
+    const mathPart = trimmed.slice(separatorIndex + 2).replace(/\s/g, "");
+    return `${anchor}||${mathPart}`;
+  }
+
+  if (trimmed.startsWith("now")) {
+    return trimmed.replace(/\s/g, "");
+  }
+
+  return trimmed;
 }
 
 function parseMathOps(math: string, expression: string): DateMathOp[] {

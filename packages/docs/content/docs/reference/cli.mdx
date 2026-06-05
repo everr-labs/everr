@@ -3,10 +3,12 @@ title: CLI
 description: Reference for all Everr CLI commands.
 ---
 
-## Authentication
+## Cloud
 
 - `everr cloud login` — authenticate with your Everr account
 - `everr cloud logout` — sign out
+- `everr cloud query "<SQL>"` — run a read-only SQL query against your cloud telemetry and CI data
+  - `--format <json|ndjson|table>` output format (default: `table` in a terminal, `ndjson` otherwise)
 
 ## Setup
 
@@ -20,7 +22,7 @@ description: Reference for all Everr CLI commands.
 - `everr skills update [SKILL]... [--project|--global] [--agent ...] [--dry-run]` — update installed bundled skills
 - `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent ...] [--yes] [--dry-run]` — uninstall bundled skills
 
-## CI/CD Status
+## CI/CD status
 
 - `everr ci status` — show the current commit's pipeline state (`state`, `active`, `completed`)
   - `--commit <sha>` target a specific commit
@@ -38,6 +40,7 @@ description: Reference for all Everr CLI commands.
   - `--conclusion <success|failure|cancellation>` filter by outcome
   - `--workflow-name <name>` filter by workflow
   - `--run-id <id>` fetch a specific run
+  - `--from <expr>` / `--to <expr>` restrict to a time range (accepts [date math](/docs/reference/datemath), e.g. `now-7d`)
 
 - `everr ci show <trace_id>` — show jobs and steps for a run
   - `--failed` show only failed jobs and their failed steps
@@ -47,14 +50,18 @@ description: Reference for all Everr CLI commands.
   - `--step-number <n>` / `--log-failed` select a step (exactly one required)
   - `--tail <n>` how many lines from the bottom
   - `--limit <n>` / `--offset <n>` raw paging
+  - `--egrep <pattern>` keep only lines matching a re2 regex (exits non-zero if none match)
+  - `--color` preserve ANSI color codes (stripped by default)
 
 Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination.
 
-## Local Telemetry
+## Local telemetry
 
 - `everr local start` — start the local OpenTelemetry collector
+  - `--quiet` suppress the collector URL output after startup
 - `everr local status` — check whether the local OpenTelemetry collector is running and print local OTLP/SQL URLs
 - `everr local query "<SQL>"` — query local telemetry with read-only SQL
+  - `--format <json|ndjson|table>` output format (default: `table` in a terminal, `ndjson` otherwise)
 - `everr wrap -- <command>` — run a command normally and mirror stdout/stderr into local telemetry
   - Requires a running collector; if unavailable, the command is not run
   - Preserves the wrapped command's non-zero exit code
