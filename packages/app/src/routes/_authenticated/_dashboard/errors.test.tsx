@@ -119,12 +119,22 @@ describe("/errors route", () => {
         <RouterProvider router={router} />
       </QueryClientProvider>,
     );
-
     return router;
   }
 
   it("renders the detail child route as a page for a direct error URL", async () => {
     renderErrorsRoute(["/errors/fp-1"]);
+
+    expect(
+      await screen.findByText("Error full page route"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
+  });
+
+  it("renders a direct error URL with absolute time search params", async () => {
+    renderErrorsRoute([
+      "/errors/fp-1?from=2026-06-04%2018%3A45%3A10.869&to=2026-06-04%2018%3A55%3A10.869",
+    ]);
 
     expect(
       await screen.findByText("Error full page route"),

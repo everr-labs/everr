@@ -155,6 +155,32 @@ describe("ErrorTracePanel", () => {
     );
   });
 
+  it("limits related trace items and marks overflow", () => {
+    const spans: RelatedSpan[] = Array.from({ length: 11 }, (_, index) => ({
+      spanId: `span-${index + 1}`,
+      parentSpanId: "",
+      name: `Span ${index + 1}`,
+      durationMs: index + 1,
+    }));
+    render(
+      <ErrorTracePanel
+        occurrence={occurrence}
+        spans={spans}
+        isPending={false}
+        isError={false}
+        onRetry={vi.fn()}
+        renderTraceLink={({ traceId, children }) => (
+          <a href={`/traces/${traceId}`}>{children}</a>
+        )}
+      />,
+    );
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(10);
+    expect(screen.getByText("Span 10")).toBeInTheDocument();
+    expect(screen.queryByText("Span 11")).not.toBeInTheDocument();
+    expect(screen.getByText("...")).toBeInTheDocument();
+  });
+
   it("renders nothing without a trace id", () => {
     const { container } = render(
       <ErrorTracePanel
