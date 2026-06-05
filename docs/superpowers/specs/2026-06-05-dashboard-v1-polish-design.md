@@ -40,8 +40,8 @@ New `packages/app/src/components/dashboards/visualizations/stat-chart/` with `st
 
 Both fields already exist in the zod schema as optional Perses duration strings (e.g. `1h`, `30s`).
 
-- **Time range:** when the dashboard route URL has no explicit `from`/`to`, the effective range is `now-<spec.duration>` → `now` (falling back to `DEFAULT_TIME_RANGE` when `duration` is unset). Explicit URL params always win. Resolution happens where `withTimeRange` is applied for this route — no URL rewriting on load, so shareable time-scoped links keep working.
-- **Auto-refresh:** mount the existing `useAutoRefresh` hook on the dashboard route. `?refresh=` wins; else `spec.refreshInterval` is the default. Add the existing refresh-picker (used by analytics) to the dashboard toolbar.
+- **Time range:** when the dashboard route URL has no explicit `from`/`to`, seed `from=now-<spec.duration>&to=now` via a one-time replace-navigation per dashboard visit (falling back to `DEFAULT_TIME_RANGE` when `duration` is unset). Explicit URL params always win, and links that carry `from`/`to` are never rewritten — only param-less visits are seeded. Seeding the URL (rather than resolving silently) keeps the global header time-range picker consistent with what panels query.
+- **Auto-refresh:** the `_dashboard` layout header already mounts a global `RefreshPicker` + `useAutoRefresh` driven by `?refresh=` — no new toolbar picker needed. Seed `?refresh=<spec.refreshInterval>` the same way when absent and the value is a supported interval.
 - **Editing:** new "Dashboard settings" item in the toolbar kebab (saved dashboards only) opens a dialog with duration and refresh-interval selects. Applies immediately via a read-modify-write server fn following the `renameDashboard` pattern — works outside edit mode and does not interact with dirty tracking. The same accepted concurrency caveat as rename applies (full-spec clobber window at current scale).
 
 ## 5. Rough edges
