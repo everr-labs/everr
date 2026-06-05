@@ -153,12 +153,17 @@ export const moveDashboard = createAuthenticatedServerFn({
       }
     }
 
-    await db
+    const updated = await db
       .update(dashboards)
       .set({ folderId, updatedAt: new Date() })
       .where(
         and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
-      );
+      )
+      .returning({ id: dashboards.id });
+
+    if (updated.length === 0) {
+      throw new Error(`Dashboard "${slug}" not found`);
+    }
 
     return { slug };
   });
@@ -247,6 +252,7 @@ export const moveFolder = createAuthenticatedServerFn({
 
     // Cycle check: walk up from the target parent; if we reach the folder
     // being moved, the move would create a cycle.
+    const seen = new Set<string>();
     let current = parentId;
     while (current !== null) {
       if (current === folderId) {
@@ -254,6 +260,8 @@ export const moveFolder = createAuthenticatedServerFn({
           "Cannot move a folder into itself or one of its subfolders",
         );
       }
+      if (seen.has(current)) break;
+      seen.add(current);
       const [row] = await db
         .select({ parentId: dashboardFolders.parentId })
         .from(dashboardFolders)
