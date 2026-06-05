@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
@@ -22,7 +21,7 @@ import {
 const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 export function generateDashboardSlug(): string {
-  const bytes = randomBytes(12);
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
   let slug = "";
   for (const byte of bytes) {
     slug += SLUG_ALPHABET[byte % SLUG_ALPHABET.length];
