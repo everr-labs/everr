@@ -39,9 +39,12 @@ export function DashboardPanel({
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const { from, to } = search;
   const sql = getPanelQuerySql(panel);
-  const { data: queryResult, isPending } = useQuery(
-    panelQueryOptions(sql, from, to),
-  );
+  const {
+    data: queryResult,
+    isPending,
+    isError,
+    error,
+  } = useQuery(panelQueryOptions(sql, from, to));
   const { fromDate, toDate } = resolveTimeRange(withTimeRange(search));
 
   const handleTimeRangeChange = useCallback(
@@ -59,7 +62,13 @@ export function DashboardPanel({
     [navigate],
   );
 
-  const status = sql && isPending ? "pending" : "success";
+  const status = !sql
+    ? "success"
+    : isError
+      ? "error"
+      : isPending
+        ? "pending"
+        : "success";
 
   return (
     <div
@@ -109,6 +118,13 @@ export function DashboardPanel({
         title={display.name ?? panelKey}
         description={display.description}
         status={status}
+        errorMessage={
+          isError
+            ? error instanceof Error
+              ? error.message
+              : String(error)
+            : undefined
+        }
         className={cn("h-full", isEditing && "pointer-events-none")}
         inset={getVisualizationInset(plugin.kind)}
       >

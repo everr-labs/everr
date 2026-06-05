@@ -19,6 +19,7 @@ import type { PanelChromeProps } from "./panel-types";
 
 export interface PanelShellProps extends PanelChromeProps {
   status: "pending" | "error" | "success";
+  errorMessage?: string;
   children?: ReactNode;
 }
 
@@ -56,6 +57,7 @@ export function PanelShell({
   titleHint,
   description,
   status,
+  errorMessage,
   variant = "default",
   skeleton,
   icon: Icon,
@@ -112,6 +114,14 @@ export function PanelShell({
           <div className="flex h-[300px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <AlertCircle className="size-8" />
             <p className="text-sm">Failed to load data</p>
+            {errorMessage && (
+              <p
+                className="max-w-full truncate px-4 text-xs"
+                title={errorMessage}
+              >
+                {errorMessage}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
