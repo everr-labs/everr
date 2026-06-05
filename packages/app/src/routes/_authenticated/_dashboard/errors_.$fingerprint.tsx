@@ -1,5 +1,6 @@
 import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
 import { createFileRoute } from "@tanstack/react-router";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ErrorDetailRouteContent } from "./-error-detail";
 
 export const Route = createFileRoute(
@@ -12,6 +13,7 @@ export const Route = createFileRoute(
 });
 
 function ErrorDetailPage() {
+  useRealtimeSubscription({ scope: "tenant" });
   const { fingerprint } = Route.useParams();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();

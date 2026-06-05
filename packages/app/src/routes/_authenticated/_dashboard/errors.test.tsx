@@ -13,24 +13,62 @@ import {
   RouterProvider,
   stripSearchParams,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ErrorDetailRouteContent } from "./-error-detail";
 import { Route as ErrorsFileRoute } from "./errors";
 
 vi.mock("@/data/errors/remote-repo", () => ({
   remoteErrorsRepo: {},
 }));
 
-vi.mock("@/hooks/use-realtime-subscription", () => ({
-  useRealtimeSubscription: vi.fn(),
+vi.mock("@/data/runs/options", () => ({
+  runSpansOptions: vi.fn(() => ({
+    queryKey: ["runs", "spans", "test"],
+    queryFn: vi.fn(),
+  })),
 }));
+
+const realtimeSubscriptions = vi.hoisted(() => ({
+  starts: [] as Array<
+    { scope: "tenant" } | { scope: "trace"; traceId: string }
+  >,
+  stops: [] as Array<{ scope: "tenant" } | { scope: "trace"; traceId: string }>,
+}));
+
+vi.mock("@/hooks/use-realtime-subscription", async () => {
+  const { useEffect } = await import("react");
+
+  return {
+    useRealtimeSubscription: vi.fn(
+      (opts: { scope: "tenant" } | { scope: "trace"; traceId: string }) => {
+        const traceId = opts.scope === "trace" ? opts.traceId : undefined;
+
+        useEffect(() => {
+          const subscription =
+            opts.scope === "trace"
+              ? ({ scope: opts.scope, traceId: opts.traceId } as const)
+              : ({ scope: opts.scope } as const);
+          realtimeSubscriptions.starts.push(subscription);
+
+          return () => {
+            realtimeSubscriptions.stops.push(subscription);
+          };
+        }, [opts.scope, traceId]);
+      },
+    ),
+  };
+});
 
 vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@everr/telemetry-explorer/errors")>();
   return {
     ...actual,
+    ErrorDetail: ({ fingerprint }: { fingerprint: string }) => (
+      <div>Error detail page {fingerprint}</div>
+    ),
     ErrorIssues: ({
       renderIssueLink,
       search,
@@ -48,6 +86,11 @@ vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
 });
 
 describe("/errors route", () => {
+  beforeEach(() => {
+    realtimeSubscriptions.starts = [];
+    realtimeSubscriptions.stops = [];
+  });
+
   function renderErrorsRoute(
     initialEntries: string[],
     initialState?: Record<string, unknown>,
@@ -82,8 +125,21 @@ describe("/errors route", () => {
     const errorModalRoute = createRoute({
       getParentRoute: () => errorsRoute,
       path: "$fingerprint/modal",
-      component: () => <div>Error modal child route</div>,
+      component: ErrorModalChildRoute,
     });
+    function ErrorModalChildRoute() {
+      const { fingerprint } = errorModalRoute.useParams();
+      const search = errorModalRoute.useSearch();
+
+      return (
+        <ErrorDetailRouteContent
+          fingerprint={fingerprint}
+          search={search}
+          detailTo="/errors/$fingerprint/modal"
+          onBack={() => undefined}
+        />
+      );
+    }
     const routeTree = rootRoute.addChildren([
       authenticatedRoute.addChildren([
         dashboardRoute.addChildren([
@@ -151,11 +207,30 @@ describe("/errors route", () => {
     );
 
     expect(screen.getByText("Error list page")).toBeInTheDocument();
-    expect(screen.getByText("Error modal child route")).toBeInTheDocument();
+    expect(screen.getByText("Error detail page fp-1")).toBeInTheDocument();
     expect(router.state.location.href).toContain("/modal");
     expect(router.state.location.maskedLocation?.href).not.toContain("/modal");
     expect(router.state.location.maskedLocation?.href).toContain(
       "/errors/fp-1",
+    );
+  });
+
+  it("does not start another tenant realtime subscription for modal details", async () => {
+    const user = userEvent.setup();
+    renderErrorsRoute(["/errors"]);
+
+    await waitFor(() =>
+      expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]),
+    );
+
+    await user.click(
+      await screen.findByRole("link", { name: "Open error fp-1" }),
+    );
+
+    expect(screen.getByText("Error list page")).toBeInTheDocument();
+    expect(screen.getByText("Error detail page fp-1")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]),
     );
   });
 

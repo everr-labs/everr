@@ -11,7 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { runSpansOptions } from "@/data/runs/options";
-import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 
 export function ErrorDetailRouteContent({
   fingerprint,
@@ -24,7 +23,6 @@ export function ErrorDetailRouteContent({
   detailTo: "/errors/$fingerprint" | "/errors/$fingerprint/modal";
   onBack: () => void;
 }) {
-  useRealtimeSubscription({ scope: "tenant" });
   const { timeRange, service, refresh } = withTimeRange(search);
 
   return (
