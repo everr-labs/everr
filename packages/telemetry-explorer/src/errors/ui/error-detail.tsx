@@ -70,11 +70,6 @@ export function ErrorDetail({
           <Skeleton className="h-5 w-64 max-w-full" />
           <Skeleton className="mt-2 h-3 w-96 max-w-full" />
         </div>
-        <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-3">
-          <Skeleton className="h-96" />
-          <Skeleton className="h-64" />
-          <Skeleton className="h-80" />
-        </div>
       </div>
     );
   }
