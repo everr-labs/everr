@@ -31,6 +31,7 @@ export const Route = createFileRoute(
 });
 
 function NewDashboardPage() {
+  const { folder } = Route.useSearch();
   const dashboard = useDashboardStore((s) => s.dashboard);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
   const setEditing = useDashboardStore((s) => s.setEditing);
@@ -42,5 +43,5 @@ function NewDashboardPage() {
     setEditing(true);
   }, [dashboard, setDashboard, setEditing]);
 
-  return <DashboardGrid isNew />;
+  return <DashboardGrid isNew defaultFolderId={folder ?? null} />;
 }
