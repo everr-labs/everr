@@ -24,13 +24,10 @@ import {
 
 interface DashboardSettingsPageProps {
   dashboardId: string;
-  /** Read once to seed the initial selection; not kept in sync afterwards. */
-  initialSection?: "general" | "variables";
 }
 
 export function DashboardSettingsPage({
   dashboardId,
-  initialSection,
 }: DashboardSettingsPageProps) {
   const isNew = dashboardId === "new";
   const storeDashboard = useDashboardStore((s) => s.dashboard);
@@ -65,25 +62,12 @@ export function DashboardSettingsPage({
 
   const dashboard = storeDashboard ?? fetchedDashboard;
 
-  const [selection, setSelection] = useState<SettingsSelection | null>(null);
+  const [selection, setSelection] = useState<SettingsSelection>({
+    kind: "general",
+  });
   const [hasUnapplied, setHasUnapplied] = useState(false);
   const [confirmPending, setConfirmPending] =
     useState<SettingsSelection | null>(null);
-
-  // Seed the selection once the dashboard is available (so "variables" can
-  // pick the first variable, or the Add form when there are none).
-  useEffect(() => {
-    if (selection !== null || !dashboard) return;
-    if (initialSection === "variables") {
-      setSelection(
-        (dashboard.spec.variables ?? []).length > 0
-          ? { kind: "variable", index: 0 }
-          : { kind: "new-variable" },
-      );
-    } else {
-      setSelection({ kind: "general" });
-    }
-  }, [selection, dashboard, initialSection]);
 
   const applySelection = useCallback((next: SettingsSelection) => {
     setSelection(next);
@@ -94,7 +78,7 @@ export function DashboardSettingsPage({
   const requestSelection = useCallback(
     (next: SettingsSelection) => {
       if (JSON.stringify(next) === JSON.stringify(selection)) return;
-      if (selection && selection.kind !== "general" && hasUnapplied) {
+      if (selection.kind !== "general" && hasUnapplied) {
         setConfirmPending(next);
         return;
       }
@@ -103,18 +87,13 @@ export function DashboardSettingsPage({
     [selection, hasUnapplied, applySelection],
   );
 
-  if (!dashboard || !selection) return null;
+  if (!dashboard) return null;
 
   // vars is not retained by the layout middlewares, so settings exits forward
   // it explicitly to keep the dashboard's active variable selections.
-  // section is dropped on exit — it belongs only to the settings route.
-  const keepVars = (prev: {
-    vars?: Record<string, string | string[]>;
-    section?: string;
-  }) => ({
+  const keepVars = (prev: { vars?: Record<string, string | string[]> }) => ({
     ...prev,
     vars: prev.vars,
-    section: undefined,
   });
 
   const handleSave = () => {

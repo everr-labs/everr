@@ -18,7 +18,7 @@ The settings page currently has two entry points: the edit-toolbar "Variables" b
 ## 2. Section-param removal
 
 - **Route** (`routes/.../$dashboardId_/settings.tsx`): delete `SettingsSearchSchema` and the `validateSearch` option (the route then inherits the `_dashboard` layout's search schema untouched); delete `Route.useSearch()` and the `initialSection` prop pass.
-- **Page** (`components/dashboards/dashboard-settings-page.tsx`): delete the `initialSection` prop; simplify the seed effect to `setSelection({ kind: "general" })` once the dashboard is available (keep the effect — selection still must wait for the dashboard); revert `keepVars` to the plain shape `(prev: { vars?: Record<string, string | string[]> }) => ({ ...prev, vars: prev.vars })` (no `section` strip — the param no longer exists).
+- **Page** (`components/dashboards/dashboard-settings-page.tsx`): delete the `initialSection` prop; replace the null-able selection state + seed effect with a plain `useState<SettingsSelection>({ kind: "general" })` (selection no longer depends on the dashboard, so the effect and the `!selection` render guard go away); revert `keepVars` to the plain shape `(prev: { vars?: Record<string, string | string[]> }) => ({ ...prev, vars: prev.vars })` (no `section` strip — the param no longer exists).
 - `routeTree.gen.ts` regenerates via the vite plugin (search-type change only).
 
 ## 3. Out of scope

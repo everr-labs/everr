@@ -35,7 +35,6 @@ import {
   Plus,
   Save,
   Settings2,
-  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -310,28 +309,6 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       <div className="mb-3 flex items-center justify-end gap-2">
         {isEditing && (
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                navigate({
-                  to: "/dashboards/$dashboardId/settings",
-                  params: {
-                    dashboardId: isNew ? "new" : dashboard.metadata.name,
-                  },
-                  search: (prev: {
-                    vars?: Record<string, string | string[]>;
-                  }) => ({
-                    ...prev,
-                    vars: prev.vars,
-                    section: "variables" as const,
-                  }),
-                })
-              }
-            >
-              <SlidersHorizontal data-icon="inline-start" />
-              Variables
-            </Button>
             <Button variant="outline" size="sm" onClick={handleAddPanel}>
               <Plus data-icon="inline-start" />
               Add Panel
@@ -346,6 +323,25 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
             </Button>
           </>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            navigate({
+              to: "/dashboards/$dashboardId/settings",
+              params: {
+                dashboardId: isNew ? "new" : dashboard.metadata.name,
+              },
+              search: (prev: { vars?: Record<string, string | string[]> }) => ({
+                ...prev,
+                vars: prev.vars,
+              }),
+            })
+          }
+        >
+          <Settings2 data-icon="inline-start" />
+          Settings
+        </Button>
         <Button
           variant={isEditing ? "default" : "outline"}
           size="sm"
@@ -375,23 +371,6 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
               <DropdownMenuItem onClick={() => setManageAction("move")}>
                 <FolderInput />
                 Move to folder
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() =>
-                  navigate({
-                    to: "/dashboards/$dashboardId/settings",
-                    params: { dashboardId: dashboard.metadata.name },
-                    search: (prev: {
-                      vars?: Record<string, string | string[]>;
-                    }) => ({
-                      ...prev,
-                      vars: prev.vars,
-                    }),
-                  })
-                }
-              >
-                <Settings2 />
-                Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
