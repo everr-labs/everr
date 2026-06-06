@@ -59,16 +59,13 @@ import {
   useMoveDashboard,
   useRenameDashboard,
   useSaveDashboard,
-  useUpdateDashboardSettings,
 } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
-import { DashboardSettingsDialog } from "./dashboard-settings-dialog";
 import { DeleteDashboardDialog } from "./delete-dashboard-dialog";
 import { FolderList, FolderPickerDialog } from "./folder-picker";
 import { NameDialog } from "./name-dialog";
 import { VariableBar } from "./variable-bar";
-import { VariablesManager } from "./variables-manager";
 
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
@@ -108,17 +105,14 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const [saveFolderId, setSaveFolderId] = useState<string | null>(
     defaultFolderId ?? null,
   );
-  const setDashboard = useDashboardStore((s) => s.setDashboard);
   const [manageAction, setManageAction] = useState<
-    "rename" | "move" | "delete" | "settings" | null
+    "rename" | "move" | "delete" | null
   >(null);
-  const [showVariablesManager, setShowVariablesManager] = useState(false);
 
   const router = useRouter();
   const renameMutation = useRenameDashboard();
   const moveMutation = useMoveDashboard();
   const deleteMutation = useDeleteDashboard();
-  const settingsMutation = useUpdateDashboardSettings();
 
   const { data: folders } = useQuery(folderListOptions());
   const { data: dashboardList } = useQuery(dashboardListOptions());
@@ -126,13 +120,14 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
     dashboardList?.find((d) => d.slug === dashboard?.metadata.name)?.folderId ??
     null;
 
-  const panelEditPrefix = `/dashboards/${isNew ? "new" : (dashboard?.metadata.name ?? "")}/panel/`;
+  // Covers the panel editor AND the settings page under this dashboard.
+  const dashboardPathPrefix = `/dashboards/${isNew ? "new" : (dashboard?.metadata.name ?? "")}`;
   const blocker = useBlocker({
     shouldBlockFn: ({ current, next }) => {
       if (!useDashboardStore.getState().isDirty) return false;
       // Allow search-param-only updates (e.g. variable bar picks) on the same page.
       if (next.pathname === current.pathname) return false;
-      return !next.pathname.startsWith(panelEditPrefix);
+      return !next.pathname.startsWith(dashboardPathPrefix);
     },
     enableBeforeUnload: () => useDashboardStore.getState().isDirty,
     withResolver: true,
@@ -318,7 +313,21 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowVariablesManager(true)}
+              onClick={() =>
+                navigate({
+                  to: "/dashboards/$dashboardId/settings",
+                  params: {
+                    dashboardId: isNew ? "new" : dashboard.metadata.name,
+                  },
+                  search: (prev: {
+                    vars?: Record<string, string | string[]>;
+                  }) => ({
+                    ...prev,
+                    vars: prev.vars,
+                    section: "variables" as const,
+                  }),
+                })
+              }
             >
               <SlidersHorizontal data-icon="inline-start" />
               Variables
@@ -367,7 +376,20 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
                 <FolderInput />
                 Move to folder
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setManageAction("settings")}>
+              <DropdownMenuItem
+                onClick={() =>
+                  navigate({
+                    to: "/dashboards/$dashboardId/settings",
+                    params: { dashboardId: dashboard.metadata.name },
+                    search: (prev: {
+                      vars?: Record<string, string | string[]>;
+                    }) => ({
+                      ...prev,
+                      vars: prev.vars,
+                    }),
+                  })
+                }
+              >
                 <Settings2 />
                 Settings
               </DropdownMenuItem>
@@ -519,44 +541,6 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
               navigate({ to: "/dashboards" });
             },
           });
-        }}
-      />
-
-      <VariablesManager
-        open={showVariablesManager}
-        onOpenChange={setShowVariablesManager}
-      />
-
-      <DashboardSettingsDialog
-        open={manageAction === "settings"}
-        onOpenChange={(open) => {
-          if (!open) setManageAction(null);
-        }}
-        initialDuration={dashboard.spec.duration}
-        initialRefreshInterval={dashboard.spec.refreshInterval}
-        isPending={settingsMutation.isPending}
-        onConfirm={({ duration, refreshInterval }) => {
-          settingsMutation.mutate(
-            { slug: dashboard.metadata.name, duration, refreshInterval },
-            {
-              onSuccess: () => {
-                if (!useDashboardStore.getState().isDirty) {
-                  setDashboard({
-                    ...dashboard,
-                    spec: {
-                      ...dashboard.spec,
-                      ...(duration ? { duration } : { duration: undefined }),
-                      ...(refreshInterval
-                        ? { refreshInterval }
-                        : { refreshInterval: undefined }),
-                    },
-                  });
-                }
-                void router.invalidate();
-                setManageAction(null);
-              },
-            },
-          );
         }}
       />
 

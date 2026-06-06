@@ -62,7 +62,6 @@ import {
   runPanelQuery,
   runVariableOptionsQuery,
   saveDashboard,
-  updateDashboardSettings,
 } from "./server";
 
 const mockedDb = vi.mocked(db);
@@ -226,62 +225,6 @@ describe("createDashboard", () => {
     // insert was called, update was not
     expect(mockedDb.insert).toHaveBeenCalledTimes(1);
     expect(mockedDb.update).not.toHaveBeenCalled();
-  });
-});
-
-describe("updateDashboardSettings", () => {
-  it("rejects when the dashboard is not found", async () => {
-    selectImpl = () => [];
-    await expect(
-      updateDashboardSettings({
-        data: { slug: "missing", duration: "1h" },
-      }),
-    ).rejects.toThrow('Dashboard "missing" not found');
-    expect(mockedDb.update).not.toHaveBeenCalled();
-  });
-
-  it("sets duration and refreshInterval on the stored spec", async () => {
-    selectImpl = () => [{ id: "dash-1", spec: { panels: {}, layouts: [] } }];
-    updateImpl = () => undefined;
-
-    await updateDashboardSettings({
-      data: { slug: "abc", duration: "1h", refreshInterval: "30s" },
-    });
-
-    const chain = mockedDb.update.mock.results[0]!.value as {
-      set: ReturnType<typeof vi.fn>;
-    };
-    const setArg = chain.set.mock.calls[0]![0] as {
-      spec: Record<string, unknown>;
-    };
-    expect(setArg.spec.duration).toBe("1h");
-    expect(setArg.spec.refreshInterval).toBe("30s");
-  });
-
-  it("removes duration and refreshInterval when omitted", async () => {
-    selectImpl = () => [
-      {
-        id: "dash-1",
-        spec: {
-          panels: {},
-          layouts: [],
-          duration: "7d",
-          refreshInterval: "5m",
-        },
-      },
-    ];
-    updateImpl = () => undefined;
-
-    await updateDashboardSettings({ data: { slug: "abc" } });
-
-    const chain = mockedDb.update.mock.results[0]!.value as {
-      set: ReturnType<typeof vi.fn>;
-    };
-    const setArg = chain.set.mock.calls[0]![0] as {
-      spec: Record<string, unknown>;
-    };
-    expect(setArg.spec).not.toHaveProperty("duration");
-    expect(setArg.spec).not.toHaveProperty("refreshInterval");
   });
 });
 
