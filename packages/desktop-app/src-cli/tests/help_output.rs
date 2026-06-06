@@ -19,6 +19,7 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("setup-assistant").not())
         .stdout(predicates::str::contains("ai-instructions").not())
         .stdout(contains("cloud"))
+        .stdout(contains("alerts"))
         .stdout(contains("ci"))
         .stdout(contains("local"))
         .stdout(predicates::str::contains("\n  status").not())
@@ -32,6 +33,33 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("\n  logs").not())
         .stdout(contains("wrap"))
         .stdout(contains("skills"));
+}
+
+#[test]
+fn alerts_help_lists_alert_subcommands() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["alerts", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("Test and upload YAML alert definitions"))
+        .stdout(contains("test"))
+        .stdout(contains("upload"));
+
+    env.command()
+        .args(["alerts", "test", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("<PATH>"))
+        .stdout(contains("--local"));
+
+    env.command()
+        .args(["alerts", "upload", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("<PATH>"))
+        .stdout(contains("--source-url <SOURCE_URL>"));
 }
 
 #[test]

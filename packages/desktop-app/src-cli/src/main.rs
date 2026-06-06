@@ -1,3 +1,4 @@
+mod alerts;
 mod api;
 mod auth;
 mod cli;
@@ -24,6 +25,7 @@ async fn main() -> Result<()> {
             CloudSubcommand::Logout => auth::logout()?,
             CloudSubcommand::Query(args) => core::cloud_query(args).await?,
         },
+        Commands::Alerts(args) => alerts::run(args).await?,
         Commands::Ci(args) => match args.command {
             CiSubcommand::Status(args) => core::status(args).await?,
             CiSubcommand::Watch(args) => core::watch(args).await?,

@@ -78,6 +78,23 @@ impl ApiClient {
         self.get_json(&path, query).await
     }
 
+    pub async fn test_alerts(&self, raw_yaml: &str) -> Result<AlertsTestResponse> {
+        self.post(
+            "/alerts/test",
+            &AlertsTestRequest {
+                raw_yaml: raw_yaml.to_string(),
+            },
+        )
+        .await
+    }
+
+    pub async fn upload_alerts(
+        &self,
+        request: AlertsUploadRequest,
+    ) -> Result<AlertsUploadResponse> {
+        self.post("/alerts/upload", &request).await
+    }
+
     pub async fn post_sql(&self, sql: &str) -> Result<String> {
         let response = self
             .http
@@ -278,6 +295,34 @@ impl ApiClient {
             .await
             .context("failed to decode CLI API response as JSON")
     }
+
+    async fn post<TReq: Serialize + ?Sized, TResp: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &TReq,
+    ) -> Result<TResp> {
+        let response = self
+            .http
+            .post(format!("{}{}", self.base_endpoint, path))
+            .json(body)
+            .send()
+            .await
+            .context("CLI API request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "CLI API request"));
+        }
+
+        response
+            .json::<TResp>()
+            .await
+            .context("failed to decode CLI API response as JSON")
+    }
 }
 
 fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {
@@ -298,6 +343,49 @@ pub struct StepLogEntry {
 pub struct StepLogsResponse {
     pub logs: Vec<StepLogEntry>,
     pub offset: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertsTestRequest {
+    pub raw_yaml: String,
+}
+
+pub type AlertsTestResponse = Value;
+pub type AlertsUploadResponse = Value;
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertsUploadRequest {
+    pub raw_yaml: String,
+    pub source_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git: Option<AlertsUploadGitMetadata>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertsUploadGitMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_sha: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+impl AlertsUploadGitMetadata {
+    pub fn is_empty(&self) -> bool {
+        self.repo.is_none()
+            && self.branch.is_none()
+            && self.commit_sha.is_none()
+            && self.remote.is_none()
+            && self.path.is_none()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

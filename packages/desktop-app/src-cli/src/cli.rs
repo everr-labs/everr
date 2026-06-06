@@ -27,6 +27,8 @@ pub enum Commands {
     Uninstall,
     /// Manage Everr Cloud authentication
     Cloud(CloudArgs),
+    /// Test and upload YAML alert definitions
+    Alerts(AlertsArgs),
     /// Inspect GitHub Actions CI runs
     Ci(CiArgs),
     /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
@@ -47,6 +49,34 @@ pub enum Commands {
 pub struct CloudArgs {
     #[command(subcommand)]
     pub command: CloudSubcommand,
+}
+
+#[derive(Args, Debug)]
+pub struct AlertsArgs {
+    #[command(subcommand)]
+    pub command: AlertsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AlertsSubcommand {
+    /// Test alert YAML against cloud telemetry by default, or local telemetry with --local
+    Test(AlertTestArgs),
+    /// Upload alert YAML to Everr Cloud
+    Upload(AlertUploadArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct AlertTestArgs {
+    pub path: String,
+    #[arg(long)]
+    pub local: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct AlertUploadArgs {
+    pub path: String,
+    #[arg(long)]
+    pub source_url: String,
 }
 
 #[derive(Subcommand, Debug)]

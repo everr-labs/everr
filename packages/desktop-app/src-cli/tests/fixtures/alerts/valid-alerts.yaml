@@ -1,0 +1,24 @@
+version: everr/v1
+service: api
+labels:
+  team: platform
+
+alerts:
+  - name: high-5xx-routes
+    severity: critical
+    routing: admins
+    evaluationInterval: 1m
+    window: 5m
+    summary: "{{ rows.length }} routes have elevated 5xxs in api"
+    description: "Top route: {{ rows.0.route }} with {{ rows.0.error_count }} errors"
+    query: |
+      SELECT
+        SpanAttributes['http.route'] AS route,
+        countIf(StatusCode >= 500) AS error_count
+      FROM traces
+      WHERE Timestamp >= now() - INTERVAL {{ window }}
+        AND ServiceName = 'api'
+      GROUP BY route
+      HAVING error_count >= 10
+      ORDER BY error_count DESC
+      LIMIT 20
