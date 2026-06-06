@@ -21,6 +21,7 @@ import { Input } from "@everr/ui/components/input";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/account")({
   staticData: { breadcrumb: "Account Settings", hideTimeRangePicker: true },
@@ -32,11 +33,20 @@ export const Route = createFileRoute("/_authenticated/_dashboard/account")({
 
 function AccountSettingsPage() {
   const navigate = useNavigate();
+  const { data: session } = authClient.useSession();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteOrganization, setDeleteOrganization] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const isDeleteConfirmationValid = deleteConfirmation === "DELETE";
+  const currentMemberRole = activeOrganization?.members?.find(
+    (member) => member.userId === session?.user?.id,
+  )?.role;
+  const canDeleteActiveOrganization = isOrgAdminRole(currentMemberRole);
+  const activeOrganizationName =
+    activeOrganization?.name ?? "current organization";
 
   async function handleDeleteAccount() {
     if (isDeletingAccount || !isDeleteConfirmationValid) {
@@ -47,8 +57,12 @@ function AccountSettingsPage() {
     setIsDeletingAccount(true);
 
     try {
+      const shouldDeleteOrganization =
+        canDeleteActiveOrganization && deleteOrganization;
       await deleteCurrentUserAccount({
-        data: { confirmation: "DELETE" },
+        data: shouldDeleteOrganization
+          ? { confirmation: "DELETE", deleteOrganization: true }
+          : { confirmation: "DELETE" },
       });
       await navigate({ to: "/" });
     } catch (error) {
@@ -128,6 +142,32 @@ function AccountSettingsPage() {
                     setDeleteConfirmation(event.target.value)
                   }
                 />
+                {canDeleteActiveOrganization ? (
+                  <label
+                    htmlFor="delete-organization"
+                    className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs"
+                  >
+                    <input
+                      id="delete-organization"
+                      type="checkbox"
+                      aria-label={`Delete ${activeOrganizationName} organization too`}
+                      className="mt-0.5 size-3.5 accent-current"
+                      checked={deleteOrganization}
+                      onChange={(event) =>
+                        setDeleteOrganization(event.target.checked)
+                      }
+                    />
+                    <span className="flex flex-col gap-1">
+                      <span className="font-medium">
+                        Delete {activeOrganizationName} organization too
+                      </span>
+                      <span className="text-muted-foreground">
+                        Leave this unchecked to remove only your account and
+                        keep the organization.
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
                 {deleteError ? (
                   <p className="text-xs text-destructive" role="alert">
                     {deleteError}
@@ -151,5 +191,14 @@ function AccountSettingsPage() {
         </CardHeader>
       </Card>
     </div>
+  );
+}
+
+function isOrgAdminRole(role: string | null | undefined) {
+  return (
+    role
+      ?.split(",")
+      .map((part) => part.trim())
+      .some((part) => part === "admin" || part === "owner") ?? false
   );
 }

@@ -128,6 +128,7 @@ const orgRoles = {
   }),
   admin: orgAc.newRole({
     ...adminAc.statements,
+    organization: ["update", "delete"],
     apiKey: ["create", "read", "update", "delete"],
   }),
   member: orgAc.newRole({
@@ -152,6 +153,11 @@ export const auth = betterAuth({
     provider: "pg",
   }),
   ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
+  user: {
+    deleteUser: {
+      enabled: true,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
