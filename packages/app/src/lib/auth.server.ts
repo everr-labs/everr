@@ -158,6 +158,9 @@ export const auth = betterAuth({
       enabled: true,
     },
   },
+  onAPIError: {
+    errorURL: "/auth/error",
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {

@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   deleteCurrentUserAccount: vi.fn().mockResolvedValue(undefined),
+  linkSocial: vi.fn(),
+  listAccounts: vi.fn(),
   navigate: vi.fn(),
   useActiveOrganization: vi.fn(),
   useSession: vi.fn(),
@@ -38,6 +40,8 @@ vi.mock("@/data/account-settings", () => ({
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
+    linkSocial: mocks.linkSocial,
+    listAccounts: mocks.listAccounts,
     useActiveOrganization: mocks.useActiveOrganization,
     useSession: mocks.useSession,
   },
@@ -48,6 +52,8 @@ import { Route } from "./account";
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.deleteCurrentUserAccount.mockResolvedValue(undefined);
+  mocks.linkSocial.mockResolvedValue({ data: null, error: null });
+  mocks.listAccounts.mockResolvedValue({ data: [], error: null });
   mocks.useSession.mockReturnValue({
     data: { user: { id: "test_user", email: "test@example.com" } },
   });
@@ -76,6 +82,53 @@ describe("/account route", () => {
 
     expect(screen.getByText("GitHub Connection")).toBeInTheDocument();
     expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
+  });
+
+  it("renders Google connection card", async () => {
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    expect(screen.getByText("Google Connection")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Connect Google" }),
+    ).toBeInTheDocument();
+  });
+
+  it("starts Google account linking from account settings", async () => {
+    const user = userEvent.setup();
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Connect Google" }),
+    );
+
+    expect(mocks.linkSocial).toHaveBeenCalledWith({
+      callbackURL: "/account",
+      provider: "google",
+    });
+  });
+
+  it("shows Google as connected when it is already linked", async () => {
+    mocks.listAccounts.mockResolvedValueOnce({
+      data: [
+        {
+          accountId: "google-account",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          id: "account-row",
+          providerId: "google",
+          scopes: [],
+          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+          userId: "user-id",
+        },
+      ],
+      error: null,
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Linked" })).toBeDisabled();
   });
 
   it("shows the organization deletion option to active organization owners", async () => {

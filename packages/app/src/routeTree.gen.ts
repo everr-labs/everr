@@ -41,6 +41,7 @@ import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
+import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
@@ -231,6 +232,11 @@ const AuthInviteInvitationIdRoute = AuthInviteInvitationIdRouteImport.update({
   path: '/invite/$invitationId',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthAuthErrorRoute = AuthAuthErrorRouteImport.update({
+  id: '/auth/error',
+  path: '/auth/error',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthenticatedDashboardWorkflowsIndexRoute =
   AuthenticatedDashboardWorkflowsIndexRouteImport.update({
     id: '/workflows/',
@@ -358,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
@@ -409,6 +416,7 @@ export interface FileRoutesByTo {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
@@ -462,6 +470,7 @@ export interface FileRoutesById {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
   '/_authenticated/_dashboard/billing': typeof AuthenticatedDashboardBillingRoute
@@ -516,6 +525,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
+    | '/auth/error'
     | '/invite/$invitationId'
     | '/account'
     | '/billing'
@@ -567,6 +577,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
+    | '/auth/error'
     | '/invite/$invitationId'
     | '/account'
     | '/billing'
@@ -619,6 +630,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
+    | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
     | '/_authenticated/_dashboard/account'
     | '/_authenticated/_dashboard/billing'
@@ -905,6 +917,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthInviteInvitationIdRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/auth/error': {
+      id: '/_auth/auth/error'
+      path: '/auth/error'
+      fullPath: '/auth/error'
+      preLoaderRoute: typeof AuthAuthErrorRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_authenticated/_dashboard/workflows/': {
       id: '/_authenticated/_dashboard/workflows/'
       path: '/workflows'
@@ -1075,11 +1094,13 @@ const AuthGuestRouteWithChildren = AuthGuestRoute._addFileChildren(
 
 interface AuthRouteChildren {
   AuthGuestRoute: typeof AuthGuestRouteWithChildren
+  AuthAuthErrorRoute: typeof AuthAuthErrorRoute
   AuthInviteInvitationIdRoute: typeof AuthInviteInvitationIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthGuestRoute: AuthGuestRouteWithChildren,
+  AuthAuthErrorRoute: AuthAuthErrorRoute,
   AuthInviteInvitationIdRoute: AuthInviteInvitationIdRoute,
 }
 
