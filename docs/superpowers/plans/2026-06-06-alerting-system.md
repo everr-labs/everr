@@ -298,7 +298,7 @@ git commit -m "Add alert YAML parser"
 - Modify: `packages/app/src/db/schema/app.ts`
 - Test: `packages/app/src/db/schema/index.ts`
 
-- [ ] **Step 1: Add alert table definitions**
+- [x] **Step 1: Add alert table definitions**
 
 In `packages/app/src/db/schema/app.ts`, add enums:
 
@@ -431,7 +431,7 @@ export const alertEvents = pgTable(
 );
 ```
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run:
 
@@ -441,7 +441,7 @@ pnpm --filter @everr/app typecheck
 
 Expected: pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/app/src/db/schema/app.ts

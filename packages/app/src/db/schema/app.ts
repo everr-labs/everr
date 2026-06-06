@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -43,6 +44,23 @@ export const workflowStatusEnum = pgEnum("workflow_status", [
   "queued",
   "in_progress",
   "completed",
+]);
+
+export const alertSeverityEnum = pgEnum("alert_severity", [
+  "critical",
+  "warning",
+]);
+
+export const alertStateStatusEnum = pgEnum("alert_state_status", [
+  "inactive",
+  "firing",
+  "resolved",
+]);
+
+export const alertEventTypeEnum = pgEnum("alert_event_type", [
+  "firing",
+  "resolved",
+  "evaluation_failed",
 ]);
 
 export type WorkflowRunMetadata = {
@@ -164,6 +182,170 @@ export const workflowJobs = pgTable(
     index("workflow_jobs_tenant_trace_id_idx").on(
       table.organizationId,
       table.traceId,
+    ),
+  ],
+);
+
+export const alertDefinitions = pgTable(
+  "alert_definitions",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    organizationId: text("organization_id").notNull(),
+    service: text("service").notNull(),
+    name: text("name").notNull(),
+    severity: alertSeverityEnum("severity").notNull(),
+    routingSlug: text("routing_slug").notNull(),
+    evaluationIntervalSeconds: integer("evaluation_interval_seconds").notNull(),
+    windowSeconds: integer("window_seconds").notNull(),
+    nextEvaluationAt: timestamp("next_evaluation_at", {
+      withTimezone: true,
+    }).notNull(),
+    scheduleJitterSeconds: integer("schedule_jitter_seconds")
+      .notNull()
+      .default(0),
+    lastEnqueuedAt: timestamp("last_enqueued_at", { withTimezone: true }),
+    rawYaml: text("raw_yaml").notNull(),
+    query: text("query").notNull(),
+    summaryTemplate: text("summary_template").notNull(),
+    descriptionTemplate: text("description_template"),
+    sourceUrl: text("source_url").notNull(),
+    sourceRepo: text("source_repo"),
+    sourceBranch: text("source_branch"),
+    sourceCommitSha: text("source_commit_sha"),
+    sourceRemote: text("source_remote"),
+    sourcePath: text("source_path"),
+    active: boolean("active").notNull().default(true),
+    validationStatus: text("validation_status").notNull().default("valid"),
+    lastEvaluationStatus: text("last_evaluation_status"),
+    lastEvaluationError: text("last_evaluation_error"),
+    createdByUserId: text("created_by_user_id").notNull(),
+    updatedByUserId: text("updated_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("alert_definitions_org_service_name_uq").on(
+      table.organizationId,
+      table.service,
+      table.name,
+    ),
+    index("alert_definitions_due_idx").on(
+      table.organizationId,
+      table.active,
+      table.nextEvaluationAt,
+    ),
+    index("alert_definitions_source_idx").on(
+      table.organizationId,
+      table.sourceUrl,
+      table.service,
+    ),
+  ],
+);
+
+export const alertRoutingLists = pgTable(
+  "alert_routing_lists",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    organizationId: text("organization_id").notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("alert_routing_lists_org_slug_uq").on(
+      table.organizationId,
+      table.slug,
+    ),
+  ],
+);
+
+export const alertRoutingListMembers = pgTable(
+  "alert_routing_list_members",
+  {
+    routingListId: bigint("routing_list_id", { mode: "number" }).notNull(),
+    userId: text("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("alert_routing_list_members_list_user_uq").on(
+      table.routingListId,
+      table.userId,
+    ),
+  ],
+);
+
+export const alertStates = pgTable("alert_states", {
+  alertDefinitionId: bigint("alert_definition_id", {
+    mode: "number",
+  }).primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  status: alertStateStatusEnum("status").notNull().default("inactive"),
+  firstFiredAt: timestamp("first_fired_at", { withTimezone: true }),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  rowCount: integer("row_count").notNull().default(0),
+  evidence: jsonb("evidence")
+    .$type<Array<Record<string, unknown>>>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  evidenceTruncated: boolean("evidence_truncated").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const alertEvents = pgTable(
+  "alert_events",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    alertDefinitionId: bigint("alert_definition_id", {
+      mode: "number",
+    }).notNull(),
+    organizationId: text("organization_id").notNull(),
+    type: alertEventTypeEnum("type").notNull(),
+    evaluationScheduledFor: timestamp("evaluation_scheduled_for", {
+      withTimezone: true,
+    }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    summary: text("summary").notNull(),
+    description: text("description"),
+    rowCount: integer("row_count").notNull().default(0),
+    evidence: jsonb("evidence")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    evidenceTruncated: boolean("evidence_truncated").notNull().default(false),
+    errorMessage: text("error_message"),
+  },
+  (table) => [
+    uniqueIndex("alert_events_definition_scheduled_type_uq").on(
+      table.alertDefinitionId,
+      table.evaluationScheduledFor,
+      table.type,
+    ),
+    index("alert_events_org_occurred_idx").on(
+      table.organizationId,
+      sql`occurred_at DESC`,
     ),
   ],
 );
