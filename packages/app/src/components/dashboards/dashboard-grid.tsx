@@ -35,6 +35,7 @@ import {
   Plus,
   Save,
   Settings2,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -67,6 +68,7 @@ import { DeleteDashboardDialog } from "./delete-dashboard-dialog";
 import { FolderList, FolderPickerDialog } from "./folder-picker";
 import { NameDialog } from "./name-dialog";
 import { VariableBar } from "./variable-bar";
+import { VariablesManager } from "./variables-manager";
 
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
@@ -110,6 +112,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const [manageAction, setManageAction] = useState<
     "rename" | "move" | "delete" | "settings" | null
   >(null);
+  const [showVariablesManager, setShowVariablesManager] = useState(false);
 
   const router = useRouter();
   const renameMutation = useRenameDashboard();
@@ -310,6 +313,14 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       <div className="mb-3 flex items-center justify-end gap-2">
         {isEditing && (
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowVariablesManager(true)}
+            >
+              <SlidersHorizontal data-icon="inline-start" />
+              Variables
+            </Button>
             <Button variant="outline" size="sm" onClick={handleAddPanel}>
               <Plus data-icon="inline-start" />
               Add Panel
@@ -507,6 +518,11 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
             },
           });
         }}
+      />
+
+      <VariablesManager
+        open={showVariablesManager}
+        onOpenChange={setShowVariablesManager}
       />
 
       <DashboardSettingsDialog
