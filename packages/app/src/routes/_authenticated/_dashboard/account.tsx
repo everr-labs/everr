@@ -55,10 +55,15 @@ function AccountSettingsPage() {
     (account) => account.providerId === "google",
   );
   const isDeleteConfirmationValid = deleteConfirmation === "DELETE";
-  const currentMemberRole = activeOrganization?.members?.find(
+  const activeOrganizationMembers = activeOrganization?.members ?? [];
+  const currentMemberRole = activeOrganizationMembers.find(
     (member) => member.userId === session?.user?.id,
   )?.role;
   const canDeleteActiveOrganization = isOrgOwnerRole(currentMemberRole);
+  const isOnlyActiveOrganizationOwner =
+    canDeleteActiveOrganization &&
+    activeOrganizationMembers.filter((member) => isOrgOwnerRole(member.role))
+      .length === 1;
   const activeOrganizationName =
     activeOrganization?.name ?? "current organization";
   const googleButtonLabel = isLoadingLinkedAccounts
@@ -150,7 +155,8 @@ function AccountSettingsPage() {
 
     try {
       const shouldDeleteOrganization =
-        canDeleteActiveOrganization && deleteOrganization;
+        canDeleteActiveOrganization &&
+        (deleteOrganization || isOnlyActiveOrganizationOwner);
       await deleteCurrentUserAccount({
         data: shouldDeleteOrganization
           ? { confirmation: "DELETE", deleteOrganization: true }
@@ -296,7 +302,10 @@ function AccountSettingsPage() {
                       type="checkbox"
                       aria-label={`Delete ${activeOrganizationName} organization too`}
                       className="mt-0.5 size-3.5 accent-current"
-                      checked={deleteOrganization}
+                      checked={
+                        deleteOrganization || isOnlyActiveOrganizationOwner
+                      }
+                      disabled={isOnlyActiveOrganizationOwner}
                       onChange={(event) =>
                         setDeleteOrganization(event.target.checked)
                       }
@@ -306,8 +315,9 @@ function AccountSettingsPage() {
                         Delete {activeOrganizationName} organization too
                       </span>
                       <span className="text-muted-foreground">
-                        Leave this unchecked to remove only your account and
-                        keep the organization.
+                        {isOnlyActiveOrganizationOwner
+                          ? "You're the only owner, so deleting your account will also delete the organization."
+                          : "Leave this unchecked to remove only your account and keep the organization."}
                       </span>
                     </span>
                   </label>

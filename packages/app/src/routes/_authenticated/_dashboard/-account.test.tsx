@@ -150,6 +150,28 @@ describe("/account route", () => {
     ).toBeInTheDocument();
   });
 
+  it("requires deleting the organization when the user is its only owner", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Acme",
+        members: [
+          { userId: "test_user", role: "owner" },
+          { userId: "member_user", role: "member" },
+        ],
+      },
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+
+    const checkbox = screen.getByLabelText("Delete Acme organization too");
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toBeDisabled();
+  });
+
   it("hides the organization deletion option from organization admins", async () => {
     const user = userEvent.setup();
     mocks.useActiveOrganization.mockReturnValue({
@@ -175,7 +197,10 @@ describe("/account route", () => {
       data: {
         id: "test_org",
         name: "Acme",
-        members: [{ userId: "test_user", role: "owner" }],
+        members: [
+          { userId: "test_user", role: "owner" },
+          { userId: "other_owner", role: "owner" },
+        ],
       },
     });
     const Component = Route.options.component as React.ComponentType;
@@ -184,6 +209,31 @@ describe("/account route", () => {
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     await user.type(screen.getByLabelText("Confirmation"), "DELETE");
     await user.click(screen.getByLabelText("Delete Acme organization too"));
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({
+        data: { confirmation: "DELETE", deleteOrganization: true },
+      });
+    });
+  });
+
+  it("passes organization deletion without an extra checkbox click for the only owner", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Acme",
+        members: [{ userId: "test_user", role: "owner" }],
+      },
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.type(screen.getByLabelText("Confirmation"), "DELETE");
     await user.click(
       screen.getByRole("button", { name: "Delete permanently" }),
     );
