@@ -32,8 +32,11 @@ vi.mock("@/env/db", () => ({
 
 import { NotificationHub } from "./notification-hub";
 
-function makePayload(overrides: Partial<NotifyPayload> = {}): NotifyPayload {
+function makePayload(
+  overrides: Partial<Extract<NotifyPayload, { kind: "workflow" }>> = {},
+): Extract<NotifyPayload, { kind: "workflow" }> {
   return {
+    kind: "workflow",
     tenantId: "42",
     traceId: "trace-1",
     runId: "run-1",
@@ -47,6 +50,28 @@ function makePayload(overrides: Partial<NotifyPayload> = {}): NotifyPayload {
     status: "completed",
     conclusion: "success",
     jobId: null,
+    ...overrides,
+  };
+}
+
+function makeAlertPayload(
+  overrides: Partial<Extract<NotifyPayload, { kind: "alert" }>> = {},
+): Extract<NotifyPayload, { kind: "alert" }> {
+  return {
+    kind: "alert",
+    tenantId: "42",
+    recipientUserIds: ["u1"],
+    alertDefinitionId: 10,
+    alertEventId: 20,
+    service: "api",
+    name: "high-5xx-routes",
+    severity: "critical",
+    status: "firing",
+    summary: "summary",
+    description: null,
+    occurredAt: "2026-06-06T10:00:00.000Z",
+    sourceUrl: "https://github.com/acme/repo/blob/main/alerts.yaml",
+    rowCount: 2,
     ...overrides,
   };
 }
@@ -108,6 +133,25 @@ describe("NotificationHub", () => {
       expect(tenantCb).toHaveBeenCalledOnce();
       expect(traceCb).toHaveBeenCalledOnce();
       expect(commitCb).toHaveBeenCalledOnce();
+    });
+
+    it("dispatches alert payloads only to tenant subscribers", () => {
+      const tenantCb = vi.fn();
+      const traceCb = vi.fn();
+      const commitCb = vi.fn();
+      const authorCb = vi.fn();
+      hub.subscribe("tenant", "42", tenantCb);
+      hub.subscribe("trace", "42:trace-1", traceCb);
+      hub.subscribe("commit", "42:abc123", commitCb);
+      hub.subscribe("author", "42:dev@example.com", authorCb);
+
+      const payload = makeAlertPayload();
+      hub.dispatch(payload);
+
+      expect(tenantCb).toHaveBeenCalledWith(payload);
+      expect(traceCb).not.toHaveBeenCalled();
+      expect(commitCb).not.toHaveBeenCalled();
+      expect(authorCb).not.toHaveBeenCalled();
     });
   });
 

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
 import { subscribe, subscribeAuthor, subscribeTenant } from "@/db/hub";
+import type { NotifyPayload } from "@/db/notify";
 import { auth } from "@/lib/auth.server";
 import { createSSEStream } from "@/lib/sse";
 
@@ -68,32 +69,35 @@ export const Route = createFileRoute("/api/events/stream")({
         }
 
         const sse = createSSEStream(request);
+        const sendEvent = (payload: NotifyPayload) => {
+          if (canSendPayload(payload, session.userId)) {
+            sse.sendEvent(payload);
+          }
+        };
 
         const unsubscribe = (() => {
           switch (parsed.data.scope) {
             case "tenant":
-              return subscribeTenant(session.organizationId, (payload) =>
-                sse.sendEvent(payload),
-              );
+              return subscribeTenant(session.organizationId, sendEvent);
             case "trace":
               return subscribe(
                 "trace",
                 session.organizationId,
                 parsed.data.key,
-                (payload) => sse.sendEvent(payload),
+                sendEvent,
               );
             case "commit":
               return subscribe(
                 "commit",
                 session.organizationId,
                 parsed.data.key,
-                (payload) => sse.sendEvent(payload),
+                sendEvent,
               );
             case "author":
               return subscribeAuthor(
                 session.organizationId,
                 parsed.data.key,
-                (payload) => sse.sendEvent(payload),
+                sendEvent,
               );
           }
         })();
@@ -107,3 +111,11 @@ export const Route = createFileRoute("/api/events/stream")({
     },
   },
 });
+
+function canSendPayload(payload: NotifyPayload, userId: string): boolean {
+  if (payload.kind !== "alert") {
+    return true;
+  }
+
+  return payload.recipientUserIds.includes(userId);
+}

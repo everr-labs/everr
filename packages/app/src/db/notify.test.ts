@@ -12,7 +12,7 @@ vi.mock("drizzle-orm", () => ({
   ),
 }));
 
-import { notifyWorkflowUpdate } from "./notify";
+import { notifyAlertUpdate, notifyWorkflowUpdate } from "./notify";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,6 +43,10 @@ describe("notifyWorkflowUpdate", () => {
     expect(joinedSql).toContain("pg_notify");
     expect(joinedSql).toContain("workflows");
     expect(sqlArg.values).toHaveLength(1);
+    expect(JSON.parse(sqlArg.values[0])).toMatchObject({
+      kind: "workflow",
+      tenantId: "42",
+    });
   });
 
   it("does not throw when db.execute rejects", async () => {
@@ -85,5 +89,32 @@ describe("notifyWorkflowUpdate", () => {
     });
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes alert payloads on the workflows channel", async () => {
+    await notifyAlertUpdate(mockDb, {
+      kind: "alert",
+      tenantId: "42",
+      recipientUserIds: ["u1"],
+      alertDefinitionId: 10,
+      alertEventId: 20,
+      service: "api",
+      name: "high-5xx-routes",
+      severity: "critical",
+      status: "firing",
+      summary: "summary",
+      description: null,
+      occurredAt: "2026-06-06T10:00:00.000Z",
+      sourceUrl: "https://github.com/acme/repo/blob/main/alerts.yaml",
+      rowCount: 2,
+    });
+
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    const sqlArg = mockExecute.mock.calls[0][0];
+    expect(sqlArg.strings.join("?")).toContain("workflows");
+    expect(JSON.parse(sqlArg.values[0])).toMatchObject({
+      kind: "alert",
+      recipientUserIds: ["u1"],
+    });
   });
 });

@@ -63,6 +63,10 @@ export class NotificationHub {
 
   dispatch(payload: NotifyPayload): void {
     this.dispatchTopic("tenant", payload.tenantId, payload);
+    if (payload.kind !== "workflow") {
+      return;
+    }
+
     this.dispatchTopic(
       "trace",
       `${payload.tenantId}:${payload.traceId}`,

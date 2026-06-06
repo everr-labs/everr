@@ -181,6 +181,7 @@ describe("GET /api/events/stream", () => {
     });
 
     const mockPayload: NotifyPayload = {
+      kind: "workflow",
       tenantId: "42",
       traceId: "t1",
       runId: "r1",
@@ -223,6 +224,7 @@ describe("GET /api/events/stream", () => {
     });
 
     const mockPayload: NotifyPayload = {
+      kind: "workflow",
       tenantId: "42",
       traceId: "t1",
       runId: "r1",
@@ -240,5 +242,53 @@ describe("GET /api/events/stream", () => {
     capturedCallback?.(mockPayload);
 
     expect(mockSendEvent).toHaveBeenCalledWith(mockPayload);
+  });
+
+  it("forwards tenant alert payloads only to listed recipients", async () => {
+    const { createSSEStream } = await import("@/lib/sse");
+    const mockSendEvent = vi.fn();
+    vi.mocked(createSSEStream).mockReturnValueOnce({
+      sendEvent: mockSendEvent,
+      close: vi.fn(),
+      response: vi.fn(() => new Response(null)),
+    });
+
+    let capturedCallback: ((payload: NotifyPayload) => void) | undefined;
+    mockedSubscribeTenant.mockImplementationOnce((_tenantId, cb) => {
+      capturedCallback = cb;
+      return vi.fn();
+    });
+
+    await getHandler()({
+      request: new Request("http://localhost/api/events/stream?scope=tenant"),
+      context: { session: mockSession },
+    });
+
+    const allowedPayload: NotifyPayload = {
+      kind: "alert",
+      tenantId: "org1",
+      recipientUserIds: ["u1"],
+      alertDefinitionId: 10,
+      alertEventId: 20,
+      service: "api",
+      name: "high-5xx-routes",
+      severity: "critical",
+      status: "firing",
+      summary: "summary",
+      description: null,
+      occurredAt: "2026-06-06T10:00:00.000Z",
+      sourceUrl: "https://github.com/acme/repo/blob/main/alerts.yaml",
+      rowCount: 2,
+    };
+    const blockedPayload: NotifyPayload = {
+      ...allowedPayload,
+      recipientUserIds: ["u2"],
+    };
+
+    capturedCallback?.(blockedPayload);
+    capturedCallback?.(allowedPayload);
+
+    expect(mockSendEvent).toHaveBeenCalledTimes(1);
+    expect(mockSendEvent).toHaveBeenCalledWith(allowedPayload);
   });
 });

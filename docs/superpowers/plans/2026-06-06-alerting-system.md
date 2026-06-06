@@ -763,7 +763,7 @@ git commit -m "Add alert pg-boss runtime"
 - Modify: `packages/app/src/routes/api/events/stream.ts`
 - Modify: `packages/app/src/routes/api/events/stream.test.ts`
 
-- [ ] **Step 1: Update payload types**
+- [x] **Step 1: Update payload types**
 
 Change workflow payload to a discriminated union:
 
@@ -807,7 +807,7 @@ export type NotifyPayload = WorkflowNotifyPayload | AlertNotifyPayload;
 
 Keep `type: "run" | "job"` inside workflow payload for compatibility with current CLI parsing.
 
-- [ ] **Step 2: Add `notifyAlertUpdate`**
+- [x] **Step 2: Add `notifyAlertUpdate`**
 
 Export:
 
@@ -820,7 +820,7 @@ export async function notifyAlertUpdate(
 
 Use the same `pg_notify('workflows', payloadJson)` channel for v1.
 
-- [ ] **Step 3: Filter alert SSE delivery by recipient**
+- [x] **Step 3: Filter alert SSE delivery by recipient**
 
 In `/api/events/stream`, wrap `sse.sendEvent`:
 
@@ -833,7 +833,7 @@ function canSendPayload(payload: NotifyPayload, userId: string): boolean {
 
 For tenant scope, only send alert payloads where the authenticated user is in `recipientUserIds`.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```bash
 pnpm --filter @everr/app test -- src/db/notification-hub.test.ts src/routes/api/events/stream.test.ts
