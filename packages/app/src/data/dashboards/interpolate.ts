@@ -50,8 +50,12 @@ export function interpolateVariables(
     const value = values[name]!;
     const raw = modifier === "raw";
 
-    if (value === ALL_VALUE) {
-      const allMeta = meta[name] ?? {};
+    // The sentinel only means "All" for variables the caller supplied All
+    // metadata for (the client always does for All-valued list variables).
+    // Without it — e.g. a text variable literally set to "__all" — the
+    // sentinel string is treated as a plain value.
+    const allMeta = value === ALL_VALUE ? meta[name] : undefined;
+    if (allMeta) {
       if (allMeta.customAllValue !== undefined) return allMeta.customAllValue;
       const options = allMeta.options ?? [];
       return raw ? options.join(",") : sqlList(options);

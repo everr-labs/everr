@@ -75,9 +75,17 @@ describe("interpolateVariables", () => {
     ).toBe("env LIKE %");
   });
 
-  it("expands All to (NULL) when no options are available", () => {
-    expect(interpolateVariables("env IN $env", { env: ALL_VALUE }, {})).toBe(
+  it("expands All to (NULL) when the loaded options are empty", () => {
+    const meta: VariableMeta = { env: { options: [] } };
+    expect(interpolateVariables("env IN $env", { env: ALL_VALUE }, meta)).toBe(
       "env IN (NULL)",
+    );
+  });
+
+  it("treats the sentinel as a plain value for variables without All metadata", () => {
+    // e.g. a text variable whose value is literally "__all"
+    expect(interpolateVariables("t = $t", { t: ALL_VALUE }, {})).toBe(
+      "t = '__all'",
     );
   });
 
