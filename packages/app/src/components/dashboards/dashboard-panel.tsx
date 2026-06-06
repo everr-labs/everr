@@ -113,6 +113,7 @@ export function DashboardPanel({
               <Link
                 to="/dashboards/$dashboardId/panel/$panelKey"
                 params={{ dashboardId, panelKey }}
+                search={(prev) => ({ ...prev, vars: prev.vars })}
               />
             }
             aria-label="Edit panel"

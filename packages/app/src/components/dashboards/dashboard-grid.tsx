@@ -128,8 +128,10 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
 
   const panelEditPrefix = `/dashboards/${isNew ? "new" : (dashboard?.metadata.name ?? "")}/panel/`;
   const blocker = useBlocker({
-    shouldBlockFn: ({ next }) => {
+    shouldBlockFn: ({ current, next }) => {
       if (!useDashboardStore.getState().isDirty) return false;
+      // Allow search-param-only updates (e.g. variable bar picks) on the same page.
+      if (next.pathname === current.pathname) return false;
       return !next.pathname.startsWith(panelEditPrefix);
     },
     enableBeforeUnload: () => useDashboardStore.getState().isDirty,
