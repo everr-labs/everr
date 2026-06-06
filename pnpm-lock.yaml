@@ -234,6 +234,9 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3

@@ -125,7 +125,7 @@ alerts:
 - Create: fixture files under `packages/app/src/server/alerts/__fixtures__/`
 - Modify: `packages/app/package.json`
 
-- [ ] **Step 1: Add the YAML dependency**
+- [x] **Step 1: Add the YAML dependency**
 
 Modify `packages/app/package.json` and add a direct dependency:
 
@@ -135,7 +135,7 @@ Modify `packages/app/package.json` and add a direct dependency:
 
 Keep the existing dependency ordering style.
 
-- [ ] **Step 2: Write parser tests first**
+- [x] **Step 2: Write parser tests first**
 
 Create `packages/app/src/server/alerts/parser.test.ts`:
 
@@ -212,7 +212,7 @@ describe("alert YAML parser", () => {
 });
 ```
 
-- [ ] **Step 3: Run parser tests and confirm failure**
+- [x] **Step 3: Run parser tests and confirm failure**
 
 Run:
 
@@ -222,7 +222,7 @@ pnpm --filter @everr/app test -- src/server/alerts/parser.test.ts
 
 Expected: fail because `./parser` does not exist.
 
-- [ ] **Step 4: Implement the parser**
+- [x] **Step 4: Implement the parser**
 
 Create `schema.ts` with exported Zod schemas for raw YAML and normalized definitions. Use fixed severities:
 
@@ -275,7 +275,7 @@ Rules:
 - Require non-empty `summary`, `query`, `service`, `name`, and `routing`.
 - Template paths must be `rows.length`, `service`, `name`, `severity`, `routing`, or `rows.<number>.<identifier>`.
 
-- [ ] **Step 5: Run parser tests and commit**
+- [x] **Step 5: Run parser tests and commit**
 
 Run:
 

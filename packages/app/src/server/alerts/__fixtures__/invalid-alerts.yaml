@@ -1,0 +1,10 @@
+version: everr/v1
+service: api
+alerts:
+  - name: too-fast
+    severity: page
+    routing: missing-list
+    evaluationInterval: 30s
+    window: 5m
+    summary: ""
+    query: "SELECT 1"
