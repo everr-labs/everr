@@ -456,7 +456,7 @@ git commit -m "Add alert database schema"
 - Create: `packages/app/src/server/alerts/routing.ts`
 - Create: `packages/app/src/server/alerts/routing.test.ts`
 
-- [ ] **Step 1: Write routing tests**
+- [x] **Step 1: Write routing tests**
 
 Create `routing.test.ts` with mocked `pool.query` rows and these assertions:
 
@@ -473,7 +473,7 @@ expect(await resolveRoutingRecipients({ organizationId: "org1", slug: "owners" }
 
 Mock `pool.query` rows from `member` and custom routing tables.
 
-- [ ] **Step 2: Implement routing**
+- [x] **Step 2: Implement routing**
 
 Export:
 
@@ -497,7 +497,7 @@ Built-ins:
 
 Custom routing lists read `alert_routing_lists` and `alert_routing_list_members`.
 
-- [ ] **Step 3: Write repository tests**
+- [x] **Step 3: Write repository tests**
 
 Create `repository.test.ts` with one test per behavior:
 
@@ -506,7 +506,7 @@ Create `repository.test.ts` with one test per behavior:
 - `claimDueAlertDefinitions` advances `next_evaluation_at` and returns a bounded batch.
 - `deleteExpiredAlertEvents` removes events older than seven days.
 
-- [ ] **Step 4: Implement repository**
+- [x] **Step 4: Implement repository**
 
 Export these functions:
 
@@ -522,7 +522,7 @@ export async function deleteExpiredAlertEvents(input: { olderThan: Date; limit: 
 
 Use raw `pool.query` for scanner claim SQL so `FOR UPDATE SKIP LOCKED` is explicit.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 pnpm --filter @everr/app test -- src/server/alerts/routing.test.ts src/server/alerts/repository.test.ts
