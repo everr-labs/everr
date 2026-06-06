@@ -8,13 +8,13 @@ Everr will add a YAML-defined alerting system for free-form observability alerts
 
 Alert definitions are managed only through YAML files. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can upload alert definitions through the CLI. Uploads store an explicit source URL and git-derived metadata when available, so the web app can link back to the definition.
 
-DBOS TypeScript runs inside the long-lived web server process and uses the existing Postgres database as its persistence layer.
+DBOS TypeScript runs in a separate long-lived alert worker process and uses the existing Postgres database as its persistence layer. The TanStack/Vite web server does not import DBOS or alert workflow modules.
 
 ## Goals
 
 - Support YAML-only alert definitions.
 - Make alert rules simple to understand: a query returns bad rows, so the alert fires.
-- Run orchestration with the DBOS TypeScript SDK inside `@everr/app`.
+- Run orchestration with the DBOS TypeScript SDK in a dedicated alert worker process.
 - Use the existing Postgres database for DBOS persistence and app alert state.
 - Retain Everr-owned alert state, events, and evidence for 7 days.
 - Retain DBOS workflow history for 7 days when the DBOS TypeScript SDK exposes a library-only retention control.
@@ -47,7 +47,7 @@ The current GitHub event worker uses `pg-boss`, but this alerting system should 
 
 ## DBOS Integration
 
-DBOS is initialized from the web server startup path after all alert workflows are registered and before normal request handling begins. The app configures DBOS with:
+DBOS is initialized from a dedicated alert worker startup path after all alert workflows are registered. The worker configures DBOS with:
 
 - Stable app name, for example `everr-alerting`.
 - Existing Postgres connection URL or pool.
@@ -59,9 +59,11 @@ Alert evaluation is registered as a DBOS workflow. Active alert definitions crea
 
 DBOS TypeScript schedule support is validated by the current docs. Schedules are stored in the database, can be created at runtime, can be atomically applied with `DBOS.applySchedules`, and can be paused, resumed, deleted, listed, backfilled, or triggered. DBOS also supports many dynamic schedules for the same workflow by passing context with each schedule.
 
-The Vite/Nitro build must treat DBOS and workflow modules as external according to DBOS's integration guidance. Implementation must verify this before merging DBOS into the TanStack Start server bundle.
+The TanStack/Vite/Nitro web server is not the DBOS host. DBOS documentation says DBOS and workflows cannot be bundled by Vite, Rollup, esbuild, Webpack, Parcel, or similar bundlers. The current `@everr/app` production server is a Nitro `.output/server` bundle with TanStack server modules emitted into generated `_ssr` chunks, so importing DBOS workflow modules from the web server graph is a no-go for v1.
 
-Important deployment assumption: the web app runs as a long-lived Node process, not as serverless request isolates. DBOS explicitly does not support serverless frameworks because it runs long-lived background jobs. If production uses multiple web replicas, DBOS schedule and recovery behavior must be verified in that topology so alert evaluation does not duplicate work. DBOS constructs a scheduled-workflow idempotency key from schedule name and scheduled time, which should protect duplicate executions, but the implementation must still prove this with two web processes sharing one Postgres database. If that test fails, the fallback is a separate alert worker process using the same code and database.
+The alert worker must be built and deployed outside the TanStack Start server bundle. It can live in this repo and share app-owned database, ClickHouse, alert parser, and notification code, but the web server must not import the DBOS SDK or workflow registration modules. Production runs the web server and alert worker as separate process roles.
+
+Important deployment assumption: the alert worker runs as a long-lived Node process, not as serverless request isolates. DBOS explicitly does not support serverless frameworks because it runs long-lived background jobs. If production uses multiple alert worker replicas, DBOS schedule and recovery behavior must be verified in that topology so alert evaluation does not duplicate work. DBOS constructs a scheduled-workflow idempotency key from schedule name and scheduled time, which should protect duplicate executions, but the implementation must still prove this with two worker processes sharing one Postgres database.
 
 ### DBOS Validation Findings
 
@@ -78,6 +80,9 @@ References checked:
 - https://docs.dbos.dev/typescript/integrating-dbos
 - https://docs.dbos.dev/typescript/prompting
 - https://docs.dbos.dev/production/dbos-cloud/retention
+- https://vite.dev/config/ssr-options.html
+- https://vite.dev/guide/ssr.html
+- https://nitro-docs.pages.dev/config/
 
 ## YAML Format
 
@@ -310,6 +315,8 @@ DBOS/evaluator tests:
 - Repeated firing update.
 - Resolution transition.
 - Evaluation failure does not change active state.
+- Worker build/start smoke test proves DBOS and workflow modules are outside the TanStack/Vite/Nitro web bundle.
+- Two worker processes sharing one Postgres database do not double-apply the same scheduled alert evaluation.
 
 CLI tests:
 
@@ -328,8 +335,8 @@ Desktop tests:
 
 - DBOS library-only retention: unresolved. Current DBOS configuration docs do not expose a retention field, and the documented retention policy UI is DBOS Console/Conductor. `deleteWorkflow` and `deleteWorkflows` exist, but they are manual workflow-management APIs rather than a supported time-based policy. This remains the only hard unresolved risk.
 - DBOS dynamic per-alert schedules: resolved. TypeScript docs support runtime `createSchedule`, `applySchedules`, pause/resume/delete, listing, backfill, triggering, database-stored schedules, and dynamic many-schedule patterns.
-- DBOS inside the TanStack/Vite server build: validated real risk. DBOS docs say DBOS and workflows cannot be bundled by Vite/Rollup/esbuild and must be external. Implementation requires an explicit build spike after adding the SDK: configure externals and prove `pnpm --filter @everr/app build` plus `node .output/server/index.mjs` starts DBOS.
-- Multiple web replicas: partially validated. DBOS scheduled workflows use schedule-name plus scheduled-time idempotency keys, so duplicate execution should be prevented through Postgres. Because the TypeScript docs do not explicitly show the multi-replica case, implementation must run a two-process integration test against one Postgres database. If it fails, move DBOS startup to a separate worker process.
+- DBOS inside the TanStack/Vite server build: no-go for v1. DBOS docs say DBOS and workflows cannot be bundled by Vite/Rollup/esbuild and must be external. The current `@everr/app` production output is a Nitro `.output/server` bundle with TanStack server modules emitted into generated `_ssr` chunks. The design therefore moves DBOS to a separate alert worker process and keeps DBOS workflow modules out of the web server import graph.
+- Multiple worker replicas: partially validated. DBOS scheduled workflows use schedule-name plus scheduled-time idempotency keys, so duplicate execution should be prevented through Postgres. Because the TypeScript docs do not explicitly show the multi-replica case, implementation must run a two-process worker integration test against one Postgres database.
 - Query result bounds: resolved by design. Evidence row and byte limits are mandatory.
 - Member upload risk: accepted product risk with mitigations. Any member can upload, but source links, uploader metadata, and admin/owner deactivation make changes auditable and reversible.
 
@@ -348,4 +355,4 @@ Desktop tests:
 - Each alert references exactly one routing list slug.
 - Built-in routing lists: `everyone`, `admins`, `owners`.
 - Any org member can upload alert YAML.
-- Use DBOS inside the web server process.
+- Use DBOS in a separate alert worker process because the TanStack/Vite/Nitro web bundle is incompatible with DBOS workflow bundling constraints.
