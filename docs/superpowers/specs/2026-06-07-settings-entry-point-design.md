@@ -11,9 +11,9 @@ The settings page currently has two entry points: the edit-toolbar "Variables" b
 
 ## 1. Toolbar — `components/dashboards/dashboard-grid.tsx`
 
-- **New Settings button:** `variant="outline" size="sm"`, `Settings2` icon, label "Settings", placed immediately LEFT of the Edit button, rendered ALWAYS (view + edit mode, saved + new dashboards). `onClick` navigates to `/dashboards/$dashboardId/settings` with `dashboardId: isNew ? "new" : dashboard.metadata.name`, search updater forwarding `vars` only (`(prev) => ({ ...prev, vars: prev.vars })`) — no `section`.
+- **New Settings button:** `variant="outline" size="sm"`, `Settings2` icon, label "Settings", first button in the edit-mode toolbar group (before Add Panel), rendered only when editing (saved + new dashboards). `onClick` navigates to `/dashboards/$dashboardId/settings` with `dashboardId: isNew ? "new" : dashboard.metadata.name`, search updater forwarding `vars` only (`(prev) => ({ ...prev, vars: prev.vars })`) — no `section`.
 - **Variables button removed** from the edit-mode toolbar group (the group keeps Add Panel + Save). `SlidersHorizontal` import removed.
-- **Kebab Settings item removed** (with its navigate). `Settings2` import stays (now used by the toolbar button). Kebab keeps Rename / Move to folder / separator / Delete, and still renders only when `!isNew` — acceptable, the toolbar button covers `new`.
+- **Kebab Settings item removed** (with its navigate). `Settings2` import stays (now used by the toolbar button). Kebab keeps Rename / Move to folder / separator / Delete, and still renders only when `!isNew` — acceptable, the toolbar button covers `new`. Settings is edit-mode-only by design: settings edits are part of editing the dashboard.
 
 ## 2. Section-param removal
 

@@ -309,6 +309,27 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       <div className="mb-3 flex items-center justify-end gap-2">
         {isEditing && (
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigate({
+                  to: "/dashboards/$dashboardId/settings",
+                  params: {
+                    dashboardId: isNew ? "new" : dashboard.metadata.name,
+                  },
+                  search: (prev: {
+                    vars?: Record<string, string | string[]>;
+                  }) => ({
+                    ...prev,
+                    vars: prev.vars,
+                  }),
+                })
+              }
+            >
+              <Settings2 data-icon="inline-start" />
+              Settings
+            </Button>
             <Button variant="outline" size="sm" onClick={handleAddPanel}>
               <Plus data-icon="inline-start" />
               Add Panel
@@ -323,25 +344,6 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
             </Button>
           </>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            navigate({
-              to: "/dashboards/$dashboardId/settings",
-              params: {
-                dashboardId: isNew ? "new" : dashboard.metadata.name,
-              },
-              search: (prev: { vars?: Record<string, string | string[]> }) => ({
-                ...prev,
-                vars: prev.vars,
-              }),
-            })
-          }
-        >
-          <Settings2 data-icon="inline-start" />
-          Settings
-        </Button>
         <Button
           variant={isEditing ? "default" : "outline"}
           size="sm"
