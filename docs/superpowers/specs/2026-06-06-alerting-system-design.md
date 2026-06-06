@@ -57,22 +57,26 @@ DBOS is initialized from the web server startup path after all alert workflows a
 
 Alert evaluation is registered as a DBOS workflow. Active alert definitions create or update dynamic DBOS schedules keyed by alert definition ID. DBOS schedules use each alert's `evaluationInterval`.
 
+DBOS TypeScript schedule support is validated by the current docs. Schedules are stored in the database, can be created at runtime, can be atomically applied with `DBOS.applySchedules`, and can be paused, resumed, deleted, listed, backfilled, or triggered. DBOS also supports many dynamic schedules for the same workflow by passing context with each schedule.
+
 The Vite/Nitro build must treat DBOS and workflow modules as external according to DBOS's integration guidance. Implementation must verify this before merging DBOS into the TanStack Start server bundle.
 
-Important deployment assumption: the web app runs as a long-lived Node process, not as serverless request isolates. If production uses multiple web replicas, DBOS schedule and recovery behavior must be verified in that topology so alert evaluation does not duplicate work. If library-only DBOS cannot make this reliable in replicated web processes, the fallback is a separate alert worker process using the same code and database.
+Important deployment assumption: the web app runs as a long-lived Node process, not as serverless request isolates. DBOS explicitly does not support serverless frameworks because it runs long-lived background jobs. If production uses multiple web replicas, DBOS schedule and recovery behavior must be verified in that topology so alert evaluation does not duplicate work. DBOS constructs a scheduled-workflow idempotency key from schedule name and scheduled time, which should protect duplicate executions, but the implementation must still prove this with two web processes sharing one Postgres database. If that test fails, the fallback is a separate alert worker process using the same code and database.
 
-### Retention Risk
+### DBOS Validation Findings
 
 The requested retention is 7 days. DBOS documentation confirms library configuration with `systemDatabaseUrl`, dynamic schedules, and queues. The retention controls found in the current docs are documented through DBOS Console/Conductor, not clearly as a library-only TypeScript config option. Implementation must verify whether the SDK exposes a self-hosted retention API or config before claiming DBOS workflow-history retention is satisfied.
 
-If the SDK supports library-only workflow history retention, configure it to 7 days. If it does not, v1 still retains Everr-owned alert events and evidence for 7 days, but DBOS workflow-history retention remains unresolved. Do not perform unsupported direct cleanup of DBOS system tables unless DBOS documents that path.
+The DBOS client can delete known workflows and their associated data, but that is workflow management, not a documented time-based retention policy. If the SDK supports library-only workflow history retention, configure it to 7 days. If it does not, v1 still retains Everr-owned alert events and evidence for 7 days, but DBOS workflow-history retention remains unresolved. Do not perform unsupported direct cleanup of DBOS system tables unless DBOS documents that path.
 
 References checked:
 
 - https://docs.dbos.dev/typescript/reference/configuration
 - https://docs.dbos.dev/typescript/tutorials/scheduled-workflows
 - https://docs.dbos.dev/typescript/reference/queues
+- https://docs.dbos.dev/typescript/reference/client
 - https://docs.dbos.dev/typescript/integrating-dbos
+- https://docs.dbos.dev/typescript/prompting
 - https://docs.dbos.dev/production/dbos-cloud/retention
 
 ## YAML Format
@@ -264,6 +268,23 @@ Add alerting code under focused modules:
 - `packages/desktop-app/src`
   - Alert list/history surfaces and critical popup rendering.
 
+## Bounds And Auditability
+
+Query evidence is bounded at every boundary:
+
+- Store at most 50 evidence rows per alert evaluation.
+- Store at most 64 KiB of evidence JSON per alert event/state snapshot.
+- CLI output must stay under the existing CLI guideline target of about 30 KiB for normal use by summarizing row counts and truncation status before printing evidence.
+- Web and desktop detail views show whether evidence was truncated.
+
+Alert upload auditability:
+
+- Store `created_by_user_id`, `updated_by_user_id`, `created_at`, and `updated_at` on alert definitions.
+- Store the authoritative `source_url`.
+- Store git-derived repo, branch, commit SHA, remote, and file path when available.
+- Show uploader, last updater, and source link in the web rule page.
+- Org admins and owners can deactivate any alert rule from the web app, even though any member can upload.
+
 ## Testing
 
 Unit tests:
@@ -303,13 +324,14 @@ Desktop tests:
 - `warning` does not open a popup.
 - Alert payloads do not break existing CI failure notifications.
 
-## Open Risks
+## Validated Risk Status
 
-- DBOS library-only retention support must be verified. Current docs show retention controls through DBOS Console/Conductor, not clearly through TypeScript library config.
-- DBOS with dynamic per-alert schedules must be verified inside the TanStack/Vite server build. DBOS docs say the library and workflows cannot be bundled with Vite/Rollup/esbuild and must be treated as external.
-- Multiple web replicas need explicit validation for schedule execution, workflow recovery, and duplicate prevention.
-- Query results must be bounded to keep alert evidence and CLI output usable.
-- Uploading members can create org-wide alert rules, so UI auditability and source links matter.
+- DBOS library-only retention: unresolved. Current DBOS configuration docs do not expose a retention field, and the documented retention policy UI is DBOS Console/Conductor. `deleteWorkflow` and `deleteWorkflows` exist, but they are manual workflow-management APIs rather than a supported time-based policy. This remains the only hard unresolved risk.
+- DBOS dynamic per-alert schedules: resolved. TypeScript docs support runtime `createSchedule`, `applySchedules`, pause/resume/delete, listing, backfill, triggering, database-stored schedules, and dynamic many-schedule patterns.
+- DBOS inside the TanStack/Vite server build: validated real risk. DBOS docs say DBOS and workflows cannot be bundled by Vite/Rollup/esbuild and must be external. Implementation requires an explicit build spike after adding the SDK: configure externals and prove `pnpm --filter @everr/app build` plus `node .output/server/index.mjs` starts DBOS.
+- Multiple web replicas: partially validated. DBOS scheduled workflows use schedule-name plus scheduled-time idempotency keys, so duplicate execution should be prevented through Postgres. Because the TypeScript docs do not explicitly show the multi-replica case, implementation must run a two-process integration test against one Postgres database. If it fails, move DBOS startup to a separate worker process.
+- Query result bounds: resolved by design. Evidence row and byte limits are mandatory.
+- Member upload risk: accepted product risk with mitigations. Any member can upload, but source links, uploader metadata, and admin/owner deactivation make changes auditable and reversible.
 
 ## Approved Decisions
 
