@@ -538,7 +538,7 @@ git commit -m "Add alert repository"
 - Create: `packages/app/src/routes/api/cli/alerts/upload.ts`
 - Create: `packages/app/src/routes/api/cli/alerts/upload.test.ts`
 
-- [ ] **Step 1: Write route tests**
+- [x] **Step 1: Write route tests**
 
 For `/api/cli/alerts/test`:
 
@@ -554,7 +554,7 @@ For `/api/cli/alerts/upload`:
 - firing rows do not reject upload.
 - successful upload calls `upsertAlertDefinitions`.
 
-- [ ] **Step 2: Implement `POST /api/cli/alerts/test`**
+- [x] **Step 2: Implement `POST /api/cli/alerts/test`**
 
 Request JSON:
 
@@ -584,7 +584,7 @@ Response JSON:
 
 Run queries with `querySqlApi` and `renderAlertQuery`.
 
-- [ ] **Step 3: Implement `POST /api/cli/alerts/upload`**
+- [x] **Step 3: Implement `POST /api/cli/alerts/upload`**
 
 Request JSON:
 
@@ -614,7 +614,7 @@ Response JSON:
 
 Validate routing lists, run each query once, then call `upsertAlertDefinitions`.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```bash
 pnpm --filter @everr/app test -- src/routes/api/cli/alerts/test.test.ts src/routes/api/cli/alerts/upload.test.ts
