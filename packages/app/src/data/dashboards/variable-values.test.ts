@@ -108,6 +108,11 @@ describe("effectiveVariableValues", () => {
       },
     );
   });
+
+  it("treats an array default for a single-select as invalid → omitted", () => {
+    const single = list("svc", { defaultValue: ["a", "b"] });
+    expect(effectiveVariableValues([single], undefined)).toEqual({});
+  });
 });
 
 describe("getListVariableSource", () => {
@@ -140,6 +145,16 @@ describe("getListVariableSource", () => {
       plugin: { kind: "StaticListVariable", spec: {} },
     });
     expect(getListVariableSource(malformed)).toEqual({ kind: "unknown" });
+  });
+
+  it("drops non-string entries from static values", () => {
+    const v = list("svc", {
+      plugin: { kind: "StaticListVariable", spec: { values: ["a", 1, "b"] } },
+    });
+    expect(getListVariableSource(v)).toEqual({
+      kind: "static",
+      values: ["a", "b"],
+    });
   });
 });
 

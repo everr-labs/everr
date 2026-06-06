@@ -45,6 +45,8 @@ function normalizeListValue(
 ): string | string[] | undefined {
   if (value === undefined) return undefined;
   if (typeof value === "string") {
+    // Sentinel without allowAllValue is invalid; the caller falls back to the
+    // default (which may itself be invalid → the variable resolves as missing).
     if (value === ALL_VALUE) return allowAll ? ALL_VALUE : undefined;
     if (value === "") return undefined;
     return multi ? [value] : value;
@@ -105,6 +107,8 @@ export function buildAllMeta(
   const meta: VariableMeta = {};
   const pendingAllNames: string[] = [];
   for (const variable of variables) {
+    // Text variables are skipped: a text value that happens to equal the
+    // sentinel string is just a literal value, not an All selection.
     if (variable.kind !== "ListVariable") continue;
     const name = variable.spec.name;
     if (values[name] !== ALL_VALUE) continue;
