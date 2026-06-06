@@ -520,7 +520,9 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
     const options: string[] = [];
     let truncated = false;
     for (const row of rows) {
-      const option = String(Object.values(row)[0]);
+      const values = Object.values(row);
+      if (values.length === 0) continue;
+      const option = String(values[0]);
       if (seen.has(option)) continue;
       seen.add(option);
       if (options.length >= VARIABLE_OPTIONS_LIMIT) {

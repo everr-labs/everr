@@ -478,4 +478,12 @@ describe("runVariableOptionsQuery", () => {
     expect(result.options).toHaveLength(1000);
     expect(result.truncated).toBe(false);
   });
+
+  it("skips rows with no columns and stringifies null values", async () => {
+    mockedClickhouse.mockResolvedValue([{}, { v: null }, { v: "a" }]);
+
+    const result = await runVariableOptionsQuery({ data: { query: "q" } });
+
+    expect(result).toEqual({ options: ["null", "a"], truncated: false });
+  });
 });
