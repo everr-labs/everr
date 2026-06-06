@@ -152,6 +152,9 @@ export const auth = betterAuth({
     provider: "pg",
   }),
   ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
+  onAPIError: {
+    errorURL: "/auth/error",
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
