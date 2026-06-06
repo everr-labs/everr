@@ -24,6 +24,7 @@ const runtimeMocks = vi.hoisted(() => {
 
   return {
     claimDueAlertDefinitions: vi.fn(),
+    deleteExpiredAlertEvents: vi.fn(),
     evaluateAlertJob: vi.fn(),
     migrate: vi.fn(),
     pgBossInstances,
@@ -90,6 +91,7 @@ vi.mock("@/telemetry/node", () => ({
 
 vi.mock("./repository", () => ({
   claimDueAlertDefinitions: runtimeMocks.claimDueAlertDefinitions,
+  deleteExpiredAlertEvents: runtimeMocks.deleteExpiredAlertEvents,
 }));
 
 vi.mock("./evaluator", () => ({
@@ -117,6 +119,7 @@ async function loadRuntime() {
 function resetRuntimeMocks() {
   runtimeMocks.PgBoss.mockClear();
   runtimeMocks.claimDueAlertDefinitions.mockReset().mockResolvedValue([]);
+  runtimeMocks.deleteExpiredAlertEvents.mockReset().mockResolvedValue(0);
   runtimeMocks.evaluateAlertJob.mockReset().mockResolvedValue(undefined);
   runtimeMocks.migrate.mockReset().mockResolvedValue(undefined);
   runtimeMocks.pgBossInstances.length = 0;
@@ -170,11 +173,12 @@ async function importServerWithAlerts(enabled: boolean) {
 }
 
 beforeEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
 });
 
 describe("alert runtime", () => {
-  it("creates scan, evaluation, and dead-letter queues with retention options", async () => {
+  it("creates scan, cleanup, evaluation, and dead-letter queues with retention options", async () => {
     const runtime = await loadRuntime();
 
     await runtime.startAlertRuntime();
@@ -186,6 +190,13 @@ describe("alert runtime", () => {
     );
     expect(boss.createQueue).toHaveBeenCalledWith(
       "alert-scan",
+      expect.objectContaining({
+        ...alertQueueOptions,
+        deadLetter: "alert-dead-letter",
+      }),
+    );
+    expect(boss.createQueue).toHaveBeenCalledWith(
+      "alert-cleanup",
       expect.objectContaining({
         ...alertQueueOptions,
         deadLetter: "alert-dead-letter",
@@ -205,6 +216,15 @@ describe("alert runtime", () => {
       expect.objectContaining({
         key: "default",
         singletonKey: "alert-scan",
+      }),
+    );
+    expect(boss.schedule).toHaveBeenCalledWith(
+      "alert-cleanup",
+      "0 * * * *",
+      {},
+      expect.objectContaining({
+        key: "default",
+        singletonKey: "alert-cleanup",
       }),
     );
   });
@@ -260,6 +280,20 @@ describe("alert runtime", () => {
     await runWorker("alert-evaluate", [{ id: "evaluate-job", data: jobData }]);
 
     expect(runtimeMocks.evaluateAlertJob).toHaveBeenCalledWith(jobData);
+  });
+
+  it("cleanup worker deletes expired events with a seven day cutoff", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-08T10:00:00.000Z"));
+    const runtime = await loadRuntime();
+
+    await runtime.startAlertRuntime();
+    await runWorker("alert-cleanup", [{ id: "cleanup-job", data: {} }]);
+
+    expect(runtimeMocks.deleteExpiredAlertEvents).toHaveBeenCalledWith({
+      olderThan: new Date("2026-06-01T10:00:00.000Z"),
+      limit: 1000,
+    });
   });
 
   it("starts idempotently", async () => {

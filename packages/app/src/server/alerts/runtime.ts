@@ -10,7 +10,10 @@ import {
 import { pool } from "@/db/client";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { evaluateAlertJob } from "./evaluator";
-import { claimDueAlertDefinitions } from "./repository";
+import {
+  claimDueAlertDefinitions,
+  deleteExpiredAlertEvents,
+} from "./repository";
 
 type AlertEvaluateJobData = {
   alertDefinitionId: number;
@@ -18,13 +21,16 @@ type AlertEvaluateJobData = {
 };
 
 type AlertScanJobData = Record<string, never>;
+type AlertCleanupJobData = Record<string, never>;
 
 const ALERT_SCAN_QUEUE = "alert-scan";
+const ALERT_CLEANUP_QUEUE = "alert-cleanup";
 const ALERT_EVALUATE_QUEUE = "alert-evaluate";
 const ALERT_DEAD_LETTER_QUEUE = "alert-dead-letter";
 
 const ALERT_RETENTION_SECONDS = 7 * 24 * 60 * 60;
 const ALERT_SCAN_BATCH_SIZE = 5_000;
+const ALERT_CLEANUP_BATCH_SIZE = 1_000;
 
 const ALERT_QUEUE_OPTIONS = {
   retryLimit: 3,
@@ -85,6 +91,7 @@ export async function startAlertRuntime(): Promise<PgBoss> {
     await Promise.all([
       nextBoss.createQueue(ALERT_DEAD_LETTER_QUEUE, ALERT_QUEUE_OPTIONS),
       nextBoss.createQueue(ALERT_SCAN_QUEUE, ALERT_WORK_QUEUE_OPTIONS),
+      nextBoss.createQueue(ALERT_CLEANUP_QUEUE, ALERT_WORK_QUEUE_OPTIONS),
       nextBoss.createQueue(ALERT_EVALUATE_QUEUE, ALERT_WORK_QUEUE_OPTIONS),
     ]);
 
@@ -100,11 +107,31 @@ export async function startAlertRuntime(): Promise<PgBoss> {
       },
     );
 
+    await nextBoss.schedule(
+      ALERT_CLEANUP_QUEUE,
+      "0 * * * *",
+      {},
+      {
+        ...ALERT_SEND_OPTIONS,
+        key: "default",
+        singletonKey: ALERT_CLEANUP_QUEUE,
+        singletonSeconds: 60 * 60,
+      },
+    );
+
     nextBoss.work<AlertScanJobData>(
       ALERT_SCAN_QUEUE,
       SCAN_WORK_OPTIONS,
       context.bind(ROOT_CONTEXT, async (jobs) => {
         await Promise.all(jobs.map(() => processScanJob(nextBoss)));
+      }),
+    );
+
+    nextBoss.work<AlertCleanupJobData>(
+      ALERT_CLEANUP_QUEUE,
+      SCAN_WORK_OPTIONS,
+      context.bind(ROOT_CONTEXT, async (jobs) => {
+        await Promise.all(jobs.map(() => processCleanupJob()));
       }),
     );
 
@@ -146,6 +173,13 @@ async function processScanJob(queue: PgBoss): Promise<void> {
       );
     }),
   );
+}
+
+async function processCleanupJob(): Promise<void> {
+  await deleteExpiredAlertEvents({
+    olderThan: new Date(Date.now() - ALERT_RETENTION_SECONDS * 1000),
+    limit: ALERT_CLEANUP_BATCH_SIZE,
+  });
 }
 
 async function processEvaluationJob(

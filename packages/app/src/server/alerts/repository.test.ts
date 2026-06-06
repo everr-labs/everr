@@ -153,19 +153,20 @@ describe("alert repository", () => {
     expect(values).toEqual([now, 25]);
   });
 
-  it("deletes alert events older than the retention cutoff", async () => {
-    const olderThan = new Date("2026-05-30T10:00:00Z");
+  it("deletes alert events older than the retention cutoff without deleting current states", async () => {
+    const olderThan = new Date("2026-06-01T00:00:00Z");
     mockedQuery.mockResolvedValueOnce({ rows: [], rowCount: 3 });
 
     await expect(
-      deleteExpiredAlertEvents({ olderThan, limit: 500 }),
+      deleteExpiredAlertEvents({ olderThan, limit: 1000 }),
     ).resolves.toBe(3);
 
     const [sql, values] = mockedQuery.mock.calls[0] ?? [];
     expect(sql).toContain("DELETE FROM alert_events");
+    expect(sql).not.toContain("alert_states");
     expect(sql).toContain("occurred_at < $1");
     expect(sql).toContain("LIMIT $2");
-    expect(values).toEqual([olderThan, 500]);
+    expect(values).toEqual([olderThan, 1000]);
   });
 
   it("lists alert rules with their current state", async () => {
