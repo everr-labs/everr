@@ -64,10 +64,14 @@ export function interpolateVariables(
 
 /** Unique variable names referenced by `sql`, in order of first appearance. */
 export function extractVariableTokens(sql: string): string[] {
+  const seen = new Set<string>();
   const names: string[] = [];
   for (const match of sql.matchAll(TOKEN_RE)) {
     const name = match[1] ?? match[3];
-    if (name && !names.includes(name)) names.push(name);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      names.push(name);
+    }
   }
   return names;
 }
