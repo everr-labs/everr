@@ -6,7 +6,7 @@ import type {
   VariableValues,
 } from "@/data/dashboards/interpolate";
 import { variableOptionsQueryOptions } from "@/data/dashboards/options";
-import type { ListVariable, Variable } from "@/data/dashboards/schema";
+import type { Variable } from "@/data/dashboards/schema";
 import {
   buildAllMeta,
   effectiveVariableValues,
@@ -40,20 +40,24 @@ export function useDashboardVariables(): DashboardVariablesState {
   const variables =
     useDashboardStore((s) => s.dashboard?.spec.variables) ?? EMPTY_VARIABLES;
 
-  const queryBacked = variables.filter(
-    (v): v is ListVariable =>
-      v.kind === "ListVariable" && getListVariableSource(v).kind === "query",
-  );
+  // Pair each query-backed variable with its SQL once; results are keyed by
+  // variable name below so the lookup never depends on array identity.
+  const queryBacked: Array<{ name: string; query: string }> = [];
+  for (const variable of variables) {
+    if (variable.kind !== "ListVariable") continue;
+    const source = getListVariableSource(variable);
+    if (source.kind === "query") {
+      queryBacked.push({ name: variable.spec.name, query: source.query });
+    }
+  }
   const optionQueries = useQueries({
-    queries: queryBacked.map((v) => {
-      const source = getListVariableSource(v);
-      return variableOptionsQueryOptions(
-        source.kind === "query" ? source.query : "",
-        from,
-        to,
-      );
-    }),
+    queries: queryBacked.map(({ query }) =>
+      variableOptionsQueryOptions(query, from, to),
+    ),
   });
+  const queryStateByName = new Map(
+    queryBacked.map(({ name }, index) => [name, optionQueries[index]]),
+  );
 
   const optionsState: Record<string, VariableOptionsState> = {};
   for (const variable of variables) {
@@ -65,7 +69,7 @@ export function useDashboardVariables(): DashboardVariablesState {
         isPending: false,
       };
     } else if (source.kind === "query") {
-      const query = optionQueries[queryBacked.indexOf(variable)];
+      const query = queryStateByName.get(variable.spec.name);
       optionsState[variable.spec.name] = {
         options: query?.data?.options,
         isPending: query?.isPending ?? true,

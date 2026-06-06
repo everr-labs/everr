@@ -205,7 +205,9 @@ function ListVariableField({
               {multi ? (
                 <DropdownMenuCheckboxItem
                   checked={isAll}
-                  onCheckedChange={() => onChange(ALL_VALUE)}
+                  onCheckedChange={(checked) =>
+                    onChange(checked ? ALL_VALUE : [])
+                  }
                 >
                   All
                 </DropdownMenuCheckboxItem>
