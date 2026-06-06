@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Dashboard, GridLayout, Panel } from "./schema";
+import type { Dashboard, GridLayout, Panel, Variable } from "./schema";
 
 interface DashboardState {
   dashboard: Dashboard | null;
@@ -18,6 +18,7 @@ interface DashboardState {
   setEditing: (editing: boolean) => void;
   updatePanel: (key: string, panel: Panel) => void;
   updateLayout: (layouts: GridLayout[]) => void;
+  updateVariables: (variables: Variable[]) => void;
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
@@ -67,6 +68,18 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         dashboard: {
           ...state.dashboard,
           spec: { ...state.dashboard.spec, layouts },
+        },
+      };
+    }),
+
+  updateVariables: (variables) =>
+    set((state) => {
+      if (!state.dashboard) return state;
+      return {
+        isDirty: true,
+        dashboard: {
+          ...state.dashboard,
+          spec: { ...state.dashboard.spec, variables },
         },
       };
     }),

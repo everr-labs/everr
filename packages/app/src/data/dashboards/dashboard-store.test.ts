@@ -54,6 +54,20 @@ describe("dashboard store dirty tracking", () => {
     expect(useDashboardStore.getState().isDirty).toBe(true);
   });
 
+  it("updateVariables marks dirty and replaces spec.variables", () => {
+    useDashboardStore.getState().setDashboard(makeDashboard());
+    useDashboardStore
+      .getState()
+      .updateVariables([
+        { kind: "TextVariable", spec: { name: "env", value: "prod" } },
+      ]);
+    const state = useDashboardStore.getState();
+    expect(state.isDirty).toBe(true);
+    expect(state.dashboard?.spec.variables).toEqual([
+      { kind: "TextVariable", spec: { name: "env", value: "prod" } },
+    ]);
+  });
+
   it("patchDashboard replaces the dashboard and marks dirty", () => {
     useDashboardStore.getState().setDashboard(makeDashboard());
     useDashboardStore.getState().patchDashboard(makeDashboard("patched"));
@@ -97,6 +111,7 @@ describe("dashboard store dirty tracking", () => {
   it("noop actions when no dashboard loaded do not mark dirty", () => {
     useDashboardStore.getState().updatePanel("panel1", panel);
     useDashboardStore.getState().updateLayout([]);
+    useDashboardStore.getState().updateVariables([]);
     expect(useDashboardStore.getState().isDirty).toBe(false);
   });
 });
