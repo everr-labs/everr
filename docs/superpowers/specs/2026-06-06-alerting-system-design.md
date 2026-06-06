@@ -8,16 +8,16 @@ Everr will add a YAML-defined alerting system for free-form observability alerts
 
 Alert definitions are managed only through YAML files. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can upload alert definitions through the CLI. Uploads store an explicit source URL and git-derived metadata when available, so the web app can link back to the definition.
 
-DBOS TypeScript runs in a separate long-lived alert worker process and uses the existing Postgres database as its persistence layer. The TanStack/Vite web server does not import DBOS or alert workflow modules.
+Alert orchestration uses `pg-boss` with the existing Postgres database. Everr-owned alert tables remain the source of truth for schedules, state, events, and retention. `pg-boss` is used for distributed queueing, retries, and a small number of scanner jobs; Everr does not create one cron schedule per alert.
 
 ## Goals
 
 - Support YAML-only alert definitions.
 - Make alert rules simple to understand: a query returns bad rows, so the alert fires.
-- Run orchestration with the DBOS TypeScript SDK in a dedicated alert worker process.
-- Use the existing Postgres database for DBOS persistence and app alert state.
+- Run orchestration with `pg-boss`.
+- Use the existing Postgres database for queue persistence and app alert state.
 - Retain Everr-owned alert state, events, and evidence for 7 days.
-- Retain DBOS workflow history for 7 days when the DBOS TypeScript SDK exposes a library-only retention control.
+- Retain completed/failed alert queue jobs according to the same 7-day policy where `pg-boss` retention options apply.
 - Test alert YAML from the CLI against cloud or local telemetry.
 - Upload alert YAML from the CLI and validate SQL before activation.
 - Store source metadata so web users can open the definition in the repository.
@@ -31,6 +31,7 @@ DBOS TypeScript runs in a separate long-lived alert worker process and uses the 
 - No local upload path.
 - No standalone delete command in the first CLI scope. YAML upload deactivates rules omitted from the same uploaded source.
 - No email, Slack, PagerDuty, or webhook notification targets in v1.
+- No durable workflow engine in v1. Alert evaluation is a scheduled queue job plus app-owned state transitions.
 
 ## Current Project Context
 
@@ -43,46 +44,70 @@ The web app is `@everr/app`, built with TanStack Start, Vite, Drizzle, Postgres,
 - A Rust CLI in `packages/desktop-app/src-cli`.
 - A Tauri desktop app that already consumes authenticated tenant SSE events and displays CI failure notifications.
 
-The current GitHub event worker uses `pg-boss`, but this alerting system should use DBOS for orchestration.
+The current GitHub event worker already uses `pg-boss`. Alerting should reuse that operational dependency instead of adding DBOS, Workflow SDK, Graphile Worker, Duroxide, Redis, or a new workflow runtime.
 
-## DBOS Integration
+## pg-boss Orchestration
 
-DBOS is initialized from a dedicated alert worker startup path after all alert workflows are registered. The worker configures DBOS with:
+`pg-boss` is initialized from alert runtime startup code using the existing Postgres pool. The runtime configures:
 
-- Stable app name, for example `everr-alerting`.
-- Existing Postgres connection URL or pool.
-- Dedicated DBOS schema, for example `dbos_alerting`.
-- Application version from deploy metadata when available.
-- Queue limits for alert evaluation concurrency.
+- Existing Postgres connection through the `db.executeSql` adapter pattern already used by the GitHub event runtime.
+- A queue for due-alert scans, for example `alert-scan`.
+- A queue for alert evaluations, for example `alert-evaluate`.
+- A dead-letter queue for terminal evaluation failures, for example `alert-dead-letter`.
+- Queue-level retry, heartbeat, expiration, and retention options.
+- Worker concurrency settings sized by deploy environment.
 
-Alert evaluation is registered as a DBOS workflow. Active alert definitions create or update dynamic DBOS schedules keyed by alert definition ID. DBOS schedules use each alert's `evaluationInterval`.
+The alert runtime can run inside the long-lived TanStack Start server process because `pg-boss` is a normal Node queue library and is already compatible with the current app. The alert modules should still be factored so they can be started as a dedicated worker role later if production needs separate web and worker scaling.
 
-DBOS TypeScript schedule support is validated by the current docs. Schedules are stored in the database, can be created at runtime, can be atomically applied with `DBOS.applySchedules`, and can be paused, resumed, deleted, listed, backfilled, or triggered. DBOS also supports many dynamic schedules for the same workflow by passing context with each schedule.
+### Scheduling Model
 
-The TanStack/Vite/Nitro web server is not the DBOS host. DBOS documentation says DBOS and workflows cannot be bundled by Vite, Rollup, esbuild, Webpack, Parcel, or similar bundlers. The current `@everr/app` production server is a Nitro `.output/server` bundle with TanStack server modules emitted into generated `_ssr` chunks, so importing DBOS workflow modules from the web server graph is a no-go for v1.
+Everr does not create one recurring `pg-boss` cron schedule per alert. At 5,000 alerts per minute, thousands of independent cron schedules would be the wrong scaling shape in any of the evaluated runtimes.
 
-The alert worker must be built and deployed outside the TanStack Start server bundle. It can live in this repo and share app-owned database, ClickHouse, alert parser, and notification code, but the web server must not import the DBOS SDK or workflow registration modules. Production runs the web server and alert worker as separate process roles.
+Instead, Everr owns scheduling state in `alert_definitions`:
 
-Important deployment assumption: the alert worker runs as a long-lived Node process, not as serverless request isolates. DBOS explicitly does not support serverless frameworks because it runs long-lived background jobs. If production uses multiple alert worker replicas, DBOS schedule and recovery behavior must be verified in that topology so alert evaluation does not duplicate work. DBOS constructs a scheduled-workflow idempotency key from schedule name and scheduled time, which should protect duplicate executions, but the implementation must still prove this with two worker processes sharing one Postgres database.
+- `evaluation_interval_seconds`
+- `next_evaluation_at`
+- `schedule_jitter_seconds`
+- `last_enqueued_at`
 
-### DBOS Validation Findings
+A single recurring `pg-boss` schedule runs the scanner every minute. The scanner:
 
-The requested retention is 7 days. DBOS documentation confirms library configuration with `systemDatabaseUrl`, dynamic schedules, and queues. The retention controls found in the current docs are documented through DBOS Console/Conductor, not clearly as a library-only TypeScript config option. Implementation must verify whether the SDK exposes a self-hosted retention API or config before claiming DBOS workflow-history retention is satisfied.
+1. Claims active due alerts from `alert_definitions` using a bounded query and Postgres row locking.
+2. Advances `next_evaluation_at` according to each alert's `evaluationInterval` plus stable jitter.
+3. Enqueues one `alert-evaluate` job per claimed alert with an evaluation timestamp.
+4. Stops when it reaches its batch limit, allowing the next scanner tick or another scanner worker to claim more due alerts.
 
-The DBOS client can delete known workflows and their associated data, but that is workflow management, not a documented time-based retention policy. If the SDK supports library-only workflow history retention, configure it to 7 days. If it does not, v1 still retains Everr-owned alert events and evidence for 7 days, but DBOS workflow-history retention remains unresolved. Do not perform unsupported direct cleanup of DBOS system tables unless DBOS documents that path.
+The scanner is safe with multiple app or worker replicas because Postgres row locks prevent the same due alert from being claimed twice in the same batch. The evaluation worker is also safe with multiple replicas because `pg-boss` uses Postgres job locking to distribute work.
+
+### Scale And Backpressure
+
+5,000 evaluations per minute is about 83 evaluations per second. The queue can handle this shape, but ClickHouse query cost is the real capacity limit.
+
+Required ClickHouse concurrency is approximately:
+
+```text
+83 * average_query_seconds
+```
+
+The implementation must use explicit query concurrency controls:
+
+- Global alert evaluation concurrency.
+- Optional per-organization concurrency to avoid one org consuming the fleet.
+- Worker `localConcurrency` sized with the number of app/worker replicas in mind.
+- Bounded scanner batch size so a large due set does not create an unbounded queue spike.
+- Stable schedule jitter so thousands of one-minute alerts do not all enqueue in the same second.
+
+Alert evaluation remains at-least-once at the application level. Even if the queue claims a job once, retries, worker crashes, and deployment races require idempotent state transitions keyed by `(alert_definition_id, evaluation_scheduled_for)`.
 
 References checked:
 
-- https://docs.dbos.dev/typescript/reference/configuration
-- https://docs.dbos.dev/typescript/tutorials/scheduled-workflows
-- https://docs.dbos.dev/typescript/reference/queues
-- https://docs.dbos.dev/typescript/reference/client
-- https://docs.dbos.dev/typescript/integrating-dbos
-- https://docs.dbos.dev/typescript/prompting
-- https://docs.dbos.dev/production/dbos-cloud/retention
-- https://vite.dev/config/ssr-options.html
-- https://vite.dev/guide/ssr.html
-- https://nitro-docs.pages.dev/config/
+- https://github.com/timgit/pg-boss
+- https://github.com/timgit/pg-boss/blob/master/docs/api/scheduling.md
+- https://github.com/timgit/pg-boss/blob/master/docs/api/workers.md
+- https://github.com/timgit/pg-boss/blob/master/docs/api/queues.md
+- https://github.com/timgit/pg-boss/blob/master/docs/api/jobs.md
+- https://worker.graphile.org/docs/performance
+- https://workflow-sdk.dev/docs/deploying/world/postgres-world
 
 ## YAML Format
 
@@ -128,6 +153,7 @@ Rules:
 - `routing` references exactly one routing-list slug.
 - Built-in routing slugs are `everyone`, `admins`, and `owners`.
 - `evaluationInterval` is required per alert.
+- `evaluationInterval` must be at least `1m` in v1.
 - `window` is required per alert.
 - `query` must return only violating rows.
 - A non-empty query result means firing.
@@ -197,31 +223,39 @@ Routing list behavior:
 
 ## Evaluation And State
 
-Each active alert definition has a DBOS-managed schedule based on `evaluationInterval`.
+Each active alert definition has app-owned scheduling fields. `pg-boss` runs scanner jobs that claim due definitions and enqueue evaluation jobs. `pg-boss` does not own the alert schedule of record.
 
-The evaluation workflow:
+The scanner flow:
+
+1. Select a bounded batch of active definitions where `next_evaluation_at <= now()`.
+2. Lock and claim those rows in Postgres.
+3. Compute each definition's next due time from its `evaluationInterval` and stable jitter.
+4. Enqueue an `alert-evaluate` job for each claimed definition.
+
+The evaluation job:
 
 1. Load the active alert definition and org context.
-2. Substitute `{{ window }}` with a validated ClickHouse interval fragment.
-3. Execute the query through the tenant-scoped ClickHouse path used by cloud SQL.
-4. Normalize and bound returned rows into JSON evidence.
-5. If rows are non-empty and previous state is inactive or resolved, create a firing event.
-6. If rows are non-empty and previous state is firing, update `last_seen_at`, row count, and evidence snapshot.
-7. If rows are empty and previous state is firing, create a resolved event.
-8. Emit an alert notification event through Postgres/SSE for affected recipients.
+2. No-op if the definition is no longer active.
+3. Substitute `{{ window }}` with a validated ClickHouse interval fragment.
+4. Execute the query through the tenant-scoped ClickHouse path used by cloud SQL.
+5. Normalize and bound returned rows into JSON evidence.
+6. If rows are non-empty and previous state is inactive or resolved, create a firing event.
+7. If rows are non-empty and previous state is firing, update `last_seen_at`, row count, and evidence snapshot.
+8. If rows are empty and previous state is firing, create a resolved event.
+9. Emit an alert notification event through Postgres/SSE for affected recipients.
 
 SQL/runtime errors:
 
 - Do not change firing/resolved state.
 - Update `last_evaluation_error` on the rule.
 - Create an `evaluation_failed` event visible in the rule page.
-- Use DBOS retry behavior for transient failures where appropriate.
+- Use `pg-boss` retry behavior for transient failures where appropriate.
 
 Retention:
 
 - Everr-owned alert events and evidence are retained for 7 days.
 - Current alert state is retained while the definition remains active.
-- DBOS workflow history retention is configured for 7 days only if the SDK supports it in library-only mode. Otherwise, this remains an explicit implementation blocker for the DBOS-history part of the retention requirement.
+- `pg-boss` queue retention uses `deleteAfterSeconds` and `retentionSeconds` aligned to the 7-day policy where those options apply.
 
 ## Notification Delivery
 
@@ -244,7 +278,7 @@ Desktop behavior:
 Proposed tables:
 
 - `alert_definitions`
-  - Org ID, service, name, severity, routing slug, evaluation interval, window, raw YAML fragment, parsed query, summary template, description template, source URL, git metadata, active flag, validation status, last evaluation status.
+  - Org ID, service, name, severity, routing slug, evaluation interval, window, next evaluation time, schedule jitter, last enqueued time, raw YAML fragment, parsed query, summary template, description template, source URL, git metadata, active flag, validation status, last evaluation status.
 - `alert_routing_lists`
   - Custom org routing lists. Built-ins are virtual and not stored here.
 - `alert_routing_list_members`
@@ -252,7 +286,7 @@ Proposed tables:
 - `alert_states`
   - One current state per alert definition.
 - `alert_events`
-  - Firing, resolved, and evaluation-failed events with bounded evidence rows.
+  - Firing, resolved, and evaluation-failed events with bounded evidence rows and evaluation scheduled time.
 
 Do not generate Drizzle migrations until implementation reaches the migration step requested by the user. Schema work first updates Drizzle definitions only.
 
@@ -261,7 +295,7 @@ Do not generate Drizzle migrations until implementation reaches the migration st
 Add alerting code under focused modules:
 
 - `packages/app/src/server/alerts/`
-  - DBOS registration, schedule reconciliation, evaluation workflow, query substitution, state transitions, routing resolution, and cleanup.
+  - `pg-boss` runtime startup, due-alert scanner, evaluation worker, query substitution, state transitions, routing resolution, and cleanup.
 - `packages/app/src/data/alerts/`
   - Web server functions and data loaders.
 - `packages/app/src/routes/api/cli/alerts/*`
@@ -309,14 +343,16 @@ API route tests:
 - Query validation success and failure.
 - Upsert semantics by `(organization_id, service, name)`.
 
-DBOS/evaluator tests:
+pg-boss/evaluator tests:
 
 - Firing transition.
 - Repeated firing update.
 - Resolution transition.
 - Evaluation failure does not change active state.
-- Worker build/start smoke test proves DBOS and workflow modules are outside the TanStack/Vite/Nitro web bundle.
-- Two worker processes sharing one Postgres database do not double-apply the same scheduled alert evaluation.
+- Scanner claims due alerts and advances `next_evaluation_at`.
+- Two worker processes sharing one Postgres database do not double-enqueue or double-apply the same alert evaluation.
+- Queue retry behavior records evaluation failure without changing firing state.
+- Load-oriented test covers a large due set by batching scanner claims.
 
 CLI tests:
 
@@ -333,10 +369,14 @@ Desktop tests:
 
 ## Validated Risk Status
 
-- DBOS library-only retention: unresolved. Current DBOS configuration docs do not expose a retention field, and the documented retention policy UI is DBOS Console/Conductor. `deleteWorkflow` and `deleteWorkflows` exist, but they are manual workflow-management APIs rather than a supported time-based policy. This remains the only hard unresolved risk.
-- DBOS dynamic per-alert schedules: resolved. TypeScript docs support runtime `createSchedule`, `applySchedules`, pause/resume/delete, listing, backfill, triggering, database-stored schedules, and dynamic many-schedule patterns.
-- DBOS inside the TanStack/Vite server build: no-go for v1. DBOS docs say DBOS and workflows cannot be bundled by Vite/Rollup/esbuild and must be external. The current `@everr/app` production output is a Nitro `.output/server` bundle with TanStack server modules emitted into generated `_ssr` chunks. The design therefore moves DBOS to a separate alert worker process and keeps DBOS workflow modules out of the web server import graph.
-- Multiple worker replicas: partially validated. DBOS scheduled workflows use schedule-name plus scheduled-time idempotency keys, so duplicate execution should be prevented through Postgres. Because the TypeScript docs do not explicitly show the multi-replica case, implementation must run a two-process worker integration test against one Postgres database.
+- Redis/BullMQ: rejected. Redis is not acceptable for this system.
+- DBOS inside the TanStack/Vite server build: rejected. DBOS docs say DBOS and workflows cannot be bundled by Vite/Rollup/esbuild and must be external. This no longer matters for the chosen runtime because `pg-boss` is already used in the app.
+- Workflow SDK: not chosen for v1. The Postgres World is viable, but it adds workflow transforms, workflow storage, framework endpoints, and workflow history around a workload that is fundamentally scheduled query evaluation. The Postgres World also uses Graphile Worker underneath, so direct queueing is the simpler scaling path.
+- Graphile Worker: not chosen for v1. It has excellent Postgres queue performance, but Everr already uses `pg-boss`, and v1 does not need Graphile's database-centric task model.
+- Per-alert runtime cron schedules: rejected for scale. At 5,000 alerts per minute, app-owned due-time scanning is a better shape than thousands of dynamic cron entries.
+- Multiple worker replicas: accepted with required verification. `pg-boss` distributes claimed jobs through Postgres locks, and the scanner additionally uses app-table row locks. Implementation must run a two-process integration test against one Postgres database.
+- 5,000 alerts per minute: partially validated. Queue throughput should not be the primary bottleneck; ClickHouse query concurrency and cost are. Implementation must load test scanner batching and evaluation concurrency before treating this capacity target as satisfied.
+- Queue retention: resolved by design. Use `pg-boss` `deleteAfterSeconds` and `retentionSeconds` where applicable, while Everr-owned alert events and evidence remain the authoritative 7-day history.
 - Query result bounds: resolved by design. Evidence row and byte limits are mandatory.
 - Member upload risk: accepted product risk with mitigations. Any member can upload, but source links, uploader metadata, and admin/owner deactivation make changes auditable and reversible.
 
@@ -355,4 +395,6 @@ Desktop tests:
 - Each alert references exactly one routing list slug.
 - Built-in routing lists: `everyone`, `admins`, `owners`.
 - Any org member can upload alert YAML.
-- Use DBOS in a separate alert worker process because the TanStack/Vite/Nitro web bundle is incompatible with DBOS workflow bundling constraints.
+- Use `pg-boss` for alert orchestration.
+- Use app-owned due-time scanning instead of one runtime schedule per alert.
+- Support multiple app/worker replicas with Postgres-backed queueing and app-level idempotency.
