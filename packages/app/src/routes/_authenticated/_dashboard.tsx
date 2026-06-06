@@ -31,6 +31,13 @@ import {
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   github_install: z.string().optional(),
   reason: z.string().optional(),
+  // Dashboard variable values, e.g. ?vars={"env":"prod","svc":["a","b"]}.
+  // Deliberately NOT retained across navigation — different dashboards have
+  // different variables. Malformed values fall back to spec defaults.
+  vars: z
+    .record(z.string(), z.union([z.string(), z.array(z.string())]))
+    .optional()
+    .catch(undefined),
 });
 
 export const Route = createFileRoute("/_authenticated/_dashboard")({
