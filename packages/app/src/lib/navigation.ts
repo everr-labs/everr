@@ -1,4 +1,5 @@
 import {
+  BellRing,
   Bug,
   FlaskConical,
   GitBranch,
@@ -43,6 +44,11 @@ export const navMain: NavItem[] = [
     title: "Logs",
     url: "/logs",
     icon: ScrollText,
+  },
+  {
+    title: "Alerts",
+    url: "/alerts",
+    icon: BellRing,
   },
   {
     title: "Errors",

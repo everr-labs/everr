@@ -57,6 +57,38 @@ export type AlertRuleRow = {
   updatedAt: Date;
 };
 
+export type AlertActiveStateRow = {
+  alertDefinitionId: number;
+  organizationId: string;
+  service: string;
+  name: string;
+  severity: AlertSeverity;
+  routingSlug: string;
+  status: AlertStateStatus;
+  firstFiredAt: Date | null;
+  lastSeenAt: Date | null;
+  lastEvaluatedAt: Date | null;
+  rowCount: number;
+  evidence: Array<Record<string, unknown>>;
+  evidenceTruncated: boolean;
+  sourceUrl: string;
+};
+
+export type AlertEventListRow = {
+  id: number;
+  alertDefinitionId: number;
+  organizationId: string;
+  service: string;
+  name: string;
+  severity: AlertSeverity;
+  type: AlertEventType;
+  occurredAt: Date;
+  summary: string;
+  description: string | null;
+  rowCount: number;
+  sourceUrl: string;
+};
+
 export type AlertDefinitionEvaluationRow = {
   id: number;
   organizationId: string;
@@ -113,9 +145,31 @@ export type AlertEventRow = CreateAlertEventInput & {
   occurredAt: Date;
 };
 
+export type RoutingListMember = {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
+export type RoutingListRow = {
+  slug: string;
+  name: string;
+  builtIn: boolean;
+  members: RoutingListMember[];
+};
+
 type StateRow = {
   status: AlertStateStatus;
 };
+
+type CustomRoutingListMemberRow = RoutingListMember & {
+  id: number;
+  slug: string;
+  listName: string;
+};
+
+const BUILT_IN_ROUTING_LISTS = new Set(["everyone", "admins", "owners"]);
 
 export async function upsertAlertDefinitions(
   input: UpsertAlertDefinitionsInput,
@@ -241,7 +295,13 @@ export async function upsertAlertDefinitions(
 
 export async function listAlertRules(input: {
   organizationId: string;
+  active?: boolean;
 }): Promise<AlertRuleRow[]> {
+  const values: unknown[] = [input.organizationId];
+  const activeClause =
+    typeof input.active === "boolean"
+      ? `AND d.active = $${values.push(input.active)}`
+      : "";
   const result = await pool.query<AlertRuleRow>(
     `
       SELECT
@@ -268,12 +328,268 @@ export async function listAlertRules(input: {
       LEFT JOIN alert_states s
         ON s.alert_definition_id = d.id
       WHERE d.organization_id = $1
+        ${activeClause}
       ORDER BY d.service ASC, d.name ASC
+    `,
+    values,
+  );
+
+  return result.rows;
+}
+
+export async function listActiveAlertStates(input: {
+  organizationId: string;
+}): Promise<AlertActiveStateRow[]> {
+  const result = await pool.query<AlertActiveStateRow>(
+    `
+      SELECT
+        s.alert_definition_id AS "alertDefinitionId",
+        s.organization_id AS "organizationId",
+        d.service,
+        d.name,
+        d.severity,
+        d.routing_slug AS "routingSlug",
+        s.status,
+        s.first_fired_at AS "firstFiredAt",
+        s.last_seen_at AS "lastSeenAt",
+        s.last_evaluated_at AS "lastEvaluatedAt",
+        s.row_count AS "rowCount",
+        s.evidence,
+        s.evidence_truncated AS "evidenceTruncated",
+        d.source_url AS "sourceUrl"
+      FROM alert_states s
+      JOIN alert_definitions d
+        ON d.id = s.alert_definition_id
+      WHERE s.organization_id = $1
+        AND s.status = 'firing'
+        AND d.active = true
+      ORDER BY s.last_seen_at DESC NULLS LAST, d.service ASC, d.name ASC
     `,
     [input.organizationId],
   );
 
   return result.rows;
+}
+
+export async function listAlertEvents(input: {
+  organizationId: string;
+  limit: number;
+}): Promise<AlertEventListRow[]> {
+  const result = await pool.query<AlertEventListRow>(
+    `
+      SELECT
+        e.id,
+        e.alert_definition_id AS "alertDefinitionId",
+        e.organization_id AS "organizationId",
+        d.service,
+        d.name,
+        d.severity,
+        e.type,
+        e.occurred_at AS "occurredAt",
+        e.summary,
+        e.description,
+        e.row_count AS "rowCount",
+        d.source_url AS "sourceUrl"
+      FROM alert_events e
+      JOIN alert_definitions d
+        ON d.id = e.alert_definition_id
+      WHERE e.organization_id = $1
+      ORDER BY e.occurred_at DESC
+      LIMIT $2
+    `,
+    [input.organizationId, input.limit],
+  );
+
+  return result.rows;
+}
+
+export async function listRoutingLists(input: {
+  organizationId: string;
+}): Promise<RoutingListRow[]> {
+  const [membersResult, customResult] = await Promise.all([
+    pool.query<RoutingListMember>(
+      `
+        SELECT
+          m.user_id AS "userId",
+          u.name,
+          u.email,
+          m.role
+        FROM member m
+        JOIN "user" u
+          ON u.id = m.user_id
+        WHERE m.organization_id = $1
+        ORDER BY u.name ASC, u.email ASC
+      `,
+      [input.organizationId],
+    ),
+    pool.query<CustomRoutingListMemberRow>(
+      `
+        SELECT
+          l.id,
+          l.slug,
+          l.name AS "listName",
+          rm.user_id AS "userId",
+          u.name,
+          u.email,
+          m.role
+        FROM alert_routing_lists l
+        LEFT JOIN alert_routing_list_members rm
+          ON rm.routing_list_id = l.id
+        LEFT JOIN "user" u
+          ON u.id = rm.user_id
+        LEFT JOIN member m
+          ON m.organization_id = l.organization_id
+         AND m.user_id = rm.user_id
+        WHERE l.organization_id = $1
+        ORDER BY l.slug ASC, u.name ASC, u.email ASC
+      `,
+      [input.organizationId],
+    ),
+  ]);
+
+  const members = membersResult.rows;
+  const lists: RoutingListRow[] = [
+    { slug: "everyone", name: "Everyone", builtIn: true, members },
+    {
+      slug: "admins",
+      name: "Admins",
+      builtIn: true,
+      members: members.filter((member) =>
+        ["admin", "owner"].includes(member.role),
+      ),
+    },
+    {
+      slug: "owners",
+      name: "Owners",
+      builtIn: true,
+      members: members.filter((member) => member.role === "owner"),
+    },
+  ];
+
+  const customLists = new Map<string, RoutingListRow>();
+  for (const row of customResult.rows) {
+    const list =
+      customLists.get(row.slug) ??
+      ({
+        slug: row.slug,
+        name: row.listName,
+        builtIn: false,
+        members: [],
+      } satisfies RoutingListRow);
+    customLists.set(row.slug, list);
+
+    if (row.userId) {
+      list.members.push({
+        userId: row.userId,
+        name: row.name,
+        email: row.email,
+        role: row.role,
+      });
+    }
+  }
+
+  return [...lists, ...customLists.values()];
+}
+
+export async function saveCustomRoutingList(input: {
+  organizationId: string;
+  actorUserId: string;
+  slug: string;
+  name: string;
+  userIds: string[];
+}): Promise<RoutingListRow> {
+  if (BUILT_IN_ROUTING_LISTS.has(input.slug)) {
+    throw new Error("Built-in routing lists cannot be changed.");
+  }
+
+  const userIds = [...new Set(input.userIds)];
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<{ id: number }>(
+      `
+        INSERT INTO alert_routing_lists (
+          organization_id,
+          slug,
+          name,
+          updated_at
+        )
+        VALUES ($1, $2, $3, now())
+        ON CONFLICT (organization_id, slug)
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          updated_at = EXCLUDED.updated_at
+        RETURNING id
+      `,
+      [input.organizationId, input.slug, input.name],
+    );
+
+    const id = result.rows[0]?.id;
+    if (!id) {
+      throw new Error("routing list upsert returned no id");
+    }
+
+    await client.query(
+      `
+        DELETE FROM alert_routing_list_members
+        WHERE routing_list_id = $1
+      `,
+      [id],
+    );
+
+    if (userIds.length > 0) {
+      await client.query(
+        `
+          INSERT INTO alert_routing_list_members (
+            routing_list_id,
+            user_id
+          )
+          SELECT $1, unnest($2::text[])
+          ON CONFLICT (routing_list_id, user_id) DO NOTHING
+        `,
+        [id, userIds],
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const lists = await listRoutingLists({
+    organizationId: input.organizationId,
+  });
+  const list = lists.find((row) => row.slug === input.slug);
+  if (!list) {
+    throw new Error("routing list was not found after save");
+  }
+
+  return list;
+}
+
+export async function deactivateAlertDefinition(input: {
+  organizationId: string;
+  actorUserId: string;
+  id: number;
+}): Promise<boolean> {
+  const result = await pool.query(
+    `
+      UPDATE alert_definitions
+      SET
+        active = false,
+        updated_by = $3,
+        updated_at = now()
+      WHERE organization_id = $1
+        AND id = $2
+        AND active = true
+    `,
+    [input.organizationId, input.id, input.actorUserId],
+  );
+
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function getAlertDefinitionForEvaluation(input: {

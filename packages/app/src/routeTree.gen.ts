@@ -39,6 +39,7 @@ import { Route as AuthenticatedDashboardIngestKeysRouteImport } from './routes/_
 import { Route as AuthenticatedDashboardErrorsRouteImport } from './routes/_authenticated/_dashboard/errors'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
+import { Route as AuthenticatedDashboardAlertsRouteImport } from './routes/_authenticated/_dashboard/alerts'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
@@ -222,6 +223,12 @@ const AuthenticatedDashboardBillingRoute =
     path: '/billing',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardAlertsRoute =
+  AuthenticatedDashboardAlertsRouteImport.update({
+    id: '/alerts',
+    path: '/alerts',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardAccountRoute =
   AuthenticatedDashboardAccountRouteImport.update({
     id: '/account',
@@ -372,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/webhook/github': typeof WebhookGithubRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
+  '/alerts': typeof AuthenticatedDashboardAlertsRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -425,6 +433,7 @@ export interface FileRoutesByTo {
   '/webhook/github': typeof WebhookGithubRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
+  '/alerts': typeof AuthenticatedDashboardAlertsRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -480,6 +489,7 @@ export interface FileRoutesById {
   '/webhook/github': typeof WebhookGithubRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
+  '/_authenticated/_dashboard/alerts': typeof AuthenticatedDashboardAlertsRoute
   '/_authenticated/_dashboard/billing': typeof AuthenticatedDashboardBillingRoute
   '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/_authenticated/_dashboard/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -536,6 +546,7 @@ export interface FileRouteTypes {
     | '/webhook/github'
     | '/invite/$invitationId'
     | '/account'
+    | '/alerts'
     | '/billing'
     | '/cost-analysis'
     | '/errors'
@@ -589,6 +600,7 @@ export interface FileRouteTypes {
     | '/webhook/github'
     | '/invite/$invitationId'
     | '/account'
+    | '/alerts'
     | '/billing'
     | '/cost-analysis'
     | '/errors'
@@ -643,6 +655,7 @@ export interface FileRouteTypes {
     | '/webhook/github'
     | '/_auth/invite/$invitationId'
     | '/_authenticated/_dashboard/account'
+    | '/_authenticated/_dashboard/alerts'
     | '/_authenticated/_dashboard/billing'
     | '/_authenticated/_dashboard/cost-analysis'
     | '/_authenticated/_dashboard/errors'
@@ -913,6 +926,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/billing'
       preLoaderRoute: typeof AuthenticatedDashboardBillingRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/alerts': {
+      id: '/_authenticated/_dashboard/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/account': {
@@ -1196,6 +1216,7 @@ const AuthenticatedDashboardTracesRouteWithChildren =
 
 interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
+  AuthenticatedDashboardAlertsRoute: typeof AuthenticatedDashboardAlertsRoute
   AuthenticatedDashboardBillingRoute: typeof AuthenticatedDashboardBillingRoute
   AuthenticatedDashboardCostAnalysisRoute: typeof AuthenticatedDashboardCostAnalysisRoute
   AuthenticatedDashboardErrorsRoute: typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -1215,6 +1236,7 @@ interface AuthenticatedDashboardRouteChildren {
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
   {
     AuthenticatedDashboardAccountRoute: AuthenticatedDashboardAccountRoute,
+    AuthenticatedDashboardAlertsRoute: AuthenticatedDashboardAlertsRoute,
     AuthenticatedDashboardBillingRoute: AuthenticatedDashboardBillingRoute,
     AuthenticatedDashboardCostAnalysisRoute:
       AuthenticatedDashboardCostAnalysisRoute,
