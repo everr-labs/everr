@@ -628,7 +628,7 @@ git commit -m "Add alert CLI API routes"
 - Create: `packages/app/src/server/alerts/evaluator.ts`
 - Create: `packages/app/src/server/alerts/evaluator.test.ts`
 
-- [ ] **Step 1: Write evaluator tests**
+- [x] **Step 1: Write evaluator tests**
 
 Test these transitions:
 
@@ -638,7 +638,7 @@ Test these transitions:
 - SQL error records `evaluation_failed` and does not change firing/resolved state.
 - inactive definition exits without query execution.
 
-- [ ] **Step 2: Implement evaluator**
+- [x] **Step 2: Implement evaluator**
 
 Export:
 
@@ -660,7 +660,7 @@ Implementation order:
 7. Resolve recipients with `resolveRoutingRecipients`.
 8. Emit alert notification with `notifyAlertUpdate`.
 
-- [ ] **Step 3: Run tests and commit**
+- [x] **Step 3: Run tests and commit**
 
 ```bash
 pnpm --filter @everr/app test -- src/server/alerts/evaluator.test.ts

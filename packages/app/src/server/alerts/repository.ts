@@ -70,6 +70,7 @@ export type AlertDefinitionEvaluationRow = {
   query: string;
   summaryTemplate: string;
   descriptionTemplate: string | null;
+  sourceUrl: string;
 };
 
 export type ClaimedAlertDefinition = {
@@ -292,7 +293,8 @@ export async function getAlertDefinitionForEvaluation(input: {
         active,
         query,
         summary_template AS "summaryTemplate",
-        description_template AS "descriptionTemplate"
+        description_template AS "descriptionTemplate",
+        source_url AS "sourceUrl"
       FROM alert_definitions
       WHERE id = $1
     `,
