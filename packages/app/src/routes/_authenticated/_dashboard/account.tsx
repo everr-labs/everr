@@ -292,7 +292,13 @@ function AccountSettingsPage() {
                     setDeleteConfirmation(event.target.value)
                   }
                 />
-                {canDeleteActiveOrganization ? (
+                {canDeleteActiveOrganization &&
+                isOnlyActiveOrganizationOwner ? (
+                  <p className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs font-medium">
+                    This action is also going to delete the{" "}
+                    {activeOrganizationName} organization.
+                  </p>
+                ) : canDeleteActiveOrganization ? (
                   <label
                     htmlFor="delete-organization"
                     className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs"
@@ -302,10 +308,7 @@ function AccountSettingsPage() {
                       type="checkbox"
                       aria-label={`Delete ${activeOrganizationName} organization too`}
                       className="mt-0.5 size-3.5 accent-current"
-                      checked={
-                        deleteOrganization || isOnlyActiveOrganizationOwner
-                      }
-                      disabled={isOnlyActiveOrganizationOwner}
+                      checked={deleteOrganization}
                       onChange={(event) =>
                         setDeleteOrganization(event.target.checked)
                       }
@@ -315,9 +318,8 @@ function AccountSettingsPage() {
                         Delete {activeOrganizationName} organization too
                       </span>
                       <span className="text-muted-foreground">
-                        {isOnlyActiveOrganizationOwner
-                          ? "You're the only owner, so deleting your account will also delete the organization."
-                          : "Leave this unchecked to remove only your account and keep the organization."}
+                        Leave this unchecked to remove only your account and
+                        keep the organization.
                       </span>
                     </span>
                   </label>

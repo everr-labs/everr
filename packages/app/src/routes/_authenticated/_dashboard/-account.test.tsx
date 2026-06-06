@@ -137,7 +137,10 @@ describe("/account route", () => {
       data: {
         id: "test_org",
         name: "Acme",
-        members: [{ userId: "test_user", role: "owner" }],
+        members: [
+          { userId: "test_user", role: "owner" },
+          { userId: "other_owner", role: "owner" },
+        ],
       },
     });
     const Component = Route.options.component as React.ComponentType;
@@ -150,7 +153,7 @@ describe("/account route", () => {
     ).toBeInTheDocument();
   });
 
-  it("requires deleting the organization when the user is its only owner", async () => {
+  it("shows a forced organization deletion notice when the user is its only owner", async () => {
     const user = userEvent.setup();
     mocks.useActiveOrganization.mockReturnValue({
       data: {
@@ -167,9 +170,14 @@ describe("/account route", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
 
-    const checkbox = screen.getByLabelText("Delete Acme organization too");
-    expect(checkbox).toBeChecked();
-    expect(checkbox).toBeDisabled();
+    expect(
+      screen.getByText(
+        "This action is also going to delete the Acme organization.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Delete Acme organization too"),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the organization deletion option from organization admins", async () => {
