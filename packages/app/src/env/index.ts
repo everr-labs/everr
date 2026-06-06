@@ -1,5 +1,6 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
+import { alertEnv } from "./alerts";
 import { authEnv } from "./auth";
 import { clickhouseEnv } from "./clickhouse";
 import { dbEnv } from "./db";
@@ -13,6 +14,7 @@ export const env = createEnv({
     clickhouseEnv,
     githubEnv,
     authEnv,
+    alertEnv,
     githubEventsEnv,
     ingestEnv,
   ],

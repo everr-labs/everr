@@ -5,6 +5,9 @@ import {
 } from "@tanstack/react-start/server";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "@/db/client";
+import { alertEnv } from "@/env/alerts";
+import { startAlertRuntime } from "@/server/alerts/runtime";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
   getTelemetryTracer,
   recordTelemetryError,
@@ -31,6 +34,30 @@ await startupTracer.startActiveSpan(
     }
   },
 );
+
+if (alertEnv.EVERR_ALERTS_ENABLED) {
+  await startupTracer.startActiveSpan(
+    "startup.alert_runtime",
+    { kind: SpanKind.INTERNAL },
+    async (span) => {
+      try {
+        await startAlertRuntime();
+      } catch (error) {
+        serverLogger.error(
+          "alerts.runtime.start_failed",
+          exceptionAttributes(error),
+        );
+        recordTelemetryError(error, {
+          "error.handled": false,
+          "error.source": "startup.alert_runtime",
+        });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
+}
 
 const handler = defineHandlerCallback((ctx) => {
   return defaultStreamHandler(ctx);
