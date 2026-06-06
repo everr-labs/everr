@@ -31,7 +31,7 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Saving an existing dashboard preserves its folder assignment
 - ✅ Not-found route component; breadcrumb from loader data
 - ✅ Unsaved-changes protection — dirty tracking in the store, route blocker with Stay / Discard & leave dialog, `beforeunload` on tab close; the panel editor mounts the same blocker so edits stay protected there too
-- ✅ Toolbar kebab → Settings page (`/dashboards/$dashboardId/settings`): General section sets per-dashboard default time range + auto-refresh interval; edits are dirty-tracked through the store and persisted via the page's Save
+- ✅ Toolbar Settings button (always visible) → Settings page (`/dashboards/$dashboardId/settings`): General section sets per-dashboard default time range + auto-refresh interval; edits are dirty-tracked through the store and persisted via the page's Save
 
 ## New dashboard flow (`/dashboards/new`)
 
