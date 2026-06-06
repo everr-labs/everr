@@ -9,6 +9,7 @@ use futures_util::StreamExt;
 
 use crate::api::{
     ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState,
+    WorkflowNotifyPayload,
 };
 use crate::auth;
 use crate::cli::{
@@ -317,7 +318,8 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
 
     loop {
         match event_stream.next().await {
-            Some(Ok(event)) => match event.event_type.as_str() {
+            Some(Ok(NotifyPayload::Alert(_))) => {}
+            Some(Ok(NotifyPayload::Workflow(event))) => match event.event_type.as_str() {
                 "job" => {
                     if run_id_filter.as_deref() != Some(event.run_id.as_str())
                         && run_id_filter.is_some()
@@ -371,7 +373,7 @@ pub async fn watch(args: WatchArgs) -> Result<()> {
     }
 }
 
-fn format_watch_event_line(event: &NotifyPayload) -> String {
+fn format_watch_event_line(event: &WorkflowNotifyPayload) -> String {
     let status = if event.status == "completed" {
         event
             .conclusion
@@ -607,8 +609,9 @@ mod tests {
 
     #[test]
     fn format_watch_event_line_formats_job_event() {
-        use crate::api::NotifyPayload;
-        let event = NotifyPayload {
+        use crate::api::WorkflowNotifyPayload;
+        let event = WorkflowNotifyPayload {
+            kind: "workflow".to_string(),
             tenant_id: "1".to_string(),
             trace_id: "t1".to_string(),
             run_id: "42".to_string(),
@@ -631,8 +634,9 @@ mod tests {
 
     #[test]
     fn format_watch_event_line_formats_run_event() {
-        use crate::api::NotifyPayload;
-        let event = NotifyPayload {
+        use crate::api::WorkflowNotifyPayload;
+        let event = WorkflowNotifyPayload {
+            kind: "workflow".to_string(),
             tenant_id: "1".to_string(),
             trace_id: "t1".to_string(),
             run_id: "42".to_string(),
