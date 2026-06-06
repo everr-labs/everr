@@ -66,6 +66,7 @@ import { DashboardSettingsDialog } from "./dashboard-settings-dialog";
 import { DeleteDashboardDialog } from "./delete-dashboard-dialog";
 import { FolderList, FolderPickerDialog } from "./folder-picker";
 import { NameDialog } from "./name-dialog";
+import { VariableBar } from "./variable-bar";
 
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
@@ -369,6 +370,8 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
           </DropdownMenu>
         )}
       </div>
+
+      <VariableBar />
 
       <div ref={containerRef}>
         <GridLayout

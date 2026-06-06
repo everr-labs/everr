@@ -17,6 +17,7 @@ import {
   renameDashboard,
   renameFolder,
   runPanelQuery,
+  runVariableOptionsQuery,
   saveDashboard,
   updateDashboardSettings,
 } from "./server";
@@ -47,6 +48,17 @@ export const panelQueryOptions = (sql: string, from?: string, to?: string) =>
     queryKey: ["panel-query", sql, from, to],
     queryFn: () => runPanelQuery({ data: { sql, from, to } }),
     enabled: sql.trim().length > 0,
+  });
+
+export const variableOptionsQueryOptions = (
+  query: string,
+  from?: string,
+  to?: string,
+) =>
+  queryOptions({
+    queryKey: ["variable-options", query, from, to],
+    queryFn: () => runVariableOptionsQuery({ data: { query, from, to } }),
+    enabled: query.trim().length > 0,
   });
 
 export function useSaveDashboard() {
