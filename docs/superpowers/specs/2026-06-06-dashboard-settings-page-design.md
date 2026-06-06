@@ -27,10 +27,11 @@ Responsibilities (and nothing else): store bootstrap, header, blocker, section/s
 - **Header:** back arrow `Link` to the dashboard (forwarding `vars` via the `keepVars` pattern), title `Settings — {display name ?? slug}`, and a **Save** button on the right using the existing `useSaveDashboard` mutation + `markSaved` (create flow for `new` is NOT supported here — the Save button is hidden when `isNew`; new-dashboard edits are persisted from the dashboard page's own Save, same as panel edits).
 - **Sections nav (left column):** "General" and "Variables" entries. Selection state is local:
   `type Selection = { kind: "general" } | { kind: "variable"; index: number } | { kind: "new-variable" }`.
-  Initial value comes from a new optional search param on this route only (`validateSearch` on the settings route): `section: z.enum(["general", "variables"]).optional().catch(undefined)` — `"variables"` selects `{ kind: "variable", index: 0 }` when variables exist, else `{ kind: "new-variable" }`; default is General.
+  Initial value comes from a new optional search param on this route only (`validateSearch` on the settings route): `section: z.enum(["general", "variables"]).optional().catch(undefined)` — `"variables"` selects `{ kind: "variable", index: 0 }` when variables exist, else `{ kind: "new-variable" }`; default is General. (TanStack Router merges a child route's `validateSearch` output with the parent layout's — the settings route only declares `section`; `from`/`to`/`vars` keep coming from the `_dashboard` layout schema. The param is read once on mount to seed local state; it is not kept in sync afterwards.)
 - **Middle column** appears only for the Variables section (rendered by `settings-variables-section.tsx`, below).
 - **Dirty-form guard:** the page owns a `confirmPending` state; when the variable form reports un-applied edits and the user changes selection (or section), show an AlertDialog ("Discard changes to this variable?" Stay / Discard) before switching.
 - **Blocker:** `useBlocker` identical in shape to the panel editor's: block when `isDirty` and `!next.pathname.startsWith(dashboardPrefix)` where `dashboardPrefix = /dashboards/${dashboardId}`; same Stay / Discard & leave dialog (`resetStore` on proceed); `enableBeforeUnload` on dirty. The blocker does NOT consider un-applied form drafts (only store dirty) — the confirm-discard dialog covers drafts within the page, and leaving the page entirely with an un-applied draft is an accepted loss (drafts are not store state).
+- **Dirty return path:** a user who arrives via the kebab (dashboard not in edit mode), makes changes, and goes back without saving lands on a dirty dashboard whose Save button only shows in edit mode. Accepted: the settings page's own Save is the primary persistence point; on the dashboard, entering Edit mode exposes Save, and the blocker protects against accidental loss. No special handling.
 
 ## 3. General section — `components/dashboards/settings-general-section.tsx`
 
@@ -45,7 +46,7 @@ Responsibilities (and nothing else): store bootstrap, header, blocker, section/s
   - Draft state initializes from the selected variable (`draftFromVariable`) or `emptyDraft()` for Add; reinitializes via `key={selectionKey}` remount on selection change.
   - Same fields as the modal: kind ToggleGroup, name, label, Text → value + constant; List → plugin ToggleGroup (Static → one-per-line Textarea; ClickHouseSQL → **`SqlEditor`** + "Preview options" button → `runVariableOptionsQuery` with `from`/`to` from search, inline options list/truncation note/error — no toast), default value, allowMultiple, allowAllValue (+ customAllValue when on), hidden.
   - **Apply** validates (`validateDraft`: name regex + uniqueness excluding self + non-empty static values/query) and commits via `updateVariables` (append for new, replace by index for edit), then keeps the variable selected. Inline error text on failure; errors clear on any field change.
-  - **Delete** button (edit mode only) commits via `updateVariables(filter)` and moves selection to the previous row (or General when none left). No confirmation (consistent with panel removal; dashboard Save is the persistence gate).
+  - **Delete** button (shown only when editing an existing variable, not on the Add form) commits via `updateVariables(filter)` and moves selection to the previous row (or General when none left). No confirmation (consistent with panel removal; dashboard Save is the persistence gate).
   - The form reports `hasUnappliedChanges` upward (draft ≠ initial draft, JSON compare) for the page's confirm-discard guard.
 - The "capturingRegexp/sort parsed but not applied in v1" note moves from the dialog description to a muted caption in the form.
 
@@ -68,9 +69,9 @@ interface SqlEditorProps {
 ## 6. Navigation changes
 
 - `dashboard-grid.tsx`:
-  - Kebab "Settings" item: `setManageAction("settings")` → `navigate` to `/dashboards/$dashboardId/settings`. The `manageAction` `"settings"` variant and `<DashboardSettingsDialog>` render are removed.
+  - Kebab "Settings" item: its `onClick` becomes a `navigate` to `/dashboards/$dashboardId/settings` (no `section` param → General selected). The `"settings"` variant of `manageAction` and the `<DashboardSettingsDialog>` render are removed.
   - Edit-toolbar "Variables" button: navigates to `/dashboards/$dashboardId/settings?section=variables` (or `/dashboards/new/settings?section=variables` when `isNew`) instead of opening the modal; `showVariablesManager` state and `<VariablesManager>` render are removed.
-  - Both navigations forward `vars` (`search: (prev) => ({ ...prev, vars: prev.vars, section: ... })`).
+  - Both navigations forward `vars` (`search: (prev) => ({ ...prev, vars: prev.vars })`, plus `section: "variables"` for the Variables button only).
   - Blocker exemption broadens: `!next.pathname.startsWith(panelEditPrefix)` becomes `!next.pathname.startsWith(dashboardPathPrefix)` where `dashboardPathPrefix = /dashboards/${isNew ? "new" : slug}` — covers the panel editor AND the settings page (the same-pathname exemption stays).
 - Settings page exits (back arrow, blocker proceed) forward `vars` like the panel editor's `keepVars`.
 
@@ -82,7 +83,7 @@ interface SqlEditorProps {
 
 ## 8. Pure module extraction — `data/dashboards/variable-draft.ts`
 
-`VariableDraft`, `emptyDraft`, `draftFromVariable`, `variableFromDraft`, `validateDraft`, `parseStaticValues` move VERBATIM from `variables-manager.tsx` into this module and gain unit tests (`variable-draft.test.ts`): round-trips for text (value/constant/hidden/label), static list (values, defaults single + multi), query list (query, customAllValue), kind-label derivation if moved too, validation matrix (bad name, duplicate, duplicate-excluding-self, empty static values, empty query, valid cases). The settings variables section imports from here.
+`VariableDraft`, `emptyDraft`, `draftFromVariable`, `variableFromDraft`, `validateDraft`, `parseStaticValues`, and `variableKindLabel` move VERBATIM from `variables-manager.tsx` into this module and gain unit tests (`variable-draft.test.ts`): round-trips for text (value/constant/hidden/label), static list (values, defaults single + multi), query list (query, customAllValue), `variableKindLabel` for all three kinds, validation matrix (bad name, duplicate, duplicate-excluding-self, empty static values, empty query, valid cases). The settings variables section imports from here.
 
 ## 9. Out of scope
 
@@ -104,8 +105,15 @@ interface SqlEditorProps {
 
 ### Where you are
 
-- Monorepo `everr-labs/everr`, pnpm workspaces; app is `packages/app` (TanStack Start/Router + React 19 + react-query + zustand + zod v4). Branch `gio/dashboard-variables` already contains the full dashboard-variables feature (spec: `docs/superpowers/specs/2026-06-06-dashboard-variables-design.md`, plan: `docs/superpowers/plans/2026-06-06-dashboard-variables.md`) — 19 commits, 548 tests passing. This design REPLACES that feature's modal UI; read both specs.
-- `DASHBOARD_FEATURES.md` (repo root) describes the whole dashboards feature — update it at the end (variables manager → settings page).
+- Monorepo `everr-labs/everr`, pnpm workspaces; app is `packages/app` (TanStack Start/Router + React 19 + react-query + zustand + zod v4 — `import * as z` in data files, `import { z } from "zod"` in route files). Branch `gio/dashboard-variables` already contains the full dashboard-variables feature, implemented, reviewed, and browser-verified (spec: `docs/superpowers/specs/2026-06-06-dashboard-variables-design.md`; plan with the established working conventions to copy into the new plan: `docs/superpowers/plans/2026-06-06-dashboard-variables.md`). Full suite currently 548 passing (`cd packages/app && pnpm exec vitest run`); expect −3 (removed `updateDashboardSettings` tests) +new `variable-draft` tests at the end. This design REPLACES that feature's modal UI; read both specs before planning.
+- `DASHBOARD_FEATURES.md` (repo root) describes the whole dashboards feature — update it at the end (variables manager → settings page; settings dialog → settings page).
+
+### What the variables feature already provides (do not rebuild)
+
+- `data/dashboards/interpolate.ts` (tokens, `ALL_VALUE`), `variable-values.ts` (`VARIABLE_NAME_RE`, `getListVariableSource`, effective values), `options.ts` (`variableOptionsQueryOptions`, `panelQueryOptions` with variables), `server.ts` (`runVariableOptionsQuery`, interpolating `runPanelQuery`).
+- `components/dashboards/use-dashboard-variables.ts` (hook) and `variable-bar.tsx` (pickers) — UNTOUCHED by this design; the settings page does not render the bar.
+- `dashboard-store.ts` contract: `setDashboard` (load, clears dirty), `patchDashboard` (replace, marks dirty), `updatePanel`/`updateLayout`/`updateVariables` (mark dirty), `updateDisplayName` (preserves dirty), `markSaved`, `reset`.
+- The `keepVars` pattern (see `panel-edit-page.tsx`): `vars` is deliberately NOT in the layout's `retainSearchParams`, so any `Link`/`navigate` leaving a dashboard subpage must pass `search: (prev) => ({ ...prev, vars: prev.vars })` (a search updater that spreads prev) or selections are silently dropped. Both dashboard-page blockers already exempt same-pathname (search-only) navigations.
 
 ### Key files
 
