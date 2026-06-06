@@ -23,13 +23,17 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
+import { extractVariableTokens } from "@/data/dashboards/interpolate";
 import { dashboardOptions, panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { runPanelQuery } from "@/data/dashboards/server";
+import { pickByNames } from "@/data/dashboards/variable-values";
 import { PanelPreview } from "./panel-preview";
 import { QueryEditor } from "./query-editor";
+import { useDashboardVariables } from "./use-dashboard-variables";
+import { VariableBar } from "./variable-bar";
 import type { QueryResultRow } from "./visualizations";
 import { VizOptions } from "./viz-options";
 
@@ -103,12 +107,52 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
     }
   }, [panel, draft]);
 
+  const { variables, values, meta, pendingAllNames } = useDashboardVariables();
+  const definedNames = useMemo(
+    () => new Set(variables.map((v) => v.spec.name)),
+    [variables],
+  );
+
   const savedSql = panel ? getQuerySql(panel) : "";
+  const savedUsedNames = useMemo(
+    () =>
+      extractVariableTokens(savedSql).filter((name) => definedNames.has(name)),
+    [savedSql, definedNames],
+  );
+  const savedMissingName = savedUsedNames.find(
+    (name) => values[name] === undefined,
+  );
+  const savedWaitingForOptions = savedUsedNames.some((name) =>
+    pendingAllNames.includes(name),
+  );
+  const savedVariables =
+    savedUsedNames.length > 0 ? pickByNames(values, savedUsedNames) : undefined;
+  const savedMeta =
+    savedUsedNames.length > 0 ? pickByNames(meta, savedUsedNames) : undefined;
+  const autoOpts = panelQueryOptions(
+    savedSql,
+    from,
+    to,
+    savedVariables,
+    savedMeta,
+  );
   const {
     data: autoResult,
     isError: autoIsError,
     error: autoError,
-  } = useQuery(panelQueryOptions(savedSql, from, to));
+  } = useQuery({
+    ...autoOpts,
+    // storeDashboard gate: on a direct editor URL load there is one render
+    // where the fetched dashboard exists but the store (which
+    // useDashboardVariables reads) is still null — without the gate the query
+    // would fire once with un-resolved variables. The sync effect above sets
+    // the store immediately after, so this only delays by one tick.
+    enabled:
+      storeDashboard !== null &&
+      savedSql.trim().length > 0 &&
+      savedMissingName === undefined &&
+      !savedWaitingForOptions,
+  });
 
   const [manualResult, setManualResult] = useState<
     QueryResultRow[] | undefined
@@ -118,13 +162,27 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
 
   const handleRunQuery = useCallback(
     async (sql: string) => {
+      const usedNames = extractVariableTokens(sql).filter((name) =>
+        definedNames.has(name),
+      );
+      const missingName = usedNames.find((name) => values[name] === undefined);
+      if (missingName !== undefined) {
+        setManualError(`Select a value for $${missingName}`);
+        return;
+      }
+      const variables =
+        usedNames.length > 0 ? pickByNames(values, usedNames) : undefined;
+      const variableMeta =
+        usedNames.length > 0 ? pickByNames(meta, usedNames) : undefined;
       setIsRunning(true);
       try {
-        const result = await runPanelQuery({ data: { sql, from, to } });
+        const result = await runPanelQuery({
+          data: { sql, from, to, variables, variableMeta },
+        });
         setManualResult(result.rows);
         setManualError(null);
         queryClient.setQueryData(
-          panelQueryOptions(sql, from, to).queryKey,
+          panelQueryOptions(sql, from, to, variables, variableMeta).queryKey,
           result,
         );
       } catch (error) {
@@ -133,17 +191,19 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
         setIsRunning(false);
       }
     },
-    [queryClient, from, to],
+    [queryClient, from, to, values, meta, definedNames],
   );
 
   const queryResult = manualResult ?? autoResult?.rows;
   const queryErrorMessage =
     manualError ??
-    (autoIsError && !manualResult
-      ? autoError instanceof Error
-        ? autoError.message
-        : String(autoError)
-      : undefined);
+    (savedMissingName !== undefined && !manualResult
+      ? `Select a value for $${savedMissingName}`
+      : autoIsError && !manualResult
+        ? autoError instanceof Error
+          ? autoError.message
+          : String(autoError)
+        : undefined);
 
   if (!dashboard) return null;
 
@@ -233,6 +293,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
           </Button>
         </div>
       </div>
+      <VariableBar compact />
 
       <ResizablePanelGroup className="min-h-0 flex-1">
         <ResizablePanel defaultSize={65} minSize={30}>

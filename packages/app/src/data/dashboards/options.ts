@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { VariableMeta, VariableValues } from "./interpolate";
 import {
   createDashboard,
   createFolder,
@@ -43,10 +44,24 @@ export const folderListOptions = () =>
     queryFn: () => listFolders(),
   });
 
-export const panelQueryOptions = (sql: string, from?: string, to?: string) =>
+export const panelQueryOptions = (
+  sql: string,
+  from?: string,
+  to?: string,
+  variables?: VariableValues,
+  variableMeta?: VariableMeta,
+) =>
   queryOptions({
-    queryKey: ["panel-query", sql, from, to],
-    queryFn: () => runPanelQuery({ data: { sql, from, to } }),
+    queryKey: [
+      "panel-query",
+      sql,
+      from,
+      to,
+      variables ?? null,
+      variableMeta ?? null,
+    ],
+    queryFn: () =>
+      runPanelQuery({ data: { sql, from, to, variables, variableMeta } }),
     enabled: sql.trim().length > 0,
   });
 
