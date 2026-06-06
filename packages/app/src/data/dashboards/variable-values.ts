@@ -1,0 +1,135 @@
+/**
+ * Effective variable value resolution: URL `vars` param wins, spec defaults
+ * apply otherwise. Normalization: multi-select variables always resolve to
+ * arrays, single-select to strings; the All sentinel only when allowAllValue.
+ * Invalid shapes fall back to the default. Pure module.
+ */
+import {
+  ALL_VALUE,
+  type VariableMeta,
+  type VariableValues,
+} from "./interpolate";
+import type { ListVariable, Variable } from "./schema";
+
+/** Valid variable names; also enforced by the variables manager. */
+export const VARIABLE_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+export type VariableUrlValues = Record<string, string | string[]>;
+
+export type ListVariableSource =
+  | { kind: "static"; values: string[] }
+  | { kind: "query"; query: string }
+  | { kind: "unknown" };
+
+/** Typed reader over the loose `plugin: { kind, spec }` of a ListVariable. */
+export function getListVariableSource(
+  variable: ListVariable,
+): ListVariableSource {
+  const { kind, spec } = variable.spec.plugin;
+  if (kind === "StaticListVariable" && Array.isArray(spec.values)) {
+    return {
+      kind: "static",
+      values: spec.values.filter((v): v is string => typeof v === "string"),
+    };
+  }
+  if (kind === "ClickHouseSQLVariable" && typeof spec.query === "string") {
+    return { kind: "query", query: spec.query };
+  }
+  return { kind: "unknown" };
+}
+
+function normalizeListValue(
+  value: string | string[] | undefined,
+  multi: boolean,
+  allowAll: boolean,
+): string | string[] | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "string") {
+    if (value === ALL_VALUE) return allowAll ? ALL_VALUE : undefined;
+    if (value === "") return undefined;
+    return multi ? [value] : value;
+  }
+  // Arrays are only valid for multi-select, and never contain the sentinel.
+  if (!multi) return undefined;
+  if (value.some((entry) => entry === ALL_VALUE)) return undefined;
+  return value;
+}
+
+function effectiveValue(
+  variable: Variable,
+  urlValue: string | string[] | undefined,
+): string | string[] | undefined {
+  if (variable.kind === "TextVariable") {
+    const candidate = typeof urlValue === "string" ? urlValue : undefined;
+    const resolved =
+      candidate !== undefined && candidate !== ""
+        ? candidate
+        : variable.spec.value;
+    return resolved === "" ? undefined : resolved;
+  }
+  const multi = variable.spec.allowMultiple === true;
+  const allowAll = variable.spec.allowAllValue === true;
+  return (
+    normalizeListValue(urlValue, multi, allowAll) ??
+    normalizeListValue(variable.spec.defaultValue, multi, allowAll)
+  );
+}
+
+/**
+ * Resolve effective values for all variables. Variables with no effective
+ * value (no URL value, no default, empty text) are omitted from the result.
+ */
+export function effectiveVariableValues(
+  variables: Variable[],
+  urlVars: VariableUrlValues | undefined,
+): VariableValues {
+  const result: VariableValues = {};
+  for (const variable of variables) {
+    const value = effectiveValue(variable, urlVars?.[variable.spec.name]);
+    if (value !== undefined) result[variable.spec.name] = value;
+  }
+  return result;
+}
+
+/**
+ * Build the interpolation metadata for variables currently set to All.
+ * Query-backed variables without customAllValue need loaded options; until
+ * those arrive their names are reported in `pendingAllNames` so panels can
+ * hold off querying.
+ */
+export function buildAllMeta(
+  variables: Variable[],
+  values: VariableValues,
+  optionsByName: Record<string, { options?: string[] } | undefined>,
+): { meta: VariableMeta; pendingAllNames: string[] } {
+  const meta: VariableMeta = {};
+  const pendingAllNames: string[] = [];
+  for (const variable of variables) {
+    if (variable.kind !== "ListVariable") continue;
+    const name = variable.spec.name;
+    if (values[name] !== ALL_VALUE) continue;
+    if (variable.spec.customAllValue !== undefined) {
+      meta[name] = { customAllValue: variable.spec.customAllValue };
+      continue;
+    }
+    const options = optionsByName[name]?.options;
+    if (options) {
+      meta[name] = { options };
+    } else {
+      pendingAllNames.push(name);
+    }
+  }
+  return { meta, pendingAllNames };
+}
+
+/** Subset a record to the given keys (used to scope values/meta per panel). */
+export function pickByNames<T>(
+  record: Record<string, T>,
+  names: string[],
+): Record<string, T> {
+  const result: Record<string, T> = {};
+  for (const name of names) {
+    if (name in record) result[name] = record[name]!;
+  }
+  return result;
+}
