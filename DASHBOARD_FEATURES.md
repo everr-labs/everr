@@ -31,7 +31,7 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Saving an existing dashboard preserves its folder assignment
 - ✅ Not-found route component; breadcrumb from loader data
 - ✅ Unsaved-changes protection — dirty tracking in the store, route blocker with Stay / Discard & leave dialog, `beforeunload` on tab close; the panel editor mounts the same blocker so edits stay protected there too
-- ✅ Toolbar kebab → Settings: per-dashboard default time range + auto-refresh interval (applies immediately, like Rename)
+- ✅ Toolbar kebab → Settings page (`/dashboards/$dashboardId/settings`): General section sets per-dashboard default time range + auto-refresh interval; edits are dirty-tracked through the store and persisted via the page's Save
 
 ## New dashboard flow (`/dashboards/new`)
 
@@ -59,20 +59,20 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Grafana-style tokens in panel SQL — `$name`, `${name}`, `${name:raw}` — interpolated **server-side** in `runPanelQuery` (escaped ClickHouse literals; arrays → parenthesized lists; empty array → `(NULL)`; unknown tokens left untouched) — `packages/app/src/data/dashboards/interpolate.ts`
 - ✅ Variable bar (dashboard page + compact in the panel editor): text inputs, single/multi dropdowns, "All" entry; query-backed options load via react-query keyed on query + time range (refresh with the picker); loading spinner, inline error state (tooltip, no toast), "first 1000 shown" truncation note
 - ✅ Value state in a single `vars` URL search param (JSON object; All sentinel `"__all"`); URL wins over spec defaults; not retained across navigation by design; back button steps through selections; editor entry/exit forwards `vars`
-- ✅ Edit-mode Variables manager dialog (list + add/edit form, name regex + uniqueness validation, query preview); mutations dirty-tracked through the store, saved with the dashboard Save flow
+- ✅ Variables section on the settings page (sections nav + variable list + draft form with Apply/Delete, name regex + uniqueness validation, CodeMirror SQL editor + query preview, confirm-discard on switching with un-applied edits); mutations dirty-tracked through the store, saved with the dashboard Save flow
 - ✅ Panels referencing a variable with no effective value render "Select a value for $name" client-side (query disabled, nothing sent to ClickHouse); All-without-options waits in the pending skeleton
 - ❌ Not in v1 (tracked follow-ups): variable chaining (variables inside option queries), `capturingRegexp`, `sort` (parsed but ignored), Grafana-style `var-<name>` URL aliases, per-panel overrides, variables in panel titles/descriptions
 
 ## Time range
 
 - ✅ Global time-range picker (URL search params) drives all panel queries; chart zoom writes back to the URL
-- ✅ Per-dashboard `duration` / auto-`refreshInterval` — saved via toolbar kebab → Settings; seeds the URL params once per visit when absent (explicit URL params always win, shareable links untouched)
+- ✅ Per-dashboard `duration` / auto-`refreshInterval` — edited on the settings page (General), saved with the dashboard Save flow; seeds the URL params once per visit when absent (explicit URL params always win, shareable links untouched)
 
 ## Testing
 
-- ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check, insert-only/update-only split, slug-collision retry, unique-violation mapping, settings update, variable interpolation before execution, options-query dedup/cap (`server.test.ts`), store dirty tracking incl. `updateVariables` (`dashboard-store.test.ts`), stat calculations/thresholds (`stat-calculations.test.ts`), duration/refresh seeding (`time-defaults.test.ts`), token interpolation/escaping (`interpolate.test.ts`), effective value resolution (`variable-values.test.ts`)
+- ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check, insert-only/update-only split, slug-collision retry, unique-violation mapping, variable interpolation before execution, options-query dedup/cap (`server.test.ts`), store dirty tracking incl. `updateVariables` (`dashboard-store.test.ts`), stat calculations/thresholds (`stat-calculations.test.ts`), duration/refresh seeding (`time-defaults.test.ts`), token interpolation/escaping (`interpolate.test.ts`), effective value resolution (`variable-values.test.ts`), variable draft round-trips/validation (`variable-draft.test.ts`)
 - ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior, StatChart, unsaved-changes dialogs + beforeunload, panel error states, settings seeding incl. URL-wins, duplicate-folder error, aria-labels; variables: all three kinds, multi-select + All, URL round-trip + back button, picker-driven refetch, dirty tracking through the manager, missing-value panel state, options-query error state, hidden variables)
 
 ## Known rough edges
 
-- `renameDashboard` and `updateDashboardSettings` do a read-modify-write of the full spec; a concurrent full-spec save in the same window can be clobbered (accepted at current scale)
+- `renameDashboard` does a read-modify-write of the full spec; a concurrent full-spec save in the same window can be clobbered (accepted at current scale)
