@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use everr_core::api::{ApiClient, FailureNotification};
+use everr_core::api::{ApiClient, DesktopNotification};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
@@ -43,7 +43,7 @@ pub(crate) async fn get_wizard_status(
 #[tauri::command]
 pub(crate) fn get_active_notification(
     state: State<'_, RuntimeState>,
-) -> CommandResult<Option<FailureNotification>> {
+) -> CommandResult<Option<DesktopNotification>> {
     let notifier = state
         .notifier
         .lock()
@@ -250,7 +250,12 @@ pub(crate) fn trigger_test_notification(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<TestNotificationResponse> {
     let notification = build_test_notification().into_command_result()?;
-    enqueue_notification(&app, state.inner(), notification).into_command_result()?;
+    enqueue_notification(
+        &app,
+        state.inner(),
+        DesktopNotification::Workflow(notification),
+    )
+    .into_command_result()?;
 
     Ok(TestNotificationResponse { status: "queued" })
 }

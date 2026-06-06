@@ -1,10 +1,15 @@
-use everr_core::api::{FailedJobInfo, FailureNotification};
+use everr_core::api::{
+    AlertNotifyPayload, DesktopNotification, FailedJobInfo, FailureNotification,
+};
 use everr_core::state::{AppSettings, WizardState};
 use tempfile::tempdir;
 
 use crate::auto_fix_prompt::build_notification_auto_fix_prompt;
 use crate::cli::sync_installed_cli_from_paths;
-use crate::notifications::{active_notification_auto_fix_prompt, reset_notifier_runtime_state};
+use crate::notifications::{
+    active_notification_auto_fix_prompt, alert_desktop_notification_from_payload,
+    reset_notifier_runtime_state,
+};
 #[cfg(target_os = "macos")]
 use crate::notifications::{
     notification_hover_uses_native_panel_geometry, notification_window_uses_native_panel,
@@ -33,17 +38,47 @@ fn failure(dedupe_key: &str) -> FailureNotification {
     }
 }
 
+fn workflow(dedupe_key: &str) -> DesktopNotification {
+    DesktopNotification::Workflow(failure(dedupe_key))
+}
+
+fn notification_dedupe_key(notification: &DesktopNotification) -> &str {
+    match notification {
+        DesktopNotification::Workflow(failure) => &failure.dedupe_key,
+        DesktopNotification::Alert(alert) => &alert.dedupe_key,
+    }
+}
+
+fn alert_payload(severity: &str, status: &str) -> AlertNotifyPayload {
+    AlertNotifyPayload {
+        kind: "alert".to_string(),
+        tenant_id: "org1".to_string(),
+        recipient_user_ids: vec!["user1".to_string()],
+        alert_definition_id: 10,
+        alert_event_id: 20,
+        service: "api".to_string(),
+        name: "high-5xx-routes".to_string(),
+        severity: severity.to_string(),
+        status: status.to_string(),
+        summary: "2 routes have elevated 5xxs".to_string(),
+        description: Some("Top route: /api".to_string()),
+        occurred_at: "2026-06-06T10:00:00Z".to_string(),
+        source_url: "https://github.com/acme/repo/blob/main/alerts.yaml".to_string(),
+        row_count: 2,
+    }
+}
+
+fn alert_notification() -> DesktopNotification {
+    alert_desktop_notification_from_payload(&alert_payload("critical", "firing"))
+        .expect("critical firing alert should become a popup notification")
+}
+
 #[test]
 fn enqueue_first_item_sets_active_notification() {
     let mut queue = NotificationQueue::default();
 
-    assert!(queue.enqueue(failure("one")));
-    assert_eq!(
-        queue
-            .active()
-            .map(|notification| notification.dedupe_key.as_str()),
-        Some("one")
-    );
+    assert!(queue.enqueue(workflow("one")));
+    assert_eq!(queue.active().map(notification_dedupe_key), Some("one"));
     assert!(queue.pending.is_empty());
 }
 
@@ -51,38 +86,28 @@ fn enqueue_first_item_sets_active_notification() {
 fn enqueue_additional_items_queues_without_replacing_active() {
     let mut queue = NotificationQueue::default();
 
-    assert!(queue.enqueue(failure("one")));
-    assert!(!queue.enqueue(failure("two")));
+    assert!(queue.enqueue(workflow("one")));
+    assert!(!queue.enqueue(workflow("two")));
 
-    assert_eq!(
-        queue
-            .active()
-            .map(|notification| notification.dedupe_key.as_str()),
-        Some("one")
-    );
+    assert_eq!(queue.active().map(notification_dedupe_key), Some("one"));
     assert_eq!(queue.pending.len(), 1);
 }
 
 #[test]
 fn advance_promotes_next_notification() {
     let mut queue = NotificationQueue::default();
-    queue.enqueue(failure("one"));
-    queue.enqueue(failure("two"));
+    queue.enqueue(workflow("one"));
+    queue.enqueue(workflow("two"));
 
     assert!(queue.advance());
-    assert_eq!(
-        queue
-            .active()
-            .map(|notification| notification.dedupe_key.as_str()),
-        Some("two")
-    );
+    assert_eq!(queue.active().map(notification_dedupe_key), Some("two"));
     assert!(queue.pending.is_empty());
 }
 
 #[test]
 fn advance_clears_active_when_queue_is_exhausted() {
     let mut queue = NotificationQueue::default();
-    queue.enqueue(failure("one"));
+    queue.enqueue(workflow("one"));
 
     assert!(queue.advance());
     assert!(queue.active().is_none());
@@ -215,12 +240,51 @@ fn complete_setup_helper_marks_all_required_wizard_flags() {
 #[test]
 fn active_notification_prompt_prefers_the_active_queue_item() {
     let mut queue = NotificationQueue::default();
-    let active = failure("one");
+    let active = DesktopNotification::Workflow(failure("one"));
     queue.enqueue(active.clone());
 
     assert_eq!(
         active_notification_auto_fix_prompt(&queue),
-        Some(build_notification_auto_fix_prompt(&active))
+        match active {
+            DesktopNotification::Workflow(ref failure) => {
+                Some(build_notification_auto_fix_prompt(failure))
+            }
+            DesktopNotification::Alert(_) => None,
+        }
+    );
+}
+
+#[test]
+fn active_notification_prompt_ignores_alert_notifications() {
+    let mut queue = NotificationQueue::default();
+    queue.enqueue(alert_notification());
+
+    assert_eq!(active_notification_auto_fix_prompt(&queue), None);
+}
+
+#[test]
+fn critical_firing_alert_payload_builds_desktop_notification() {
+    let notification =
+        alert_desktop_notification_from_payload(&alert_payload("critical", "firing"))
+            .expect("critical firing alert should become a popup notification");
+
+    let DesktopNotification::Alert(alert) = notification else {
+        panic!("expected alert desktop notification");
+    };
+
+    assert_eq!(alert.dedupe_key, "alert:10:20");
+    assert_eq!(
+        alert.details_url,
+        "https://github.com/acme/repo/blob/main/alerts.yaml"
+    );
+    assert_eq!(alert.row_count, 2);
+}
+
+#[test]
+fn non_critical_or_non_firing_alert_payloads_do_not_open_popups() {
+    assert!(alert_desktop_notification_from_payload(&alert_payload("warning", "firing")).is_none());
+    assert!(
+        alert_desktop_notification_from_payload(&alert_payload("critical", "resolved")).is_none()
     );
 }
 
@@ -232,8 +296,12 @@ fn resetting_notifier_runtime_state_clears_queue_and_dedupe_tracker() {
     assert_eq!(notifier.tracker.retain_new(vec![first.clone()]).len(), 1);
     assert!(notifier.tracker.retain_new(vec![first.clone()]).is_empty());
 
-    notifier.queue.enqueue(first.clone());
-    notifier.queue.enqueue(failure("two"));
+    notifier
+        .queue
+        .enqueue(DesktopNotification::Workflow(first.clone()));
+    notifier
+        .queue
+        .enqueue(DesktopNotification::Workflow(failure("two")));
 
     reset_notifier_runtime_state(&mut notifier);
 

@@ -519,8 +519,16 @@ pub struct RepoEntry {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum NotifyPayload {
+    Workflow(WorkflowNotifyPayload),
+    Alert(AlertNotifyPayload),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct NotifyPayload {
+pub struct WorkflowNotifyPayload {
+    pub kind: String,
     #[serde(deserialize_with = "deserialize_string_or_number")]
     pub tenant_id: String,
     pub trace_id: String,
@@ -536,6 +544,51 @@ pub struct NotifyPayload {
     pub status: String,
     pub conclusion: Option<String>,
     pub job_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertNotifyPayload {
+    pub kind: String,
+    pub tenant_id: String,
+    pub recipient_user_ids: Vec<String>,
+    pub alert_definition_id: i64,
+    pub alert_event_id: i64,
+    pub service: String,
+    pub name: String,
+    pub severity: String,
+    pub status: String,
+    pub summary: String,
+    pub description: Option<String>,
+    pub occurred_at: String,
+    pub source_url: String,
+    pub row_count: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum DesktopNotification {
+    #[serde(rename = "workflow")]
+    Workflow(FailureNotification),
+    #[serde(rename = "alert")]
+    Alert(AlertDesktopNotification),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertDesktopNotification {
+    pub dedupe_key: String,
+    pub alert_definition_id: i64,
+    pub alert_event_id: i64,
+    pub service: String,
+    pub name: String,
+    pub severity: String,
+    pub status: String,
+    pub summary: String,
+    pub description: Option<String>,
+    pub occurred_at: String,
+    pub details_url: String,
+    pub row_count: i64,
 }
 
 fn deserialize_string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -746,7 +799,7 @@ mod api_client_tests {
     async fn events_stream_accepts_numeric_tenant_id() {
         let mut server = mockito::Server::new_async().await;
         let body = r#"event: message
-data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"everr-labs/everr","branch":"main","authorEmail":null,"workflowName":"CI","name":"CI","type":"run","status":"completed","conclusion":"success","jobId":null}
+data: {"kind":"workflow","tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"everr-labs/everr","branch":"main","authorEmail":null,"workflowName":"CI","name":"CI","type":"run","status":"completed","conclusion":"success","jobId":null}
 
 "#;
         let mock = server
@@ -777,10 +830,54 @@ data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"ev
             .expect("first SSE item")
             .expect("payload");
 
+        let NotifyPayload::Workflow(payload) = payload else {
+            panic!("expected workflow payload");
+        };
         assert_eq!(payload.tenant_id, "1");
         assert_eq!(payload.trace_id, "trace-1");
         assert_eq!(payload.event_type, "run");
         assert_eq!(payload.conclusion.as_deref(), Some("success"));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn events_stream_accepts_alert_payloads() {
+        let mut server = mockito::Server::new_async().await;
+        let body = r#"event: message
+data: {"kind":"alert","tenantId":"org1","recipientUserIds":["u1"],"alertDefinitionId":10,"alertEventId":20,"service":"api","name":"high-5xx-routes","severity":"critical","status":"firing","summary":"summary","description":null,"occurredAt":"2026-06-06T10:00:00.000Z","sourceUrl":"https://github.com/acme/repo/blob/main/alerts.yaml","rowCount":2}
+
+"#;
+        let mock = server
+            .mock("GET", "/api/events/stream")
+            .match_query(mockito::Matcher::UrlEncoded(
+                "scope".to_string(),
+                "tenant".to_string(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(body)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let stream = client
+            .events_stream("tenant", None)
+            .await
+            .expect("open SSE stream");
+        pin_mut!(stream);
+        let payload = stream
+            .next()
+            .await
+            .expect("first SSE item")
+            .expect("payload");
+
+        let NotifyPayload::Alert(payload) = payload else {
+            panic!("expected alert payload");
+        };
+        assert_eq!(payload.alert_definition_id, 10);
+        assert_eq!(payload.severity, "critical");
+        assert_eq!(payload.status, "firing");
+        assert_eq!(payload.row_count, 2);
         mock.assert_async().await;
     }
 }

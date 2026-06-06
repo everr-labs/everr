@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use everr_core::api::FailureNotification;
+use everr_core::api::DesktopNotification;
 use everr_core::auth::{AuthConfig, DeviceAuthorization};
 use everr_core::build;
 use everr_core::notifier::FailureTracker;
@@ -156,12 +156,12 @@ struct NotifierState {
 
 #[derive(Debug, Default)]
 struct NotificationQueue {
-    active: Option<FailureNotification>,
-    pending: VecDeque<FailureNotification>,
+    active: Option<DesktopNotification>,
+    pending: VecDeque<DesktopNotification>,
 }
 
 impl NotificationQueue {
-    fn enqueue(&mut self, notification: FailureNotification) -> bool {
+    fn enqueue(&mut self, notification: DesktopNotification) -> bool {
         if self.active.is_none() {
             self.active = Some(notification);
             true
@@ -171,7 +171,7 @@ impl NotificationQueue {
         }
     }
 
-    fn active(&self) -> Option<&FailureNotification> {
+    fn active(&self) -> Option<&DesktopNotification> {
         self.active.as_ref()
     }
 

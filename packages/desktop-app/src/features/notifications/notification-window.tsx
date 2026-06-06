@@ -1,5 +1,8 @@
 import { Button } from "@everr/ui/components/button";
-import type { FailureNotification } from "@everr/ui/lib/notification";
+import type {
+  DesktopNotification,
+  FailureNotification,
+} from "@everr/ui/lib/notification";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useState } from "react";
@@ -40,7 +43,7 @@ export const activeNotificationQueryKey = [
 ] as const;
 
 function getActiveNotification() {
-  return invokeCommand<FailureNotification | null>("get_active_notification");
+  return invokeCommand<DesktopNotification | null>("get_active_notification");
 }
 
 function dismissActiveNotification() {
@@ -186,7 +189,7 @@ export function NotificationWindow() {
 export function NotificationCard({
   notification,
 }: {
-  notification: FailureNotification;
+  notification: DesktopNotification;
 }) {
   const dismissMutation = useDismissActiveNotificationMutation();
   const openMutation = useOpenNotificationTargetMutation();
@@ -196,10 +199,11 @@ export function NotificationCard({
   const [hovered, setHovered] = useState(false);
   const [remainingMs, setRemainingMs] = useState(AUTO_DISMISS_MS);
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
+  const isWorkflowNotification = notification.kind === "workflow";
   const busy =
     dismissMutation.isPending ||
     openMutation.isPending ||
-    copyMutation.isPending;
+    (isWorkflowNotification && copyMutation.isPending);
 
   useEffect(() => {
     setExiting(false);
@@ -254,14 +258,12 @@ export function NotificationCard({
 
   useTauriEvent(NOTIFICATION_EXIT_EVENT, handleExitEvent);
 
-  const absoluteTime = formatNotificationAbsoluteTime(notification.failedAt);
-  const relativeTime = formatNotificationRelativeTime(notification.failedAt);
-  const failureScope = formatFailureScope(notification);
-  const copyAutoFixPromptLabel = copyMutation.isPending
-    ? "Copying..."
-    : copiedAutoFixPrompt
-      ? "Copied"
-      : "Auto-fix prompt";
+  const occurredAt =
+    notification.kind === "workflow"
+      ? notification.failedAt
+      : notification.occurredAt;
+  const absoluteTime = formatNotificationAbsoluteTime(occurredAt);
+  const relativeTime = formatNotificationRelativeTime(occurredAt);
 
   return (
     <main className="h-screen pl-3 pr-4 pt-3">
@@ -294,67 +296,26 @@ export function NotificationCard({
           onMouseEnter={pauseAutoDismiss}
           onMouseLeave={resumeAutoDismiss}
         >
-          <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
-            <div className="grid min-w-0 flex-1 gap-[3px]">
-              <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-                Everr - Failed run
-              </p>
-              <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-card-foreground">
-                {notification.workflowName}
-              </h1>
-              <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-muted-foreground">
-                <span className="truncate">{notification.repo}</span>
-                <span className="text-border">•</span>
-                <span>{notification.branch}</span>
-              </p>
-              {failureScope ? (
-                <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">
-                  {failureScope}
-                </p>
-              ) : null}
-              <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-muted-foreground/70">
-                <span>{absoluteTime}</span>
-                <span className="text-border">·</span>
-                <span>{relativeTime}</span>
-              </p>
-            </div>
-
-            <div className="flex min-w-0 shrink-0 flex-col items-stretch gap-2">
-              <Button
-                size="lg"
-                className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
-                disabled={busy}
-                onClick={() =>
-                  void copyMutation.mutateAsync(undefined, {
-                    onSuccess() {
-                      setCopiedAutoFixPrompt(true);
-                    },
-                  })
-                }
-              >
-                <span className="grid">
-                  <span
-                    aria-hidden="true"
-                    className="invisible col-start-1 row-start-1"
-                  >
-                    Auto-fix prompt
-                  </span>
-                  <span className="col-start-1 row-start-1">
-                    {copyAutoFixPromptLabel}
-                  </span>
-                </span>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
-                disabled={busy}
-                onClick={() => void openMutation.mutateAsync()}
-              >
-                {openMutation.isPending ? "Opening..." : "Open"}
-              </Button>
-            </div>
-          </div>
+          {notification.kind === "workflow" ? (
+            <WorkflowNotificationBody
+              notification={notification}
+              absoluteTime={absoluteTime}
+              relativeTime={relativeTime}
+              busy={busy}
+              copyMutation={copyMutation}
+              copiedAutoFixPrompt={copiedAutoFixPrompt}
+              setCopiedAutoFixPrompt={setCopiedAutoFixPrompt}
+              openMutation={openMutation}
+            />
+          ) : (
+            <AlertNotificationBody
+              notification={notification}
+              absoluteTime={absoluteTime}
+              relativeTime={relativeTime}
+              busy={busy}
+              openMutation={openMutation}
+            />
+          )}
 
           <div className="h-[3px] w-full shrink-0 bg-muted">
             <div
@@ -367,6 +328,161 @@ export function NotificationCard({
         </section>
       </div>
     </main>
+  );
+}
+
+function WorkflowNotificationBody({
+  notification,
+  absoluteTime,
+  relativeTime,
+  busy,
+  copyMutation,
+  copiedAutoFixPrompt,
+  setCopiedAutoFixPrompt,
+  openMutation,
+}: {
+  notification: FailureNotification;
+  absoluteTime: string;
+  relativeTime: string;
+  busy: boolean;
+  copyMutation: ReturnType<typeof useCopyAutoFixPromptMutation>;
+  copiedAutoFixPrompt: boolean;
+  setCopiedAutoFixPrompt: (copied: boolean) => void;
+  openMutation: ReturnType<typeof useOpenNotificationTargetMutation>;
+}) {
+  const failureScope = formatFailureScope(notification);
+  const copyAutoFixPromptLabel = copyMutation.isPending
+    ? "Copying..."
+    : copiedAutoFixPrompt
+      ? "Copied"
+      : "Auto-fix prompt";
+
+  return (
+    <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
+      <div className="grid min-w-0 flex-1 gap-[3px]">
+        <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+          Everr - Failed run
+        </p>
+        <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-card-foreground">
+          {notification.workflowName}
+        </h1>
+        <p className="m-0 flex min-w-0 items-center gap-1 text-[0.66rem] leading-[1.3] text-muted-foreground">
+          <span className="truncate">{notification.repo}</span>
+          <span className="text-border">•</span>
+          <span>{notification.branch}</span>
+        </p>
+        {failureScope ? (
+          <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">
+            {failureScope}
+          </p>
+        ) : null}
+        <NotificationTimeLine
+          absoluteTime={absoluteTime}
+          relativeTime={relativeTime}
+        />
+      </div>
+
+      <div className="flex min-w-0 shrink-0 flex-col items-stretch gap-2">
+        <Button
+          size="lg"
+          className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
+          disabled={busy}
+          onClick={() =>
+            void copyMutation.mutateAsync(undefined, {
+              onSuccess() {
+                setCopiedAutoFixPrompt(true);
+              },
+            })
+          }
+        >
+          <span className="grid">
+            <span
+              aria-hidden="true"
+              className="invisible col-start-1 row-start-1"
+            >
+              Auto-fix prompt
+            </span>
+            <span className="col-start-1 row-start-1">
+              {copyAutoFixPromptLabel}
+            </span>
+          </span>
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
+          disabled={busy}
+          onClick={() => void openMutation.mutateAsync()}
+        >
+          {openMutation.isPending ? "Opening..." : "Open"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function AlertNotificationBody({
+  notification,
+  absoluteTime,
+  relativeTime,
+  busy,
+  openMutation,
+}: {
+  notification: Extract<DesktopNotification, { kind: "alert" }>;
+  absoluteTime: string;
+  relativeTime: string;
+  busy: boolean;
+  openMutation: ReturnType<typeof useOpenNotificationTargetMutation>;
+}) {
+  return (
+    <div className="flex flex-1 items-center gap-3 px-[18px] py-3">
+      <div className="grid min-w-0 flex-1 gap-[3px]">
+        <p className="m-0 text-[0.58rem] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+          Everr - {severityLabel(notification.severity)} alert
+        </p>
+        <h1 className="m-0 text-[0.8rem] font-semibold leading-[1.15] text-card-foreground">
+          {notification.service} / {notification.name}
+        </h1>
+        <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">
+          {notification.summary}
+        </p>
+        <p className="m-0 text-[0.66rem] leading-[1.35] text-muted-foreground">
+          {formatAlertRowCount(notification.rowCount)}
+        </p>
+        <NotificationTimeLine
+          absoluteTime={absoluteTime}
+          relativeTime={relativeTime}
+        />
+      </div>
+
+      <div className="flex min-w-0 shrink-0 flex-col items-stretch gap-2">
+        <Button
+          size="lg"
+          variant="outline"
+          className="min-w-0 px-3.5 text-[0.72rem] cursor-pointer"
+          disabled={busy}
+          onClick={() => void openMutation.mutateAsync()}
+        >
+          {openMutation.isPending ? "Opening..." : "Open"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function NotificationTimeLine({
+  absoluteTime,
+  relativeTime,
+}: {
+  absoluteTime: string;
+  relativeTime: string;
+}) {
+  return (
+    <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.64rem] font-medium tracking-[0.01em] text-muted-foreground/70">
+      <span>{absoluteTime}</span>
+      <span className="text-border">·</span>
+      <span>{relativeTime}</span>
+    </p>
   );
 }
 
@@ -419,4 +535,12 @@ function formatFailureScope(notification: FailureNotification): string | null {
       return `${job.jobName} • Step ${job.stepNumber}`;
     })
     .join(", ");
+}
+
+function severityLabel(severity: string): string {
+  return severity.charAt(0).toUpperCase() + severity.slice(1);
+}
+
+function formatAlertRowCount(rowCount: number): string {
+  return `${rowCount} matching ${rowCount === 1 ? "row" : "rows"}`;
 }

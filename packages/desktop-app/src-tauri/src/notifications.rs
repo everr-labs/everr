@@ -4,7 +4,8 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use arboard::Clipboard;
 use everr_core::api::{
-    is_reauthentication_required, ApiClient, FailureNotification, NotifyPayload,
+    is_reauthentication_required, AlertDesktopNotification, AlertNotifyPayload, ApiClient,
+    DesktopNotification, FailureNotification, NotifyPayload, WorkflowNotifyPayload,
 };
 use everr_core::git::resolve_git_context;
 use futures_util::StreamExt;
@@ -40,8 +41,8 @@ macro_rules! dbg_notifier {
     };
 }
 
-fn notifier_span(name: &'static str, trace_id: &str) -> tracing::Span {
-    tracing::info_span!(target: "notifier", "notifier_event", name, trace_id)
+fn notifier_span(name: &'static str, key: &str) -> tracing::Span {
+    tracing::info_span!(target: "notifier", "notifier_event", name, key)
 }
 
 #[cfg(test)]
@@ -85,7 +86,10 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
 }
 
 pub(crate) fn active_notification_auto_fix_prompt(queue: &NotificationQueue) -> Option<String> {
-    queue.active().map(build_notification_auto_fix_prompt)
+    queue.active().and_then(|notification| match notification {
+        DesktopNotification::Workflow(failure) => Some(build_notification_auto_fix_prompt(failure)),
+        DesktopNotification::Alert(_) => None,
+    })
 }
 
 pub(crate) fn copy_notification_auto_fix_prompt_inner(state: &RuntimeState) -> Result<()> {
@@ -189,17 +193,15 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
         return Ok(());
     }
 
-    // Build email filter set: configured list, falling back to cached profile email
-    let email_set: std::collections::HashSet<String> = {
+    // Build workflow email filter set. Alert payloads are already recipient-filtered server-side.
+    let email_set: Option<std::collections::HashSet<String>> = {
         let settings = current_app_state(state)?.settings;
         if !settings.notification_emails.is_empty() {
-            settings.notification_emails.into_iter().collect()
+            Some(settings.notification_emails.into_iter().collect())
         } else if let Some(profile) = settings.user_profile {
-            std::iter::once(profile.email).collect()
+            Some(std::iter::once(profile.email).collect())
         } else {
-            // No emails configured and no profile cached — wait for session or filter changes.
-            wait_for_change(&mut rx, &[StateChange::EmailsChanged]).await;
-            return Ok(());
+            None
         }
     };
 
@@ -212,10 +214,14 @@ async fn run_sse_notifier(app: &AppHandle, state: &RuntimeState) -> Result<()> {
             event = stream.next() => {
                 match event {
                     Some(Ok(payload)) => {
-                        // Filter client-side by configured emails
-                        if let Some(ref author_email) = payload.author_email {
-                            if !email_set.contains(author_email) {
+                        if let NotifyPayload::Workflow(ref workflow) = payload {
+                            let Some(ref email_set) = email_set else {
                                 continue;
+                            };
+                            if let Some(ref author_email) = workflow.author_email {
+                                if !email_set.contains(author_email) {
+                                    continue;
+                                }
                             }
                         }
                         handle_notify_event(
@@ -282,6 +288,20 @@ async fn handle_notify_event(
     client: &ApiClient,
     event: NotifyPayload,
 ) -> Result<()> {
+    match event {
+        NotifyPayload::Workflow(event) => {
+            handle_workflow_notify_event(app, state, client, event).await
+        }
+        NotifyPayload::Alert(event) => handle_alert_notify_event(app, state, event),
+    }
+}
+
+async fn handle_workflow_notify_event(
+    app: &AppHandle,
+    state: &RuntimeState,
+    client: &ApiClient,
+    event: WorkflowNotifyPayload,
+) -> Result<()> {
     let span = notifier_span("notifier.handle_event", &event.trace_id);
     let _enter = span.enter();
     dbg_notifier!(
@@ -311,31 +331,100 @@ async fn handle_notify_event(
                 notifier.tracker.retain_new(vec![failure.clone()])
             };
             for f in fresh {
-                enqueue_notification(app, state, f)?;
+                enqueue_notification(app, state, DesktopNotification::Workflow(f))?;
             }
         }
         _ => {}
     }
 
+    emit_notifier_checked(app);
+
+    Ok(())
+}
+
+fn handle_alert_notify_event(
+    app: &AppHandle,
+    state: &RuntimeState,
+    event: AlertNotifyPayload,
+) -> Result<()> {
+    let key = format!(
+        "alert:{}:{}",
+        event.alert_definition_id, event.alert_event_id
+    );
+    let span = notifier_span("notifier.handle_alert", &key);
+    let _enter = span.enter();
+    dbg_notifier!(
+        service = %event.service,
+        alert = %event.name,
+        severity = %event.severity,
+        status = %event.status,
+        "alert event received"
+    );
+
+    if let Some(notification) = alert_desktop_notification_from_payload(&event) {
+        enqueue_notification(app, state, notification)?;
+    }
+
+    emit_notifier_checked(app);
+    Ok(())
+}
+
+pub(crate) fn alert_desktop_notification_from_payload(
+    event: &AlertNotifyPayload,
+) -> Option<DesktopNotification> {
+    if event.severity != "critical" || event.status != "firing" {
+        return None;
+    }
+
+    Some(DesktopNotification::Alert(AlertDesktopNotification {
+        dedupe_key: format!(
+            "alert:{}:{}",
+            event.alert_definition_id, event.alert_event_id
+        ),
+        alert_definition_id: event.alert_definition_id,
+        alert_event_id: event.alert_event_id,
+        service: event.service.clone(),
+        name: event.name.clone(),
+        severity: event.severity.clone(),
+        status: event.status.clone(),
+        summary: event.summary.clone(),
+        description: event.description.clone(),
+        occurred_at: event.occurred_at.clone(),
+        details_url: event.source_url.clone(),
+        row_count: event.row_count,
+    }))
+}
+
+fn emit_notifier_checked(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("everr://notifier-checked", ());
     }
-
-    Ok(())
 }
 
 pub(crate) fn enqueue_notification(
     app: &AppHandle,
     state: &RuntimeState,
-    notification: FailureNotification,
+    notification: DesktopNotification,
 ) -> Result<()> {
-    let span = notifier_span("notifier.enqueue", &notification.trace_id);
+    let span = notifier_span("notifier.enqueue", notification_dedupe_key(&notification));
     let _enter = span.enter();
-    dbg_notifier!(
-        repo = %notification.repo,
-        workflow = %notification.workflow_name,
-        "notification fired"
-    );
+    match &notification {
+        DesktopNotification::Workflow(failure) => {
+            dbg_notifier!(
+                repo = %failure.repo,
+                workflow = %failure.workflow_name,
+                "workflow notification fired"
+            );
+        }
+        DesktopNotification::Alert(alert) => {
+            dbg_notifier!(
+                service = %alert.service,
+                alert = %alert.name,
+                severity = %alert.severity,
+                "alert notification fired"
+            );
+        }
+    }
 
     let active_changed = {
         let mut notifier = state
@@ -377,10 +466,7 @@ pub(crate) fn open_notification_target_inner(app: &AppHandle, state: &RuntimeSta
             .notifier
             .lock()
             .map_err(|_| anyhow!("failed to lock notifier state"))?;
-        notifier
-            .queue
-            .active()
-            .map(|notification| notification.details_url.clone())
+        notifier.queue.active().map(notification_details_url)
     };
 
     let Some(target) = target else {
@@ -390,6 +476,20 @@ pub(crate) fn open_notification_target_inner(app: &AppHandle, state: &RuntimeSta
     webbrowser::open(&target)
         .with_context(|| format!("failed to open notification target {target}"))?;
     dismiss_active_notification_inner(app, state)
+}
+
+fn notification_dedupe_key(notification: &DesktopNotification) -> &str {
+    match notification {
+        DesktopNotification::Workflow(failure) => &failure.dedupe_key,
+        DesktopNotification::Alert(alert) => &alert.dedupe_key,
+    }
+}
+
+fn notification_details_url(notification: &DesktopNotification) -> String {
+    match notification {
+        DesktopNotification::Workflow(failure) => failure.details_url.clone(),
+        DesktopNotification::Alert(alert) => alert.details_url.clone(),
+    }
 }
 
 pub(crate) fn sync_notification_window(app: &AppHandle, state: &RuntimeState) -> Result<()> {

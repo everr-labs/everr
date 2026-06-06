@@ -1,4 +1,7 @@
-import type { FailureNotification } from "@everr/ui/lib/notification";
+import type {
+  DesktopFailureNotification,
+  DesktopNotification,
+} from "@everr/ui/lib/notification";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { emit } from "@tauri-apps/api/event";
@@ -95,7 +98,7 @@ type RenderMainOptions = {
   commandOverrides?: Partial<Record<MainCommand, (args: unknown) => unknown>>;
 };
 
-type NotificationResult = FailureNotification | null | Error;
+type NotificationResult = DesktopNotification | null | Error;
 
 function renderWithProviders(
   node: ReactNode,
@@ -109,9 +112,10 @@ function renderWithProviders(
 }
 
 function createNotification(
-  overrides: Partial<FailureNotification> = {},
-): FailureNotification {
+  overrides: Partial<DesktopFailureNotification> = {},
+): DesktopFailureNotification {
   return {
+    kind: "workflow",
     dedupeKey: "one",
     traceId: "trace-one",
     repo: "everr-labs/everr",
@@ -319,7 +323,7 @@ async function renderNotificationApp(
     dismissSpy,
     openSpy,
     copySpy,
-    setNotification(nextNotification: FailureNotification | null) {
+    setNotification(nextNotification: DesktopNotification | null) {
       activeNotification = nextNotification;
     },
     setNotificationError(error: Error) {
@@ -329,7 +333,7 @@ async function renderNotificationApp(
 }
 
 async function renderNotificationCard(
-  notification: FailureNotification = createNotification(),
+  notification: DesktopNotification = createNotification(),
 ) {
   const dismissSpy = vi.fn(() => null);
   const openSpy = vi.fn(() => null);
