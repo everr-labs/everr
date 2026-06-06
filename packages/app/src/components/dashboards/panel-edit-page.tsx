@@ -215,14 +215,26 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
     );
   }
 
+  // vars is not retained by the layout middlewares, so editor exits forward
+  // it explicitly to keep the dashboard's active variable selections.
+  const keepVars = (prev: { vars?: Record<string, string | string[]> }) => ({
+    ...prev,
+    vars: prev.vars,
+  });
+
   const handleApply = () => {
     updatePanel(panelKey, draft);
     if (isNew) {
-      navigate({ to: "/dashboards/new", viewTransition: true });
+      navigate({
+        to: "/dashboards/new",
+        search: keepVars,
+        viewTransition: true,
+      });
     } else {
       navigate({
         to: "/dashboards/$dashboardId",
         params: { dashboardId },
+        search: keepVars,
         viewTransition: true,
       });
     }
@@ -230,11 +242,16 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
 
   const handleDiscard = () => {
     if (isNew) {
-      navigate({ to: "/dashboards/new", viewTransition: true });
+      navigate({
+        to: "/dashboards/new",
+        search: keepVars,
+        viewTransition: true,
+      });
     } else {
       navigate({
         to: "/dashboards/$dashboardId",
         params: { dashboardId },
+        search: keepVars,
         viewTransition: true,
       });
     }
@@ -275,6 +292,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
           <Link
             to={isNew ? "/dashboards/new" : "/dashboards/$dashboardId"}
             params={isNew ? {} : { dashboardId }}
+            search={keepVars}
             className="text-muted-foreground hover:text-foreground"
             viewTransition
           >
