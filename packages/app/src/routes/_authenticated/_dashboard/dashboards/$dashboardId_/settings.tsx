@@ -5,7 +5,7 @@ import { dashboardOptions } from "@/data/dashboards/options";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/dashboards/$dashboardId_/settings",
 )({
-  staticData: { breadcrumb: "Settings" },
+  staticData: { breadcrumb: "Settings", fullBleed: true },
   head: () => ({
     meta: [{ title: "Everr - Dashboard Settings" }],
   }),

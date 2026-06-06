@@ -5,7 +5,7 @@ import { dashboardOptions } from "@/data/dashboards/options";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/dashboards/$dashboardId_/panel/$panelKey",
 )({
-  staticData: { breadcrumb: "Edit Panel" },
+  staticData: { breadcrumb: "Edit Panel", fullBleed: true },
   head: () => ({
     meta: [{ title: "Everr - Edit Panel" }],
   }),
