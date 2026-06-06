@@ -122,6 +122,8 @@ function variableFromDraft(draft: VariableDraft): Variable {
       },
     };
   }
+  // Known limitation: comma-separated input means option values containing
+  // commas cannot be used as multi-select defaults.
   const defaults = draft.defaultValue
     .split(",")
     .map((s) => s.trim())
@@ -274,8 +276,10 @@ export function VariablesManager({
     }
   };
 
-  const patch = (changes: Partial<VariableDraft>) =>
+  const patch = (changes: Partial<VariableDraft>) => {
+    setFormError(null);
     setDraft((prev) => ({ ...prev, ...changes }));
+  };
 
   return (
     <Dialog
