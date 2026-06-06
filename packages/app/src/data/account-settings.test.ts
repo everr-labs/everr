@@ -36,9 +36,9 @@ describe("deleteCurrentUserAccount", () => {
     });
   });
 
-  it("deletes the active organization first when an org admin chooses that option", async () => {
+  it("deletes the active organization first when an org owner chooses that option", async () => {
     vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
-      activeOrg([{ userId: "test_user", role: "admin" }]) as never,
+      activeOrg([{ userId: "test_user", role: "owner" }]) as never,
     );
 
     await deleteCurrentUserAccount({
@@ -62,16 +62,16 @@ describe("deleteCurrentUserAccount", () => {
     ).toBeLessThan(vi.mocked(auth.api.deleteUser).mock.invocationCallOrder[0]);
   });
 
-  it("rejects organization deletion when the current user is not an org admin", async () => {
+  it("rejects organization deletion when the current user is not an org owner", async () => {
     vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
-      activeOrg([{ userId: "test_user", role: "member" }]) as never,
+      activeOrg([{ userId: "test_user", role: "admin" }]) as never,
     );
 
     await expect(
       deleteCurrentUserAccount({
         data: { confirmation: "DELETE", deleteOrganization: true },
       }),
-    ).rejects.toThrow("Only organization admins can delete the organization");
+    ).rejects.toThrow("Only organization owners can delete the organization");
 
     expect(auth.api.deleteOrganization).not.toHaveBeenCalled();
     expect(auth.api.deleteUser).not.toHaveBeenCalled();

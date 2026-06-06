@@ -78,13 +78,13 @@ describe("/account route", () => {
     expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
   });
 
-  it("shows the organization deletion option to active organization admins", async () => {
+  it("shows the organization deletion option to active organization owners", async () => {
     const user = userEvent.setup();
     mocks.useActiveOrganization.mockReturnValue({
       data: {
         id: "test_org",
         name: "Acme",
-        members: [{ userId: "test_user", role: "admin" }],
+        members: [{ userId: "test_user", role: "owner" }],
       },
     });
     const Component = Route.options.component as React.ComponentType;
@@ -97,8 +97,15 @@ describe("/account route", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the organization deletion option from non-admin members", async () => {
+  it("hides the organization deletion option from organization admins", async () => {
     const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Test Org",
+        members: [{ userId: "test_user", role: "admin" }],
+      },
+    });
     const Component = Route.options.component as React.ComponentType;
     render(<Component />);
 

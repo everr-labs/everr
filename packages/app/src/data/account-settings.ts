@@ -8,12 +8,12 @@ const DeleteCurrentUserAccountInputSchema = z.object({
   deleteOrganization: z.boolean().optional(),
 });
 
-function isOrgAdminRole(role: string | null | undefined) {
+function isOrgOwnerRole(role: string | null | undefined) {
   return (
     role
       ?.split(",")
       .map((part) => part.trim())
-      .some((part) => part === "admin" || part === "owner") ?? false
+      .some((part) => part === "owner") ?? false
   );
 }
 
@@ -33,9 +33,9 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
         (member) => member.userId === session.user.id,
       );
 
-      if (!isOrgAdminRole(currentMember?.role)) {
+      if (!isOrgOwnerRole(currentMember?.role)) {
         throw new Error(
-          "Only organization admins can delete the organization while deleting their account.",
+          "Only organization owners can delete the organization while deleting their account.",
         );
       }
 

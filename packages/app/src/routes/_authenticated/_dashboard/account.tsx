@@ -44,7 +44,7 @@ function AccountSettingsPage() {
   const currentMemberRole = activeOrganization?.members?.find(
     (member) => member.userId === session?.user?.id,
   )?.role;
-  const canDeleteActiveOrganization = isOrgAdminRole(currentMemberRole);
+  const canDeleteActiveOrganization = isOrgOwnerRole(currentMemberRole);
   const activeOrganizationName =
     activeOrganization?.name ?? "current organization";
 
@@ -194,11 +194,11 @@ function AccountSettingsPage() {
   );
 }
 
-function isOrgAdminRole(role: string | null | undefined) {
+function isOrgOwnerRole(role: string | null | undefined) {
   return (
     role
       ?.split(",")
       .map((part) => part.trim())
-      .some((part) => part === "admin" || part === "owner") ?? false
+      .some((part) => part === "owner") ?? false
   );
 }

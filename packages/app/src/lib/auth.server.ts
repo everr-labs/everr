@@ -129,7 +129,6 @@ const orgRoles = {
   }),
   admin: orgAc.newRole({
     ...adminAc.statements,
-    organization: ["update", "delete"],
     apiKey: ["create", "read", "update", "delete"],
   }),
   member: orgAc.newRole({
