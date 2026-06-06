@@ -1,6 +1,6 @@
 # Dashboard Feature — Current Status
 
-_Last updated: 2026-06-05 (branch `gio/dashboard-v1-polish`)._
+_Last updated: 2026-06-06 (branch `gio/dashboard-variables`)._
 
 Custom dashboards built on a [Perses](https://perses.dev)-compatible data model, backed by Postgres, querying ClickHouse.
 
@@ -11,7 +11,8 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Random 12-char dashboard IDs (`[a-z0-9]`, server-generated, Web Crypto). IDs are never derived from names; renaming never changes the URL
 - ✅ Create is insert-only (`createDashboard`), save is update-only (`saveDashboard`) — overwriting an existing dashboard by creating a same-named one is impossible
 - ✅ `duration` / `refreshInterval` have full UI + runtime support (see Time range below)
-- 🟡 Schema defines `variables`, `datasources` — **no UI or runtime support yet** (schema-only, for Perses compatibility)
+- 🟡 Schema defines `datasources` — **no UI or runtime support yet** (schema-only, for Perses compatibility)
+- ✅ Dashboard variables (see Variables below)
 
 ## Dashboards index (`/dashboards`)
 
@@ -52,6 +53,16 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ **Table** — flush-content table view with settings
 - ✅ **StatChart** — calculation (last/first/mean/min/max/sum), unit suffix, optional sparkline, absolute/percent threshold coloring (value + sparkline)
 
+## Variables
+
+- ✅ `TextVariable` + `ListVariable` with `StaticListVariable` and `ClickHouseSQLVariable` option plugins; `allowMultiple`, `allowAllValue` (+ optional raw `customAllValue`), `display.hidden`, text `constant`
+- ✅ Grafana-style tokens in panel SQL — `$name`, `${name}`, `${name:raw}` — interpolated **server-side** in `runPanelQuery` (escaped ClickHouse literals; arrays → parenthesized lists; empty array → `(NULL)`; unknown tokens left untouched) — `packages/app/src/data/dashboards/interpolate.ts`
+- ✅ Variable bar (dashboard page + compact in the panel editor): text inputs, single/multi dropdowns, "All" entry; query-backed options load via react-query keyed on query + time range (refresh with the picker); loading spinner, inline error state (tooltip, no toast), "first 1000 shown" truncation note
+- ✅ Value state in a single `vars` URL search param (JSON object; All sentinel `"__all"`); URL wins over spec defaults; not retained across navigation by design; back button steps through selections; editor entry/exit forwards `vars`
+- ✅ Edit-mode Variables manager dialog (list + add/edit form, name regex + uniqueness validation, query preview); mutations dirty-tracked through the store, saved with the dashboard Save flow
+- ✅ Panels referencing a variable with no effective value render "Select a value for $name" client-side (query disabled, nothing sent to ClickHouse); All-without-options waits in the pending skeleton
+- ❌ Not in v1 (tracked follow-ups): variable chaining (variables inside option queries), `capturingRegexp`, `sort` (parsed but ignored), Grafana-style `var-<name>` URL aliases, per-panel overrides, variables in panel titles/descriptions
+
 ## Time range
 
 - ✅ Global time-range picker (URL search params) drives all panel queries; chart zoom writes back to the URL
@@ -59,8 +70,8 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 
 ## Testing
 
-- ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check, insert-only/update-only split, slug-collision retry, unique-violation mapping, settings update (`server.test.ts`), store dirty tracking (`dashboard-store.test.ts`), stat calculations/thresholds (`stat-calculations.test.ts`), duration/refresh seeding (`time-defaults.test.ts`)
-- ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior, StatChart, unsaved-changes dialogs + beforeunload, panel error states, settings seeding incl. URL-wins, duplicate-folder error, aria-labels)
+- ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check, insert-only/update-only split, slug-collision retry, unique-violation mapping, settings update, variable interpolation before execution, options-query dedup/cap (`server.test.ts`), store dirty tracking incl. `updateVariables` (`dashboard-store.test.ts`), stat calculations/thresholds (`stat-calculations.test.ts`), duration/refresh seeding (`time-defaults.test.ts`), token interpolation/escaping (`interpolate.test.ts`), effective value resolution (`variable-values.test.ts`)
+- ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior, StatChart, unsaved-changes dialogs + beforeunload, panel error states, settings seeding incl. URL-wins, duplicate-folder error, aria-labels; variables: all three kinds, multi-select + All, URL round-trip + back button, picker-driven refetch, dirty tracking through the manager, missing-value panel state, options-query error state, hidden variables)
 
 ## Known rough edges
 
