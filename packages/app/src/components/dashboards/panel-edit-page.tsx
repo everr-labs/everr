@@ -174,13 +174,13 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
         usedNames.length > 0 ? pickByNames(values, usedNames) : undefined;
       const variableMeta =
         usedNames.length > 0 ? pickByNames(meta, usedNames) : undefined;
+      setManualError(null);
       setIsRunning(true);
       try {
         const result = await runPanelQuery({
           data: { sql, from, to, variables, variableMeta },
         });
         setManualResult(result.rows);
-        setManualError(null);
         queryClient.setQueryData(
           panelQueryOptions(sql, from, to, variables, variableMeta).queryKey,
           result,
