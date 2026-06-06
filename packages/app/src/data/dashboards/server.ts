@@ -4,6 +4,7 @@ import * as z from "zod";
 import { db } from "@/db/client";
 import { dashboardFolders, dashboards } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { interpolateVariables } from "./interpolate";
 import type { Dashboard, DashboardSpec } from "./schema";
 import {
   createDashboardInput,
@@ -457,16 +458,76 @@ export const runPanelQuery = createAuthenticatedServerFn({
       sql: z.string().min(1),
       from: z.string().optional(),
       to: z.string().optional(),
+      variables: z
+        .record(z.string(), z.union([z.string(), z.array(z.string())]))
+        .optional(),
+      variableMeta: z
+        .record(
+          z.string(),
+          z.object({
+            customAllValue: z.string().optional(),
+            options: z.array(z.string()).optional(),
+          }),
+        )
+        .optional(),
     }),
   )
-  .handler(async ({ data: { sql, from, to }, context }) => {
+  .handler(
+    async ({ data: { sql, from, to, variables, variableMeta }, context }) => {
+      const { fromISO, toISO } = resolveTimeRange({
+        from: from ?? DEFAULT_TIME_RANGE.from,
+        to: to ?? DEFAULT_TIME_RANGE.to,
+      });
+      const interpolated = variables
+        ? interpolateVariables(sql, variables, variableMeta ?? {})
+        : sql;
+      const rows = await context.clickhouse.query<QueryRow>(interpolated, {
+        from: fromISO,
+        to: toISO,
+      });
+      return { rows };
+    },
+  );
+
+const VARIABLE_OPTIONS_LIMIT = 1000;
+
+export const runVariableOptionsQuery = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(
+    z.object({
+      query: z.string().min(1),
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data: { query, from, to }, context }) => {
     const { fromISO, toISO } = resolveTimeRange({
       from: from ?? DEFAULT_TIME_RANGE.from,
       to: to ?? DEFAULT_TIME_RANGE.to,
     });
-    const rows = await context.clickhouse.query<QueryRow>(sql, {
-      from: fromISO,
-      to: toISO,
-    });
-    return { rows };
+    const rows = await context.clickhouse.query<Record<string, unknown>>(
+      query,
+      {
+        from: fromISO,
+        to: toISO,
+      },
+    );
+
+    // Options are the stringified first column, deduplicated, in query order,
+    // capped at VARIABLE_OPTIONS_LIMIT with an explicit truncation flag.
+    const seen = new Set<string>();
+    const options: string[] = [];
+    let truncated = false;
+    for (const row of rows) {
+      const option = String(Object.values(row)[0]);
+      if (seen.has(option)) continue;
+      seen.add(option);
+      if (options.length >= VARIABLE_OPTIONS_LIMIT) {
+        truncated = true;
+        break;
+      }
+      options.push(option);
+    }
+    return { options, truncated };
   });

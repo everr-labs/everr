@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
+import { query as clickhouseQuery } from "@/lib/clickhouse";
 
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder.
@@ -58,11 +59,14 @@ import {
   generateDashboardSlug,
   moveFolder,
   renameFolder,
+  runPanelQuery,
+  runVariableOptionsQuery,
   saveDashboard,
   updateDashboardSettings,
 } from "./server";
 
 const mockedDb = vi.mocked(db);
+const mockedClickhouse = vi.mocked(clickhouseQuery);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -376,5 +380,102 @@ describe("createDashboard – slug collision retry", () => {
       createDashboard({ data: { spec: { panels: {}, layouts: [] } } }),
     ).rejects.toThrow("connection refused");
     expect(attempts).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runPanelQuery – variable interpolation
+// ---------------------------------------------------------------------------
+
+describe("runPanelQuery – variable interpolation", () => {
+  it("interpolates variables into the SQL before executing", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({
+      data: {
+        sql: "SELECT * FROM logs WHERE service = $service AND env IN $env",
+        variables: { service: "api", env: ["prod", "staging"] },
+      },
+    });
+
+    expect(mockedClickhouse).toHaveBeenCalledTimes(1);
+    expect(mockedClickhouse.mock.calls[0]![0]).toBe(
+      "SELECT * FROM logs WHERE service = 'api' AND env IN ('prod','staging')",
+    );
+  });
+
+  it("expands the All sentinel using variableMeta options", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({
+      data: {
+        sql: "SELECT * FROM logs WHERE env IN $env",
+        variables: { env: "__all" },
+        variableMeta: { env: { options: ["prod", "staging"] } },
+      },
+    });
+
+    expect(mockedClickhouse.mock.calls[0]![0]).toBe(
+      "SELECT * FROM logs WHERE env IN ('prod','staging')",
+    );
+  });
+
+  it("runs the SQL unchanged when no variables are provided", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({ data: { sql: "SELECT $notavar FROM logs" } });
+
+    expect(mockedClickhouse.mock.calls[0]![0]).toBe(
+      "SELECT $notavar FROM logs",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runVariableOptionsQuery
+// ---------------------------------------------------------------------------
+
+describe("runVariableOptionsQuery", () => {
+  it("returns stringified, deduped first-column values in query order", async () => {
+    mockedClickhouse.mockResolvedValue([
+      { service: "api", count: 10 },
+      { service: "web", count: 20 },
+      { service: "api", count: 30 },
+      { service: 42, count: 40 },
+    ]);
+
+    const result = await runVariableOptionsQuery({
+      data: { query: "SELECT service FROM logs GROUP BY service" },
+    });
+
+    expect(result).toEqual({ options: ["api", "web", "42"], truncated: false });
+  });
+
+  it("caps options at 1000 unique values and sets the truncated flag", async () => {
+    mockedClickhouse.mockResolvedValue(
+      Array.from({ length: 1100 }, (_, i) => ({ v: `service-${i}` })),
+    );
+
+    const result = await runVariableOptionsQuery({ data: { query: "q" } });
+
+    expect(result.options).toHaveLength(1000);
+    expect(result.options[0]).toBe("service-0");
+    expect(result.options[999]).toBe("service-999");
+    expect(result.truncated).toBe(true);
+  });
+
+  it("does not set truncated when exactly at the cap after dedup", async () => {
+    const rows = [
+      ...Array.from({ length: 1000 }, (_, i) => ({ v: `s-${i}` })),
+      // duplicates beyond the cap do not count as new values
+      { v: "s-0" },
+      { v: "s-1" },
+    ];
+    mockedClickhouse.mockResolvedValue(rows);
+
+    const result = await runVariableOptionsQuery({ data: { query: "q" } });
+
+    expect(result.options).toHaveLength(1000);
+    expect(result.truncated).toBe(false);
   });
 });
