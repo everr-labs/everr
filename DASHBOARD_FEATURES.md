@@ -71,7 +71,7 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 ## Testing
 
 - ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check, insert-only/update-only split, slug-collision retry, unique-violation mapping, variable interpolation before execution, options-query dedup/cap (`server.test.ts`), store dirty tracking incl. `updateVariables` (`dashboard-store.test.ts`), stat calculations/thresholds (`stat-calculations.test.ts`), duration/refresh seeding (`time-defaults.test.ts`), token interpolation/escaping (`interpolate.test.ts`), effective value resolution (`variable-values.test.ts`), variable draft round-trips/validation (`variable-draft.test.ts`)
-- ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior, StatChart, unsaved-changes dialogs + beforeunload, panel error states, settings seeding incl. URL-wins, duplicate-folder error, aria-labels; variables: all three kinds, multi-select + All, URL round-trip + back button, picker-driven refetch, dirty tracking through the manager, missing-value panel state, options-query error state, hidden variables)
+- ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior, StatChart, unsaved-changes dialogs + beforeunload, panel error states, settings seeding incl. URL-wins, duplicate-folder error, aria-labels; variables: all three kinds, multi-select + All, URL round-trip + back button, picker-driven refetch, dirty tracking through the settings page, missing-value panel state, options-query error state, hidden variables)
 
 ## Known rough edges
 

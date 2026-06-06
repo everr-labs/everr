@@ -107,9 +107,14 @@ export function DashboardSettingsPage({
 
   // vars is not retained by the layout middlewares, so settings exits forward
   // it explicitly to keep the dashboard's active variable selections.
-  const keepVars = (prev: { vars?: Record<string, string | string[]> }) => ({
+  // section is dropped on exit — it belongs only to the settings route.
+  const keepVars = (prev: {
+    vars?: Record<string, string | string[]>;
+    section?: string;
+  }) => ({
     ...prev,
     vars: prev.vars,
+    section: undefined,
   });
 
   const handleSave = () => {
