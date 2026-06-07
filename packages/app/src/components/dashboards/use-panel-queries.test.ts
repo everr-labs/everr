@@ -1,0 +1,107 @@
+import { describe, expect, it, vi } from "vitest";
+
+// The pure helpers under test live alongside the hook, whose import chain
+// (options -> server -> db client) touches server-only env at module load.
+// jsdom runs as a "client", so stub the db client to keep that import inert.
+vi.mock("@/db/client", () => ({ db: {} }));
+
+import {
+  buildPanelQueryRequests,
+  combineQueryStates,
+  type SingleQueryState,
+} from "./use-panel-queries";
+
+const ctx = {
+  definedNames: new Set(["region"]),
+  values: { region: "us" } as Record<string, string | string[]>,
+  meta: {},
+  pendingAllNames: [] as string[],
+};
+
+function state(partial: Partial<SingleQueryState>): SingleQueryState {
+  return {
+    sql: "select 1",
+    missingName: undefined,
+    isPending: false,
+    isError: false,
+    error: undefined,
+    rows: [],
+    ...partial,
+  };
+}
+
+describe("buildPanelQueryRequests", () => {
+  it("resolves variables per query independently", () => {
+    const reqs = buildPanelQueryRequests(["select $region", "select 1"], ctx);
+    expect(reqs[0]!.variables).toEqual({ region: "us" });
+    expect(reqs[0]!.missingName).toBeUndefined();
+    expect(reqs[1]!.variables).toBeUndefined();
+  });
+
+  it("flags a query whose variable has no value", () => {
+    const reqs = buildPanelQueryRequests(["select $region"], {
+      ...ctx,
+      values: {},
+    });
+    expect(reqs[0]!.missingName).toBe("region");
+  });
+
+  it("flags a query waiting for all-expansion options", () => {
+    const reqs = buildPanelQueryRequests(["select $region"], {
+      ...ctx,
+      pendingAllNames: ["region"],
+    });
+    expect(reqs[0]!.waitingForOptions).toBe(true);
+  });
+});
+
+describe("combineQueryStates", () => {
+  it("is success with one result set per non-empty query, in order", () => {
+    const result = combineQueryStates([
+      state({ sql: "a", rows: [{ x: 1 }] }),
+      state({ sql: "b", rows: [{ x: 2 }] }),
+    ]);
+    expect(result.status).toBe("success");
+    expect(result.data).toEqual([[{ x: 1 }], [{ x: 2 }]]);
+  });
+
+  it("ignores empty-sql queries entirely", () => {
+    const result = combineQueryStates([
+      state({ sql: "a", rows: [{ x: 1 }] }),
+      state({ sql: "   ", rows: undefined, isPending: true }),
+    ]);
+    expect(result.status).toBe("success");
+    expect(result.data).toEqual([[{ x: 1 }]]);
+  });
+
+  it("errors the whole panel when any query errors", () => {
+    const result = combineQueryStates([
+      state({ sql: "a", rows: [{ x: 1 }] }),
+      state({ sql: "b", isError: true, error: new Error("boom") }),
+    ]);
+    expect(result.status).toBe("error");
+    expect(result.errorMessage).toBe("boom");
+  });
+
+  it("errors with a variable hint when a query is missing a value", () => {
+    const result = combineQueryStates([
+      state({ sql: "select $region", missingName: "region", rows: undefined }),
+    ]);
+    expect(result.status).toBe("error");
+    expect(result.errorMessage).toBe("Select a value for $region");
+  });
+
+  it("is pending while any active query has no rows yet", () => {
+    const result = combineQueryStates([
+      state({ sql: "a", rows: [{ x: 1 }] }),
+      state({ sql: "b", isPending: true, rows: undefined }),
+    ]);
+    expect(result.status).toBe("pending");
+  });
+
+  it("is success with undefined data when no queries are active", () => {
+    const result = combineQueryStates([state({ sql: "", rows: undefined })]);
+    expect(result.status).toBe("success");
+    expect(result.data).toBeUndefined();
+  });
+});
