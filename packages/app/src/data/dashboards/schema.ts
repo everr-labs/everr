@@ -160,13 +160,38 @@ export interface Dashboard {
   spec: DashboardSpec;
 }
 
+export const dashboardSlugSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    "Slug must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
+  )
+  .refine((s) => s !== "new", { message: '"new" is a reserved slug' });
+
+/**
+ * The full Perses dashboard document, as edited in the settings JSON section.
+ * `metadata.name` is loose on purpose: an untouched document echoes the
+ * current slug (or the "new" draft sentinel) and must always re-validate.
+ * Changed names are checked against `dashboardSlugSchema` by the caller;
+ * the server inputs below enforce it authoritatively.
+ */
+export const dashboardModelSchema = z.object({
+  kind: z.literal("Dashboard"),
+  metadata: z.object({ name: z.string().min(1).max(200) }),
+  spec: dashboardSpecSchema,
+});
+
 export const saveDashboardInput = z.object({
   slug: z.string().min(1).max(200),
+  newSlug: dashboardSlugSchema.optional(),
   spec: dashboardSpecSchema,
   folderId: z.string().uuid().optional(),
 });
 
 export const createDashboardInput = z.object({
+  slug: dashboardSlugSchema.optional(),
   spec: dashboardSpecSchema,
   folderId: z.string().uuid().optional(),
 });
