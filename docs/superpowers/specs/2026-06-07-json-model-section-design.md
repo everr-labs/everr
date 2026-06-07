@@ -14,7 +14,7 @@ Adds a third settings section that shows the full Perses dashboard model (`{ kin
 ## 1. Schema — `data/dashboards/schema.ts`
 
 - `export const dashboardSlugSchema`: `z.string().min(1).max(200).regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/).refine((s) => s !== "new", ...)` with clear messages ("lowercase letters, digits and hyphens; cannot start/end with a hyphen", `"new" is reserved`).
-- `export const dashboardModelSchema`: `z.object({ kind: z.literal("Dashboard"), metadata: z.object({ name: dashboardSlugSchema }), spec: dashboardSpecSchema })` — validates the JSON section's parsed document. (The existing `Dashboard` TS interface stays; the zod schema is for runtime validation only.)
+- `export const dashboardModelSchema`: `z.object({ kind: z.literal("Dashboard"), metadata: z.object({ name: z.string().min(1).max(200) }), spec: dashboardSpecSchema })` — validates the JSON section's parsed document. `metadata.name` is deliberately LOOSE here: an untouched document echoes back the current slug (or the `"new"` draft sentinel), which must always re-validate. The strict `dashboardSlugSchema` applies only to a CHANGED name (checked in the JSON section on Apply) and to the server inputs (authoritative). (The existing `Dashboard` TS interface stays; the zod schema is for runtime validation only.)
 - `saveDashboardInput` gains `newSlug: dashboardSlugSchema.optional()`.
 - `createDashboardInput` gains `slug: dashboardSlugSchema.optional()`.
 - Existing generated 12-char slugs already match the pattern; `saveDashboardInput.slug` (the lookup key) stays as-is.
@@ -26,14 +26,15 @@ Adds a third settings section that shows the full Perses dashboard model (`{ kin
 
 ## 3. Store — `data/dashboards/dashboard-store.ts`
 
-- New `isDraft: boolean` state (default false). `setDashboard(dashboard, opts?: { draft?: boolean })` sets it (false when omitted); `reset` clears it. All other actions leave it untouched.
-- `new.tsx` seeds `setDashboard(EMPTY_DASHBOARD, { draft: true })` and its guard becomes `if (!dashboard || !isDraft)` — drafts survive `metadata.name` edits; stale saved dashboards still get cleared.
+- New `sourceSlug: string | null` state (default null): the slug this dashboard was loaded from — the DB row identity. `null` means unsaved draft (subsumes the earlier `isDraft` idea). `setDashboard(dashboard, opts?: { draft?: boolean })` sets `sourceSlug = opts?.draft ? null : dashboard.metadata.name`. `markSaved` re-syncs `sourceSlug = dashboard.metadata.name` (after a successful rename/create the staged slug becomes the identity). `reset` clears it to null. All other actions leave it untouched.
+- `new.tsx` seeds `setDashboard(EMPTY_DASHBOARD, { draft: true })`; its guard becomes `if (!dashboard || sourceSlug !== null)` — drafts survive `metadata.name` edits; stale saved dashboards still get cleared.
+- `$dashboardId.tsx` bootstrap guard becomes `if (!dashboard || sourceSlug !== dashboardId)` (was `metadata.name !== data.metadata.name`) — otherwise returning to the dashboard with a staged rename would silently replace the dirty store with server data, losing all staged edits.
 
 ## 4. JSON section — `components/dashboards/settings-json-section.tsx`
 
 - Third nav entry on the settings page: General | Variables | **JSON**. `SettingsSelection` gains `{ kind: "json" }`; the existing confirm-discard guard applies (the section reports `hasUnapplied` like the variable form).
 - The editor shows `JSON.stringify({ kind, metadata, spec }, null, 2)` of the store dashboard; draft-based, remounted via `key` on selection change (re-serialized after Apply so the user sees the committed/normalized state).
-- **Apply:** `JSON.parse` → `dashboardModelSchema.parse` → `patchDashboard(parsed)` (marks dirty; metadata.name changes are staged in the store). Inline errors: parse failure (message + position if available), validation failure (first issue's path + message). Errors clear on edit.
+- **Apply:** `JSON.parse` → `dashboardModelSchema.safeParse` → if `metadata.name` differs from the current identity (`sourceSlug ?? "new"`), additionally validate it with `dashboardSlugSchema` → `patchDashboard(parsed)` (marks dirty; metadata.name changes are staged in the store). Inline errors: parse failure (message), validation failure (first issue's path + message). Errors clear on edit.
 - Muted caption: slug changes take effect on Save; the page URL updates then.
 
 ## 5. JSON editor component
@@ -42,8 +43,8 @@ Adds a third settings section that shows the full Perses dashboard model (`{ kin
 
 ## 6. Save flows (both sites)
 
-- **Settings page Save** (`dashboard-settings-page.tsx`): `slug: <route dashboardId>`, `newSlug: dashboard.metadata.name !== dashboardId ? dashboard.metadata.name : undefined`. On success: `markSaved()`, and when the returned slug differs from the route param, `navigate({ to: "/dashboards/$dashboardId/settings", params: { dashboardId: returnedSlug }, replace: true, search: keepVars })`. Save errors (e.g. slug collision) surface inline near the Save button (small destructive text), not a toast.
-- **Dashboard grid Save** (`dashboard-grid.tsx`, saved dashboards): same `slug`/`newSlug` derivation using the route slug; on success with a changed slug, `navigate` (replace) to the new dashboard URL. The grid gets the route slug from its existing props/params.
+- **Settings page Save** (`dashboard-settings-page.tsx`): `slug: sourceSlug`, `newSlug: dashboard.metadata.name !== sourceSlug ? dashboard.metadata.name : undefined`. On success: `markSaved()`, and when the returned slug differs from the route param, `navigate({ to: "/dashboards/$dashboardId/settings", params: { dashboardId: returnedSlug }, replace: true, search: keepVars })`. Save errors (e.g. slug collision) surface inline near the Save button (small destructive text), not a toast.
+- **Dashboard grid Save** (`dashboard-grid.tsx`, saved dashboards): same `slug: sourceSlug` / `newSlug` derivation; on success with a changed slug, `navigate` (replace) to the new dashboard URL. The grid's kebab mutations (display-name rename / move / delete) and its `currentFolderId` lookup also switch from `dashboard.metadata.name` to `sourceSlug` (they operate on the DB row, whose identity is `sourceSlug` while a rename is staged).
 - **Create flow** (`dashboard-grid.tsx` save dialog, `isNew`): pass `slug: dashboard.metadata.name === "new" ? undefined : dashboard.metadata.name`. Collision error shows in the save dialog (it already displays mutation errors or gains a small error line).
 - Query invalidation: existing save/create invalidations cover the dashboard + list; rename additionally invalidates the old slug's `dashboardOptions` (or simply `removeQueries` for it).
 - **Blocker prefixes must use the URL slug, not `metadata.name`:** with a staged slug change the two diverge until Save. The settings page already derives its prefix from the route param; `dashboard-grid.tsx`'s `dashboardPathPrefix` switches from `dashboard?.metadata.name` to the route slug (passed in or read from params) so intra-dashboard navigation stays exempt while a rename is staged.
@@ -58,7 +59,7 @@ Adds a third settings section that shows the full Perses dashboard model (`{ kin
 
 - `schema` tests: `dashboardSlugSchema` matrix (valid, uppercase, leading/trailing hyphen, `"new"`, >200 chars), `dashboardModelSchema` (wrong kind, missing metadata, bad spec).
 - `server.test.ts`: saveDashboard with `newSlug` (renames + saves spec), collision → friendly error, no `newSlug` unchanged; createDashboard with chosen slug, chosen-slug collision (no retry, friendly error), without slug unchanged.
-- `dashboard-store.test.ts`: `isDraft` set/cleared via `setDashboard`/`reset`.
+- `dashboard-store.test.ts`: `sourceSlug` set by `setDashboard` (saved + draft), re-synced by `markSaved`, cleared by `reset`.
 - Browser: JSON section shows the model; bad JSON / wrong kind / bad slug → inline errors; spec edit via JSON → Apply → Save persists; slug edit → Save → URL updates (settings page) and dashboard URL after back; collision error inline; new-dashboard flow: JSON slug edit survives back-and-forth to `/dashboards/new`, create uses the chosen slug, collision shows in the dialog; confirm-discard on leaving JSON with un-applied edits.
 
 ## Context for implementers
