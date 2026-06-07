@@ -20,35 +20,40 @@ export interface PanelQueryRequest {
   waitingForOptions: boolean;
 }
 
-interface VariableContext {
+export interface VariableContext {
   definedNames: Set<string>;
   values: VariableValues;
   meta: VariableMeta;
   pendingAllNames: string[];
 }
 
+export function buildPanelQueryRequest(
+  sql: string,
+  ctx: VariableContext,
+): PanelQueryRequest {
+  const usedNames = extractVariableTokens(sql).filter((n) =>
+    ctx.definedNames.has(n),
+  );
+  const missingName = usedNames.find((n) => ctx.values[n] === undefined);
+  const waitingForOptions = usedNames.some((n) =>
+    ctx.pendingAllNames.includes(n),
+  );
+  return {
+    sql,
+    variables:
+      usedNames.length > 0 ? pickByNames(ctx.values, usedNames) : undefined,
+    variableMeta:
+      usedNames.length > 0 ? pickByNames(ctx.meta, usedNames) : undefined,
+    missingName,
+    waitingForOptions,
+  };
+}
+
 export function buildPanelQueryRequests(
   sqls: string[],
   ctx: VariableContext,
 ): PanelQueryRequest[] {
-  return sqls.map((sql) => {
-    const usedNames = extractVariableTokens(sql).filter((n) =>
-      ctx.definedNames.has(n),
-    );
-    const missingName = usedNames.find((n) => ctx.values[n] === undefined);
-    const waitingForOptions = usedNames.some((n) =>
-      ctx.pendingAllNames.includes(n),
-    );
-    return {
-      sql,
-      variables:
-        usedNames.length > 0 ? pickByNames(ctx.values, usedNames) : undefined,
-      variableMeta:
-        usedNames.length > 0 ? pickByNames(ctx.meta, usedNames) : undefined,
-      missingName,
-      waitingForOptions,
-    };
-  });
+  return sqls.map((sql) => buildPanelQueryRequest(sql, ctx));
 }
 
 export type PanelQueriesStatus = "pending" | "error" | "success";

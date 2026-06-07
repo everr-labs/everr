@@ -25,16 +25,14 @@ import {
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
-import { extractVariableTokens } from "@/data/dashboards/interpolate";
 import { dashboardOptions, panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { runPanelQuery } from "@/data/dashboards/server";
-import { pickByNames } from "@/data/dashboards/variable-values";
 import { PanelPreview } from "./panel-preview";
 import { getQueryTextAt, getQueryTexts } from "./query-array";
 import { QueryEditor } from "./query-editor";
 import { useDashboardVariables } from "./use-dashboard-variables";
-import { usePanelQueries } from "./use-panel-queries";
+import { buildPanelQueryRequest, usePanelQueries } from "./use-panel-queries";
 import { VariableBar } from "./variable-bar";
 import { VizOptions } from "./viz-options";
 
@@ -106,7 +104,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
     }
   }, [panel, draft]);
 
-  const { variables, values, meta } = useDashboardVariables();
+  const { variables, values, meta, pendingAllNames } = useDashboardVariables();
   const definedNames = useMemo(
     () => new Set(variables.map((v) => v.spec.name)),
     [variables],
@@ -138,26 +136,30 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
       if (!draft) return;
       const sql = getQueryTextAt(draft, index);
       if (!sql.trim()) return;
-      const usedNames = extractVariableTokens(sql).filter((name) =>
-        definedNames.has(name),
-      );
-      const missingName = usedNames.find((name) => values[name] === undefined);
-      if (missingName !== undefined) {
-        setManualError(`Select a value for $${missingName}`);
+      const req = buildPanelQueryRequest(sql, {
+        definedNames,
+        values,
+        meta,
+        pendingAllNames,
+      });
+      if (req.missingName !== undefined) {
+        setManualError(`Select a value for $${req.missingName}`);
         return;
       }
-      const variableValues =
-        usedNames.length > 0 ? pickByNames(values, usedNames) : undefined;
-      const variableMeta =
-        usedNames.length > 0 ? pickByNames(meta, usedNames) : undefined;
       setManualError(null);
       setRunningIndex(index);
       try {
         const result = await runPanelQuery({
-          data: { sql, from, to, variables: variableValues, variableMeta },
+          data: {
+            sql,
+            from,
+            to,
+            variables: req.variables,
+            variableMeta: req.variableMeta,
+          },
         });
         queryClient.setQueryData(
-          panelQueryOptions(sql, from, to, variableValues, variableMeta)
+          panelQueryOptions(sql, from, to, req.variables, req.variableMeta)
             .queryKey,
           result,
         );
@@ -167,7 +169,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
         setRunningIndex(null);
       }
     },
-    [draft, queryClient, from, to, values, meta, definedNames],
+    [draft, queryClient, from, to, values, meta, definedNames, pendingAllNames],
   );
 
   const previewError = manualError ?? preview.errorMessage;

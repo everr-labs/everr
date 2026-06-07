@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/db/client", () => ({ db: {} }));
 
 import {
+  buildPanelQueryRequest,
   buildPanelQueryRequests,
   combineQueryStates,
   type SingleQueryState,
@@ -52,6 +53,12 @@ describe("buildPanelQueryRequests", () => {
       pendingAllNames: ["region"],
     });
     expect(reqs[0]!.waitingForOptions).toBe(true);
+  });
+
+  it("buildPanelQueryRequest matches the array form for one sql", () => {
+    expect(buildPanelQueryRequest("select $region", ctx)).toEqual(
+      buildPanelQueryRequests(["select $region"], ctx)[0],
+    );
   });
 });
 
