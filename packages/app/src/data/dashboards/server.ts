@@ -73,8 +73,34 @@ export const createDashboard = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(createDashboardInput)
-  .handler(async ({ data: { spec, folderId }, context }) => {
+  .handler(async ({ data: { spec, folderId, slug }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
+
+    // User-chosen slug: no retry — a collision is the user's to resolve.
+    if (slug) {
+      try {
+        const [row] = await db
+          .insert(dashboards)
+          .values({
+            organizationId: orgId,
+            slug,
+            spec: spec as DashboardSpec,
+            folderId: folderId ?? null,
+          })
+          .returning({ slug: dashboards.slug });
+
+        if (!row) {
+          throw new Error("Failed to create dashboard");
+        }
+
+        return { slug: row.slug };
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          throw new Error(`A dashboard with slug "${slug}" already exists`);
+        }
+        throw error;
+      }
+    }
 
     const MAX_ATTEMPTS = 3;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -108,7 +134,7 @@ export const saveDashboard = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(saveDashboardInput)
-  .handler(async ({ data: { slug, spec, folderId }, context }) => {
+  .handler(async ({ data: { slug, newSlug, spec, folderId }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
     const [existing] = await db
@@ -123,16 +149,27 @@ export const saveDashboard = createAuthenticatedServerFn({
       throw new Error(`Dashboard "${slug}" not found`);
     }
 
-    await db
-      .update(dashboards)
-      .set({
-        spec: spec as DashboardSpec,
-        updatedAt: new Date(),
-        ...(folderId !== undefined ? { folderId } : {}),
-      })
-      .where(eq(dashboards.id, existing.id));
+    const finalSlug = newSlug && newSlug !== slug ? newSlug : slug;
 
-    return { slug };
+    try {
+      await db
+        .update(dashboards)
+        .set({
+          spec: spec as DashboardSpec,
+          updatedAt: new Date(),
+          ...(finalSlug !== slug ? { slug: finalSlug } : {}),
+          ...(folderId !== undefined ? { folderId } : {}),
+        })
+        .where(eq(dashboards.id, existing.id));
+    } catch (error) {
+      // Slug rename collided with an existing dashboard in this org.
+      if (finalSlug !== slug && isUniqueViolation(error)) {
+        throw new Error(`A dashboard with slug "${finalSlug}" already exists`);
+      }
+      throw error;
+    }
+
+    return { slug: finalSlug };
   });
 
 export const deleteDashboard = createAuthenticatedServerFn({

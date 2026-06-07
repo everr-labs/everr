@@ -326,6 +326,80 @@ describe("createDashboard – slug collision retry", () => {
   });
 });
 
+describe("saveDashboard – newSlug rename", () => {
+  it("renames and saves the spec in one update", async () => {
+    selectImpl = () => [{ id: "dash-id" }];
+    updateImpl = () => undefined;
+
+    const result = await saveDashboard({
+      data: {
+        slug: "old-slug",
+        newSlug: "new-slug",
+        spec: { panels: {}, layouts: [] },
+      },
+    });
+
+    expect(result).toEqual({ slug: "new-slug" });
+    expect(mockedDb.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a slug collision to a friendly error", async () => {
+    selectImpl = () => [{ id: "dash-id" }];
+    updateImpl = () => {
+      throw uniqueViolation();
+    };
+
+    await expect(
+      saveDashboard({
+        data: {
+          slug: "old-slug",
+          newSlug: "taken-slug",
+          spec: { panels: {}, layouts: [] },
+        },
+      }),
+    ).rejects.toThrow('A dashboard with slug "taken-slug" already exists');
+  });
+
+  it("returns the original slug when newSlug is absent", async () => {
+    selectImpl = () => [{ id: "dash-id" }];
+    updateImpl = () => undefined;
+
+    const result = await saveDashboard({
+      data: { slug: "same-slug", spec: { panels: {}, layouts: [] } },
+    });
+
+    expect(result).toEqual({ slug: "same-slug" });
+  });
+});
+
+describe("createDashboard – chosen slug", () => {
+  it("uses the chosen slug instead of generating", async () => {
+    insertImpl = () => [{ slug: "my-dash" }];
+
+    const result = await createDashboard({
+      data: { slug: "my-dash", spec: { panels: {}, layouts: [] } },
+    });
+
+    expect(result).toEqual({ slug: "my-dash" });
+    expect(mockedDb.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a chosen-slug collision to a friendly error without retrying", async () => {
+    let attempts = 0;
+    insertImpl = () => {
+      attempts++;
+      throw uniqueViolation();
+    };
+
+    await expect(
+      createDashboard({
+        data: { slug: "taken-slug", spec: { panels: {}, layouts: [] } },
+      }),
+    ).rejects.toThrow('A dashboard with slug "taken-slug" already exists');
+    expect(attempts).toBe(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // runPanelQuery – variable interpolation
 // ---------------------------------------------------------------------------
