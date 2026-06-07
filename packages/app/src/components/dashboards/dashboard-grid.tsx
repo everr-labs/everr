@@ -44,6 +44,7 @@ import {
   useContainerWidth,
   verticalCompactor,
 } from "react-grid-layout";
+import { toast } from "sonner";
 import {
   panelRefFromKey,
   persesToRGL,
@@ -89,6 +90,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const updateDisplayName = useDashboardStore((s) => s.updateDisplayName);
   const markSaved = useDashboardStore((s) => s.markSaved);
   const resetStore = useDashboardStore((s) => s.reset);
+  const sourceSlug = useDashboardStore((s) => s.sourceSlug);
 
   const saveMutation = useSaveDashboard();
   const createMutation = useCreateDashboard();
@@ -116,11 +118,10 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const { data: folders } = useQuery(folderListOptions());
   const { data: dashboardList } = useQuery(dashboardListOptions());
   const currentFolderId =
-    dashboardList?.find((d) => d.slug === dashboard?.metadata.name)?.folderId ??
-    null;
+    dashboardList?.find((d) => d.slug === sourceSlug)?.folderId ?? null;
 
   // Covers the panel editor AND the settings page under this dashboard.
-  const dashboardPathPrefix = `/dashboards/${isNew ? "new" : (dashboard?.metadata.name ?? "")}`;
+  const dashboardPathPrefix = `/dashboards/${isNew ? "new" : (sourceSlug ?? "")}`;
   const blocker = useBlocker({
     shouldBlockFn: ({ current, next }) => {
       if (!useDashboardStore.getState().isDirty) return false;
@@ -275,11 +276,36 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       setShowSaveDialog(true);
       return;
     }
+    if (!sourceSlug) return;
+    const newSlug =
+      dashboard.metadata.name !== sourceSlug
+        ? dashboard.metadata.name
+        : undefined;
     saveMutation.mutate(
-      { slug: dashboard.metadata.name, spec: dashboard.spec },
-      { onSuccess: () => markSaved() },
+      { slug: sourceSlug, spec: dashboard.spec, newSlug },
+      {
+        onSuccess: ({ slug }) => {
+          markSaved();
+          if (newSlug) {
+            navigate({
+              to: "/dashboards/$dashboardId",
+              params: { dashboardId: slug },
+              replace: true,
+              search: (prev: { vars?: Record<string, string | string[]> }) => ({
+                ...prev,
+                vars: prev.vars,
+              }),
+            });
+          }
+        },
+        onError: (error) => {
+          toast.error(
+            error instanceof Error ? error.message : "Failed to save",
+          );
+        },
+      },
     );
-  }, [dashboard, saveMutation, isNew, markSaved]);
+  }, [dashboard, saveMutation, isNew, markSaved, sourceSlug, navigate]);
 
   const handleConfirmSave = useCallback(() => {
     if (!dashboard || !saveName.trim()) return;
@@ -288,7 +314,14 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       display: { ...dashboard.spec.display, name: saveName.trim() },
     };
     createMutation.mutate(
-      { spec, folderId: saveFolderId ?? undefined },
+      {
+        slug:
+          dashboard.metadata.name === "new"
+            ? undefined
+            : dashboard.metadata.name,
+        spec,
+        folderId: saveFolderId ?? undefined,
+      },
       {
         onSuccess: (data) => {
           markSaved();
@@ -316,7 +349,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
                 navigate({
                   to: "/dashboards/$dashboardId/settings",
                   params: {
-                    dashboardId: isNew ? "new" : dashboard.metadata.name,
+                    dashboardId: isNew ? "new" : (sourceSlug ?? ""),
                   },
                   search: (prev: {
                     vars?: Record<string, string | string[]>;
@@ -413,7 +446,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
                 <DashboardPanel
                   panel={panel}
                   panelKey={item.i}
-                  dashboardId={dashboard.metadata.name}
+                  dashboardId={isNew ? "new" : (sourceSlug ?? "")}
                   isEditing={isEditing}
                   onRemove={() => handleRemovePanel(item.i)}
                   onDuplicate={() => handleDuplicatePanel(item.i)}
@@ -479,7 +512,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
         isPending={renameMutation.isPending}
         onConfirm={(name) => {
           renameMutation.mutate(
-            { slug: dashboard.metadata.name, name },
+            { slug: sourceSlug ?? "", name },
             {
               onSuccess: () => {
                 updateDisplayName(name);
@@ -502,7 +535,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
         isPending={moveMutation.isPending}
         onConfirm={(folderId) => {
           moveMutation.mutate(
-            { slug: dashboard.metadata.name, folderId },
+            { slug: sourceSlug ?? "", folderId },
             { onSuccess: () => setManageAction(null) },
           );
         }}
@@ -516,7 +549,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
         name={dashboard.spec.display?.name ?? dashboard.metadata.name}
         isPending={deleteMutation.isPending}
         onConfirm={() => {
-          deleteMutation.mutate(dashboard.metadata.name, {
+          deleteMutation.mutate(sourceSlug ?? "", {
             onSuccess: () => {
               setManageAction(null);
               navigate({ to: "/dashboards" });

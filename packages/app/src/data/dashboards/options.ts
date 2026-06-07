@@ -80,15 +80,15 @@ export function useSaveDashboard() {
   return useMutation({
     mutationFn: (vars: {
       slug: string;
+      newSlug?: string;
       spec: Parameters<typeof saveDashboard>[0]["data"]["spec"];
       folderId?: string;
     }) => saveDashboard({ data: vars }),
     onSuccess: () => {
+      // Prefix-matches every dashboard query, including the old slug's
+      // dashboardOptions after a rename.
       void qc.invalidateQueries({ queryKey: dashboardsQueryKey });
       toast.success("Dashboard saved");
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to save");
     },
   });
 }
@@ -97,6 +97,7 @@ export function useCreateDashboard() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: {
+      slug?: string;
       spec: Parameters<typeof createDashboard>[0]["data"]["spec"];
       folderId?: string;
     }) => createDashboard({ data: vars }),

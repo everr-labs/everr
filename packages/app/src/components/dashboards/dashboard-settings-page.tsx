@@ -11,7 +11,7 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useBlocker } from "@tanstack/react-router";
+import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
@@ -34,7 +34,9 @@ export function DashboardSettingsPage({
   const setDashboard = useDashboardStore((s) => s.setDashboard);
   const markSaved = useDashboardStore((s) => s.markSaved);
   const resetStore = useDashboardStore((s) => s.reset);
+  const sourceSlug = useDashboardStore((s) => s.sourceSlug);
   const saveMutation = useSaveDashboard();
+  const navigate = useNavigate();
 
   // Blocks on store dirty only — un-applied form drafts are guarded by the
   // in-page confirm-discard dialog; leaving the page with a draft is an
@@ -97,9 +99,26 @@ export function DashboardSettingsPage({
   });
 
   const handleSave = () => {
+    if (!sourceSlug) return; // Save is hidden for drafts (isNew)
+    const newSlug =
+      dashboard.metadata.name !== sourceSlug
+        ? dashboard.metadata.name
+        : undefined;
     saveMutation.mutate(
-      { slug: dashboard.metadata.name, spec: dashboard.spec },
-      { onSuccess: () => markSaved() },
+      { slug: sourceSlug, spec: dashboard.spec, newSlug },
+      {
+        onSuccess: ({ slug }) => {
+          markSaved();
+          if (slug !== dashboardId) {
+            navigate({
+              to: "/dashboards/$dashboardId/settings",
+              params: { dashboardId: slug },
+              replace: true,
+              search: keepVars,
+            });
+          }
+        },
+      },
     );
   };
 
@@ -180,14 +199,23 @@ export function DashboardSettingsPage({
           </h1>
         </div>
         {!isNew && (
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-          >
-            <Save data-icon="inline-start" />
-            {saveMutation.isPending ? "Saving…" : "Save"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {saveMutation.isError && (
+              <p className="max-w-md truncate text-xs text-destructive">
+                {saveMutation.error instanceof Error
+                  ? saveMutation.error.message
+                  : "Failed to save"}
+              </p>
+            )}
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+            >
+              <Save data-icon="inline-start" />
+              {saveMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
         )}
       </div>
 
