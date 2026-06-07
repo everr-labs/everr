@@ -70,8 +70,11 @@ export function PanelVisualization({
 
   if (!entry) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        <p className="text-sm">{plugin.kind}</p>
+      <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground">
+        <p className="text-sm">
+          Unknown visualization:{" "}
+          <code className="font-mono">{plugin.kind}</code>
+        </p>
       </div>
     );
   }
