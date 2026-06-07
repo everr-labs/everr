@@ -108,6 +108,14 @@ export interface ChartModel {
   chartConfig: ChartConfig;
 }
 
+/**
+ * Builds a chart model by merging rows from every query result set onto a
+ * single shared timeline keyed by timestamp. Rows that share a timestamp —
+ * whether across different queries OR within a single query — are merged into
+ * one entry, so a single set containing duplicate timestamps is collapsed
+ * last-write-wins. This merge is intentional: it's how multiple queries' series
+ * land on one x-axis.
+ */
 export function buildChartModel(
   dataSets: QueryResultRow[][],
   domain: [number, number] | undefined,
