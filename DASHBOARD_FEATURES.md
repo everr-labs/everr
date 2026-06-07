@@ -1,6 +1,6 @@
 # Dashboard Feature — Current Status
 
-_Last updated: 2026-06-06 (branch `gio/dashboard-variables`)._
+_Last updated: 2026-06-07 (branch `gio/perses-dashboard-route`)._
 
 Custom dashboards built on a [Perses](https://perses.dev)-compatible data model, backed by Postgres, querying ClickHouse.
 
@@ -22,12 +22,12 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Delete folder: empty → simple confirm; non-empty → recursive content counts with two explicit modes — **Move contents to root** (re-parents direct children, structure preserved) or **Delete everything** (cascade)
 - ✅ Dashboard rename / move-to-folder / delete from per-row kebab menus
 - ❌ Drag & drop into folders (context-menu move only, by design for v1)
-- ❌ Query-error UI (failed list queries render a blank body — pre-existing pattern)
+- ✅ Query-error UI — a failed dashboards/folders list query renders an inline error state (icon + message) instead of masquerading as the empty "No dashboards yet" state
 
 ## Dashboard page (`/dashboards/$dashboardId`)
 
 - ✅ Grid layout (react-grid-layout, 24 cols): drag, resize, add, remove, duplicate panels; edit mode persisted in the zustand store; floating per-panel toolbar
-- ✅ Toolbar kebab (saved dashboards): Rename (applies immediately, updates breadcrumb via `router.invalidate()`), Move to folder, Delete
+- ✅ Toolbar kebab (saved dashboards): Rename (atomic — single UPDATE patching only `spec.display.name` via `jsonb_set`, no read-modify-write; applies immediately, updates breadcrumb via `router.invalidate()`), Move to folder, Delete
 - ✅ Saving an existing dashboard preserves its folder assignment
 - ✅ Not-found route component; breadcrumb from loader data
 - ✅ Unsaved-changes protection — dirty tracking in the store, route blocker with Stay / Discard & leave dialog, `beforeunload` on tab close; the panel editor mounts the same blocker so edits stay protected there too
@@ -52,6 +52,7 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ **TimeSeriesChart** — auto-pivot multi-series, custom portal tooltip, legend, unit, line width, connect-nulls, gap filling, time-range clamping, drag-to-zoom (`onTimeRangeChange`)
 - ✅ **Table** — flush-content table view with settings
 - ✅ **StatChart** — calculation (last/first/mean/min/max/sum), unit suffix, optional sparkline, absolute/percent threshold coloring (value + sparkline)
+- ✅ Unknown panel plugin `kind` — renders a clear "Unknown visualization: \<kind>" placeholder rather than crashing
 
 ## Variables
 
@@ -60,9 +61,10 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Variable bar (dashboard page + compact in the panel editor): text inputs, single/multi dropdowns, "All" entry; query-backed options load via react-query keyed on query + time range (refresh with the picker); loading spinner, inline error state (tooltip, no toast), "first 1000 shown" truncation note
 - ✅ Value state in a single `vars` URL search param (JSON object; All sentinel `"__all"`); URL wins over spec defaults; not retained across navigation by design; back button steps through selections; editor entry/exit forwards `vars`
 - ✅ Variables section on the settings page (sections nav + variable list + draft form with Apply/Delete, name regex + uniqueness validation, CodeMirror SQL editor + query preview, confirm-discard on switching with un-applied edits); mutations dirty-tracked through the store, saved with the dashboard Save flow
-- ✅ JSON section on the settings page: full Perses model (`{ kind, metadata, spec }`) in a CodeMirror JSON editor; Apply validates (JSON + zod model schema + slug rules for changed names) and stages to the store; `metadata.name` edits rename the URL slug on Save (atomic with the spec write, collision → inline error); new dashboards can pick their slug before first save
+- ✅ JSON section on the settings page: full Perses model (`{ kind, metadata, spec }`) in a CodeMirror JSON editor; Apply validates (JSON + zod model schema + slug rules for changed names) and stages to the store; `metadata.name` edits rename the URL slug on Save (atomic with the spec write, collision → inline error); new dashboards can pick their slug before first save. Because the editor exposes the full Perses model, the existing v1 boundaries (see 🟡 items in Data model and Panel editing) apply to hand-authored JSON and are silently ignored: `datasources` is accepted for compatibility but has no runtime effect; `queries[]` beyond index 0 are parsed but unused; editing a panel rewrites its query plugin kind back to `ClickHouseSQL`.
 - ✅ Panels referencing a variable with no effective value render "Select a value for $name" client-side (query disabled, nothing sent to ClickHouse); All-without-options waits in the pending skeleton
-- ❌ Not in v1 (tracked follow-ups): variable chaining (variables inside option queries), `capturingRegexp`, `sort` (parsed but ignored), Grafana-style `var-<name>` URL aliases, per-panel overrides, variables in panel titles/descriptions
+- ✅ `ListVariable` `sort` — applied to picker options (none / alphabetical asc·desc / numerical asc·desc / case-insensitive alphabetical asc·desc); non-numeric values sorted last in numerical modes
+- ❌ Not in v1 (tracked follow-ups): variable chaining (variables inside option queries), `capturingRegexp`, Grafana-style `var-<name>` URL aliases, per-panel overrides, variables in panel titles/descriptions
 
 ## Time range
 
@@ -74,6 +76,3 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 - ✅ Unit tests: tree building/search/counts (`tree.test.ts`), grid layout conversion (`convert.test.ts`), server-fn behavior incl. `moveFolder` cycle check, insert-only/update-only split, slug-collision retry, unique-violation mapping, variable interpolation before execution, options-query dedup/cap (`server.test.ts`), store dirty tracking incl. `updateVariables` (`dashboard-store.test.ts`), stat calculations/thresholds (`stat-calculations.test.ts`), duration/refresh seeding (`time-defaults.test.ts`), token interpolation/escaping (`interpolate.test.ts`), effective value resolution (`variable-values.test.ts`), variable draft round-trips/validation (`variable-draft.test.ts`), slug/model schemas (`schema.test.ts`), slug rename/chosen-slug server flows (`server.test.ts`)
 - ✅ Full feature browser-verified end-to-end (folder CRUD, all management flows, delete modes, no-overwrite behavior, StatChart, unsaved-changes dialogs + beforeunload, panel error states, settings seeding incl. URL-wins, duplicate-folder error, aria-labels; variables: all three kinds, multi-select + All, URL round-trip + back button, picker-driven refetch, dirty tracking through the settings page, missing-value panel state, options-query error state, hidden variables)
 
-## Known rough edges
-
-- `renameDashboard` does a read-modify-write of the full spec; a concurrent full-spec save in the same window can be clobbered (accepted at current scale)
