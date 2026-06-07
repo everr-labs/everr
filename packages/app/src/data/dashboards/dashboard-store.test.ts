@@ -25,6 +25,7 @@ beforeEach(() => {
     dashboard: null,
     isEditing: false,
     isDirty: false,
+    sourceSlug: null,
   });
 });
 
@@ -113,5 +114,40 @@ describe("dashboard store dirty tracking", () => {
     useDashboardStore.getState().updateLayout([]);
     useDashboardStore.getState().updateVariables([]);
     expect(useDashboardStore.getState().isDirty).toBe(false);
+  });
+});
+
+describe("sourceSlug identity tracking", () => {
+  it("setDashboard records the loaded slug as sourceSlug", () => {
+    useDashboardStore.getState().setDashboard(makeDashboard("dash-1"));
+    expect(useDashboardStore.getState().sourceSlug).toBe("dash-1");
+  });
+
+  it("setDashboard with draft: true leaves sourceSlug null", () => {
+    useDashboardStore
+      .getState()
+      .setDashboard(makeDashboard("new"), { draft: true });
+    expect(useDashboardStore.getState().sourceSlug).toBeNull();
+  });
+
+  it("markSaved re-syncs sourceSlug to the current metadata name", () => {
+    useDashboardStore.getState().setDashboard(makeDashboard("dash-1"));
+    const current = useDashboardStore.getState().dashboard;
+    if (!current) throw new Error("dashboard missing");
+    useDashboardStore.getState().patchDashboard({
+      ...current,
+      metadata: { name: "renamed" },
+    });
+    expect(useDashboardStore.getState().sourceSlug).toBe("dash-1");
+
+    useDashboardStore.getState().markSaved();
+    expect(useDashboardStore.getState().sourceSlug).toBe("renamed");
+    expect(useDashboardStore.getState().isDirty).toBe(false);
+  });
+
+  it("reset clears sourceSlug", () => {
+    useDashboardStore.getState().setDashboard(makeDashboard("dash-1"));
+    useDashboardStore.getState().reset();
+    expect(useDashboardStore.getState().sourceSlug).toBeNull();
   });
 });

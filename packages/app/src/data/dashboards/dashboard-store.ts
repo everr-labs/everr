@@ -5,8 +5,10 @@ interface DashboardState {
   dashboard: Dashboard | null;
   isEditing: boolean;
   isDirty: boolean;
+  /** Slug the dashboard was loaded from (DB row identity); null = unsaved draft. */
+  sourceSlug: string | null;
   /** Load/replace the dashboard from server data; resets dirty state. */
-  setDashboard: (d: Dashboard) => void;
+  setDashboard: (d: Dashboard, opts?: { draft?: boolean }) => void;
   /** Replace the dashboard with a locally edited version; marks dirty. */
   patchDashboard: (d: Dashboard) => void;
   /** Update the display name without touching dirty state (rename saves server-side). */
@@ -25,8 +27,14 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   dashboard: null,
   isEditing: false,
   isDirty: false,
+  sourceSlug: null,
 
-  setDashboard: (dashboard) => set({ dashboard, isDirty: false }),
+  setDashboard: (dashboard, opts) =>
+    set({
+      dashboard,
+      isDirty: false,
+      sourceSlug: opts?.draft ? null : dashboard.metadata.name,
+    }),
   patchDashboard: (dashboard) => set({ dashboard, isDirty: true }),
   updateDisplayName: (name) =>
     set((state) => {
@@ -41,8 +49,18 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         },
       };
     }),
-  markSaved: () => set({ isDirty: false }),
-  reset: () => set({ dashboard: null, isEditing: false, isDirty: false }),
+  markSaved: () =>
+    set((state) => ({
+      isDirty: false,
+      sourceSlug: state.dashboard?.metadata.name ?? null,
+    })),
+  reset: () =>
+    set({
+      dashboard: null,
+      isEditing: false,
+      isDirty: false,
+      sourceSlug: null,
+    }),
   setEditing: (isEditing) => set({ isEditing }),
 
   updatePanel: (key, panel) =>
