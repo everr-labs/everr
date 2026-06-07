@@ -17,7 +17,7 @@ Custom dashboards built on a [Perses](https://perses.dev)-compatible data model,
 ## Dashboards index (`/dashboards`)
 
 - ✅ Folder tree with arbitrary nesting, expand/collapse, folders-first alphabetical sort, orphan fallback to root
-- ✅ Search across dashboards *and* folders (case-insensitive), flattened results with folder paths (`Production / API`)
+- ✅ Search across dashboards _and_ folders (case-insensitive), flattened results with folder paths (`Production / API`)
 - ✅ Create folder / subfolder, rename, move (picker disables the moved folder's own subtree; server enforces a cycle check too)
 - ✅ Delete folder: empty → simple confirm; non-empty → recursive content counts with two explicit modes — **Move contents to root** (re-parents direct children, structure preserved) or **Delete everything** (cascade)
 - ✅ Dashboard rename / move-to-folder / delete from per-row kebab menus
