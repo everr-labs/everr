@@ -27,7 +27,16 @@ export function TableVisualization({ plugin, data }: VisualizationProps) {
   const sets = data ?? [];
   const [selected, setSelected] = useState(0);
 
-  if (sets.length === 0) {
+  const hasSelector = sets.length > 1;
+  const index = Math.min(selected, Math.max(sets.length - 1, 0));
+  const rows = sets[index] ?? [];
+
+  // No queries, or a single query with no rows: show the borderless empty
+  // state. This keeps an empty table from sprouting a stray top border (the
+  // bordered container is only meaningful once there's a selector or rows).
+  // With multiple queries we keep the selector so the user can still switch
+  // frames, and an empty frame shows "No rows" inside the bordered container.
+  if (!hasSelector && rows.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <TableIcon className="size-8" />
@@ -36,13 +45,11 @@ export function TableVisualization({ plugin, data }: VisualizationProps) {
     );
   }
 
-  const index = Math.min(selected, sets.length - 1);
-  const rows = sets[index] ?? [];
   const columns = buildColumns(rows);
 
   return (
     <div className="flex h-full flex-col border-t border-border">
-      {sets.length > 1 && (
+      {hasSelector && (
         <div className="border-b border-border p-1">
           <ToggleGroup
             value={[String(index)]}
@@ -53,11 +60,7 @@ export function TableVisualization({ plugin, data }: VisualizationProps) {
             size="sm"
           >
             {sets.map((_, i) => (
-              <ToggleGroupItem
-                // biome-ignore lint/suspicious/noArrayIndexKey: query order is stable within a render
-                key={i}
-                value={String(i)}
-              >
+              <ToggleGroupItem key={i} value={String(i)}>
                 Query {QUERY_LABELS[i] ?? i + 1}
               </ToggleGroupItem>
             ))}
