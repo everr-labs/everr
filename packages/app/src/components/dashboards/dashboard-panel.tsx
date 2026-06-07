@@ -1,24 +1,13 @@
 import { Button } from "@everr/ui/components/button";
 import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Copy, Pencil, Trash2 } from "lucide-react";
-import { useCallback, useMemo } from "react";
-import { extractVariableTokens } from "@/data/dashboards/interpolate";
-import { panelQueryOptions } from "@/data/dashboards/options";
+import { useCallback } from "react";
 import type { Panel } from "@/data/dashboards/schema";
-import { pickByNames } from "@/data/dashboards/variable-values";
 import { PanelShell } from "../panel-shell";
-import { useDashboardVariables } from "./use-dashboard-variables";
+import { usePanelQueries } from "./use-panel-queries";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";
-
-function getPanelQuerySql(panel: Panel): string {
-  const query = panel.spec.queries?.[0];
-  if (!query) return "";
-  const spec = query.spec.plugin.spec;
-  return typeof spec.query === "string" ? spec.query : "";
-}
 
 interface DashboardPanelProps {
   panel: Panel;
@@ -41,33 +30,8 @@ export function DashboardPanel({
   const navigate = useNavigate();
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const { from, to } = search;
-  const sql = getPanelQuerySql(panel);
 
-  const { variables, values, meta, pendingAllNames } = useDashboardVariables();
-  const usedNames = useMemo(() => {
-    const defined = new Set(variables.map((v) => v.spec.name));
-    return extractVariableTokens(sql).filter((name) => defined.has(name));
-  }, [sql, variables]);
-  const missingName = usedNames.find((name) => values[name] === undefined);
-  const waitingForOptions = usedNames.some((name) =>
-    pendingAllNames.includes(name),
-  );
-  const panelVariables =
-    usedNames.length > 0 ? pickByNames(values, usedNames) : undefined;
-  const panelMeta =
-    usedNames.length > 0 ? pickByNames(meta, usedNames) : undefined;
-
-  const queryOpts = panelQueryOptions(sql, from, to, panelVariables, panelMeta);
-  const {
-    data: queryResult,
-    isPending,
-    isError,
-    error,
-  } = useQuery({
-    ...queryOpts,
-    enabled:
-      sql.trim().length > 0 && missingName === undefined && !waitingForOptions,
-  });
+  const { data, status, errorMessage } = usePanelQueries(panel, { from, to });
   const { fromDate, toDate } = resolveTimeRange(withTimeRange(search));
 
   const handleTimeRangeChange = useCallback(
@@ -84,16 +48,6 @@ export function DashboardPanel({
     },
     [navigate],
   );
-
-  const status = !sql
-    ? "success"
-    : missingName !== undefined
-      ? "error"
-      : isError
-        ? "error"
-        : isPending
-          ? "pending"
-          : "success";
 
   return (
     <div
@@ -144,21 +98,13 @@ export function DashboardPanel({
         title={display.name ?? panelKey}
         description={display.description}
         status={status}
-        errorMessage={
-          missingName !== undefined
-            ? `Select a value for $${missingName}`
-            : isError
-              ? error instanceof Error
-                ? error.message
-                : String(error)
-              : undefined
-        }
+        errorMessage={errorMessage}
         className={cn("h-full", isEditing && "pointer-events-none")}
         inset={getVisualizationInset(plugin.kind)}
       >
         <PanelVisualization
           plugin={plugin}
-          data={queryResult?.rows}
+          data={data}
           timeRange={{ from: fromDate, to: toDate }}
           onTimeRangeChange={handleTimeRangeChange}
         />

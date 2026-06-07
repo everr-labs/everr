@@ -1,5 +1,4 @@
 import {
-  type ChartConfig,
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
@@ -23,66 +22,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { detectTimeKey, getValueKeys, toTimestamp } from "../data-utils";
-import type { QueryResultRow, VisualizationProps } from "../index";
+import type { VisualizationProps } from "../index";
 import type { CurveType } from "./time-series-chart-settings";
-
-const COLORS = [
-  "hsl(217, 91%, 60%)",
-  "hsl(142, 71%, 45%)",
-  "hsl(0, 84%, 60%)",
-  "hsl(280, 68%, 60%)",
-  "hsl(35, 92%, 50%)",
-  "hsl(190, 90%, 50%)",
-];
-
-const TS_KEY = "__ts";
-
-function getGroupKeys(row: QueryResultRow, timeKey: string): string[] {
-  return Object.keys(row).filter(
-    (k) => k !== timeKey && typeof row[k] === "string",
-  );
-}
-
-function sanitizeKey(name: string): string {
-  return name.replace(/[^a-zA-Z0-9]/g, "_");
-}
-
-function pivotByGroup(
-  rows: QueryResultRow[],
-  timeKey: string,
-  groupKey: string,
-  valueKey: string,
-): {
-  pivoted: QueryResultRow[];
-  seriesKeys: string[];
-  labelMap: Map<string, string>;
-} {
-  const byTimestamp = new Map<string | number, QueryResultRow>();
-  const seriesSet = new Set<string>();
-  const labelMap = new Map<string, string>();
-
-  for (const row of rows) {
-    const ts = row[timeKey];
-    const group = String(row[groupKey]);
-    const key = sanitizeKey(group);
-    const raw = row[valueKey];
-    const value = typeof raw === "string" ? Number(raw) : raw;
-    seriesSet.add(key);
-    labelMap.set(key, group);
-
-    let entry = byTimestamp.get(ts as string | number);
-    if (!entry) {
-      entry = { [timeKey]: ts };
-      byTimestamp.set(ts as string | number, entry);
-    }
-    entry[key] = value;
-  }
-
-  const seriesKeys = [...seriesSet].sort();
-  const pivoted = [...byTimestamp.values()];
-  return { pivoted, seriesKeys, labelMap };
-}
+import { buildChartModel, TS_KEY } from "./time-series-data";
 
 function createTickFormatter(domain?: [number, number]) {
   const span = domain ? domain[1] - domain[0] : 0;
@@ -138,47 +80,6 @@ function generateTicks(domain: [number, number], maxTicks: number): number[] {
     ticks.push(t);
   }
   return ticks;
-}
-
-function detectInterval(timestamps: number[]): number | null {
-  if (timestamps.length < 2) return null;
-  const diffs: number[] = [];
-  for (let i = 1; i < timestamps.length; i++) {
-    diffs.push(timestamps[i]! - timestamps[i - 1]!);
-  }
-  diffs.sort((a, b) => a - b);
-  return diffs[Math.floor(diffs.length / 2)]!;
-}
-
-function fillAndClamp(
-  rows: Array<Record<string, unknown>>,
-  valueKeys: string[],
-  domain: [number, number],
-  interval: number,
-): Array<Record<string, unknown>> {
-  const byTs = new Map<number, Record<string, unknown>>();
-  for (const row of rows) {
-    const ts = row[TS_KEY] as number;
-    if (ts >= domain[0] && ts <= domain[1]) {
-      byTs.set(ts, row);
-    }
-  }
-
-  const first = Math.ceil(domain[0] / interval) * interval;
-  const result: Array<Record<string, unknown>> = [];
-  for (let t = first; t <= domain[1]; t += interval) {
-    const existing = byTs.get(t);
-    if (existing) {
-      result.push(existing);
-    } else {
-      const empty: Record<string, unknown> = { [TS_KEY]: t };
-      for (const k of valueKeys) {
-        empty[k] = null;
-      }
-      result.push(empty);
-    }
-  }
-  return result;
 }
 
 function getPlotArea(container: HTMLElement): DOMRect | null {
@@ -248,73 +149,10 @@ export function TimeSeriesChartVisualization({
     [timeRange],
   );
 
-  const { chartData, valueKeys, chartConfig } = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { chartData: [], valueKeys: [], chartConfig: {} };
-    }
-
-    const tk = detectTimeKey(data);
-    if (!tk) {
-      return { chartData: [], valueKeys: [], chartConfig: {} };
-    }
-
-    const groupKeys = getGroupKeys(data[0]!, tk);
-    const rawValueKeys = getValueKeys(data[0]!, tk);
-
-    let rows: QueryResultRow[];
-    let vk: string[];
-    let labels: Map<string, string> | undefined;
-
-    if (groupKeys.length >= 1 && rawValueKeys.length === 1) {
-      const compositeKey = "__group__";
-      const keyed = data.map((row) => ({
-        ...row,
-        [compositeKey]: groupKeys.map((k) => row[k]).join(" · "),
-      }));
-      const { pivoted, seriesKeys, labelMap } = pivotByGroup(
-        keyed,
-        tk,
-        compositeKey,
-        rawValueKeys[0]!,
-      );
-      rows = pivoted;
-      vk = seriesKeys;
-      labels = labelMap;
-    } else {
-      rows = data;
-      vk = rawValueKeys;
-    }
-
-    const config: ChartConfig = {};
-    for (let i = 0; i < vk.length; i++) {
-      config[vk[i]!] = {
-        label: labels?.get(vk[i]!) ?? vk[i],
-        color: COLORS[i % COLORS.length],
-      };
-    }
-
-    const mapped = rows.map((row) => ({
-      ...row,
-      [TS_KEY]: toTimestamp(row[tk]),
-    }));
-
-    const timestamps = mapped.map((r) => r[TS_KEY] as number);
-    const interval = detectInterval(timestamps);
-
-    let filled: Array<Record<string, unknown>>;
-    if (domain && interval && interval > 0) {
-      filled = fillAndClamp(mapped, vk, domain, interval);
-    } else if (domain) {
-      filled = mapped.filter((r) => {
-        const ts = r[TS_KEY] as number;
-        return ts >= domain[0] && ts <= domain[1];
-      });
-    } else {
-      filled = mapped;
-    }
-
-    return { chartData: filled, valueKeys: vk, chartConfig: config };
-  }, [data, domain]);
+  const { chartData, valueKeys, chartConfig } = useMemo(
+    () => buildChartModel(data ?? [], domain),
+    [data, domain],
+  );
 
   const ticks = useMemo(
     () => (domain ? generateTicks(domain, maxTicks) : undefined),

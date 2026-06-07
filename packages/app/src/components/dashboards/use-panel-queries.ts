@@ -103,7 +103,6 @@ export interface UsePanelQueriesOptions {
   queryEnabled?: (sql: string, index: number) => boolean;
 }
 
-// fallow-ignore-next-line unused-export
 export function usePanelQueries(
   panel: Panel,
   opts: UsePanelQueriesOptions = {},

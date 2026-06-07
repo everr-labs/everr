@@ -31,10 +31,11 @@ import type { Panel } from "@/data/dashboards/schema";
 import { runPanelQuery } from "@/data/dashboards/server";
 import { pickByNames } from "@/data/dashboards/variable-values";
 import { PanelPreview } from "./panel-preview";
+import { getQueryTextAt, getQueryTexts } from "./query-array";
 import { QueryEditor } from "./query-editor";
 import { useDashboardVariables } from "./use-dashboard-variables";
+import { usePanelQueries } from "./use-panel-queries";
 import { VariableBar } from "./variable-bar";
-import type { QueryResultRow } from "./visualizations";
 import { VizOptions } from "./viz-options";
 
 interface PanelEditPageProps {
@@ -42,12 +43,10 @@ interface PanelEditPageProps {
   panelKey: string;
 }
 
-function getQuerySql(panel: Panel): string {
-  const query = panel.spec.queries?.[0];
-  if (!query) return "";
-  const spec = query.spec.plugin.spec;
-  return typeof spec.query === "string" ? spec.query : "";
-}
+const EMPTY_PANEL: Panel = {
+  kind: "Panel",
+  spec: { display: {}, plugin: { kind: "TimeSeriesChart", spec: {} } },
+};
 
 export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   const navigate = useNavigate();
@@ -107,61 +106,38 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
     }
   }, [panel, draft]);
 
-  const { variables, values, meta, pendingAllNames } = useDashboardVariables();
+  const { variables, values, meta } = useDashboardVariables();
   const definedNames = useMemo(
     () => new Set(variables.map((v) => v.spec.name)),
     [variables],
   );
 
-  const savedSql = panel ? getQuerySql(panel) : "";
-  const savedUsedNames = useMemo(
-    () =>
-      extractVariableTokens(savedSql).filter((name) => definedNames.has(name)),
-    [savedSql, definedNames],
-  );
-  const savedMissingName = savedUsedNames.find(
-    (name) => values[name] === undefined,
-  );
-  const savedWaitingForOptions = savedUsedNames.some((name) =>
-    pendingAllNames.includes(name),
-  );
-  const savedVariables =
-    savedUsedNames.length > 0 ? pickByNames(values, savedUsedNames) : undefined;
-  const savedMeta =
-    savedUsedNames.length > 0 ? pickByNames(meta, savedUsedNames) : undefined;
-  const autoOpts = panelQueryOptions(
-    savedSql,
+  const savedSqls = useMemo(() => (panel ? getQueryTexts(panel) : []), [panel]);
+
+  // Preview the draft. A query auto-runs only while its text matches the saved
+  // text (unmodified); once edited it waits for a manual Run, which primes the
+  // shared cache that usePanelQueries' useQueries reads.
+  //
+  // storeDashboard gate: on a direct editor URL load there is one render where
+  // the fetched dashboard exists but the store (which useDashboardVariables
+  // reads) is still null — without the gate the query would fire once with
+  // un-resolved variables. The sync effect above sets the store immediately
+  // after, so this only delays by one tick.
+  const preview = usePanelQueries(draft ?? panel ?? EMPTY_PANEL, {
     from,
     to,
-    savedVariables,
-    savedMeta,
-  );
-  const {
-    data: autoResult,
-    isError: autoIsError,
-    error: autoError,
-  } = useQuery({
-    ...autoOpts,
-    // storeDashboard gate: on a direct editor URL load there is one render
-    // where the fetched dashboard exists but the store (which
-    // useDashboardVariables reads) is still null — without the gate the query
-    // would fire once with un-resolved variables. The sync effect above sets
-    // the store immediately after, so this only delays by one tick.
-    enabled:
-      storeDashboard !== null &&
-      savedSql.trim().length > 0 &&
-      savedMissingName === undefined &&
-      !savedWaitingForOptions,
+    enabled: storeDashboard !== null,
+    queryEnabled: (sql, i) => sql.trim() === (savedSqls[i] ?? "").trim(),
   });
 
-  const [manualResult, setManualResult] = useState<
-    QueryResultRow[] | undefined
-  >();
   const [manualError, setManualError] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const [runningIndex, setRunningIndex] = useState<number | null>(null);
 
   const handleRunQuery = useCallback(
-    async (sql: string) => {
+    async (index: number) => {
+      if (!draft) return;
+      const sql = getQueryTextAt(draft, index);
+      if (!sql.trim()) return;
       const usedNames = extractVariableTokens(sql).filter((name) =>
         definedNames.has(name),
       );
@@ -170,40 +146,31 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
         setManualError(`Select a value for $${missingName}`);
         return;
       }
-      const variables =
+      const variableValues =
         usedNames.length > 0 ? pickByNames(values, usedNames) : undefined;
       const variableMeta =
         usedNames.length > 0 ? pickByNames(meta, usedNames) : undefined;
       setManualError(null);
-      setIsRunning(true);
+      setRunningIndex(index);
       try {
         const result = await runPanelQuery({
-          data: { sql, from, to, variables, variableMeta },
+          data: { sql, from, to, variables: variableValues, variableMeta },
         });
-        setManualResult(result.rows);
         queryClient.setQueryData(
-          panelQueryOptions(sql, from, to, variables, variableMeta).queryKey,
+          panelQueryOptions(sql, from, to, variableValues, variableMeta)
+            .queryKey,
           result,
         );
       } catch (error) {
         setManualError(error instanceof Error ? error.message : "Query failed");
       } finally {
-        setIsRunning(false);
+        setRunningIndex(null);
       }
     },
-    [queryClient, from, to, values, meta, definedNames],
+    [draft, queryClient, from, to, values, meta, definedNames],
   );
 
-  const queryResult = manualResult ?? autoResult?.rows;
-  const queryErrorMessage =
-    manualError ??
-    (savedMissingName !== undefined && !manualResult
-      ? `Select a value for $${savedMissingName}`
-      : autoIsError && !manualResult
-        ? autoError instanceof Error
-          ? autoError.message
-          : String(autoError)
-        : undefined);
+  const previewError = manualError ?? preview.errorMessage;
 
   if (!dashboard) return null;
 
@@ -324,8 +291,8 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
                 <PanelPreview
                   panel={draft}
                   panelKey={panelKey}
-                  data={queryResult}
-                  errorMessage={queryErrorMessage ?? undefined}
+                  data={preview.data}
+                  errorMessage={previewError ?? undefined}
                   timeRange={{ from: fromDate, to: toDate }}
                   onTimeRangeChange={handleTimeRangeChange}
                 />
@@ -338,7 +305,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
                   draft={draft}
                   onChange={setDraft}
                   onRunQuery={handleRunQuery}
-                  isRunning={isRunning}
+                  runningIndex={runningIndex}
                 />
               </div>
             </ResizablePanel>

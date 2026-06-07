@@ -16,7 +16,7 @@ export interface ResolvedTimeRange {
 
 export interface VisualizationProps {
   plugin: PanelPlugin;
-  data?: QueryResultRow[];
+  data?: QueryResultRow[][];
   timeRange?: ResolvedTimeRange;
   onTimeRangeChange?: (range: ResolvedTimeRange) => void;
 }

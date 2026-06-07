@@ -2,7 +2,6 @@ import type { ChartConfig } from "@everr/ui/components/chart";
 import { detectTimeKey, getValueKeys, toTimestamp } from "../data-utils";
 import type { QueryResultRow } from "../index";
 
-// fallow-ignore-next-line unused-export
 export const TS_KEY = "__ts";
 
 // fallow-ignore-next-line unused-export

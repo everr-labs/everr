@@ -6,7 +6,7 @@ import { getVisualizationInset, PanelVisualization } from "./visualizations";
 interface PanelPreviewProps {
   panel: Panel;
   panelKey: string;
-  data?: QueryResultRow[];
+  data?: QueryResultRow[][];
   errorMessage?: string;
   timeRange?: ResolvedTimeRange;
   onTimeRangeChange?: (range: ResolvedTimeRange) => void;
