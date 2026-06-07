@@ -2,7 +2,13 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FolderPlus, LayoutDashboard, Plus, SearchIcon } from "lucide-react";
+import {
+  AlertCircle,
+  FolderPlus,
+  LayoutDashboard,
+  Plus,
+  SearchIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "@/components/dashboards/dashboard-tree";
 import { NameDialog } from "@/components/dashboards/name-dialog";
@@ -21,20 +27,29 @@ export const Route = createFileRoute("/_authenticated/_dashboard/dashboards/")({
 });
 
 function DashboardsIndexPage() {
-  const { data: dashboards, isLoading: dashboardsLoading } = useQuery(
-    dashboardListOptions(),
-  );
-  const { data: folders, isLoading: foldersLoading } = useQuery(
-    folderListOptions(),
-  );
+  const {
+    data: dashboards,
+    isLoading: dashboardsLoading,
+    error: dashboardsError,
+    isError: dashboardsIsError,
+  } = useQuery(dashboardListOptions());
+  const {
+    data: folders,
+    isLoading: foldersLoading,
+    error: foldersError,
+    isError: foldersIsError,
+  } = useQuery(folderListOptions());
   const [search, setSearch] = useState("");
   // null = dialog closed; "root" sentinel = create at root; uuid = subfolder
   const [createParentId, setCreateParentId] = useState<string | null>(null);
   const createFolder = useCreateFolder();
 
   const isLoading = dashboardsLoading || foldersLoading;
+  const isError = dashboardsIsError || foldersIsError;
+  const error = dashboardsError ?? foldersError;
   const isEmpty =
     !isLoading &&
+    !isError &&
     (dashboards?.length ?? 0) === 0 &&
     (folders?.length ?? 0) === 0;
 
@@ -73,6 +88,17 @@ function DashboardsIndexPage() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
 
+      {!isLoading && isError && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+          <AlertCircle className="size-10" />
+          <p className="text-sm">
+            {error instanceof Error
+              ? error.message
+              : "Failed to load dashboards"}
+          </p>
+        </div>
+      )}
+
       {isEmpty && (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
           <LayoutDashboard className="size-10" />
@@ -88,7 +114,7 @@ function DashboardsIndexPage() {
         </div>
       )}
 
-      {!isLoading && !isEmpty && (
+      {!isLoading && !isError && !isEmpty && (
         <DashboardTree
           folders={folders ?? []}
           dashboards={dashboards ?? []}
