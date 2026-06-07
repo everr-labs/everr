@@ -1,68 +1,97 @@
 import { Button } from "@everr/ui/components/button";
 import { Label } from "@everr/ui/components/label";
-import { Play } from "lucide-react";
-import type { Panel, PanelQuery } from "@/data/dashboards/schema";
+import { Play, Plus, Trash2 } from "lucide-react";
+import { useRef } from "react";
+import type { Panel } from "@/data/dashboards/schema";
+import {
+  addQuery,
+  getQueryTextAt,
+  getQueryTexts,
+  removeQueryAt,
+  setQueryTextAt,
+} from "./query-array";
 import { SqlEditor } from "./sql-editor";
 
 interface QueryEditorProps {
   draft: Panel;
   onChange: (panel: Panel) => void;
-  onRunQuery: (sql: string) => void;
-  isRunning?: boolean;
+  onRunQuery: (index: number) => void;
+  runningIndex?: number | null;
 }
 
-function getQueryText(draft: Panel): string {
-  const firstQuery = draft.spec.queries?.[0];
-  if (!firstQuery) return "";
-  const querySpec = firstQuery.spec.plugin.spec;
-  return typeof querySpec.query === "string" ? querySpec.query : "";
-}
+const QUERY_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-function setQueryText(draft: Panel, query: string): Panel {
-  const newQuery: PanelQuery = {
-    kind: "ClickHouseSQL",
-    spec: {
-      plugin: {
-        kind: "ClickHouseSQL",
-        spec: { query },
-      },
-    },
-  };
-
-  return {
-    ...draft,
-    spec: {
-      ...draft.spec,
-      queries: [newQuery, ...(draft.spec.queries?.slice(1) ?? [])],
-    },
-  };
+function queryLabel(index: number): string {
+  return QUERY_LABELS[index] ?? String(index + 1);
 }
 
 export function QueryEditor({
   draft,
   onChange,
   onRunQuery,
-  isRunning,
+  runningIndex,
 }: QueryEditorProps) {
+  const texts = getQueryTexts(draft);
+  // Render at least one editor even when the panel has no queries yet; the
+  // first edit seeds queries[0] via setQueryTextAt.
+  const rendered = texts.length > 0 ? texts : [""];
+
+  // Stable ids per row so removing a middle query doesn't remount the wrong
+  // uncontrolled SqlEditor. Grown lazily to the rendered length; spliced on
+  // remove so ids stay aligned with rows.
+  const idsRef = useRef<number[]>([]);
+  const nextIdRef = useRef(0);
+  while (idsRef.current.length < rendered.length) {
+    idsRef.current.push(nextIdRef.current++);
+  }
+
   return (
-    <div className="flex h-full flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <Label>ClickHouse SQL</Label>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={isRunning || !getQueryText(draft).trim()}
-          onClick={() => onRunQuery(getQueryText(draft))}
-        >
-          <Play data-icon="inline-start" />
-          {isRunning ? "Running…" : "Run Query"}
-        </Button>
-      </div>
-      <SqlEditor
-        defaultValue={getQueryText(draft)}
-        onChange={(text) => onChange(setQueryText(draft, text))}
-        className="min-h-0 flex-1"
-      />
+    <div className="flex h-full flex-col gap-4 overflow-auto">
+      {rendered.map((text, index) => (
+        <div key={idsRef.current[index]} className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <Label>Query {queryLabel(index)} · ClickHouse SQL</Label>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={runningIndex === index || !text.trim()}
+                onClick={() => onRunQuery(index)}
+              >
+                <Play data-icon="inline-start" />
+                {runningIndex === index ? "Running…" : "Run Query"}
+              </Button>
+              {rendered.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove query"
+                  onClick={() => {
+                    idsRef.current.splice(index, 1);
+                    onChange(removeQueryAt(draft, index));
+                  }}
+                >
+                  <Trash2 />
+                </Button>
+              )}
+            </div>
+          </div>
+          <SqlEditor
+            defaultValue={getQueryTextAt(draft, index)}
+            onChange={(value) => onChange(setQueryTextAt(draft, index, value))}
+            className="min-h-32"
+          />
+        </div>
+      ))}
+      <Button
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={() => onChange(addQuery(draft))}
+      >
+        <Plus data-icon="inline-start" />
+        Add query
+      </Button>
     </div>
   );
 }
