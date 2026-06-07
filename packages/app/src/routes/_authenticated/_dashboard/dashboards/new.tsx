@@ -33,15 +33,19 @@ export const Route = createFileRoute(
 function NewDashboardPage() {
   const { folder } = Route.useSearch();
   const dashboard = useDashboardStore((s) => s.dashboard);
+  const sourceSlug = useDashboardStore((s) => s.sourceSlug);
   const setDashboard = useDashboardStore((s) => s.setDashboard);
   const setEditing = useDashboardStore((s) => s.setEditing);
 
   useEffect(() => {
-    if (!dashboard || dashboard.metadata.name !== "new") {
-      setDashboard(EMPTY_DASHBOARD);
+    // Re-seed when the store is empty or holds a SAVED dashboard
+    // (sourceSlug !== null). A draft survives — even with an edited
+    // metadata.name (the slug is user-editable via the settings JSON section).
+    if (!dashboard || sourceSlug !== null) {
+      setDashboard(EMPTY_DASHBOARD, { draft: true });
     }
     setEditing(true);
-  }, [dashboard, setDashboard, setEditing]);
+  }, [dashboard, sourceSlug, setDashboard, setEditing]);
 
   return <DashboardGrid isNew defaultFolderId={folder ?? null} />;
 }

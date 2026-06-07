@@ -54,12 +54,16 @@ function DashboardPage() {
   const { data } = useSuspenseQuery(dashboardOptions(dashboardId));
   const setDashboard = useDashboardStore((s) => s.setDashboard);
   const dashboard = useDashboardStore((s) => s.dashboard);
+  const sourceSlug = useDashboardStore((s) => s.sourceSlug);
 
   useEffect(() => {
-    if (!dashboard || dashboard.metadata.name !== data.metadata.name) {
+    // Compare row identity (sourceSlug), not metadata.name: a staged slug
+    // rename makes the names diverge, and replacing the store here would
+    // silently discard every dirty change.
+    if (!dashboard || sourceSlug !== dashboardId) {
       setDashboard(data);
     }
-  }, [data, dashboard, setDashboard]);
+  }, [data, dashboard, sourceSlug, dashboardId, setDashboard]);
 
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const navigate = useNavigate();
