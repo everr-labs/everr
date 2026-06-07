@@ -11,6 +11,7 @@ import {
   buildAllMeta,
   effectiveVariableValues,
   getListVariableSource,
+  sortVariableOptions,
 } from "@/data/dashboards/variable-values";
 
 export interface VariableOptionsState {
@@ -65,13 +66,15 @@ export function useDashboardVariables(): DashboardVariablesState {
     const source = getListVariableSource(variable);
     if (source.kind === "static") {
       optionsState[variable.spec.name] = {
-        options: source.values,
+        options: sortVariableOptions(source.values, variable.spec.sort),
         isPending: false,
       };
     } else if (source.kind === "query") {
       const query = queryStateByName.get(variable.spec.name);
       optionsState[variable.spec.name] = {
-        options: query?.data?.options,
+        options: query?.data?.options
+          ? sortVariableOptions(query.data.options, variable.spec.sort)
+          : query?.data?.options,
         isPending: query?.isPending ?? true,
         error: query?.error
           ? query.error instanceof Error

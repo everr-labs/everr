@@ -126,6 +126,50 @@ export function buildAllMeta(
   return { meta, pendingAllNames };
 }
 
+export type ListVariableSort = ListVariable["spec"]["sort"];
+
+/**
+ * Sort a list of variable option strings according to the given sort spec.
+ * Never mutates the input array.
+ */
+export function sortVariableOptions(
+  options: string[],
+  sort: ListVariableSort,
+): string[] {
+  if (sort === undefined || sort === "none") return options;
+
+  const copy = [...options];
+
+  switch (sort) {
+    case "alphabetical-asc":
+      return copy.sort((a, b) => a.localeCompare(b));
+    case "alphabetical-desc":
+      return copy.sort((a, b) => b.localeCompare(a));
+    case "alphabetical-ci-asc":
+      return copy.sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" }),
+      );
+    case "alphabetical-ci-desc":
+      return copy.sort((a, b) =>
+        b.localeCompare(a, undefined, { sensitivity: "base" }),
+      );
+    case "numerical-asc": {
+      const toNum = (v: string) => {
+        const n = Number(v);
+        return Number.isNaN(n) ? Infinity : n;
+      };
+      return copy.sort((a, b) => toNum(a) - toNum(b));
+    }
+    case "numerical-desc": {
+      const toNum = (v: string) => {
+        const n = Number(v);
+        return Number.isNaN(n) ? -Infinity : n;
+      };
+      return copy.sort((a, b) => toNum(b) - toNum(a));
+    }
+  }
+}
+
 /** Subset a record to the given keys (used to scope values/meta per panel). */
 export function pickByNames<T>(
   record: Record<string, T>,

@@ -6,6 +6,7 @@ import {
   effectiveVariableValues,
   getListVariableSource,
   pickByNames,
+  sortVariableOptions,
   VARIABLE_NAME_RE,
 } from "./variable-values";
 
@@ -209,5 +210,80 @@ describe("VARIABLE_NAME_RE", () => {
     expect(VARIABLE_NAME_RE.test("1svc")).toBe(false);
     expect(VARIABLE_NAME_RE.test("svc-name")).toBe(false);
     expect(VARIABLE_NAME_RE.test("")).toBe(false);
+  });
+});
+
+describe("sortVariableOptions", () => {
+  it("preserves order for undefined sort", () => {
+    const opts = ["c", "a", "b"];
+    expect(sortVariableOptions(opts, undefined)).toEqual(["c", "a", "b"]);
+  });
+
+  it('preserves order for sort "none"', () => {
+    const opts = ["c", "a", "b"];
+    expect(sortVariableOptions(opts, "none")).toEqual(["c", "a", "b"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const opts = ["c", "a", "b"];
+    const original = [...opts];
+    sortVariableOptions(opts, "alphabetical-asc");
+    expect(opts).toEqual(original);
+  });
+
+  it("sorts alphabetical-asc (case-sensitive)", () => {
+    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-asc")).toEqual([
+      "A",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("sorts alphabetical-desc (case-sensitive)", () => {
+    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-desc")).toEqual([
+      "c",
+      "b",
+      "A",
+    ]);
+  });
+
+  it("sorts alphabetical-ci-asc (case-insensitive)", () => {
+    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-ci-asc")).toEqual(
+      ["A", "b", "c"],
+    );
+  });
+
+  it("sorts alphabetical-ci-desc (case-insensitive)", () => {
+    expect(
+      sortVariableOptions(["b", "A", "c"], "alphabetical-ci-desc"),
+    ).toEqual(["c", "b", "A"]);
+  });
+
+  it("sorts numerical-asc", () => {
+    expect(sortVariableOptions(["10", "2", "1"], "numerical-asc")).toEqual([
+      "1",
+      "2",
+      "10",
+    ]);
+  });
+
+  it("sorts numerical-desc", () => {
+    expect(sortVariableOptions(["10", "2", "1"], "numerical-desc")).toEqual([
+      "10",
+      "2",
+      "1",
+    ]);
+  });
+
+  it("pushes non-numeric values to end for numerical-asc", () => {
+    expect(
+      sortVariableOptions(["foo", "10", "bar", "2"], "numerical-asc"),
+    ).toEqual(["2", "10", "foo", "bar"]);
+  });
+
+  it("pushes non-numeric values to end for numerical-desc", () => {
+    expect(
+      sortVariableOptions(["foo", "10", "bar", "2"], "numerical-desc"),
+    ).toEqual(["10", "2", "foo", "bar"]);
   });
 });
