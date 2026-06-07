@@ -2,10 +2,15 @@ import { Button } from "@everr/ui/components/button";
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import {
+  dashboardModelJsonSchema,
   dashboardModelSchema,
   dashboardSlugSchema,
 } from "@/data/dashboards/schema";
-import { JsonEditor } from "./json-editor";
+import { JsonEditor, type JsonEditorSchema } from "./json-editor";
+
+// zod's generated draft-7 schema is structurally what codemirror-json-schema
+// expects; the cast bridges the two libraries' JSON Schema typings.
+const editorSchema = dashboardModelJsonSchema as JsonEditorSchema;
 
 interface SettingsJsonSectionProps {
   /** Reports whether the editor has un-applied edits (for the page's guard). */
@@ -86,6 +91,7 @@ export function SettingsJsonSection({
       </p>
       <JsonEditor
         key={revision}
+        schema={editorSchema}
         defaultValue={text}
         onChange={(value) => {
           setError(null);

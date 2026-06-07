@@ -183,6 +183,15 @@ export const dashboardModelSchema = z.object({
   spec: dashboardSpecSchema,
 });
 
+/**
+ * JSON Schema (draft-7) generated from `dashboardModelSchema`, powering the
+ * settings JSON editor's inline lint, completion and hover. Advisory only:
+ * Apply re-validates with the zod schema, which stays authoritative.
+ */
+export const dashboardModelJsonSchema = z.toJSONSchema(dashboardModelSchema, {
+  target: "draft-7",
+});
+
 export const saveDashboardInput = z.object({
   slug: z.string().min(1).max(200),
   newSlug: dashboardSlugSchema.optional(),

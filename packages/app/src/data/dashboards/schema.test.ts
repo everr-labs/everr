@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { dashboardModelSchema, dashboardSlugSchema } from "./schema";
+import {
+  dashboardModelJsonSchema,
+  dashboardModelSchema,
+  dashboardSlugSchema,
+} from "./schema";
 
 const validSpec = {
   panels: {},
@@ -80,5 +84,32 @@ describe("dashboardModelSchema", () => {
       spec: { layouts: [] }, // missing required `panels`
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("dashboardModelJsonSchema", () => {
+  it("is a draft-7 schema mirroring the model's top level", () => {
+    expect(dashboardModelJsonSchema.$schema).toBe(
+      "http://json-schema.org/draft-07/schema#",
+    );
+    expect(dashboardModelJsonSchema.type).toBe("object");
+    expect(Object.keys(dashboardModelJsonSchema.properties ?? {})).toEqual([
+      "kind",
+      "metadata",
+      "spec",
+    ]);
+    expect(dashboardModelJsonSchema.required).toEqual([
+      "kind",
+      "metadata",
+      "spec",
+    ]);
+  });
+
+  it("resolves the recursive plugin-spec value via definitions", () => {
+    const serialized = JSON.stringify(dashboardModelJsonSchema);
+    // The recursive PluginSpecValue must come out as a local $ref, not throw.
+    expect(serialized).toContain("#/definitions/");
+    // And the document must be self-contained (no external refs).
+    expect(serialized).not.toContain('"$ref":"http');
   });
 });
