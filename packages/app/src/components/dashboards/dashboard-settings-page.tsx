@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions, useSaveDashboard } from "@/data/dashboards/options";
 import { SettingsGeneralSection } from "./settings-general-section";
+import { SettingsJsonSection } from "./settings-json-section";
 import {
   type SettingsSelection,
   SettingsVariablesSection,
@@ -246,16 +247,32 @@ export function DashboardSettingsPage({
                 }
                 className={cn(
                   "w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent",
-                  selection.kind !== "general" && "bg-accent",
+                  (selection.kind === "variable" ||
+                    selection.kind === "new-variable") &&
+                    "bg-accent",
                 )}
               >
                 Variables
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                onClick={() => requestSelection({ kind: "json" })}
+                className={cn(
+                  "w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent",
+                  selection.kind === "json" && "bg-accent",
+                )}
+              >
+                JSON
               </button>
             </li>
           </ul>
         </nav>
         {selection.kind === "general" ? (
           <SettingsGeneralSection />
+        ) : selection.kind === "json" ? (
+          <SettingsJsonSection onUnappliedChange={setHasUnapplied} />
         ) : (
           <SettingsVariablesSection
             selection={selection}

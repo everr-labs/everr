@@ -28,9 +28,13 @@ import { SqlEditor } from "./sql-editor";
 export type SettingsSelection =
   | { kind: "general" }
   | { kind: "variable"; index: number }
-  | { kind: "new-variable" };
+  | { kind: "new-variable" }
+  | { kind: "json" };
 
-type VariableSelection = Exclude<SettingsSelection, { kind: "general" }>;
+type VariableSelection = Exclude<
+  SettingsSelection,
+  { kind: "general" } | { kind: "json" }
+>;
 
 type PreviewState =
   | { status: "idle" }
