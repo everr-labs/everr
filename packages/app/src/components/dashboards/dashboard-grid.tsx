@@ -403,7 +403,10 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
                 <Pencil />
                 Rename
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setManageAction("move")}>
+              <DropdownMenuItem
+                onClick={() => setManageAction("move")}
+                className="whitespace-nowrap"
+              >
                 <FolderInput />
                 Move to folder
               </DropdownMenuItem>
