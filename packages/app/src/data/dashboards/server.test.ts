@@ -58,6 +58,7 @@ import {
   createFolder,
   generateDashboardSlug,
   moveFolder,
+  renameDashboard,
   renameFolder,
   runPanelQuery,
   runVariableOptionsQuery,
@@ -502,5 +503,31 @@ describe("runVariableOptionsQuery", () => {
     const result = await runVariableOptionsQuery({ data: { query: "q" } });
 
     expect(result).toEqual({ options: ["null", "a"], truncated: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renameDashboard – atomic
+// ---------------------------------------------------------------------------
+
+describe("renameDashboard – atomic", () => {
+  it("renames in a single update and returns the slug", async () => {
+    updateImpl = () => ({ returning: () => [{ slug: "my-dash" }] });
+
+    const result = await renameDashboard({
+      data: { slug: "my-dash", name: "New Name" },
+    });
+
+    expect(result).toEqual({ slug: "my-dash", name: "New Name" });
+    expect(mockedDb.update).toHaveBeenCalledTimes(1);
+    expect(mockedDb.select).not.toHaveBeenCalled();
+  });
+
+  it("throws not-found when no row matches", async () => {
+    updateImpl = () => ({ returning: () => [] });
+
+    await expect(
+      renameDashboard({ data: { slug: "missing", name: "Anything" } }),
+    ).rejects.toThrow('Dashboard "missing" not found');
   });
 });

@@ -196,24 +196,24 @@ export const renameDashboard = createAuthenticatedServerFn({
     const orgId = context.session.session.activeOrganizationId;
 
     const [row] = await db
-      .select({ id: dashboards.id, spec: dashboards.spec })
-      .from(dashboards)
+      .update(dashboards)
+      .set({
+        spec: sql`jsonb_set(
+          jsonb_set(${dashboards.spec}, '{display}', coalesce(${dashboards.spec}->'display', '{}'::jsonb), true),
+          '{display,name}',
+          to_jsonb(${name}::text),
+          true
+        )`,
+        updatedAt: new Date(),
+      })
       .where(
         and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
       )
-      .limit(1);
+      .returning({ slug: dashboards.slug });
 
     if (!row) {
       throw new Error(`Dashboard "${slug}" not found`);
     }
-
-    await db
-      .update(dashboards)
-      .set({
-        spec: { ...row.spec, display: { ...row.spec.display, name } },
-        updatedAt: new Date(),
-      })
-      .where(eq(dashboards.id, row.id));
 
     return { slug, name };
   });
