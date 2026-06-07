@@ -62,6 +62,18 @@ describe("QueryEditor", () => {
     expect(screen.getAllByLabelText("sql")).toHaveLength(1);
   });
 
+  it("keeps the correct rows when a middle query is removed", async () => {
+    render(<Harness initial={panelWith(["a", "b", "c"])} />);
+    const removeButtons = screen.getAllByRole("button", {
+      name: /remove query/i,
+    });
+    // remove the MIDDLE query (index 1, value "b")
+    await userEvent.click(removeButtons[1]!);
+    const editors = screen.getAllByLabelText("sql") as HTMLTextAreaElement[];
+    expect(editors).toHaveLength(2);
+    expect(editors.map((e) => e.defaultValue)).toEqual(["a", "c"]);
+  });
+
   it("calls onRunQuery with the query's index", async () => {
     const onRun = vi.fn();
     render(

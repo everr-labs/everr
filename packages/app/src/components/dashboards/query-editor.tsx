@@ -39,6 +39,12 @@ export function QueryEditor({
   // Stable ids per row so removing a middle query doesn't remount the wrong
   // uncontrolled SqlEditor. Grown lazily to the rendered length; spliced on
   // remove so ids stay aligned with rows.
+  //
+  // The id list is grow-only and is reconciled only against this component's
+  // own add/remove handlers. It is NOT reconciled against external wholesale
+  // replacement of draft.spec.queries. If a caller replaces the queries array
+  // out-of-band, the parent must remount this component (via a key prop) so
+  // the id list is reset alongside the new query set.
   const idsRef = useRef<number[]>([]);
   const nextIdRef = useRef(0);
   while (idsRef.current.length < rendered.length) {
