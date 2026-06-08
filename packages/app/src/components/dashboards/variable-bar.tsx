@@ -35,12 +35,7 @@ function isVisible(variable: Variable): boolean {
   return true;
 }
 
-interface VariableBarProps {
-  /** Compact styling for the panel editor header. */
-  compact?: boolean;
-}
-
-export function VariableBar({ compact }: VariableBarProps) {
+export function VariableBar() {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
 
@@ -65,12 +60,7 @@ export function VariableBar({ compact }: VariableBarProps) {
   if (visible.length === 0) return null;
 
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-end gap-3",
-        compact ? "border-b px-4 py-2" : "mb-3",
-      )}
-    >
+    <div className="mb-3 flex flex-wrap items-end gap-3">
       {visible.map((variable) =>
         variable.kind === "TextVariable" ? (
           <TextVariableField

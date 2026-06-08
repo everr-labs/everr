@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-/** Shared not-found UI for dashboard routes (view, settings, panel editor). */
+/** Shown when a dashboard route resolves to a slug that doesn't exist. */
 export function DashboardNotFound() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">

@@ -10,8 +10,7 @@ import type { QueryResultRow } from "../index";
 
 export const TS_KEY = "__ts";
 
-// fallow-ignore-next-line unused-export
-export const COLORS = [
+const COLORS = [
   "hsl(217, 91%, 60%)",
   "hsl(142, 71%, 45%)",
   "hsl(0, 84%, 60%)",

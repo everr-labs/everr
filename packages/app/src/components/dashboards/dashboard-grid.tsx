@@ -34,8 +34,8 @@ export function DashboardGrid() {
           className="layout"
           layout={layout}
           gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT }}
-          dragConfig={{ enabled: false, handle: ".drag-handle", bounded: true }}
-          resizeConfig={{ enabled: false, handles: ["se"] }}
+          dragConfig={{ enabled: false }}
+          resizeConfig={{ enabled: false }}
           compactor={verticalCompactor}
           autoSize
         >
