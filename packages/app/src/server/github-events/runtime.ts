@@ -1,10 +1,17 @@
+import { EventEmitter } from "node:events";
 import {
   context,
   ROOT_CONTEXT,
   SpanKind,
   SpanStatusCode,
 } from "@opentelemetry/api";
-import { type Job, PgBoss } from "pg-boss";
+import {
+  type Runner,
+  run,
+  type Task,
+  type TaskList,
+  type WorkerEvents,
+} from "graphile-worker";
 import { db, pool } from "@/db/client";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { getTelemetryTracer } from "@/telemetry/node";
@@ -20,34 +27,91 @@ import { resolveOrganizationId } from "./tenant-resolver";
 import type { WebhookJobData } from "./types";
 import { TerminalEventError } from "./types";
 
-let boss: PgBoss | undefined;
+const COLLECTOR_TASK_IDENTIFIER = "github-events/collector";
+const STATUS_TASK_IDENTIFIER = "github-events/status";
 const tracer = getTelemetryTracer("everr-app.github_events");
 
-function getBoss(): PgBoss | undefined {
-  return boss;
+let runner: Runner | undefined;
+
+type GraphileTaskHelpers = Parameters<Task>[1];
+
+function getRunner(): Runner | undefined {
+  return runner;
 }
 
-function createBoss(): PgBoss {
-  return new PgBoss({
-    db: {
-      executeSql: (text: string, values?: unknown[]) =>
-        pool.query(text, values as unknown[]),
-    },
-    migrate: true,
+function webhookJobData(payload: unknown): WebhookJobData {
+  return payload as WebhookJobData;
+}
+
+function graphileJobId(helpers: GraphileTaskHelpers): string {
+  const job = helpers.job as { id?: number | string; uuid?: string };
+  return String(job.id ?? job.uuid ?? "unknown");
+}
+
+function prefixedExceptionAttributes(prefix: string, reason: unknown) {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  return {
+    [`${prefix}.message`]: error.message,
+    [`${prefix}.type`]: error.name,
+  };
+}
+
+function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
+  events.on("pool:listen:error", ({ error }) => {
+    serverLogger.error(
+      "github_events.graphile_worker.pool_listen_error",
+      exceptionAttributes(error),
+    );
+  });
+
+  events.on("pool:gracefulShutdown:error", ({ error }) => {
+    serverLogger.error(
+      "github_events.graphile_worker.graceful_shutdown_error",
+      exceptionAttributes(error),
+    );
+  });
+
+  events.on("worker:getJob:error", ({ error }) => {
+    serverLogger.error(
+      "github_events.graphile_worker.get_job_error",
+      exceptionAttributes(error),
+    );
+  });
+
+  events.on("worker:fatalError", ({ error, jobError }) => {
+    serverLogger.error("github_events.graphile_worker.worker_fatal_error", {
+      ...exceptionAttributes(error),
+      ...(jobError
+        ? prefixedExceptionAttributes("job_exception", jobError)
+        : {}),
+    });
+  });
+
+  events.on("job:failed", ({ error, job }) => {
+    serverLogger.error("github_events.graphile_worker.job_failed", {
+      ...exceptionAttributes(error),
+      "graphile_worker.job.id": String(job.id),
+      "graphile_worker.task.identifier": job.task_identifier,
+    });
   });
 }
 
-async function processCollectorJob(job: Job<WebhookJobData>): Promise<void> {
-  const eventType = firstHeader(job.data.headers, "x-github-event") ?? "";
-  const body = Buffer.from(job.data.body, "base64");
+async function processCollectorTask(
+  payload: unknown,
+  helpers: GraphileTaskHelpers,
+): Promise<void> {
+  const data = webhookJobData(payload);
+  const eventType = firstHeader(data.headers, "x-github-event") ?? "";
+  const body = Buffer.from(data.body, "base64");
   const parsed = parseQueuedWorkflowEvent(eventType, body);
+  const jobId = graphileJobId(helpers);
 
   await tracer.startActiveSpan(
     "replay github webhook to collector",
     {
       attributes: {
         ...(eventType ? { "github.event.type": eventType } : {}),
-        "pg_boss.job.id": job.id,
+        "graphile_worker.job.id": jobId,
       },
       kind: SpanKind.INTERNAL,
     },
@@ -56,7 +120,7 @@ async function processCollectorJob(job: Job<WebhookJobData>): Promise<void> {
         const installationId = installationIdFromQueuedEvent(parsed);
         const organizationId = await resolveOrganizationId(installationId);
         await replayWebhookToCollector(
-          { headers: job.data.headers, body },
+          { headers: data.headers, body },
           organizationId,
         );
       } catch (error) {
@@ -71,7 +135,7 @@ async function processCollectorJob(job: Job<WebhookJobData>): Promise<void> {
           serverLogger.error("github_events.collector.terminal_error", {
             ...(eventType ? { "github.event.type": eventType } : {}),
             ...exceptionAttributes(error),
-            "pg_boss.job.id": job.id,
+            "graphile_worker.job.id": jobId,
           });
           return;
         }
@@ -84,17 +148,22 @@ async function processCollectorJob(job: Job<WebhookJobData>): Promise<void> {
   );
 }
 
-async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
-  const eventType = firstHeader(job.data.headers, "x-github-event") ?? "";
-  const body = Buffer.from(job.data.body, "base64");
+async function processStatusTask(
+  payload: unknown,
+  helpers: GraphileTaskHelpers,
+): Promise<void> {
+  const data = webhookJobData(payload);
+  const eventType = firstHeader(data.headers, "x-github-event") ?? "";
+  const body = Buffer.from(data.body, "base64");
   const parsed = parseQueuedWorkflowEvent(eventType, body);
+  const jobId = graphileJobId(helpers);
 
   await tracer.startActiveSpan(
     "handle github status event",
     {
       attributes: {
         ...(eventType ? { "github.event.type": eventType } : {}),
-        "pg_boss.job.id": job.id,
+        "graphile_worker.job.id": jobId,
       },
       kind: SpanKind.INTERNAL,
     },
@@ -116,7 +185,7 @@ async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
           serverLogger.error("github_events.status.terminal_error", {
             ...(eventType ? { "github.event.type": eventType } : {}),
             ...exceptionAttributes(error),
-            "pg_boss.job.id": job.id,
+            "graphile_worker.job.id": jobId,
           });
           return;
         }
@@ -129,71 +198,55 @@ async function processStatusJob(job: Job<WebhookJobData>): Promise<void> {
   );
 }
 
-const WORK_OPTS = { localConcurrency: GH_EVENTS_CONFIG.workerCount };
+const TASK_LIST: TaskList = {
+  [COLLECTOR_TASK_IDENTIFIER]: context.bind(ROOT_CONTEXT, processCollectorTask),
+  [STATUS_TASK_IDENTIFIER]: context.bind(ROOT_CONTEXT, processStatusTask),
+};
 
-async function startGitHubEventsRuntime(): Promise<PgBoss> {
-  if (boss) return boss;
+async function startGitHubEventsRuntime(): Promise<Runner> {
+  if (runner) return runner;
 
   serverLogger.info("github_events.runtime.start");
-  boss = createBoss();
+  const events = new EventEmitter() as WorkerEvents;
+  attachGraphileWorkerEventLogging(events);
 
-  boss.on("error", (error) => {
-    serverLogger.error(
-      "github_events.pg_boss.error",
-      exceptionAttributes(error),
-    );
+  runner = await run({
+    concurrency: GH_EVENTS_CONFIG.workerCount,
+    events,
+    noHandleSignals: true,
+    parsedCronItems: [],
+    pgPool: pool,
+    taskList: TASK_LIST,
   });
 
-  await boss.start();
-
-  await Promise.all([
-    boss.createQueue("gh-collector"),
-    boss.createQueue("gh-status"),
-  ]);
-
-  boss.work<WebhookJobData>(
-    "gh-collector",
-    WORK_OPTS,
-    context.bind(ROOT_CONTEXT, async (jobs) => {
-      await Promise.all(jobs.map((job) => processCollectorJob(job)));
-    }),
-  );
-
-  boss.work<WebhookJobData>(
-    "gh-status",
-    WORK_OPTS,
-    context.bind(ROOT_CONTEXT, async (jobs) => {
-      await Promise.all(jobs.map((job) => processStatusJob(job)));
-    }),
-  );
-
-  return boss;
+  return runner;
 }
 
 export async function enqueueWebhookEvent(
   eventId: string,
   data: WebhookJobData,
 ): Promise<void> {
-  let b = getBoss();
-  if (!b) {
-    b = await startGitHubEventsRuntime();
+  let activeRunner = getRunner();
+  if (!activeRunner) {
+    activeRunner = await startGitHubEventsRuntime();
   }
 
-  await Promise.all(
-    (["gh-collector", "gh-status"] as const).map((queue) =>
-      b.send(queue, data, {
-        id: eventId,
-        retryLimit: GH_EVENTS_CONFIG.maxAttempts,
-        retryBackoff: true,
-      }),
-    ),
-  );
+  await Promise.all([
+    activeRunner.addJob(COLLECTOR_TASK_IDENTIFIER, data, {
+      jobKey: `${COLLECTOR_TASK_IDENTIFIER}:${eventId}`,
+      maxAttempts: GH_EVENTS_CONFIG.maxAttempts,
+    }),
+    activeRunner.addJob(STATUS_TASK_IDENTIFIER, data, {
+      jobKey: `${STATUS_TASK_IDENTIFIER}:${eventId}`,
+      maxAttempts: GH_EVENTS_CONFIG.maxAttempts,
+    }),
+  ]);
 }
 
 async function stopGitHubEventsRuntime(): Promise<void> {
-  const b = boss;
-  boss = undefined;
-  await b?.stop();
+  const activeRunner = runner;
+  runner = undefined;
+  await activeRunner?.stop();
 }
 
 if (import.meta.hot) {
