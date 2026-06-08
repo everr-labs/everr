@@ -1,6 +1,6 @@
 ---
 name: add-dashboard-visualization
-description: Use when adding a new visualization type (chart, table, stat, gauge, etc.) to the dashboard panel system. Guides creating the visualization component, settings, registry entry, and chart type picker entry.
+description: Use when adding a new visualization type (chart, table, stat, gauge, etc.) to the dashboard panel system. Guides creating the read-only renderer component and registering it.
 user-invocable: true
 ---
 
@@ -8,41 +8,39 @@ user-invocable: true
 
 Follow these steps to add a new visualization type to the dashboard panel system.
 
+Dashboards are **read-only**: they are defined as code (Perses YAML/JSON in a source repo) and reconciled into Everr with `everr apply`. There is no in-app editor or chart-type picker. A visualization is therefore a **pure renderer** — it takes a panel's `plugin` config plus the query results and draws them. Selecting a visualization for a panel happens in the dashboard file (`plugin.kind`), not in the UI.
+
 ## Architecture
 
-Visualizations live in `packages/app/src/components/dashboards/visualizations/`. Each type gets its own subdirectory with two files:
+Visualizations live in `packages/app/src/components/dashboards/visualizations/`. Each type gets its own subdirectory:
 
 ```
 visualizations/
 ├── index.tsx                          # Registry — maps plugin.kind to components
 ├── table/
-│   ├── table-visualization.tsx        # Renders the visualization
-│   └── table-settings.tsx             # Settings UI for the viz options panel
+│   └── table-visualization.tsx        # Renders the visualization
 └── <your-new-type>/
-    ├── <type>-visualization.tsx
-    └── <type>-settings.tsx            # Optional — only if the type has settings
+    └── <type>-visualization.tsx
 ```
 
 ## Key interfaces
 
-The visualization component receives the full `PanelPlugin` object:
+The visualization component receives the panel's `plugin` config and the
+results of running the panel's queries:
 
 ```ts
 // From visualizations/index.tsx
 interface VisualizationProps {
-  plugin: PanelPlugin;  // { kind: string; spec: Record<string, PluginSpecValue> }
+  plugin: PanelPlugin;        // { kind: string; spec: Record<string, PluginSpecValue> }
+  data?: QueryResultRow[][];  // one frame (row[]) per panel query; undefined while loading
+  timeRange?: ResolvedTimeRange;                 // { from: Date; to: Date }
+  onTimeRangeChange?: (range: ResolvedTimeRange) => void; // e.g. drag-to-zoom
 }
 ```
 
-Settings are read from and written to `plugin.spec`:
-
-```ts
-// From visualizations/index.tsx
-interface VisualizationSettingsProps {
-  spec: Record<string, unknown>;
-  onChange: (spec: Record<string, unknown>) => void;
-}
-```
+`data` is an array of query frames — one entry per query on the panel, each a
+list of rows. Display options come from `plugin.spec`. Loading, error, and empty
+states are handled by the panel shell and by the renderer's own `!data` branch.
 
 ## Steps
 
@@ -61,14 +59,14 @@ File: `<kind>-visualization.tsx`
 ```tsx
 import type { VisualizationProps } from "../index";
 
-export function <Kind>Visualization({ plugin }: VisualizationProps) {
-  // Read settings from plugin.spec
-  // Render the visualization
+export function <Kind>Visualization({ plugin, data }: VisualizationProps) {
+  // Read display options from plugin.spec (e.g. plugin.spec.showLegend)
+  // Render `data` (one frame per panel query); render an empty state when !data
 }
 ```
 
-- Read visualization-specific options from `plugin.spec` (e.g., `plugin.spec.showLegend`)
-- Use mock data for now — query execution is not wired up yet
+- Read display options from `plugin.spec` (e.g., `plugin.spec.showLegend`)
+- Render the query results passed in `data`; handle the `!data` / empty cases
 - Available chart library: **Recharts** (Bar, Line, Area, ComposedChart, ScatterChart, etc.)
 - Available chart wrapper: `ChartContainer` from `@everr/ui/components/chart`
 - Available table: `DataTable` from `@everr/ui/components/data-table`
@@ -97,40 +95,12 @@ For `flush-content` visualizations that need a top border separating the header 
 </div>
 ```
 
-### 3. Create the settings component (optional)
-
-File: `<kind>-settings.tsx`
-
-```tsx
-import { Label } from "@everr/ui/components/label";
-import type { VisualizationSettingsProps } from "../index";
-
-export function <Kind>Settings({ spec, onChange }: VisualizationSettingsProps) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label>Setting Name</Label>
-      {/* Use Input, ToggleGroup, Select, etc. from @everr/ui/components/ */}
-    </div>
-  );
-}
-```
-
-Settings are stored in `plugin.spec` as key-value pairs. Read with `spec.myOption`, write with `onChange({ ...spec, myOption: value })`.
-
-Available form components from `@everr/ui/components/`:
-- `Input` — text/number inputs
-- `Textarea` — multiline text
-- `Label` — form labels
-- `ToggleGroup` + `ToggleGroupItem` — segmented toggles (API: `value={string[]}`, `onValueChange={(next: string[]) => ...}`)
-- `Select` — dropdowns
-
-### 4. Register the visualization
+### 3. Register the visualization
 
 In `packages/app/src/components/dashboards/visualizations/index.tsx`:
 
-1. Import the components:
+1. Import the component:
    ```tsx
-   import { <Kind>Settings } from "./<kind>/<kind>-settings";
    import { <Kind>Visualization } from "./<kind>/<kind>-visualization";
    ```
 
@@ -140,7 +110,6 @@ In `packages/app/src/components/dashboards/visualizations/index.tsx`:
      // ... existing entries
      <Kind>: {
        component: <Kind>Visualization,
-       settings: <Kind>Settings,       // omit if no settings
        inset: "default",               // or "flush-content" for edge-to-edge content like tables
      },
    };
@@ -150,45 +119,40 @@ The `inset` option controls padding inside the panel card:
 - `"default"` — standard padding (use for charts, stats)
 - `"flush-content"` — no horizontal padding or bottom padding (use for tables, maps)
 
-### 5. Add to the chart type picker
+### 4. Use it in a dashboard
 
-In `packages/app/src/components/dashboards/viz-options.tsx`, add an entry to the `CHART_TYPES` array:
+There is no UI picker — a panel selects this visualization by setting
+`plugin.kind` in a dashboard file. Add a panel to a Perses dashboard
+(`.yaml`/`.json`) in a source repo:
 
-```tsx
-import { <IconName> } from "lucide-react";
-
-const CHART_TYPES = [
-  // ... existing entries
-  { kind: "<Kind>", label: "<Display Label>", icon: <IconName> },
-] as const;
+```yaml
+spec:
+  panels:
+    myNewPanel:
+      kind: Panel
+      spec:
+        display: { name: Panel Title, description: Optional description }
+        plugin:
+          kind: <Kind>            # matches the registry key from step 3
+          spec: { showLegend: true }   # whatever your renderer reads from plugin.spec
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin: { kind: ClickHouseSQL, spec: { query: "SELECT ..." } }
 ```
 
-Pick an icon from `lucide-react` that represents the visualization type.
+Reference the panel from a layout item in the same dashboard, then reconcile it:
 
-### 6. Add to mock dashboard (optional)
-
-If you want the new visualization to appear on the default dashboard, add a panel entry in `packages/app/src/data/dashboards/mock.ts`:
-
-```tsx
-panels: {
-  // ... existing panels
-  myNewPanel: {
-    kind: "Panel",
-    spec: {
-      display: { name: "Panel Title", description: "Optional description" },
-      plugin: { kind: "<Kind>", spec: { /* default settings */ } },
-    },
-  },
-},
+```bash
+everr apply ./dashboards --source=<source> --dry-run   # preview the diff
+everr apply ./dashboards --source=<source>             # write it
 ```
 
-And add a corresponding grid layout item in `layouts[0].spec.items`.
+Open `/dashboards/<source>/<slug>` to see it render with live query results.
 
 ## Reference: Table visualization
 
 The Table visualization is a complete example:
 
-- **Visualization:** `visualizations/table/table-visualization.tsx` — uses `DataTable` from `@everr/ui`, reads `plugin.spec.stickyHeader`
-- **Settings:** `visualizations/table/table-settings.tsx` — "Sticky header" toggle writing to `spec.stickyHeader`
+- **Visualization:** `visualizations/table/table-visualization.tsx` — uses `DataTable` from `@everr/ui`, renders the `data` frames, reads `plugin.spec.stickyHeader`
 - **Registry:** `inset: "flush-content"` so the table sits edge-to-edge in the panel
-- **Chart type picker:** `{ kind: "Table", label: "Table", icon: Table }`
