@@ -109,18 +109,12 @@ Guardrails:
 - `--dry-run` prints the create/update/delete diff and exits without writing.
 - An apply invocation is **transactional**: all-or-nothing. A mid-batch failure
   rolls the whole apply back.
-- **Empty-set protection:** if the desired set is empty (the apply would delete
-  *all* of the source's dashboards), refuse unless `--allow-empty` (or use
-  `delete --source=X --all`).
-- **Large-delete protection:** if a single apply would delete more than ~50% of
-  the source's dashboards, interactive use requires confirmation / `--force`;
-  CI (non-interactive) proceeds but logs the deletion loudly.
 
 ## CLI & authentication
 
 New command group:
 
-- `everr dashboards apply <dir> --source=<id> [--dry-run] [--allow-empty] [--force]`
+- `everr dashboards apply <dir> --source=<id> [--dry-run]`
 - `everr dashboards list`
 - `everr dashboards delete <name> --source=<id>`
 
