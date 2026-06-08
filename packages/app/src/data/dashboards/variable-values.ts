@@ -95,17 +95,30 @@ export function effectiveVariableValues(
 
 /**
  * Build the interpolation metadata for variables currently set to All.
- * Query-backed variables without customAllValue need loaded options; until
- * those arrive their names are reported in `pendingAllNames` so panels can
- * hold off querying.
+ *
+ * Query-backed variables without customAllValue need loaded options. Their
+ * names are reported in:
+ * - `pendingAllNames` while options are still loading, so panels hold off; or
+ * - `allErrors` when options cannot be expanded — either the options query
+ *   failed, or the option set was truncated (capped) so "All" would silently
+ *   expand to a partial set. In both cases panels must surface the error rather
+ *   than expand incomplete data or wait forever.
  */
 export function buildAllMeta(
   variables: Variable[],
   values: VariableValues,
-  optionsByName: Record<string, { options?: string[] } | undefined>,
-): { meta: VariableMeta; pendingAllNames: string[] } {
+  optionsByName: Record<
+    string,
+    { options?: string[]; error?: string; truncated?: boolean } | undefined
+  >,
+): {
+  meta: VariableMeta;
+  pendingAllNames: string[];
+  allErrors: Record<string, string>;
+} {
   const meta: VariableMeta = {};
   const pendingAllNames: string[] = [];
+  const allErrors: Record<string, string> = {};
   for (const variable of variables) {
     // Text variables are skipped: a text value that happens to equal the
     // sentinel string is just a literal value, not an All selection.
@@ -116,14 +129,24 @@ export function buildAllMeta(
       meta[name] = { customAllValue: variable.spec.customAllValue };
       continue;
     }
-    const options = optionsByName[name]?.options;
-    if (options) {
-      meta[name] = { options };
+    const state = optionsByName[name];
+    if (state?.error !== undefined) {
+      allErrors[name] = `Failed to load options for $${name}: ${state.error}`;
+      continue;
+    }
+    if (state?.truncated) {
+      // Expanding to the capped option set would silently drop values.
+      allErrors[name] =
+        `Variable "$${name}" has too many values to expand "All"`;
+      continue;
+    }
+    if (state?.options) {
+      meta[name] = { options: state.options };
     } else {
       pendingAllNames.push(name);
     }
   }
-  return { meta, pendingAllNames };
+  return { meta, pendingAllNames, allErrors };
 }
 
 export type ListVariableSort = ListVariable["spec"]["sort"];

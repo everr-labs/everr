@@ -195,6 +195,32 @@ describe("buildAllMeta", () => {
     expect(meta).toEqual({});
     expect(pendingAllNames).toEqual([]);
   });
+
+  it("reports an error (not pending) when the options query failed", () => {
+    const v = list("svc", { allowAllValue: true });
+    const { meta, pendingAllNames, allErrors } = buildAllMeta(
+      [v],
+      { svc: ALL_VALUE },
+      { svc: { error: "boom" } },
+    );
+    expect(meta).toEqual({});
+    expect(pendingAllNames).toEqual([]);
+    expect(allErrors.svc).toBe("Failed to load options for $svc: boom");
+  });
+
+  it("reports an error when options were truncated, never expanding partial", () => {
+    const v = list("svc", { allowAllValue: true });
+    const { meta, pendingAllNames, allErrors } = buildAllMeta(
+      [v],
+      { svc: ALL_VALUE },
+      { svc: { options: ["a", "b"], truncated: true } },
+    );
+    expect(meta).toEqual({});
+    expect(pendingAllNames).toEqual([]);
+    expect(allErrors.svc).toBe(
+      'Variable "$svc" has too many values to expand "All"',
+    );
+  });
 });
 
 describe("pickByNames", () => {

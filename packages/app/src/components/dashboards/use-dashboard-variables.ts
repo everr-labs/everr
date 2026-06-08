@@ -29,6 +29,8 @@ export interface DashboardVariablesState {
   meta: VariableMeta;
   /** Names set to All whose options have not loaded yet — hold panel queries. */
   pendingAllNames: string[];
+  /** Names set to All whose options can't expand (load failed or truncated). */
+  allErrors: Record<string, string>;
   /** Per-list-variable option-loading state for the pickers. */
   optionsState: Record<string, VariableOptionsState>;
 }
@@ -89,11 +91,18 @@ export function useDashboardVariables(): DashboardVariablesState {
   }
 
   const values = effectiveVariableValues(variables, vars);
-  const { meta, pendingAllNames } = buildAllMeta(
+  const { meta, pendingAllNames, allErrors } = buildAllMeta(
     variables,
     values,
     optionsState,
   );
 
-  return { variables, values, meta, pendingAllNames, optionsState };
+  return {
+    variables,
+    values,
+    meta,
+    pendingAllNames,
+    allErrors,
+    optionsState,
+  };
 }

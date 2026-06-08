@@ -18,6 +18,8 @@ export interface PanelQueryRequest {
   variableMeta?: VariableMeta;
   missingName?: string;
   waitingForOptions: boolean;
+  /** A used All-variable whose options failed to load or were truncated. */
+  optionsError?: string;
 }
 
 export interface VariableContext {
@@ -25,6 +27,7 @@ export interface VariableContext {
   values: VariableValues;
   meta: VariableMeta;
   pendingAllNames: string[];
+  allErrors: Record<string, string>;
 }
 
 export function buildPanelQueryRequest(
@@ -38,6 +41,9 @@ export function buildPanelQueryRequest(
   const waitingForOptions = usedNames.some((n) =>
     ctx.pendingAllNames.includes(n),
   );
+  const optionsError = usedNames
+    .map((n) => ctx.allErrors[n])
+    .find((e) => e !== undefined);
   return {
     sql,
     variables:
@@ -46,6 +52,7 @@ export function buildPanelQueryRequest(
       usedNames.length > 0 ? pickByNames(ctx.meta, usedNames) : undefined,
     missingName,
     waitingForOptions,
+    optionsError,
   };
 }
 
@@ -67,6 +74,7 @@ export interface CombinedPanelResult {
 export interface SingleQueryState {
   sql: string;
   missingName?: string;
+  optionsError?: string;
   isPending: boolean;
   isError: boolean;
   error?: unknown;
@@ -83,6 +91,9 @@ export function combineQueryStates(
         status: "error",
         errorMessage: `Select a value for $${s.missingName}`,
       };
+    }
+    if (s.optionsError !== undefined) {
+      return { status: "error", errorMessage: s.optionsError };
     }
     if (s.isError) {
       return {
@@ -112,7 +123,8 @@ export function usePanelQueries(
   panel: Panel,
   opts: UsePanelQueriesOptions = {},
 ): CombinedPanelResult {
-  const { variables, values, meta, pendingAllNames } = useDashboardVariables();
+  const { variables, values, meta, pendingAllNames, allErrors } =
+    useDashboardVariables();
   const definedNames = useMemo(
     () => new Set(variables.map((v) => v.spec.name)),
     [variables],
@@ -125,8 +137,9 @@ export function usePanelQueries(
         values,
         meta,
         pendingAllNames,
+        allErrors,
       }),
-    [sqls, definedNames, values, meta, pendingAllNames],
+    [sqls, definedNames, values, meta, pendingAllNames, allErrors],
   );
 
   const results = useQueries({
@@ -142,6 +155,7 @@ export function usePanelQueries(
         (opts.enabled ?? true) &&
         r.sql.trim().length > 0 &&
         r.missingName === undefined &&
+        r.optionsError === undefined &&
         !r.waitingForOptions &&
         (opts.queryEnabled?.(r.sql, i) ?? true),
     })),
@@ -153,6 +167,7 @@ export function usePanelQueries(
         requests.map((r, i) => ({
           sql: r.sql,
           missingName: r.missingName,
+          optionsError: r.optionsError,
           isPending: results[i]?.isPending ?? false,
           isError: results[i]?.isError ?? false,
           error: results[i]?.error,

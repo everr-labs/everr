@@ -104,7 +104,8 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
     }
   }, [panel, draft]);
 
-  const { variables, values, meta, pendingAllNames } = useDashboardVariables();
+  const { variables, values, meta, pendingAllNames, allErrors } =
+    useDashboardVariables();
   const definedNames = useMemo(
     () => new Set(variables.map((v) => v.spec.name)),
     [variables],
@@ -141,9 +142,14 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
         values,
         meta,
         pendingAllNames,
+        allErrors,
       });
       if (req.missingName !== undefined) {
         setManualError(`Select a value for $${req.missingName}`);
+        return;
+      }
+      if (req.optionsError !== undefined) {
+        setManualError(req.optionsError);
         return;
       }
       setManualError(null);
@@ -169,7 +175,17 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
         setRunningIndex(null);
       }
     },
-    [draft, queryClient, from, to, values, meta, definedNames, pendingAllNames],
+    [
+      draft,
+      queryClient,
+      from,
+      to,
+      values,
+      meta,
+      definedNames,
+      pendingAllNames,
+      allErrors,
+    ],
   );
 
   const previewError = manualError ?? preview.errorMessage;

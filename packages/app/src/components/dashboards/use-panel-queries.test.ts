@@ -17,6 +17,7 @@ const ctx = {
   values: { region: "us" } as Record<string, string | string[]>,
   meta: {},
   pendingAllNames: [] as string[],
+  allErrors: {} as Record<string, string>,
 };
 
 function state(partial: Partial<SingleQueryState>): SingleQueryState {
@@ -60,6 +61,22 @@ describe("buildPanelQueryRequests", () => {
       buildPanelQueryRequests(["select $region"], ctx)[0],
     );
   });
+
+  it("surfaces a used variable's options error", () => {
+    const req = buildPanelQueryRequest("select $region", {
+      ...ctx,
+      allErrors: { region: 'Variable "$region" has too many values' },
+    });
+    expect(req.optionsError).toBe('Variable "$region" has too many values');
+  });
+
+  it("ignores an options error for a variable the query does not use", () => {
+    const req = buildPanelQueryRequest("select 1", {
+      ...ctx,
+      allErrors: { region: "boom" },
+    });
+    expect(req.optionsError).toBeUndefined();
+  });
 });
 
 describe("combineQueryStates", () => {
@@ -88,6 +105,21 @@ describe("combineQueryStates", () => {
     ]);
     expect(result.status).toBe("error");
     expect(result.errorMessage).toBe("boom");
+  });
+
+  it("errors with the options error before considering pending state", () => {
+    const result = combineQueryStates([
+      state({
+        sql: "select $region",
+        optionsError: "Failed to load options for $region: boom",
+        rows: undefined,
+        isPending: true,
+      }),
+    ]);
+    expect(result.status).toBe("error");
+    expect(result.errorMessage).toBe(
+      "Failed to load options for $region: boom",
+    );
   });
 
   it("errors with a variable hint when a query is missing a value", () => {
