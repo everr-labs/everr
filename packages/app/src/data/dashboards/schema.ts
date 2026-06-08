@@ -160,6 +160,7 @@ export interface Dashboard {
   spec: DashboardSpec;
 }
 
+/** Validates a dashboard slug: lowercase letters, digits and hyphens only. */
 export const dashboardSlugSchema = z
   .string()
   .min(1)
@@ -167,30 +168,7 @@ export const dashboardSlugSchema = z
   .regex(
     /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
     "Slug must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
-  )
-  .refine((s) => s !== "new", { message: '"new" is a reserved slug' });
-
-/**
- * The full Perses dashboard document, as edited in the settings JSON section.
- * `metadata.name` is loose on purpose: an untouched document echoes the
- * current slug (or the "new" draft sentinel) and must always re-validate.
- * Changed names are checked against `dashboardSlugSchema` by the caller;
- * the server inputs below enforce it authoritatively.
- */
-export const dashboardModelSchema = z.object({
-  kind: z.literal("Dashboard"),
-  metadata: z.object({ name: z.string().min(1).max(200) }),
-  spec: dashboardSpecSchema,
-});
-
-/**
- * JSON Schema (draft-7) generated from `dashboardModelSchema`, powering the
- * settings JSON editor's inline lint, completion and hover. Advisory only:
- * Apply re-validates with the zod schema, which stays authoritative.
- */
-export const dashboardModelJsonSchema = z.toJSONSchema(dashboardModelSchema, {
-  target: "draft-7",
-});
+  );
 
 /** A single document in an apply request: its relative path and raw contents. */
 export const applyDocumentSchema = z.object({

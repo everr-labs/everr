@@ -48,18 +48,10 @@ vi.mock("@/db/client", () => {
 });
 
 vi.mock("@/db/schema", () => ({
-  dashboardFolders: {
-    id: "id",
-    parentId: "parent_id",
-    organizationId: "organization_id",
-    name: "name",
-    updatedAt: "updated_at",
-  },
   dashboards: {
     id: "id",
     organizationId: "organization_id",
     slug: "slug",
-    folderId: "folder_id",
     source: "source",
     folderPath: "folder_path",
     updatedAt: "updated_at",
