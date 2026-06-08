@@ -1,5 +1,11 @@
 import type { ChartConfig } from "@everr/ui/components/chart";
-import { detectTimeKey, getValueKeys, toTimestamp } from "../data-utils";
+import {
+  detectTimeKey,
+  getValueKeys,
+  isNumericValue,
+  toNumber,
+  toTimestamp,
+} from "../data-utils";
 import type { QueryResultRow } from "../index";
 
 export const TS_KEY = "__ts";
@@ -15,8 +21,11 @@ export const COLORS = [
 ];
 
 function getGroupKeys(row: QueryResultRow, timeKey: string): string[] {
+  // A string that parses as a number (e.g. a quoted ClickHouse aggregate) is a
+  // value, not a grouping dimension — exclude it so it isn't double-counted.
   return Object.keys(row).filter(
-    (k) => k !== timeKey && typeof row[k] === "string",
+    (k) =>
+      k !== timeKey && typeof row[k] === "string" && !isNumericValue(row[k]),
   );
 }
 
@@ -42,8 +51,7 @@ function pivotByGroup(
     const ts = row[timeKey];
     const group = String(row[groupKey]);
     const key = sanitizeKey(group);
-    const raw = row[valueKey];
-    const value = typeof raw === "string" ? Number(raw) : raw;
+    const value = toNumber(row[valueKey]);
     seriesSet.add(key);
     labelMap.set(key, group);
 
@@ -70,33 +78,44 @@ function detectInterval(timestamps: number[]): number | null {
   return diffs[Math.floor(diffs.length / 2)]!;
 }
 
+/**
+ * Clamp the series to the domain and break the line across real gaps, keeping
+ * every in-range row at its actual timestamp. We do NOT snap rows onto an
+ * epoch-aligned grid: real data offset from such a grid (raw event times, or
+ * buckets aligned differently from the domain) would otherwise be dropped and
+ * the chart could render blank even though rows were returned. When two
+ * consecutive points are more than ~1.5× the typical interval apart, a single
+ * null marker is inserted so a non-connecting line shows the gap.
+ */
 function fillAndClamp(
   rows: Array<Record<string, unknown>>,
   valueKeys: string[],
   domain: [number, number],
   interval: number,
 ): Array<Record<string, unknown>> {
-  const byTs = new Map<number, Record<string, unknown>>();
-  for (const row of rows) {
-    const ts = row[TS_KEY] as number;
-    if (ts >= domain[0] && ts <= domain[1]) {
-      byTs.set(ts, row);
-    }
-  }
+  const inDomain = rows
+    .filter((row) => {
+      const ts = row[TS_KEY] as number;
+      return ts >= domain[0] && ts <= domain[1];
+    })
+    .sort((a, b) => (a[TS_KEY] as number) - (b[TS_KEY] as number));
 
-  const first = Math.ceil(domain[0] / interval) * interval;
   const result: Array<Record<string, unknown>> = [];
-  for (let t = first; t <= domain[1]; t += interval) {
-    const existing = byTs.get(t);
-    if (existing) {
-      result.push(existing);
-    } else {
-      const empty: Record<string, unknown> = { [TS_KEY]: t };
-      for (const k of valueKeys) {
-        empty[k] = null;
+  const gapThreshold = interval * 1.5;
+  for (let i = 0; i < inDomain.length; i++) {
+    const row = inDomain[i]!;
+    if (i > 0) {
+      const prevTs = inDomain[i - 1]![TS_KEY] as number;
+      const ts = row[TS_KEY] as number;
+      if (ts - prevTs > gapThreshold) {
+        const empty: Record<string, unknown> = { [TS_KEY]: prevTs + interval };
+        for (const k of valueKeys) {
+          empty[k] = null;
+        }
+        result.push(empty);
       }
-      result.push(empty);
     }
+    result.push(row);
   }
   return result;
 }
@@ -171,7 +190,9 @@ export function buildChartModel(
         byTs.set(ts, entry);
       }
       for (const key of vk) {
-        entry[`${prefix}${key}`] = row[key];
+        // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
+        // recharts plots them; non-numeric values become null (a gap).
+        entry[`${prefix}${key}`] = toNumber(row[key]);
       }
     }
   });

@@ -46,4 +46,25 @@ describe("computeStatTiles", () => {
   it("skips empty result sets", () => {
     expect(computeStatTiles([[]], "last")).toEqual([]);
   });
+
+  it("coerces quoted-integer aggregates (ClickHouse) to numbers", () => {
+    const tiles = computeStatTiles(
+      [
+        [
+          { ts: "2026-06-07T00:00:00", count: "10" },
+          { ts: "2026-06-07T00:01:00", count: "30" },
+        ],
+      ],
+      "last",
+    );
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0]?.label).toBe("count");
+    expect(tiles[0]?.value).toBe(30);
+    expect(tiles[0]?.points).toHaveLength(2);
+  });
+
+  it("coerces a quoted-integer aggregate with no time column", () => {
+    const tiles = computeStatTiles([[{ total: "123" }]], "last");
+    expect(tiles[0]?.value).toBe(123);
+  });
 });

@@ -1,4 +1,9 @@
-import { detectTimeKey, getValueKeys, toTimestamp } from "../data-utils";
+import {
+  detectTimeKey,
+  getValueKeys,
+  toNumber,
+  toTimestamp,
+} from "../data-utils";
 import type { QueryResultRow } from "../index";
 import { type CalculationType, calculate } from "./stat-calculations";
 
@@ -25,8 +30,8 @@ export function computeStatTiles(
     for (const valueKey of valueKeys) {
       if (!timeKey) {
         const values = rows
-          .map((row) => row[valueKey])
-          .filter((v): v is number => typeof v === "number");
+          .map((row) => toNumber(row[valueKey]))
+          .filter((v): v is number => v !== null);
         tiles.push({
           label: valueKey,
           value: calculate(values, calculation),
@@ -37,11 +42,11 @@ export function computeStatTiles(
       }
 
       const points = rows
-        .filter((row) => typeof row[valueKey] === "number")
         .map((row) => ({
           ts: toTimestamp(row[timeKey]),
-          value: row[valueKey] as number,
+          value: toNumber(row[valueKey]),
         }))
+        .filter((p): p is { ts: number; value: number } => p.value !== null)
         .sort((a, b) => a.ts - b.ts);
       const values = points.map((p) => p.value);
       tiles.push({
