@@ -72,24 +72,4 @@ describe("error attribute filtering", () => {
     expect(sql).toContain("toUInt32(timestampRank) AS timestampRank");
     expect(sql).not.toContain("WHERE timestampRank = 1");
   });
-
-  it("pre-filters static fingerprints before fallback fingerprint matching", () => {
-    const { sql } = buildOccurrencesQuery(
-      {
-        fromTs: base.fromTs,
-        toTs: base.toTs,
-        service: [],
-        fingerprint: "fp-1",
-        occurrenceLimit: 50,
-      },
-      "logs",
-    );
-    expect(sql).toContain(
-      "LogAttributes['error.fingerprint'] = {fingerprint:String}",
-    );
-    expect(sql).toContain(
-      "NOT mapContains(LogAttributes, 'error.fingerprint')",
-    );
-    expect(sql).toContain("cityHash64");
-  });
 });

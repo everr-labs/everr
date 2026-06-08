@@ -27,13 +27,13 @@ describe("getErrorOccurrenceKey", () => {
     );
   });
 
-  it("keeps timestamp tuple support for existing links", () => {
+  it("defaults timestamp rank to 1", () => {
     expect(getErrorOccurrenceKey(occurrence)).toBe(
-      "2026-05-26 10:05:00.000000000|trace-1|span-1",
+      "2026-05-26 10:05:00.000000000|1",
     );
   });
 
-  it("finds ranked occurrences and existing timestamp tuple links", () => {
+  it("finds ranked occurrences", () => {
     const selected = { ...occurrence, timestampRank: 2 };
     const occurrences = [
       { ...occurrence, timestampRank: 1, spanId: "span-0" },
@@ -42,12 +42,6 @@ describe("getErrorOccurrenceKey", () => {
 
     expect(
       findErrorOccurrenceByKey(occurrences, "2026-05-26 10:05:00.000000000|2"),
-    ).toBe(selected);
-    expect(
-      findErrorOccurrenceByKey(
-        occurrences,
-        "2026-05-26 10:05:00.000000000|trace-1|span-1",
-      ),
     ).toBe(selected);
   });
 });

@@ -4,11 +4,7 @@ import type {
   SearchErrorIssuesInput,
 } from "../data/schemas";
 import { errorsAttributeColumn } from "./attribute-columns";
-import {
-  ERROR_FINGERPRINT_FILTER_SQL,
-  ERROR_FINGERPRINT_SQL,
-  EXCEPTION_LOG_FILTER_SQL,
-} from "./fingerprint";
+import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
 import { validateTableName } from "./table";
 
 export type BuiltQuery = { sql: string; params: Record<string, unknown> };
@@ -36,7 +32,7 @@ function buildBaseParams(
 function buildExceptionLogsCte(
   input: Pick<
     SearchErrorIssuesInput,
-    "fromTs" | "toTs" | "q" | "service" | "attributes" | "fingerprint"
+    "fromTs" | "toTs" | "q" | "service" | "attributes"
   >,
   tableName: string,
 ): BuiltQuery {
@@ -53,10 +49,6 @@ function buildExceptionLogsCte(
       OR positionCaseInsensitive(Body, {q:String}) > 0
     )`);
     params.q = input.q;
-  }
-  if (input.fingerprint) {
-    filters.push(ERROR_FINGERPRINT_FILTER_SQL);
-    params.fingerprint = input.fingerprint;
   }
 
   const attr = buildAttributeClauses(
@@ -162,6 +154,7 @@ export function buildOccurrencesQuery(
             ORDER BY Timestamp DESC, ServiceName DESC, TraceId DESC, SpanId DESC, Body DESC
           ) AS timestampRank
         FROM exception_logs
+        WHERE fingerprint = {fingerprint:String}
       )
       SELECT
         toUInt32(timestampRank) AS timestampRank,

@@ -65,7 +65,7 @@ function mapOccurrence(row: ErrorOccurrenceRow): ErrorOccurrence {
   return {
     ...row,
     timestampRank:
-      row.timestampRank === undefined ? undefined : Number(row.timestampRank),
+      row.timestampRank === undefined ? 1 : Number(row.timestampRank),
     resourceAttributes: row.resourceAttributes ?? {},
     logAttributes: row.logAttributes ?? {},
     scopeAttributes: row.scopeAttributes ?? {},
