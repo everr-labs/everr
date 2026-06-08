@@ -192,52 +192,25 @@ export const dashboardModelJsonSchema = z.toJSONSchema(dashboardModelSchema, {
   target: "draft-7",
 });
 
-// `spec` is validated in the handler against `dashboardSpecSchema` and stored
-// raw. Validating here (with a strict zod object) would strip unknown Perses
-// fields before storage; keeping it unknown preserves them round-trip.
-export const saveDashboardInput = z.object({
-  slug: z.string().min(1).max(200),
-  newSlug: dashboardSlugSchema.optional(),
-  spec: z.unknown(),
-  folderId: z.string().uuid().optional(),
+/** A single document in an apply request: its relative path and raw contents. */
+export const applyDocumentSchema = z.object({
+  path: z.string().min(1),
+  // Raw parsed YAML/JSON; validated per-document by buildDesiredSet.
+  document: z.unknown(),
 });
 
-export const createDashboardInput = z.object({
-  slug: dashboardSlugSchema.optional(),
-  spec: z.unknown(),
-  folderId: z.string().uuid().optional(),
+export const applyDashboardsInput = z.object({
+  source: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(
+      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+      "Source must use lowercase letters, digits and hyphens",
+    ),
+  documents: z.array(applyDocumentSchema),
+  /** When true, compute and return the diff without writing. */
+  dryRun: z.boolean().optional(),
 });
 
-export const deleteDashboardInput = z.object({
-  slug: z.string().min(1),
-});
-
-export const createFolderInput = z.object({
-  name: z.string().min(1).max(200),
-  parentId: z.string().uuid().optional(),
-});
-
-export const renameFolderInput = z.object({
-  folderId: z.string().uuid(),
-  name: z.string().min(1).max(200),
-});
-
-export const deleteFolderInput = z.object({
-  folderId: z.string().uuid(),
-  mode: z.enum(["cascade", "move-to-root"]),
-});
-
-export const renameDashboardInput = z.object({
-  slug: z.string().min(1),
-  name: z.string().min(1).max(200),
-});
-
-export const moveDashboardInput = z.object({
-  slug: z.string().min(1),
-  folderId: z.string().uuid().nullable(),
-});
-
-export const moveFolderInput = z.object({
-  folderId: z.string().uuid(),
-  parentId: z.string().uuid().nullable(),
-});
+export type ApplyDashboardsInput = z.infer<typeof applyDashboardsInput>;
