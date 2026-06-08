@@ -177,7 +177,7 @@ export const applyDocumentSchema = z.object({
   document: z.unknown(),
 });
 
-export const applyDashboardsInput = z.object({
+export const applyInput = z.object({
   source: z
     .string()
     .min(1)
@@ -191,4 +191,4 @@ export const applyDashboardsInput = z.object({
   dryRun: z.boolean().optional(),
 });
 
-export type ApplyDashboardsInput = z.infer<typeof applyDashboardsInput>;
+export type ApplyInput = z.infer<typeof applyInput>;

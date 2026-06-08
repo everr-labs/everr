@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
+import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
@@ -91,6 +92,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const ApiCliRoute = ApiCliRouteImport.update({
   id: '/api/cli',
   path: '/api/cli',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiApplyRoute = ApiApplyRouteImport.update({
+  id: '/api/apply',
+  path: '/api/apply',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
@@ -369,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
   '/device': typeof AuthenticatedDeviceRoute
+  '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -422,6 +429,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
   '/device': typeof AuthenticatedDeviceRoute
+  '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -477,6 +485,7 @@ export interface FileRoutesById {
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
+  '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -533,6 +542,7 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/device'
+    | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
@@ -586,6 +596,7 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/device'
+    | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
@@ -640,6 +651,7 @@ export interface FileRouteTypes {
     | '/_auth/_guest'
     | '/_authenticated/_dashboard'
     | '/_authenticated/device'
+    | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
@@ -695,6 +707,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  ApiApplyRoute: typeof ApiApplyRoute
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
@@ -747,6 +760,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cli'
       fullPath: '/api/cli'
       preLoaderRoute: typeof ApiCliRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/apply': {
+      id: '/api/apply'
+      path: '/api/apply'
+      fullPath: '/api/apply'
+      preLoaderRoute: typeof ApiApplyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/device': {
@@ -1332,6 +1352,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  ApiApplyRoute: ApiApplyRoute,
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   WebhookGithubRoute: WebhookGithubRoute,

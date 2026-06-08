@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { applyDashboardsInput } from "@/data/dashboards/schema";
-import { applyDashboardSpecs } from "@/data/dashboards/server";
+import { applyResources } from "@/data/apply/registry";
+import { applyInput } from "@/data/dashboards/schema";
 import { requireOrgOrApiKeyMiddleware } from "@/lib/serverFn";
 
-export const Route = createFileRoute("/api/dashboards/apply")({
+export const Route = createFileRoute("/api/apply")({
   server: {
     middleware: [requireOrgOrApiKeyMiddleware],
     handlers: {
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/api/dashboards/apply")({
           return Response.json({ error: "Invalid JSON body" }, { status: 400 });
         }
 
-        const parsed = applyDashboardsInput.safeParse(raw);
+        const parsed = applyInput.safeParse(raw);
         if (!parsed.success) {
           return Response.json(
             { error: parsed.error.issues[0]?.message ?? "Invalid request" },
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/dashboards/apply")({
         }
 
         try {
-          const summary = await applyDashboardSpecs({
+          const summary = await applyResources({
             orgId: context.session.session.activeOrganizationId,
             source: parsed.data.source,
             documents: parsed.data.documents,
@@ -34,10 +34,7 @@ export const Route = createFileRoute("/api/dashboards/apply")({
         } catch (error) {
           return Response.json(
             {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Failed to apply dashboards",
+              error: error instanceof Error ? error.message : "Failed to apply",
             },
             { status: 400 },
           );
