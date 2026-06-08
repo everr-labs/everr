@@ -38,7 +38,7 @@ This is the "B now, A later" path:
 
 ```
 git repo (Perses YAML/JSON, directory tree)
-        │  CI runs:  everr dashboards apply ./dashboards --source=platform
+        │  CI runs:  everr apply ./dashboards --source=platform
         ▼
 apply endpoint (authenticated by API token → org)
         │  source-scoped declarative reconcile (create / update / prune)
@@ -112,31 +112,49 @@ Guardrails:
 
 ## CLI & authentication
 
-New command group:
+**Implemented command (top-level, not a subcommand group):**
 
-- `everr dashboards apply <dir> --source=<id> [--dry-run]`
-- `everr dashboards list`
-- `everr dashboards delete <name> --source=<id>`
+- `everr apply <dir> --source=<id> [--dry-run]`
+
+There is no `everr dashboards apply`, no `list`, and no `delete` sub-command.
+The apply command is the single reconcile entry-point; deletion is implicit
+when a file is absent from the tree.
 
 A repo-root `everr-dashboards.yaml` manifest can carry `source:` (and
 optionally a default directory) so CI does not repeat flags.
 
-**Authentication — API tokens (net-new subsystem):**
+**Authentication:**
 
-- Org-scoped API tokens are generated in the app and supplied to CI as
-  `EVERR_API_TOKEN`.
-- The apply endpoint accepts **either** an authenticated user session **or** an
-  API token; the token determines the target org.
-- This is the same non-human, org-scoped, non-expiring credential the future
-  webhook-sync service will reuse.
-- New work: token issuance UI + storage, and a server-side verification path
-  that resolves a token to an org.
+- The CLI reads `EVERR_API_TOKEN` (key) and `EVERR_API_URL` (base URL) from
+  the environment and sends the key as `Authorization: Bearer <key>`.
+- Org-scoped **ingest** keys (`ek_` prefix) are accepted today. Accepting
+  additional key types is an append to `APPLY_KEY_CONFIGS` in
+  `packages/app/src/data/dashboards/apply-auth.ts`.
+- The apply endpoint also accepts the `x-api-key` header, or a live
+  interactive session as a fallback for human use.
 
 The CLI is Rust (`everr-cli`) and already has device-code login
 (`everr cloud login`) producing a stored session + bearer token, an
 `ApiClient` for authenticated calls, and a server that derives org from the
 session's `activeOrganizationId`. Interactive apply uses that session; CI uses
-the API token.
+`EVERR_API_TOKEN`.
+
+## Generic apply (kind registry)
+
+The server endpoint `POST /api/apply` is **kind-generic**. Each document in
+the tree carries a `kind` field; the server dispatches it through a registry:
+
+- `Dashboard` is registered today.
+- New kinds (e.g. `Alert`) are added **server-side only** — no CLI change
+  needed. The CLI is an envelope carrier; it does not know or care what kinds
+  exist.
+- **Unknown kinds are rejected** — the entire apply fails with a 400 and an
+  error naming the unknown kind and the offending file; nothing is written.
+- A source reconciles **all registered kinds** against the tree. If a
+  kind has no documents in the tree it is pruned for that source (all existing
+  rows for that kind + source are deleted). To manage kinds independently
+  use separate `--source` values (e.g. `--source=platform-dashboards` vs
+  `--source=platform-alerts`).
 
 ## Schema changes
 
