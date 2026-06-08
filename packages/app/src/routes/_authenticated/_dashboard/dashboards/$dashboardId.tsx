@@ -1,13 +1,13 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
-  Link,
   notFound,
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
+import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardSearchDefaults } from "@/data/dashboards/time-defaults";
@@ -37,17 +37,6 @@ export const Route = createFileRoute(
     }
   },
 });
-
-function DashboardNotFound() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
-      <p className="text-lg">Dashboard not found</p>
-      <Link to="/dashboards" className="text-sm underline">
-        Back to dashboards
-      </Link>
-    </div>
-  );
-}
 
 function DashboardPage() {
   const { dashboardId } = Route.useParams();

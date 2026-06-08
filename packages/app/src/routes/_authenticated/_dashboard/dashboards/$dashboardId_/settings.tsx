@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
 import { DashboardSettingsPage } from "@/components/dashboards/dashboard-settings-page";
 import { dashboardOptions } from "@/data/dashboards/options";
 
@@ -10,9 +11,14 @@ export const Route = createFileRoute(
     meta: [{ title: "Everr - Dashboard Settings" }],
   }),
   component: DashboardSettingsRoute,
+  notFoundComponent: DashboardNotFound,
   loader: async ({ context: { queryClient }, params: { dashboardId } }) => {
     if (dashboardId !== "new") {
-      await queryClient.prefetchQuery(dashboardOptions(dashboardId));
+      try {
+        await queryClient.ensureQueryData(dashboardOptions(dashboardId));
+      } catch {
+        throw notFound();
+      }
     }
   },
 });
