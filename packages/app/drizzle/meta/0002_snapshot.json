@@ -1,5 +1,5 @@
 {
-  "id": "1aafcec3-6d92-4b60-9aa2-6312593d1ac4",
+  "id": "ea903693-7994-4728-bb77-544e80daf00c",
   "prevId": "3e28b8a7-ccbd-4ed5-ae50-f46f2dec12b1",
   "version": "7",
   "dialect": "postgresql",
@@ -78,14 +78,16 @@
         }
       },
       "foreignKeys": {
-        "dashboard_folders_parent_id_dashboard_folders_id_fk": {
-          "name": "dashboard_folders_parent_id_dashboard_folders_id_fk",
+        "dashboard_folders_parent_fk": {
+          "name": "dashboard_folders_parent_fk",
           "tableFrom": "dashboard_folders",
           "tableTo": "dashboard_folders",
           "columnsFrom": [
+            "organization_id",
             "parent_id"
           ],
           "columnsTo": [
+            "organization_id",
             "id"
           ],
           "onDelete": "cascade",
@@ -93,7 +95,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "dashboard_folders_org_id_uq": {
+          "name": "dashboard_folders_org_id_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -193,14 +204,16 @@
         }
       },
       "foreignKeys": {
-        "dashboards_folder_id_dashboard_folders_id_fk": {
-          "name": "dashboards_folder_id_dashboard_folders_id_fk",
+        "dashboards_folder_fk": {
+          "name": "dashboards_folder_fk",
           "tableFrom": "dashboards",
           "tableTo": "dashboard_folders",
           "columnsFrom": [
+            "organization_id",
             "folder_id"
           ],
           "columnsTo": [
+            "organization_id",
             "id"
           ],
           "onDelete": "cascade",
