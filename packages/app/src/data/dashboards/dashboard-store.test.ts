@@ -2,152 +2,27 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useDashboardStore } from "./dashboard-store";
 import type { Dashboard } from "./schema";
 
-const makeDashboard = (name = "dash-1"): Dashboard => ({
+const dashboard = (name: string): Dashboard => ({
   kind: "Dashboard",
   metadata: { name },
-  spec: {
-    display: { name: "My Dashboard" },
-    panels: {},
-    layouts: [{ kind: "Grid", spec: { items: [] } }],
-  },
+  spec: { panels: {}, layouts: [] },
 });
-
-const panel = {
-  kind: "Panel" as const,
-  spec: {
-    display: { name: "P" },
-    plugin: { kind: "TimeSeriesChart", spec: {} },
-  },
-};
 
 beforeEach(() => {
-  useDashboardStore.setState({
-    dashboard: null,
-    isEditing: false,
-    isDirty: false,
-    sourceSlug: null,
-  });
+  useDashboardStore.setState({ dashboard: null, loadedKey: null });
 });
 
-describe("dashboard store dirty tracking", () => {
-  it("starts clean and setDashboard resets dirty", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    expect(useDashboardStore.getState().isDirty).toBe(false);
-
-    useDashboardStore.getState().updatePanel("panel1", panel);
-    expect(useDashboardStore.getState().isDirty).toBe(true);
-
-    useDashboardStore.getState().setDashboard(makeDashboard("dash-2"));
-    expect(useDashboardStore.getState().isDirty).toBe(false);
+describe("dashboard-store", () => {
+  it("setDashboard stores the dashboard and its loaded key", () => {
+    useDashboardStore.getState().setDashboard(dashboard("cpu"), "team/cpu");
+    expect(useDashboardStore.getState().dashboard?.metadata.name).toBe("cpu");
+    expect(useDashboardStore.getState().loadedKey).toBe("team/cpu");
   });
 
-  it("updatePanel marks dirty", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore.getState().updatePanel("panel1", panel);
-    expect(useDashboardStore.getState().isDirty).toBe(true);
-  });
-
-  it("updateLayout marks dirty", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore
-      .getState()
-      .updateLayout([{ kind: "Grid", spec: { items: [] } }]);
-    expect(useDashboardStore.getState().isDirty).toBe(true);
-  });
-
-  it("updateVariables marks dirty and replaces spec.variables", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore
-      .getState()
-      .updateVariables([
-        { kind: "TextVariable", spec: { name: "env", value: "prod" } },
-      ]);
-    const state = useDashboardStore.getState();
-    expect(state.isDirty).toBe(true);
-    expect(state.dashboard?.spec.variables).toEqual([
-      { kind: "TextVariable", spec: { name: "env", value: "prod" } },
-    ]);
-  });
-
-  it("patchDashboard replaces the dashboard and marks dirty", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore.getState().patchDashboard(makeDashboard("patched"));
-    expect(useDashboardStore.getState().isDirty).toBe(true);
-    expect(useDashboardStore.getState().dashboard?.metadata.name).toBe(
-      "patched",
-    );
-  });
-
-  it("markSaved clears dirty", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore.getState().updatePanel("panel1", panel);
-    useDashboardStore.getState().markSaved();
-    expect(useDashboardStore.getState().isDirty).toBe(false);
-  });
-
-  it("updateDisplayName preserves the current dirty state", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore.getState().updateDisplayName("Renamed");
-    expect(useDashboardStore.getState().isDirty).toBe(false);
-    expect(useDashboardStore.getState().dashboard?.spec.display?.name).toBe(
-      "Renamed",
-    );
-
-    useDashboardStore.getState().updatePanel("panel1", panel);
-    useDashboardStore.getState().updateDisplayName("Renamed again");
-    expect(useDashboardStore.getState().isDirty).toBe(true);
-  });
-
-  it("reset clears everything", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard());
-    useDashboardStore.getState().setEditing(true);
-    useDashboardStore.getState().updatePanel("panel1", panel);
+  it("reset clears the store", () => {
+    useDashboardStore.getState().setDashboard(dashboard("cpu"), "team/cpu");
     useDashboardStore.getState().reset();
-    const s = useDashboardStore.getState();
-    expect(s.dashboard).toBeNull();
-    expect(s.isEditing).toBe(false);
-    expect(s.isDirty).toBe(false);
-  });
-
-  it("noop actions when no dashboard loaded do not mark dirty", () => {
-    useDashboardStore.getState().updatePanel("panel1", panel);
-    useDashboardStore.getState().updateLayout([]);
-    useDashboardStore.getState().updateVariables([]);
-    expect(useDashboardStore.getState().isDirty).toBe(false);
-  });
-});
-
-describe("sourceSlug identity tracking", () => {
-  it("setDashboard records the loaded slug as sourceSlug", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard("dash-1"));
-    expect(useDashboardStore.getState().sourceSlug).toBe("dash-1");
-  });
-
-  it("setDashboard with draft: true leaves sourceSlug null", () => {
-    useDashboardStore
-      .getState()
-      .setDashboard(makeDashboard("new"), { draft: true });
-    expect(useDashboardStore.getState().sourceSlug).toBeNull();
-  });
-
-  it("markSaved re-syncs sourceSlug to the current metadata name", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard("dash-1"));
-    const current = useDashboardStore.getState().dashboard;
-    if (!current) throw new Error("dashboard missing");
-    useDashboardStore.getState().patchDashboard({
-      ...current,
-      metadata: { name: "renamed" },
-    });
-    expect(useDashboardStore.getState().sourceSlug).toBe("dash-1");
-
-    useDashboardStore.getState().markSaved();
-    expect(useDashboardStore.getState().sourceSlug).toBe("renamed");
-    expect(useDashboardStore.getState().isDirty).toBe(false);
-  });
-
-  it("reset clears sourceSlug", () => {
-    useDashboardStore.getState().setDashboard(makeDashboard("dash-1"));
-    useDashboardStore.getState().reset();
-    expect(useDashboardStore.getState().sourceSlug).toBeNull();
+    expect(useDashboardStore.getState().dashboard).toBeNull();
+    expect(useDashboardStore.getState().loadedKey).toBeNull();
   });
 });
