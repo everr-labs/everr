@@ -612,25 +612,25 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         );
     }
 
-    let client = match std::env::var("EVERR_API_TOKEN")
+    // Apply is token-only: it always runs under an organization ingest key,
+    // never an interactive session (the server rejects sessions for apply).
+    let token = std::env::var("EVERR_API_TOKEN")
         .ok()
         .filter(|t| !t.is_empty())
-    {
-        Some(token) => {
-            let base_url = std::env::var("EVERR_API_URL")
-                .ok()
-                .filter(|u| !u.is_empty())
-                .or_else(persisted_api_base_url)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("EVERR_API_TOKEN is set but no base URL; set EVERR_API_URL")
-                })?;
-            everr_core::api::ApiClient::from_token(&base_url, &token)?
-        }
-        None => {
-            let session = crate::auth::require_session_with_refresh().await?;
-            everr_core::api::ApiClient::from_session(&session)?
-        }
-    };
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "apply requires an organization ingest key in EVERR_API_TOKEN \
+                 (interactive sessions are not accepted)"
+            )
+        })?;
+    let base_url = std::env::var("EVERR_API_URL")
+        .ok()
+        .filter(|u| !u.is_empty())
+        .or_else(persisted_api_base_url)
+        .ok_or_else(|| {
+            anyhow::anyhow!("EVERR_API_TOKEN is set but no base URL; set EVERR_API_URL")
+        })?;
+    let client = everr_core::api::ApiClient::from_token(&base_url, &token)?;
 
     let request = ApplyRequest {
         source: args.source,
