@@ -69,6 +69,18 @@ describe("buildChartModel", () => {
     expect(model.chartData[1]?.a).toBe(3);
   });
 
+  it("sanitizes value-column names so they form valid CSS/dataKey identifiers", () => {
+    const model = buildChartModel(
+      [[{ time: "2026-06-07T00:00:00", "count()": "42" }]],
+      undefined,
+    );
+    // `count()` would render as `var(--color-count())` (invalid) and blank the
+    // line; the render key is sanitized and the original kept as the label.
+    expect(model.valueKeys).toEqual(["count__"]);
+    expect(model.chartConfig.count__?.label).toBe("count()");
+    expect(model.chartData[0]?.count__).toBe(42);
+  });
+
   it("treats quoted numeric strings (ClickHouse aggregates) as values", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", count: "42" }]],

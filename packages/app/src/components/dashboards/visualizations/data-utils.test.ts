@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getValueKeys, isNumericValue, toNumber } from "./data-utils";
+import {
+  getValueKeys,
+  isNumericValue,
+  toNumber,
+  toTimestamp,
+} from "./data-utils";
 
 describe("isNumericValue", () => {
   it("accepts numbers and numeric strings", () => {
@@ -31,6 +36,36 @@ describe("toNumber", () => {
     expect(toNumber("")).toBeNull();
     expect(toNumber(null)).toBeNull();
     expect(toNumber(Number.NaN)).toBeNull();
+  });
+});
+
+describe("toTimestamp", () => {
+  const utc = Date.UTC(2026, 5, 7, 0, 0, 0); // 2026-06-07T00:00:00Z
+
+  it("passes numbers through", () => {
+    expect(toTimestamp(1717718400000)).toBe(1717718400000);
+  });
+
+  it("treats space-separated ClickHouse DateTime as UTC", () => {
+    expect(toTimestamp("2026-06-07 00:00:00")).toBe(utc);
+  });
+
+  it("parses values that already carry a Z timezone (no double-Z)", () => {
+    expect(toTimestamp("2026-06-07T00:00:00Z")).toBe(utc);
+  });
+
+  it("parses values with a numeric UTC offset", () => {
+    // +02:00 is two hours ahead of UTC, so the instant is two hours earlier.
+    expect(toTimestamp("2026-06-07T02:00:00+02:00")).toBe(utc);
+  });
+
+  it("parses a date-only value as UTC midnight", () => {
+    expect(toTimestamp("2026-06-07")).toBe(utc);
+  });
+
+  it("returns 0 for unparseable input", () => {
+    expect(toTimestamp("not a date")).toBe(0);
+    expect(toTimestamp(null)).toBe(0);
   });
 });
 

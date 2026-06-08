@@ -48,7 +48,16 @@ export function getValueKeys(row: QueryResultRow, timeKey: string): string[] {
 export function toTimestamp(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") {
-    const ms = new Date(`${value.replace(" ", "T")}Z`).getTime();
+    // ClickHouse DateTime comes as `YYYY-MM-DD HH:MM:SS` (space-separated, UTC,
+    // no timezone): normalize the separator and assume UTC. But don't append a
+    // second `Z` when the value already carries a timezone (`...Z` or `±HH:MM`)
+    // — that produced `...ZZ`, failed to parse, fell back to 0, and the row was
+    // then filtered out of the time range.
+    const isoish = value.trim().replace(" ", "T");
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(isoish);
+    const hasTime = isoish.includes("T");
+    const normalized = hasTime && !hasTimezone ? `${isoish}Z` : isoish;
+    const ms = new Date(normalized).getTime();
     if (!Number.isNaN(ms)) return ms;
   }
   return 0;

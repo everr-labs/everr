@@ -172,10 +172,16 @@ export function buildChartModel(
     }
 
     const prefix = multi ? `q${setIndex}__` : "";
+    // The render key becomes a `--color-<key>` CSS custom property and a recharts
+    // dataKey, so it must be a valid identifier. Raw ClickHouse column names like
+    // `count()` or aliases with spaces would produce `var(--color-count())`
+    // (invalid) and a blank line — sanitize for rendering, keep the original as
+    // the label. (Pivot-path keys are already sanitized; sanitizeKey is idempotent.)
+    const renderKeyFor = (key: string) => sanitizeKey(`${prefix}${key}`);
     for (const key of vk) {
-      const nsKey = `${prefix}${key}`;
-      valueKeys.push(nsKey);
-      chartConfig[nsKey] = {
+      const renderKey = renderKeyFor(key);
+      valueKeys.push(renderKey);
+      chartConfig[renderKey] = {
         label: labels?.get(key) ?? key,
         color: COLORS[colorIndex % COLORS.length],
       };
@@ -192,7 +198,7 @@ export function buildChartModel(
       for (const key of vk) {
         // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
         // recharts plots them; non-numeric values become null (a gap).
-        entry[`${prefix}${key}`] = toNumber(row[key]);
+        entry[renderKeyFor(key)] = toNumber(row[key]);
       }
     }
   });
