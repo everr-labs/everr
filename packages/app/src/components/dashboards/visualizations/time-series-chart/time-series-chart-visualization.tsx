@@ -150,7 +150,7 @@ export function TimeSeriesChartVisualization({
     [timeRange],
   );
 
-  const { chartData, valueKeys, chartConfig } = useMemo(
+  const { chartData, valueKeys, chartConfig, seriesData } = useMemo(
     () => buildChartModel(data ?? [], domain),
     [data, domain],
   );
@@ -324,6 +324,9 @@ export function TimeSeriesChartVisualization({
           {valueKeys.map((key) => (
             <Line
               key={key}
+              // Each line renders from its own data so it connects its own
+              // points regardless of where other series have samples.
+              data={seriesData[key]}
               dataKey={key}
               type={curveType}
               stroke={`var(--color-${key})`}

@@ -13,6 +13,7 @@ describe("buildChartModel", () => {
     expect(model.chartConfig.s0?.label).toBe("value");
     expect(model.chartData[0]?.[TS_KEY]).toBeTypeOf("number");
     expect(model.chartData[0]?.s0).toBe(5);
+    expect(model.seriesData.s0?.[0]?.s0).toBe(5);
   });
 
   it("gives each series a distinct key across two queries and merges by time", () => {
@@ -27,6 +28,31 @@ describe("buildChartModel", () => {
     expect(model.chartData).toHaveLength(1);
     expect(model.chartData[0]?.s0).toBe(1);
     expect(model.chartData[0]?.s1).toBe(2);
+  });
+
+  it("renders each series from its own data so non-overlapping query timestamps don't break lines", () => {
+    const model = buildChartModel(
+      [
+        [
+          { time: "2026-06-07T00:00:00", value: 1 },
+          { time: "2026-06-07T00:01:00", value: 2 },
+        ],
+        [
+          { time: "2026-06-07T00:02:00", value: 3 },
+          { time: "2026-06-07T00:03:00", value: 4 },
+        ],
+      ],
+      undefined,
+    );
+    expect(model.valueKeys).toEqual(["s0", "s1"]);
+    // Each series' own array holds only its own points — the other query's
+    // timestamps are absent, not undefined holes that would break the line.
+    expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([1, 2]);
+    expect(model.seriesData.s0).toHaveLength(2);
+    expect(model.seriesData.s1?.map((r) => r.s1)).toEqual([3, 4]);
+    expect(model.seriesData.s1).toHaveLength(2);
+    // The merged timeline still carries every timestamp for the crosshair.
+    expect(model.chartData).toHaveLength(4);
   });
 
   it("assigns distinct colors to series across queries", () => {
@@ -45,6 +71,7 @@ describe("buildChartModel", () => {
       chartData: [],
       valueKeys: [],
       chartConfig: {},
+      seriesData: {},
     });
   });
 
@@ -68,6 +95,10 @@ describe("buildChartModel", () => {
     expect(model.chartData[0]?.s0).toBe(1);
     expect(model.chartData[0]?.s1).toBe(2);
     expect(model.chartData[1]?.s0).toBe(3);
+    // host "b" only has a point at t0 — its line data is that one point, not a
+    // hole at t1.
+    expect(model.seriesData.s1?.map((r) => r.s1)).toEqual([2]);
+    expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([1, 3]);
   });
 
   it("keeps distinct group values that would mangle to the same key separate", () => {
@@ -124,9 +155,9 @@ describe("buildChartModel", () => {
       ],
       [t0 - minute, t0 + 5 * minute],
     );
-    expect(model.chartData).toHaveLength(3);
-    expect(model.chartData.map((r) => r.s0)).toEqual([1, 2, 3]);
-    expect(model.chartData[0]?.[TS_KEY]).toBe(t0);
+    expect(model.seriesData.s0).toHaveLength(3);
+    expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([1, 2, 3]);
+    expect(model.seriesData.s0?.[0]?.[TS_KEY]).toBe(t0);
   });
 
   it("drops rows outside the domain", () => {
@@ -142,10 +173,11 @@ describe("buildChartModel", () => {
       ],
       [t1, t1 + 5 * minute],
     );
+    expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([2, 3]);
     expect(model.chartData.map((r) => r.s0)).toEqual([2, 3]);
   });
 
-  it("inserts a single null marker to break the line across a real gap", () => {
+  it("inserts a single null marker into a series to break the line across a real gap", () => {
     const minute = 60_000;
     const t0 = Date.parse("2026-06-07T00:00:00Z");
     const model = buildChartModel(
@@ -160,8 +192,10 @@ describe("buildChartModel", () => {
       ],
       [t0, t0 + 15 * minute],
     );
-    // 5 real rows + 1 null gap marker.
-    expect(model.chartData).toHaveLength(6);
-    expect(model.chartData.filter((r) => r.s0 === null)).toHaveLength(1);
+    // The gap marker lives in the per-series data (5 real points + 1 null),
+    // not in the merged crosshair timeline (5 points).
+    expect(model.seriesData.s0).toHaveLength(6);
+    expect(model.seriesData.s0?.filter((r) => r.s0 === null)).toHaveLength(1);
+    expect(model.chartData).toHaveLength(5);
   });
 });
