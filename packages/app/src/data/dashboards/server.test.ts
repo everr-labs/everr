@@ -59,8 +59,8 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
+import { applyDashboardSpecs } from "./apply.server";
 import {
-  applyDashboardSpecs,
   getDashboard,
   listDashboards,
   runPanelQuery,

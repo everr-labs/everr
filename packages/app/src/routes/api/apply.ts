@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { applyResources } from "@/data/apply/registry";
+import { requireOrgOrApiKeyMiddleware } from "@/data/dashboards/apply-auth.server";
 import { applyInput } from "@/data/dashboards/schema";
-import { requireOrgOrApiKeyMiddleware } from "@/lib/serverFn";
 
 export const Route = createFileRoute("/api/apply")({
   server: {

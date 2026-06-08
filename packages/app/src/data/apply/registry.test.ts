@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardReconciler = vi.fn();
-vi.mock("@/data/dashboards/server", () => ({
+vi.mock("@/data/dashboards/apply.server", () => ({
   applyDashboardSpecs: (...a: unknown[]) => dashboardReconciler(...a),
 }));
 
