@@ -28,10 +28,6 @@ function getGroupKeys(row: QueryResultRow, timeKey: string): string[] {
   );
 }
 
-function sanitizeKey(name: string): string {
-  return name.replace(/[^a-zA-Z0-9]/g, "_");
-}
-
 function pivotByGroup(
   rows: QueryResultRow[],
   timeKey: string,
@@ -40,31 +36,29 @@ function pivotByGroup(
 ): {
   pivoted: QueryResultRow[];
   seriesKeys: string[];
-  labelMap: Map<string, string>;
 } {
   const byTimestamp = new Map<string | number, QueryResultRow>();
   const seriesSet = new Set<string>();
-  const labelMap = new Map<string, string>();
 
   for (const row of rows) {
     const ts = row[timeKey];
+    // The raw group value is the series identifier — keep it intact (it's the
+    // label, and uniqueness comes from the Set, not from mangling the name).
     const group = String(row[groupKey]);
-    const key = sanitizeKey(group);
     const value = toNumber(row[valueKey]);
-    seriesSet.add(key);
-    labelMap.set(key, group);
+    seriesSet.add(group);
 
     let entry = byTimestamp.get(ts as string | number);
     if (!entry) {
       entry = { [timeKey]: ts };
       byTimestamp.set(ts as string | number, entry);
     }
-    entry[key] = value;
+    entry[group] = value;
   }
 
   const seriesKeys = [...seriesSet].sort();
   const pivoted = [...byTimestamp.values()];
-  return { pivoted, seriesKeys, labelMap };
+  return { pivoted, seriesKeys };
 }
 
 function detectInterval(timestamps: number[]): number | null {
@@ -140,10 +134,9 @@ export function buildChartModel(
   const chartConfig: ChartConfig = {};
   const valueKeys: string[] = [];
   const byTs = new Map<number, Record<string, unknown>>();
-  let colorIndex = 0;
-  const multi = dataSets.length > 1;
+  let seriesIndex = 0;
 
-  dataSets.forEach((data, setIndex) => {
+  dataSets.forEach((data) => {
     if (!data || data.length === 0) return;
     const tk = detectTimeKey(data);
     if (!tk) return;
@@ -152,8 +145,10 @@ export function buildChartModel(
     const rawValueKeys = getValueKeys(data[0]!, tk);
 
     let rows: QueryResultRow[];
-    let vk: string[];
-    let labels: Map<string, string> | undefined;
+    // The series' source names: pivoted group values, or raw value-column names.
+    // Each is unique within its result set and is used as the human-readable
+    // legend/tooltip label.
+    let seriesNames: string[];
 
     if (groupKeys.length >= 1 && rawValueKeys.length === 1) {
       const compositeKey = "__group__";
@@ -163,28 +158,27 @@ export function buildChartModel(
       }));
       const piv = pivotByGroup(keyed, tk, compositeKey, rawValueKeys[0]!);
       rows = piv.pivoted;
-      vk = piv.seriesKeys;
-      labels = piv.labelMap;
+      seriesNames = piv.seriesKeys;
     } else {
       rows = data;
-      vk = rawValueKeys;
+      seriesNames = rawValueKeys;
     }
 
-    const prefix = multi ? `q${setIndex}__` : "";
-    // The render key becomes a `--color-<key>` CSS custom property and a recharts
-    // dataKey, so it must be a valid identifier. Raw ClickHouse column names like
-    // `count()` or aliases with spaces would produce `var(--color-count())`
-    // (invalid) and a blank line — sanitize for rendering, keep the original as
-    // the label. (Pivot-path keys are already sanitized; sanitizeKey is idempotent.)
-    const renderKeyFor = (key: string) => sanitizeKey(`${prefix}${key}`);
-    for (const key of vk) {
-      const renderKey = renderKeyFor(key);
+    // Render keys are opaque, sequential ids (`s0`, `s1`, …) — never derived
+    // from the name. This guarantees a unique, valid CSS-var/dataKey identifier
+    // per series, so distinct names that would mangle to the same string (e.g.
+    // `a-b` and `a b`) can't collide and overwrite each other. The original name
+    // stays as the label.
+    const renderKeyByName = new Map<string, string>();
+    for (const name of seriesNames) {
+      const renderKey = `s${seriesIndex}`;
+      renderKeyByName.set(name, renderKey);
       valueKeys.push(renderKey);
       chartConfig[renderKey] = {
-        label: labels?.get(key) ?? key,
-        color: COLORS[colorIndex % COLORS.length],
+        label: name,
+        color: COLORS[seriesIndex % COLORS.length],
       };
-      colorIndex++;
+      seriesIndex++;
     }
 
     for (const row of rows) {
@@ -194,10 +188,10 @@ export function buildChartModel(
         entry = { [TS_KEY]: ts };
         byTs.set(ts, entry);
       }
-      for (const key of vk) {
+      for (const name of seriesNames) {
         // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
         // recharts plots them; non-numeric values become null (a gap).
-        entry[renderKeyFor(key)] = toNumber(row[key]);
+        entry[renderKeyByName.get(name)!] = toNumber(row[name]);
       }
     }
   });

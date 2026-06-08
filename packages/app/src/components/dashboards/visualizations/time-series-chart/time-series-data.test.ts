@@ -4,17 +4,18 @@ import { buildChartModel } from "./time-series-data";
 const TS_KEY = "__ts";
 
 describe("buildChartModel", () => {
-  it("keeps a single query's value keys unprefixed", () => {
+  it("assigns an opaque render key and keeps the column name as the label", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", value: 5 }]],
       undefined,
     );
-    expect(model.valueKeys).toEqual(["value"]);
+    expect(model.valueKeys).toEqual(["s0"]);
+    expect(model.chartConfig.s0?.label).toBe("value");
     expect(model.chartData[0]?.[TS_KEY]).toBeTypeOf("number");
-    expect(model.chartData[0]?.value).toBe(5);
+    expect(model.chartData[0]?.s0).toBe(5);
   });
 
-  it("namespaces colliding value keys across two queries and merges by time", () => {
+  it("gives each series a distinct key across two queries and merges by time", () => {
     const model = buildChartModel(
       [
         [{ time: "2026-06-07T00:00:00", value: 1 }],
@@ -22,10 +23,10 @@ describe("buildChartModel", () => {
       ],
       undefined,
     );
-    expect(model.valueKeys).toEqual(["q0__value", "q1__value"]);
+    expect(model.valueKeys).toEqual(["s0", "s1"]);
     expect(model.chartData).toHaveLength(1);
-    expect(model.chartData[0]?.q0__value).toBe(1);
-    expect(model.chartData[0]?.q1__value).toBe(2);
+    expect(model.chartData[0]?.s0).toBe(1);
+    expect(model.chartData[0]?.s1).toBe(2);
   });
 
   it("assigns distinct colors to series across queries", () => {
@@ -36,9 +37,7 @@ describe("buildChartModel", () => {
       ],
       undefined,
     );
-    expect(model.chartConfig.q0__value?.color).not.toBe(
-      model.chartConfig.q1__value?.color,
-    );
+    expect(model.chartConfig.s0?.color).not.toBe(model.chartConfig.s1?.color);
   });
 
   it("returns an empty model for empty input", () => {
@@ -60,25 +59,46 @@ describe("buildChartModel", () => {
       ],
       undefined,
     );
-    // Series keys are the sanitized group values, sorted.
-    expect(model.valueKeys).toEqual(["a", "b"]);
+    // One opaque key per group value, in sorted group order (a, b).
+    expect(model.valueKeys).toEqual(["s0", "s1"]);
+    expect(model.chartConfig.s0?.label).toBe("a");
+    expect(model.chartConfig.s1?.label).toBe("b");
     // Rows are merged by timestamp: host a+b at t0, host a at t1.
     expect(model.chartData).toHaveLength(2);
-    expect(model.chartData[0]?.a).toBe(1);
-    expect(model.chartData[0]?.b).toBe(2);
-    expect(model.chartData[1]?.a).toBe(3);
+    expect(model.chartData[0]?.s0).toBe(1);
+    expect(model.chartData[0]?.s1).toBe(2);
+    expect(model.chartData[1]?.s0).toBe(3);
   });
 
-  it("sanitizes value-column names so they form valid CSS/dataKey identifiers", () => {
+  it("keeps distinct group values that would mangle to the same key separate", () => {
+    const model = buildChartModel(
+      [
+        [
+          { time: "2026-06-07T00:00:00", host: "a-b", value: 1 },
+          { time: "2026-06-07T00:00:00", host: "a b", value: 2 },
+        ],
+      ],
+      undefined,
+    );
+    // "a-b" and "a b" both sanitize to "a_b"; opaque keys keep them apart so
+    // neither series overwrites the other.
+    expect(model.valueKeys).toEqual(["s0", "s1"]);
+    const labels = model.valueKeys.map((k) => model.chartConfig[k]?.label);
+    expect(labels).toEqual(["a b", "a-b"]); // sorted group order
+    expect(model.chartData[0]?.s0).toBe(2); // "a b"
+    expect(model.chartData[0]?.s1).toBe(1); // "a-b"
+  });
+
+  it("keeps non-identifier column names as the label without mangling the key", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", "count()": "42" }]],
       undefined,
     );
-    // `count()` would render as `var(--color-count())` (invalid) and blank the
-    // line; the render key is sanitized and the original kept as the label.
-    expect(model.valueKeys).toEqual(["count__"]);
-    expect(model.chartConfig.count__?.label).toBe("count()");
-    expect(model.chartData[0]?.count__).toBe(42);
+    // `count()` as a render key would produce `var(--color-count())` (invalid);
+    // the opaque key sidesteps that and the original name stays as the label.
+    expect(model.valueKeys).toEqual(["s0"]);
+    expect(model.chartConfig.s0?.label).toBe("count()");
+    expect(model.chartData[0]?.s0).toBe(42);
   });
 
   it("treats quoted numeric strings (ClickHouse aggregates) as values", () => {
@@ -86,8 +106,8 @@ describe("buildChartModel", () => {
       [[{ time: "2026-06-07T00:00:00", count: "42" }]],
       undefined,
     );
-    expect(model.valueKeys).toEqual(["count"]);
-    expect(model.chartData[0]?.count).toBe(42);
+    expect(model.valueKeys).toEqual(["s0"]);
+    expect(model.chartData[0]?.s0).toBe(42);
   });
 
   it("keeps in-domain rows at their real timestamps, even when offset from any grid", () => {
@@ -105,7 +125,7 @@ describe("buildChartModel", () => {
       [t0 - minute, t0 + 5 * minute],
     );
     expect(model.chartData).toHaveLength(3);
-    expect(model.chartData.map((r) => r.value)).toEqual([1, 2, 3]);
+    expect(model.chartData.map((r) => r.s0)).toEqual([1, 2, 3]);
     expect(model.chartData[0]?.[TS_KEY]).toBe(t0);
   });
 
@@ -122,7 +142,7 @@ describe("buildChartModel", () => {
       ],
       [t1, t1 + 5 * minute],
     );
-    expect(model.chartData.map((r) => r.value)).toEqual([2, 3]);
+    expect(model.chartData.map((r) => r.s0)).toEqual([2, 3]);
   });
 
   it("inserts a single null marker to break the line across a real gap", () => {
@@ -142,6 +162,6 @@ describe("buildChartModel", () => {
     );
     // 5 real rows + 1 null gap marker.
     expect(model.chartData).toHaveLength(6);
-    expect(model.chartData.filter((r) => r.value === null)).toHaveLength(1);
+    expect(model.chartData.filter((r) => r.s0 === null)).toHaveLength(1);
   });
 });
