@@ -1,11 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const authClientMocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
+  deleteCurrentUserAccount: vi.fn().mockResolvedValue(undefined),
   linkSocial: vi.fn(),
   listAccounts: vi.fn(),
+  navigate: vi.fn(),
+  useActiveOrganization: vi.fn(),
+  useSession: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -26,23 +30,43 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
         {props.children}
       </a>
     ),
-    useNavigate: () => vi.fn(),
+    useNavigate: () => mocks.navigate,
   };
 });
 
+vi.mock("@/data/account-settings", () => ({
+  deleteCurrentUserAccount: mocks.deleteCurrentUserAccount,
+}));
+
 vi.mock("@/lib/auth-client", () => ({
-  authClient: authClientMocks,
+  authClient: {
+    linkSocial: mocks.linkSocial,
+    listAccounts: mocks.listAccounts,
+    useActiveOrganization: mocks.useActiveOrganization,
+    useSession: mocks.useSession,
+  },
 }));
 
 import { Route } from "./account";
 
-describe("/account route", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    authClientMocks.linkSocial.mockResolvedValue({ data: null, error: null });
-    authClientMocks.listAccounts.mockResolvedValue({ data: [], error: null });
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.deleteCurrentUserAccount.mockResolvedValue(undefined);
+  mocks.linkSocial.mockResolvedValue({ data: null, error: null });
+  mocks.listAccounts.mockResolvedValue({ data: [], error: null });
+  mocks.useSession.mockReturnValue({
+    data: { user: { id: "test_user", email: "test@example.com" } },
   });
+  mocks.useActiveOrganization.mockReturnValue({
+    data: {
+      id: "test_org",
+      name: "Test Org",
+      members: [{ userId: "test_user", role: "member" }],
+    },
+  });
+});
 
+describe("/account route", () => {
   it("renders account settings page with heading and danger zone", () => {
     const Component = Route.options.component as React.ComponentType;
     render(<Component />);
@@ -79,14 +103,14 @@ describe("/account route", () => {
       await screen.findByRole("button", { name: "Connect Google" }),
     );
 
-    expect(authClientMocks.linkSocial).toHaveBeenCalledWith({
+    expect(mocks.linkSocial).toHaveBeenCalledWith({
       callbackURL: "/account",
       provider: "google",
     });
   });
 
   it("shows Google as connected when it is already linked", async () => {
-    authClientMocks.listAccounts.mockResolvedValueOnce({
+    mocks.listAccounts.mockResolvedValueOnce({
       data: [
         {
           accountId: "google-account",
@@ -105,5 +129,127 @@ describe("/account route", () => {
 
     expect(await screen.findByText("Connected")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Linked" })).toBeDisabled();
+  });
+
+  it("shows the organization deletion option to active organization owners", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Acme",
+        members: [
+          { userId: "test_user", role: "owner" },
+          { userId: "other_owner", role: "owner" },
+        ],
+      },
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+
+    expect(
+      screen.getByLabelText("Delete Acme organization too"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a forced organization deletion notice when the user is its only owner", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Acme",
+        members: [
+          { userId: "test_user", role: "owner" },
+          { userId: "member_user", role: "member" },
+        ],
+      },
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+
+    expect(
+      screen.getByText(
+        "This action is also going to delete the Acme organization.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Delete Acme organization too"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the organization deletion option from organization admins", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Test Org",
+        members: [{ userId: "test_user", role: "admin" }],
+      },
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+
+    expect(
+      screen.queryByLabelText("Delete Test Org organization too"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("passes the organization deletion choice when confirmed", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Acme",
+        members: [
+          { userId: "test_user", role: "owner" },
+          { userId: "other_owner", role: "owner" },
+        ],
+      },
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.type(screen.getByLabelText("Confirmation"), "DELETE");
+    await user.click(screen.getByLabelText("Delete Acme organization too"));
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({
+        data: { confirmation: "DELETE", deleteOrganization: true },
+      });
+    });
+  });
+
+  it("passes organization deletion without an extra checkbox click for the only owner", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({
+      data: {
+        id: "test_org",
+        name: "Acme",
+        members: [{ userId: "test_user", role: "owner" }],
+      },
+    });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.type(screen.getByLabelText("Confirmation"), "DELETE");
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({
+        data: { confirmation: "DELETE", deleteOrganization: true },
+      });
+    });
   });
 });

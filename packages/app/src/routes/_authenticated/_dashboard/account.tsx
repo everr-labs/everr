@@ -40,18 +40,32 @@ export const Route = createFileRoute("/_authenticated/_dashboard/account")({
 
 function AccountSettingsPage() {
   const navigate = useNavigate();
+  const { data: session } = authClient.useSession();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [isLoadingLinkedAccounts, setIsLoadingLinkedAccounts] = useState(true);
   const [googleLinkError, setGoogleLinkError] = useState<string | null>(null);
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteOrganization, setDeleteOrganization] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const isGoogleLinked = linkedAccounts.some(
     (account) => account.providerId === "google",
   );
   const isDeleteConfirmationValid = deleteConfirmation === "DELETE";
+  const activeOrganizationMembers = activeOrganization?.members ?? [];
+  const currentMemberRole = activeOrganizationMembers.find(
+    (member) => member.userId === session?.user?.id,
+  )?.role;
+  const canDeleteActiveOrganization = isOrgOwnerRole(currentMemberRole);
+  const isOnlyActiveOrganizationOwner =
+    canDeleteActiveOrganization &&
+    activeOrganizationMembers.filter((member) => isOrgOwnerRole(member.role))
+      .length === 1;
+  const activeOrganizationName =
+    activeOrganization?.name ?? "current organization";
   const googleButtonLabel = isLoadingLinkedAccounts
     ? "Checking..."
     : isLinkingGoogle
@@ -140,8 +154,13 @@ function AccountSettingsPage() {
     setIsDeletingAccount(true);
 
     try {
+      const shouldDeleteOrganization =
+        canDeleteActiveOrganization &&
+        (deleteOrganization || isOnlyActiveOrganizationOwner);
       await deleteCurrentUserAccount({
-        data: { confirmation: "DELETE" },
+        data: shouldDeleteOrganization
+          ? { confirmation: "DELETE", deleteOrganization: true }
+          : { confirmation: "DELETE" },
       });
       await navigate({ to: "/" });
     } catch (error) {
@@ -273,6 +292,38 @@ function AccountSettingsPage() {
                     setDeleteConfirmation(event.target.value)
                   }
                 />
+                {canDeleteActiveOrganization &&
+                isOnlyActiveOrganizationOwner ? (
+                  <p className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs font-medium">
+                    This action is also going to delete the{" "}
+                    {activeOrganizationName} organization.
+                  </p>
+                ) : canDeleteActiveOrganization ? (
+                  <label
+                    htmlFor="delete-organization"
+                    className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs"
+                  >
+                    <input
+                      id="delete-organization"
+                      type="checkbox"
+                      aria-label={`Delete ${activeOrganizationName} organization too`}
+                      className="mt-0.5 size-3.5 accent-current"
+                      checked={deleteOrganization}
+                      onChange={(event) =>
+                        setDeleteOrganization(event.target.checked)
+                      }
+                    />
+                    <span className="flex flex-col gap-1">
+                      <span className="font-medium">
+                        Delete {activeOrganizationName} organization too
+                      </span>
+                      <span className="text-muted-foreground">
+                        Leave this unchecked to remove only your account and
+                        keep the organization.
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
                 {deleteError ? (
                   <p className="text-xs text-destructive" role="alert">
                     {deleteError}
@@ -296,6 +347,15 @@ function AccountSettingsPage() {
         </CardHeader>
       </Card>
     </div>
+  );
+}
+
+function isOrgOwnerRole(role: string | null | undefined) {
+  return (
+    role
+      ?.split(",")
+      .map((part) => part.trim())
+      .some((part) => part === "owner") ?? false
   );
 }
 

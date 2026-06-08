@@ -41,6 +41,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
+import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import { resolveRetention } from "@/lib/retention";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
@@ -152,6 +153,11 @@ export const auth = betterAuth({
     provider: "pg",
   }),
   ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
+  user: {
+    deleteUser: {
+      enabled: true,
+    },
+  },
   onAPIError: {
     errorURL: "/auth/error",
   },
@@ -358,6 +364,16 @@ export const auth = betterAuth({
           }
         },
         afterDeleteOrganization: async ({ organization }) => {
+          try {
+            await deletePostgresOrganizationData(organization.id);
+          } catch (error) {
+            serverLogger.error("organization.postgres_data_cleanup.failed", {
+              ...exceptionAttributes(error),
+              "organization.id": organization.id,
+            });
+            throw error;
+          }
+
           try {
             await deprovisionSqlApiOrgUser(organization.id);
           } catch (error) {
