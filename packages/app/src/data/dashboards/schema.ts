@@ -51,6 +51,9 @@ export const panel = z.object({
   }),
 });
 
+/** Prefix every layout `content.$ref` must use to point at a panel key. */
+export const PANEL_REF_PREFIX = "#/spec/panels/";
+
 export const gridItem = z.object({
   x: z.number(),
   y: z.number(),
@@ -127,15 +130,42 @@ export const variable = z.discriminatedUnion("kind", [
   listVariable,
 ]);
 
-export const dashboardSpecSchema = z.object({
-  display: dashboardDisplay.optional(),
-  datasources: z.record(z.string(), datasourceSpec).optional(),
-  variables: z.array(variable).optional(),
-  panels: z.record(z.string(), panel),
-  layouts: z.array(gridLayout),
-  duration: z.string().optional(),
-  refreshInterval: z.string().optional(),
-});
+export const dashboardSpecSchema = z
+  .object({
+    display: dashboardDisplay.optional(),
+    datasources: z.record(z.string(), datasourceSpec).optional(),
+    variables: z.array(variable).optional(),
+    panels: z.record(z.string(), panel),
+    layouts: z.array(gridLayout),
+    duration: z.string().optional(),
+    refreshInterval: z.string().optional(),
+  })
+  // Every layout item must point at an existing panel. Without this, a typo'd
+  // $ref validates fine and then renders as a missing/silently-dropped panel.
+  .superRefine((spec, ctx) => {
+    spec.layouts.forEach((layout, li) => {
+      layout.spec.items.forEach((item, ii) => {
+        const ref = item.content.$ref;
+        const path = ["layouts", li, "spec", "items", ii, "content", "$ref"];
+        if (!ref.startsWith(PANEL_REF_PREFIX)) {
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: `Panel ref must start with "${PANEL_REF_PREFIX}"`,
+          });
+          return;
+        }
+        const key = ref.slice(PANEL_REF_PREFIX.length);
+        if (!Object.hasOwn(spec.panels, key)) {
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: `Panel ref "${ref}" does not match any panel in spec.panels`,
+          });
+        }
+      });
+    });
+  });
 
 export type DashboardDisplay = z.infer<typeof dashboardDisplay>;
 export type PanelPlugin = z.infer<typeof panelPlugin>;

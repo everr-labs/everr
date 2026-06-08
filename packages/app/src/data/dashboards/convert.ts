@@ -1,10 +1,8 @@
 import type { LayoutItem } from "react-grid-layout";
-import type { GridItem } from "./schema";
-
-const REF_PREFIX = "#/spec/panels/";
+import { type GridItem, PANEL_REF_PREFIX } from "./schema";
 
 export function panelKeyFromRef(ref: string): string {
-  return ref.slice(REF_PREFIX.length);
+  return ref.slice(PANEL_REF_PREFIX.length);
 }
 
 export function persesToRGL(items: GridItem[]): LayoutItem[] {

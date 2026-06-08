@@ -1,5 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { dashboardSlugSchema } from "./schema";
+import { dashboardSlugSchema, dashboardSpecSchema } from "./schema";
+
+const panel = {
+  kind: "Panel" as const,
+  spec: {
+    display: { name: "P" },
+    plugin: { kind: "TimeSeriesChart", spec: {} },
+  },
+};
+
+const gridItem = (ref: string) => ({
+  x: 0,
+  y: 0,
+  width: 12,
+  height: 8,
+  content: { $ref: ref },
+});
+
+const spec = (ref: string) => ({
+  panels: { cpu: panel },
+  layouts: [{ kind: "Grid" as const, spec: { items: [gridItem(ref)] } }],
+});
+
+describe("dashboardSpecSchema layout refs", () => {
+  it("accepts a ref that points at an existing panel", () => {
+    expect(
+      dashboardSpecSchema.safeParse(spec("#/spec/panels/cpu")).success,
+    ).toBe(true);
+  });
+
+  it("rejects a ref to a non-existent panel key", () => {
+    const result = dashboardSpecSchema.safeParse(spec("#/spec/panels/typo"));
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toMatch(
+      /does not match any panel/,
+    );
+  });
+
+  it("rejects a ref that does not use the panel prefix", () => {
+    const result = dashboardSpecSchema.safeParse(spec("cpu"));
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toMatch(/must start with/);
+  });
+});
 
 describe("dashboardSlugSchema", () => {
   it("accepts valid slugs", () => {
