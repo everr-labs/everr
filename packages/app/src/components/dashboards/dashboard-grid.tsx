@@ -6,27 +6,24 @@ import {
   verticalCompactor,
 } from "react-grid-layout";
 import { persesToRGL } from "@/data/dashboards/convert";
-import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { DashboardPanel } from "./dashboard-panel";
+import { useDashboard } from "./use-dashboard";
 import { VariableBar } from "./variable-bar";
 
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
 
 export function DashboardGrid() {
-  const dashboard = useDashboardStore((s) => s.dashboard);
+  const dashboard = useDashboard();
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
 
   const layout = useMemo(() => {
-    if (!dashboard) return [];
     const firstLayout = dashboard.spec.layouts[0];
     if (!firstLayout) return [];
     return persesToRGL(firstLayout.spec.items);
   }, [dashboard]);
-
-  if (!dashboard) return null;
 
   return (
     <div>

@@ -58,8 +58,7 @@
     "resend": "^6.12.3",
     "simple-icons": "^16.18.1",
     "sonner": "^2.0.7",
-    "zod": "catalog:",
-    "zustand": "^5.0.13"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@tanstack/devtools-vite": "^0.6.0",

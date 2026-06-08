@@ -1,6 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
-import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import type {
   VariableMeta,
   VariableValues,
@@ -13,6 +12,7 @@ import {
   getListVariableSource,
   sortVariableOptions,
 } from "@/data/dashboards/variable-values";
+import { useDashboard } from "./use-dashboard";
 
 export interface VariableOptionsState {
   options?: string[];
@@ -40,8 +40,7 @@ const EMPTY_VARIABLES: Variable[] = [];
 export function useDashboardVariables(): DashboardVariablesState {
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const { from, to, vars } = search;
-  const variables =
-    useDashboardStore((s) => s.dashboard?.spec.variables) ?? EMPTY_VARIABLES;
+  const variables = useDashboard().spec.variables ?? EMPTY_VARIABLES;
 
   // Pair each query-backed variable with its SQL once; results are keyed by
   // variable name below so the lookup never depends on array identity.

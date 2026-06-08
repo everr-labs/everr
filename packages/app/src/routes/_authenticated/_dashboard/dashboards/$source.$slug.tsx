@@ -8,7 +8,6 @@ import {
 import { useEffect, useRef } from "react";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
-import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardSearchDefaults } from "@/data/dashboards/time-defaults";
 
@@ -40,13 +39,6 @@ function DashboardPage() {
   const { source, slug } = Route.useParams();
   const key = `${source}/${slug}`;
   const { data } = useSuspenseQuery(dashboardOptions(source, slug));
-  const setDashboard = useDashboardStore((s) => s.setDashboard);
-  const dashboard = useDashboardStore((s) => s.dashboard);
-  const loadedKey = useDashboardStore((s) => s.loadedKey);
-
-  useEffect(() => {
-    if (!dashboard || loadedKey !== key) setDashboard(data, key);
-  }, [data, dashboard, loadedKey, key, setDashboard]);
 
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const navigate = useNavigate();
@@ -66,6 +58,5 @@ function DashboardPage() {
     }
   }, [key, data, navigate]);
 
-  if (!dashboard) return null;
   return <DashboardGrid />;
 }
