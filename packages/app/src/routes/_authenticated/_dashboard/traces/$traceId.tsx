@@ -82,6 +82,7 @@ function TraceDetailError({ error }: { error: Error }) {
       <Button
         variant="outline"
         size="sm"
+        nativeButton={false}
         render={<Link to="/traces" search={toTraceListSearch(search)} />}
       >
         Back to traces
