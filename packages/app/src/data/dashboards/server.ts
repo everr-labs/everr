@@ -3,7 +3,10 @@ import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import {
+  createApplyServerFn,
+  createAuthenticatedServerFn,
+} from "@/lib/serverFn";
 import { buildDesiredSet } from "./desired";
 import { interpolateVariables } from "./interpolate";
 import { reconcile } from "./reconcile";
@@ -65,7 +68,7 @@ export const listDashboards = createAuthenticatedServerFn({
   }));
 });
 
-export const applyDashboards = createAuthenticatedServerFn({ method: "POST" })
+export const applyDashboards = createApplyServerFn({ method: "POST" })
   .inputValidator(applyDashboardsInput)
   .handler(async ({ data: { source, documents, dryRun }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
