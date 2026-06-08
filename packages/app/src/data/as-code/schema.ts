@@ -1,4 +1,3 @@
-// packages/app/src/data/as-code/schema.ts
 import * as z from "zod";
 
 /** A single document in an apply request: its relative path and raw contents. */

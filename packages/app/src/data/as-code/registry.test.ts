@@ -1,4 +1,3 @@
-// packages/app/src/data/as-code/registry.test.ts
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardReconciler = vi.fn();

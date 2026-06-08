@@ -1,4 +1,3 @@
-// packages/app/src/data/dashboards/apply.server.ts
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";

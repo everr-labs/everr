@@ -1,19 +1,6 @@
-// packages/app/src/data/as-code/apply-auth.server.ts
 import { createMiddleware } from "@tanstack/react-start";
 import { auth } from "@/lib/auth.server";
 import { createClickhouseQuery } from "@/lib/clickhouse";
-
-/**
- * API key configs accepted for `applyDashboards`, in priority order. Only the
- * org-referenced `ingest` key is accepted today. To add a user-referenced `cli`
- * key or a dedicated `deploy` key later, append an entry here — a user-referenced
- * config will also need an org-resolution branch in `resolveApplyAuth` (the
- * `references` field is the discriminator for that).
- */
-const APPLY_KEY_CONFIGS: ReadonlyArray<{
-  configId: string;
-  references: "organization";
-}> = [{ configId: "ingest", references: "organization" }];
 
 export interface ApplyAuth {
   organizationId: string;
@@ -42,20 +29,21 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   const key = extractBearerKey(headers);
   if (!key) throw new Error("Missing API key");
 
-  for (const config of APPLY_KEY_CONFIGS) {
-    const result = await auth.api.verifyApiKey({
-      body: { key, configId: config.configId },
-    });
-    if (!result.valid || !result.key?.referenceId) continue;
-    // Only org-referenced configs are in the list today, so referenceId is the
-    // organization id.
-    return {
-      organizationId: result.key.referenceId,
-      principalId: `apikey:${result.key.id}`,
-    };
-  }
+  const result = await auth.api.verifyApiKey({
+    // We only accept the `ingest` config today, which is org-referenced.
+    // TODO: Add a separate "write" API key config for org-scoped write access
+    // and deprecate `ingest`.
+    body: { key, configId: "ingest" },
+  });
 
-  throw new Error("Invalid API key");
+  if (!result.valid || !result.key?.referenceId)
+    throw new Error("Invalid API key");
+
+  // Only org-referenced configs are in the list today, so referenceId is the organization id.
+  return {
+    organizationId: result.key.referenceId,
+    principalId: `apikey:${result.key.id}`,
+  };
 }
 
 /**
@@ -75,9 +63,6 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
 /**
  * Authorize an apply request via an organization-scoped API key (CI/gitops).
  * Interactive sessions are not accepted — apply only ever runs under a token.
- * Same context shape as requireOrgMiddleware. Scoped to the `/api/apply` route —
- * kept out of the shared `serverFn.ts` so its server-only imports never reach
- * the client bundle.
  */
 export const requireOrgOrApiKeyMiddleware = createMiddleware().server(
   async ({ request, next }) => {
