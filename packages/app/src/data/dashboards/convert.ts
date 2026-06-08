@@ -21,6 +21,21 @@ export function persesToRGL(items: GridItem[]): LayoutItem[] {
   }));
 }
 
+/**
+ * Layout-equality check keyed by panel ref and geometry, ignoring item order
+ * (a grid item's position is defined by its x/y/width/height, not its index).
+ * Used to distinguish a real drag/resize from react-grid-layout's no-op
+ * `onLayoutChange` callbacks on mount/measure, which would otherwise mark the
+ * dashboard dirty without any user edit.
+ */
+export function sameLayoutItems(a: GridItem[], b: GridItem[]): boolean {
+  if (a.length !== b.length) return false;
+  const key = (it: GridItem) =>
+    `${it.content.$ref}:${it.x},${it.y},${it.width},${it.height}`;
+  const inA = new Set(a.map(key));
+  return b.every((it) => inA.has(key(it)));
+}
+
 export function rglToPerses(layout: LayoutItem[]): GridItem[] {
   return layout.map((l) => ({
     x: l.x,

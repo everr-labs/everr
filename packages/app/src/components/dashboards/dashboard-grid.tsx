@@ -49,6 +49,7 @@ import {
   panelRefFromKey,
   persesToRGL,
   rglToPerses,
+  sameLayoutItems,
 } from "@/data/dashboards/convert";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import {
@@ -148,12 +149,20 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
   const handleLayoutChange = useCallback(
     (newLayout: Layout) => {
       if (!dashboard) return;
+      const nextItems = rglToPerses([...newLayout]);
+      // react-grid-layout fires onLayoutChange on mount/measure/compaction with
+      // an unchanged layout; only mark the dashboard dirty on a real change so
+      // viewing a dashboard doesn't trigger the unsaved-changes prompt.
+      if (
+        sameLayoutItems(dashboard.spec.layouts[0]?.spec.items ?? [], nextItems)
+      )
+        return;
       updateLayout([
         {
           kind: "Grid" as const,
           spec: {
             ...dashboard.spec.layouts[0]?.spec,
-            items: rglToPerses([...newLayout]),
+            items: nextItems,
           },
         },
         ...dashboard.spec.layouts.slice(1),
