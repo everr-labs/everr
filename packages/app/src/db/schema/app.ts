@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
-  foreignKey,
   index,
   integer,
   jsonb,
@@ -9,7 +8,6 @@ import {
   pgTable,
   text,
   timestamp,
-  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -172,46 +170,18 @@ export const workflowJobs = pgTable(
   ],
 );
 
-export const dashboardFolders = pgTable(
-  "dashboard_folders",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: text("organization_id").notNull(),
-    parentId: uuid("parent_id"),
-    name: text("name").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    // FK target for the tenant-scoped parent reference below.
-    unique("dashboard_folders_org_id_uq").on(table.organizationId, table.id),
-    // A folder's parent must belong to the same organization, so a cross-org
-    // reference is impossible and a cascade delete can never reach another
-    // org's data.
-    foreignKey({
-      columns: [table.organizationId, table.parentId],
-      foreignColumns: [table.organizationId, table.id],
-      name: "dashboard_folders_parent_fk",
-    }).onDelete("cascade"),
-    uniqueIndex("dashboard_folders_tenant_parent_name_uq").on(
-      table.organizationId,
-      sql`COALESCE(parent_id, '00000000-0000-0000-0000-000000000000')`,
-      table.name,
-    ),
-  ],
-);
-
 export const dashboards = pgTable(
   "dashboards",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
-    folderId: uuid("folder_id"),
+    // The gitops source that owns this dashboard (prune/reconcile scope).
+    source: text("source").notNull(),
+    // URL-safe per-source identifier (the spec's "name"); also echoed as
+    // metadata.name in the stored document.
     slug: text("slug").notNull(),
+    // Derived display path ("Team / Latency"); empty string = root.
+    folderPath: text("folder_path").notNull().default(""),
     spec: jsonb("spec").notNull().$type<DashboardSpec>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -221,16 +191,11 @@ export const dashboards = pgTable(
       .defaultNow(),
   },
   (table) => [
-    // A dashboard's folder must belong to the same organization (tenant-scoped
-    // FK), so it cannot land under another org's folder and a cascade delete
-    // stays within the org.
-    foreignKey({
-      columns: [table.organizationId, table.folderId],
-      foreignColumns: [dashboardFolders.organizationId, dashboardFolders.id],
-      name: "dashboards_folder_fk",
-    }).onDelete("cascade"),
-    uniqueIndex("dashboards_tenant_slug_uq").on(
+    // Identity is (org, source, slug): same-named dashboards from different
+    // sources coexist; an in-source duplicate is rejected.
+    uniqueIndex("dashboards_tenant_source_slug_uq").on(
       table.organizationId,
+      table.source,
       table.slug,
     ),
     index("dashboards_tenant_updated_idx").on(
