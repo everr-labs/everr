@@ -44,7 +44,8 @@ type ErrorIssueSummaryRow = Omit<
   traceCount: string | number;
 };
 
-type ErrorOccurrenceRow = ErrorOccurrence & {
+type ErrorOccurrenceRow = Omit<ErrorOccurrence, "timestampRank"> & {
+  timestampRank?: string | number;
   resourceAttributes: Record<string, string> | null;
   logAttributes: Record<string, string> | null;
   scopeAttributes: Record<string, string> | null;
@@ -63,6 +64,8 @@ function mapSummary(row: ErrorIssueSummaryRow): ErrorIssueSummary {
 function mapOccurrence(row: ErrorOccurrenceRow): ErrorOccurrence {
   return {
     ...row,
+    timestampRank:
+      row.timestampRank === undefined ? undefined : Number(row.timestampRank),
     resourceAttributes: row.resourceAttributes ?? {},
     logAttributes: row.logAttributes ?? {},
     scopeAttributes: row.scopeAttributes ?? {},
