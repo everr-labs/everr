@@ -85,6 +85,7 @@ vi.mock("@/lib/clickhouse", () => {
 vi.mock("@/lib/serverFn", async () => {
   const { query } = await import("@/lib/clickhouse");
 
+  // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
   const makeAuthChain = () =>
     makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
       return fn({
@@ -96,6 +97,7 @@ vi.mock("@/lib/serverFn", async () => {
               activeOrganizationId: "test_org",
               id: "test_session",
             },
+            user: { id: "test_user" },
           },
           clickhouse: {
             query: <T>(sql: string, params?: Record<string, unknown>) =>
@@ -105,10 +107,27 @@ vi.mock("@/lib/serverFn", async () => {
       });
     });
 
+  // authMiddleware only: the raw session passes through. It does NOT guarantee an
+  // active organization and does NOT add `clickhouse`, mirroring the real partial
+  // middleware — so code that wrongly depends on either in a partial-auth flow
+  // fails here instead of passing against an over-provisioned context.
+  const makePartialAuthChain = () =>
+    makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
+      return fn({
+        data: opts?.data,
+        context: {
+          session: {
+            session: { id: "test_session", activeOrganizationId: undefined },
+            user: { id: "test_user" },
+          },
+        },
+      });
+    });
+
   return {
     requireOrgMiddleware: { __handler: vi.fn() },
     createAuthenticatedServerFn: vi.fn(makeAuthChain),
-    createPartiallyAuthenticatedServerFn: vi.fn(makeAuthChain),
+    createPartiallyAuthenticatedServerFn: vi.fn(makePartialAuthChain),
   };
 });
 

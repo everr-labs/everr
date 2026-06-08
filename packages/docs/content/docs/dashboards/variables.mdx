@@ -56,7 +56,7 @@ Query-backed options (the first column of the result becomes the options):
 List-variable options:
 
 - **`allowMultiple`** — let the user select several values.
-- **`allowAllValue`** — add an "All" entry. When selected, `$name` expands to every loaded option. Set `customAllValue` to substitute a fixed string instead (for example `customAllValue: "%"` for a `LIKE`).
+- **`allowAllValue`** — add an "All" entry. When selected, `$name` expands to every loaded option (as a quoted list). Set `customAllValue` to substitute a fixed string instead — it's inserted **verbatim**, with no quoting added, so include any quotes the SQL needs yourself. For a `LIKE` match-all use `customAllValue: "'%'"` (note the inner quotes) → `... LIKE '%'`; a bare `customAllValue: "%"` produces the invalid `... LIKE %`.
 - **`defaultValue`** — initial selection (a string, or a list when `allowMultiple`).
 - **`sort`** — order the picker options: `none`, `alphabetical-asc` / `-desc`, `numerical-asc` / `-desc`, or the case-insensitive `alphabetical-ci-asc` / `-desc`.
 - **`display.hidden: true`** — keep the variable out of the bar but still usable in queries.

@@ -7,8 +7,16 @@ This is the shortest path to a working dashboard: write one YAML file, reconcile
 
 ## Before you start
 
-- The CLI is installed and you've signed in (`everr cloud login`). See [Install](/docs/getting-started/install).
+- The CLI is installed. See [Install](/docs/getting-started/install).
 - You have telemetry in Everr to query. If not, start with [Your first trace](/docs/getting-started/first-trace).
+- **`everr apply` authenticates with an organization ingest key, not your `everr cloud login` session.** Create an ingest key in Everr and export it before running the commands below:
+
+  ```sh
+  export EVERR_API_TOKEN="<your-org-ingest-key>"
+  export EVERR_API_URL="https://app.everr.dev"   # your Everr host; falls back to a prior `everr cloud login` URL
+  ```
+
+  A logged-in session alone won't work — apply is token-only. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Create a dashboard file
 
@@ -45,6 +53,7 @@ spec:
                     SELECT toStartOfMinute(Timestamp) AS ts,
                            quantile(0.99)(Duration) / 1e6 AS p99
                     FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                     GROUP BY ts
                     ORDER BY ts
   layouts:
@@ -62,6 +71,7 @@ A few things worth noting:
 
 - `metadata.name` is the **slug** — the dashboard's stable identity and its URL. Use lowercase letters, digits, and hyphens.
 - The panel's query must alias its time column to a recognized name (`ts`, `time`, `timestamp`, `bucket`, …). The time-series chart uses that column for the x-axis and treats the remaining numeric columns as series. See [Panels and visualizations](/docs/dashboards/panels-and-visualizations).
+- The `{from:String}` / `{to:String}` parameters carry the dashboard's selected time range. They aren't injected automatically, so include the `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` filter — otherwise the query scans all history and ignores the picker.
 - The `layouts` grid places the panel. `content.$ref` points at the panel key under `spec.panels` (here, `p99`). The grid is 24 columns wide.
 
 ## Preview the change
