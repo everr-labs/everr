@@ -94,7 +94,7 @@ export function buildApplyContext(
  * Authorize a dashboards apply: prefer an API key (CI/gitops), fall back to the
  * interactive session+org. Same context shape as requireOrgMiddleware.
  */
-const requireOrgOrApiKeyMiddleware = createMiddleware().server(
+export const requireOrgOrApiKeyMiddleware = createMiddleware().server(
   async ({ request, next }) => {
     const apiAuth = await resolveApplyAuth(request.headers);
     const session = apiAuth
@@ -103,7 +103,3 @@ const requireOrgOrApiKeyMiddleware = createMiddleware().server(
     return next({ context: buildApplyContext(apiAuth, session) });
   },
 );
-
-export const createApplyServerFn = createServerFn().middleware([
-  requireOrgOrApiKeyMiddleware,
-]);

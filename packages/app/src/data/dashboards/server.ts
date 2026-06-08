@@ -3,15 +3,12 @@ import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
-import {
-  createApplyServerFn,
-  createAuthenticatedServerFn,
-} from "@/lib/serverFn";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { buildDesiredSet } from "./desired";
 import { interpolateVariables } from "./interpolate";
 import { reconcile } from "./reconcile";
 import type { Dashboard, DashboardSpec } from "./schema";
-import { applyDashboardsInput, dashboardSpecSchema } from "./schema";
+import { dashboardSpecSchema } from "./schema";
 
 export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ source: z.string(), slug: z.string() }))
@@ -68,82 +65,91 @@ export const listDashboards = createAuthenticatedServerFn({
   }));
 });
 
-export const applyDashboards = createApplyServerFn({ method: "POST" })
-  .inputValidator(applyDashboardsInput)
-  .handler(async ({ data: { source, documents, dryRun }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
+export interface ApplyDashboardsResult {
+  created: string[];
+  updated: string[];
+  deleted: string[];
+  dryRun: boolean;
+}
 
-    // Validate + normalize the desired set (throws with file path on failure).
-    const desired = buildDesiredSet(documents);
+/**
+ * Source-scoped declarative reconcile core, shared by the apply route. Loads
+ * ONLY the given source's dashboards, diffs against the desired documents, and
+ * (unless dryRun) applies creates/updates/deletes in a single transaction.
+ */
+export async function applyDashboardSpecs(opts: {
+  orgId: string;
+  source: string;
+  documents: { path: string; document: unknown }[];
+  dryRun?: boolean;
+}): Promise<ApplyDashboardsResult> {
+  const { orgId, source, documents, dryRun } = opts;
 
-    // Load ONLY this source's dashboards — the diff never sees other sources,
-    // which is what makes delete-by-default safe across repos.
-    const existing = await db
-      .select({
-        slug: dashboards.slug,
-        folderPath: dashboards.folderPath,
-        spec: dashboards.spec,
-      })
-      .from(dashboards)
-      .where(
-        and(
-          eq(dashboards.organizationId, orgId),
-          eq(dashboards.source, source),
-        ),
-      );
+  const desired = buildDesiredSet(documents);
 
-    const diff = reconcile({ existing, desired });
+  const existing = await db
+    .select({
+      slug: dashboards.slug,
+      folderPath: dashboards.folderPath,
+      spec: dashboards.spec,
+    })
+    .from(dashboards)
+    .where(
+      and(eq(dashboards.organizationId, orgId), eq(dashboards.source, source)),
+    );
 
-    const summary = {
-      created: diff.creates.map((d) => d.slug),
-      updated: diff.updates.map((d) => d.slug),
-      deleted: diff.deletes,
-      dryRun: dryRun ?? false,
-    };
+  const diff = reconcile({ existing, desired });
 
-    if (dryRun) return summary;
+  const summary: ApplyDashboardsResult = {
+    created: diff.creates.map((d) => d.slug),
+    updated: diff.updates.map((d) => d.slug),
+    deleted: diff.deletes,
+    dryRun: dryRun ?? false,
+  };
 
-    await db.transaction(async (tx) => {
-      for (const d of diff.creates) {
-        await tx.insert(dashboards).values({
-          organizationId: orgId,
-          source,
-          slug: d.slug,
-          folderPath: d.folderPath,
+  if (dryRun) return summary;
+
+  await db.transaction(async (tx) => {
+    for (const d of diff.creates) {
+      await tx.insert(dashboards).values({
+        organizationId: orgId,
+        source,
+        slug: d.slug,
+        folderPath: d.folderPath,
+        spec: d.spec as DashboardSpec,
+      });
+    }
+    for (const d of diff.updates) {
+      await tx
+        .update(dashboards)
+        .set({
           spec: d.spec as DashboardSpec,
-        });
-      }
-      for (const d of diff.updates) {
-        await tx
-          .update(dashboards)
-          .set({
-            spec: d.spec as DashboardSpec,
-            folderPath: d.folderPath,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(dashboards.organizationId, orgId),
-              eq(dashboards.source, source),
-              eq(dashboards.slug, d.slug),
-            ),
-          );
-      }
-      for (const slug of diff.deletes) {
-        await tx
-          .delete(dashboards)
-          .where(
-            and(
-              eq(dashboards.organizationId, orgId),
-              eq(dashboards.source, source),
-              eq(dashboards.slug, slug),
-            ),
-          );
-      }
-    });
-
-    return summary;
+          folderPath: d.folderPath,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(dashboards.organizationId, orgId),
+            eq(dashboards.source, source),
+            eq(dashboards.slug, d.slug),
+          ),
+        );
+    }
+    for (const slug of diff.deletes) {
+      await tx
+        .delete(dashboards)
+        .where(
+          and(
+            eq(dashboards.organizationId, orgId),
+            eq(dashboards.source, source),
+            eq(dashboards.slug, slug),
+          ),
+        );
+    }
   });
+
+  return summary;
+}
 
 type QueryRow = Record<string, string | number | boolean | null>;
 

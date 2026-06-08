@@ -60,7 +60,7 @@ vi.mock("@/db/schema", () => ({
 }));
 
 import {
-  applyDashboards,
+  applyDashboardSpecs,
   getDashboard,
   listDashboards,
   runPanelQuery,
@@ -228,26 +228,25 @@ function mockApplySelect(rows: unknown[]) {
   );
 }
 
-describe("applyDashboards", () => {
+describe("applyDashboardSpecs", () => {
   it("dryRun computes a diff and does not write", async () => {
     mockApplySelect([
       { slug: "old-dash", folderPath: "", spec: { panels: {}, layouts: [] } },
     ]);
-    const result = await applyDashboards({
-      data: {
-        source: "team",
-        dryRun: true,
-        documents: [
-          {
-            path: "cpu.yaml",
-            document: {
-              kind: "Dashboard",
-              metadata: { name: "cpu" },
-              spec: { panels: {}, layouts: [] },
-            },
+    const result = await applyDashboardSpecs({
+      orgId: "org-1",
+      source: "team",
+      dryRun: true,
+      documents: [
+        {
+          path: "cpu.yaml",
+          document: {
+            kind: "Dashboard",
+            metadata: { name: "cpu" },
+            spec: { panels: {}, layouts: [] },
           },
-        ],
-      },
+        },
+      ],
     });
     expect(result).toEqual({
       created: ["cpu"],
@@ -260,20 +259,19 @@ describe("applyDashboards", () => {
 
   it("applies the diff inside a transaction when not a dry run", async () => {
     mockApplySelect([]);
-    const result = await applyDashboards({
-      data: {
-        source: "team",
-        documents: [
-          {
-            path: "a.yaml",
-            document: {
-              kind: "Dashboard",
-              metadata: { name: "a" },
-              spec: { panels: {}, layouts: [] },
-            },
+    const result = await applyDashboardSpecs({
+      orgId: "org-1",
+      source: "team",
+      documents: [
+        {
+          path: "a.yaml",
+          document: {
+            kind: "Dashboard",
+            metadata: { name: "a" },
+            spec: { panels: {}, layouts: [] },
           },
-        ],
-      },
+        },
+      ],
     });
     expect(result.created).toEqual(["a"]);
     expect(result.dryRun).toBe(false);
@@ -283,13 +281,12 @@ describe("applyDashboards", () => {
   it("rejects the apply when a document is invalid", async () => {
     // buildDesiredSet throws before the db.select is called
     await expect(
-      applyDashboards({
-        data: {
-          source: "team",
-          documents: [
-            { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
-          ],
-        },
+      applyDashboardSpecs({
+        orgId: "org-1",
+        source: "team",
+        documents: [
+          { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
+        ],
       }),
     ).rejects.toThrow(/bad\.yaml/);
     expect(mockedDb.transaction).not.toHaveBeenCalled();
