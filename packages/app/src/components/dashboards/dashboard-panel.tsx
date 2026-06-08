@@ -1,8 +1,5 @@
-import { Button } from "@everr/ui/components/button";
 import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
-import { cn } from "@everr/ui/lib/utils";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Copy, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import type { Panel } from "@/data/dashboards/schema";
 import { PanelShell } from "../panel-shell";
@@ -12,19 +9,9 @@ import { getVisualizationInset, PanelVisualization } from "./visualizations";
 interface DashboardPanelProps {
   panel: Panel;
   panelKey: string;
-  dashboardId?: string;
-  isEditing: boolean;
-  onRemove?: () => void;
-  onDuplicate?: () => void;
 }
 
-export function DashboardPanel({
-  panel,
-  panelKey,
-  isEditing,
-  onRemove,
-  onDuplicate,
-}: DashboardPanelProps) {
+export function DashboardPanel({ panel, panelKey }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
   const search = useSearch({ from: "/_authenticated/_dashboard" });
@@ -50,40 +37,15 @@ export function DashboardPanel({
 
   return (
     <div
-      className={cn(
-        "group/panel relative h-full",
-        isEditing && "drag-handle cursor-grab active:cursor-grabbing",
-      )}
+      className="group/panel relative h-full"
       style={{ viewTransitionName: `panel-${panelKey}` }}
     >
-      {isEditing && (
-        <div className="absolute top-0 left-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 cursor-default items-center rounded-md border border-border bg-card px-1 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/panel:opacity-100">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="cursor-pointer"
-            onClick={onDuplicate}
-            aria-label="Duplicate panel"
-          >
-            <Copy />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="cursor-pointer"
-            onClick={onRemove}
-            aria-label="Remove panel"
-          >
-            <Trash2 />
-          </Button>
-        </div>
-      )}
       <PanelShell
         title={display.name ?? panelKey}
         description={display.description}
         status={status}
         errorMessage={errorMessage}
-        className={cn("h-full", isEditing && "pointer-events-none")}
+        className="h-full"
         inset={getVisualizationInset(plugin.kind)}
       >
         <PanelVisualization

@@ -47,11 +47,7 @@ export function DashboardGrid() {
             if (!panel) return null;
             return (
               <div key={item.i}>
-                <DashboardPanel
-                  panel={panel}
-                  panelKey={item.i}
-                  isEditing={false}
-                />
+                <DashboardPanel panel={panel} panelKey={item.i} />
               </div>
             );
           })}

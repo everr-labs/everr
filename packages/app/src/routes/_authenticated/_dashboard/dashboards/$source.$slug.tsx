@@ -51,6 +51,8 @@ function DashboardPage() {
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const navigate = useNavigate();
   const seededFor = useRef<string | null>(null);
+  // Seeds time-range defaults once per dashboard; reads search but intentionally does not re-run on search changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (seededFor.current === key) return;
     seededFor.current = key;
@@ -62,7 +64,7 @@ function DashboardPage() {
         replace: true,
       });
     }
-  }, [key, data, search, navigate]);
+  }, [key, data, navigate]);
 
   if (!dashboard) return null;
   return <DashboardGrid />;
