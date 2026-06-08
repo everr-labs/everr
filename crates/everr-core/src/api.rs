@@ -83,17 +83,17 @@ impl ApiClient {
         })
     }
 
-    pub async fn apply_dashboards(
+    pub async fn apply(
         &self,
-        request: &crate::dashboards::ApplyDashboardsRequest,
-    ) -> Result<crate::dashboards::ApplyDashboardsSummary> {
+        request: &crate::apply::ApplyRequest,
+    ) -> Result<crate::apply::ApplySummary> {
         let response = self
             .http
-            .post(format!("{}/api/dashboards/apply", self.base_url))
+            .post(format!("{}/api/apply", self.base_url))
             .json(request)
             .send()
             .await
-            .context("dashboards apply request failed")?;
+            .context("apply request failed")?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -101,13 +101,13 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "dashboards apply"));
+            return Err(http_status_error(status, text, "apply"));
         }
 
         response
             .json()
             .await
-            .context("failed to decode dashboards apply response")
+            .context("failed to decode apply response")
     }
 
     pub async fn get_runs_list(&self, query: &[(&str, String)]) -> Result<Value> {

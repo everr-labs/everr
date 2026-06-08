@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use walkdir::WalkDir;
 
-/// A dashboard document discovered on disk: its repo-relative POSIX path and
+/// A resource document discovered on disk: its repo-relative POSIX path and
 /// parsed JSON contents.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct DashboardDocument {
+pub struct ResourceDocument {
     pub path: String,
     pub document: Value,
 }
@@ -29,9 +29,9 @@ fn parse_document(path: &Path, contents: &str) -> Result<Value> {
     }
 }
 
-/// Recursively load every `.yaml`/`.yml`/`.json` dashboard under `dir`,
+/// Recursively load every `.yaml`/`.yml`/`.json` resource under `dir`,
 /// returning each with its POSIX path relative to `dir`. Errors name the file.
-pub fn load_dashboard_documents(dir: &Path) -> Result<Vec<DashboardDocument>> {
+pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
     let mut out = Vec::new();
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
@@ -47,7 +47,7 @@ pub fn load_dashboard_documents(dir: &Path) -> Result<Vec<DashboardDocument>> {
             std::fs::read_to_string(path).with_context(|| format!("{rel}: failed to read file"))?;
         let document =
             parse_document(path, &contents).with_context(|| format!("{rel}: failed to parse"))?;
-        out.push(DashboardDocument {
+        out.push(ResourceDocument {
             path: rel,
             document,
         });
@@ -56,20 +56,26 @@ pub fn load_dashboard_documents(dir: &Path) -> Result<Vec<DashboardDocument>> {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ApplyDashboardsRequest {
+pub struct ApplyRequest {
     pub source: String,
-    pub documents: Vec<DashboardDocument>,
+    pub documents: Vec<ResourceDocument>,
     #[serde(rename = "dryRun", skip_serializing_if = "std::ops::Not::not")]
     pub dry_run: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
-pub struct ApplyDashboardsSummary {
+pub struct KindResult {
+    pub kind: String,
     pub created: Vec<String>,
     pub updated: Vec<String>,
     pub deleted: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct ApplySummary {
     #[serde(rename = "dryRun")]
     pub dry_run: bool,
+    pub results: Vec<KindResult>,
 }
 
 #[cfg(test)]
@@ -92,7 +98,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut docs = load_dashboard_documents(dir.path()).unwrap();
+        let mut docs = load_resource_documents(dir.path()).unwrap();
         docs.sort_by(|a, b| a.path.cmp(&b.path));
 
         assert_eq!(docs.len(), 2);
@@ -106,7 +112,7 @@ mod tests {
     fn ignores_non_dashboard_files() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("README.md"), "# not a dashboard").unwrap();
-        let docs = load_dashboard_documents(dir.path()).unwrap();
+        let docs = load_resource_documents(dir.path()).unwrap();
         assert!(docs.is_empty());
     }
 
@@ -114,15 +120,15 @@ mod tests {
     fn errors_with_filename_on_invalid_yaml() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("broken.yaml"), "key: : :\n  - bad").unwrap();
-        let err = load_dashboard_documents(dir.path()).unwrap_err();
+        let err = load_resource_documents(dir.path()).unwrap_err();
         assert!(err.to_string().contains("broken.yaml"), "error was: {err}");
     }
 
     #[test]
     fn apply_request_omits_dry_run_when_false() {
-        let req = ApplyDashboardsRequest {
+        let req = ApplyRequest {
             source: "team".into(),
-            documents: vec![DashboardDocument {
+            documents: vec![ResourceDocument {
                 path: "cpu.yaml".into(),
                 document: serde_json::json!({"kind": "Dashboard"}),
             }],
@@ -138,7 +144,7 @@ mod tests {
 
     #[test]
     fn apply_request_includes_dry_run_when_true() {
-        let req = ApplyDashboardsRequest {
+        let req = ApplyRequest {
             source: "team".into(),
             documents: vec![],
             dry_run: true,
@@ -148,13 +154,18 @@ mod tests {
     }
 
     #[test]
-    fn apply_summary_deserializes_from_camel_case() {
-        let s: ApplyDashboardsSummary = serde_json::from_value(serde_json::json!({
-            "created": ["a"], "updated": [], "deleted": ["b"], "dryRun": true
+    fn apply_summary_deserializes_per_kind() {
+        let s: ApplySummary = serde_json::from_value(serde_json::json!({
+            "dryRun": true,
+            "results": [
+                {"kind": "Dashboard", "created": ["a"], "updated": [], "deleted": ["b"]}
+            ]
         }))
         .unwrap();
-        assert_eq!(s.created, vec!["a".to_string()]);
-        assert_eq!(s.deleted, vec!["b".to_string()]);
         assert!(s.dry_run);
+        assert_eq!(s.results.len(), 1);
+        assert_eq!(s.results[0].kind, "Dashboard");
+        assert_eq!(s.results[0].created, vec!["a".to_string()]);
+        assert_eq!(s.results[0].deleted, vec!["b".to_string()]);
     }
 }
