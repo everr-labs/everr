@@ -41,8 +41,8 @@ pub enum Commands {
     /// Manage bundled Everr agent skills
     #[command(name = "skills")]
     Skills(SkillsArgs),
-    /// Apply a directory of dashboard definitions (gitops)
-    Dashboards(DashboardsArgs),
+    /// Apply a directory of resource definitions (gitops)
+    Apply(ApplyArgs),
 }
 
 #[derive(Args, Debug)]
@@ -193,22 +193,10 @@ pub struct SkillsUninstallArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct DashboardsArgs {
-    #[command(subcommand)]
-    pub command: DashboardsSubcommand,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum DashboardsSubcommand {
-    /// Reconcile a directory of dashboard files into Everr
-    Apply(DashboardsApplyArgs),
-}
-
-#[derive(Args, Debug)]
-pub struct DashboardsApplyArgs {
-    /// Directory containing dashboard YAML/JSON files
+pub struct ApplyArgs {
+    /// Directory containing resource YAML/JSON files
     pub dir: String,
-    /// Source id that owns these dashboards (prune scope)
+    /// Source id that owns these resources (prune scope)
     #[arg(long)]
     pub source: String,
     /// Compute and print the diff without writing

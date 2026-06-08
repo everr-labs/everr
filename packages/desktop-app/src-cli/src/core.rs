@@ -597,17 +597,17 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
     query.push(("offset", offset.to_string()));
 }
 
-pub async fn run_dashboards_apply(args: crate::cli::DashboardsApplyArgs) -> anyhow::Result<()> {
-    use everr_core::dashboards::{ApplyDashboardsRequest, load_dashboard_documents};
+pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
+    use everr_core::apply::{ApplyRequest, load_resource_documents};
 
     let dir = std::path::Path::new(&args.dir);
     if !dir.is_dir() {
         anyhow::bail!("{} is not a directory", args.dir);
     }
-    let documents = load_dashboard_documents(dir)?;
+    let documents = load_resource_documents(dir)?;
     if documents.is_empty() {
         eprintln!(
-            "warning: no dashboard files (.yaml/.yml/.json) found under {}",
+            "warning: no resource files (.yaml/.yml/.json) found under {}",
             args.dir
         );
     }
@@ -632,28 +632,31 @@ pub async fn run_dashboards_apply(args: crate::cli::DashboardsApplyArgs) -> anyh
         }
     };
 
-    let request = ApplyDashboardsRequest {
+    let request = ApplyRequest {
         source: args.source,
         documents,
         dry_run: args.dry_run,
     };
-    let summary = client.apply_dashboards(&request).await?;
+    let summary = client.apply(&request).await?;
 
     let label = if summary.dry_run { "(dry run) " } else { "" };
-    println!(
-        "{label}applied source: {} created, {} updated, {} deleted",
-        summary.created.len(),
-        summary.updated.len(),
-        summary.deleted.len()
-    );
-    for s in &summary.created {
-        println!("  + {s}");
-    }
-    for s in &summary.updated {
-        println!("  ~ {s}");
-    }
-    for s in &summary.deleted {
-        println!("  - {s}");
+    for r in &summary.results {
+        println!(
+            "{label}{}: {} created, {} updated, {} deleted",
+            r.kind,
+            r.created.len(),
+            r.updated.len(),
+            r.deleted.len()
+        );
+        for s in &r.created {
+            println!("  + {s}");
+        }
+        for s in &r.updated {
+            println!("  ~ {s}");
+        }
+        for s in &r.deleted {
+            println!("  - {s}");
+        }
     }
     Ok(())
 }
