@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildServicesQuery, buildSummaryQuery } from "./issues";
+import {
+  buildOccurrencesQuery,
+  buildServicesQuery,
+  buildSummaryQuery,
+} from "./issues";
 
 const base = {
   fromTs: "2026-06-01 00:00:00",
@@ -50,5 +54,21 @@ describe("error attribute filtering", () => {
   it("omits attribute clauses when none are given", () => {
     const { params } = buildSummaryQuery({ ...base }, "logs");
     expect(params.attrKey0).toBeUndefined();
+  });
+
+  it("deduplicates detail occurrences by timestamp", () => {
+    const { sql } = buildOccurrencesQuery(
+      {
+        fromTs: base.fromTs,
+        toTs: base.toTs,
+        service: [],
+        fingerprint: "fp-1",
+        occurrenceLimit: 50,
+      },
+      "logs",
+    );
+    expect(sql).toContain("row_number() OVER");
+    expect(sql).toContain("PARTITION BY Timestamp");
+    expect(sql).toContain("WHERE timestampRank = 1");
   });
 });
