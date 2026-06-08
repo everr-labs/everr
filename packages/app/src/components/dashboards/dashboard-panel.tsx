@@ -1,8 +1,8 @@
 import { Button } from "@everr/ui/components/button";
 import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { Copy, Pencil, Trash2 } from "lucide-react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Copy, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import type { Panel } from "@/data/dashboards/schema";
 import { PanelShell } from "../panel-shell";
@@ -12,7 +12,7 @@ import { getVisualizationInset, PanelVisualization } from "./visualizations";
 interface DashboardPanelProps {
   panel: Panel;
   panelKey: string;
-  dashboardId: string;
+  dashboardId?: string;
   isEditing: boolean;
   onRemove?: () => void;
   onDuplicate?: () => void;
@@ -21,7 +21,6 @@ interface DashboardPanelProps {
 export function DashboardPanel({
   panel,
   panelKey,
-  dashboardId,
   isEditing,
   onRemove,
   onDuplicate,
@@ -59,21 +58,6 @@ export function DashboardPanel({
     >
       {isEditing && (
         <div className="absolute top-0 left-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 cursor-default items-center rounded-md border border-border bg-card px-1 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/panel:opacity-100">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="cursor-pointer"
-            render={
-              <Link
-                to="/dashboards/$dashboardId/panel/$panelKey"
-                params={{ dashboardId, panelKey }}
-                search={(prev) => ({ ...prev, vars: prev.vars })}
-              />
-            }
-            aria-label="Edit panel"
-          >
-            <Pencil />
-          </Button>
           <Button
             variant="ghost"
             size="icon-xs"

@@ -13,7 +13,7 @@ import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardSearchDefaults } from "@/data/dashboards/time-defaults";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/dashboards/$dashboardId",
+  "/_authenticated/_dashboard/dashboards/$source/$slug",
 )({
   staticData: {
     breadcrumb: (match: { loaderData?: { name: string } }) => [
@@ -21,17 +21,15 @@ export const Route = createFileRoute(
       { label: match.loaderData?.name ?? "Dashboard" },
     ],
   },
-  head: () => ({
-    meta: [{ title: "Everr - Dashboard" }],
-  }),
+  head: () => ({ meta: [{ title: "Everr - Dashboard" }] }),
   component: DashboardPage,
   notFoundComponent: DashboardNotFound,
-  loader: async ({ context: { queryClient }, params: { dashboardId } }) => {
+  loader: async ({ context: { queryClient }, params: { source, slug } }) => {
     try {
       const dashboard = await queryClient.ensureQueryData(
-        dashboardOptions(dashboardId),
+        dashboardOptions(source, slug),
       );
-      return { name: dashboard.spec.display?.name ?? dashboardId };
+      return { name: dashboard.spec.display?.name ?? slug };
     } catch {
       throw notFound();
     }
@@ -39,28 +37,23 @@ export const Route = createFileRoute(
 });
 
 function DashboardPage() {
-  const { dashboardId } = Route.useParams();
-  const { data } = useSuspenseQuery(dashboardOptions(dashboardId));
+  const { source, slug } = Route.useParams();
+  const key = `${source}/${slug}`;
+  const { data } = useSuspenseQuery(dashboardOptions(source, slug));
   const setDashboard = useDashboardStore((s) => s.setDashboard);
   const dashboard = useDashboardStore((s) => s.dashboard);
-  const sourceSlug = useDashboardStore((s) => s.sourceSlug);
+  const loadedKey = useDashboardStore((s) => s.loadedKey);
 
   useEffect(() => {
-    // Compare row identity (sourceSlug), not metadata.name: a staged slug
-    // rename makes the names diverge, and replacing the store here would
-    // silently discard every dirty change.
-    if (!dashboard || sourceSlug !== dashboardId) {
-      setDashboard(data);
-    }
-  }, [data, dashboard, sourceSlug, dashboardId, setDashboard]);
+    if (!dashboard || loadedKey !== key) setDashboard(data, key);
+  }, [data, dashboard, loadedKey, key, setDashboard]);
 
   const search = useSearch({ from: "/_authenticated/_dashboard" });
   const navigate = useNavigate();
   const seededFor = useRef<string | null>(null);
-
   useEffect(() => {
-    if (seededFor.current === dashboardId) return;
-    seededFor.current = dashboardId;
+    if (seededFor.current === key) return;
+    seededFor.current = key;
     const patch = dashboardSearchDefaults(data.spec, search);
     if (patch) {
       void navigate({
@@ -69,9 +62,8 @@ function DashboardPage() {
         replace: true,
       });
     }
-  }, [dashboardId, data, search, navigate]);
+  }, [key, data, search, navigate]);
 
   if (!dashboard) return null;
-
   return <DashboardGrid />;
 }

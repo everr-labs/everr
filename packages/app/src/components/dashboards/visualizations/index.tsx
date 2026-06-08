@@ -54,12 +54,6 @@ export function getVisualizationInset(
   return registry[kind]?.inset ?? "default";
 }
 
-export function getVisualizationSettings(
-  kind: string,
-): ComponentType<VisualizationSettingsProps> | undefined {
-  return registry[kind]?.settings;
-}
-
 export function PanelVisualization({
   plugin,
   data,

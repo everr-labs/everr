@@ -51,8 +51,6 @@ import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$tr
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as AuthenticatedDashboardTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/traces/$traceId'
 import { Route as AuthenticatedDashboardErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/errors/$fingerprint'
-import { Route as AuthenticatedDashboardDashboardsNewRouteImport } from './routes/_authenticated/_dashboard/dashboards/new'
-import { Route as AuthenticatedDashboardDashboardsDashboardIdRouteImport } from './routes/_authenticated/_dashboard/dashboards/$dashboardId'
 import { Route as AuthenticatedDashboardCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/checkout.success'
 import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
 import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
@@ -63,8 +61,7 @@ import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './ro
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedDashboardWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_dashboard/workflows/$repo/$workflowName'
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
-import { Route as AuthenticatedDashboardDashboardsDashboardIdSettingsRouteImport } from './routes/_authenticated/_dashboard/dashboards/$dashboardId_/settings'
-import { Route as AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRouteImport } from './routes/_authenticated/_dashboard/dashboards/$dashboardId_/panel/$panelKey'
+import { Route as AuthenticatedDashboardDashboardsSourceSlugRouteImport } from './routes/_authenticated/_dashboard/dashboards/$source.$slug'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
@@ -292,18 +289,6 @@ const AuthenticatedDashboardErrorsFingerprintRoute =
     path: '/$fingerprint',
     getParentRoute: () => AuthenticatedDashboardErrorsRoute,
   } as any)
-const AuthenticatedDashboardDashboardsNewRoute =
-  AuthenticatedDashboardDashboardsNewRouteImport.update({
-    id: '/dashboards/new',
-    path: '/dashboards/new',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
-const AuthenticatedDashboardDashboardsDashboardIdRoute =
-  AuthenticatedDashboardDashboardsDashboardIdRouteImport.update({
-    id: '/dashboards/$dashboardId',
-    path: '/dashboards/$dashboardId',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
 const AuthenticatedDashboardCheckoutSuccessRoute =
   AuthenticatedDashboardCheckoutSuccessRouteImport.update({
     id: '/checkout/success',
@@ -361,16 +346,10 @@ const AuthenticatedDashboardRunsTraceIdTraceRoute =
     path: '/trace',
     getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
   } as any)
-const AuthenticatedDashboardDashboardsDashboardIdSettingsRoute =
-  AuthenticatedDashboardDashboardsDashboardIdSettingsRouteImport.update({
-    id: '/dashboards/$dashboardId_/settings',
-    path: '/dashboards/$dashboardId/settings',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
-const AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute =
-  AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRouteImport.update({
-    id: '/dashboards/$dashboardId_/panel/$panelKey',
-    path: '/dashboards/$dashboardId/panel/$panelKey',
+const AuthenticatedDashboardDashboardsSourceSlugRoute =
+  AuthenticatedDashboardDashboardsSourceSlugRouteImport.update({
+    id: '/dashboards/$source/$slug',
+    path: '/dashboards/$source/$slug',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
@@ -421,8 +400,6 @@ export interface FileRoutesByFullPath {
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
-  '/dashboards/$dashboardId': typeof AuthenticatedDashboardDashboardsDashboardIdRoute
-  '/dashboards/new': typeof AuthenticatedDashboardDashboardsNewRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -433,12 +410,11 @@ export interface FileRoutesByFullPath {
   '/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
-  '/dashboards/$dashboardId/settings': typeof AuthenticatedDashboardDashboardsDashboardIdSettingsRoute
+  '/dashboards/$source/$slug': typeof AuthenticatedDashboardDashboardsSourceSlugRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
-  '/dashboards/$dashboardId/panel/$panelKey': typeof AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute
   '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -475,8 +451,6 @@ export interface FileRoutesByTo {
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
-  '/dashboards/$dashboardId': typeof AuthenticatedDashboardDashboardsDashboardIdRoute
-  '/dashboards/new': typeof AuthenticatedDashboardDashboardsNewRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -487,12 +461,11 @@ export interface FileRoutesByTo {
   '/dashboards': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows': typeof AuthenticatedDashboardWorkflowsIndexRoute
-  '/dashboards/$dashboardId/settings': typeof AuthenticatedDashboardDashboardsDashboardIdSettingsRoute
+  '/dashboards/$source/$slug': typeof AuthenticatedDashboardDashboardsSourceSlugRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
-  '/dashboards/$dashboardId/panel/$panelKey': typeof AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute
   '/runs/$traceId/jobs/$jobId': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -536,8 +509,6 @@ export interface FileRoutesById {
   '/_auth/_guest/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/_auth/_guest/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/_authenticated/_dashboard/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
-  '/_authenticated/_dashboard/dashboards/$dashboardId': typeof AuthenticatedDashboardDashboardsDashboardIdRoute
-  '/_authenticated/_dashboard/dashboards/new': typeof AuthenticatedDashboardDashboardsNewRoute
   '/_authenticated/_dashboard/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/_authenticated/_dashboard/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -548,12 +519,11 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/_authenticated/_dashboard/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
-  '/_authenticated/_dashboard/dashboards/$dashboardId_/settings': typeof AuthenticatedDashboardDashboardsDashboardIdSettingsRoute
+  '/_authenticated/_dashboard/dashboards/$source/$slug': typeof AuthenticatedDashboardDashboardsSourceSlugRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/_authenticated/_dashboard/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
-  '/_authenticated/_dashboard/dashboards/$dashboardId_/panel/$panelKey': typeof AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute
   '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -594,8 +564,6 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/checkout/success'
-    | '/dashboards/$dashboardId'
-    | '/dashboards/new'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api/cli/org/name'
@@ -606,12 +574,11 @@ export interface FileRouteTypes {
     | '/dashboards/'
     | '/runs/'
     | '/workflows/'
-    | '/dashboards/$dashboardId/settings'
+    | '/dashboards/$source/$slug'
     | '/runs/$traceId/trace'
     | '/workflows/$repo/$workflowName'
     | '/api/cli/runs/$traceId/logs'
     | '/runs/$traceId/'
-    | '/dashboards/$dashboardId/panel/$panelKey'
     | '/runs/$traceId/jobs/$jobId/'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesByTo: FileRoutesByTo
@@ -648,8 +615,6 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/checkout/success'
-    | '/dashboards/$dashboardId'
-    | '/dashboards/new'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api/cli/org/name'
@@ -660,12 +625,11 @@ export interface FileRouteTypes {
     | '/dashboards'
     | '/runs'
     | '/workflows'
-    | '/dashboards/$dashboardId/settings'
+    | '/dashboards/$source/$slug'
     | '/runs/$traceId/trace'
     | '/workflows/$repo/$workflowName'
     | '/api/cli/runs/$traceId/logs'
     | '/runs/$traceId'
-    | '/dashboards/$dashboardId/panel/$panelKey'
     | '/runs/$traceId/jobs/$jobId'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   id:
@@ -708,8 +672,6 @@ export interface FileRouteTypes {
     | '/_auth/_guest/auth/sign-in'
     | '/_auth/_guest/auth/sign-up'
     | '/_authenticated/_dashboard/checkout/success'
-    | '/_authenticated/_dashboard/dashboards/$dashboardId'
-    | '/_authenticated/_dashboard/dashboards/new'
     | '/_authenticated/_dashboard/errors/$fingerprint'
     | '/_authenticated/_dashboard/traces/$traceId'
     | '/api/cli/org/name'
@@ -720,12 +682,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/dashboards/'
     | '/_authenticated/_dashboard/runs/'
     | '/_authenticated/_dashboard/workflows/'
-    | '/_authenticated/_dashboard/dashboards/$dashboardId_/settings'
+    | '/_authenticated/_dashboard/dashboards/$source/$slug'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/_authenticated/_dashboard/workflows/$repo/$workflowName'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/runs/$traceId/'
-    | '/_authenticated/_dashboard/dashboards/$dashboardId_/panel/$panelKey'
     | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
     | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesById: FileRoutesById
@@ -1040,20 +1001,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardErrorsFingerprintRouteImport
       parentRoute: typeof AuthenticatedDashboardErrorsRoute
     }
-    '/_authenticated/_dashboard/dashboards/new': {
-      id: '/_authenticated/_dashboard/dashboards/new'
-      path: '/dashboards/new'
-      fullPath: '/dashboards/new'
-      preLoaderRoute: typeof AuthenticatedDashboardDashboardsNewRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
-    '/_authenticated/_dashboard/dashboards/$dashboardId': {
-      id: '/_authenticated/_dashboard/dashboards/$dashboardId'
-      path: '/dashboards/$dashboardId'
-      fullPath: '/dashboards/$dashboardId'
-      preLoaderRoute: typeof AuthenticatedDashboardDashboardsDashboardIdRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
     '/_authenticated/_dashboard/checkout/success': {
       id: '/_authenticated/_dashboard/checkout/success'
       path: '/checkout/success'
@@ -1124,18 +1071,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
     }
-    '/_authenticated/_dashboard/dashboards/$dashboardId_/settings': {
-      id: '/_authenticated/_dashboard/dashboards/$dashboardId_/settings'
-      path: '/dashboards/$dashboardId/settings'
-      fullPath: '/dashboards/$dashboardId/settings'
-      preLoaderRoute: typeof AuthenticatedDashboardDashboardsDashboardIdSettingsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
-    '/_authenticated/_dashboard/dashboards/$dashboardId_/panel/$panelKey': {
-      id: '/_authenticated/_dashboard/dashboards/$dashboardId_/panel/$panelKey'
-      path: '/dashboards/$dashboardId/panel/$panelKey'
-      fullPath: '/dashboards/$dashboardId/panel/$panelKey'
-      preLoaderRoute: typeof AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRouteImport
+    '/_authenticated/_dashboard/dashboards/$source/$slug': {
+      id: '/_authenticated/_dashboard/dashboards/$source/$slug'
+      path: '/dashboards/$source/$slug'
+      fullPath: '/dashboards/$source/$slug'
+      preLoaderRoute: typeof AuthenticatedDashboardDashboardsSourceSlugRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
@@ -1270,13 +1210,10 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardUsersManagementRoute: typeof AuthenticatedDashboardUsersManagementRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
-  AuthenticatedDashboardDashboardsDashboardIdRoute: typeof AuthenticatedDashboardDashboardsDashboardIdRoute
-  AuthenticatedDashboardDashboardsNewRoute: typeof AuthenticatedDashboardDashboardsNewRoute
   AuthenticatedDashboardDashboardsIndexRoute: typeof AuthenticatedDashboardDashboardsIndexRoute
   AuthenticatedDashboardWorkflowsIndexRoute: typeof AuthenticatedDashboardWorkflowsIndexRoute
-  AuthenticatedDashboardDashboardsDashboardIdSettingsRoute: typeof AuthenticatedDashboardDashboardsDashboardIdSettingsRoute
+  AuthenticatedDashboardDashboardsSourceSlugRoute: typeof AuthenticatedDashboardDashboardsSourceSlugRoute
   AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
-  AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute: typeof AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute
 }
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
@@ -1302,20 +1239,14 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
     AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
     AuthenticatedDashboardCheckoutSuccessRoute:
       AuthenticatedDashboardCheckoutSuccessRoute,
-    AuthenticatedDashboardDashboardsDashboardIdRoute:
-      AuthenticatedDashboardDashboardsDashboardIdRoute,
-    AuthenticatedDashboardDashboardsNewRoute:
-      AuthenticatedDashboardDashboardsNewRoute,
     AuthenticatedDashboardDashboardsIndexRoute:
       AuthenticatedDashboardDashboardsIndexRoute,
     AuthenticatedDashboardWorkflowsIndexRoute:
       AuthenticatedDashboardWorkflowsIndexRoute,
-    AuthenticatedDashboardDashboardsDashboardIdSettingsRoute:
-      AuthenticatedDashboardDashboardsDashboardIdSettingsRoute,
+    AuthenticatedDashboardDashboardsSourceSlugRoute:
+      AuthenticatedDashboardDashboardsSourceSlugRoute,
     AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute:
       AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute,
-    AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute:
-      AuthenticatedDashboardDashboardsDashboardIdPanelPanelKeyRoute,
   }
 
 const AuthenticatedDashboardRouteWithChildren =
