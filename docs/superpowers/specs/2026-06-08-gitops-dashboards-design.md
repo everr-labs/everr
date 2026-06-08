@@ -98,23 +98,29 @@ tree":
 - **Create** dashboards present in the tree that don't yet exist.
 - **Update** dashboards that changed, **preserving unknown Perses fields**
   (the open → edit → save round-trip behavior recent commits already protect).
-- **Prune** dashboards owned by X that are absent from the tree — **only X's**,
-  never another source's.
+- **Delete** dashboards owned by X that are absent from the tree — **only X's**,
+  never another source's. This happens **by default**: the tree is the complete
+  desired state, so a removed file removes the dashboard. There is no opt-in
+  prune flag; deletion is part of normal reconcile, made safe by the fact that
+  it is source-scoped and transactional.
 
 Guardrails:
 
-- Bare `apply` **warns** about orphaned (would-be-pruned) dashboards but does
-  not delete them.
-- `--prune` actually removes orphans.
 - `--dry-run` prints the create/update/delete diff and exits without writing.
 - An apply invocation is **transactional**: all-or-nothing. A mid-batch failure
   rolls the whole apply back.
+- **Empty-set protection:** if the desired set is empty (the apply would delete
+  *all* of the source's dashboards), refuse unless `--allow-empty` (or use
+  `delete --source=X --all`).
+- **Large-delete protection:** if a single apply would delete more than ~50% of
+  the source's dashboards, interactive use requires confirmation / `--force`;
+  CI (non-interactive) proceeds but logs the deletion loudly.
 
 ## CLI & authentication
 
 New command group:
 
-- `everr dashboards apply <dir> --source=<id> [--prune] [--dry-run]`
+- `everr dashboards apply <dir> --source=<id> [--dry-run] [--allow-empty] [--force]`
 - `everr dashboards list`
 - `everr dashboards delete <name> --source=<id>`
 
