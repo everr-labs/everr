@@ -11,7 +11,7 @@ mod wrap;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
+use cli::{CiSubcommand, Cli, CloudSubcommand, Commands, DashboardsSubcommand};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,6 +36,11 @@ async fn main() -> Result<()> {
         Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,
         Commands::Skills(args) => skills::run(args)?,
+        Commands::Dashboards(args) => match args.command {
+            DashboardsSubcommand::Apply(apply_args) => {
+                core::run_dashboards_apply(apply_args).await?
+            }
+        },
     }
 
     Ok(())

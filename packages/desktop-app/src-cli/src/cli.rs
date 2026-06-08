@@ -41,6 +41,8 @@ pub enum Commands {
     /// Manage bundled Everr agent skills
     #[command(name = "skills")]
     Skills(SkillsArgs),
+    /// Apply a directory of dashboard definitions (gitops)
+    Dashboards(DashboardsArgs),
 }
 
 #[derive(Args, Debug)]
@@ -187,6 +189,30 @@ pub struct SkillsUninstallArgs {
     pub agents: Vec<SkillAgentArg>,
     /// Preview without removing files
     #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct DashboardsArgs {
+    #[command(subcommand)]
+    pub command: DashboardsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum DashboardsSubcommand {
+    /// Reconcile a directory of dashboard files into Everr
+    Apply(DashboardsApplyArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct DashboardsApplyArgs {
+    /// Directory containing dashboard YAML/JSON files
+    pub dir: String,
+    /// Source id that owns these dashboards (prune scope)
+    #[arg(long)]
+    pub source: String,
+    /// Compute and print the diff without writing
+    #[arg(long = "dry-run")]
     pub dry_run: bool,
 }
 

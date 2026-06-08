@@ -597,6 +597,77 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
     query.push(("offset", offset.to_string()));
 }
 
+pub async fn run_dashboards_apply(args: crate::cli::DashboardsApplyArgs) -> anyhow::Result<()> {
+    use everr_core::dashboards::{ApplyDashboardsRequest, load_dashboard_documents};
+
+    let dir = std::path::Path::new(&args.dir);
+    if !dir.is_dir() {
+        anyhow::bail!("{} is not a directory", args.dir);
+    }
+    let documents = load_dashboard_documents(dir)?;
+    if documents.is_empty() {
+        eprintln!(
+            "warning: no dashboard files (.yaml/.yml/.json) found under {}",
+            args.dir
+        );
+    }
+
+    let client = match std::env::var("EVERR_API_TOKEN")
+        .ok()
+        .filter(|t| !t.is_empty())
+    {
+        Some(token) => {
+            let base_url = std::env::var("EVERR_API_URL")
+                .ok()
+                .filter(|u| !u.is_empty())
+                .or_else(persisted_api_base_url)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("EVERR_API_TOKEN is set but no base URL; set EVERR_API_URL")
+                })?;
+            everr_core::api::ApiClient::from_token(&base_url, &token)?
+        }
+        None => {
+            let session = crate::auth::require_session_with_refresh().await?;
+            everr_core::api::ApiClient::from_session(&session)?
+        }
+    };
+
+    let request = ApplyDashboardsRequest {
+        source: args.source,
+        documents,
+        dry_run: args.dry_run,
+    };
+    let summary = client.apply_dashboards(&request).await?;
+
+    let label = if summary.dry_run { "(dry run) " } else { "" };
+    println!(
+        "{label}applied source: {} created, {} updated, {} deleted",
+        summary.created.len(),
+        summary.updated.len(),
+        summary.deleted.len()
+    );
+    for s in &summary.created {
+        println!("  + {s}");
+    }
+    for s in &summary.updated {
+        println!("  ~ {s}");
+    }
+    for s in &summary.deleted {
+        println!("  - {s}");
+    }
+    Ok(())
+}
+
+fn persisted_api_base_url() -> Option<String> {
+    let store = crate::auth::state_store();
+    // We load whatever session is persisted and return its base URL.
+    // `load_session` (without a filter) loads the most-recently saved session.
+    store
+        .load_session()
+        .ok()
+        .map(|session| session.api_base_url)
+}
+
 #[cfg(test)]
 mod tests {
     use everr_core::git::parse_repo_from_remote_url;
