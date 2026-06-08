@@ -1,114 +1,9 @@
 {
-  "id": "ea903693-7994-4728-bb77-544e80daf00c",
+  "id": "70440e7d-8c09-4ad8-bfc3-57c31209feb3",
   "prevId": "3e28b8a7-ccbd-4ed5-ae50-f46f2dec12b1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.dashboard_folders": {
-      "name": "dashboard_folders",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "parent_id": {
-          "name": "parent_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "dashboard_folders_tenant_parent_name_uq": {
-          "name": "dashboard_folders_tenant_parent_name_uq",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "COALESCE(parent_id, '00000000-0000-0000-0000-000000000000')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "dashboard_folders_parent_fk": {
-          "name": "dashboard_folders_parent_fk",
-          "tableFrom": "dashboard_folders",
-          "tableTo": "dashboard_folders",
-          "columnsFrom": [
-            "organization_id",
-            "parent_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "dashboard_folders_org_id_uq": {
-          "name": "dashboard_folders_org_id_uq",
-          "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.dashboards": {
       "name": "dashboards",
       "schema": "",
@@ -126,17 +21,24 @@
           "primaryKey": false,
           "notNull": true
         },
-        "folder_id": {
-          "name": "folder_id",
-          "type": "uuid",
+        "source": {
+          "name": "source",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "slug": {
           "name": "slug",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "folder_path": {
+          "name": "folder_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         },
         "spec": {
           "name": "spec",
@@ -160,11 +62,17 @@
         }
       },
       "indexes": {
-        "dashboards_tenant_slug_uq": {
-          "name": "dashboards_tenant_slug_uq",
+        "dashboards_tenant_source_slug_uq": {
+          "name": "dashboards_tenant_source_slug_uq",
           "columns": [
             {
               "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -203,23 +111,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "dashboards_folder_fk": {
-          "name": "dashboards_folder_fk",
-          "tableFrom": "dashboards",
-          "tableTo": "dashboard_folders",
-          "columnsFrom": [
-            "organization_id",
-            "folder_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
