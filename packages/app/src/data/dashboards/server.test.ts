@@ -267,6 +267,34 @@ describe("createFolder – duplicate name", () => {
   });
 });
 
+describe("createFolder – parent org scoping", () => {
+  it("rejects a parent that is not in the caller's organization", async () => {
+    // Parent lookup (scoped to org) returns no row.
+    mockSelectSequence([[]]);
+    await expect(
+      createFolder({ data: { name: "Child", parentId: "other-org-folder" } }),
+    ).rejects.toThrow("Parent folder not found");
+    // The insert must not run when the parent is rejected.
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("inserts when the parent folder belongs to the org", async () => {
+    mockSelectSequence([[{ id: "parent" }]]);
+    insertImpl = () => [{ id: "new-folder" }];
+    const result = await createFolder({
+      data: { name: "Child", parentId: "parent" },
+    });
+    expect(result.id).toBe("new-folder");
+  });
+
+  it("skips the parent lookup for a root folder", async () => {
+    insertImpl = () => [{ id: "root-folder" }];
+    const result = await createFolder({ data: { name: "Root" } });
+    expect(result.id).toBe("root-folder");
+    expect(mockedDb.select).not.toHaveBeenCalled();
+  });
+});
+
 describe("renameFolder – duplicate name", () => {
   it("maps a unique violation to a friendly error", async () => {
     updateImpl = () => {

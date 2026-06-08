@@ -299,6 +299,22 @@ export const createFolder = createAuthenticatedServerFn({
   .handler(async ({ data: { name, parentId }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
+    if (parentId != null) {
+      const [parent] = await db
+        .select({ id: dashboardFolders.id })
+        .from(dashboardFolders)
+        .where(
+          and(
+            eq(dashboardFolders.id, parentId),
+            eq(dashboardFolders.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!parent) {
+        throw new Error("Parent folder not found");
+      }
+    }
+
     try {
       const [row] = await db
         .insert(dashboardFolders)
