@@ -3,7 +3,7 @@
  *
  * Fetches runs and jobs from the GitHub REST API for user-selected repos,
  * transforms them into webhook-compatible payloads, and enqueues each through
- * the same pg-boss queues used by live webhooks (gh-collector + gh-status).
+ * the same Graphile Worker tasks used by live webhooks.
  *
  * Scope constraints (from spec):
  * - User-selected repos (one or more)
