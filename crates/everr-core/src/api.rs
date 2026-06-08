@@ -61,6 +61,55 @@ impl ApiClient {
         })
     }
 
+    /// Build a client from a raw bearer token + base URL (for CI: `EVERR_API_TOKEN`).
+    pub fn from_token(api_base_url: &str, token: &str) -> Result<Self> {
+        let mut headers = HeaderMap::new();
+        let bearer = format!("Bearer {token}");
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&bearer).context("invalid token for Authorization header")?,
+        );
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        let http = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()
+            .context("failed to build HTTP client")?;
+        let base_url = api_base_url.trim_end_matches('/').to_string();
+        let base_endpoint = format!("{base_url}/api/cli");
+        Ok(Self {
+            http,
+            base_url,
+            base_endpoint,
+        })
+    }
+
+    pub async fn apply_dashboards(
+        &self,
+        request: &crate::dashboards::ApplyDashboardsRequest,
+    ) -> Result<crate::dashboards::ApplyDashboardsSummary> {
+        let response = self
+            .http
+            .post(format!("{}/api/dashboards/apply", self.base_url))
+            .json(request)
+            .send()
+            .await
+            .context("dashboards apply request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "dashboards apply"));
+        }
+
+        response
+            .json()
+            .await
+            .context("failed to decode dashboards apply response")
+    }
+
     pub async fn get_runs_list(&self, query: &[(&str, String)]) -> Result<Value> {
         self.get_json("/runs", query).await
     }

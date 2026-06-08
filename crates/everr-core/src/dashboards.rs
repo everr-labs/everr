@@ -55,6 +55,23 @@ pub fn load_dashboard_documents(dir: &Path) -> Result<Vec<DashboardDocument>> {
     Ok(out)
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ApplyDashboardsRequest {
+    pub source: String,
+    pub documents: Vec<DashboardDocument>,
+    #[serde(rename = "dryRun", skip_serializing_if = "std::ops::Not::not")]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct ApplyDashboardsSummary {
+    pub created: Vec<String>,
+    pub updated: Vec<String>,
+    pub deleted: Vec<String>,
+    #[serde(rename = "dryRun")]
+    pub dry_run: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,5 +116,45 @@ mod tests {
         fs::write(dir.path().join("broken.yaml"), "key: : :\n  - bad").unwrap();
         let err = load_dashboard_documents(dir.path()).unwrap_err();
         assert!(err.to_string().contains("broken.yaml"), "error was: {err}");
+    }
+
+    #[test]
+    fn apply_request_omits_dry_run_when_false() {
+        let req = ApplyDashboardsRequest {
+            source: "team".into(),
+            documents: vec![DashboardDocument {
+                path: "cpu.yaml".into(),
+                document: serde_json::json!({"kind": "Dashboard"}),
+            }],
+            dry_run: false,
+        };
+        let v = serde_json::to_value(&req).unwrap();
+        assert_eq!(v["source"], "team");
+        assert!(
+            v.get("dryRun").is_none(),
+            "dryRun should be omitted when false"
+        );
+    }
+
+    #[test]
+    fn apply_request_includes_dry_run_when_true() {
+        let req = ApplyDashboardsRequest {
+            source: "team".into(),
+            documents: vec![],
+            dry_run: true,
+        };
+        let v = serde_json::to_value(&req).unwrap();
+        assert_eq!(v["dryRun"], true);
+    }
+
+    #[test]
+    fn apply_summary_deserializes_from_camel_case() {
+        let s: ApplyDashboardsSummary = serde_json::from_value(serde_json::json!({
+            "created": ["a"], "updated": [], "deleted": ["b"], "dryRun": true
+        }))
+        .unwrap();
+        assert_eq!(s.created, vec!["a".to_string()]);
+        assert_eq!(s.deleted, vec!["b".to_string()]);
+        assert!(s.dry_run);
     }
 }
