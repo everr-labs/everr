@@ -1,15 +1,12 @@
 export type CalculationType = "last" | "first" | "mean" | "min" | "max" | "sum";
 
-export const CALCULATIONS: ReadonlyArray<{
-  value: CalculationType;
-  label: string;
-}> = [
-  { value: "last", label: "Last" },
-  { value: "first", label: "First" },
-  { value: "mean", label: "Mean" },
-  { value: "min", label: "Min" },
-  { value: "max", label: "Max" },
-  { value: "sum", label: "Sum" },
+const CALCULATIONS: ReadonlyArray<{ value: CalculationType }> = [
+  { value: "last" },
+  { value: "first" },
+  { value: "mean" },
+  { value: "min" },
+  { value: "max" },
+  { value: "sum" },
 ] as const;
 
 export function isCalculationType(value: unknown): value is CalculationType {

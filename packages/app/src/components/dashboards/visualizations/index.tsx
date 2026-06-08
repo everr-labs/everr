@@ -1,10 +1,7 @@
 import type { ComponentType } from "react";
 import type { PanelPlugin } from "@/data/dashboards/schema";
-import { StatChartSettings } from "./stat-chart/stat-chart-settings";
 import { StatChartVisualization } from "./stat-chart/stat-chart-visualization";
-import { TableSettings } from "./table/table-settings";
 import { TableVisualization } from "./table/table-visualization";
-import { TimeSeriesChartSettings } from "./time-series-chart/time-series-chart-settings";
 import { TimeSeriesChartVisualization } from "./time-series-chart/time-series-chart-visualization";
 
 export type QueryResultRow = Record<string, string | number | boolean | null>;
@@ -21,30 +18,21 @@ export interface VisualizationProps {
   onTimeRangeChange?: (range: ResolvedTimeRange) => void;
 }
 
-export interface VisualizationSettingsProps {
-  spec: Record<string, unknown>;
-  onChange: (spec: Record<string, unknown>) => void;
-}
-
 interface VisualizationEntry {
   component: ComponentType<VisualizationProps>;
-  settings?: ComponentType<VisualizationSettingsProps>;
   inset?: "default" | "flush-content";
 }
 
 const registry: Record<string, VisualizationEntry> = {
   StatChart: {
     component: StatChartVisualization,
-    settings: StatChartSettings,
   },
   Table: {
     component: TableVisualization,
-    settings: TableSettings,
     inset: "flush-content",
   },
   TimeSeriesChart: {
     component: TimeSeriesChartVisualization,
-    settings: TimeSeriesChartSettings,
   },
 };
 

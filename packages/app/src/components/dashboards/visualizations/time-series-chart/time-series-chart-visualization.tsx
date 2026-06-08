@@ -23,8 +23,9 @@ import {
   YAxis,
 } from "recharts";
 import type { VisualizationProps } from "../index";
-import type { CurveType } from "./time-series-chart-settings";
 import { buildChartModel, TS_KEY } from "./time-series-data";
+
+type CurveType = "monotone" | "linear" | "natural" | "stepBefore" | "stepAfter";
 
 function createTickFormatter(domain?: [number, number]) {
   const span = domain ? domain[1] - domain[0] : 0;
