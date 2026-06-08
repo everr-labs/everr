@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const applyResources = vi.fn();
-vi.mock("@/data/apply/registry", () => ({
+vi.mock("@/data/as-code/registry", () => ({
   applyResources: (...a: unknown[]) => applyResources(...a),
 }));
 

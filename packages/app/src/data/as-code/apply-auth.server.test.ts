@@ -1,4 +1,4 @@
-// packages/app/src/data/dashboards/apply-auth.server.test.ts
+// packages/app/src/data/as-code/apply-auth.server.test.ts
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const verifyApiKey = vi.fn();

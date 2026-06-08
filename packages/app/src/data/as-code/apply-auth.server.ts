@@ -1,4 +1,4 @@
-// packages/app/src/data/dashboards/apply-auth.server.ts
+// packages/app/src/data/as-code/apply-auth.server.ts
 import { createMiddleware } from "@tanstack/react-start";
 import { auth } from "@/lib/auth.server";
 import { createClickhouseQuery } from "@/lib/clickhouse";

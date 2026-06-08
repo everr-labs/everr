@@ -1,4 +1,4 @@
-// packages/app/src/data/apply/registry.ts
+// packages/app/src/data/as-code/registry.ts
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 
 export interface ApplyDocument {

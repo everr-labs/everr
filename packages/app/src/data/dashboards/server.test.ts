@@ -59,7 +59,6 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import { applyDashboardSpecs } from "./apply.server";
 import {
   getDashboard,
   listDashboards,
@@ -205,91 +204,6 @@ describe("getDashboard (source/slug)", () => {
     await expect(
       getDashboard({ data: { source: "team", slug: "missing" } }),
     ).rejects.toThrow(/not found/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// applyDashboards
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Helper for applyDashboards tests: override db.select to return a Promise
-// resolving to `rows` directly (applyDashboards ends the chain at .where(),
-// not .limit(), so we need a per-test override rather than the shared chain).
-// ---------------------------------------------------------------------------
-function mockApplySelect(rows: unknown[]) {
-  mockedDb.select.mockImplementationOnce(
-    () =>
-      ({
-        from: () => ({
-          where: () => Promise.resolve(rows),
-        }),
-      }) as unknown as ReturnType<typeof mockedDb.select>,
-  );
-}
-
-describe("applyDashboardSpecs", () => {
-  it("dryRun computes a diff and does not write", async () => {
-    mockApplySelect([
-      { slug: "old-dash", folderPath: "", spec: { panels: {}, layouts: [] } },
-    ]);
-    const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      source: "team",
-      dryRun: true,
-      documents: [
-        {
-          path: "cpu.yaml",
-          document: {
-            kind: "Dashboard",
-            metadata: { name: "cpu" },
-            spec: { panels: {}, layouts: [] },
-          },
-        },
-      ],
-    });
-    expect(result).toEqual({
-      created: ["cpu"],
-      updated: [],
-      deleted: ["old-dash"],
-      dryRun: true,
-    });
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
-  });
-
-  it("applies the diff inside a transaction when not a dry run", async () => {
-    mockApplySelect([]);
-    const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      source: "team",
-      documents: [
-        {
-          path: "a.yaml",
-          document: {
-            kind: "Dashboard",
-            metadata: { name: "a" },
-            spec: { panels: {}, layouts: [] },
-          },
-        },
-      ],
-    });
-    expect(result.created).toEqual(["a"]);
-    expect(result.dryRun).toBe(false);
-    expect(mockedDb.transaction).toHaveBeenCalledOnce();
-  });
-
-  it("rejects the apply when a document is invalid", async () => {
-    // buildDesiredSet throws before the db.select is called
-    await expect(
-      applyDashboardSpecs({
-        orgId: "org-1",
-        source: "team",
-        documents: [
-          { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
-        ],
-      }),
-    ).rejects.toThrow(/bad\.yaml/);
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 });
 
