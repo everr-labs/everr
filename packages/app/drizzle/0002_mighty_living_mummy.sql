@@ -4,7 +4,7 @@ CREATE TABLE "dashboards" (
 	"source" text NOT NULL,
 	"slug" text NOT NULL,
 	"folder_path" text DEFAULT '' NOT NULL,
-	"spec" jsonb NOT NULL,
+	"document" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

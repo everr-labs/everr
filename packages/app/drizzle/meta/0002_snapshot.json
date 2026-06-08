@@ -1,5 +1,5 @@
 {
-  "id": "70440e7d-8c09-4ad8-bfc3-57c31209feb3",
+  "id": "f751ff54-ce6a-431f-bd65-d0c2465e4634",
   "prevId": "3e28b8a7-ccbd-4ed5-ae50-f46f2dec12b1",
   "version": "7",
   "dialect": "postgresql",
@@ -40,8 +40,8 @@
           "notNull": true,
           "default": "''"
         },
-        "spec": {
-          "name": "spec",
+        "document": {
+          "name": "document",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
