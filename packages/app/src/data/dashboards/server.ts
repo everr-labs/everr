@@ -1,4 +1,5 @@
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
+import { notFound } from "@tanstack/react-router";
 import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
 import { db } from "@/db/client";
@@ -26,7 +27,10 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
       .limit(1);
 
     if (!row) {
-      throw new Error(`Dashboard "${source}/${slug}" not found`);
+      // Throw a framework notFound so only a genuinely-missing dashboard shows
+      // the not-found UI; real errors (auth, server, invalid spec) surface as
+      // errors instead.
+      throw notFound();
     }
 
     // Validate shape; return the raw stored spec so unknown Perses fields

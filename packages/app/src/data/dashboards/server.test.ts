@@ -1,3 +1,4 @@
+import { isNotFound } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { query as clickhouseQuery } from "@/lib/clickhouse";
@@ -199,11 +200,15 @@ describe("getDashboard (source/slug)", () => {
     });
   });
 
-  it("throws when not found", async () => {
+  it("throws a notFound when the dashboard is missing", async () => {
     selectImpl = () => [];
-    await expect(
-      getDashboard({ data: { source: "team", slug: "missing" } }),
-    ).rejects.toThrow(/not found/);
+    const error = await getDashboard({
+      data: { source: "team", slug: "missing" },
+    }).then(
+      () => null,
+      (e) => e,
+    );
+    expect(isNotFound(error)).toBe(true);
   });
 });
 

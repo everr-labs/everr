@@ -1,7 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
-  notFound,
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
@@ -24,14 +23,13 @@ export const Route = createFileRoute(
   component: DashboardPage,
   notFoundComponent: DashboardNotFound,
   loader: async ({ context: { queryClient }, params: { source, slug } }) => {
-    try {
-      const dashboard = await queryClient.ensureQueryData(
-        dashboardOptions(source, slug),
-      );
-      return { name: dashboard.spec.display?.name ?? slug };
-    } catch {
-      throw notFound();
-    }
+    // A missing dashboard throws notFound() from the server fn (→ notFound UI);
+    // any other failure propagates to the error boundary instead of being
+    // masked as not-found.
+    const dashboard = await queryClient.ensureQueryData(
+      dashboardOptions(source, slug),
+    );
+    return { name: dashboard.spec.display?.name ?? slug };
   },
 });
 
