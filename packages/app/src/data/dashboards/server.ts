@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
+import { querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
 import type { Dashboard } from "./schema";
@@ -96,10 +97,14 @@ export const runPanelQuery = createAuthenticatedServerFn({
       const interpolated = variables
         ? interpolateVariables(sql, variables, variableMeta ?? {})
         : sql;
-      const rows = await context.clickhouse.query<QueryRow>(interpolated, {
-        from: fromISO,
-        to: toISO,
-      });
+      // User-supplied SQL: run it through the per-org SQL API user, whose tenant
+      // filter is a row policy bound to the user — not a `SETTINGS`-based filter
+      // a malicious query could override to read another tenant's rows.
+      const rows = await querySqlApi<QueryRow>(
+        interpolated,
+        context.session.session.activeOrganizationId,
+        { from: fromISO, to: toISO },
+      );
       return { rows };
     },
   );
@@ -121,8 +126,11 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
       from: from ?? DEFAULT_TIME_RANGE.from,
       to: to ?? DEFAULT_TIME_RANGE.to,
     });
-    const rows = await context.clickhouse.query<Record<string, unknown>>(
+    // User-supplied SQL: run it through the per-org SQL API user (row-policy
+    // tenant isolation), not the SETTINGS-based app path it could override.
+    const rows = await querySqlApi<Record<string, unknown>>(
       query,
+      context.session.session.activeOrganizationId,
       {
         from: fromISO,
         to: toISO,

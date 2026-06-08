@@ -65,9 +65,11 @@ vi.mock("@tanstack/react-start", () => ({
 
 vi.mock("@/lib/clickhouse", () => {
   const query = vi.fn();
+  const querySqlApi = vi.fn();
 
   return {
     query,
+    querySqlApi,
     createClickhouseQuery: vi.fn(
       (tenantId: number) => (sql: string, params?: Record<string, unknown>) =>
         query(sql, params, tenantId),

@@ -1,7 +1,7 @@
 import { isNotFound } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
-import { query as clickhouseQuery } from "@/lib/clickhouse";
+import { querySqlApi } from "@/lib/clickhouse";
 
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder.
@@ -68,7 +68,7 @@ import {
 } from "./server";
 
 const mockedDb = vi.mocked(db);
-const mockedClickhouse = vi.mocked(clickhouseQuery);
+const mockedClickhouse = vi.mocked(querySqlApi);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -97,6 +97,9 @@ describe("runPanelQuery – variable interpolation", () => {
     expect(mockedClickhouse.mock.calls[0]![0]).toBe(
       "SELECT * FROM logs WHERE service = 'api' AND env IN ('prod','staging')",
     );
+    // User SQL must run through the per-org SQL API user (row-policy tenant
+    // isolation), scoped to the active org — not the SETTINGS-based app path.
+    expect(mockedClickhouse.mock.calls[0]![1]).toBe("test_org");
   });
 
   it("expands the All sentinel using variableMeta options", async () => {
