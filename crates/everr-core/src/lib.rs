@@ -2,6 +2,7 @@ pub mod api;
 pub mod auth;
 pub mod build;
 pub mod collector;
+pub mod dashboards;
 pub mod datemath;
 pub mod git;
 pub mod notifier;
