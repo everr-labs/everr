@@ -194,3 +194,16 @@ Heaviest coverage on reconcile:
 Plus: CLI parsing + manifest resolution; API-token auth (valid / expired /
 wrong-org). Read-path and render tests largely survive; mutation tests are
 deleted alongside their features.
+
+## Apply auth (implemented — plan 2)
+
+`applyDashboards` authenticates non-interactively via an API key, or falls back
+to the interactive session. The key is read from `Authorization: Bearer <key>`
+(or the `x-api-key` header). Accepted key type today: the org-scoped **ingest**
+key (`ek_` prefix); the key's organization is the apply target. The everr CLI
+(plan 3) sends its token in this header (`EVERR_API_TOKEN`).
+
+Accepting additional key types later (user-scoped `cli` keys, or a dedicated
+`deploy` key) is an append to `APPLY_KEY_CONFIGS` in
+`packages/app/src/data/dashboards/apply-auth.ts`; user-referenced keys will also
+need an org-resolution branch there.
