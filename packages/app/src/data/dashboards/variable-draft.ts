@@ -80,7 +80,7 @@ export function draftFromVariable(variable: Variable): VariableDraft {
   };
 }
 
-export function variableFromDraft(draft: VariableDraft): Variable {
+function buildVariableFromDraft(draft: VariableDraft): Variable {
   const name = draft.name.trim();
   const display =
     draft.label.trim() || draft.hidden
@@ -131,6 +131,73 @@ export function variableFromDraft(draft: VariableDraft): Variable {
           : { kind: "ClickHouseSQLVariable", spec: { query: draft.query } },
     },
   };
+}
+
+/**
+ * Build a variable from the form draft. When editing (`original` given and the
+ * kind is unchanged), preserve fields the form doesn't expose — `display`
+ * extras like `description`, list-only `capturingRegexp`/`sort`, extra plugin
+ * spec fields, and any other unknown spec keys from imported dashboards — so
+ * applying the form doesn't silently drop them. Switching kinds discards the
+ * original's kind-specific shape.
+ */
+export function variableFromDraft(
+  draft: VariableDraft,
+  original?: Variable,
+): Variable {
+  const built = buildVariableFromDraft(draft);
+  if (!original || original.kind !== built.kind) return built;
+
+  const origSpec = original.spec as Record<string, unknown>;
+  const builtSpec = built.spec as Record<string, unknown>;
+
+  // Fields the form fully owns (it sets or clears them); everything else on the
+  // original spec is preserved. `display` is handled separately because the
+  // form owns only its `name`/`hidden`, not e.g. `description`.
+  const ownedKeys =
+    built.kind === "TextVariable"
+      ? ["name", "value", "constant"]
+      : [
+          "name",
+          "defaultValue",
+          "allowMultiple",
+          "allowAllValue",
+          "customAllValue",
+          "plugin",
+        ];
+
+  const spec: Record<string, unknown> = { ...origSpec };
+  for (const key of ownedKeys) {
+    if (key in builtSpec) spec[key] = builtSpec[key];
+    else delete spec[key];
+  }
+
+  const origDisplay = origSpec.display as Record<string, unknown> | undefined;
+  const builtDisplay = builtSpec.display as Record<string, unknown> | undefined;
+  const preservedDisplay = { ...origDisplay };
+  delete preservedDisplay.name;
+  delete preservedDisplay.hidden;
+  const display = { ...preservedDisplay, ...builtDisplay };
+  if (Object.keys(display).length > 0) spec.display = display;
+  else delete spec.display;
+
+  // Preserve extra plugin spec fields when the plugin kind is unchanged.
+  if (built.kind === "ListVariable") {
+    const origPlugin = origSpec.plugin as
+      | { kind?: string; spec?: Record<string, unknown> }
+      | undefined;
+    const builtPlugin = builtSpec.plugin as
+      | { kind?: string; spec?: Record<string, unknown> }
+      | undefined;
+    if (origPlugin && builtPlugin && origPlugin.kind === builtPlugin.kind) {
+      spec.plugin = {
+        ...builtPlugin,
+        spec: { ...(origPlugin.spec ?? {}), ...(builtPlugin.spec ?? {}) },
+      };
+    }
+  }
+
+  return { kind: built.kind, spec } as Variable;
 }
 
 export function validateDraft(

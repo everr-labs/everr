@@ -57,6 +57,7 @@ import {
   createDashboard,
   createFolder,
   generateDashboardSlug,
+  getDashboard,
   moveFolder,
   renameDashboard,
   renameFolder,
@@ -631,5 +632,58 @@ describe("saveDashboard – folder org scoping", () => {
       }),
     ).rejects.toThrow("Target folder not found");
     expect(mockedDb.update).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unknown-field preservation (Perses round-trip)
+// ---------------------------------------------------------------------------
+
+describe("getDashboard – preserves unknown spec fields", () => {
+  it("returns the raw stored spec, including fields the schema does not list", async () => {
+    const stored = {
+      panels: {},
+      layouts: [],
+      display: { name: "D", persesExtra: "keep-me" },
+      unknownTopLevel: { nested: [1, 2, 3] },
+    };
+    selectImpl = () => [{ slug: "d", spec: stored }];
+
+    const result = await getDashboard({ data: { dashboardId: "d" } });
+
+    expect(result.spec).toEqual(stored);
+  });
+
+  it("throws when the stored spec is structurally invalid", async () => {
+    selectImpl = () => [{ slug: "d", spec: { panels: "not-an-object" } }];
+    await expect(
+      getDashboard({ data: { dashboardId: "d" } }),
+    ).rejects.toThrow();
+  });
+});
+
+describe("createDashboard / saveDashboard – spec validation & preservation", () => {
+  it("rejects a structurally invalid spec", async () => {
+    await expect(
+      createDashboard({ data: { spec: { panels: 123 } } }),
+    ).rejects.toThrow();
+  });
+
+  it("accepts a valid spec that carries unknown fields", async () => {
+    insertImpl = () => [{ slug: "new1" }];
+    const result = await createDashboard({
+      data: { spec: { panels: {}, layouts: [], persesExtra: "x" } },
+    });
+    expect(result.slug).toBe("new1");
+  });
+
+  it("saveDashboard rejects an invalid spec before touching the db", async () => {
+    await expect(
+      saveDashboard({
+        data: { slug: "d", spec: { layouts: "nope" } },
+      }),
+    ).rejects.toThrow();
+    expect(mockedDb.update).not.toHaveBeenCalled();
+    expect(mockedDb.select).not.toHaveBeenCalled();
   });
 });

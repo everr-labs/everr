@@ -162,3 +162,93 @@ describe("validateDraft", () => {
     ).toBeNull();
   });
 });
+
+describe("variableFromDraft – preserves unexposed fields when editing", () => {
+  it("keeps display.description, capturingRegexp, sort, and extra plugin spec", () => {
+    const original: Variable = {
+      kind: "ListVariable",
+      spec: {
+        name: "svc",
+        display: { name: "Service", description: "the service" },
+        capturingRegexp: "(.*)",
+        sort: "alphabetical-asc",
+        plugin: {
+          kind: "ClickHouseSQLVariable",
+          spec: { query: "select 1", refresh: "onLoad" },
+        },
+      },
+    };
+    const draft = draftFromVariable(original);
+    draft.query = "select 2";
+    draft.label = "Service Renamed";
+
+    expect(variableFromDraft(draft, original)).toEqual({
+      kind: "ListVariable",
+      spec: {
+        name: "svc",
+        display: { name: "Service Renamed", description: "the service" },
+        capturingRegexp: "(.*)",
+        sort: "alphabetical-asc",
+        plugin: {
+          kind: "ClickHouseSQLVariable",
+          spec: { query: "select 2", refresh: "onLoad" },
+        },
+      },
+    });
+  });
+
+  it("preserves unknown top-level spec fields from imported dashboards", () => {
+    const original = {
+      kind: "TextVariable",
+      spec: { name: "env", value: "prod", customPersesField: 42 },
+    } as unknown as Variable;
+    const draft = draftFromVariable(original);
+    draft.value = "staging";
+
+    const spec = variableFromDraft(draft, original).spec as Record<
+      string,
+      unknown
+    >;
+    expect(spec.value).toBe("staging");
+    expect(spec.customPersesField).toBe(42);
+  });
+
+  it("clears a form-owned field the user turned off", () => {
+    const original: Variable = {
+      kind: "ListVariable",
+      spec: {
+        name: "svc",
+        allowMultiple: true,
+        plugin: { kind: "StaticListVariable", spec: { values: ["a"] } },
+      },
+    };
+    const draft = draftFromVariable(original);
+    draft.allowMultiple = false;
+
+    const spec = variableFromDraft(draft, original).spec as Record<
+      string,
+      unknown
+    >;
+    expect(spec.allowMultiple).toBeUndefined();
+  });
+
+  it("discards original kind-specific fields when the kind changes", () => {
+    const original: Variable = {
+      kind: "ListVariable",
+      spec: {
+        name: "x",
+        sort: "alphabetical-asc",
+        plugin: { kind: "StaticListVariable", spec: { values: ["a"] } },
+      },
+    };
+    const draft = draftFromVariable(original);
+    draft.kind = "TextVariable";
+    draft.value = "v";
+
+    const result = variableFromDraft(draft, original);
+    expect(result.kind).toBe("TextVariable");
+    const spec = result.spec as Record<string, unknown>;
+    expect(spec.sort).toBeUndefined();
+    expect(spec.plugin).toBeUndefined();
+  });
+});

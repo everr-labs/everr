@@ -176,7 +176,7 @@ function VariableForm({
       setFormError(error);
       return;
     }
-    const variable = variableFromDraft(draft);
+    const variable = variableFromDraft(draft, editedVariable);
     if (editIndex === -1) {
       updateVariables([...variables, variable]);
       // Keep the new variable selected (remounts the form at its index).

@@ -58,4 +58,34 @@ describe("query-array", () => {
       ["a", "c"],
     );
   });
+
+  it("preserves an existing query's kind and extra plugin spec fields when editing", () => {
+    const panel: Panel = {
+      kind: "Panel",
+      spec: {
+        display: {},
+        plugin: { kind: "TimeSeriesChart", spec: {} },
+        queries: [
+          {
+            kind: "PrometheusTimeSeriesQuery",
+            spec: {
+              plugin: {
+                kind: "PrometheusTimeSeriesQuery",
+                spec: { query: "old", datasource: "ds-1", step: 60 },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const next = setQueryTextAt(panel, 0, "new");
+    const q = next.spec.queries?.[0];
+    expect(q?.kind).toBe("PrometheusTimeSeriesQuery");
+    expect(q?.spec.plugin.kind).toBe("PrometheusTimeSeriesQuery");
+    expect(q?.spec.plugin.spec).toEqual({
+      query: "new",
+      datasource: "ds-1",
+      step: 60,
+    });
+  });
 });

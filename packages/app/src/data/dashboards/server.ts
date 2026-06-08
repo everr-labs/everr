@@ -86,12 +86,15 @@ export const getDashboard = createAuthenticatedServerFn({
       throw new Error(`Dashboard "${dashboardId}" not found`);
     }
 
-    const spec = dashboardSpecSchema.parse(row.spec) as DashboardSpec;
+    // Validate the shape, but return the raw stored spec so Perses fields this
+    // app's schema doesn't list survive the open → edit → save round-trip
+    // instead of being stripped by the parse.
+    dashboardSpecSchema.parse(row.spec);
 
     return {
       kind: "Dashboard",
       metadata: { name: row.slug },
-      spec,
+      spec: row.spec,
     } satisfies Dashboard;
   });
 
@@ -101,6 +104,9 @@ export const createDashboard = createAuthenticatedServerFn({
   .inputValidator(createDashboardInput)
   .handler(async ({ data: { spec, folderId, slug }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
+
+    // Validate the shape; store the raw spec so unknown Perses fields survive.
+    dashboardSpecSchema.parse(spec);
 
     if (folderId) {
       await assertFolderInOrg(folderId, orgId);
@@ -166,6 +172,9 @@ export const saveDashboard = createAuthenticatedServerFn({
   .inputValidator(saveDashboardInput)
   .handler(async ({ data: { slug, newSlug, spec, folderId }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
+
+    // Validate the shape; store the raw spec so unknown Perses fields survive.
+    dashboardSpecSchema.parse(spec);
 
     const [existing] = await db
       .select({ id: dashboards.id })

@@ -192,16 +192,19 @@ export const dashboardModelJsonSchema = z.toJSONSchema(dashboardModelSchema, {
   target: "draft-7",
 });
 
+// `spec` is validated in the handler against `dashboardSpecSchema` and stored
+// raw. Validating here (with a strict zod object) would strip unknown Perses
+// fields before storage; keeping it unknown preserves them round-trip.
 export const saveDashboardInput = z.object({
   slug: z.string().min(1).max(200),
   newSlug: dashboardSlugSchema.optional(),
-  spec: dashboardSpecSchema,
+  spec: z.unknown(),
   folderId: z.string().uuid().optional(),
 });
 
 export const createDashboardInput = z.object({
   slug: dashboardSlugSchema.optional(),
-  spec: dashboardSpecSchema,
+  spec: z.unknown(),
   folderId: z.string().uuid().optional(),
 });
 

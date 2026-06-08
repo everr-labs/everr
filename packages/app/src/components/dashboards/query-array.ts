@@ -24,7 +24,23 @@ export function setQueryTextAt(
   query: string,
 ): Panel {
   const queries = [...(panel.spec.queries ?? [])];
-  queries[index] = makeClickHouseQuery(query);
+  const existing = queries[index];
+  // Update the query string in place on the existing query, preserving its
+  // kind and any other plugin spec fields (imported dashboards may carry more
+  // than just `query`). Only when there's no existing query do we create a
+  // fresh ClickHouseSQL one.
+  queries[index] = existing
+    ? {
+        ...existing,
+        spec: {
+          ...existing.spec,
+          plugin: {
+            ...existing.spec.plugin,
+            spec: { ...existing.spec.plugin.spec, query },
+          },
+        },
+      }
+    : makeClickHouseQuery(query);
   return { ...panel, spec: { ...panel.spec, queries } };
 }
 
