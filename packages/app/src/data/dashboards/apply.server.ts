@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
 import { reconcile } from "./reconcile";
-import type { DashboardSpec } from "./schema";
+import type { Dashboard } from "./schema";
 
 export interface ApplyDashboardsResult {
   created: string[];
@@ -36,7 +36,7 @@ export async function applyDashboardSpecs(opts: {
     .select({
       slug: dashboards.slug,
       folderPath: dashboards.folderPath,
-      spec: dashboards.spec,
+      document: dashboards.document,
     })
     .from(dashboards)
     .where(
@@ -61,14 +61,14 @@ export async function applyDashboardSpecs(opts: {
         source,
         slug: d.slug,
         folderPath: d.folderPath,
-        spec: d.spec as DashboardSpec,
+        document: d.document as Dashboard,
       });
     }
     for (const d of diff.updates) {
       await tx
         .update(dashboards)
         .set({
-          spec: d.spec as DashboardSpec,
+          document: d.document as Dashboard,
           folderPath: d.folderPath,
           updatedAt: new Date(),
         })

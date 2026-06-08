@@ -69,12 +69,13 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
     }
     seen.set(slug, path);
 
-    // Store the raw spec, not the parsed result, so unknown Perses fields
-    // survive verbatim (the file is the source of truth).
+    // Store the whole parsed document, not just the parsed spec, so unknown
+    // Perses fields (including top-level keys) survive verbatim — the file is
+    // the source of truth.
     out.push({
       slug,
       folderPath: folderPathFromFile(path),
-      spec: rawSpec as DesiredDashboard["spec"],
+      document: document as DesiredDashboard["document"],
     });
   }
 

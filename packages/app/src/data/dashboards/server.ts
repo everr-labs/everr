@@ -15,7 +15,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
     const orgId = context.session.session.activeOrganizationId;
 
     const [row] = await db
-      .select({ slug: dashboards.slug, spec: dashboards.spec })
+      .select({ document: dashboards.document })
       .from(dashboards)
       .where(
         and(
@@ -33,15 +33,11 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
       throw notFound();
     }
 
-    // Validate shape; return the raw stored spec so unknown Perses fields
-    // survive read.
-    dashboardSpecSchema.parse(row.spec);
+    // Validate the spec shape on read; return the stored document verbatim so
+    // unknown Perses fields survive.
+    dashboardSpecSchema.parse(row.document.spec);
 
-    return {
-      kind: "Dashboard",
-      metadata: { name: row.slug },
-      spec: row.spec,
-    } satisfies Dashboard;
+    return row.document satisfies Dashboard;
   });
 
 export const listDashboards = createAuthenticatedServerFn({
@@ -54,7 +50,7 @@ export const listDashboards = createAuthenticatedServerFn({
       slug: dashboards.slug,
       source: dashboards.source,
       folderPath: dashboards.folderPath,
-      displayName: sql<string>`spec->'display'->>'name'`,
+      displayName: sql<string>`document->'spec'->'display'->>'name'`,
     })
     .from(dashboards)
     .where(eq(dashboards.organizationId, orgId));

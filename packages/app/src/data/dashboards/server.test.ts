@@ -56,7 +56,7 @@ vi.mock("@/db/schema", () => ({
     source: "source",
     folderPath: "folder_path",
     updatedAt: "updated_at",
-    spec: "spec",
+    document: "document",
   },
 }));
 
@@ -188,16 +188,18 @@ describe("runVariableOptionsQuery", () => {
 // ---------------------------------------------------------------------------
 
 describe("getDashboard (source/slug)", () => {
-  it("looks up by org + source + slug and returns the Perses document", async () => {
-    selectImpl = () => [{ slug: "cpu", spec: { panels: {}, layouts: [] } }];
-    const result = await getDashboard({
-      data: { source: "team", slug: "cpu" },
-    });
-    expect(result).toEqual({
+  it("returns the stored document verbatim, including unknown fields", async () => {
+    const document = {
       kind: "Dashboard",
       metadata: { name: "cpu" },
       spec: { panels: {}, layouts: [] },
+      apiVersion: "perses.dev/v1",
+    };
+    selectImpl = () => [{ document }];
+    const result = await getDashboard({
+      data: { source: "team", slug: "cpu" },
     });
+    expect(result).toEqual(document);
   });
 
   it("throws a notFound when the dashboard is missing", async () => {

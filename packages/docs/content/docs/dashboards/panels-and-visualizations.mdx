@@ -65,6 +65,7 @@ SELECT toStartOfMinute(Timestamp) AS ts,
        ServiceName,
        count() AS spans
 FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 GROUP BY ts, ServiceName
 ORDER BY ts
 ```
@@ -78,6 +79,7 @@ Renders every column as-is, in query order. No special column naming is required
 ```sql
 SELECT ServiceName, count() AS spans, round(avg(Duration) / 1e6, 1) AS avg_ms
 FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 GROUP BY ServiceName
 ORDER BY spans DESC
 LIMIT 50
@@ -90,12 +92,21 @@ Reduces a numeric column to a single value via a calculation (`last`, `mean`, `m
 ```sql
 SELECT toStartOfMinute(Timestamp) AS ts, count() AS requests
 FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 GROUP BY ts ORDER BY ts
 ```
 
 ## Time range and variables
 
-Every panel query runs against the dashboard's **global time range** (the picker at the top, stored in the URL). You don't add time filters by hand for the axis — but you can reference the active range and other [variables](/docs/dashboards/variables) with `$name` tokens, which Everr interpolates server-side before running the query.
+The dashboard's **global time range** (the picker at the top, stored in the URL) is supplied to every query as two ClickHouse parameters, `{from:String}` and `{to:String}` — UTC datetimes in `YYYY-MM-DD HH:MM:SS` form. They are **not** injected automatically, so add them to your `WHERE` clause to scope the query to the picker:
+
+```sql
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+```
+
+A query that omits this scans all of history and won't follow the picker — time-series panels still clamp to the visible range, but `Table` and `StatChart` aggregate everything and stop matching the selected range. The parameters are always provided, so referencing them never errors.
+
+Separately, you can reference dashboard [variables](/docs/dashboards/variables) with `$name` tokens, which Everr interpolates server-side before running the query.
 
 ## Unknown visualizations
 

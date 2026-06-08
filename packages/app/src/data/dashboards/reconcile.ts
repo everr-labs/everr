@@ -1,17 +1,17 @@
-import type { DashboardSpec } from "./schema";
+import type { Dashboard } from "./schema";
 
 /** A dashboard as it exists in the store, scoped to a single source. */
 export interface ExistingDashboard {
   slug: string;
   folderPath: string;
-  spec: DashboardSpec;
+  document: Dashboard;
 }
 
 /** A dashboard declared in the desired set (parsed from a file). */
 export interface DesiredDashboard {
   slug: string;
   folderPath: string;
-  spec: DashboardSpec;
+  document: Dashboard;
 }
 
 export interface ReconcileDiff {
@@ -26,9 +26,9 @@ export interface ReconcileDiff {
  * source — this function never reasons about other sources, which is what makes
  * delete-by-default safe across multiple repos.
  *
- * A dashboard is "changed" when its folderPath or its spec differs. Specs are
- * compared by stable-stringify so unknown Perses fields participate in the
- * comparison and are preserved verbatim (the desired spec is stored as-is).
+ * A dashboard is "changed" when its folderPath or its document differs.
+ * Documents are compared by stable-stringify so unknown Perses fields
+ * participate in the comparison and are preserved verbatim (stored as-is).
  */
 export function reconcile(input: {
   existing: ExistingDashboard[];
@@ -45,7 +45,7 @@ export function reconcile(input: {
       creates.push(want);
     } else if (
       have.folderPath !== want.folderPath ||
-      stableStringify(have.spec) !== stableStringify(want.spec)
+      stableStringify(have.document) !== stableStringify(want.document)
     ) {
       updates.push(want);
     }

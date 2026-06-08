@@ -3,7 +3,7 @@ title: Dashboard Spec
 description: The full Perses-compatible dashboard file format Everr validates and renders.
 ---
 
-A dashboard file is a [Perses](https://perses.dev)-style resource with three top-level keys. Everr validates it on `everr apply` and again on read; the file is stored verbatim, so unknown Perses fields are preserved.
+A dashboard file is a [Perses](https://perses.dev)-style resource with three top-level keys. Everr validates it on `everr apply` and again on read; the whole document is stored **verbatim**, so unknown Perses fields — at the top level or inside `spec` — survive a read/apply round-trip unchanged. (The folder path is the one piece of state kept outside the document: it's derived from the file's directory, not declared in the file.)
 
 ```yaml
 kind: Dashboard

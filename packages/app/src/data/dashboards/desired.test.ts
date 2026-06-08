@@ -19,7 +19,7 @@ describe("buildDesiredSet", () => {
       {
         slug: "latency-overview",
         folderPath: "platform / latency",
-        spec: { panels: {}, layouts: [] },
+        document: doc("latency-overview"),
       },
     ]);
   });
@@ -51,6 +51,17 @@ describe("buildDesiredSet", () => {
       },
     ]);
     expect(set[0]?.folderPath).toBe("platform");
+  });
+
+  it("stores the whole document verbatim, including unknown top-level fields", () => {
+    const document = {
+      kind: "Dashboard",
+      metadata: { name: "cpu", labels: { team: "platform" } },
+      spec: { panels: {}, layouts: [] },
+      apiVersion: "perses.dev/v1",
+    };
+    const set = buildDesiredSet([{ path: "cpu.yaml", document }]);
+    expect(set[0]?.document).toEqual(document);
   });
 
   it("throws with the file path when a document fails schema validation", () => {

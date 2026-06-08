@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { DashboardSpec } from "@/data/dashboards/schema";
+import type { Dashboard } from "@/data/dashboards/schema";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
   "active",
@@ -177,12 +177,16 @@ export const dashboards = pgTable(
     organizationId: text("organization_id").notNull(),
     // The gitops source that owns this dashboard (prune/reconcile scope).
     source: text("source").notNull(),
-    // URL-safe per-source identifier (the spec's "name"); also echoed as
-    // metadata.name in the stored document.
+    // URL-safe per-source identifier (the document's metadata.name, or the
+    // filename when that's absent). Part of the identity tuple below.
     slug: text("slug").notNull(),
-    // Derived display path ("Team / Latency"); empty string = root.
+    // Derived display path ("Team / Latency"); empty string = root. Comes from
+    // the file's directory tree, not the document, so it's stored separately.
     folderPath: text("folder_path").notNull().default(""),
-    spec: jsonb("spec").notNull().$type<DashboardSpec>(),
+    // The whole Perses document, stored verbatim so unknown fields survive a
+    // read/apply round-trip. Identity/index data (source, slug, folderPath)
+    // lives in dedicated columns above.
+    document: jsonb("document").notNull().$type<Dashboard>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
