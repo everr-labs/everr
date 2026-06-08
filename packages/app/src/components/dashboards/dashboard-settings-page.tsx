@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { isWithinDashboardPath } from "@/data/dashboards/dashboard-paths";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions, useSaveDashboard } from "@/data/dashboards/options";
 import { SettingsGeneralSection } from "./settings-general-section";
@@ -46,7 +47,7 @@ export function DashboardSettingsPage({
   const blocker = useBlocker({
     shouldBlockFn: ({ next }) => {
       if (!useDashboardStore.getState().isDirty) return false;
-      return !next.pathname.startsWith(dashboardPrefix);
+      return !isWithinDashboardPath(next.pathname, dashboardPrefix);
     },
     enableBeforeUnload: () => useDashboardStore.getState().isDirty,
     withResolver: true,
@@ -62,6 +63,16 @@ export function DashboardSettingsPage({
       setDashboard(fetchedDashboard);
     }
   }, [storeDashboard, fetchedDashboard, setDashboard]);
+
+  // A new dashboard lives only in the store (no query to seed it). On a direct
+  // load or reload of /dashboards/new/settings the store is empty, so send the
+  // user to the new-dashboard editor (which seeds the draft) instead of leaving
+  // a blank page.
+  useEffect(() => {
+    if (isNew && !storeDashboard) {
+      navigate({ to: "/dashboards/new", replace: true });
+    }
+  }, [isNew, storeDashboard, navigate]);
 
   const dashboard = storeDashboard ?? fetchedDashboard;
 

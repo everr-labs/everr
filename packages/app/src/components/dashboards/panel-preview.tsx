@@ -7,6 +7,7 @@ interface PanelPreviewProps {
   panel: Panel;
   panelKey: string;
   data?: QueryResultRow[][];
+  status?: "pending" | "error" | "success";
   errorMessage?: string;
   timeRange?: ResolvedTimeRange;
   onTimeRangeChange?: (range: ResolvedTimeRange) => void;
@@ -16,6 +17,7 @@ export function PanelPreview({
   panel,
   panelKey,
   data,
+  status,
   errorMessage,
   timeRange,
   onTimeRangeChange,
@@ -26,7 +28,7 @@ export function PanelPreview({
     <PanelShell
       title={display.name ?? panelKey}
       description={display.description}
-      status={errorMessage ? "error" : "success"}
+      status={status ?? (errorMessage ? "error" : "success")}
       errorMessage={errorMessage}
       className="h-full"
       inset={getVisualizationInset(plugin.kind)}

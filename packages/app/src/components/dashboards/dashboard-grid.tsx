@@ -51,6 +51,7 @@ import {
   rglToPerses,
   sameLayoutItems,
 } from "@/data/dashboards/convert";
+import { isWithinDashboardPath } from "@/data/dashboards/dashboard-paths";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import {
   dashboardListOptions,
@@ -128,7 +129,7 @@ export function DashboardGrid({ isNew, defaultFolderId }: DashboardGridProps) {
       if (!useDashboardStore.getState().isDirty) return false;
       // Allow search-param-only updates (e.g. variable bar picks) on the same page.
       if (next.pathname === current.pathname) return false;
-      return !next.pathname.startsWith(dashboardPathPrefix);
+      return !isWithinDashboardPath(next.pathname, dashboardPathPrefix);
     },
     enableBeforeUnload: () => useDashboardStore.getState().isDirty,
     withResolver: true,

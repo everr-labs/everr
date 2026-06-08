@@ -24,6 +24,7 @@ import {
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isWithinDashboardPath } from "@/data/dashboards/dashboard-paths";
 import { useDashboardStore } from "@/data/dashboards/dashboard-store";
 import { dashboardOptions, panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
@@ -76,7 +77,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   const blocker = useBlocker({
     shouldBlockFn: ({ next }) => {
       if (!useDashboardStore.getState().isDirty) return false;
-      return !next.pathname.startsWith(dashboardPrefix);
+      return !isWithinDashboardPath(next.pathname, dashboardPrefix);
     },
     enableBeforeUnload: () => useDashboardStore.getState().isDirty,
     withResolver: true,
@@ -92,6 +93,16 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
       setDashboard(fetchedDashboard);
     }
   }, [storeDashboard, fetchedDashboard, setDashboard]);
+
+  // A new dashboard lives only in the store (no query to seed it). On a direct
+  // load or reload of /dashboards/new/panel/<key> the store is empty and the
+  // panel draft is gone, so send the user to the new-dashboard editor instead
+  // of leaving a blank page.
+  useEffect(() => {
+    if (isNew && !storeDashboard) {
+      navigate({ to: "/dashboards/new", replace: true });
+    }
+  }, [isNew, storeDashboard, navigate]);
 
   const dashboard = storeDashboard ?? fetchedDashboard;
   const panel = dashboard?.spec.panels[panelKey] ?? null;
@@ -189,6 +200,10 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
   );
 
   const previewError = manualError ?? preview.errorMessage;
+  // A manual-run error takes precedence; otherwise reflect the query status so
+  // the preview shows a loading state while a query is running rather than
+  // rendering stale/empty data as if it were loaded.
+  const previewStatus = previewError ? "error" : preview.status;
 
   if (!dashboard) return null;
 
@@ -310,6 +325,7 @@ export function PanelEditPage({ dashboardId, panelKey }: PanelEditPageProps) {
                   panel={draft}
                   panelKey={panelKey}
                   data={preview.data}
+                  status={previewStatus}
                   errorMessage={previewError ?? undefined}
                   timeRange={{ from: fromDate, to: toDate }}
                   onTimeRangeChange={handleTimeRangeChange}
