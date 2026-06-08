@@ -7,6 +7,14 @@ function setIsFullscreen(value: boolean) {
   document.documentElement.dataset.fullscreen = value ? "true" : "false";
 }
 
+function cleanupTauriListener(unlisten: UnlistenFn) {
+  try {
+    void Promise.resolve(unlisten()).catch(() => {});
+  } catch {
+    // Listener cleanup is best-effort; Tauri may have already removed it.
+  }
+}
+
 /**
  * Tracks whether the main window is in native (macOS) fullscreen, where the
  * traffic-light buttons are hidden. Used to collapse the titlebar insets so the
@@ -33,7 +41,7 @@ export function useIsFullscreen() {
     sync();
     void appWindow.onResized(sync).then((cleanup) => {
       if (cancelled) {
-        cleanup();
+        cleanupTauriListener(cleanup);
       } else {
         unlisten = cleanup;
       }
@@ -41,7 +49,9 @@ export function useIsFullscreen() {
 
     return () => {
       cancelled = true;
-      unlisten?.();
+      if (unlisten) {
+        cleanupTauriListener(unlisten);
+      }
     };
   }, []);
 }
@@ -61,17 +71,25 @@ export function useTauriEvent<T = unknown>(
     }
 
     let unlisten: UnlistenFn | undefined;
+    let cancelled = false;
 
     void appWindow
       .listen<T>(eventName, (event) => {
         handleEvent(event.payload);
       })
       .then((cleanup) => {
-        unlisten = cleanup;
+        if (cancelled) {
+          cleanupTauriListener(cleanup);
+        } else {
+          unlisten = cleanup;
+        }
       });
 
     return () => {
-      unlisten?.();
+      cancelled = true;
+      if (unlisten) {
+        cleanupTauriListener(unlisten);
+      }
     };
   }, [eventName, handleEvent]);
 }
