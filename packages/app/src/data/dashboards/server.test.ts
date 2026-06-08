@@ -4,13 +4,14 @@ import { query as clickhouseQuery } from "@/lib/clickhouse";
 
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder.
-// Individual tests configure `selectImpl` / `updateImpl` / `insertImpl` to
-// return whatever data they need.
+// Individual tests configure `selectImpl` / `updateImpl` / `insertImpl` /
+// `deleteImpl` to return whatever data they need.
 // ---------------------------------------------------------------------------
 
 let selectImpl: () => unknown = () => undefined;
 let updateImpl: () => unknown = () => ({ returning: () => [] });
 let insertImpl: () => unknown = () => [{ slug: "aaaaaaaaaaaa" }];
+let deleteImpl: () => unknown = () => [];
 
 vi.mock("@/db/client", () => {
   const selectChain = {
@@ -26,11 +27,22 @@ vi.mock("@/db/client", () => {
     values: vi.fn(() => insertChain),
     returning: vi.fn(() => insertImpl()),
   };
+  const deleteChain = {
+    where: vi.fn(() => deleteImpl()),
+  };
   return {
     db: {
       select: vi.fn(() => selectChain),
       update: vi.fn(() => updateChain),
       insert: vi.fn(() => insertChain),
+      delete: vi.fn(() => deleteChain),
+      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          insert: vi.fn(() => insertChain),
+          update: vi.fn(() => updateChain),
+          delete: vi.fn(() => deleteChain),
+        }),
+      ),
     },
   };
 });
@@ -48,22 +60,18 @@ vi.mock("@/db/schema", () => ({
     organizationId: "organization_id",
     slug: "slug",
     folderId: "folder_id",
+    source: "source",
+    folderPath: "folder_path",
     updatedAt: "updated_at",
     spec: "spec",
   },
 }));
 
 import {
-  createDashboard,
-  createFolder,
-  generateDashboardSlug,
+  applyDashboards,
   getDashboard,
-  moveFolder,
-  renameDashboard,
-  renameFolder,
   runPanelQuery,
   runVariableOptionsQuery,
-  saveDashboard,
 } from "./server";
 
 const mockedDb = vi.mocked(db);
@@ -74,359 +82,7 @@ beforeEach(() => {
   selectImpl = () => undefined;
   updateImpl = () => ({ returning: () => [] });
   insertImpl = () => [{ slug: "aaaaaaaaaaaa" }];
-});
-
-// ---------------------------------------------------------------------------
-// Helper: configure the select chain to return a sequence of values.
-// Each call to .limit() pops the next item from the queue.
-// ---------------------------------------------------------------------------
-function mockSelectSequence(rows: Array<unknown[] | undefined>) {
-  const queue = [...rows];
-  selectImpl = () => {
-    return queue.shift() ?? undefined;
-  };
-}
-
-describe("moveFolder – cycle check", () => {
-  it("rejects when moving a folder into itself", async () => {
-    // parentId === folderId → cycle detected before any db query
-    await expect(
-      moveFolder({ data: { folderId: "folder-a", parentId: "folder-a" } }),
-    ).rejects.toThrow(
-      "Cannot move a folder into itself or one of its subfolders",
-    );
-  });
-
-  it("rejects when moving a folder into one of its own descendants", async () => {
-    // Tree: folder-a → folder-b → folder-c (folder-c's ancestor chain reaches folder-a)
-    // Moving folder-a into folder-c would create a cycle.
-    // Ancestor walk from folder-c: folder-c → folder-b → folder-a (hit!)
-    mockSelectSequence([
-      // First lookup: folder-c's parent → folder-b
-      [{ parentId: "folder-b" }],
-      // Second lookup: folder-b's parent → folder-a  (= folderId → cycle!)
-      [{ parentId: "folder-a" }],
-    ]);
-
-    await expect(
-      moveFolder({ data: { folderId: "folder-a", parentId: "folder-c" } }),
-    ).rejects.toThrow(
-      "Cannot move a folder into itself or one of its subfolders",
-    );
-  });
-
-  it("rejects when the target parent folder is not found", async () => {
-    // The db returns no row for the first ancestor lookup.
-    mockSelectSequence([
-      // lookup for parentId returns empty array (folder not found)
-      [],
-    ]);
-
-    await expect(
-      moveFolder({ data: { folderId: "folder-a", parentId: "folder-x" } }),
-    ).rejects.toThrow("Target folder not found");
-  });
-
-  it("resolves and issues the update for a valid move into an unrelated folder", async () => {
-    // Tree: folder-b has no parent (parentId: null), so the walk terminates cleanly.
-    mockSelectSequence([
-      // lookup for folder-b → parentId: null
-      [{ parentId: null }],
-    ]);
-
-    updateImpl = () => ({ returning: () => [{ id: "folder-a" }] });
-
-    const result = await moveFolder({
-      data: { folderId: "folder-a", parentId: "folder-b" },
-    });
-
-    expect(result).toEqual({ id: "folder-a" });
-    expect(mockedDb.update).toHaveBeenCalledTimes(1);
-  });
-
-  it("breaks out of the walk and does not loop infinitely if a pre-existing cycle exists in the db", async () => {
-    // Simulate a pre-existing cycle: folder-x ↔ folder-y (neither is folder-a)
-    // seen-set guard must prevent infinite loop.
-    mockSelectSequence([
-      // first: folder-x's parent → folder-y
-      [{ parentId: "folder-y" }],
-      // second: folder-y's parent → folder-x (cycle in db!)
-      [{ parentId: "folder-x" }],
-      // guard breaks before a third query
-    ]);
-
-    updateImpl = () => ({ returning: () => [{ id: "folder-a" }] });
-
-    const result = await moveFolder({
-      data: { folderId: "folder-a", parentId: "folder-x" },
-    });
-
-    expect(result).toEqual({ id: "folder-a" });
-    // Only 2 select calls should have been made (not infinite)
-    expect(mockedDb.select).toHaveBeenCalledTimes(2);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// generateDashboardSlug
-// ---------------------------------------------------------------------------
-
-describe("generateDashboardSlug", () => {
-  it("produces a 12-character string matching /^[a-z0-9]{12}$/", () => {
-    const slug = generateDashboardSlug();
-    expect(slug).toMatch(/^[a-z0-9]{12}$/);
-  });
-
-  it("two consecutive calls produce different slugs (probabilistic)", () => {
-    const a = generateDashboardSlug();
-    const b = generateDashboardSlug();
-    expect(a).not.toBe(b);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// saveDashboard – update-only behavior
-// ---------------------------------------------------------------------------
-
-describe("saveDashboard – update-only", () => {
-  it("rejects with 'not found' when no matching row exists", async () => {
-    // select returns an empty array → no existing dashboard
-    selectImpl = () => [];
-
-    await expect(
-      saveDashboard({
-        data: {
-          slug: "some-slug",
-          spec: { panels: {}, layouts: [] },
-        },
-      }),
-    ).rejects.toThrow('Dashboard "some-slug" not found');
-
-    // update must NOT have been called
-    expect(mockedDb.update).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// createDashboard – insert-only behavior
-// ---------------------------------------------------------------------------
-
-describe("createDashboard", () => {
-  it("issues an insert and returns a slug matching the 12-char pattern", async () => {
-    const fakeSlug = "ab3de6gh9012";
-    insertImpl = () => [{ slug: fakeSlug }];
-
-    const result = await createDashboard({
-      data: { spec: { panels: {}, layouts: [] } },
-    });
-
-    expect(result.slug).toBe(fakeSlug);
-    expect(result.slug).toMatch(/^[a-z0-9]{12}$/);
-
-    // insert was called, update was not
-    expect(mockedDb.insert).toHaveBeenCalledTimes(1);
-    expect(mockedDb.update).not.toHaveBeenCalled();
-  });
-});
-
-function uniqueViolation(): Error {
-  return Object.assign(
-    new Error("duplicate key value violates unique constraint"),
-    { code: "23505" },
-  );
-}
-
-describe("createFolder – duplicate name", () => {
-  it("maps a unique violation to a friendly error", async () => {
-    insertImpl = () => {
-      throw uniqueViolation();
-    };
-    await expect(
-      createFolder({ data: { name: "Production" } }),
-    ).rejects.toThrow("A folder with this name already exists here");
-  });
-
-  it("recognizes a unique violation wrapped in error.cause", async () => {
-    insertImpl = () => {
-      throw Object.assign(new Error("query failed"), {
-        cause: uniqueViolation(),
-      });
-    };
-    await expect(
-      createFolder({ data: { name: "Production" } }),
-    ).rejects.toThrow("A folder with this name already exists here");
-  });
-
-  it("rethrows unrelated errors untouched", async () => {
-    insertImpl = () => {
-      throw new Error("connection refused");
-    };
-    await expect(
-      createFolder({ data: { name: "Production" } }),
-    ).rejects.toThrow("connection refused");
-  });
-});
-
-describe("createFolder – parent org scoping", () => {
-  it("rejects a parent that is not in the caller's organization", async () => {
-    // Parent lookup (scoped to org) returns no row.
-    mockSelectSequence([[]]);
-    await expect(
-      createFolder({ data: { name: "Child", parentId: "other-org-folder" } }),
-    ).rejects.toThrow("Parent folder not found");
-    // The insert must not run when the parent is rejected.
-    expect(mockedDb.insert).not.toHaveBeenCalled();
-  });
-
-  it("inserts when the parent folder belongs to the org", async () => {
-    mockSelectSequence([[{ id: "parent" }]]);
-    insertImpl = () => [{ id: "new-folder" }];
-    const result = await createFolder({
-      data: { name: "Child", parentId: "parent" },
-    });
-    expect(result.id).toBe("new-folder");
-  });
-
-  it("skips the parent lookup for a root folder", async () => {
-    insertImpl = () => [{ id: "root-folder" }];
-    const result = await createFolder({ data: { name: "Root" } });
-    expect(result.id).toBe("root-folder");
-    expect(mockedDb.select).not.toHaveBeenCalled();
-  });
-});
-
-describe("renameFolder – duplicate name", () => {
-  it("maps a unique violation to a friendly error", async () => {
-    updateImpl = () => {
-      throw uniqueViolation();
-    };
-    await expect(
-      renameFolder({
-        data: {
-          folderId: "11111111-1111-1111-1111-111111111111",
-          name: "Production",
-        },
-      }),
-    ).rejects.toThrow("A folder with this name already exists here");
-  });
-});
-
-describe("createDashboard – slug collision retry", () => {
-  it("retries on slug collision and succeeds", async () => {
-    let attempts = 0;
-    insertImpl = () => {
-      attempts++;
-      if (attempts < 3) throw uniqueViolation();
-      return [{ slug: "zzzzzzzzzzzz" }];
-    };
-
-    const result = await createDashboard({
-      data: { spec: { panels: {}, layouts: [] } },
-    });
-
-    expect(result.slug).toBe("zzzzzzzzzzzz");
-    expect(attempts).toBe(3);
-  });
-
-  it("gives up after three attempts", async () => {
-    let attempts = 0;
-    insertImpl = () => {
-      attempts++;
-      throw uniqueViolation();
-    };
-
-    await expect(
-      createDashboard({ data: { spec: { panels: {}, layouts: [] } } }),
-    ).rejects.toThrow();
-    expect(attempts).toBe(3);
-  });
-
-  it("does not retry on unrelated insert errors", async () => {
-    let attempts = 0;
-    insertImpl = () => {
-      attempts++;
-      throw new Error("connection refused");
-    };
-
-    await expect(
-      createDashboard({ data: { spec: { panels: {}, layouts: [] } } }),
-    ).rejects.toThrow("connection refused");
-    expect(attempts).toBe(1);
-  });
-});
-
-describe("saveDashboard – newSlug rename", () => {
-  it("renames and saves the spec in one update", async () => {
-    selectImpl = () => [{ id: "dash-id" }];
-    updateImpl = () => undefined;
-
-    const result = await saveDashboard({
-      data: {
-        slug: "old-slug",
-        newSlug: "new-slug",
-        spec: { panels: {}, layouts: [] },
-      },
-    });
-
-    expect(result).toEqual({ slug: "new-slug" });
-    expect(mockedDb.update).toHaveBeenCalledTimes(1);
-  });
-
-  it("maps a slug collision to a friendly error", async () => {
-    selectImpl = () => [{ id: "dash-id" }];
-    updateImpl = () => {
-      throw uniqueViolation();
-    };
-
-    await expect(
-      saveDashboard({
-        data: {
-          slug: "old-slug",
-          newSlug: "taken-slug",
-          spec: { panels: {}, layouts: [] },
-        },
-      }),
-    ).rejects.toThrow('A dashboard with slug "taken-slug" already exists');
-  });
-
-  it("returns the original slug when newSlug is absent", async () => {
-    selectImpl = () => [{ id: "dash-id" }];
-    updateImpl = () => undefined;
-
-    const result = await saveDashboard({
-      data: { slug: "same-slug", spec: { panels: {}, layouts: [] } },
-    });
-
-    expect(result).toEqual({ slug: "same-slug" });
-  });
-});
-
-describe("createDashboard – chosen slug", () => {
-  it("uses the chosen slug instead of generating", async () => {
-    insertImpl = () => [{ slug: "my-dash" }];
-
-    const result = await createDashboard({
-      data: { slug: "my-dash", spec: { panels: {}, layouts: [] } },
-    });
-
-    expect(result).toEqual({ slug: "my-dash" });
-    expect(mockedDb.insert).toHaveBeenCalledTimes(1);
-  });
-
-  it("maps a chosen-slug collision to a friendly error without retrying", async () => {
-    let attempts = 0;
-    insertImpl = () => {
-      attempts++;
-      throw uniqueViolation();
-    };
-
-    await expect(
-      createDashboard({
-        data: { slug: "taken-slug", spec: { panels: {}, layouts: [] } },
-      }),
-    ).rejects.toThrow('A dashboard with slug "taken-slug" already exists');
-    expect(attempts).toBe(1);
-  });
+  deleteImpl = () => [];
 });
 
 // ---------------------------------------------------------------------------
@@ -535,107 +191,6 @@ describe("runVariableOptionsQuery", () => {
 });
 
 // ---------------------------------------------------------------------------
-// renameDashboard – atomic
-// ---------------------------------------------------------------------------
-
-describe("renameDashboard – atomic", () => {
-  it("renames in a single update and returns the slug", async () => {
-    updateImpl = () => ({ returning: () => [{ slug: "my-dash" }] });
-
-    const result = await renameDashboard({
-      data: { slug: "my-dash", name: "New Name" },
-    });
-
-    expect(result).toEqual({ slug: "my-dash", name: "New Name" });
-    expect(mockedDb.update).toHaveBeenCalledTimes(1);
-    expect(mockedDb.select).not.toHaveBeenCalled();
-  });
-
-  it("throws not-found when no row matches", async () => {
-    updateImpl = () => ({ returning: () => [] });
-
-    await expect(
-      renameDashboard({ data: { slug: "missing", name: "Anything" } }),
-    ).rejects.toThrow('Dashboard "missing" not found');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// renameFolder / moveFolder – missing-row handling
-// ---------------------------------------------------------------------------
-
-describe("renameFolder – missing row", () => {
-  it("throws not-found when the update matches no row", async () => {
-    updateImpl = () => ({ returning: () => [] });
-
-    await expect(
-      renameFolder({
-        data: {
-          folderId: "11111111-1111-1111-1111-111111111111",
-          name: "Whatever",
-        },
-      }),
-    ).rejects.toThrow("Folder not found");
-  });
-
-  it("returns the id when a row was renamed", async () => {
-    updateImpl = () => ({ returning: () => [{ id: "folder-z" }] });
-
-    const result = await renameFolder({
-      data: { folderId: "folder-z", name: "Renamed" },
-    });
-
-    expect(result).toEqual({ id: "folder-z" });
-  });
-});
-
-describe("moveFolder – missing row", () => {
-  it("throws not-found when the update matches no row", async () => {
-    // parentId null → skips the cycle walk; the final update matches nothing.
-    updateImpl = () => ({ returning: () => [] });
-
-    await expect(
-      moveFolder({ data: { folderId: "ghost-folder", parentId: null } }),
-    ).rejects.toThrow("Folder not found");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// createDashboard / saveDashboard – folder must belong to the org
-// ---------------------------------------------------------------------------
-
-describe("createDashboard – folder org scoping", () => {
-  it("rejects a folder that is not in the caller's organization", async () => {
-    selectImpl = () => []; // folder lookup finds nothing in this org
-
-    await expect(
-      createDashboard({
-        data: { spec: { panels: {}, layouts: [] }, folderId: "other-org" },
-      }),
-    ).rejects.toThrow("Target folder not found");
-    expect(mockedDb.insert).not.toHaveBeenCalled();
-  });
-});
-
-describe("saveDashboard – folder org scoping", () => {
-  it("rejects a folder that is not in the caller's organization", async () => {
-    // First select: existing dashboard found. Second select: folder missing.
-    mockSelectSequence([[{ id: "dash-id" }], []]);
-
-    await expect(
-      saveDashboard({
-        data: {
-          slug: "my-dash",
-          spec: { panels: {}, layouts: [] },
-          folderId: "other-org",
-        },
-      }),
-    ).rejects.toThrow("Target folder not found");
-    expect(mockedDb.update).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Unknown-field preservation (Perses round-trip)
 // ---------------------------------------------------------------------------
 
@@ -662,28 +217,90 @@ describe("getDashboard – preserves unknown spec fields", () => {
   });
 });
 
-describe("createDashboard / saveDashboard – spec validation & preservation", () => {
-  it("rejects a structurally invalid spec", async () => {
-    await expect(
-      createDashboard({ data: { spec: { panels: 123 } } }),
-    ).rejects.toThrow();
-  });
+// ---------------------------------------------------------------------------
+// applyDashboards
+// ---------------------------------------------------------------------------
 
-  it("accepts a valid spec that carries unknown fields", async () => {
-    insertImpl = () => [{ slug: "new1" }];
-    const result = await createDashboard({
-      data: { spec: { panels: {}, layouts: [], persesExtra: "x" } },
+// ---------------------------------------------------------------------------
+// Helper for applyDashboards tests: override db.select to return a Promise
+// resolving to `rows` directly (applyDashboards ends the chain at .where(),
+// not .limit(), so we need a per-test override rather than the shared chain).
+// ---------------------------------------------------------------------------
+function mockApplySelect(rows: unknown[]) {
+  mockedDb.select.mockImplementationOnce(
+    () =>
+      ({
+        from: () => ({
+          where: () => Promise.resolve(rows),
+        }),
+      }) as ReturnType<typeof mockedDb.select>,
+  );
+}
+
+describe("applyDashboards", () => {
+  it("dryRun computes a diff and does not write", async () => {
+    mockApplySelect([
+      { slug: "old-dash", folderPath: "", spec: { panels: {}, layouts: [] } },
+    ]);
+    const result = await applyDashboards({
+      data: {
+        source: "team",
+        dryRun: true,
+        documents: [
+          {
+            path: "cpu.yaml",
+            document: {
+              kind: "Dashboard",
+              metadata: { name: "cpu" },
+              spec: { panels: {}, layouts: [] },
+            },
+          },
+        ],
+      },
     });
-    expect(result.slug).toBe("new1");
+    expect(result).toEqual({
+      created: ["cpu"],
+      updated: [],
+      deleted: ["old-dash"],
+      dryRun: true,
+    });
+    expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 
-  it("saveDashboard rejects an invalid spec before touching the db", async () => {
+  it("applies the diff inside a transaction when not a dry run", async () => {
+    mockApplySelect([]);
+    const result = await applyDashboards({
+      data: {
+        source: "team",
+        documents: [
+          {
+            path: "a.yaml",
+            document: {
+              kind: "Dashboard",
+              metadata: { name: "a" },
+              spec: { panels: {}, layouts: [] },
+            },
+          },
+        ],
+      },
+    });
+    expect(result.created).toEqual(["a"]);
+    expect(result.dryRun).toBe(false);
+    expect(mockedDb.transaction).toHaveBeenCalledOnce();
+  });
+
+  it("rejects the apply when a document is invalid", async () => {
+    // buildDesiredSet throws before the db.select is called
     await expect(
-      saveDashboard({
-        data: { slug: "d", spec: { layouts: "nope" } },
+      applyDashboards({
+        data: {
+          source: "team",
+          documents: [
+            { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
+          ],
+        },
       }),
-    ).rejects.toThrow();
-    expect(mockedDb.update).not.toHaveBeenCalled();
-    expect(mockedDb.select).not.toHaveBeenCalled();
+    ).rejects.toThrow(/bad\.yaml/);
+    expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 });

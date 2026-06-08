@@ -2,67 +2,13 @@ import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
 import { db } from "@/db/client";
-import { dashboardFolders, dashboards } from "@/db/schema";
+import { dashboards } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { buildDesiredSet } from "./desired";
 import { interpolateVariables } from "./interpolate";
+import { reconcile } from "./reconcile";
 import type { Dashboard, DashboardSpec } from "./schema";
-import {
-  createDashboardInput,
-  createFolderInput,
-  dashboardSpecSchema,
-  deleteDashboardInput,
-  deleteFolderInput,
-  moveDashboardInput,
-  moveFolderInput,
-  renameDashboardInput,
-  renameFolderInput,
-  saveDashboardInput,
-} from "./schema";
-
-const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-export function generateDashboardSlug(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  let slug = "";
-  for (const byte of bytes) {
-    slug += SLUG_ALPHABET[byte % SLUG_ALPHABET.length];
-  }
-  return slug;
-}
-
-const PG_UNIQUE_VIOLATION = "23505";
-
-function isUniqueViolation(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  if ((error as { code?: unknown }).code === PG_UNIQUE_VIOLATION) return true;
-  return isUniqueViolation((error as { cause?: unknown }).cause);
-}
-
-/**
- * Verify a folder id belongs to the active organization before a write
- * references it. The tenant-scoped FK already blocks a cross-org reference at
- * the database level, but checking here gives a clean error instead of a raw
- * constraint violation and keeps the org boundary enforced in one place.
- */
-async function assertFolderInOrg(
-  folderId: string,
-  orgId: string,
-  notFoundMessage = "Target folder not found",
-): Promise<void> {
-  const [folder] = await db
-    .select({ id: dashboardFolders.id })
-    .from(dashboardFolders)
-    .where(
-      and(
-        eq(dashboardFolders.id, folderId),
-        eq(dashboardFolders.organizationId, orgId),
-      ),
-    )
-    .limit(1);
-  if (!folder) {
-    throw new Error(notFoundMessage);
-  }
-}
+import { applyDashboardsInput, dashboardSpecSchema } from "./schema";
 
 export const getDashboard = createAuthenticatedServerFn({
   method: "GET",
@@ -98,195 +44,6 @@ export const getDashboard = createAuthenticatedServerFn({
     } satisfies Dashboard;
   });
 
-export const createDashboard = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(createDashboardInput)
-  .handler(async ({ data: { spec, folderId, slug }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
-
-    // Validate the shape; store the raw spec so unknown Perses fields survive.
-    dashboardSpecSchema.parse(spec);
-
-    if (folderId) {
-      await assertFolderInOrg(folderId, orgId);
-    }
-
-    // User-chosen slug: no retry — a collision is the user's to resolve.
-    if (slug) {
-      try {
-        const [row] = await db
-          .insert(dashboards)
-          .values({
-            organizationId: orgId,
-            slug,
-            spec: spec as DashboardSpec,
-            folderId: folderId ?? null,
-          })
-          .returning({ slug: dashboards.slug });
-
-        if (!row) {
-          throw new Error("Failed to create dashboard");
-        }
-
-        return { slug: row.slug };
-      } catch (error) {
-        if (isUniqueViolation(error)) {
-          throw new Error(`A dashboard with slug "${slug}" already exists`);
-        }
-        throw error;
-      }
-    }
-
-    const MAX_ATTEMPTS = 3;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const [row] = await db
-          .insert(dashboards)
-          .values({
-            organizationId: orgId,
-            slug: generateDashboardSlug(),
-            spec: spec as DashboardSpec,
-            folderId: folderId ?? null,
-          })
-          .returning({ slug: dashboards.slug });
-
-        if (!row) {
-          throw new Error("Failed to create dashboard");
-        }
-
-        return { slug: row.slug };
-      } catch (error) {
-        // Astronomically unlikely slug collision — regenerate and retry.
-        if (!isUniqueViolation(error) || attempt === MAX_ATTEMPTS) {
-          throw error;
-        }
-      }
-    }
-    throw new Error("Failed to create dashboard");
-  });
-
-export const saveDashboard = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(saveDashboardInput)
-  .handler(async ({ data: { slug, newSlug, spec, folderId }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
-
-    // Validate the shape; store the raw spec so unknown Perses fields survive.
-    dashboardSpecSchema.parse(spec);
-
-    const [existing] = await db
-      .select({ id: dashboards.id })
-      .from(dashboards)
-      .where(
-        and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
-      )
-      .limit(1);
-
-    if (!existing) {
-      throw new Error(`Dashboard "${slug}" not found`);
-    }
-
-    if (folderId) {
-      await assertFolderInOrg(folderId, orgId);
-    }
-
-    const finalSlug = newSlug && newSlug !== slug ? newSlug : slug;
-
-    try {
-      await db
-        .update(dashboards)
-        .set({
-          spec: spec as DashboardSpec,
-          updatedAt: new Date(),
-          ...(finalSlug !== slug ? { slug: finalSlug } : {}),
-          ...(folderId !== undefined ? { folderId } : {}),
-        })
-        .where(eq(dashboards.id, existing.id));
-    } catch (error) {
-      // Slug rename collided with an existing dashboard in this org.
-      if (finalSlug !== slug && isUniqueViolation(error)) {
-        throw new Error(`A dashboard with slug "${finalSlug}" already exists`);
-      }
-      throw error;
-    }
-
-    return { slug: finalSlug };
-  });
-
-export const deleteDashboard = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(deleteDashboardInput)
-  .handler(async ({ data: { slug }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
-
-    await db
-      .delete(dashboards)
-      .where(
-        and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
-      );
-
-    return { deleted: true };
-  });
-
-export const renameDashboard = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(renameDashboardInput)
-  .handler(async ({ data: { slug, name }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
-
-    const [row] = await db
-      .update(dashboards)
-      .set({
-        spec: sql`jsonb_set(
-          jsonb_set(${dashboards.spec}, '{display}', coalesce(${dashboards.spec}->'display', '{}'::jsonb), true),
-          '{display,name}',
-          to_jsonb(${name}::text),
-          true
-        )`,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
-      )
-      .returning({ slug: dashboards.slug });
-
-    if (!row) {
-      throw new Error(`Dashboard "${slug}" not found`);
-    }
-
-    return { slug, name };
-  });
-
-export const moveDashboard = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(moveDashboardInput)
-  .handler(async ({ data: { slug, folderId }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
-
-    if (folderId !== null) {
-      await assertFolderInOrg(folderId, orgId);
-    }
-
-    const updated = await db
-      .update(dashboards)
-      .set({ folderId, updatedAt: new Date() })
-      .where(
-        and(eq(dashboards.organizationId, orgId), eq(dashboards.slug, slug)),
-      )
-      .returning({ id: dashboards.id });
-
-    if (updated.length === 0) {
-      throw new Error(`Dashboard "${slug}" not found`);
-    }
-
-    return { slug };
-  });
-
 export const listDashboards = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context }) => {
@@ -308,187 +65,81 @@ export const listDashboards = createAuthenticatedServerFn({
   }));
 });
 
-export const listFolders = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context }) => {
-  const orgId = context.session.session.activeOrganizationId;
-
-  return db
-    .select({
-      id: dashboardFolders.id,
-      parentId: dashboardFolders.parentId,
-      name: dashboardFolders.name,
-    })
-    .from(dashboardFolders)
-    .where(eq(dashboardFolders.organizationId, orgId));
-});
-
-export const createFolder = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(createFolderInput)
-  .handler(async ({ data: { name, parentId }, context }) => {
+export const applyDashboards = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(applyDashboardsInput)
+  .handler(async ({ data: { source, documents, dryRun }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
-    if (parentId != null) {
-      await assertFolderInOrg(parentId, orgId, "Parent folder not found");
-    }
+    // Validate + normalize the desired set (throws with file path on failure).
+    const desired = buildDesiredSet(documents);
 
-    try {
-      const [row] = await db
-        .insert(dashboardFolders)
-        .values({
-          organizationId: orgId,
-          parentId: parentId ?? null,
-          name,
-        })
-        .returning({ id: dashboardFolders.id });
-
-      return { id: row?.id };
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new Error("A folder with this name already exists here");
-      }
-      throw error;
-    }
-  });
-
-export const renameFolder = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(renameFolderInput)
-  .handler(async ({ data: { folderId, name }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
-
-    let updated: { id: string }[];
-    try {
-      updated = await db
-        .update(dashboardFolders)
-        .set({ name, updatedAt: new Date() })
-        .where(
-          and(
-            eq(dashboardFolders.id, folderId),
-            eq(dashboardFolders.organizationId, orgId),
-          ),
-        )
-        .returning({ id: dashboardFolders.id });
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new Error("A folder with this name already exists here");
-      }
-      throw error;
-    }
-
-    if (updated.length === 0) {
-      throw new Error("Folder not found");
-    }
-
-    return { id: folderId };
-  });
-
-export const moveFolder = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(moveFolderInput)
-  .handler(async ({ data: { folderId, parentId }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
-
-    // Cycle check: walk up from the target parent; if we reach the folder
-    // being moved, the move would create a cycle.
-    const seen = new Set<string>();
-    let current = parentId;
-    while (current !== null) {
-      if (current === folderId) {
-        throw new Error(
-          "Cannot move a folder into itself or one of its subfolders",
-        );
-      }
-      if (seen.has(current)) break;
-      seen.add(current);
-      const [row] = await db
-        .select({ parentId: dashboardFolders.parentId })
-        .from(dashboardFolders)
-        .where(
-          and(
-            eq(dashboardFolders.id, current),
-            eq(dashboardFolders.organizationId, orgId),
-          ),
-        )
-        .limit(1);
-      if (!row) {
-        throw new Error("Target folder not found");
-      }
-      current = row.parentId;
-    }
-
-    const updated = await db
-      .update(dashboardFolders)
-      .set({ parentId, updatedAt: new Date() })
+    // Load ONLY this source's dashboards — the diff never sees other sources,
+    // which is what makes delete-by-default safe across repos.
+    const existing = await db
+      .select({
+        slug: dashboards.slug,
+        folderPath: dashboards.folderPath,
+        spec: dashboards.spec,
+      })
+      .from(dashboards)
       .where(
         and(
-          eq(dashboardFolders.id, folderId),
-          eq(dashboardFolders.organizationId, orgId),
+          eq(dashboards.organizationId, orgId),
+          eq(dashboards.source, source),
         ),
-      )
-      .returning({ id: dashboardFolders.id });
+      );
 
-    if (updated.length === 0) {
-      throw new Error("Folder not found");
-    }
+    const diff = reconcile({ existing, desired });
 
-    return { id: folderId };
-  });
+    const summary = {
+      created: diff.creates.map((d) => d.slug),
+      updated: diff.updates.map((d) => d.slug),
+      deleted: diff.deletes,
+      dryRun: dryRun ?? false,
+    };
 
-export const deleteFolder = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(deleteFolderInput)
-  .handler(async ({ data: { folderId, mode }, context }) => {
-    const orgId = context.session.session.activeOrganizationId;
+    if (dryRun) return summary;
 
-    if (mode === "move-to-root") {
-      await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
+      for (const d of diff.creates) {
+        await tx.insert(dashboards).values({
+          organizationId: orgId,
+          source,
+          slug: d.slug,
+          folderPath: d.folderPath,
+          spec: d.spec as DashboardSpec,
+        });
+      }
+      for (const d of diff.updates) {
         await tx
           .update(dashboards)
-          .set({ folderId: null })
+          .set({
+            spec: d.spec as DashboardSpec,
+            folderPath: d.folderPath,
+            updatedAt: new Date(),
+          })
           .where(
             and(
               eq(dashboards.organizationId, orgId),
-              eq(dashboards.folderId, folderId),
+              eq(dashboards.source, source),
+              eq(dashboards.slug, d.slug),
             ),
           );
-
+      }
+      for (const slug of diff.deletes) {
         await tx
-          .update(dashboardFolders)
-          .set({ parentId: null })
+          .delete(dashboards)
           .where(
             and(
-              eq(dashboardFolders.organizationId, orgId),
-              eq(dashboardFolders.parentId, folderId),
+              eq(dashboards.organizationId, orgId),
+              eq(dashboards.source, source),
+              eq(dashboards.slug, slug),
             ),
           );
+      }
+    });
 
-        await tx
-          .delete(dashboardFolders)
-          .where(
-            and(
-              eq(dashboardFolders.id, folderId),
-              eq(dashboardFolders.organizationId, orgId),
-            ),
-          );
-      });
-    } else {
-      await db
-        .delete(dashboardFolders)
-        .where(
-          and(
-            eq(dashboardFolders.id, folderId),
-            eq(dashboardFolders.organizationId, orgId),
-          ),
-        );
-    }
-
-    return { deleted: true };
+    return summary;
   });
 
 type QueryRow = Record<string, string | number | boolean | null>;
