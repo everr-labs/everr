@@ -37,8 +37,10 @@ describe("extractBearerKey", () => {
 });
 
 describe("resolveApplyAuth", () => {
-  it("returns null when there is no API key (caller falls back to session)", async () => {
-    expect(await resolveApplyAuth(headers({}))).toBeNull();
+  it("throws when there is no API key (sessions are not accepted)", async () => {
+    await expect(resolveApplyAuth(headers({}))).rejects.toThrow(
+      /missing api key/i,
+    );
     expect(verifyApiKey).not.toHaveBeenCalled();
   });
 
@@ -87,30 +89,12 @@ describe("resolveApplyAuth", () => {
 });
 
 describe("buildApplyContext", () => {
-  it("uses the API-key org when apiAuth is present", () => {
-    const ctx = buildApplyContext(
-      { organizationId: "org-k", principalId: "apikey:1" },
-      null,
-    );
+  it("uses the API-key org as the active organization", () => {
+    const ctx = buildApplyContext({
+      organizationId: "org-k",
+      principalId: "apikey:1",
+    });
     expect(ctx.session.session.activeOrganizationId).toBe("org-k");
     expect(ctx.session.user.id).toBe("apikey:1");
-  });
-
-  it("falls back to the session org when apiAuth is null", () => {
-    const ctx = buildApplyContext(null, {
-      session: { activeOrganizationId: "org-s" },
-      user: { id: "u1" },
-    } as never);
-    expect(ctx.session.session.activeOrganizationId).toBe("org-s");
-  });
-
-  it("throws when there is no apiAuth and no session", () => {
-    expect(() => buildApplyContext(null, null)).toThrow(/unauthenticated/i);
-  });
-
-  it("throws when the session has no active organization", () => {
-    expect(() =>
-      buildApplyContext(null, { session: {}, user: { id: "u1" } } as never),
-    ).toThrow(/no active organization/i);
   });
 });

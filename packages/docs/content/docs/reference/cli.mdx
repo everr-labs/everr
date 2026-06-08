@@ -73,9 +73,9 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
   - `--source <id>` (required) identifier that owns these dashboards and scopes pruning — only this source's dashboards are ever changed
   - `--dry-run` compute and print the diff without writing
 
-  Authentication: uses `EVERR_API_TOKEN` when set (for CI), otherwise your local `everr cloud login` session.
-  - `EVERR_API_TOKEN` an organization ingest key, used as a bearer token
-  - `EVERR_API_URL` API base URL when using a token (falls back to the URL persisted by a prior login)
+  Authentication: apply is token-only — it always runs under an organization ingest key, never an interactive session. Set `EVERR_API_TOKEN`.
+  - `EVERR_API_TOKEN` (required) an organization ingest key, used as a bearer token
+  - `EVERR_API_URL` API base URL (falls back to the URL persisted by a prior `everr cloud login`)
 
 ## Other
 

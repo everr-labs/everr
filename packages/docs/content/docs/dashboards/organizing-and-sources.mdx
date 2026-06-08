@@ -63,9 +63,7 @@ everr apply ./dashboards --source=platform --dry-run
 
 ## Applying from CI
 
-In CI you won't have an interactive session, so authenticate with an API token instead. `everr apply` uses token auth when `EVERR_API_TOKEN` is set (otherwise it falls back to your local `everr cloud login` session).
-
-Use an organization **ingest key** as the token. Provide the API base URL via `EVERR_API_URL` (or rely on the one persisted by a prior login).
+`everr apply` is token-only: it always authenticates with an organization **ingest key**, never an interactive session — so the same command works identically on a laptop and in CI. Set the key in `EVERR_API_TOKEN` and the API base URL in `EVERR_API_URL` (or rely on the one persisted by a prior `everr cloud login`).
 
 ```yaml
 # .github/workflows/dashboards.yml

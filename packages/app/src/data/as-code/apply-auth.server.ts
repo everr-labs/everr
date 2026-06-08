@@ -33,15 +33,14 @@ export function extractBearerKey(headers: Headers): string | null {
 }
 
 /**
- * Resolve apply auth from request headers. Returns null when no API key is
- * present (the caller should then fall back to interactive session auth).
- * Throws when a key IS present but invalid.
+ * Resolve apply auth from request headers. Apply is token-only: it accepts an
+ * organization-scoped ingest key and nothing else — interactive sessions and
+ * user-scoped keys are rejected (the latter fail `verifyApiKey` for the
+ * org-referenced `ingest` config). Throws when no key is present or it's invalid.
  */
-export async function resolveApplyAuth(
-  headers: Headers,
-): Promise<ApplyAuth | null> {
+export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   const key = extractBearerKey(headers);
-  if (!key) return null;
+  if (!key) throw new Error("Missing API key");
 
   for (const config of APPLY_KEY_CONFIGS) {
     const result = await auth.api.verifyApiKey({
@@ -60,51 +59,29 @@ export async function resolveApplyAuth(
 }
 
 /**
- * Build the org-scoped server-fn context from either a resolved API key or an
- * interactive session. Pure and framework-free so it can be unit-tested.
- * Throws when neither path yields an active organization.
+ * Build the org-scoped server-fn context from a resolved API key. Pure and
+ * framework-free so it can be unit-tested.
  */
-export function buildApplyContext(
-  apiAuth: ApplyAuth | null,
-  session: Awaited<ReturnType<typeof auth.api.getSession>>,
-) {
-  if (apiAuth) {
-    return {
-      session: {
-        session: { activeOrganizationId: apiAuth.organizationId },
-        user: { id: apiAuth.principalId },
-      },
-      clickhouse: { query: createClickhouseQuery(apiAuth.organizationId) },
-    };
-  }
-  if (!session?.session || !session?.user) {
-    throw new Error("Unauthenticated");
-  }
-  const activeOrgId = session.session.activeOrganizationId;
-  if (!activeOrgId) {
-    throw new Error("No active organization");
-  }
+export function buildApplyContext(apiAuth: ApplyAuth) {
   return {
     session: {
-      session: { ...session.session, activeOrganizationId: activeOrgId },
-      user: session.user,
+      session: { activeOrganizationId: apiAuth.organizationId },
+      user: { id: apiAuth.principalId },
     },
-    clickhouse: { query: createClickhouseQuery(activeOrgId) },
+    clickhouse: { query: createClickhouseQuery(apiAuth.organizationId) },
   };
 }
 
 /**
- * Authorize an apply request: prefer an API key (CI/gitops), fall back to the
- * interactive session+org. Same context shape as requireOrgMiddleware. Scoped
- * to the `/api/apply` route — kept out of the shared `serverFn.ts` so its
- * server-only imports never reach the client bundle.
+ * Authorize an apply request via an organization-scoped API key (CI/gitops).
+ * Interactive sessions are not accepted — apply only ever runs under a token.
+ * Same context shape as requireOrgMiddleware. Scoped to the `/api/apply` route —
+ * kept out of the shared `serverFn.ts` so its server-only imports never reach
+ * the client bundle.
  */
 export const requireOrgOrApiKeyMiddleware = createMiddleware().server(
   async ({ request, next }) => {
     const apiAuth = await resolveApplyAuth(request.headers);
-    const session = apiAuth
-      ? null
-      : await auth.api.getSession({ headers: request.headers });
-    return next({ context: buildApplyContext(apiAuth, session) });
+    return next({ context: buildApplyContext(apiAuth) });
   },
 );

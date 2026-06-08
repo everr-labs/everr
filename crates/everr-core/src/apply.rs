@@ -33,7 +33,13 @@ fn parse_document(path: &Path, contents: &str) -> Result<Value> {
 /// returning each with its POSIX path relative to `dir`. Errors name the file.
 pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
     let mut out = Vec::new();
-    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+    // Propagate walk errors instead of dropping them: apply treats this set as
+    // the complete desired state and prunes anything missing, so a silently
+    // truncated walk (unreadable dir, traversal error) would delete dashboards.
+    for entry in WalkDir::new(dir) {
+        let entry = entry.with_context(|| {
+            format!("failed to read directory tree under {}", dir.display())
+        })?;
         let path = entry.path();
         if !entry.file_type().is_file() || !is_dashboard_file(path) {
             continue;
