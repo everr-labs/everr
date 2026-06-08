@@ -1,0 +1,102 @@
+---
+title: Panels and Visualizations
+description: Add panels, write ClickHouse queries, and choose how each panel renders.
+---
+
+A dashboard's `spec.panels` is a map of panel keys to panel objects, and `spec.layouts` places those panels on a 24-column grid. Each panel runs one or more ClickHouse queries and renders the result with a visualization plugin.
+
+## Anatomy of a panel
+
+```yaml
+panels:
+  error-rate:                 # panel key — referenced by the layout
+    kind: Panel
+    spec:
+      display:
+        name: Error rate
+        description: 5xx responses per minute   # optional
+      plugin:
+        kind: TimeSeriesChart                   # the visualization
+        spec: { unit: "%", showLegend: true }   # visualization options
+      queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT toStartOfMinute(Timestamp) AS ts,
+                         countIf(StatusCode >= 500) / count() * 100 AS error_pct
+                  FROM traces
+                  GROUP BY ts ORDER BY ts
+```
+
+- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `Table`, or `StatChart`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
+- **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the only query plugin today.
+- Multiple queries are supported: the time-series chart overlays all of them, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
+
+## Placing panels on the grid
+
+A layout is a `Grid` whose `items` position panels. Each item references a panel by key and sets its geometry on a 24-column grid:
+
+```yaml
+layouts:
+  - kind: Grid
+    spec:
+      items:
+        - { x: 0,  y: 0, width: 12, height: 8, content: { $ref: "#/spec/panels/error-rate" } }
+        - { x: 12, y: 0, width: 12, height: 8, content: { $ref: "#/spec/panels/latency" } }
+```
+
+`content.$ref` is always `#/spec/panels/<panel-key>`. `x`/`y` are grid cells, `width`/`height` are spans. A panel only appears if a layout item references it.
+
+## Shaping data for each visualization
+
+What you `SELECT` determines what renders. The visualizations infer their structure from your columns:
+
+### Time series
+
+- One column must be the **time axis**. It's detected by name — alias it to `ts`, `time`, `timestamp`, `date`, `datetime`, `created_at`, `period`, `bucket`, or `interval`.
+- Remaining **numeric** columns become series (lines).
+- A remaining **string** column is treated as a series label, pivoting one value column into multiple lines. For example, grouping by `ServiceName`:
+
+```sql
+SELECT toStartOfMinute(Timestamp) AS ts,
+       ServiceName,
+       count() AS spans
+FROM traces
+GROUP BY ts, ServiceName
+ORDER BY ts
+```
+
+This produces one line per service.
+
+### Table
+
+Renders every column as-is, in query order. No special column naming is required — return whatever you want to display:
+
+```sql
+SELECT ServiceName, count() AS spans, round(avg(Duration) / 1e6, 1) AS avg_ms
+FROM traces
+GROUP BY ServiceName
+ORDER BY spans DESC
+LIMIT 50
+```
+
+### Stat
+
+Reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …). Return one numeric column (a time column enables the optional sparkline):
+
+```sql
+SELECT toStartOfMinute(Timestamp) AS ts, count() AS requests
+FROM traces
+GROUP BY ts ORDER BY ts
+```
+
+## Time range and variables
+
+Every panel query runs against the dashboard's **global time range** (the picker at the top, stored in the URL). You don't add time filters by hand for the axis — but you can reference the active range and other [variables](/docs/dashboards/variables) with `$name` tokens, which Everr interpolates server-side before running the query.
+
+## Unknown visualizations
+
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, and `StatChart`.

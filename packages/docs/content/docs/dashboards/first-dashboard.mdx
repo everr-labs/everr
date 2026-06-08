@@ -1,0 +1,134 @@
+---
+title: Your First Dashboard
+description: Write one dashboard file, apply it with the CLI, and view it in Everr.
+---
+
+This is the shortest path to a working dashboard: write one YAML file, reconcile it with `everr apply`, and open it in Everr. By the end you'll have a real dashboard rendered from your ClickHouse data and the workflow you'll use for every dashboard after.
+
+## Before you start
+
+- The CLI is installed and you've signed in (`everr cloud login`). See [Install](/docs/getting-started/install).
+- You have telemetry in Everr to query. If not, start with [Your first trace](/docs/getting-started/first-trace).
+
+## Create a dashboard file
+
+Make a directory to hold your dashboards and add one file. The directory is the unit you'll apply.
+
+```sh
+mkdir -p dashboards
+```
+
+`dashboards/api-latency.yaml`:
+
+```yaml
+kind: Dashboard
+metadata:
+  name: api-latency
+spec:
+  display:
+    name: API Latency
+  panels:
+    p99:
+      kind: Panel
+      spec:
+        display: { name: p99 latency (ms) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: ms, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfMinute(Timestamp) AS ts,
+                           quantile(0.99)(Duration) / 1e6 AS p99
+                    FROM traces
+                    GROUP BY ts
+                    ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - x: 0
+            y: 0
+            width: 24
+            height: 8
+            content: { $ref: "#/spec/panels/p99" }
+```
+
+A few things worth noting:
+
+- `metadata.name` is the **slug** — the dashboard's stable identity and its URL. Use lowercase letters, digits, and hyphens.
+- The panel's query must alias its time column to a recognized name (`ts`, `time`, `timestamp`, `bucket`, …). The time-series chart uses that column for the x-axis and treats the remaining numeric columns as series. See [Panels and visualizations](/docs/dashboards/panels-and-visualizations).
+- The `layouts` grid places the panel. `content.$ref` points at the panel key under `spec.panels` (here, `p99`). The grid is 24 columns wide.
+
+## Preview the change
+
+Always dry-run first. It computes the diff and writes nothing:
+
+```sh
+everr apply ./dashboards --source=demo --dry-run
+```
+
+```
+(dry run) Dashboard: 1 created, 0 updated, 0 deleted
+  + api-latency
+```
+
+`--source=demo` names the set of dashboards this directory owns. Pick something meaningful for real use (your repo or team name).
+
+## Apply it
+
+```sh
+everr apply ./dashboards --source=demo
+```
+
+```
+Dashboard: 1 created, 0 updated, 0 deleted
+  + api-latency
+```
+
+Re-running is idempotent — apply again and you'll see `0 created, 0 updated, 0 deleted`.
+
+## View it
+
+Open Everr and go to **Dashboards**, or navigate directly to:
+
+```
+/dashboards/demo/api-latency
+```
+
+The panel renders live, driven by the global time-range picker. Adjust the time range and the query re-runs; drag across a time-series panel to zoom.
+
+## Change and re-apply
+
+Edit the file — say, add a second panel or change the query — and apply again. A changed dashboard is updated in place; the URL never changes because the slug didn't.
+
+```sh
+everr apply ./dashboards --source=demo
+```
+
+```
+Dashboard: 0 created, 1 updated, 0 deleted
+  ~ api-latency
+```
+
+And to remove a dashboard, delete its file and apply — reconciliation is delete-by-default within the source:
+
+```sh
+rm dashboards/api-latency.yaml
+everr apply ./dashboards --source=demo
+```
+
+```
+Dashboard: 0 created, 0 updated, 1 deleted
+  - api-latency
+```
+
+## Next steps
+
+- Add more panels and pick visualizations in [Panels and visualizations](/docs/dashboards/panels-and-visualizations).
+- Make the dashboard interactive with [Variables](/docs/dashboards/variables).
+- Group dashboards into folders and apply from CI in [Organizing dashboards and sources](/docs/dashboards/organizing-and-sources).

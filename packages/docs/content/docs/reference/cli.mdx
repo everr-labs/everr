@@ -66,6 +66,17 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
   - Requires a running collector; if unavailable, the command is not run
   - Preserves the wrapped command's non-zero exit code
 
+## Dashboards (gitops)
+
+- `everr apply <dir> --source=<id>` — reconcile a directory of dashboard definitions (`.yaml`/`.yml`/`.json`) into Everr. Makes the source's dashboards exactly match the tree: new files are created, changed files updated, and removed files **deleted**. See [Dashboards](/docs/dashboards).
+  - `<dir>` directory to read resource files from (recursively); the directory structure becomes folder paths
+  - `--source <id>` (required) identifier that owns these dashboards and scopes pruning — only this source's dashboards are ever changed
+  - `--dry-run` compute and print the diff without writing
+
+  Authentication: uses `EVERR_API_TOKEN` when set (for CI), otherwise your local `everr cloud login` session.
+  - `EVERR_API_TOKEN` an organization ingest key, used as a bearer token
+  - `EVERR_API_URL` API base URL when using a token (falls back to the URL persisted by a prior login)
+
 ## Other
 
 - `everr uninstall` — remove all config files, log out, and print the command to remove the CLI binary

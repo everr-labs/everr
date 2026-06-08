@@ -1,0 +1,93 @@
+---
+title: Variables
+description: Make dashboards interactive with template variables and reference them in queries.
+---
+
+Variables let a dashboard be parameterized — a service picker, an environment dropdown, a free-text filter. They render as controls in the variable bar at the top of the dashboard, and you reference their values in panel queries with `$name` tokens. Define them under `spec.variables`.
+
+## Text variables
+
+A free-text input (or a fixed constant):
+
+```yaml
+variables:
+  - kind: TextVariable
+    spec:
+      name: search
+      display: { name: Search }
+      value: ""                # default
+      # constant: true         # render nothing; just a fixed value for queries
+```
+
+## List variables
+
+A dropdown. Options come from a plugin — either a static list or a ClickHouse query.
+
+Static options:
+
+```yaml
+- kind: ListVariable
+  spec:
+    name: env
+    display: { name: Environment }
+    defaultValue: prod
+    plugin:
+      kind: StaticListVariable
+      spec:
+        values: [prod, staging, dev]
+```
+
+Query-backed options (the first column of the result becomes the options):
+
+```yaml
+- kind: ListVariable
+  spec:
+    name: service
+    display: { name: Service }
+    allowMultiple: true
+    allowAllValue: true
+    sort: alphabetical-asc
+    plugin:
+      kind: ClickHouseSQLVariable
+      spec:
+        query: SELECT DISTINCT ServiceName FROM traces ORDER BY ServiceName
+```
+
+List-variable options:
+
+- **`allowMultiple`** — let the user select several values.
+- **`allowAllValue`** — add an "All" entry. When selected, `$name` expands to every loaded option. Set `customAllValue` to substitute a fixed string instead (for example `customAllValue: "%"` for a `LIKE`).
+- **`defaultValue`** — initial selection (a string, or a list when `allowMultiple`).
+- **`sort`** — order the picker options: `none`, `alphabetical-asc` / `-desc`, `numerical-asc` / `-desc`, or the case-insensitive `alphabetical-ci-asc` / `-desc`.
+- **`display.hidden: true`** — keep the variable out of the bar but still usable in queries.
+
+Query-backed options load through the app keyed on the query and the active time range, so changing the time range refreshes them. Large result sets are capped at the first 1000 options (the bar notes the truncation).
+
+## Using variables in queries
+
+Reference a variable in panel SQL with Grafana-style tokens. Everr interpolates them **server-side** before the query runs:
+
+| Token | Expands to |
+| --- | --- |
+| `$name` | the value as a ClickHouse literal — `'api'`, or a list `('api','web')` for multi-select |
+| `${name}` | same as `$name`, with explicit delimiters for embedding (e.g. `pre${name}post`) |
+| `${name:raw}` | the value **unquoted** — comma-joined for lists; use only for trusted, non-string fragments |
+
+```sql
+SELECT toStartOfMinute(Timestamp) AS ts, count() AS spans
+FROM traces
+WHERE ServiceName IN $service          -- ('api','web') for multi-select
+  AND Environment = $env               -- 'prod'
+GROUP BY ts ORDER BY ts
+```
+
+String values are escaped as ClickHouse string literals. A multi-select becomes a parenthesized list (an empty selection becomes `(NULL)`). Unknown tokens are left untouched.
+
+## What the UI does for you
+
+- **Values live in the URL** (the `vars` search param), so a dashboard link carries its selections and the back button steps through them. Values are not retained across navigation by design.
+- A panel that references a variable with **no value yet** shows "Select a value for $name" and sends nothing to ClickHouse until you pick one. An "All" variable whose options are still loading waits rather than running a partial query.
+
+## Not supported
+
+These Perses/Grafana features are accepted in the file for compatibility but have **no runtime effect** today: variable chaining (variables inside option queries), `capturingRegexp`, `var-<name>` URL aliases, per-panel overrides, and variables in panel titles or descriptions.
