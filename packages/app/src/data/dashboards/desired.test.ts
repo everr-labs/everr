@@ -39,6 +39,20 @@ describe("buildDesiredSet", () => {
     ).toThrow(/duplicate dashboard "dup"/i);
   });
 
+  it("ignores a leading ./ in the path when deriving folderPath", () => {
+    const set = buildDesiredSet([
+      {
+        path: "./platform/cpu.yaml",
+        document: {
+          kind: "Dashboard",
+          metadata: { name: "cpu" },
+          spec: { panels: {}, layouts: [] },
+        },
+      },
+    ]);
+    expect(set[0]?.folderPath).toBe("platform");
+  });
+
   it("throws with the file path when a document fails schema validation", () => {
     expect(() =>
       buildDesiredSet([

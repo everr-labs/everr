@@ -8,7 +8,7 @@ export interface InputDocument {
   document: unknown;
 }
 
-/** Titleize a single path segment: "latency_p99" -> "latency p99". */
+/** Normalize a single path segment: "latency_p99" -> "latency p99". */
 function segmentLabel(segment: string): string {
   return segment.replace(/[_-]+/g, " ").trim();
 }
@@ -18,6 +18,7 @@ function folderPathFromFile(path: string): string {
   const segments = path
     .split("/")
     .slice(0, -1)
+    .filter((s) => s !== ".")
     .map(segmentLabel)
     .filter(Boolean);
   return segments.join(" / ");
