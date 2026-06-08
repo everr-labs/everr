@@ -1,7 +1,8 @@
-import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 import type { Panel } from "@/data/dashboards/schema";
+import { useTimeRange } from "@/hooks/use-time-range";
 import { PanelShell } from "../panel-shell";
 import { usePanelQueries } from "./use-panel-queries";
 import { getVisualizationInset, PanelVisualization } from "./visualizations";
@@ -14,11 +15,13 @@ interface DashboardPanelProps {
 export function DashboardPanel({ panel, panelKey }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
-  const search = useSearch({ from: "/_authenticated/_dashboard" });
-  const { from, to } = search;
+  // Effective range: explicit URL params, else the dashboard's route defaults,
+  // else the global default — resolved before first render (no flash).
+  const { timeRange } = useTimeRange();
+  const { from, to } = timeRange;
 
   const { data, status, errorMessage } = usePanelQueries(panel, { from, to });
-  const { fromDate, toDate } = resolveTimeRange(withTimeRange(search));
+  const { fromDate, toDate } = resolveTimeRange(timeRange);
 
   const handleTimeRangeChange = useCallback(
     (range: { from: Date; to: Date }) => {

@@ -1,42 +1,31 @@
 import { isValid } from "@everr/datemath";
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
+import type { RouteTimeDefaults } from "@/lib/time-range";
 import type { DashboardSpec } from "./schema";
 
-export interface DashboardSearchPatch {
-  from?: string;
-  to?: string;
-  refresh?: string;
-}
-
 /**
- * Compute URL search-param defaults from a dashboard's saved
- * duration/refreshInterval. Explicit URL params always win: a field is only
- * seeded when the URL carries no value for it. Returns null when there is
- * nothing to seed.
+ * Translate a dashboard's saved `duration`/`refreshInterval` into route-level
+ * time defaults. These are layered UNDER the URL search params by the time-range
+ * hooks (explicit URL values always win), so they seed the global picker and the
+ * panels without writing anything to the URL. Returns undefined when the
+ * dashboard declares nothing usable.
  */
-export function dashboardSearchDefaults(
+export function dashboardTimeDefaults(
   spec: Pick<DashboardSpec, "duration" | "refreshInterval">,
-  search: { from?: string; to?: string; refresh?: string },
-): DashboardSearchPatch | null {
-  const patch: DashboardSearchPatch = {};
+): RouteTimeDefaults | undefined {
+  const defaults: RouteTimeDefaults = {};
 
-  if (
-    !search.from &&
-    !search.to &&
-    spec.duration &&
-    isValid(`now-${spec.duration}`)
-  ) {
-    patch.from = `now-${spec.duration}`;
-    patch.to = "now";
+  if (spec.duration && isValid(`now-${spec.duration}`)) {
+    defaults.from = `now-${spec.duration}`;
+    defaults.to = "now";
   }
 
   if (
-    !search.refresh &&
     spec.refreshInterval &&
     getRefreshIntervalMs(spec.refreshInterval) !== null
   ) {
-    patch.refresh = spec.refreshInterval;
+    defaults.refresh = spec.refreshInterval;
   }
 
-  return Object.keys(patch).length > 0 ? patch : null;
+  return Object.keys(defaults).length > 0 ? defaults : undefined;
 }

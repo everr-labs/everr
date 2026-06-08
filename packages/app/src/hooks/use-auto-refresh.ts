@@ -3,13 +3,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import {
+  applyRouteTimeDefaults,
   type RefreshInterval,
   ResolvedTimeRangeSearchSchema,
 } from "@/lib/time-range";
+import { useRouteTimeDefaults } from "./use-time-range";
 
 export function useAutoRefresh() {
   const search = useSearch({ from: "/_authenticated/_dashboard" });
-  const { refresh } = ResolvedTimeRangeSearchSchema.parse(search);
+  const defaults = useRouteTimeDefaults();
+  const { refresh } = ResolvedTimeRangeSearchSchema.parse(
+    applyRouteTimeDefaults(search, defaults),
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

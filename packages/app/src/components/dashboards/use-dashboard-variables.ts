@@ -12,6 +12,7 @@ import {
   getListVariableSource,
   sortVariableOptions,
 } from "@/data/dashboards/variable-values";
+import { useTimeRange } from "@/hooks/use-time-range";
 import { useDashboard } from "./use-dashboard";
 
 export interface VariableOptionsState {
@@ -38,8 +39,11 @@ export interface DashboardVariablesState {
 const EMPTY_VARIABLES: Variable[] = [];
 
 export function useDashboardVariables(): DashboardVariablesState {
-  const search = useSearch({ from: "/_authenticated/_dashboard" });
-  const { from, to, vars } = search;
+  const { vars } = useSearch({ from: "/_authenticated/_dashboard" });
+  // Effective range (URL → route defaults → global), matching the panels.
+  const {
+    timeRange: { from, to },
+  } = useTimeRange();
   const variables = useDashboard().spec.variables ?? EMPTY_VARIABLES;
 
   // Pair each query-backed variable with its SQL once; results are keyed by
