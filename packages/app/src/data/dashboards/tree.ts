@@ -1,17 +1,13 @@
-export interface FolderSummary {
-  id: string;
-  parentId: string | null;
-  name: string;
-}
-
 export interface DashboardSummary {
   slug: string;
+  source: string;
   name: string;
-  folderId: string | null;
+  folderPath: string;
 }
 
 export interface FolderNode {
-  folder: FolderSummary;
+  name: string;
+  path: string;
   subfolders: FolderNode[];
   dashboards: DashboardSummary[];
 }
@@ -24,152 +20,80 @@ export interface DashboardTree {
 const byName = (a: { name: string }, b: { name: string }) =>
   a.name.localeCompare(b.name);
 
-const folderOrder = (a: FolderSummary, b: FolderSummary) =>
-  byName(a, b) || a.id.localeCompare(b.id);
-
 const dashboardOrder = (a: DashboardSummary, b: DashboardSummary) =>
-  byName(a, b) || a.slug.localeCompare(b.slug);
+  byName(a, b) ||
+  a.slug.localeCompare(b.slug) ||
+  a.source.localeCompare(b.source);
 
-export function buildTree(
-  folders: FolderSummary[],
-  dashboards: DashboardSummary[],
-): DashboardTree {
-  const folderIds = new Set(folders.map((f) => f.id));
-  // Orphans (parent/folder id pointing at a non-existent folder) fall back to
-  // root rather than disappearing.
-  const resolveParent = (id: string | null) =>
-    id !== null && folderIds.has(id) ? id : null;
+function splitPath(folderPath: string): string[] {
+  return folderPath
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-  const childFolders = new Map<string | null, FolderSummary[]>();
-  for (const folder of folders) {
-    const parentId = resolveParent(folder.parentId);
-    childFolders.set(parentId, [...(childFolders.get(parentId) ?? []), folder]);
-  }
+interface MutableNode {
+  name: string;
+  path: string;
+  children: Map<string, MutableNode>;
+  dashboards: DashboardSummary[];
+}
 
-  const childDashboards = new Map<string | null, DashboardSummary[]>();
+function emptyNode(name: string, path: string): MutableNode {
+  return { name, path, children: new Map(), dashboards: [] };
+}
+
+export function buildTree(dashboards: DashboardSummary[]): DashboardTree {
+  const root = emptyNode("", "");
+
   for (const dashboard of dashboards) {
-    const folderId = resolveParent(dashboard.folderId);
-    childDashboards.set(folderId, [
-      ...(childDashboards.get(folderId) ?? []),
-      dashboard,
-    ]);
-  }
-
-  const build = (parentId: string | null): FolderNode[] =>
-    [...(childFolders.get(parentId) ?? [])].sort(folderOrder).map((folder) => ({
-      folder,
-      subfolders: build(folder.id),
-      dashboards: [...(childDashboards.get(folder.id) ?? [])].sort(
-        dashboardOrder,
-      ),
-    }));
-
-  return {
-    folders: build(null),
-    dashboards: [...(childDashboards.get(null) ?? [])].sort(dashboardOrder),
-  };
-}
-
-export interface FlatFolder {
-  folder: FolderSummary;
-  depth: number;
-}
-
-export function flattenFolders(folders: FolderSummary[]): FlatFolder[] {
-  const out: FlatFolder[] = [];
-  const walk = (nodes: FolderNode[], depth: number) => {
-    for (const node of nodes) {
-      out.push({ folder: node.folder, depth });
-      walk(node.subfolders, depth + 1);
-    }
-  };
-  walk(buildTree(folders, []).folders, 0);
-  return out;
-}
-
-export function descendantFolderIds(
-  folders: FolderSummary[],
-  folderId: string,
-): Set<string> {
-  const children = new Map<string, string[]>();
-  for (const folder of folders) {
-    if (folder.parentId !== null) {
-      children.set(folder.parentId, [
-        ...(children.get(folder.parentId) ?? []),
-        folder.id,
-      ]);
-    }
-  }
-  const result = new Set<string>([folderId]);
-  const stack = [folderId];
-  for (let id = stack.pop(); id !== undefined; id = stack.pop()) {
-    for (const childId of children.get(id) ?? []) {
-      if (!result.has(childId)) {
-        result.add(childId);
-        stack.push(childId);
+    const segments = splitPath(dashboard.folderPath);
+    let node = root;
+    const acc: string[] = [];
+    for (const segment of segments) {
+      acc.push(segment);
+      const path = acc.join(" / ");
+      let child = node.children.get(segment);
+      if (!child) {
+        child = emptyNode(segment, path);
+        node.children.set(segment, child);
       }
+      node = child;
     }
+    node.dashboards.push(dashboard);
   }
-  return result;
-}
 
-export function countFolderContents(
-  folders: FolderSummary[],
-  dashboards: DashboardSummary[],
-  folderId: string,
-): { folders: number; dashboards: number } {
-  const ids = descendantFolderIds(folders, folderId);
+  const freeze = (node: MutableNode): FolderNode => ({
+    name: node.name,
+    path: node.path,
+    subfolders: [...node.children.values()]
+      .map(freeze)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    dashboards: [...node.dashboards].sort(dashboardOrder),
+  });
+
   return {
-    folders: ids.size - 1,
-    dashboards: dashboards.filter(
-      (d) => d.folderId !== null && ids.has(d.folderId),
-    ).length,
+    folders: [...root.children.values()]
+      .map(freeze)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    dashboards: [...root.dashboards].sort(dashboardOrder),
   };
-}
-
-export function folderPath(
-  folders: FolderSummary[],
-  folderId: string | null,
-): string {
-  const byId = new Map(folders.map((f) => [f.id, f]));
-  const names: string[] = [];
-  let current = folderId === null ? undefined : byId.get(folderId);
-  while (current) {
-    names.unshift(current.name);
-    current =
-      current.parentId === null ? undefined : byId.get(current.parentId);
-  }
-  return names.join(" / ");
 }
 
 export interface SearchResults {
-  folders: { folder: FolderSummary; path: string }[];
   dashboards: { dashboard: DashboardSummary; path: string }[];
 }
 
 export function searchItems(
-  folders: FolderSummary[],
   dashboards: DashboardSummary[],
   query: string,
 ): SearchResults {
   const q = query.trim().toLowerCase();
-  if (!q) {
-    return { folders: [], dashboards: [] };
-  }
+  if (!q) return { dashboards: [] };
   return {
-    folders: folders
-      .filter((f) => f.name.toLowerCase().includes(q))
-      .sort(folderOrder)
-      .map((folder) => ({
-        folder,
-        path: folderPath(folders, folder.parentId),
-      })),
     dashboards: dashboards
       .filter((d) => d.name.toLowerCase().includes(q))
       .sort(dashboardOrder)
-      .map((dashboard) => ({
-        dashboard,
-        path: folderPath(folders, dashboard.folderId),
-      })),
+      .map((dashboard) => ({ dashboard, path: dashboard.folderPath })),
   };
 }
