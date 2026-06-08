@@ -1,3 +1,4 @@
+import { ApplyValidationError } from "@/data/as-code/errors";
 import type { DesiredDashboard } from "./reconcile";
 import { dashboardSlugSchema, dashboardSpecSchema } from "./schema";
 
@@ -48,7 +49,7 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
 
     const slugResult = dashboardSlugSchema.safeParse(slug);
     if (!slugResult.success) {
-      throw new Error(
+      throw new ApplyValidationError(
         `${path}: invalid dashboard name "${slug}": ${slugResult.error.issues[0]?.message}`,
       );
     }
@@ -56,14 +57,14 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
     const rawSpec = (document as { spec?: unknown }).spec;
     const specResult = dashboardSpecSchema.safeParse(rawSpec);
     if (!specResult.success) {
-      throw new Error(
+      throw new ApplyValidationError(
         `${path}: invalid dashboard spec: ${specResult.error.issues[0]?.message}`,
       );
     }
 
     const prior = seen.get(slug);
     if (prior) {
-      throw new Error(
+      throw new ApplyValidationError(
         `duplicate dashboard "${slug}" in source (${prior} and ${path})`,
       );
     }

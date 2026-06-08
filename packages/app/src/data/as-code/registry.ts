@@ -1,4 +1,5 @@
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
+import { ApplyValidationError } from "./errors";
 
 export interface ApplyDocument {
   path: string;
@@ -38,7 +39,9 @@ const REGISTRY: Record<string, Reconciler> = {
 function documentKind(doc: ApplyDocument): string {
   const kind = (doc.document as { kind?: unknown } | null)?.kind;
   if (typeof kind !== "string" || kind.length === 0) {
-    throw new Error(`${doc.path}: document is missing a string "kind"`);
+    throw new ApplyValidationError(
+      `${doc.path}: document is missing a string "kind"`,
+    );
   }
   return kind;
 }
@@ -60,7 +63,7 @@ export async function applyResources(opts: {
   for (const doc of documents) {
     const kind = documentKind(doc);
     if (!(kind in REGISTRY)) {
-      throw new Error(`unknown kind "${kind}" in ${doc.path}`);
+      throw new ApplyValidationError(`unknown kind "${kind}" in ${doc.path}`);
     }
     byKind.set(kind, [...(byKind.get(kind) ?? []), doc]);
   }

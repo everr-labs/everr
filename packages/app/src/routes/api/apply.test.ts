@@ -5,6 +5,7 @@ vi.mock("@/data/as-code/registry", () => ({
   applyResources: (...a: unknown[]) => applyResources(...a),
 }));
 
+import { ApplyValidationError } from "@/data/as-code/errors";
 import { Route } from "./apply";
 
 const POST = (
@@ -86,9 +87,9 @@ describe("POST /api/apply", () => {
     expect(applyResources).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when applyResources throws", async () => {
+  it("returns 400 with the message on a validation error", async () => {
     applyResources.mockRejectedValueOnce(
-      new Error('bad.yaml: unknown kind "Gizmo"'),
+      new ApplyValidationError('bad.yaml: unknown kind "Gizmo"'),
     );
     const res = await POST({
       request: req({
@@ -99,5 +100,30 @@ describe("POST /api/apply", () => {
     });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/Gizmo/);
+  });
+
+  it("returns an opaque 500 on an infrastructure error (no leak)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    applyResources.mockRejectedValueOnce(
+      new Error("connect ECONNREFUSED 10.0.0.5:5432"),
+    );
+    const res = await POST({
+      request: req({
+        source: "team",
+        documents: [
+          {
+            path: "cpu.yaml",
+            document: { kind: "Dashboard", spec: { panels: {}, layouts: [] } },
+          },
+        ],
+      }),
+      context: ctx,
+    });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Internal error while applying");
+    expect(body.error).not.toMatch(/ECONNREFUSED|5432/);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

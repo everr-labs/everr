@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ApplyValidationError } from "@/data/as-code/errors";
 import { buildDesiredSet } from "./desired";
 
 const doc = (name?: string) => ({
@@ -64,7 +65,12 @@ describe("buildDesiredSet", () => {
     expect(set[0]?.document).toEqual(document);
   });
 
-  it("throws with the file path when a document fails schema validation", () => {
+  it("throws a typed ApplyValidationError (→ HTTP 400) with the file path on a bad spec", () => {
+    expect(() =>
+      buildDesiredSet([
+        { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
+      ]),
+    ).toThrow(ApplyValidationError);
     expect(() =>
       buildDesiredSet([
         { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOrgOrApiKeyMiddleware } from "@/data/as-code/apply-auth.server";
+import { ApplyValidationError } from "@/data/as-code/errors";
 import { applyResources } from "@/data/as-code/registry";
 import { applyInput } from "@/data/as-code/schema";
 
@@ -32,11 +33,17 @@ export const Route = createFileRoute("/api/apply")({
           });
           return Response.json(summary);
         } catch (error) {
+          // Only bad input (unknown kind, invalid slug/spec, duplicate) is the
+          // caller's fault → 400 with the message. Anything else is an
+          // infrastructure failure: log it and return an opaque 500 so DB/
+          // transaction internals don't leak and don't look like bad input.
+          if (error instanceof ApplyValidationError) {
+            return Response.json({ error: error.message }, { status: 400 });
+          }
+          console.error("apply failed", error);
           return Response.json(
-            {
-              error: error instanceof Error ? error.message : "Failed to apply",
-            },
-            { status: 400 },
+            { error: "Internal error while applying" },
+            { status: 500 },
           );
         }
       },
