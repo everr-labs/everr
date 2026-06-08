@@ -2,47 +2,44 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let CI authenticate `applyDashboards` non-interactively with an existing org-scoped API key (and a personal user key), so gitops apply works without a browser session.
+**Goal:** Let CI authenticate `applyDashboards` non-interactively with an existing org-scoped `ingest` API key, so gitops apply works without a browser session.
 
-**Architecture:** Reuse better-auth's existing `apiKey` plugin instead of building a token subsystem. A small resolver verifies a bearer key against an allow-list of configIds and resolves it to a target organization (org-referenced keys → the key's org; user-referenced keys → the user's org via the `member` table). A new server-fn middleware tries the API key first and falls back to the interactive session, then `applyDashboards` uses it. No new auth config and no new UI.
+**Architecture:** Reuse better-auth's existing `apiKey` plugin instead of building a token subsystem. A small resolver verifies a bearer key against an allow-list of configIds (just `ingest` for now) and resolves it to the key's organization. A new server-fn middleware tries the API key first and falls back to the interactive session, then `applyDashboards` uses it. No new auth config and no new UI.
 
-**Tech Stack:** TypeScript, better-auth (apiKey plugin), TanStack Start server functions/middleware, Drizzle (Postgres), Zod, Vitest.
+**Tech Stack:** TypeScript, better-auth (apiKey plugin), TanStack Start server functions/middleware, Zod, Vitest.
 
-**Scope note:** This is plan 2 of 3 (Core shipped; the Rust CLI is plan 3). Decisions locked with the user: reuse the `ingest` (org-scoped) key now; also accept `cli` (user-scoped) keys; keep the allowed-configId set a list so a dedicated `deploy` key can be added later by appending one entry. No dedicated deploy config/UI in this plan.
+**Scope note:** This is plan 2 of 3 (Core shipped; the Rust CLI is plan 3). Locked decision: **only the `ingest` (org-scoped) key now.** The allowed-configId set is kept as a list so a user-scoped `cli` key or a dedicated `deploy` key can be added later by appending one entry (the user-referenced case will also need an org-resolution branch at that time — explicitly deferred).
 
 ---
 
 ## Background (existing code this builds on)
 
-- `packages/app/src/lib/auth.server.ts` configures the `apiKey` plugin with two configs:
-  `{ configId: "cli", references: "user", defaultPrefix: "cli_" }` and
-  `{ configId: "ingest", references: "organization", defaultPrefix: "ek_", requireName: true, rateLimit: { enabled: false } }`.
+- `packages/app/src/lib/auth.server.ts` configures the `apiKey` plugin; the relevant config is `{ configId: "ingest", references: "organization", defaultPrefix: "ek_", requireName: true, rateLimit: { enabled: false } }`.
 - `packages/app/src/routes/api/internal/verify-key.ts` shows the verify call:
-  `await auth.api.verifyApiKey({ body: { key, configId } })` → `result.valid` and `result.key.referenceId` (org id for org-referenced keys, user id for user-referenced keys) and `result.key.id`.
-- `packages/app/src/lib/serverFn.ts` defines `authMiddleware` (calls `auth.api.getSession({ headers: request.headers })`), `requireOrgMiddleware` (asserts `activeOrganizationId`, builds `context.session` + `context.clickhouse`), and `createAuthenticatedServerFn = createServerFn().middleware([requireOrgMiddleware])`.
+  `await auth.api.verifyApiKey({ body: { key, configId } })` → `result.valid`, `result.key.referenceId` (the org id for org-referenced keys), and `result.key.id`.
+- `packages/app/src/lib/serverFn.ts` defines `authMiddleware` (calls `auth.api.getSession({ headers: request.headers })`), `requireOrgMiddleware` (asserts `activeOrganizationId`, builds `context.session` + `context.clickhouse` via `createClickhouseQuery`), and `createAuthenticatedServerFn = createServerFn().middleware([requireOrgMiddleware])`.
 - `applyDashboards` (`packages/app/src/data/dashboards/server.ts`) currently uses `createAuthenticatedServerFn` and only reads `context.session.session.activeOrganizationId`.
-- `member` table (`packages/app/src/db/schema/auth.ts`): `{ id, organizationId, userId, role, createdAt }`. Import as `member` from `@/db/schema`.
 
 ---
 
 ## File Structure
 
 **New files:**
-- `packages/app/src/data/dashboards/apply-auth.ts` — the resolver: bearer-key extraction + verify against allow-listed configIds + org resolution.
+- `packages/app/src/data/dashboards/apply-auth.ts` — bearer-key extraction + verify against allow-listed configIds → org id.
 - `packages/app/src/data/dashboards/apply-auth.test.ts` — resolver unit tests.
+- `packages/app/src/lib/serverFn.apply-auth.test.ts` — context-building unit test (Task 3).
 
 **Modified files:**
-- `packages/app/src/lib/serverFn.ts` — add `requireOrgOrApiKeyMiddleware` and `createApplyServerFn`.
+- `packages/app/src/lib/serverFn.ts` — add `buildApplyContext`, `requireOrgOrApiKeyMiddleware`, `createApplyServerFn`.
 - `packages/app/src/data/dashboards/server.ts` — `applyDashboards` uses `createApplyServerFn`.
-- `packages/app/src/data/dashboards/server.test.ts` — keep existing apply tests working under the new factory (no behavior change for the session path).
 
-**Unchanged:** auth.server.ts (no new config), all UI (no new key-management screens — `cli` keys come from the device-login flow; `ingest` keys from the existing Ingest Keys page).
+**Unchanged:** auth.server.ts (no new config), all UI (`ingest` keys come from the existing Ingest Keys page).
 
 ---
 
-## Task 1: Apply-auth resolver
+## Task 1: Apply-auth resolver (ingest keys only)
 
-A focused module that turns an incoming request's bearer key into a resolved organization id, or returns null when there's no API key (so the caller falls back to session auth).
+Turns an incoming request's bearer key into the key's organization id, or returns null when there's no API key (so the caller falls back to session auth).
 
 **Files:**
 - Create: `packages/app/src/data/dashboards/apply-auth.ts`
@@ -59,19 +56,6 @@ vi.mock("@/lib/auth.server", () => ({
   auth: { api: { verifyApiKey: (...args: unknown[]) => verifyApiKey(...args) } },
 }));
 
-// db.select().from().where() resolves to the member rows the test sets.
-let memberRows: Array<{ organizationId: string }> = [];
-vi.mock("@/db/client", () => {
-  const chain = {
-    from: vi.fn(() => chain),
-    where: vi.fn(() => Promise.resolve(memberRows)),
-  };
-  return { db: { select: vi.fn(() => chain) } };
-});
-vi.mock("@/db/schema", () => ({
-  member: { organizationId: "organization_id", userId: "user_id" },
-}));
-
 import { extractBearerKey, resolveApplyAuth } from "./apply-auth";
 
 function headers(map: Record<string, string>): Headers {
@@ -80,7 +64,6 @@ function headers(map: Record<string, string>): Headers {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  memberRows = [];
 });
 
 describe("extractBearerKey", () => {
@@ -98,9 +81,10 @@ describe("extractBearerKey", () => {
 describe("resolveApplyAuth", () => {
   it("returns null when there is no API key (caller falls back to session)", async () => {
     expect(await resolveApplyAuth(headers({}))).toBeNull();
+    expect(verifyApiKey).not.toHaveBeenCalled();
   });
 
-  it("resolves an org-referenced (ingest) key to its org", async () => {
+  it("resolves an org-referenced ingest key to its org", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
       key: { id: "k1", referenceId: "org-1" },
@@ -110,41 +94,26 @@ describe("resolveApplyAuth", () => {
     expect(verifyApiKey).toHaveBeenCalledWith({ body: { key: "ek_abc", configId: "ingest" } });
   });
 
-  it("falls through to the user (cli) config and resolves the user's single org", async () => {
-    // ingest verify fails, cli verify succeeds with a user referenceId.
-    verifyApiKey
-      .mockResolvedValueOnce({ valid: false, key: null })
-      .mockResolvedValueOnce({ valid: true, key: { id: "k2", referenceId: "user-1" } });
-    memberRows = [{ organizationId: "org-9" }];
-    const result = await resolveApplyAuth(headers({ authorization: "Bearer cli_abc" }));
-    expect(result).toEqual({ organizationId: "org-9", principalId: "apikey:k2" });
+  it("resolves via the x-api-key header too", async () => {
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { id: "k2", referenceId: "org-2" },
+    });
+    const result = await resolveApplyAuth(headers({ "x-api-key": "ek_def" }));
+    expect(result).toEqual({ organizationId: "org-2", principalId: "apikey:k2" });
   });
 
-  it("uses x-everr-organization-id to disambiguate a multi-org user key", async () => {
-    verifyApiKey
-      .mockResolvedValueOnce({ valid: false, key: null })
-      .mockResolvedValueOnce({ valid: true, key: { id: "k3", referenceId: "user-2" } });
-    memberRows = [{ organizationId: "org-a" }, { organizationId: "org-b" }];
-    const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer cli_x", "x-everr-organization-id": "org-b" }),
-    );
-    expect(result).toEqual({ organizationId: "org-b", principalId: "apikey:k3" });
-  });
-
-  it("throws when a user key has multiple orgs and none is specified", async () => {
-    verifyApiKey
-      .mockResolvedValueOnce({ valid: false, key: null })
-      .mockResolvedValueOnce({ valid: true, key: { id: "k4", referenceId: "user-3" } });
-    memberRows = [{ organizationId: "org-a" }, { organizationId: "org-b" }];
-    await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer cli_y" })),
-    ).rejects.toThrow(/specify an organization/i);
-  });
-
-  it("throws when the key is invalid for every allowed config", async () => {
-    verifyApiKey.mockResolvedValue({ valid: false, key: null });
+  it("throws when the key is invalid", async () => {
+    verifyApiKey.mockResolvedValueOnce({ valid: false, key: null });
     await expect(
       resolveApplyAuth(headers({ authorization: "Bearer nope" })),
+    ).rejects.toThrow(/invalid api key/i);
+  });
+
+  it("throws when a valid key has no referenceId", async () => {
+    verifyApiKey.mockResolvedValueOnce({ valid: true, key: { id: "k3" } });
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer ek_weird" })),
     ).rejects.toThrow(/invalid api key/i);
   });
 });
@@ -159,25 +128,19 @@ Expected: FAIL — `apply-auth` module / exports missing.
 
 ```typescript
 // packages/app/src/data/dashboards/apply-auth.ts
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { member } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 
 /**
- * API key configs accepted for `applyDashboards`, in priority order. Each entry
- * declares whether the key's `referenceId` is an organization or a user, which
- * decides how we resolve the target org. Append a `{ configId: "deploy",
- * references: "organization" }` here to add a dedicated deploy key later — no
- * other change required.
+ * API key configs accepted for `applyDashboards`, in priority order. Only the
+ * org-referenced `ingest` key is accepted today. To add a user-referenced `cli`
+ * key or a dedicated `deploy` key later, append an entry here — a user-referenced
+ * config will also need an org-resolution branch in `resolveApplyAuth` (the
+ * `references` field is the discriminator for that).
  */
 const APPLY_KEY_CONFIGS: ReadonlyArray<{
   configId: string;
-  references: "organization" | "user";
-}> = [
-  { configId: "ingest", references: "organization" },
-  { configId: "cli", references: "user" },
-];
+  references: "organization";
+}> = [{ configId: "ingest", references: "organization" }];
 
 export interface ApplyAuth {
   organizationId: string;
@@ -187,50 +150,19 @@ export interface ApplyAuth {
 
 /** Pull an API key from `Authorization: Bearer <key>` or `x-api-key`. */
 export function extractBearerKey(headers: Headers): string | null {
-  const auth = headers.get("authorization");
-  if (auth) {
-    const match = /^Bearer\s+(.+)$/i.exec(auth.trim());
+  const authHeader = headers.get("authorization");
+  if (authHeader) {
+    const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
     if (match?.[1]) return match[1].trim();
   }
   const apiKey = headers.get("x-api-key");
   return apiKey ? apiKey.trim() : null;
 }
 
-/** Resolve the org a user-referenced key should apply into. */
-async function resolveUserOrg(
-  userId: string,
-  requestedOrgId: string | null,
-): Promise<string> {
-  const rows = await db
-    .select({ organizationId: member.organizationId })
-    .from(member)
-    .where(eq(member.userId, userId));
-
-  if (rows.length === 0) {
-    throw new Error("API key user is not a member of any organization");
-  }
-  if (requestedOrgId) {
-    const match = rows.find((r) => r.organizationId === requestedOrgId);
-    if (!match) {
-      throw new Error(
-        "API key user is not a member of the requested organization",
-      );
-    }
-    return match.organizationId;
-  }
-  if (rows.length > 1) {
-    throw new Error(
-      "API key user belongs to multiple organizations; specify an organization via the x-everr-organization-id header",
-    );
-  }
-  // Non-null: length is exactly 1 here.
-  return rows[0]!.organizationId;
-}
-
 /**
  * Resolve apply auth from request headers. Returns null when no API key is
  * present (the caller should then fall back to interactive session auth).
- * Throws when a key IS present but invalid or unresolvable to an org.
+ * Throws when a key IS present but invalid.
  */
 export async function resolveApplyAuth(
   headers: Headers,
@@ -238,32 +170,27 @@ export async function resolveApplyAuth(
   const key = extractBearerKey(headers);
   if (!key) return null;
 
-  const requestedOrgId = headers.get("x-everr-organization-id");
-
   for (const config of APPLY_KEY_CONFIGS) {
     const result = await auth.api.verifyApiKey({
       body: { key, configId: config.configId },
     });
     if (!result.valid || !result.key?.referenceId) continue;
-
-    const organizationId =
-      config.references === "organization"
-        ? result.key.referenceId
-        : await resolveUserOrg(result.key.referenceId, requestedOrgId);
-
-    return { organizationId, principalId: `apikey:${result.key.id}` };
+    // Only org-referenced configs are in the list today, so referenceId is the
+    // organization id.
+    return {
+      organizationId: result.key.referenceId,
+      principalId: `apikey:${result.key.id}`,
+    };
   }
 
   throw new Error("Invalid API key");
 }
 ```
 
-Note on the `member` WHERE clause: the test asserts the query path; the resolver filters by `userId` only (the optional org match happens in JS). `and` is imported for parity with the codebase even though a single `eq` is used here — if your linter flags the unused import, drop `and` from the import. Keep `eq`.
-
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd packages/app && pnpm exec vitest run src/data/dashboards/apply-auth.test.ts`
-Expected: PASS (all cases). If the unused `and` import fails lint/typecheck, remove it.
+Expected: PASS (all cases).
 
 - [ ] **Step 5: Typecheck the new module**
 
@@ -274,14 +201,14 @@ Expected: "no apply-auth errors".
 
 ```bash
 git add packages/app/src/data/dashboards/apply-auth.ts packages/app/src/data/dashboards/apply-auth.test.ts
-git commit -m "feat(dashboards): resolve apply auth from org/user api keys"
+git commit -m "feat(dashboards): resolve apply auth from ingest api keys"
 ```
 
 ---
 
-## Task 2: `requireOrgOrApiKey` middleware + `createApplyServerFn`
+## Task 2: `buildApplyContext` + `requireOrgOrApiKey` middleware + `createApplyServerFn`
 
-Wire the resolver into a server-fn middleware that prefers an API key and falls back to the session, then route `applyDashboards` through it.
+Wire the resolver into a server-fn middleware that prefers an API key and falls back to the session, then route `applyDashboards` through it. The context-building logic is extracted into a pure, framework-free function so it can be unit-tested in Task 3.
 
 **Files:**
 - Modify: `packages/app/src/lib/serverFn.ts`
@@ -290,59 +217,61 @@ Wire the resolver into a server-fn middleware that prefers an API key and falls 
 - [ ] **Step 1: Read the current middleware**
 
 Run: `cd packages/app && sed -n '1,60p' src/lib/serverFn.ts`
-Confirm the shapes of `authMiddleware`, `requireOrgMiddleware`, and the `context` they build (`session.session.activeOrganizationId`, `session.user`, `clickhouse.query`). The new middleware mirrors `requireOrgMiddleware`'s output context so downstream handlers are unchanged.
+Confirm the shapes of `authMiddleware`, `requireOrgMiddleware`, and the `context` they build (`session.session.activeOrganizationId`, `session.user`, `clickhouse.query` via `createClickhouseQuery`). The new middleware mirrors that output context so downstream handlers are unchanged.
 
-- [ ] **Step 2: Add the middleware + factory to `serverFn.ts`**
+- [ ] **Step 2: Add `buildApplyContext` + middleware + factory to `serverFn.ts`**
 
-Append after the existing `createAuthenticatedServerFn` export. This imports the resolver and `createClickhouseQuery` (already imported in the file as `createClickhouseQuery` from `./clickhouse` — verify; the file already calls it in `requireOrgMiddleware`).
+Add the `resolveApplyAuth` import at the TOP of the file with the other imports, then append after the existing `createAuthenticatedServerFn` export:
 
 ```typescript
-// --- apply (gitops) auth: API key OR interactive session ---
-import { resolveApplyAuth } from "@/data/dashboards/apply-auth";
+// at top of file, with the other imports:
+// import { resolveApplyAuth, type ApplyAuth } from "@/data/dashboards/apply-auth";
 
 /**
- * Authorize a dashboards apply: prefer an API key (CI/gitops) and fall back to
- * the interactive session+org. Produces the same context shape as
- * requireOrgMiddleware so handlers don't care which path authenticated them.
+ * Build the org-scoped server-fn context from either a resolved API key or an
+ * interactive session. Pure and framework-free so it can be unit-tested.
+ * Throws when neither path yields an active organization.
+ */
+export function buildApplyContext(
+  apiAuth: ApplyAuth | null,
+  session: Awaited<ReturnType<typeof auth.api.getSession>>,
+) {
+  if (apiAuth) {
+    return {
+      session: {
+        session: { activeOrganizationId: apiAuth.organizationId },
+        user: { id: apiAuth.principalId },
+      },
+      clickhouse: { query: createClickhouseQuery(apiAuth.organizationId) },
+    };
+  }
+  if (!session?.session || !session?.user) {
+    throw new Error("Unauthenticated");
+  }
+  const activeOrgId = session.session.activeOrganizationId;
+  if (!activeOrgId) {
+    throw new Error("No active organization");
+  }
+  return {
+    session: {
+      session: { ...session.session, activeOrganizationId: activeOrgId },
+      user: session.user,
+    },
+    clickhouse: { query: createClickhouseQuery(activeOrgId) },
+  };
+}
+
+/**
+ * Authorize a dashboards apply: prefer an API key (CI/gitops), fall back to the
+ * interactive session+org. Same context shape as requireOrgMiddleware.
  */
 export const requireOrgOrApiKeyMiddleware = createMiddleware().server(
   async ({ request, next }) => {
     const apiAuth = await resolveApplyAuth(request.headers);
-
-    if (apiAuth) {
-      return next({
-        context: {
-          session: {
-            session: {
-              activeOrganizationId: apiAuth.organizationId,
-            },
-            user: { id: apiAuth.principalId },
-          },
-          clickhouse: {
-            query: createClickhouseQuery(apiAuth.organizationId),
-          },
-        },
-      });
-    }
-
-    // No API key — fall back to interactive session + active org.
-    const session = await auth.api.getSession({ headers: request.headers });
-    if (!session?.session || !session?.user) {
-      throw new Error("Unauthenticated");
-    }
-    const activeOrgId = session.session.activeOrganizationId;
-    if (!activeOrgId) {
-      throw new Error("No active organization");
-    }
-    return next({
-      context: {
-        session: {
-          session: { ...session.session, activeOrganizationId: activeOrgId },
-          user: session.user,
-        },
-        clickhouse: { query: createClickhouseQuery(activeOrgId) },
-      },
-    });
+    const session = apiAuth
+      ? null
+      : await auth.api.getSession({ headers: request.headers });
+    return next({ context: buildApplyContext(apiAuth, session) });
   },
 );
 
@@ -352,40 +281,40 @@ export const createApplyServerFn = createServerFn().middleware([
 ```
 
 Notes:
-- Place the `import { resolveApplyAuth }` line with the other imports at the top of `serverFn.ts`, not mid-file (move it up). It's shown inline here only for context.
-- `createMiddleware`, `createServerFn`, `auth`, and `createClickhouseQuery` are already imported/used in this file — reuse them.
-- The API-key context sets a minimal `user: { id: principalId }` (no email/name). `applyDashboards` only reads `activeOrganizationId`, so this is sufficient; do not fabricate other user fields.
+- `createMiddleware`, `createServerFn`, `auth`, and `createClickhouseQuery` are already imported/used in this file — reuse them; only add the `resolveApplyAuth`/`ApplyAuth` import.
+- `apply-auth.ts` imports only `auth.server` (not `serverFn`), so there is no import cycle.
+- The API-key context sets a minimal `user: { id: principalId }`. `applyDashboards` only reads `activeOrganizationId`, so this is sufficient — do not fabricate other user fields.
 
 - [ ] **Step 3: Route `applyDashboards` through the new factory**
 
 In `packages/app/src/data/dashboards/server.ts`:
-- Change the `applyDashboards` definition from `createAuthenticatedServerFn({ method: "POST" })` to `createApplyServerFn({ method: "POST" })`.
-- Update the import: add `createApplyServerFn` to the existing `import { createAuthenticatedServerFn } from "@/lib/serverFn"` (keep `createAuthenticatedServerFn` — `getDashboard`/`listDashboards`/`runPanelQuery`/`runVariableOptionsQuery` still use it).
+- Change `applyDashboards`'s definition from `createAuthenticatedServerFn({ method: "POST" })` to `createApplyServerFn({ method: "POST" })`.
+- Add `createApplyServerFn` to the existing `import { createAuthenticatedServerFn } from "@/lib/serverFn"` (keep `createAuthenticatedServerFn` — the read fns still use it).
 
 The handler body is unchanged — it already reads `context.session.session.activeOrganizationId`.
 
-- [ ] **Step 4: Confirm existing apply tests still pass (session path unchanged)**
+- [ ] **Step 4: Confirm existing apply tests still pass**
 
 Run: `cd packages/app && pnpm exec vitest run src/data/dashboards/server.test.ts`
-Expected: PASS. The existing `applyDashboards` tests call the handler directly with a `context` argument, so the middleware swap doesn't affect them. If any test imported `createAuthenticatedServerFn`-specific typing that now mismatches, adjust the test's `context` object to match (it only needs `session.session.activeOrganizationId`).
+Expected: PASS. Existing `applyDashboards` tests call the handler directly with a `context` argument, so the middleware swap doesn't affect them.
 
 - [ ] **Step 5: Typecheck**
 
 Run: `cd packages/app && pnpm exec tsc --noEmit 2>&1 | rg "lib/serverFn.ts|data/dashboards/server.ts" || echo "no errors"`
-Expected: "no errors". Watch for a circular-import warning between `serverFn.ts` and `apply-auth.ts` (apply-auth imports `auth.server` and `db`, not `serverFn`, so there is no cycle — but if tsc reports one, confirm apply-auth does NOT import from serverFn).
+Expected: "no errors".
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/app/src/lib/serverFn.ts packages/app/src/data/dashboards/server.ts packages/app/src/data/dashboards/server.test.ts
-git commit -m "feat(dashboards): accept api-key auth for applyDashboards"
+git add packages/app/src/lib/serverFn.ts packages/app/src/data/dashboards/server.ts
+git commit -m "feat(dashboards): accept ingest api-key auth for applyDashboards"
 ```
 
 ---
 
-## Task 3: Middleware integration test (api-key path end to end through the resolver)
+## Task 3: `buildApplyContext` unit test
 
-Task 1 tested the resolver with mocks; this asserts the middleware actually grants/denies based on the resolver, so the wiring can't silently break.
+Assert the context-selection logic (API key wins; session fallback; neither → throw) so the wiring can't silently break.
 
 **Files:**
 - Create: `packages/app/src/lib/serverFn.apply-auth.test.ts`
@@ -394,93 +323,75 @@ Task 1 tested the resolver with mocks; this asserts the middleware actually gran
 
 ```typescript
 // packages/app/src/lib/serverFn.apply-auth.test.ts
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-const resolveApplyAuth = vi.fn();
-vi.mock("@/data/dashboards/apply-auth", () => ({
-  resolveApplyAuth: (...a: unknown[]) => resolveApplyAuth(...a),
-}));
-
-const getSession = vi.fn();
-vi.mock("@/lib/auth.server", () => ({
-  auth: { api: { getSession: (...a: unknown[]) => getSession(...a) } },
-}));
-
+// buildApplyContext calls createClickhouseQuery(orgId); stub it so we don't
+// touch the real clickhouse client.
 vi.mock("./clickhouse", () => ({
   createClickhouseQuery: (orgId: string) => ({ __org: orgId }),
 }));
+// serverFn.ts imports auth.server transitively; stub to avoid booting it.
+vi.mock("@/lib/auth.server", () => ({
+  auth: { api: { getSession: vi.fn(), verifyApiKey: vi.fn() } },
+}));
+vi.mock("@/data/dashboards/apply-auth", () => ({
+  resolveApplyAuth: vi.fn(),
+}));
 
-import { requireOrgOrApiKeyMiddleware } from "./serverFn";
+import { buildApplyContext } from "./serverFn";
 
-// Invoke the middleware's server fn directly, capturing what it passes to next().
-async function run(headers: Headers) {
-  let captured: unknown;
-  const next = vi.fn((arg: unknown) => {
-    captured = arg;
-    return arg;
-  });
-  // @ts-expect-error — exercising the middleware's server handler in isolation
-  await requireOrgOrApiKeyMiddleware.options.server({
-    request: { headers },
-    next,
-  });
-  return captured as { context: { session: { session: { activeOrganizationId: string } } } };
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-
-describe("requireOrgOrApiKeyMiddleware", () => {
-  it("uses the API-key org when the resolver returns one", async () => {
-    resolveApplyAuth.mockResolvedValueOnce({ organizationId: "org-k", principalId: "apikey:1" });
-    const out = await run(new Headers({ authorization: "Bearer ek_x" }));
-    expect(out.context.session.session.activeOrganizationId).toBe("org-k");
-    expect(getSession).not.toHaveBeenCalled();
+describe("buildApplyContext", () => {
+  it("uses the API-key org when apiAuth is present", () => {
+    const ctx = buildApplyContext(
+      { organizationId: "org-k", principalId: "apikey:1" },
+      null,
+    );
+    expect(ctx.session.session.activeOrganizationId).toBe("org-k");
+    expect(ctx.session.user.id).toBe("apikey:1");
   });
 
-  it("falls back to the session org when there is no API key", async () => {
-    resolveApplyAuth.mockResolvedValueOnce(null);
-    getSession.mockResolvedValueOnce({
+  it("falls back to the session org when apiAuth is null", () => {
+    const ctx = buildApplyContext(null, {
       session: { activeOrganizationId: "org-s" },
       user: { id: "u1" },
-    });
-    const out = await run(new Headers({}));
-    expect(out.context.session.session.activeOrganizationId).toBe("org-s");
+    } as never);
+    expect(ctx.session.session.activeOrganizationId).toBe("org-s");
   });
 
-  it("throws when no API key and no session", async () => {
-    resolveApplyAuth.mockResolvedValueOnce(null);
-    getSession.mockResolvedValueOnce(null);
-    await expect(run(new Headers({}))).rejects.toThrow(/unauthenticated/i);
+  it("throws when there is no apiAuth and no session", () => {
+    expect(() => buildApplyContext(null, null)).toThrow(/unauthenticated/i);
+  });
+
+  it("throws when the session has no active organization", () => {
+    expect(() =>
+      buildApplyContext(null, { session: {}, user: { id: "u1" } } as never),
+    ).toThrow(/no active organization/i);
   });
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails (or reveals the real shape)**
+- [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cd packages/app && pnpm exec vitest run src/lib/serverFn.apply-auth.test.ts`
-Expected: FAIL initially. The `requireOrgOrApiKeyMiddleware.options.server` access is the likely friction point — TanStack's `createMiddleware().server(fn)` may not expose the handler as `.options.server`.
+Expected: FAIL — `buildApplyContext` not yet exported (if Task 2 incomplete) or mock wiring needs adjustment.
 
-- [ ] **Step 3: Adjust the test to the real middleware handle**
+- [ ] **Step 3: Make it pass**
 
-Inspect how to reach the server handler: `cd packages/app && pnpm exec node -e "const m=require('@tanstack/react-start'); console.log(Object.keys(m))"` is unlikely to help (ESM); instead read an existing middleware usage/test in the repo: `rg -n "createMiddleware\(\)\.server|\.options\.|middleware\(\[" packages/app/src | head`. If the repo has no precedent for unit-invoking a middleware, change this test to exercise the resolver-to-context mapping through a thin exported helper instead: extract the context-building logic into an exported pure function `buildApplyContext(apiAuth, session)` in `serverFn.ts` and unit-test THAT (it has no framework coupling). Update Task 2's middleware to call `buildApplyContext`. Implement whichever path is real; do not leave the test asserting an API that doesn't exist.
-
-- [ ] **Step 4: Make it pass**
+If the test fails because importing `serverFn.ts` pulls in modules that crash under test (e.g. env validation in `auth.server` or `clickhouse`), add the minimal `vi.mock` for the offending module at the top of the test (the mocks above cover `clickhouse`, `auth.server`, and `apply-auth`; add others only if an import error names them). Do NOT change `serverFn.ts` to accommodate the test beyond the `buildApplyContext` export already added in Task 2.
 
 Run: `cd packages/app && pnpm exec vitest run src/lib/serverFn.apply-auth.test.ts`
-Expected: PASS. (If you extracted `buildApplyContext`, the test imports and calls it directly with the three scenarios: api-auth present → org-k; session present → org-s; neither → throws.)
+Expected: PASS (4 cases).
 
-- [ ] **Step 5: Full suite + typecheck**
+- [ ] **Step 4: Full suite + typecheck**
 
 Run: `cd packages/app && pnpm exec vitest run src/data/dashboards src/lib && pnpm exec tsc --noEmit 2>&1 | rg "serverFn|apply-auth|dashboards/server" || echo "clean"`
 Expected: tests PASS; "clean".
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add packages/app/src/lib/serverFn.apply-auth.test.ts packages/app/src/lib/serverFn.ts
-git commit -m "test(dashboards): cover apply-auth middleware org selection"
+git add packages/app/src/lib/serverFn.apply-auth.test.ts
+git commit -m "test(dashboards): cover apply-context org selection"
 ```
 
 ---
@@ -492,46 +403,44 @@ Confirm a real org-scoped ingest key authenticates `applyDashboards` against the
 **Files:**
 - Modify: `docs/superpowers/specs/2026-06-08-gitops-dashboards-design.md` (append an "Apply auth (implemented)" note).
 
-- [ ] **Step 1: Discover the apply server-fn endpoint URL**
+- [ ] **Step 1: Discover how to call the apply server fn**
 
-TanStack Start exposes server functions over HTTP. Find the route/id `applyDashboards` resolves to: `cd packages/app && rg -n "applyDashboards" src/routeTree.gen.ts src/**/*.gen.* 2>/dev/null | head` and/or inspect a network call in the running app. If the server-fn URL is not easily discoverable, SKIP the live curl and instead do Step 2 via a Node script that imports and calls the handler with a forged Headers object through the middleware. Document which path you used.
+TanStack Start exposes server functions over HTTP. Find the URL/envelope: `cd packages/app && rg -n "applyDashboards" src/routeTree.gen.ts 2>/dev/null | head`, and inspect how the app posts a server fn in the browser network tab if reachable. If the server-fn HTTP envelope is unclear, use a Node-script fallback: import `resolveApplyAuth` and `buildApplyContext` and the `applyDashboards` handler, forge a `Headers` with the bearer key, and call the handler with the built context — proving the key→org→apply path end to end. Document which path you used.
 
-- [ ] **Step 2: Mint an ingest key and call apply with it**
+- [ ] **Step 2: Mint an ingest key and call apply with it (dry run)**
 
-Using the running dev server on :5173 (already authenticated in the browser) OR the better-auth API, create an `ingest` key for the active org (the Ingest Keys page → "New ingest key", or `authClient.apiKey.create({ configId: "ingest", organizationId, name: "gitops-smoke" })`). Copy the `ek_...` value.
-
-Then call the apply endpoint with the key as a bearer token and a dry run:
+Create an `ingest` key for the active org (Ingest Keys page → "New ingest key", or `authClient.apiKey.create({ configId: "ingest", organizationId, name: "gitops-smoke" })`). Copy the `ek_...` value. Then call apply with the key as a bearer token and `dryRun: true`:
 ```bash
 curl -sS -X POST '<APPLY_SERVER_FN_URL>' \
   -H 'Authorization: Bearer ek_...' \
   -H 'Content-Type: application/json' \
   -d '{"source":"smoke","dryRun":true,"documents":[{"path":"cpu.yaml","document":{"kind":"Dashboard","metadata":{"name":"cpu"},"spec":{"panels":{},"layouts":[]}}}]}'
 ```
-Expected: a JSON summary `{ created/updated/deleted, dryRun: true }` scoped to the key's org — NOT a 401/Unauthenticated. (Exact request envelope may differ for TanStack server fns; adjust the body wrapper to match how the app posts server-fn args. If the envelope is unclear, use the Node-script fallback from Step 1.)
+Expected: a JSON summary `{ created/updated/deleted, dryRun: true }` scoped to the key's org — NOT a 401/Unauthenticated. Adjust the body wrapper to match the app's server-fn envelope; if unclear, use the Node-script fallback from Step 1.
 
 - [ ] **Step 3: Negative check**
 
-Repeat the call with `Authorization: Bearer ek_totally_invalid`. Expected: an error (invalid API key / unauthenticated), NOT a successful apply.
+Repeat with `Authorization: Bearer ek_totally_invalid`. Expected: an error (invalid API key), NOT a successful apply.
 
 - [ ] **Step 4: Document the contract**
 
-Append to the design spec a short "Apply auth (implemented in plan 2)" section stating: apply accepts an `Authorization: Bearer <key>` (or `x-api-key`) header; allowed key types are org-scoped `ingest` keys and user-scoped `cli` keys; a user key with multiple orgs must set `x-everr-organization-id`; a dedicated `deploy` configId can be added later by appending to `APPLY_KEY_CONFIGS`. Note the CLI (plan 3) will send `EVERR_API_TOKEN` as this bearer header.
+Append to the design spec a short "Apply auth (implemented in plan 2)" section: apply accepts `Authorization: Bearer <key>` (or `x-api-key`); the accepted key type today is the org-scoped `ingest` key; the CLI (plan 3) sends `EVERR_API_TOKEN` as this header; user-scoped `cli` keys and a dedicated `deploy` key are deferred (add by appending to `APPLY_KEY_CONFIGS`, with an org-resolution branch for user-referenced keys).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-06-08-gitops-dashboards-design.md
-git commit -m "docs(dashboards): document apply api-key auth contract"
+git commit -m "docs(dashboards): document apply ingest-key auth contract"
 ```
 
 ---
 
 ## Self-Review Notes (plan vs. locked decisions)
 
-- **Reuse ingest keys now:** `APPLY_KEY_CONFIGS` includes `ingest` (org-referenced) first — Task 1.
-- **Accept personal user keys:** `cli` (user-referenced) is in the list; org resolved via `member` with single-org and `x-everr-organization-id` disambiguation — Task 1.
-- **Extensible to a dedicated deploy key later:** documented and structural — appending one `{ configId: "deploy", references: "organization" }` entry suffices. No re-architecting.
-- **No new auth config / no new UI:** confirmed — auth.server.ts and key-management screens untouched.
+- **Ingest keys only, now:** `APPLY_KEY_CONFIGS` contains exactly `ingest` (org-referenced) — Task 1. No user-key/member lookup, no org-disambiguation header.
+- **Extensible later:** the list + `references` discriminator are in place; adding `cli`/`deploy` is appending an entry (plus an org-resolution branch for user-referenced keys) — documented in code and in Task 4's note.
+- **No new auth config / no new UI:** auth.server.ts and key-management screens untouched.
 - **Non-interactive CI works:** the middleware prefers the key and never requires a session — Tasks 2–3, smoked in Task 4.
-- **Session path preserved:** fallback to `getSession` + active org keeps interactive behavior — Task 2.
-- **Deferred to plan 3:** the Rust CLI that sends `EVERR_API_TOKEN`; this plan only makes the server accept the header.
+- **Session path preserved:** `buildApplyContext` falls back to `getSession` + active org — Task 2.
+- **Testability:** context selection is a pure exported function (`buildApplyContext`), avoiding fragile middleware-internals testing — Task 3.
+- **Deferred to plan 3:** the Rust CLI sending `EVERR_API_TOKEN`; this plan only makes the server accept the header.
