@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reconcile } from "./reconcile";
+import type { DashboardSpec } from "./schema";
 
 const spec = (n: number) => ({ panels: {}, layouts: [], _v: n });
 
@@ -50,14 +51,24 @@ describe("reconcile", () => {
         {
           slug: "a",
           folderPath: "",
-          spec: { panels: {}, layouts: [], x: 1, y: 2 },
+          spec: {
+            panels: {},
+            layouts: [],
+            x: 1,
+            y: 2,
+          } as unknown as DashboardSpec,
         },
       ],
       desired: [
         {
           slug: "a",
           folderPath: "",
-          spec: { panels: {}, layouts: [], y: 2, x: 1 },
+          spec: {
+            panels: {},
+            layouts: [],
+            y: 2,
+            x: 1,
+          } as unknown as DashboardSpec,
         },
       ],
     });

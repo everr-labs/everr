@@ -232,7 +232,7 @@ function mockApplySelect(rows: unknown[]) {
         from: () => ({
           where: () => Promise.resolve(rows),
         }),
-      }) as ReturnType<typeof mockedDb.select>,
+      }) as unknown as ReturnType<typeof mockedDb.select>,
   );
 }
 
@@ -324,7 +324,7 @@ describe("listDashboards (with source + folderPath)", () => {
                 },
               ]),
           }),
-        }) as ReturnType<typeof mockedDb.select>,
+        }) as unknown as ReturnType<typeof mockedDb.select>,
     );
     const rows = await listDashboards();
     expect(rows).toEqual([
