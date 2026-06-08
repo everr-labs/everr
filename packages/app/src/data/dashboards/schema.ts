@@ -76,7 +76,10 @@ export const gridLayout = z.object({
 });
 
 export const datasourceSpec = z.object({
-  default: z.boolean(),
+  // Optional to match Perses (defaults to false there). Datasources have no
+  // runtime effect in Everr — accepted only for compatibility — so validation
+  // must never be stricter than Perses.
+  default: z.boolean().optional(),
   plugin: z.object({
     kind: z.string(),
     spec: z.record(z.string(), pluginSpecValue),

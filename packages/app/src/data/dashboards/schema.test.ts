@@ -44,6 +44,18 @@ describe("dashboardSpecSchema layout refs", () => {
   });
 });
 
+describe("dashboardSpecSchema datasources", () => {
+  it("accepts a datasource without the optional `default` field (Perses parity)", () => {
+    const result = dashboardSpecSchema.safeParse({
+      ...spec("#/spec/panels/cpu"),
+      datasources: {
+        ch: { plugin: { kind: "ClickHouseDatasource", spec: {} } },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("dashboardSlugSchema", () => {
   it("accepts valid slugs", () => {
     expect(dashboardSlugSchema.safeParse("abc").success).toBe(true);
