@@ -133,8 +133,7 @@ describe("moveFolder – cycle check", () => {
       [{ parentId: null }],
     ]);
 
-    // update chain needs to return something (no .returning() needed here)
-    updateImpl = () => undefined;
+    updateImpl = () => ({ returning: () => [{ id: "folder-a" }] });
 
     const result = await moveFolder({
       data: { folderId: "folder-a", parentId: "folder-b" },
@@ -155,7 +154,7 @@ describe("moveFolder – cycle check", () => {
       // guard breaks before a third query
     ]);
 
-    updateImpl = () => undefined;
+    updateImpl = () => ({ returning: () => [{ id: "folder-a" }] });
 
     const result = await moveFolder({
       data: { folderId: "folder-a", parentId: "folder-x" },
@@ -557,5 +556,80 @@ describe("renameDashboard – atomic", () => {
     await expect(
       renameDashboard({ data: { slug: "missing", name: "Anything" } }),
     ).rejects.toThrow('Dashboard "missing" not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renameFolder / moveFolder – missing-row handling
+// ---------------------------------------------------------------------------
+
+describe("renameFolder – missing row", () => {
+  it("throws not-found when the update matches no row", async () => {
+    updateImpl = () => ({ returning: () => [] });
+
+    await expect(
+      renameFolder({
+        data: {
+          folderId: "11111111-1111-1111-1111-111111111111",
+          name: "Whatever",
+        },
+      }),
+    ).rejects.toThrow("Folder not found");
+  });
+
+  it("returns the id when a row was renamed", async () => {
+    updateImpl = () => ({ returning: () => [{ id: "folder-z" }] });
+
+    const result = await renameFolder({
+      data: { folderId: "folder-z", name: "Renamed" },
+    });
+
+    expect(result).toEqual({ id: "folder-z" });
+  });
+});
+
+describe("moveFolder – missing row", () => {
+  it("throws not-found when the update matches no row", async () => {
+    // parentId null → skips the cycle walk; the final update matches nothing.
+    updateImpl = () => ({ returning: () => [] });
+
+    await expect(
+      moveFolder({ data: { folderId: "ghost-folder", parentId: null } }),
+    ).rejects.toThrow("Folder not found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createDashboard / saveDashboard – folder must belong to the org
+// ---------------------------------------------------------------------------
+
+describe("createDashboard – folder org scoping", () => {
+  it("rejects a folder that is not in the caller's organization", async () => {
+    selectImpl = () => []; // folder lookup finds nothing in this org
+
+    await expect(
+      createDashboard({
+        data: { spec: { panels: {}, layouts: [] }, folderId: "other-org" },
+      }),
+    ).rejects.toThrow("Target folder not found");
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveDashboard – folder org scoping", () => {
+  it("rejects a folder that is not in the caller's organization", async () => {
+    // First select: existing dashboard found. Second select: folder missing.
+    mockSelectSequence([[{ id: "dash-id" }], []]);
+
+    await expect(
+      saveDashboard({
+        data: {
+          slug: "my-dash",
+          spec: { panels: {}, layouts: [] },
+          folderId: "other-org",
+        },
+      }),
+    ).rejects.toThrow("Target folder not found");
+    expect(mockedDb.update).not.toHaveBeenCalled();
   });
 });

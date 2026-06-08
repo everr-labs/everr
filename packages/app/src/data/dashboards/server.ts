@@ -38,6 +38,32 @@ function isUniqueViolation(error: unknown): boolean {
   return isUniqueViolation((error as { cause?: unknown }).cause);
 }
 
+/**
+ * Verify a folder id belongs to the active organization before a write
+ * references it. The tenant-scoped FK already blocks a cross-org reference at
+ * the database level, but checking here gives a clean error instead of a raw
+ * constraint violation and keeps the org boundary enforced in one place.
+ */
+async function assertFolderInOrg(
+  folderId: string,
+  orgId: string,
+  notFoundMessage = "Target folder not found",
+): Promise<void> {
+  const [folder] = await db
+    .select({ id: dashboardFolders.id })
+    .from(dashboardFolders)
+    .where(
+      and(
+        eq(dashboardFolders.id, folderId),
+        eq(dashboardFolders.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  if (!folder) {
+    throw new Error(notFoundMessage);
+  }
+}
+
 export const getDashboard = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -75,6 +101,10 @@ export const createDashboard = createAuthenticatedServerFn({
   .inputValidator(createDashboardInput)
   .handler(async ({ data: { spec, folderId, slug }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
+
+    if (folderId) {
+      await assertFolderInOrg(folderId, orgId);
+    }
 
     // User-chosen slug: no retry — a collision is the user's to resolve.
     if (slug) {
@@ -147,6 +177,10 @@ export const saveDashboard = createAuthenticatedServerFn({
 
     if (!existing) {
       throw new Error(`Dashboard "${slug}" not found`);
+    }
+
+    if (folderId) {
+      await assertFolderInOrg(folderId, orgId);
     }
 
     const finalSlug = newSlug && newSlug !== slug ? newSlug : slug;
@@ -226,19 +260,7 @@ export const moveDashboard = createAuthenticatedServerFn({
     const orgId = context.session.session.activeOrganizationId;
 
     if (folderId !== null) {
-      const [folder] = await db
-        .select({ id: dashboardFolders.id })
-        .from(dashboardFolders)
-        .where(
-          and(
-            eq(dashboardFolders.id, folderId),
-            eq(dashboardFolders.organizationId, orgId),
-          ),
-        )
-        .limit(1);
-      if (!folder) {
-        throw new Error("Target folder not found");
-      }
+      await assertFolderInOrg(folderId, orgId);
     }
 
     const updated = await db
@@ -300,19 +322,7 @@ export const createFolder = createAuthenticatedServerFn({
     const orgId = context.session.session.activeOrganizationId;
 
     if (parentId != null) {
-      const [parent] = await db
-        .select({ id: dashboardFolders.id })
-        .from(dashboardFolders)
-        .where(
-          and(
-            eq(dashboardFolders.id, parentId),
-            eq(dashboardFolders.organizationId, orgId),
-          ),
-        )
-        .limit(1);
-      if (!parent) {
-        throw new Error("Parent folder not found");
-      }
+      await assertFolderInOrg(parentId, orgId, "Parent folder not found");
     }
 
     try {
@@ -341,8 +351,9 @@ export const renameFolder = createAuthenticatedServerFn({
   .handler(async ({ data: { folderId, name }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
+    let updated: { id: string }[];
     try {
-      await db
+      updated = await db
         .update(dashboardFolders)
         .set({ name, updatedAt: new Date() })
         .where(
@@ -350,12 +361,17 @@ export const renameFolder = createAuthenticatedServerFn({
             eq(dashboardFolders.id, folderId),
             eq(dashboardFolders.organizationId, orgId),
           ),
-        );
+        )
+        .returning({ id: dashboardFolders.id });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new Error("A folder with this name already exists here");
       }
       throw error;
+    }
+
+    if (updated.length === 0) {
+      throw new Error("Folder not found");
     }
 
     return { id: folderId };
@@ -396,7 +412,7 @@ export const moveFolder = createAuthenticatedServerFn({
       current = row.parentId;
     }
 
-    await db
+    const updated = await db
       .update(dashboardFolders)
       .set({ parentId, updatedAt: new Date() })
       .where(
@@ -404,7 +420,12 @@ export const moveFolder = createAuthenticatedServerFn({
           eq(dashboardFolders.id, folderId),
           eq(dashboardFolders.organizationId, orgId),
         ),
-      );
+      )
+      .returning({ id: dashboardFolders.id });
+
+    if (updated.length === 0) {
+      throw new Error("Folder not found");
+    }
 
     return { id: folderId };
   });
