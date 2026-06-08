@@ -11,9 +11,6 @@ import {
 } from "./interpolate";
 import type { ListVariable, Variable } from "./schema";
 
-/** Valid variable names; also enforced by the variables manager. */
-export const VARIABLE_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-
 export type VariableUrlValues = Record<string, string | string[]>;
 
 export type ListVariableSource =

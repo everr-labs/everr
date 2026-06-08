@@ -7,7 +7,6 @@ import {
   getListVariableSource,
   pickByNames,
   sortVariableOptions,
-  VARIABLE_NAME_RE,
 } from "./variable-values";
 
 function text(name: string, value: string): TextVariable {
@@ -226,16 +225,6 @@ describe("buildAllMeta", () => {
 describe("pickByNames", () => {
   it("picks only the requested names that exist", () => {
     expect(pickByNames({ a: "1", b: "2" }, ["a", "c"])).toEqual({ a: "1" });
-  });
-});
-
-describe("VARIABLE_NAME_RE", () => {
-  it("accepts valid names and rejects invalid ones", () => {
-    expect(VARIABLE_NAME_RE.test("service_1")).toBe(true);
-    expect(VARIABLE_NAME_RE.test("_svc")).toBe(true);
-    expect(VARIABLE_NAME_RE.test("1svc")).toBe(false);
-    expect(VARIABLE_NAME_RE.test("svc-name")).toBe(false);
-    expect(VARIABLE_NAME_RE.test("")).toBe(false);
   });
 });
 
