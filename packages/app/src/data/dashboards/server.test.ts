@@ -70,6 +70,7 @@ vi.mock("@/db/schema", () => ({
 import {
   applyDashboards,
   getDashboard,
+  listDashboards,
   runPanelQuery,
   runVariableOptionsQuery,
 } from "./server";
@@ -191,29 +192,27 @@ describe("runVariableOptionsQuery", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Unknown-field preservation (Perses round-trip)
+// getDashboard (source/slug)
 // ---------------------------------------------------------------------------
 
-describe("getDashboard – preserves unknown spec fields", () => {
-  it("returns the raw stored spec, including fields the schema does not list", async () => {
-    const stored = {
-      panels: {},
-      layouts: [],
-      display: { name: "D", persesExtra: "keep-me" },
-      unknownTopLevel: { nested: [1, 2, 3] },
-    };
-    selectImpl = () => [{ slug: "d", spec: stored }];
-
-    const result = await getDashboard({ data: { dashboardId: "d" } });
-
-    expect(result.spec).toEqual(stored);
+describe("getDashboard (source/slug)", () => {
+  it("looks up by org + source + slug and returns the Perses document", async () => {
+    selectImpl = () => [{ slug: "cpu", spec: { panels: {}, layouts: [] } }];
+    const result = await getDashboard({
+      data: { source: "team", slug: "cpu" },
+    });
+    expect(result).toEqual({
+      kind: "Dashboard",
+      metadata: { name: "cpu" },
+      spec: { panels: {}, layouts: [] },
+    });
   });
 
-  it("throws when the stored spec is structurally invalid", async () => {
-    selectImpl = () => [{ slug: "d", spec: { panels: "not-an-object" } }];
+  it("throws when not found", async () => {
+    selectImpl = () => [];
     await expect(
-      getDashboard({ data: { dashboardId: "d" } }),
-    ).rejects.toThrow();
+      getDashboard({ data: { source: "team", slug: "missing" } }),
+    ).rejects.toThrow(/not found/);
   });
 });
 
@@ -302,5 +301,34 @@ describe("applyDashboards", () => {
       }),
     ).rejects.toThrow(/bad\.yaml/);
     expect(mockedDb.transaction).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listDashboards (with source + folderPath)
+// ---------------------------------------------------------------------------
+
+describe("listDashboards (with source + folderPath)", () => {
+  it("returns slug, source, name and folderPath", async () => {
+    mockedDb.select.mockImplementationOnce(
+      () =>
+        ({
+          from: () => ({
+            where: () =>
+              Promise.resolve([
+                {
+                  slug: "cpu",
+                  source: "team",
+                  folderPath: "Infra",
+                  displayName: "CPU",
+                },
+              ]),
+          }),
+        }) as ReturnType<typeof mockedDb.select>,
+    );
+    const rows = await listDashboards();
+    expect(rows).toEqual([
+      { slug: "cpu", source: "team", name: "CPU", folderPath: "Infra" },
+    ]);
   });
 });
