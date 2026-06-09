@@ -42,8 +42,18 @@ describe("toNumber", () => {
 describe("toTimestamp", () => {
   const utc = Date.UTC(2026, 5, 7, 0, 0, 0); // 2026-06-07T00:00:00Z
 
-  it("passes numbers through", () => {
+  it("passes millisecond epochs through", () => {
     expect(toTimestamp(1717718400000)).toBe(1717718400000);
+  });
+
+  it("scales a second epoch (toUnixTimestamp) up to milliseconds", () => {
+    // toUnixTimestamp(...) returns seconds; 1717718400 -> 1717718400000 ms.
+    expect(toTimestamp(1717718400)).toBe(1717718400000);
+  });
+
+  it("treats a bare numeric string as an epoch (seconds or ms)", () => {
+    expect(toTimestamp("1717718400")).toBe(1717718400000); // seconds
+    expect(toTimestamp("1717718400000")).toBe(1717718400000); // ms
   });
 
   it("treats space-separated ClickHouse DateTime as UTC", () => {
