@@ -6,7 +6,7 @@ Date: 2026-06-06
 
 Everr will add a YAML-defined alerting system for free-form observability alerts. The v1 model avoids SLO/SLI terminology and uses a Grafana-style rule shape: users write a ClickHouse SQL query that returns violating rows. If the query returns at least one row, the alert is firing. If it returns zero rows, the alert resolves.
 
-Alert definitions are managed as YAML resource files in an apply directory. The apply root has an `everr.yml` file that contains only a `repoid` string used as the stable repository identifier. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can apply dashboards and alerts through the shared apply flow. Apply reads dashboard and alert resources from the requested directory, sends one normalized `state` payload to the apply API, derives alert identity from `repoid` and `metadata.name`, and applies the diff to Everr.
+Alert definitions are managed as YAML resource files in an apply directory. The apply root has an `everr.yaml` file that contains only a `repoid` string used as the stable repository identifier. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can apply dashboards and alerts through the shared apply flow. Apply reads dashboard and alert resources from the requested directory, sends one normalized `state` payload to the apply API, derives dashboard and alert identity from `repoid` plus resource metadata, and applies the diff to Everr.
 
 Alert orchestration uses Graphile Worker with the existing Postgres database. Everr-owned Postgres tables remain the source of truth for definitions, scheduling, and current state. Alert event history is stored in ClickHouse. Graphile Worker is used for distributed queueing, retries, and a small number of scanner jobs; Everr does not create one cron task per alert.
 
@@ -111,7 +111,7 @@ References checked:
 
 ## YAML Format
 
-The apply root contains `everr.yml`. It is a repo identity file, not a resource document, and it contains only `repoid`.
+The apply root contains `everr.yaml`. It is a repo identity file, not a resource document, and it contains only `repoid`.
 
 ```yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
@@ -119,7 +119,9 @@ repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 
 `repoid` is any non-empty string that is unique and stable for the repository. We recommend UUIDv5 generated from a canonical repository identifier, such as the canonical Git remote URL, but the schema does not require UUID syntax.
 
-Alert rules are YAML resource documents. Apply reads `.yaml` and `.yml` resource files from the requested directory recursively, excluding `everr.yml`. Directory layout provides source/folder metadata, but alert identity lives in `everr.yml` plus the document.
+The landed apply foundation in `packages/app/src/data/as-code/` is currently project-scoped and document-based: the API input is `projects` plus raw `documents`, and the dashboard reconciler uses `(organization_id, project, slug)` identity. This design intentionally changes that foundation for alert support and dashboard repo ownership. Dashboards and alerts need a simple repository pruning boundary, so the alerting work should evolve apply toward a repo-scoped `repoid` plus one normalized `state` payload. Treat the `repoid`/`state` model below as an intentional implementation change, not as a description of the current apply code.
+
+Alert rules are YAML resource documents. Apply reads `.yaml` and `.yml` resource files from the requested directory recursively, excluding both reserved manifest spellings: `everr.yaml` and `everr.yml`. `everr.yaml` is the only canonical manifest name; if `everr.yml` is present, apply should fail with a clear "rename to everr.yaml" error instead of parsing it as a resource document. Directory layout provides source/folder metadata, but alert identity lives in `everr.yaml` plus the document.
 
 ```yaml
 kind: AlertRule
@@ -147,12 +149,13 @@ spec:
 
 Rules:
 
-- `everr.yml` must contain only `repoid`.
+- `everr.yaml` must contain only `repoid`.
 - `repoid` is required, non-empty, and is the stable repository identifier for apply ownership.
 - `repoid` should be globally unique. UUIDv5 is recommended, but any string is accepted.
 - `kind` must be `AlertRule` for alert definitions.
 - `metadata.name` is required and is the alert slug.
-- Alert identity is `(organization_id, repoid, slug)`, where `repoid` comes from `everr.yml` and `slug` comes from `metadata.name`.
+- Alert identity is `(organization_id, repoid, slug)`, where `repoid` comes from `everr.yaml` and `slug` comes from `metadata.name`.
+- Dashboard identity also starts including `repoid`: `(organization_id, repoid, project, slug)`. Dashboard `project` remains the existing Perses namespace inside the repository, but it is no longer the top-level apply ownership boundary.
 - Alert names must be unique within the `repoid` across all alert resources in the applied state.
 - Apply upserts by alert identity.
 - Changing an alert name is treated as remove old alert plus add new alert.
@@ -162,7 +165,7 @@ Rules:
 - Apply rejects `AlertSettings` resources and any other unknown resource kinds.
 - MVP delivery targets are `email` and `telegram`.
 - Email delivery uses Resend.
-- Telegram delivery sends to configured chat IDs.
+- Telegram delivery sends to configured chat IDs using the Everr-operated bot token from `EVERR_ALERTS_TELEGRAM_BOT_TOKEN`.
 - Alert definitions do not reference routing lists.
 - `evaluationInterval` is required per alert.
 - `evaluationInterval` must be at least `1m` in v1.
@@ -202,6 +205,7 @@ import { z } from "zod";
 
 const NonEmptyStringSchema = z.string().min(1);
 const LabelsSchema = z.record(NonEmptyStringSchema, NonEmptyStringSchema);
+const ResourcePathSchema = NonEmptyStringSchema;
 
 export const EverrConfigYamlSchema = z
   .object({
@@ -232,10 +236,32 @@ export const AlertRuleYamlSchema = z
 
 export const AlertYamlResourceSchema = AlertRuleYamlSchema;
 
+export const DashboardApplyResourceSchema = z
+  .object({
+    path: ResourcePathSchema,
+    resource: DashboardYamlSchema,
+  })
+  .strict();
+
+export const AlertApplyResourceSchema = z
+  .object({
+    path: ResourcePathSchema,
+    resource: AlertRuleYamlSchema,
+  })
+  .strict();
+
 export const ApplyStateSchema = z
   .object({
-    dashboards: z.array(DashboardYamlSchema),
-    alerts: z.array(AlertRuleYamlSchema),
+    dashboards: z.array(DashboardApplyResourceSchema),
+    alerts: z.array(AlertApplyResourceSchema),
+  })
+  .strict();
+
+export const ApplySourceSchema = z
+  .object({
+    branch: NonEmptyStringSchema.optional(),
+    commitSha: NonEmptyStringSchema.optional(),
+    remote: NonEmptyStringSchema.optional(),
   })
   .strict();
 
@@ -244,11 +270,12 @@ export const ApplyRequestSchema = z
     repoid: NonEmptyStringSchema,
     state: ApplyStateSchema,
     source: ApplySourceSchema.optional(),
+    dryRun: z.boolean().default(false),
   })
   .strict();
 ```
 
-`DashboardYamlSchema` and `ApplySourceSchema` come from the existing shared apply implementation. The alert implementation must import those schemas instead of duplicating them.
+`DashboardYamlSchema` should reuse the existing dashboard validation. `ApplySourceSchema`, `ApplyStateSchema`, and `ApplyRequestSchema` are the proposed evolved apply boundary for alerts. Each `state` entry is a wrapper with `path` and `resource`; `path` is the relative source file path used to populate `config_file_path` and to build `source_link` together with `source.remote` and `source.commitSha`. The current shared apply input is still `{ projects, documents, dryRun }`; implementation should change `packages/app/src/data/as-code/` directly to the new `repoid`/`state` contract. Dashboards have not been released, so no backward-compatible adapter or migration path is required for the dashboard identity change.
 
 ## CLI Flow
 
@@ -282,27 +309,45 @@ everr apply <dir>
 - The server distinguishes credential type by token shape and resolves the destination organization from that credential. Alert files do not declare an organization and there is no `--org` flag.
 - The plan response echoes the destination organization before writes. Interactive terminals require confirmation when there are changes; non-interactive runs require `--yes`.
 - Is allowed for any organization member.
-- Reads `everr.yml` from the apply root and validates it with `EverrConfigYamlSchema`.
-- Reads dashboard and alert YAML resources from the requested directory recursively, excluding `everr.yml`.
+- Reads canonical `everr.yaml` from the apply root and validates it with `EverrConfigYamlSchema`.
+- Reads dashboard and alert YAML resources from the requested directory recursively, excluding both `everr.yaml` and `everr.yml`.
 - Validates alert YAML through the same Zod pipeline used by dashboards.
-- Builds and submits one apply API payload containing the complete desired resource state:
+- Builds and submits an apply API payload with `dryRun: true` to compute the plan before writing:
 
 ```json
 {
   "repoid": "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1",
   "state": {
     "dashboards": [],
-    "alerts": []
+    "alerts": [
+      {
+        "path": "alerts/high-5xx-routes.yaml",
+        "resource": {
+          "kind": "AlertRule",
+          "metadata": { "name": "high-5xx-routes" },
+          "spec": {
+            "evaluationInterval": "1m",
+            "window": "5m",
+            "summary": "${row_count} routes have elevated 5xxs",
+            "query": "SELECT 1 WHERE 0"
+          }
+        }
+      }
+    ]
   },
   "source": {
     "branch": "main",
     "commitSha": "abc123",
     "remote": "git@github.com:example/repo.git"
-  }
+  },
+  "dryRun": true
 }
 ```
 
-- The apply API diffs the submitted `state` against the persisted dashboards and alerts for `(organization_id, repoid)`.
+- This payload intentionally differs from the landed as-code apply input. The current foundation groups raw `documents` by `kind` and reconciles registered kinds within declared `projects`; this work should change the boundary so the CLI/server normalize dashboard and alert documents into one repo-scoped desired `state`.
+- The plan response for `dryRun: true` returns the destination organization and computed per-kind diff without writing. If the user confirms, the CLI resubmits the same payload with `dryRun: false`.
+- Each `state.dashboards[]` and `state.alerts[]` entry carries its source `path`. Alert apply stores that path as `alert_definitions.config_file_path` and combines it with `source.remote` and `source.commitSha` when a `source_link` can be built.
+- The evolved apply API diffs the submitted `state` against persisted resources in the repo-scoped boundary. Alerts are keyed by `(organization_id, repoid, slug)`. Dashboard reconciliation changes directly from `(organization_id, project, slug)` to `(organization_id, repoid, project, slug)` so `repoid` is the stable identifier used to compute repo state.
 - Records git-derived repo, branch, commit SHA, remote, and config file path when available.
 - Runs every alert query once against cloud using the declared `window`.
 - Accepts the apply even if the validation query returns rows, because returned rows mean the alert is currently firing, not invalid.
@@ -332,6 +377,9 @@ Alert settings behavior:
 - Alert notification settings are configured only from the Alerts page.
 - `everr apply <dir>` does not create, replace, or delete alert notification settings.
 - MVP settings support Resend-backed email recipients and Telegram chat IDs.
+- Telegram delivery uses one Everr-operated bot in v1. The bot token is a server-side env secret, `EVERR_ALERTS_TELEGRAM_BOT_TOKEN`, and is never stored in organization alert settings or YAML.
+- Telegram organization settings store only whether Telegram is enabled and the allowed chat IDs.
+- Telegram onboarding requires an admin or owner to add the Everr bot to the target chat and configure the resulting chat ID in the Alerts page.
 - Delivery uses the latest saved settings at event time.
 
 ## Evaluation And State
@@ -399,10 +447,15 @@ Delivery behavior:
 
 Postgres tables:
 
+- `dashboards` existing table changes
+  - Add `repoid`: stable repo identifier from `everr.yaml`.
+  - Dashboard identity becomes `(organization_id, repoid, project, slug)`.
+  - Apply loads and prunes dashboards by `(organization_id, repoid)`, with `project` remaining only the dashboard namespace inside that repository.
+  - Dashboards have not been released, so the implementation can change this identity directly without a backward-compatibility migration path.
 - `alert_definitions`
   - `id`: internal alert definition ID.
   - `organization_id`: tenant/org owner.
-  - `repoid`: stable repo identifier from `everr.yml`.
+  - `repoid`: stable repo identifier from `everr.yaml`.
   - `slug`: alert name from `metadata.name`.
   - Unique key is `(organization_id, repoid, slug)`.
   - `evaluation_interval_seconds`: parsed `spec.evaluationInterval`.
@@ -429,7 +482,8 @@ Postgres tables:
   - `last_row_count`: count of violating rows from the latest successful evaluation.
   - `last_evidence_snapshot`: bounded latest evidence JSON for the alert detail page.
 - `alert_settings`
-  - One row per org with the notification delivery config JSON for email and Telegram.
+  - One row per org with the notification delivery config JSON for email recipients and Telegram chat IDs.
+  - Does not store Telegram bot credentials; v1 uses the single Everr-operated bot token from `EVERR_ALERTS_TELEGRAM_BOT_TOKEN`.
 - `alert_silences`
   - `id`: internal silence ID.
   - `organization_id`: tenant/org owner.
@@ -450,7 +504,7 @@ ClickHouse tables:
   - `event_id` (`UUID`): generated event ID.
   - `organization_id` (`String`): tenant/org owner and the key used for tenant retention lookup. This must be `String`, not `UUID`, because Postgres organization IDs are text and the existing `app.tenant_retention` dictionary is keyed by `tenant_id String`; using `UUID` would make `dictGetOrDefault('app.tenant_retention', 'logs_days', organization_id, ...)` fail without an explicit cast.
   - `alert_definition_id` (`String`): ID of the alert definition that produced the event.
-  - `repoid` (`String`): stable repo identifier from `everr.yml`, copied from the alert definition for history queries.
+  - `repoid` (`String`): stable repo identifier from `everr.yaml`, copied from the alert definition for history queries.
   - `slug` (`String`): alert name from `metadata.name`, copied from the alert definition for history queries.
   - `event_type` (`LowCardinality(String)`): event kind, such as `firing`, `resolved`, `evaluation_failed`, or `delivery_attempt`.
   - `evaluation_scheduled_at` (`DateTime64(3)`): scheduled evaluation timestamp for evaluator events, or the default zero timestamp for non-evaluator events.
@@ -524,7 +578,7 @@ Alert apply auditability:
 
 Unit tests:
 
-- `everr.yml` and alert resource YAML schema validation.
+- `everr.yaml` and alert resource YAML schema validation.
 - Alert schema validation uses the same Zod validation pipeline as dashboard schema validation.
 - Window parsing and alert variable expansion.
 - Template rendering.
@@ -534,7 +588,6 @@ Unit tests:
 - Evidence row bounding.
 - ClickHouse alert event row construction.
 - ClickHouse `alert_events` schema definition uses `organization_id String`, `event_date Date DEFAULT toDate(event_time)`, `MergeTree`, `PARTITION BY toYYYYMM(event_date)`, logs-retention TTL, and `ORDER BY (organization_id, repoid, slug, event_time, event_id)`.
-- Alert event row construction only includes `raw_yaml` on firing and resolved transition events.
 - `alert_events_logs_mv` maps alert event rows into the existing `app.logs` schema, including top-level `tenant_id = organization_id` for RLS and TTL and `LogAttributes` entries for `alert.row_count`, `alert.evidence_truncated`, and `alert.evidence_json`.
 
 API route tests:
@@ -542,7 +595,12 @@ API route tests:
 - Apply authentication for both `INGEST_TOKEN` and `SESSION_TOKEN`.
 - Cloud test authentication.
 - Member apply permission.
+- Apply foundation directly accepts the intentionally evolved `repoid` plus normalized `state` contract instead of the current `{ projects, documents, dryRun }` shape.
+- Apply request validation requires per-resource `{ path, resource }` wrappers for dashboards and alerts.
+- `dryRun: true` returns the destination organization and computed diff without writing; `dryRun: false` applies the same requested state after confirmation.
 - Apply request validation for a complete `state` payload containing dashboards and alerts.
+- Dashboard apply upsert and prune semantics use `(organization_id, repoid, project, slug)` identity.
+- Alert apply persists each alert entry's `path` into `config_file_path` and uses it when building `source_link`.
 - Apply rejects `AlertSettings` YAML resources.
 - Alert settings web API validation.
 - Alert silence create and cancel authorization.
@@ -568,9 +626,10 @@ CLI tests:
 
 - Parser/help output.
 - Cloud default and `--local` targeting.
-- `everr.yml` `repoid` parsing and validation.
-- Alert YAML resource discovery in an apply directory.
-- Dashboard and alert state payload construction for `everr apply <dir>`.
+- `everr.yaml` `repoid` parsing and validation.
+- Resource discovery excludes both `everr.yaml` and `everr.yml`; `everr.yml` produces a clear "rename to everr.yaml" manifest error instead of being parsed as a resource.
+- Alert YAML resource discovery in an apply directory preserves the relative file path for each resource.
+- Dashboard and alert state payload construction for `everr apply <dir>` emits `{ path, resource }` wrappers and includes `dryRun: true` for the plan request.
 - `everr cloud query` can query projected alert events through `app.logs`.
 - Mocked apply/test API calls.
 - JSON output includes applied options.
@@ -583,7 +642,8 @@ Notification delivery tests:
 
 - Firing events use the saved alert delivery config.
 - Resend email delivery is invoked for configured email recipients.
-- Telegram delivery is invoked for configured chat IDs.
+- Telegram delivery uses `EVERR_ALERTS_TELEGRAM_BOT_TOKEN` and is invoked for configured chat IDs.
+- Alert settings validation rejects any Telegram bot token field in organization settings.
 - Active silences suppress email and Telegram delivery.
 - Silenced delivery attempts insert ClickHouse `alert_events` rows with delivery outcome `silenced`.
 - Delivery failures are logged without changing firing/resolved state.
@@ -615,13 +675,18 @@ Notification delivery tests:
 - Use Everr `${name}` alert variable notation, including `${window}` derived from `window`.
 - Require `summary`; allow optional `description`.
 - Remove root `service`; alert ownership is repo-scoped through `repoid`.
-- Use `everr.yml` with only `repoid` plus ordinary YAML resource files in an apply directory.
-- Identify alerts by `(organization_id, repoid, slug)` using `everr.yml` and `metadata.name`.
+- Use `everr.yaml` with only `repoid` plus ordinary YAML resource files in an apply directory.
+- Intentionally evolve the landed as-code apply foundation from project-scoped raw documents to a repo-scoped normalized `state` payload so dashboards and alerts can be reconciled by `repoid`.
+- Preserve source file paths in the normalized state with per-resource `{ path, resource }` wrappers.
+- Keep `dryRun` in the apply request so the CLI can compute a server-side plan before confirmation and writes.
+- Include `repoid` in dashboard identity: `(organization_id, repoid, project, slug)`.
+- Identify alerts by `(organization_id, repoid, slug)` using `everr.yaml` and `metadata.name`.
 - Validate apply by running each query against cloud.
 - Do not include alert severity in v1.
 - Use one organization alert settings config for notification delivery.
 - Configure alert notification settings only through the web UI; YAML/apply does not manage notification settings.
 - Support email through Resend and Telegram in the MVP delivery config.
+- Use a single Everr-operated Telegram bot token from `EVERR_ALERTS_TELEGRAM_BOT_TOKEN`; org settings store chat IDs only.
 - Persist alert event history in ClickHouse `alert_events`.
 - Project alert events into `app.logs` through a materialized view so they are queryable through `everr cloud query`.
 - Support bounded operational alert silences that suppress delivery but do not stop evaluation or state updates.
