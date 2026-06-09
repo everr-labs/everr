@@ -5,6 +5,17 @@ vi.mock("@/data/as-code/registry", () => ({
   applyResources: (...a: unknown[]) => applyResources(...a),
 }));
 
+// apply-auth.server.ts → db/client has server-only env; stub it out.
+vi.mock("@/db/client", () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([])) })),
+      })),
+    })),
+  },
+}));
+
 import { ApplyValidationError } from "@/data/as-code/errors";
 import { Route } from "./apply";
 
@@ -14,14 +25,20 @@ const POST = (
       handlers: {
         POST: (a: {
           request: Request;
-          context: { session: { session: { activeOrganizationId: string } } };
+          context: {
+            session: { session: { activeOrganizationId: string } };
+            organization: { id: string; name: string };
+          };
         }) => Promise<Response>;
       };
     };
   }
 ).server.handlers.POST;
 
-const ctx = { session: { session: { activeOrganizationId: "org-1" } } };
+const ctx = {
+  session: { session: { activeOrganizationId: "org-1" } },
+  organization: { id: "org-1", name: "Acme" },
+};
 const req = (body: unknown) =>
   new Request("http://x/api/apply", {
     method: "POST",
@@ -34,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/apply", () => {
-  it("applies and returns the per-kind summary", async () => {
+  it("applies and returns the per-kind summary with the org", async () => {
     applyResources.mockResolvedValueOnce({
       dryRun: false,
       results: [
@@ -43,7 +60,6 @@ describe("POST /api/apply", () => {
     });
     const res = await POST({
       request: req({
-        source: "team",
         documents: [
           {
             path: "cpu.yaml",
@@ -63,10 +79,10 @@ describe("POST /api/apply", () => {
       results: [
         { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
       ],
+      organization: { id: "org-1", name: "Acme" },
     });
     expect(applyResources).toHaveBeenCalledWith({
       orgId: "org-1",
-      source: "team",
       documents: [
         {
           path: "cpu.yaml",
@@ -82,7 +98,7 @@ describe("POST /api/apply", () => {
   });
 
   it("returns 400 on an invalid body", async () => {
-    const res = await POST({ request: req({ documents: [] }), context: ctx });
+    const res = await POST({ request: req({}), context: ctx });
     expect(res.status).toBe(400);
     expect(applyResources).not.toHaveBeenCalled();
   });
@@ -93,7 +109,6 @@ describe("POST /api/apply", () => {
     );
     const res = await POST({
       request: req({
-        source: "team",
         documents: [{ path: "bad.yaml", document: { kind: "Gizmo" } }],
       }),
       context: ctx,
@@ -109,7 +124,6 @@ describe("POST /api/apply", () => {
     );
     const res = await POST({
       request: req({
-        source: "team",
         documents: [
           {
             path: "cpu.yaml",
