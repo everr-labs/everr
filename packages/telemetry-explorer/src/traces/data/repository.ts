@@ -139,11 +139,15 @@ export class TracesRepository {
     // exposes it as a string. Filter on the raw int to avoid a double
     // toString → toUInt64 round-trip per row.
     if (input.minDurationNs !== undefined) {
-      aggregateHavingParts.push("durationNsRaw >= {minDurationNs:UInt64}");
+      aggregateHavingParts.push(
+        "durationNsRaw >= toUInt64({minDurationNs:String})",
+      );
       params.minDurationNs = input.minDurationNs;
     }
     if (input.maxDurationNs !== undefined) {
-      aggregateHavingParts.push("durationNsRaw <= {maxDurationNs:UInt64}");
+      aggregateHavingParts.push(
+        "durationNsRaw <= toUInt64({maxDurationNs:String})",
+      );
       params.maxDurationNs = input.maxDurationNs;
     }
     // Span-level, matching the rest of the filters: 'error' = trace contains
