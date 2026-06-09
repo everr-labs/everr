@@ -7,7 +7,12 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { authClient } from "@/lib/auth-client";
-import { AuthPageHeader } from "../-components/auth-page";
+import {
+  AuthPageHeader,
+  AuthProviderSeparator,
+  buildAuthErrorCallbackURL,
+  GoogleAuthButton,
+} from "../-components/auth-page";
 
 const SignInSearchSchema = z.object({
   redirect: z.string().optional(),
@@ -24,6 +29,11 @@ function SignIn() {
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const callbackURL = redirectTo ?? "/";
+  const errorCallbackURL = buildAuthErrorCallbackURL("/auth/sign-in", {
+    redirect: redirectTo,
+    email: prefillEmail,
+  });
 
   const form = useForm({
     defaultValues: {
@@ -60,6 +70,18 @@ function SignIn() {
         title="Sign in to Everr"
         subtitle="Enter your credentials to continue"
       />
+
+      <div className="flex flex-col gap-4">
+        <GoogleAuthButton
+          label="Sign in with Google"
+          callbackURL={callbackURL}
+          newUserCallbackURL={redirectTo ?? "/onboarding"}
+          errorCallbackURL={errorCallbackURL}
+          disabled={isSubmitting}
+          onError={setError}
+        />
+        <AuthProviderSeparator />
+      </div>
 
       <form
         className="space-y-5"

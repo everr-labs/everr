@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createRouter } from "@tanstack/react-router";
+import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { routeTree } from "./routeTree.gen";
 
@@ -18,9 +18,26 @@ export const getRouter = () => {
       },
     },
   });
+  const traceDetailModalMask = createRouteMask({
+    routeTree,
+    from: "/traces/$traceId/modal",
+    to: "/traces/$traceId",
+    params: true,
+    search: true,
+    unmaskOnReload: true,
+  });
+  const errorDetailModalMask = createRouteMask({
+    routeTree,
+    from: "/errors/$fingerprint/modal",
+    to: "/errors/$fingerprint",
+    params: true,
+    search: true,
+    unmaskOnReload: true,
+  });
 
   return createRouter({
     routeTree,
+    routeMasks: [traceDetailModalMask, errorDetailModalMask],
     context: { queryClient },
     // TODO: maybe preload?
     // defaultPreload: "intent",

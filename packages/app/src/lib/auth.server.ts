@@ -41,6 +41,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
+import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import { resolveRetention } from "@/lib/retention";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
@@ -135,12 +136,31 @@ const orgRoles = {
   }),
 };
 
+const googleSocialProviders =
+  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+    ? {
+        google: {
+          clientId: env.GOOGLE_CLIENT_ID,
+          clientSecret: env.GOOGLE_CLIENT_SECRET,
+        },
+      }
+    : undefined;
+
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
+  ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
+  user: {
+    deleteUser: {
+      enabled: true,
+    },
+  },
+  onAPIError: {
+    errorURL: "/auth/error",
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
@@ -344,6 +364,16 @@ export const auth = betterAuth({
           }
         },
         afterDeleteOrganization: async ({ organization }) => {
+          try {
+            await deletePostgresOrganizationData(organization.id);
+          } catch (error) {
+            serverLogger.error("organization.postgres_data_cleanup.failed", {
+              ...exceptionAttributes(error),
+              "organization.id": organization.id,
+            });
+            throw error;
+          }
+
           try {
             await deprovisionSqlApiOrgUser(organization.id);
           } catch (error) {

@@ -8,7 +8,6 @@ import {
   Link,
   Outlet,
   stripSearchParams,
-  useMatch,
 } from "@tanstack/react-router";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 
@@ -26,11 +25,15 @@ export const Route = createFileRoute("/_authenticated/_dashboard/traces")({
 });
 
 function TracesRoute() {
-  const traceDetailMatch = useMatch({
-    from: "/_authenticated/_dashboard/traces/$traceId",
-    shouldThrow: false,
-  });
-  return traceDetailMatch ? <Outlet /> : <TracesSearchPage />;
+  // Always keep the list mounted in the same position so opening/closing the
+  // modal never remounts it (a remount resets the virtualized list and re-runs
+  // queries, which shows up as a flash on close).
+  return (
+    <>
+      <TracesSearchPage />
+      <Outlet />
+    </>
+  );
 }
 
 function TracesSearchPage() {
@@ -60,7 +63,7 @@ function TracesSearchPage() {
       }
       renderTraceLink={({ traceId, start, end, className, children }) => (
         <Link
-          to="/traces/$traceId"
+          to="/traces/$traceId/modal"
           params={{ traceId }}
           search={(prev) => ({ ...prev, start, end })}
           className={className}

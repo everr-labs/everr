@@ -1,4 +1,5 @@
 import type { SqlClient } from "@everr/telemetry-explorer/logs";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { invokeCommand } from "@/lib/tauri";
 
 /**
@@ -11,6 +12,23 @@ export const localSqlClient: SqlClient = {
     sql: string,
     params: Record<string, unknown>,
   ): Promise<Row[]> => {
-    return invokeCommand<Row[]>("telemetry_sql_query", { sql, params });
+    try {
+      return await invokeCommand<Row[]>("telemetry_sql_query", { sql, params });
+    } catch (error) {
+      const isError = error instanceof Error;
+      logs.getLogger("everr-desktop.local-sql").emit({
+        severityNumber: SeverityNumber.ERROR,
+        severityText: "ERROR",
+        body: "everr.desktop.local_sql.query_error",
+        attributes: {
+          "exception.type": isError ? error.name : "Error",
+          "exception.message": isError ? error.message : String(error),
+          "exception.stacktrace": isError ? (error.stack ?? "") : "",
+          "error.handled": true,
+        },
+        exception: isError ? error : undefined,
+      });
+      throw error;
+    }
   },
 };

@@ -259,8 +259,10 @@ describe("TracesRepository.search", () => {
 
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("HAVING");
-    expect(sql).toContain("durationNsRaw >= {minDurationNs:UInt64}");
-    expect(sql).not.toContain("durationNsRaw <= {maxDurationNs:UInt64}");
+    expect(sql).toContain("durationNsRaw >= toUInt64({minDurationNs:String})");
+    expect(sql).not.toContain(
+      "durationNsRaw <= toUInt64({maxDurationNs:String})",
+    );
     expect(sql).toContain("countIf(StatusCode = 'Error') > 0");
     expect(params).toMatchObject({ minDurationNs: "1000" });
   });

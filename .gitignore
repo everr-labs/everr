@@ -63,3 +63,5 @@ terraform.tfvars.json
 
 # Local superpowers planning docs (specs/plans) — keep on disk, out of git
 docs/superpowers/
+.auth
+.pnpm-store

@@ -98,7 +98,12 @@ vi.mock("@/lib/serverFn", async () => {
               activeOrganizationId: "test_org",
               id: "test_session",
             },
-            user: { id: "test_user" },
+            user: {
+              id: "test_user",
+              email: "test@example.com",
+              name: "Test User",
+              image: null,
+            },
           },
           clickhouse: {
             query: <T>(sql: string, params?: Record<string, unknown>) =>
@@ -152,6 +157,8 @@ vi.mock("@/lib/auth.server", () => ({
       }),
       getFullOrganization: vi.fn(),
       createOrganization: vi.fn(),
+      deleteOrganization: vi.fn(),
+      deleteUser: vi.fn(),
       updateOrganization: vi.fn(),
       setActiveOrganization: vi.fn(),
       listOrganizations: vi.fn(),

@@ -5,6 +5,8 @@ export const authEnv = createEnv({
   server: {
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.url(),
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
     POLAR_ACCESS_TOKEN: z.string(),
     POLAR_WEBHOOK_SECRET: z.string(),
     POLAR_SERVER: z.enum(["sandbox", "production"]).default("sandbox"),
@@ -13,6 +15,8 @@ export const authEnv = createEnv({
   runtimeEnv: {
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
     POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
     POLAR_SERVER: process.env.POLAR_SERVER,

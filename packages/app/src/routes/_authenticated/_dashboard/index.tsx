@@ -1,4 +1,3 @@
-import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -15,13 +14,9 @@ import {
   FileText,
   FlaskConical,
   GitBranch,
-  Terminal,
 } from "lucide-react";
-import type { ComponentType, ReactNode } from "react";
-import {
-  DESKTOP_DOWNLOAD_URL,
-  INSTALL_COMMAND,
-} from "@/common/install-command";
+import type { ComponentType } from "react";
+import { INSTALL_COMMAND } from "@/common/install-command";
 import { InstallCommandBlock } from "@/components/install-command-block";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/")({
@@ -125,59 +120,18 @@ function InstallEverrCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Install Everr</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Download className="size-4 text-primary" />
+          Install Everr
+        </CardTitle>
         <CardDescription>
           Get notified when CI fails, run queries from your terminal, and
-          integrate with your editor.
+          integrate with your coding assistant.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2">
-        <InstallOption
-          icon={Download}
-          title="Desktop app"
-          description="Native menu-bar app for macOS (Apple Silicon)."
-        >
-          <Button
-            size="sm"
-            className="self-start"
-            nativeButton={false}
-            // biome-ignore lint/a11y/useAnchorContent: content is supplied by Button's children via base-ui render prop
-            render={<a href={DESKTOP_DOWNLOAD_URL} />}
-          >
-            Download .dmg
-          </Button>
-        </InstallOption>
-        <InstallOption
-          icon={Terminal}
-          title="CLI"
-          description="Cross-platform. Run in your terminal:"
-        >
-          <InstallCommandBlock command={INSTALL_COMMAND} />
-        </InstallOption>
+      <CardContent>
+        <InstallCommandBlock command={INSTALL_COMMAND} />
       </CardContent>
     </Card>
-  );
-}
-
-function InstallOption({
-  icon: Icon,
-  title,
-  description,
-  children,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-4">
-      <div className="flex items-center gap-2">
-        <Icon className="size-4 text-primary" />
-        <span className="text-sm font-medium">{title}</span>
-      </div>
-      <p className="text-xs text-muted-foreground">{description}</p>
-      {children}
-    </div>
   );
 }
