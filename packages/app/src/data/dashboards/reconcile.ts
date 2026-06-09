@@ -1,7 +1,8 @@
 import type { Dashboard } from "./schema";
 
-/** A dashboard as it exists in the store, scoped to a single source. */
+/** A dashboard as it exists in the store, scoped to its project. */
 export interface ExistingDashboard {
+  project: string;
   slug: string;
   folderPath: string;
   document: Dashboard;
@@ -9,6 +10,7 @@ export interface ExistingDashboard {
 
 /** A dashboard declared in the desired set (parsed from a file). */
 export interface DesiredDashboard {
+  project: string;
   slug: string;
   folderPath: string;
   document: Dashboard;
