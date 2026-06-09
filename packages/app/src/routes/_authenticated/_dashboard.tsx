@@ -41,12 +41,6 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
 export const Route = createFileRoute("/_authenticated/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
-    // Nothing is stripped here on purpose. A dashboard can seed its own time
-    // range / refresh as route defaults (layered under the URL). Stripping a
-    // value because it equals the *global* default would erase an explicit
-    // selection that happens to match it — making that one value (e.g. the
-    // default range, or "off") unselectable on a dashboard with a different
-    // default, since the route default would immediately re-apply.
     middlewares: [retainSearchParams(["from", "to", "refresh"])],
   },
   beforeLoad({ search }) {
