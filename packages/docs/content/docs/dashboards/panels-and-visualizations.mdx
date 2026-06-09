@@ -73,6 +73,14 @@ ORDER BY ts
 
 This produces one line per service.
 
+<Callout type="warn">
+  The label column must be a **non-numeric** string. ClickHouse returns 64-bit
+  integers and string columns identically in its JSON output, so a label cast to
+  a numeric string — e.g. `toString(StatusCode)` — can't be told apart from a
+  value column and renders as its own line instead of pivoting. Make the label
+  unambiguous, for example `concat('status-', toString(StatusCode))`.
+</Callout>
+
 ### Table
 
 Renders every column as-is, in query order. No special column naming is required — return whatever you want to display:
