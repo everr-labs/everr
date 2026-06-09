@@ -33,7 +33,9 @@ spec:
                   query: |
                     SELECT toStartOfMinute(Timestamp) AS ts,
                            quantile(0.99)(Duration) / 1e6 AS p99_ms
-                    FROM traces GROUP BY ts ORDER BY ts
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    GROUP BY ts ORDER BY ts
   layouts:
     - kind: Grid
       spec:

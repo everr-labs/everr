@@ -28,6 +28,7 @@ panels:
                   SELECT toStartOfMinute(Timestamp) AS ts,
                          countIf(StatusCode >= 500) / count() * 100 AS error_pct
                   FROM traces
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                   GROUP BY ts ORDER BY ts
 ```
 
