@@ -103,6 +103,30 @@ impl ApiClient {
             .context("failed to read CLI SQL response body")
     }
 
+    pub async fn post_alerts_test(&self, request: &AlertsTestRequest) -> Result<Value> {
+        let response = self
+            .http
+            .post(format!("{}/alerts/test", self.base_endpoint))
+            .json(request)
+            .send()
+            .await
+            .context("alerts test request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "alerts test request"));
+        }
+
+        response
+            .json::<Value>()
+            .await
+            .context("failed to decode alerts test response as JSON")
+    }
+
     pub async fn get_step_logs(
         &self,
         trace_id: &str,
@@ -428,6 +452,19 @@ impl OrgResponse {
 pub struct RepoEntry {
     pub id: i64,
     pub full_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertResourceFile {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertsTestRequest {
+    pub files: Vec<AlertResourceFile>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

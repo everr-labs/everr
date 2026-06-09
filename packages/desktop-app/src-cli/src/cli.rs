@@ -27,6 +27,8 @@ pub enum Commands {
     Uninstall,
     /// Manage Everr Cloud authentication
     Cloud(CloudArgs),
+    /// Test and manage alert resources
+    Alerts(AlertsArgs),
     /// Inspect GitHub Actions CI runs
     Ci(CiArgs),
     /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
@@ -47,6 +49,24 @@ pub enum Commands {
 pub struct CloudArgs {
     #[command(subcommand)]
     pub command: CloudSubcommand,
+}
+
+#[derive(Args, Debug)]
+pub struct AlertsArgs {
+    #[command(subcommand)]
+    pub command: AlertsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AlertsSubcommand {
+    /// Test alert resource files without persisting state
+    Test(AlertsTestArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct AlertsTestArgs {
+    /// Directory containing alert resource YAML files
+    pub dir: std::path::PathBuf,
 }
 
 #[derive(Subcommand, Debug)]

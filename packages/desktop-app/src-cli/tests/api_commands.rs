@@ -44,6 +44,46 @@ fn status_command_sends_commit_query_to_runs_endpoint() {
 }
 
 #[test]
+fn alerts_test_posts_yaml_files_to_api() {
+    let env = CliTestEnv::new();
+    let repo_dir = env.home_dir.join("alerts-repo");
+    std::fs::create_dir_all(repo_dir.join("alerts/nested")).expect("create alerts dir");
+    std::fs::write(repo_dir.join("alerts/high-5xx.yaml"), "kind: AlertRule\n").expect("write rule");
+    std::fs::write(
+        repo_dir.join("alerts/nested/settings.yml"),
+        "kind: AlertSettings\n",
+    )
+    .expect("write settings");
+    std::fs::write(repo_dir.join("alerts/ignore.txt"), "ignored").expect("write ignored");
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("POST", "/api/cli/alerts/test")
+        .match_header("authorization", "Bearer token-abc")
+        .match_body(Matcher::AllOf(vec![
+            Matcher::Regex("high-5xx\\.yaml".into()),
+            Matcher::Regex("nested/settings\\.yml".into()),
+            Matcher::Regex("AlertRule".into()),
+            Matcher::Regex("AlertSettings".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"results":[{"path":"alerts/high-5xx.yaml","project":"default","name":"high-5xx","severity":"critical","firing":false,"rowCount":0,"truncated":false,"evidence":[]}]}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .current_dir(&repo_dir)
+        .args(["alerts", "test", "alerts"])
+        .assert()
+        .success()
+        .stdout(contains("\"results\""));
+
+    mock.assert();
+}
+
+#[test]
 fn status_uses_explicit_commit_when_provided() {
     let env = CliTestEnv::new();
     let repo_dir = env.init_git_repo(

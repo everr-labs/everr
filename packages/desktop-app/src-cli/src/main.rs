@@ -11,7 +11,7 @@ mod wrap;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
+use cli::{AlertsSubcommand, CiSubcommand, Cli, CloudSubcommand, Commands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -23,6 +23,9 @@ async fn main() -> Result<()> {
             CloudSubcommand::Login(login) => auth::login(login).await?,
             CloudSubcommand::Logout => auth::logout()?,
             CloudSubcommand::Query(args) => core::cloud_query(args).await?,
+        },
+        Commands::Alerts(args) => match args.command {
+            AlertsSubcommand::Test(args) => core::alerts_test(args).await?,
         },
         Commands::Ci(args) => match args.command {
             CiSubcommand::Status(args) => core::status(args).await?,

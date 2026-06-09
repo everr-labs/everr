@@ -8,12 +8,13 @@ use tokio::pin;
 use futures_util::StreamExt;
 
 use crate::api::{
-    ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState,
+    AlertResourceFile, AlertsTestRequest, ApiClient, NotifyPayload, ShowJob, ShowRunDetails,
+    StepLogEntry, WatchRun, WatchState,
 };
 use crate::auth;
 use crate::cli::{
-    GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
-    TelemetryQueryArgs, WatchArgs,
+    AlertsTestArgs, GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs,
+    TelemetryFormat, TelemetryQueryArgs, WatchArgs,
 };
 use crate::telemetry;
 
@@ -92,6 +93,69 @@ pub async fn cloud_query(args: TelemetryQueryArgs) -> Result<()> {
         }
     });
     telemetry::commands::render(&rows, format);
+    Ok(())
+}
+
+pub async fn alerts_test(args: AlertsTestArgs) -> Result<()> {
+    let session = auth::require_session_with_refresh().await?;
+    let client = ApiClient::from_session(&session)?;
+    let files = discover_alert_resource_files(&args.dir)?;
+    let response = client
+        .post_alerts_test(&AlertsTestRequest { files })
+        .await?;
+    print_json(&response)?;
+    Ok(())
+}
+
+fn discover_alert_resource_files(dir: &std::path::Path) -> Result<Vec<AlertResourceFile>> {
+    if !dir.is_dir() {
+        bail!("alert resource path is not a directory: {}", dir.display());
+    }
+
+    let mut files = Vec::new();
+    collect_alert_resource_files(dir, dir, &mut files)?;
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+
+    if files.is_empty() {
+        bail!("no alert resource files found in {}", dir.display());
+    }
+
+    Ok(files)
+}
+
+fn collect_alert_resource_files(
+    root: &std::path::Path,
+    dir: &std::path::Path,
+    files: &mut Vec<AlertResourceFile>,
+) -> Result<()> {
+    for entry in std::fs::read_dir(dir).with_context(|| format!("read {}", dir.display()))? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_alert_resource_files(root, &path, files)?;
+            continue;
+        }
+
+        let Some(ext) = path.extension().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if ext != "yaml" && ext != "yml" {
+            continue;
+        }
+
+        let relative = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("read alert resource {}", path.display()))?;
+        files.push(AlertResourceFile {
+            path: relative,
+            content,
+        });
+    }
+
     Ok(())
 }
 
