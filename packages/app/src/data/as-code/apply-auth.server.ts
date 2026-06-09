@@ -97,12 +97,44 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
 }
 
 /**
+ * Map an auth failure thrown by `resolveApplyAuth` to an explicit HTTP response:
+ * 401 for a missing/invalid/unauthenticated credential, 403 for an
+ * authenticated principal with no active organization. Returns null for any
+ * other error so genuine infrastructure failures still surface as a 500 (a bug
+ * must not be masked as an auth rejection). The `{ error }` body mirrors the
+ * route's other error shapes; the 401 status is what the CLI keys on to print
+ * its apply-specific guidance instead of a generic server error.
+ */
+const AUTH_ERROR_STATUS: Record<string, number> = {
+  "Missing credential": 401,
+  "Invalid API key": 401,
+  Unauthenticated: 401,
+  "No active organization": 403,
+};
+
+export function applyAuthErrorResponse(error: unknown): Response | null {
+  const message = error instanceof Error ? error.message : "";
+  const status = AUTH_ERROR_STATUS[message];
+  if (!status) return null;
+  return Response.json({ error: message }, { status });
+}
+
+/**
  * Authorize an apply request via an org-scoped ingest key (CI) OR a logged-in
- * session (interactive). The resolved org is exposed on the context.
+ * session (interactive). The resolved org is exposed on the context. Auth
+ * failures are returned as explicit 401/403 responses (thrown Responses are
+ * sent by the server handler) rather than escaping as a generic 500.
  */
 export const requireOrgOrApiKeyMiddleware = createMiddleware().server(
   async ({ request, next }) => {
-    const apiAuth = await resolveApplyAuth(request.headers);
+    let apiAuth: ApplyAuth;
+    try {
+      apiAuth = await resolveApplyAuth(request.headers);
+    } catch (error) {
+      const response = applyAuthErrorResponse(error);
+      if (response) throw response;
+      throw error;
+    }
     return next({ context: buildApplyContext(apiAuth) });
   },
 );
