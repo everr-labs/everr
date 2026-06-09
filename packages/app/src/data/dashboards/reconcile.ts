@@ -25,9 +25,10 @@ export interface ReconcileDiff {
 /**
  * Compute the create/update/delete diff to make the given dashboards match the
  * desired set. Identity is keyed by (project, slug). `existing` MUST already be
- * scoped to the projects present in `desired` — this function only prunes within
- * those projects, which is what makes delete-by-default safe across projects and
- * across repos.
+ * scoped to the declared reconcile scope (which may include projects absent from
+ * `desired`, e.g. the stale side of a cross-project move or an emptied project) —
+ * this function prunes anything in `existing` not in `desired`, which is what
+ * makes delete-by-default safe across projects and across repos.
  *
  * A dashboard is "changed" when its folderPath or its document differs.
  * Documents are compared by stable-stringify so unknown Perses fields
