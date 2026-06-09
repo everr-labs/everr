@@ -360,7 +360,6 @@ export const auth = betterAuth({
     // without args fails parse with "expected nonoptional, received undefined".
     deviceAuthorization({ schema: {} }),
     apiKey([
-      { configId: "cli", references: "user", defaultPrefix: "cli_" },
       {
         configId: "ingest",
         references: "organization",
