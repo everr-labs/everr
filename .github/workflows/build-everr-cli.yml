@@ -115,6 +115,8 @@ jobs:
           cd target/cli-release
 
           for asset in everr-linux-arm64 everr-linux-x86_64; do
+            test -f "$asset"
+            chmod +x "$asset"
             test -x "$asset"
             test -f "$asset.sha256"
             sha256sum -c "$asset.sha256"

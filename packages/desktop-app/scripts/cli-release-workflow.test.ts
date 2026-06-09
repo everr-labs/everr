@@ -24,6 +24,18 @@ describe("CLI release workflow", () => {
     expect(workflow).toContain("subject-checksums: target/cli-release/SHA256SUMS");
   });
 
+  it("restores executable bits before validating downloaded Linux binaries", async () => {
+    const workflow = await readFile(workflowPath, "utf8");
+    const validateStep = workflow.match(
+      /- name: Validate release payload\s+run: \|\n(?<body>[\s\S]*?)\n      - name:/,
+    )?.groups?.body;
+
+    expect(validateStep).toBeDefined();
+    expect(validateStep).toMatch(
+      /test -f "\$asset"\s+chmod \+x "\$asset"\s+test -x "\$asset"\s+test -f "\$asset\.sha256"\s+sha256sum -c "\$asset\.sha256"/,
+    );
+  });
+
   it("dispatches the deploy repository with the Linux CLI artifact name", async () => {
     const workflow = await readFile(workflowPath, "utf8");
 
