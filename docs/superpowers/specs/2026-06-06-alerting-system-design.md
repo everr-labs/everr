@@ -6,7 +6,7 @@ Date: 2026-06-06
 
 Everr will add a YAML-defined alerting system for free-form observability alerts. The v1 model avoids SLO/SLI terminology and uses a Grafana-style rule shape: users write a ClickHouse SQL query that returns violating rows. If the query returns at least one row, the alert is firing. If it returns zero rows, the alert resolves.
 
-Alert definitions are managed through repo-level `.everr` YAML config files. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can apply alert definitions through the CLI. Apply scans the current git repository for `.everr` configs, computes the desired alert set for that repo, and applies the diff to Everr.
+Alert definitions are managed as YAML resource files in an apply directory, not through a hidden manifest. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can apply alert definitions through the shared apply flow. Apply reads alert resources from the requested directory, derives alert identity from `metadata.project` and `metadata.name`, and applies the diff to Everr.
 
 Alert orchestration uses Graphile Worker with the existing Postgres database. Everr-owned alert tables remain the source of truth for schedules, state, events, and retention. Graphile Worker is used for distributed queueing, retries, and a small number of scanner jobs; Everr does not create one cron task per alert.
 
@@ -18,8 +18,8 @@ Alert orchestration uses Graphile Worker with the existing Postgres database. Ev
 - Use the existing Postgres database for queue persistence and app alert state.
 - Retain Everr-owned alert state, events, and evidence for 7 days.
 - Keep Graphile Worker job cleanup bounded; Everr-owned alert history remains the authoritative 7-day record.
-- Test repo `.everr` alert config from the CLI against cloud or local telemetry.
-- Apply repo `.everr` alert config from the CLI and validate SQL before activation.
+- Test alert resource files from the CLI against cloud or local telemetry.
+- Apply alert resource files from the CLI and validate SQL before activation.
 - Store source metadata so web users can open the definition in the repository.
 - Deliver v1 alert notifications through one organization-level alert settings config.
 - Support email delivery through Resend and Telegram delivery in the MVP.
@@ -29,8 +29,7 @@ Alert orchestration uses Graphile Worker with the existing Postgres database. Ev
 - No SLO, SLI, objective, error-budget, or burn-rate model in v1.
 - No PromQL or SLOTH compatibility beyond loose inspiration from YAML-based declarations.
 - No per-row alert instances in v1. A rule has one alert state even if it returns many rows.
-- No path-argument apply command in v1.
-- No standalone delete command in the first CLI scope. `everr alerts apply` removes rules omitted from the discovered repo configs.
+- No standalone delete command in the first CLI scope. `everr apply <dir>` removes rules omitted from the applied files for each project present in that apply.
 - No Slack, PagerDuty, or generic webhook notification targets in v1.
 - No durable workflow engine in v1. Alert evaluation is a scheduled queue job plus app-owned state transitions.
 
@@ -108,15 +107,39 @@ References checked:
 
 ## YAML Format
 
-The YAML format is repo-scoped and alert-focused. The file name is `.everr`.
+Alert rules are YAML resource documents. Apply reads `.yaml` and `.yml` files from the requested directory recursively. Directory layout provides source/folder metadata, but alert identity lives in the document.
 
 ```yaml
-version: everr/v1
-repoId: github:123456789
-labels:
-  team: platform
+kind: AlertRule
+metadata:
+  name: high-5xx-routes
+  project: platform
+  labels:
+    team: platform
+spec:
+  severity: critical
+  evaluationInterval: 1m
+  window: 5m
+  summary: "${row_count} routes have elevated 5xxs"
+  description: "Top route: ${top_route} with ${top_error_count} errors"
+  query: |
+    SELECT
+      SpanAttributes['http.route'] AS route,
+      countIf(StatusCode >= 500) AS error_count,
+      count() AS request_count
+    FROM traces
+    WHERE Timestamp >= now() - INTERVAL ${window}
+    GROUP BY route
+    HAVING error_count >= 10
+    ORDER BY error_count DESC
+    LIMIT 20
+```
 
-alertsSettings:
+The organization-level alert delivery config is its own resource. At most one `AlertSettings` resource can be present in an apply operation. If it is absent, existing alert settings are left unchanged.
+
+```yaml
+kind: AlertSettings
+spec:
   notificationDelivery:
     email:
       enabled: true
@@ -126,41 +149,22 @@ alertsSettings:
       enabled: true
       chatIds:
         - "123456789"
-
-alerts:
-  - name: high-5xx-routes
-    severity: critical
-    evaluationInterval: 1m
-    window: 5m
-    summary: "${row_count} routes have elevated 5xxs"
-    description: "Top route: ${top_route} with ${top_error_count} errors"
-    query: |
-      SELECT
-        SpanAttributes['http.route'] AS route,
-        countIf(StatusCode >= 500) AS error_count,
-        count() AS request_count
-      FROM traces
-      WHERE Timestamp >= now() - INTERVAL ${window}
-      GROUP BY route
-      HAVING error_count >= 10
-      ORDER BY error_count DESC
-      LIMIT 20
 ```
 
 Rules:
 
-- `version` must be `everr/v1`.
-- `repoId` is required and is the stable repository identifier for alert ownership.
-- `repoId` must not be the repository display name, because repositories can be renamed.
-- Alert identity is `(organization_id, repo_id, name)`.
-- Alert names must be unique across all `.everr` configs discovered for the same `repoId`.
+- `kind` must be `AlertRule` for alert definitions.
+- `metadata.name` is required and is the alert slug.
+- `metadata.project` is optional and defaults to `default`.
+- Alert identity is `(organization_id, project, slug)`, where `project` comes from `metadata.project` and `slug` comes from `metadata.name`.
+- Alert names must be unique within a project across all alert resources in the applied directory.
 - Apply upserts by alert identity.
-- `previousName` is optional and supports a one-time rename from `(organization_id, repo_id, previousName)` to `(organization_id, repo_id, name)`.
+- `metadata.previousName` is optional and supports a one-time rename from `(organization_id, project, previousName)` to `(organization_id, project, name)`.
 - Without `previousName`, changing an alert name is treated as remove old alert plus add new alert.
 - `severity` is fixed to `critical` or `warning`.
 - `critical` and `warning` both create alert events and use the configured delivery targets.
 - Severity is included in persisted state, history logs, and delivered messages.
-- `alertsSettings.notificationDelivery` is the single organization-level alert delivery config.
+- `AlertSettings.spec.notificationDelivery` is the single organization-level alert delivery config.
 - MVP delivery targets are `email` and `telegram`.
 - Email delivery uses Resend.
 - Telegram delivery sends to configured chat IDs.
@@ -182,20 +186,19 @@ Rules:
 
 ## CLI Flow
 
-Add an `alerts` command group:
+Extend apply for alert resources and add an `alerts` test command:
 
 ```bash
-everr alerts test
-everr alerts test --local
-everr alerts apply
+everr alerts test <dir>
+everr alerts test <dir> --local
+everr apply <dir>
 ```
 
 `alerts test`:
 
 - Defaults to cloud.
 - Targets local telemetry with `--local`.
-- Discovers every `.everr` config in the current git repository.
-- Requires all discovered configs to declare the same `repoId`.
+- Reads alert YAML resources from the requested directory recursively.
 - Parses YAML.
 - Validates schema, window formats, template syntax, and alert variable expansion.
 - Runs each alert query with its declared `window`.
@@ -204,22 +207,26 @@ everr alerts apply
 - Does not persist alert state.
 - Does not send notifications.
 
-`alerts apply`:
+`everr apply <dir>` for alert resources:
 
-- Requires authentication.
+- Authenticates with exactly one credential kind:
+  - `SESSION_TOKEN` from the saved `everr cloud login` session.
+  - `INGEST_TOKEN` from `EVERR_API_TOKEN`, intended for CI and non-interactive use.
+- If both are available, `EVERR_API_TOKEN` takes precedence.
+- The server distinguishes credential type by token shape and resolves the destination organization from that credential. Alert files do not declare an organization and there is no `--org` flag.
+- The plan response echoes the destination organization before writes. Interactive terminals require confirmation when there are changes; non-interactive runs require `--yes`.
 - Is allowed for any organization member.
-- Discovers every `.everr` config in the current git repository.
-- Requires all discovered configs to declare the same `repoId`.
+- Reads alert YAML resources from the requested directory recursively.
 - Submits the raw YAML fragments and parsed metadata.
 - Records git-derived repo, branch, commit SHA, remote, and config file path when available.
 - Validates the alert settings delivery config.
 - Runs every alert query once against cloud using the declared `window`.
 - Accepts the apply even if the validation query returns rows, because returned rows mean the alert is currently firing, not invalid.
 - Rejects apply if any query fails to execute or returns a result too large for validation bounds.
-- Builds the desired alert set keyed by `(organization_id, repo_id, name)`.
-- Adds new alerts, updates changed alerts, applies explicit renames through `previousName`, and removes active alerts that are no longer present in any discovered `.everr` config for the repo.
+- Builds the desired alert set keyed by `(organization_id, project, slug)`.
+- Adds new alerts, updates changed alerts, applies explicit renames through `metadata.previousName`, and removes active alerts that are no longer present in the applied files for each project present in that apply.
 - Removed alerts are deactivated and unscheduled; retained history follows the normal retention policy.
-- Rejects duplicate alert names across discovered configs for the same `repoId`.
+- Rejects duplicate alert names within the same project.
 
 CLI JSON output for data-returning commands must include applied options and filters, following `docs/cli-guidelines.md`.
 
@@ -229,13 +236,13 @@ The web app gets one Alerts page with:
 
 - A list of configured alerts.
 - Each alert detail displays the alert config.
-- Alert details include repo ID, name, severity, evaluation interval, window, source link, active/deactivated state, current firing/resolved state, last evaluation status, and the configured notification delivery settings.
+- Alert details include project, slug, severity, evaluation interval, window, source link, active/deactivated state, current firing/resolved state, last evaluation status, and the configured notification delivery settings.
 - Alert details show the latest bounded evidence rows and links to persisted alert history.
 
 Alert settings behavior:
 
 - There is one notification delivery config per organization.
-- `everr alerts apply` can create or replace the organization alert settings declared by `alertsSettings`.
+- `everr apply <dir>` can create or replace the organization alert settings declared by an `AlertSettings` resource.
 - The settings can also be edited from the Alerts page.
 - MVP settings support Resend-backed email recipients and Telegram chat IDs.
 - Delivery uses the latest saved settings at event time.
@@ -301,7 +308,7 @@ Delivery behavior:
 Proposed tables:
 
 - `alert_definitions`
-  - Org ID, repo ID, name, severity, evaluation interval, window, next evaluation time, schedule jitter, last enqueued time, raw YAML fragment, parsed query, summary template, description template, config file path, source link, git metadata, active flag, validation status, last evaluation status.
+  - Org ID, project, slug, severity, evaluation interval, window, next evaluation time, schedule jitter, last enqueued time, raw YAML fragment, parsed query, summary template, description template, config file path, source link, git metadata, active flag, validation status, last evaluation status.
 - `alert_settings`
   - One row per org with the notification delivery config JSON for email and Telegram.
 - `alert_states`
@@ -312,7 +319,7 @@ Proposed tables:
 OpenTelemetry logs:
 
 - Persist alert history as logs with `service.name = "alert"` and `service.namespace = "everr"`.
-- Log records include org ID, alert definition ID, repo ID, name, severity, event type, evaluation scheduled time, row count, truncation flags, delivery target type, delivery outcome, config file path, and source link.
+- Log records include org ID, alert definition ID, project, slug, severity, event type, evaluation scheduled time, row count, truncation flags, delivery target type, delivery outcome, config file path, and source link.
 
 Do not generate Drizzle migrations until implementation reaches the migration step requested by the user. Schema work first updates Drizzle definitions only.
 
@@ -325,11 +332,13 @@ Add alerting code under focused modules:
 - `packages/app/src/data/alerts/`
   - Web server functions and data loaders.
 - `packages/app/src/routes/api/cli/alerts/*`
-  - CLI test and apply endpoints.
+  - CLI test endpoints.
+- Shared apply modules and routes
+  - Alert resource registry, apply auth, planning, confirmation, and reconciliation.
 - `packages/app/src/db/notify.ts` and `packages/app/src/db/notification-hub.ts`
   - Keep CI workflow notification behavior intact.
 - `packages/desktop-app/src-cli`
-  - `alerts test` and `alerts apply` commands.
+  - `alerts test` command and shared `apply` support for alert resources.
 - `packages/app/src/lib/mailer.server.ts`
   - Reuse Resend mailer infrastructure for email alert delivery.
 - `docs/superpowers/specs/` and `/Users/guidodorsi/.agents/skills/everr-setup-telemetry`
@@ -365,11 +374,12 @@ Unit tests:
 
 API route tests:
 
-- Apply/test authentication.
+- Apply authentication for both `INGEST_TOKEN` and `SESSION_TOKEN`.
+- Cloud test authentication.
 - Member apply permission.
 - Alert settings validation.
 - Query validation success and failure.
-- Upsert semantics by `(organization_id, repo_id, name)`.
+- Upsert semantics by `(organization_id, project, slug)`.
 - Apply diff semantics for add, update, explicit rename, and remove.
 
 Graphile Worker/evaluator tests:
@@ -387,7 +397,7 @@ CLI tests:
 
 - Parser/help output.
 - Cloud default and `--local` targeting.
-- `.everr` discovery in a git repo.
+- Alert YAML resource discovery in an apply directory.
 - Mocked apply/test API calls.
 - JSON output includes applied options.
 
@@ -426,16 +436,17 @@ Notification delivery tests:
 - Non-empty query result fires; empty result resolves.
 - Use Everr `${name}` alert variable notation, including `${window}` derived from `window`.
 - Require `summary`; allow optional `description`.
-- Remove root `service`; alert ownership is repo-scoped.
-- Use `.everr` repo-level config files.
-- Identify alerts by `(organization_id, repo_id, name)`.
+- Remove root `service`; alert ownership is project-scoped.
+- Use ordinary YAML resource files in an apply directory.
+- Identify alerts by `(organization_id, project, slug)` using `metadata.project` and `metadata.name`.
 - Validate apply by running each query against cloud.
 - Use fixed severities: `critical` and `warning`.
 - Use one organization alert settings config for notification delivery.
 - Support email through Resend and Telegram in the MVP delivery config.
 - Persist alert history as OpenTelemetry logs with `service.name = "alert"` and `service.namespace = "everr"`.
 - Any org member can apply alert YAML.
-- `everr alerts apply` scans repo configs and applies the diff for add, update, explicit rename, and remove.
+- `everr apply <dir>` scans alert resources and applies the diff for add, update, explicit rename, and remove.
+- Apply accepts `SESSION_TOKEN` and `INGEST_TOKEN`, echoes the resolved destination organization, and requires confirmation before destructive writes.
 - Use Graphile Worker for alert orchestration and scheduling.
 - Use app-owned due-time scanning instead of one runtime schedule per alert.
 - Support multiple app/worker replicas with Postgres-backed queueing and app-level idempotency.
