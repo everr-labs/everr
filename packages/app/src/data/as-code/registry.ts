@@ -62,7 +62,11 @@ export async function applyResources(opts: {
   const byKind = new Map<string, ApplyDocument[]>();
   for (const doc of documents) {
     const kind = documentKind(doc);
-    if (!(kind in REGISTRY)) {
+    // Own-property check, not `kind in REGISTRY`: `in` walks the prototype chain,
+    // so inherited names like "constructor"/"toString" would pass validation but
+    // never reconcile (the loop below iterates own keys), silently dropping the
+    // doc while registered kinds still prune — a typo could wipe the source.
+    if (!Object.hasOwn(REGISTRY, kind)) {
       throw new ApplyValidationError(`unknown kind "${kind}" in ${doc.path}`);
     }
     byKind.set(kind, [...(byKind.get(kind) ?? []), doc]);

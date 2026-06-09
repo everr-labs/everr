@@ -88,4 +88,24 @@ describe("applyResources", () => {
       }),
     ).rejects.toThrow(/unknown kind "Gizmo".*x\.yaml/i);
   });
+
+  it.each([
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+    "__proto__",
+  ])("rejects the inherited Object property %p as an unknown kind and reconciles nothing", async (kind) => {
+    // `kind in REGISTRY` would accept these (prototype chain); an own-property
+    // check must not. They must throw BEFORE any reconciler runs — otherwise a
+    // doc with such a kind is dropped while Dashboard still prunes the source.
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        source: "team",
+        documents: [doc(kind, "x")],
+        dryRun: false,
+      }),
+    ).rejects.toThrow(new RegExp(`unknown kind "${kind}"`));
+    expect(dashboardReconciler).not.toHaveBeenCalled();
+  });
 });
