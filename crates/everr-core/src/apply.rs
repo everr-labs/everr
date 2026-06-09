@@ -13,6 +13,15 @@ pub struct ResourceDocument {
     pub document: Value,
 }
 
+const MANIFEST_FILES: [&str; 2] = ["everr.yaml", "everr.yml"];
+
+fn is_manifest_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| MANIFEST_FILES.contains(&n))
+        .unwrap_or(false)
+}
+
 fn is_dashboard_file(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|e| e.to_str()),
@@ -37,11 +46,10 @@ pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
     // the complete desired state and prunes anything missing, so a silently
     // truncated walk (unreadable dir, traversal error) would delete dashboards.
     for entry in WalkDir::new(dir) {
-        let entry = entry.with_context(|| {
-            format!("failed to read directory tree under {}", dir.display())
-        })?;
+        let entry = entry
+            .with_context(|| format!("failed to read directory tree under {}", dir.display()))?;
         let path = entry.path();
-        if !entry.file_type().is_file() || !is_dashboard_file(path) {
+        if !entry.file_type().is_file() || is_manifest_file(path) || !is_dashboard_file(path) {
             continue;
         }
         let rel = path
@@ -61,8 +69,37 @@ pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
     Ok(out)
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+struct ApplyManifest {
+    #[serde(default)]
+    projects: Vec<String>,
+}
+
+/// Read the required `everr.yaml`/`everr.yml` manifest at the apply root and
+/// return its declared project list (the reconcile scope). Errors if no
+/// manifest is present — apply only operates on a directory that explicitly
+/// opts in.
+pub fn load_apply_manifest(dir: &Path) -> Result<Vec<String>> {
+    for name in MANIFEST_FILES {
+        let path = dir.join(name);
+        if path.is_file() {
+            let contents = std::fs::read_to_string(&path)
+                .with_context(|| format!("{name}: failed to read file"))?;
+            let manifest: ApplyManifest = serde_yaml::from_str(&contents)
+                .with_context(|| format!("{name}: failed to parse"))?;
+            return Ok(manifest.projects);
+        }
+    }
+    anyhow::bail!(
+        "no everr.yaml found in {} — create one listing the projects this directory \
+         manages, e.g.\nprojects:\n  - default",
+        dir.display()
+    )
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ApplyRequest {
+    pub projects: Vec<String>,
     pub documents: Vec<ResourceDocument>,
     #[serde(rename = "dryRun", skip_serializing_if = "std::ops::Not::not")]
     pub dry_run: bool,
@@ -139,6 +176,7 @@ mod tests {
     #[test]
     fn apply_request_omits_dry_run_when_false() {
         let req = ApplyRequest {
+            projects: vec![],
             documents: vec![ResourceDocument {
                 path: "cpu.yaml".into(),
                 document: serde_json::json!({"kind": "Dashboard"}),
@@ -156,11 +194,69 @@ mod tests {
     #[test]
     fn apply_request_includes_dry_run_when_true() {
         let req = ApplyRequest {
+            projects: vec![],
             documents: vec![],
             dry_run: true,
         };
         let v = serde_json::to_value(&req).unwrap();
         assert_eq!(v["dryRun"], true);
+    }
+
+    #[test]
+    fn load_apply_manifest_reads_projects() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("everr.yaml"),
+            "projects:\n  - default\n  - platform\n",
+        )
+        .unwrap();
+        let projects = load_apply_manifest(dir.path()).unwrap();
+        assert_eq!(
+            projects,
+            vec!["default".to_string(), "platform".to_string()]
+        );
+    }
+
+    #[test]
+    fn load_apply_manifest_allows_empty_projects() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("everr.yaml"), "projects: []\n").unwrap();
+        assert_eq!(
+            load_apply_manifest(dir.path()).unwrap(),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn load_apply_manifest_errors_when_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = load_apply_manifest(dir.path()).unwrap_err();
+        assert!(err.to_string().contains("everr.yaml"), "got: {err}");
+    }
+
+    #[test]
+    fn load_resource_documents_excludes_the_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("everr.yaml"), "projects: [default]\n").unwrap();
+        fs::write(
+            dir.path().join("cpu.yaml"),
+            "kind: Dashboard\nmetadata:\n  name: cpu\nspec:\n  panels: {}\n  layouts: []\n",
+        )
+        .unwrap();
+        let docs = load_resource_documents(dir.path()).unwrap();
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].path, "cpu.yaml");
+    }
+
+    #[test]
+    fn apply_request_serializes_projects() {
+        let req = ApplyRequest {
+            projects: vec!["default".into()],
+            documents: vec![],
+            dry_run: false,
+        };
+        let v = serde_json::to_value(&req).unwrap();
+        assert_eq!(v["projects"], serde_json::json!(["default"]));
     }
 
     #[test]
