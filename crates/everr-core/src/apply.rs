@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use walkdir::WalkDir;
 
 /// A resource document discovered on disk: its repo-relative POSIX path and
 /// parsed JSON contents.
@@ -40,16 +40,32 @@ fn parse_document(path: &Path, contents: &str) -> Result<Value> {
 
 /// Recursively load every `.yaml`/`.yml`/`.json` resource under `dir`,
 /// returning each with its POSIX path relative to `dir`. Errors name the file.
+///
+/// The walk honors `.gitignore`/`.ignore` files within the tree and skips
+/// hidden entries (including `.git`), so generated, vendored, or scratch
+/// YAML/JSON under the apply dir isn't mistaken for desired state. Because the
+/// returned set IS the desired state and apply prunes anything missing, the
+/// ignore scope is deliberately narrow and local: `require_git(false)` so a
+/// `.gitignore` is respected even outside a repo, but `git_global(false)` so a
+/// destructive reconcile never depends on the machine's global excludes.
 pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
     let mut out = Vec::new();
     // Propagate walk errors instead of dropping them: apply treats this set as
     // the complete desired state and prunes anything missing, so a silently
     // truncated walk (unreadable dir, traversal error) would delete dashboards.
-    for entry in WalkDir::new(dir) {
+    let walker = WalkBuilder::new(dir)
+        .require_git(false)
+        .git_global(false)
+        .build();
+    for entry in walker {
         let entry = entry
             .with_context(|| format!("failed to read directory tree under {}", dir.display()))?;
         let path = entry.path();
-        if !entry.file_type().is_file() || is_manifest_file(path) || !is_dashboard_file(path) {
+        // The walker yields directories too; only regular files are resources.
+        if !entry.file_type().is_some_and(|ft| ft.is_file())
+            || is_manifest_file(path)
+            || !is_dashboard_file(path)
+        {
             continue;
         }
         let rel = path
@@ -163,6 +179,38 @@ mod tests {
         fs::write(dir.path().join("README.md"), "# not a dashboard").unwrap();
         let docs = load_resource_documents(dir.path()).unwrap();
         assert!(docs.is_empty());
+    }
+
+    const DASH: &str =
+        "kind: Dashboard\nmetadata:\n  name: d\nspec:\n  panels: {}\n  layouts: []\n";
+
+    #[test]
+    fn respects_gitignore() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(".gitignore"), "generated/\nscratch.yaml\n").unwrap();
+        fs::write(dir.path().join("cpu.yaml"), DASH).unwrap();
+        fs::write(dir.path().join("scratch.yaml"), DASH).unwrap();
+        fs::create_dir_all(dir.path().join("generated")).unwrap();
+        fs::write(dir.path().join("generated/old.yaml"), DASH).unwrap();
+
+        let docs = load_resource_documents(dir.path()).unwrap();
+
+        let paths: Vec<&str> = docs.iter().map(|d| d.path.as_str()).collect();
+        assert_eq!(paths, vec!["cpu.yaml"], "gitignored files must be excluded");
+    }
+
+    #[test]
+    fn skips_hidden_files_and_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("cpu.yaml"), DASH).unwrap();
+        fs::write(dir.path().join(".hidden.yaml"), DASH).unwrap();
+        fs::create_dir_all(dir.path().join(".git")).unwrap();
+        fs::write(dir.path().join(".git/config.yaml"), DASH).unwrap();
+
+        let docs = load_resource_documents(dir.path()).unwrap();
+
+        let paths: Vec<&str> = docs.iter().map(|d| d.path.as_str()).collect();
+        assert_eq!(paths, vec!["cpu.yaml"], "hidden files/dirs must be skipped");
     }
 
     #[test]
