@@ -132,6 +132,21 @@ describe("buildChartModel", () => {
     expect(model.chartData[0]?.s0).toBe(42);
   });
 
+  it("detects a series whose first bucket is NULL but later buckets are numeric", () => {
+    const model = buildChartModel(
+      [
+        [
+          { time: "2026-06-07T00:00:00", p99: null },
+          { time: "2026-06-07T00:01:00", p99: 12.5 },
+        ],
+      ],
+      undefined,
+    );
+    expect(model.valueKeys).toEqual(["s0"]);
+    expect(model.chartConfig.s0?.label).toBe("p99");
+    expect(model.chartData[1]?.s0).toBe(12.5);
+  });
+
   it("treats quoted numeric strings (ClickHouse aggregates) as values", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", count: "42" }]],

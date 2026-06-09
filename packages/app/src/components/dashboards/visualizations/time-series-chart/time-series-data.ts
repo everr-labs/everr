@@ -19,12 +19,18 @@ const COLORS = [
   "hsl(190, 90%, 50%)",
 ];
 
-function getGroupKeys(row: QueryResultRow, timeKey: string): string[] {
-  // A string that parses as a number (e.g. a quoted ClickHouse aggregate) is a
-  // value, not a grouping dimension — exclude it so it isn't double-counted.
-  return Object.keys(row).filter(
+function getGroupKeys(rows: QueryResultRow[], timeKey: string): string[] {
+  const first = rows[0];
+  if (!first) return [];
+  // A column is a grouping dimension if it carries non-numeric string content in
+  // *any* row. A string that parses as a number (e.g. a quoted ClickHouse
+  // aggregate) is a value, not a dimension — exclude it so it isn't
+  // double-counted. Scanning all rows mirrors getValueKeys: the leading bucket
+  // may be NULL for a dimension that is populated later.
+  return Object.keys(first).filter(
     (k) =>
-      k !== timeKey && typeof row[k] === "string" && !isNumericValue(row[k]),
+      k !== timeKey &&
+      rows.some((row) => typeof row[k] === "string" && !isNumericValue(row[k])),
   );
 }
 
@@ -160,8 +166,8 @@ export function buildChartModel(
     const tk = detectTimeKey(data);
     if (!tk) return;
 
-    const groupKeys = getGroupKeys(data[0]!, tk);
-    const rawValueKeys = getValueKeys(data[0]!, tk);
+    const groupKeys = getGroupKeys(data, tk);
+    const rawValueKeys = getValueKeys(data, tk);
 
     let rows: QueryResultRow[];
     // The series' source names: pivoted group values, or raw value-column names.

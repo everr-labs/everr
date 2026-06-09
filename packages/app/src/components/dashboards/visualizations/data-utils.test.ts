@@ -71,11 +71,35 @@ describe("toTimestamp", () => {
 
 describe("getValueKeys", () => {
   it("includes quoted-integer columns and excludes the time key and text dimensions", () => {
-    const row = { time: "2026-06-07T00:00:00", count: "42", service: "api" };
-    expect(getValueKeys(row, "time")).toEqual(["count"]);
+    const rows = [{ time: "2026-06-07T00:00:00", count: "42", service: "api" }];
+    expect(getValueKeys(rows, "time")).toEqual(["count"]);
   });
 
   it("includes real number columns", () => {
-    expect(getValueKeys({ time: "t", value: 1.5 }, "time")).toEqual(["value"]);
+    expect(getValueKeys([{ time: "t", value: 1.5 }], "time")).toEqual([
+      "value",
+    ]);
+  });
+
+  it("detects a column that is NULL in the first row but numeric later", () => {
+    // ClickHouse returns NULL for the leading bucket of an aggregate with no
+    // events yet; the column must still be recognized as a value column.
+    const rows = [
+      { time: "t0", p99: null },
+      { time: "t1", p99: 12.5 },
+    ];
+    expect(getValueKeys(rows, "time")).toEqual(["p99"]);
+  });
+
+  it("excludes a column that is never numeric in any row", () => {
+    const rows = [
+      { time: "t0", label: null },
+      { time: "t1", label: "api" },
+    ];
+    expect(getValueKeys(rows, "time")).toEqual([]);
+  });
+
+  it("returns an empty array for no rows", () => {
+    expect(getValueKeys([], "time")).toEqual([]);
   });
 });

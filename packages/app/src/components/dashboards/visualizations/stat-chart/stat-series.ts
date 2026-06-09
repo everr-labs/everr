@@ -25,7 +25,7 @@ export function computeStatTiles(
     if (!first) continue;
 
     const timeKey = detectTimeKey(rows);
-    const valueKeys = getValueKeys(first, timeKey ?? "");
+    const valueKeys = getValueKeys(rows, timeKey ?? "");
 
     for (const valueKey of valueKeys) {
       if (!timeKey) {

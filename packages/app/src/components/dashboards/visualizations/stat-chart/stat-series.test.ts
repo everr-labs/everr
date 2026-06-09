@@ -47,6 +47,22 @@ describe("computeStatTiles", () => {
     expect(computeStatTiles([[]], "last")).toEqual([]);
   });
 
+  it("detects a metric that is NULL in the first bucket but numeric later", () => {
+    const tiles = computeStatTiles(
+      [
+        [
+          { ts: "2026-06-07T00:00:00", p99: null },
+          { ts: "2026-06-07T00:01:00", p99: 12.5 },
+        ],
+      ],
+      "last",
+    );
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0]?.label).toBe("p99");
+    expect(tiles[0]?.value).toBe(12.5);
+    expect(tiles[0]?.points).toHaveLength(1);
+  });
+
   it("coerces quoted-integer aggregates (ClickHouse) to numbers", () => {
     const tiles = computeStatTiles(
       [

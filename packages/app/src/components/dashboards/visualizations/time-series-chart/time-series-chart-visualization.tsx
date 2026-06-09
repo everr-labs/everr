@@ -224,15 +224,19 @@ export function TimeSeriesChartVisualization({
     plotRectRef.current = null;
   }, [brushStart, brushEnd, onTimeRangeChange]);
 
-  if (!data || chartData.length === 0) {
+  // `valueKeys.length === 0` means rows came back but none had a numeric column
+  // to plot — buildChartModel still emits timestamp-only entries, so guard on it
+  // explicitly instead of letting an axis-only, line-less chart render.
+  if (!data || chartData.length === 0 || valueKeys.length === 0) {
+    const message = !data
+      ? "Configure a query to see results"
+      : chartData.length === 0
+        ? "No data in this time range"
+        : "No numeric data to plot";
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <LineChartIcon className="size-8" />
-        <p className="text-sm">
-          {!data
-            ? "Configure a query to see results"
-            : "No data in this time range"}
-        </p>
+        <p className="text-sm">{message}</p>
       </div>
     );
   }

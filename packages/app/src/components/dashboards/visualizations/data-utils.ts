@@ -39,9 +39,21 @@ export function toNumber(value: unknown): number | null {
   return null;
 }
 
-export function getValueKeys(row: QueryResultRow, timeKey: string): string[] {
-  return Object.keys(row).filter(
-    (k) => k !== timeKey && isNumericValue(row[k]),
+/**
+ * Value (numeric) columns across the whole result set. A column counts as a
+ * value column if it is numeric in *any* row — not just the first. ClickHouse
+ * commonly returns NULL for the leading bucket(s) of an aggregate (no events
+ * yet), so a first-row-only check would drop a perfectly good metric and leave
+ * stat cards blank / time-series series missing.
+ */
+export function getValueKeys(
+  rows: QueryResultRow[],
+  timeKey: string,
+): string[] {
+  const first = rows[0];
+  if (!first) return [];
+  return Object.keys(first).filter(
+    (k) => k !== timeKey && rows.some((row) => isNumericValue(row[k])),
   );
 }
 
