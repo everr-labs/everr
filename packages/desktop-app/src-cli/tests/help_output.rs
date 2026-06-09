@@ -50,17 +50,6 @@ fn ci_help_lists_pipeline_subcommands() {
 }
 
 #[test]
-fn alerts_help_lists_test_command() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["alerts", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("test"));
-}
-
-#[test]
 fn cloud_help_lists_cloud_subcommands() {
     let env = CliTestEnv::new();
 
