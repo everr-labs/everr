@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
@@ -13,42 +13,49 @@ export interface ApplyDashboardsResult {
 }
 
 /**
- * Source-scoped declarative reconcile core, shared by the apply route. Loads
- * ONLY the given source's dashboards, diffs against the desired documents, and
- * (unless dryRun) applies creates/updates/deletes in a single transaction.
+ * Declarative reconcile core for dashboards, shared by the apply route. The
+ * desired set may span multiple projects; existing rows are loaded ONLY for the
+ * projects present in this run, so projects not in the run are never pruned.
+ * Identity is (org, project, slug). Unless dryRun, applies creates/updates/
+ * deletes in a single transaction.
  *
- * Lives in a `.server.ts` module — not `server.ts` — because it is a plain
- * exported function that touches `db` (the pg pool). `server.ts` is reachable
- * from the client via `options.ts`, and a plain db-using export there would
- * drag `pg` into the browser bundle ("Buffer is not defined").
+ * Lives in `.server.ts` (not `server.ts`) because it is a plain db-using export;
+ * `server.ts` is reachable from the client and would drag `pg` into the bundle.
  */
 export async function applyDashboardSpecs(opts: {
   orgId: string;
-  source: string;
   documents: { path: string; document: unknown }[];
   dryRun?: boolean;
 }): Promise<ApplyDashboardsResult> {
-  const { orgId, source, documents, dryRun } = opts;
+  const { orgId, documents, dryRun } = opts;
 
   const desired = buildDesiredSet(documents);
+  const projectsInRun = [...new Set(desired.map((d) => d.project))];
 
-  const existing = await db
-    .select({
-      slug: dashboards.slug,
-      folderPath: dashboards.folderPath,
-      document: dashboards.document,
-    })
-    .from(dashboards)
-    .where(
-      and(eq(dashboards.organizationId, orgId), eq(dashboards.source, source)),
-    );
+  const existing =
+    projectsInRun.length === 0
+      ? []
+      : await db
+          .select({
+            project: dashboards.project,
+            slug: dashboards.slug,
+            folderPath: dashboards.folderPath,
+            document: dashboards.document,
+          })
+          .from(dashboards)
+          .where(
+            and(
+              eq(dashboards.organizationId, orgId),
+              inArray(dashboards.project, projectsInRun),
+            ),
+          );
 
   const diff = reconcile({ existing, desired });
 
   const summary: ApplyDashboardsResult = {
     created: diff.creates.map((d) => d.slug),
     updated: diff.updates.map((d) => d.slug),
-    deleted: diff.deletes,
+    deleted: diff.deletes.map((d) => d.slug),
     dryRun: dryRun ?? false,
   };
 
@@ -58,7 +65,7 @@ export async function applyDashboardSpecs(opts: {
     for (const d of diff.creates) {
       await tx.insert(dashboards).values({
         organizationId: orgId,
-        source,
+        project: d.project,
         slug: d.slug,
         folderPath: d.folderPath,
         document: d.document as Dashboard,
@@ -75,19 +82,19 @@ export async function applyDashboardSpecs(opts: {
         .where(
           and(
             eq(dashboards.organizationId, orgId),
-            eq(dashboards.source, source),
+            eq(dashboards.project, d.project),
             eq(dashboards.slug, d.slug),
           ),
         );
     }
-    for (const slug of diff.deletes) {
+    for (const d of diff.deletes) {
       await tx
         .delete(dashboards)
         .where(
           and(
             eq(dashboards.organizationId, orgId),
-            eq(dashboards.source, source),
-            eq(dashboards.slug, slug),
+            eq(dashboards.project, d.project),
+            eq(dashboards.slug, d.slug),
           ),
         );
     }

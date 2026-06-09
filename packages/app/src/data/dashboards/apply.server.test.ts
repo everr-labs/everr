@@ -50,7 +50,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     slug: "slug",
-    source: "source",
+    project: "project",
     folderPath: "folder_path",
     updatedAt: "updated_at",
     spec: "spec",
@@ -68,8 +68,6 @@ beforeEach(() => {
   deleteImpl = () => [];
 });
 
-// applyDashboardSpecs ends its read at .where(), so override db.select to
-// resolve to `rows` directly rather than via the shared chain.
 function mockApplySelect(rows: unknown[]) {
   mockedDb.select.mockImplementationOnce(
     () =>
@@ -81,25 +79,26 @@ function mockApplySelect(rows: unknown[]) {
   );
 }
 
+const dash = (name: string, project?: string) => ({
+  kind: "Dashboard",
+  metadata: { name, ...(project ? { project } : {}) },
+  spec: { panels: {}, layouts: [] },
+});
+
 describe("applyDashboardSpecs", () => {
-  it("dryRun computes a diff and does not write", async () => {
+  it("dryRun diffs against existing rows in the run's projects and does not write", async () => {
     mockApplySelect([
-      { slug: "old-dash", folderPath: "", spec: { panels: {}, layouts: [] } },
+      {
+        project: "default",
+        slug: "old-dash",
+        folderPath: "",
+        document: dash("old-dash"),
+      },
     ]);
     const result = await applyDashboardSpecs({
       orgId: "org-1",
-      source: "team",
       dryRun: true,
-      documents: [
-        {
-          path: "cpu.yaml",
-          document: {
-            kind: "Dashboard",
-            metadata: { name: "cpu" },
-            spec: { panels: {}, layouts: [] },
-          },
-        },
-      ],
+      documents: [{ path: "cpu.yaml", document: dash("cpu") }],
     });
     expect(result).toEqual({
       created: ["cpu"],
@@ -110,21 +109,22 @@ describe("applyDashboardSpecs", () => {
     expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 
+  it("does not prune a project absent from the run", async () => {
+    mockApplySelect([]);
+    const result = await applyDashboardSpecs({
+      orgId: "org-1",
+      dryRun: true,
+      documents: [],
+    });
+    expect(result.deleted).toEqual([]);
+    expect(result.created).toEqual([]);
+  });
+
   it("applies the diff inside a transaction when not a dry run", async () => {
     mockApplySelect([]);
     const result = await applyDashboardSpecs({
       orgId: "org-1",
-      source: "team",
-      documents: [
-        {
-          path: "a.yaml",
-          document: {
-            kind: "Dashboard",
-            metadata: { name: "a" },
-            spec: { panels: {}, layouts: [] },
-          },
-        },
-      ],
+      documents: [{ path: "a.yaml", document: dash("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
     expect(result.dryRun).toBe(false);
@@ -132,11 +132,9 @@ describe("applyDashboardSpecs", () => {
   });
 
   it("rejects the apply when a document is invalid", async () => {
-    // buildDesiredSet throws before the db.select is called
     await expect(
       applyDashboardSpecs({
         orgId: "org-1",
-        source: "team",
         documents: [
           { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
         ],
