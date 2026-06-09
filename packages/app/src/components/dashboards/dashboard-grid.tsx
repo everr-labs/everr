@@ -1,10 +1,6 @@
 import { useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
-import {
-  GridLayout,
-  useContainerWidth,
-  verticalCompactor,
-} from "react-grid-layout";
+import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
 import { persesToRGL } from "@/data/dashboards/convert";
 import { DashboardPanel } from "./dashboard-panel";
 import { useDashboard } from "./use-dashboard";
@@ -36,7 +32,9 @@ export function DashboardGrid() {
           gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT }}
           dragConfig={{ enabled: false }}
           resizeConfig={{ enabled: false }}
-          compactor={verticalCompactor}
+          // No compaction: render panels at their authored x/y so intentional
+          // empty rows and spacing are preserved (this grid is read-only).
+          compactor={noCompactor}
           autoSize
         >
           {layout.map((item: LayoutItem) => {
