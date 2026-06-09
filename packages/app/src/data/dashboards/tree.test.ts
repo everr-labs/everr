@@ -3,10 +3,10 @@ import { buildTree, type DashboardSummary } from "./tree";
 
 const d = (
   slug: string,
-  source: string,
+  project: string,
   name: string,
   folderPath: string,
-): DashboardSummary => ({ slug, source, name, folderPath });
+): DashboardSummary => ({ slug, project, name, folderPath });
 
 describe("buildTree (folder paths)", () => {
   it("nests dashboards by their folderPath segments", () => {
@@ -20,7 +20,7 @@ describe("buildTree (folder paths)", () => {
     expect(tree.folders[0]?.subfolders[0]?.dashboards[0]?.slug).toBe("cpu");
   });
 
-  it("merges dashboards from different sources into the same folder", () => {
+  it("merges dashboards from different projects into the same folder", () => {
     const tree = buildTree([
       d("a", "x", "A", "Shared"),
       d("b", "y", "B", "Shared"),
