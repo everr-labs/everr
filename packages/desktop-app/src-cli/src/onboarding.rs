@@ -51,7 +51,7 @@ pub async fn run() -> Result<()> {
 
     step_configure_notification_emails(setup_context.me.as_ref()).await?;
     let skills_installed = step_install_skills()?;
-    step_install_desktop_app().await?;
+    step_install_desktop_app_for_target(std::env::consts::OS).await?;
     step_mark_cloud_onboarding_complete(&session, setup_context.org.as_ref()).await?;
 
     auth::state_store().update_state(|state| {
@@ -545,6 +545,26 @@ async fn step_install_desktop_app() -> Result<bool> {
     Ok(true)
 }
 
+fn should_run_desktop_app_setup(target_os: &str) -> bool {
+    target_os == "macos"
+}
+
+fn desktop_setup_skip_message(target_os: &str) -> &'static str {
+    match target_os {
+        "linux" => "Skipping desktop app setup on Linux.",
+        _ => "Skipping desktop app setup on this platform.",
+    }
+}
+
+async fn step_install_desktop_app_for_target(target_os: &str) -> Result<bool> {
+    if should_run_desktop_app_setup(target_os) {
+        return step_install_desktop_app().await;
+    }
+
+    cliclack::log::remark(desktop_setup_skip_message(target_os))?;
+    Ok(false)
+}
+
 fn print_banner() {
     let banner = render_banner();
     if should_use_color() {
@@ -639,6 +659,24 @@ mod tests {
     #[test]
     fn setup_defaults_to_global_skill_scope() {
         assert!(super::cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT);
+    }
+
+    #[test]
+    fn desktop_setup_runs_on_macos() {
+        assert!(super::should_run_desktop_app_setup("macos"));
+    }
+
+    #[test]
+    fn desktop_setup_skips_on_linux() {
+        assert!(!super::should_run_desktop_app_setup("linux"));
+    }
+
+    #[test]
+    fn desktop_setup_skip_message_names_linux() {
+        assert_eq!(
+            super::desktop_setup_skip_message("linux"),
+            "Skipping desktop app setup on Linux."
+        );
     }
 
     #[test]
