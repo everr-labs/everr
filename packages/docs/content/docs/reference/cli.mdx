@@ -68,13 +68,13 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
 
 ## Dashboards (gitops)
 
-- `everr apply <dir> --source=<id>` — reconcile a directory of dashboard definitions (`.yaml`/`.yml`/`.json`) into Everr. Makes the source's dashboards exactly match the tree: new files are created, changed files updated, and removed files **deleted**. See [Dashboards](/docs/dashboards).
-  - `<dir>` directory to read resource files from (recursively); the directory structure becomes folder paths
-  - `--source <id>` (required) identifier that owns these dashboards and scopes pruning — only this source's dashboards are ever changed
+- `everr apply <dir>` — reconcile a directory of dashboard definitions (`.yaml`/`.yml`/`.json`) into Everr. The directory must contain an `everr.yaml` (or `everr.yml`) at its root declaring the projects it manages (`projects: [default, platform]`); apply errors without it. That list is the authoritative reconcile scope — apply reads and prunes only the declared projects, and there is no implicit `default`. Within those projects it makes the live dashboards exactly match the tree: new files are created, changed files updated, and removed files **deleted**. Every dashboard's `metadata.project` (optional, defaults to `default`) must appear in the list or apply rejects it. See [Dashboards](/docs/dashboards).
+  - `<dir>` directory to read resource files from (recursively); must contain an `everr.yaml` manifest at its root; the directory structure becomes folder paths
   - `--dry-run` compute and print the diff without writing
+  - `--yes`, `-y` skip the confirmation prompt (required in non-interactive contexts such as CI or pipes)
 
-  Authentication: apply is token-only — it always runs under an organization ingest key, never an interactive session. Set `EVERR_API_TOKEN`.
-  - `EVERR_API_TOKEN` (required) an organization ingest key, used as a bearer token
+  Authentication: apply uses your `everr cloud login` session by default, and prints the destination organization. For CI or non-interactive use, set `EVERR_API_TOKEN` to an organization ingest key. With changes to apply, it shows a confirmation prompt before writing; pass `--yes` (or run with `EVERR_API_TOKEN` in a non-interactive context) to skip it.
+  - `EVERR_API_TOKEN` an organization ingest key, used as a bearer token; when set it takes precedence over the session
   - `EVERR_API_URL` API base URL (falls back to the URL persisted by a prior `everr cloud login`)
 
 ## Other

@@ -4,7 +4,7 @@ import { dashboardOptions } from "@/data/dashboards/options";
 import type { Dashboard } from "@/data/dashboards/schema";
 
 const route = getRouteApi(
-  "/_authenticated/_dashboard/dashboards/$source/$slug",
+  "/_authenticated/_dashboard/dashboards/$project/$slug",
 );
 
 /**
@@ -13,6 +13,6 @@ const route = getRouteApi(
  * source of truth — no separate store. Multiple callers share one cache entry.
  */
 export function useDashboard(): Dashboard {
-  const { source, slug } = route.useParams();
-  return useSuspenseQuery(dashboardOptions(source, slug)).data;
+  const { project, slug } = route.useParams();
+  return useSuspenseQuery(dashboardOptions(project, slug)).data;
 }

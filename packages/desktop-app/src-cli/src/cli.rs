@@ -196,12 +196,12 @@ pub struct SkillsUninstallArgs {
 pub struct ApplyArgs {
     /// Directory containing resource YAML/JSON files
     pub dir: String,
-    /// Source id that owns these resources (prune scope)
-    #[arg(long)]
-    pub source: String,
     /// Compute and print the diff without writing
     #[arg(long = "dry-run")]
     pub dry_run: bool,
+    /// Skip the confirmation prompt (required in non-interactive contexts)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
 }
 
 #[derive(Args, Debug, Default)]

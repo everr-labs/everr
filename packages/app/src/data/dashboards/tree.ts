@@ -1,6 +1,6 @@
 export interface DashboardSummary {
   slug: string;
-  source: string;
+  project: string;
   name: string;
   folderPath: string;
 }
@@ -23,7 +23,7 @@ const byName = (a: { name: string }, b: { name: string }) =>
 const dashboardOrder = (a: DashboardSummary, b: DashboardSummary) =>
   byName(a, b) ||
   a.slug.localeCompare(b.slug) ||
-  a.source.localeCompare(b.source);
+  a.project.localeCompare(b.project);
 
 function splitPath(folderPath: string): string[] {
   return folderPath

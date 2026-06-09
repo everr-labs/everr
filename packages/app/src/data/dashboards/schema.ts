@@ -45,7 +45,10 @@ export const panelQuery = z.object({
 export const panel = z.object({
   kind: z.literal("Panel"),
   spec: z.object({
-    display: dashboardDisplay,
+    // Optional to match Perses: a panel may carry only `plugin` (+ `queries`).
+    // Validation must never be stricter than Perses; the UI falls back to the
+    // panel key when no display name is present.
+    display: dashboardDisplay.optional(),
     plugin: panelPlugin,
     queries: z.array(panelQuery).optional(),
   }),
@@ -185,6 +188,8 @@ export type DashboardSpec = z.infer<typeof dashboardSpecSchema>;
 
 export interface DashboardMetadata {
   name: string;
+  /** Perses project namespace. Optional in files; defaults to "default". */
+  project?: string;
 }
 
 export interface Dashboard {
@@ -201,4 +206,14 @@ export const dashboardSlugSchema = z
   .regex(
     /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
     "Slug must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
+  );
+
+/** Validates a project name: lowercase letters, digits and hyphens only. */
+export const dashboardProjectSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    "Project must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
   );

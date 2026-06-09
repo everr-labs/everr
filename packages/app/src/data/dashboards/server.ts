@@ -11,8 +11,8 @@ import type { Dashboard } from "./schema";
 import { dashboardSpecSchema } from "./schema";
 
 export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ source: z.string(), slug: z.string() }))
-  .handler(async ({ data: { source, slug }, context }) => {
+  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
+  .handler(async ({ data: { project, slug }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
 
     const [row] = await db
@@ -21,7 +21,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
       .where(
         and(
           eq(dashboards.organizationId, orgId),
-          eq(dashboards.source, source),
+          eq(dashboards.project, project),
           eq(dashboards.slug, slug),
         ),
       )
@@ -49,7 +49,7 @@ export const listDashboards = createAuthenticatedServerFn({
   const rows = await db
     .select({
       slug: dashboards.slug,
-      source: dashboards.source,
+      project: dashboards.project,
       folderPath: dashboards.folderPath,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
     })
@@ -58,7 +58,7 @@ export const listDashboards = createAuthenticatedServerFn({
 
   return rows.map((r) => ({
     slug: r.slug,
-    source: r.source,
+    project: r.project,
     name: r.displayName ?? r.slug,
     folderPath: r.folderPath,
   }));

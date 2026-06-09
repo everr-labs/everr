@@ -27,11 +27,14 @@ export const Route = createFileRoute("/api/apply")({
         try {
           const summary = await applyResources({
             orgId: context.session.session.activeOrganizationId,
-            source: parsed.data.source,
+            projects: parsed.data.projects,
             documents: parsed.data.documents,
             dryRun: parsed.data.dryRun,
           });
-          return Response.json(summary);
+          return Response.json({
+            ...summary,
+            organization: context.organization,
+          });
         } catch (error) {
           // Only bad input (unknown kind, invalid slug/spec, duplicate) is the
           // caller's fault → 400 with the message. Anything else is an

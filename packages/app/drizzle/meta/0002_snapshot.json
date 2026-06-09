@@ -1,5 +1,5 @@
 {
-  "id": "f751ff54-ce6a-431f-bd65-d0c2465e4634",
+  "id": "7cb49509-1433-4c70-840a-fd56b463d80e",
   "prevId": "3e28b8a7-ccbd-4ed5-ae50-f46f2dec12b1",
   "version": "7",
   "dialect": "postgresql",
@@ -21,8 +21,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "source": {
-          "name": "source",
+        "project": {
+          "name": "project",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -62,8 +62,8 @@
         }
       },
       "indexes": {
-        "dashboards_tenant_source_slug_uq": {
-          "name": "dashboards_tenant_source_slug_uq",
+        "dashboards_tenant_project_slug_uq": {
+          "name": "dashboards_tenant_project_slug_uq",
           "columns": [
             {
               "expression": "organization_id",
@@ -72,7 +72,7 @@
               "nulls": "last"
             },
             {
-              "expression": "source",
+              "expression": "project",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

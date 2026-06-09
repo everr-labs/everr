@@ -32,13 +32,13 @@ describe("applyResources", () => {
     });
     const out = await applyResources({
       orgId: "org-1",
-      source: "team",
+      projects: ["default"],
       documents: [doc("Dashboard", "cpu")],
       dryRun: false,
     });
     expect(dashboardReconciler).toHaveBeenCalledWith({
       orgId: "org-1",
-      source: "team",
+      projects: ["default"],
       documents: [doc("Dashboard", "cpu")],
       dryRun: false,
     });
@@ -53,13 +53,13 @@ describe("applyResources", () => {
   it("reconciles every registered kind even when absent from the tree (prunes)", async () => {
     await applyResources({
       orgId: "org-1",
-      source: "team",
+      projects: ["default"],
       documents: [],
       dryRun: false,
     });
     expect(dashboardReconciler).toHaveBeenCalledWith({
       orgId: "org-1",
-      source: "team",
+      projects: ["default"],
       documents: [],
       dryRun: false,
     });
@@ -69,7 +69,7 @@ describe("applyResources", () => {
     await expect(
       applyResources({
         orgId: "org-1",
-        source: "team",
+        projects: ["default"],
         documents: [
           { path: "bad.yaml", document: { metadata: { name: "x" } } },
         ],
@@ -82,7 +82,7 @@ describe("applyResources", () => {
     await expect(
       applyResources({
         orgId: "org-1",
-        source: "team",
+        projects: ["default"],
         documents: [doc("Gizmo", "x")],
         dryRun: false,
       }),
@@ -97,11 +97,11 @@ describe("applyResources", () => {
   ])("rejects the inherited Object property %p as an unknown kind and reconciles nothing", async (kind) => {
     // `kind in REGISTRY` would accept these (prototype chain); an own-property
     // check must not. They must throw BEFORE any reconciler runs — otherwise a
-    // doc with such a kind is dropped while Dashboard still prunes the source.
+    // doc with such a kind is dropped while Dashboard still prunes the project.
     await expect(
       applyResources({
         orgId: "org-1",
-        source: "team",
+        projects: ["default"],
         documents: [doc(kind, "x")],
         dryRun: false,
       }),

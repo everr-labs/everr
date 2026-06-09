@@ -1,6 +1,10 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { DesiredDashboard } from "./reconcile";
-import { dashboardSlugSchema, dashboardSpecSchema } from "./schema";
+import {
+  dashboardProjectSchema,
+  dashboardSlugSchema,
+  dashboardSpecSchema,
+} from "./schema";
 
 export interface InputDocument {
   /** POSIX-style path relative to the applied root, e.g. "team/cpu.yaml". */
@@ -25,6 +29,24 @@ function folderPathFromFile(path: string): string {
   return segments.join(" / ");
 }
 
+const DEFAULT_PROJECT = "default";
+
+/** Project from metadata.project, defaulting to "default"; validated. */
+function projectFromDocument(path: string, document: unknown): string {
+  const meta = (document as { metadata?: { project?: unknown } }).metadata;
+  const raw =
+    meta && typeof meta.project === "string" && meta.project.length > 0
+      ? meta.project
+      : DEFAULT_PROJECT;
+  const result = dashboardProjectSchema.safeParse(raw);
+  if (!result.success) {
+    throw new ApplyValidationError(
+      `${path}: invalid project "${raw}": ${result.error.issues[0]?.message}`,
+    );
+  }
+  return raw;
+}
+
 /** Slug from metadata.name, falling back to the filename without extension. */
 function slugFromDocument(path: string, document: unknown): string {
   const meta = (document as { metadata?: { name?: unknown } }).metadata;
@@ -38,13 +60,14 @@ function slugFromDocument(path: string, document: unknown): string {
 /**
  * Validate and normalize parsed documents into a desired set for `reconcile`.
  * Throws on schema failure (message names the file) or a duplicate slug within
- * the source.
+ * the same project.
  */
 export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
   const out: DesiredDashboard[] = [];
-  const seen = new Map<string, string>(); // slug -> first path
+  const seen = new Map<string, string>(); // `${project} ${slug}` -> first path
 
   for (const { path, document } of inputs) {
+    const project = projectFromDocument(path, document);
     const slug = slugFromDocument(path, document);
 
     const slugResult = dashboardSlugSchema.safeParse(slug);
@@ -62,18 +85,20 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
       );
     }
 
-    const prior = seen.get(slug);
+    const key = `${project} ${slug}`;
+    const prior = seen.get(key);
     if (prior) {
       throw new ApplyValidationError(
-        `duplicate dashboard "${slug}" in source (${prior} and ${path})`,
+        `duplicate dashboard "${slug}" in project "${project}" (${prior} and ${path})`,
       );
     }
-    seen.set(slug, path);
+    seen.set(key, path);
 
     // Store the whole parsed document, not just the parsed spec, so unknown
     // Perses fields (including top-level keys) survive verbatim — the file is
     // the source of truth.
     out.push({
+      project,
       slug,
       folderPath: folderPathFromFile(path),
       document: document as DesiredDashboard["document"],

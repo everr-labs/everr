@@ -8,14 +8,10 @@ const applyDocumentSchema = z.object({
 });
 
 export const applyInput = z.object({
-  source: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(
-      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
-      "Source must use lowercase letters, digits and hyphens",
-    ),
+  // Declared project scope from everr.yaml — the run's authoritative reconcile
+  // scope (no implicit "default"). May be empty. Per-kind reconcilers validate
+  // that every document targets a declared project.
+  projects: z.array(z.string().min(1)),
   documents: z.array(applyDocumentSchema),
   /** When true, compute and return the diff without writing. */
   dryRun: z.boolean().optional(),

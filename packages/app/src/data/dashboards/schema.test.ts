@@ -44,6 +44,26 @@ describe("dashboardSpecSchema layout refs", () => {
   });
 });
 
+describe("dashboardSpecSchema panel display", () => {
+  it("accepts a panel that omits spec.display (Perses allows plugin+queries only)", () => {
+    const noDisplay = {
+      panels: {
+        cpu: {
+          kind: "Panel" as const,
+          spec: { plugin: { kind: "TimeSeriesChart", spec: {} } },
+        },
+      },
+      layouts: [
+        {
+          kind: "Grid" as const,
+          spec: { items: [gridItem("#/spec/panels/cpu")] },
+        },
+      ],
+    };
+    expect(dashboardSpecSchema.safeParse(noDisplay).success).toBe(true);
+  });
+});
+
 describe("dashboardSpecSchema datasources", () => {
   it("accepts a datasource without the optional `default` field (Perses parity)", () => {
     const result = dashboardSpecSchema.safeParse({

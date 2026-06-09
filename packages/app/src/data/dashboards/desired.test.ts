@@ -9,7 +9,7 @@ const doc = (name?: string) => ({
 });
 
 describe("buildDesiredSet", () => {
-  it("derives folderPath from directories and slug from metadata.name", () => {
+  it("derives folderPath, slug, and the default project", () => {
     const set = buildDesiredSet([
       {
         path: "platform/latency/overview.yaml",
@@ -18,6 +18,7 @@ describe("buildDesiredSet", () => {
     ]);
     expect(set).toEqual([
       {
+        project: "default",
         slug: "latency-overview",
         folderPath: "platform / latency",
         document: doc("latency-overview"),
@@ -25,19 +26,67 @@ describe("buildDesiredSet", () => {
     ]);
   });
 
+  it("reads metadata.project when present", () => {
+    const set = buildDesiredSet([
+      {
+        path: "cpu.yaml",
+        document: {
+          kind: "Dashboard",
+          metadata: { name: "cpu", project: "platform" },
+          spec: { panels: {}, layouts: [] },
+        },
+      },
+    ]);
+    expect(set[0]?.project).toBe("platform");
+  });
+
+  it("rejects an invalid project name", () => {
+    const input = [
+      {
+        path: "cpu.yaml",
+        document: {
+          kind: "Dashboard",
+          metadata: { name: "cpu", project: "Not Valid" },
+          spec: { panels: {}, layouts: [] },
+        },
+      },
+    ];
+    expect(() => buildDesiredSet(input)).toThrow(ApplyValidationError);
+    expect(() => buildDesiredSet(input)).toThrow(
+      /invalid project "Not Valid"/i,
+    );
+  });
+
+  it("allows the same slug in different projects, rejects a duplicate within one project", () => {
+    const a = {
+      kind: "Dashboard",
+      metadata: { name: "dup", project: "team-a" },
+      spec: { panels: {}, layouts: [] },
+    };
+    const b = {
+      kind: "Dashboard",
+      metadata: { name: "dup", project: "team-b" },
+      spec: { panels: {}, layouts: [] },
+    };
+    expect(
+      buildDesiredSet([
+        { path: "a.yaml", document: a },
+        { path: "b.yaml", document: b },
+      ]),
+    ).toHaveLength(2);
+
+    expect(() =>
+      buildDesiredSet([
+        { path: "a.yaml", document: a },
+        { path: "b.yaml", document: a },
+      ]),
+    ).toThrow(/duplicate dashboard "dup" in project "team-a"/i);
+  });
+
   it("falls back to the filename (sans extension) when metadata.name is absent", () => {
     const set = buildDesiredSet([{ path: "overview.json", document: doc() }]);
     expect(set[0]?.slug).toBe("overview");
     expect(set[0]?.folderPath).toBe("");
-  });
-
-  it("throws on a duplicate slug within the source", () => {
-    expect(() =>
-      buildDesiredSet([
-        { path: "a/x.yaml", document: doc("dup") },
-        { path: "b/y.yaml", document: doc("dup") },
-      ]),
-    ).toThrow(/duplicate dashboard "dup"/i);
   });
 
   it("ignores a leading ./ in the path when deriving folderPath", () => {

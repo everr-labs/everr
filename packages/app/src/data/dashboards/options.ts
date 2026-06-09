@@ -9,10 +9,10 @@ import {
 
 const dashboardsQueryKey = ["dashboards"] as const;
 
-export const dashboardOptions = (source: string, slug: string) =>
+export const dashboardOptions = (project: string, slug: string) =>
   queryOptions({
-    queryKey: [...dashboardsQueryKey, source, slug],
-    queryFn: () => getDashboard({ data: { source, slug } }),
+    queryKey: [...dashboardsQueryKey, project, slug],
+    queryFn: () => getDashboard({ data: { project, slug } }),
   });
 
 export const dashboardListOptions = () =>
