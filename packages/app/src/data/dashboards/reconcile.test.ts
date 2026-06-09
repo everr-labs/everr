@@ -13,10 +13,22 @@ describe("reconcile", () => {
   it("creates desired dashboards that don't exist", () => {
     const diff = reconcile({
       existing: [],
-      desired: [{ slug: "a", folderPath: "Team", document: doc(1, "a") }],
+      desired: [
+        {
+          project: "default",
+          slug: "a",
+          folderPath: "Team",
+          document: doc(1, "a"),
+        },
+      ],
     });
     expect(diff.creates).toEqual([
-      { slug: "a", folderPath: "Team", document: doc(1, "a") },
+      {
+        project: "default",
+        slug: "a",
+        folderPath: "Team",
+        document: doc(1, "a"),
+      },
     ]);
     expect(diff.updates).toEqual([]);
     expect(diff.deletes).toEqual([]);
@@ -24,25 +36,79 @@ describe("reconcile", () => {
 
   it("deletes existing dashboards absent from the desired set", () => {
     const diff = reconcile({
-      existing: [{ slug: "gone", folderPath: "", document: doc(1, "gone") }],
+      existing: [
+        {
+          project: "default",
+          slug: "gone",
+          folderPath: "",
+          document: doc(1, "gone"),
+        },
+      ],
       desired: [],
     });
-    expect(diff.deletes).toEqual(["gone"]);
+    expect(diff.deletes).toEqual([{ project: "default", slug: "gone" }]);
     expect(diff.creates).toEqual([]);
     expect(diff.updates).toEqual([]);
+  });
+
+  it("keys identity by (project, slug): same slug in two projects is independent", () => {
+    const diff = reconcile({
+      existing: [
+        { project: "a", slug: "d", folderPath: "", document: doc(1, "d") },
+      ],
+      desired: [
+        { project: "a", slug: "d", folderPath: "", document: doc(1, "d") },
+        { project: "b", slug: "d", folderPath: "", document: doc(1, "d") },
+      ],
+    });
+    expect(diff.creates).toEqual([
+      { project: "b", slug: "d", folderPath: "", document: doc(1, "d") },
+    ]);
+    expect(diff.updates).toEqual([]);
+    expect(diff.deletes).toEqual([]);
   });
 
   it("updates when document or folderPath changed, skips when identical", () => {
     const diff = reconcile({
       existing: [
-        { slug: "same", folderPath: "X", document: doc(1, "same") },
-        { slug: "moved", folderPath: "X", document: doc(1, "moved") },
-        { slug: "edited", folderPath: "X", document: doc(1, "edited") },
+        {
+          project: "p",
+          slug: "same",
+          folderPath: "X",
+          document: doc(1, "same"),
+        },
+        {
+          project: "p",
+          slug: "moved",
+          folderPath: "X",
+          document: doc(1, "moved"),
+        },
+        {
+          project: "p",
+          slug: "edited",
+          folderPath: "X",
+          document: doc(1, "edited"),
+        },
       ],
       desired: [
-        { slug: "same", folderPath: "X", document: doc(1, "same") },
-        { slug: "moved", folderPath: "Y", document: doc(1, "moved") },
-        { slug: "edited", folderPath: "X", document: doc(2, "edited") },
+        {
+          project: "p",
+          slug: "same",
+          folderPath: "X",
+          document: doc(1, "same"),
+        },
+        {
+          project: "p",
+          slug: "moved",
+          folderPath: "Y",
+          document: doc(1, "moved"),
+        },
+        {
+          project: "p",
+          slug: "edited",
+          folderPath: "X",
+          document: doc(2, "edited"),
+        },
       ],
     });
     expect(diff.updates.map((u) => u.slug).sort()).toEqual(["edited", "moved"]);
@@ -54,6 +120,7 @@ describe("reconcile", () => {
     const diff = reconcile({
       existing: [
         {
+          project: "p",
           slug: "a",
           folderPath: "",
           document: {
@@ -65,6 +132,7 @@ describe("reconcile", () => {
       ],
       desired: [
         {
+          project: "p",
           slug: "a",
           folderPath: "",
           document: {
