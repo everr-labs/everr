@@ -185,6 +185,8 @@ export type DashboardSpec = z.infer<typeof dashboardSpecSchema>;
 
 export interface DashboardMetadata {
   name: string;
+  /** Perses project namespace. Optional in files; defaults to "default". */
+  project?: string;
 }
 
 export interface Dashboard {
@@ -201,4 +203,14 @@ export const dashboardSlugSchema = z
   .regex(
     /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
     "Slug must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
+  );
+
+/** Validates a project name: lowercase letters, digits and hyphens only. */
+export const dashboardProjectSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    "Project must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
   );
