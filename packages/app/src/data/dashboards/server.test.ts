@@ -149,9 +149,25 @@ describe("runVariableOptionsQuery", () => {
     expect(result).toEqual({ options: ["api", "web", "42"], truncated: false });
   });
 
-  it("caps options at 1000 unique values and sets the truncated flag", async () => {
+  it("injects a LIMIT so the SQL API profile never throws on overflow", async () => {
+    // The profile caps results at 1000 with result_overflow_mode='throw', so the
+    // bound must be in the SQL — wrap the user query and LIMIT the outer select.
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runVariableOptionsQuery({
+      data: { query: "SELECT DISTINCT ServiceName FROM traces ORDER BY 1;" },
+    });
+
+    const sql = mockedClickhouse.mock.calls[0]![0] as string;
+    expect(sql).toContain("SELECT DISTINCT ServiceName FROM traces ORDER BY 1");
+    expect(sql).not.toContain(";"); // trailing semicolon stripped before wrapping
+    expect(sql).toMatch(/\)\s*LIMIT 1000$/);
+  });
+
+  it("sets truncated when the result comes back full (cap hit)", async () => {
+    // ClickHouse returns at most the injected LIMIT; a full set means it cut more.
     mockedClickhouse.mockResolvedValue(
-      Array.from({ length: 1100 }, (_, i) => ({ v: `service-${i}` })),
+      Array.from({ length: 1000 }, (_, i) => ({ v: `service-${i}` })),
     );
 
     const result = await runVariableOptionsQuery({ data: { query: "q" } });
@@ -162,18 +178,17 @@ describe("runVariableOptionsQuery", () => {
     expect(result.truncated).toBe(true);
   });
 
-  it("does not set truncated when exactly at the cap after dedup", async () => {
+  it("does not set truncated when the result is under the cap", async () => {
     const rows = [
-      ...Array.from({ length: 1000 }, (_, i) => ({ v: `s-${i}` })),
-      // duplicates beyond the cap do not count as new values
-      { v: "s-0" },
-      { v: "s-1" },
+      { v: "a" },
+      { v: "b" },
+      { v: "a" }, // duplicates dedup away but do not affect truncation
     ];
     mockedClickhouse.mockResolvedValue(rows);
 
     const result = await runVariableOptionsQuery({ data: { query: "q" } });
 
-    expect(result.options).toHaveLength(1000);
+    expect(result.options).toEqual(["a", "b"]);
     expect(result.truncated).toBe(false);
   });
 

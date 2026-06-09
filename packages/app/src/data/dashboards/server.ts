@@ -109,7 +109,22 @@ export const runPanelQuery = createAuthenticatedServerFn({
     },
   );
 
+// Hard-capped by the SQL API profile's `max_result_rows` (clickhouse/init/
+// 15-create-sql-api-role.sql). That profile uses result_overflow_mode='throw',
+// so a query returning more than this ERRORS rather than truncating — the cap
+// must be enforced in SQL (see withRowLimit), not after the fetch.
 const VARIABLE_OPTIONS_LIMIT = 1000;
+
+/**
+ * Bound a user-supplied options query to at most `limit` rows by wrapping it,
+ * so the SQL API profile never throws on overflow. Wrapping (vs appending
+ * `LIMIT`) preserves any `ORDER BY`/`LIMIT` the query already has; the trailing
+ * semicolon is stripped so the subquery stays valid.
+ */
+function withRowLimit(query: string, limit: number): string {
+  const inner = query.trim().replace(/;\s*$/, "");
+  return `SELECT * FROM (\n${inner}\n) LIMIT ${limit}`;
+}
 
 export const runVariableOptionsQuery = createAuthenticatedServerFn({
   method: "POST",
@@ -127,9 +142,11 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
       to: to ?? DEFAULT_TIME_RANGE.to,
     });
     // User-supplied SQL: run it through the per-org SQL API user (row-policy
-    // tenant isolation), not the SETTINGS-based app path it could override.
+    // tenant isolation), not the SETTINGS-based app path it could override. The
+    // LIMIT is injected into the SQL because the SQL API profile THROWS on
+    // result overflow — capping after the fetch would never run for large sets.
     const rows = await querySqlApi<Record<string, unknown>>(
-      query,
+      withRowLimit(query, VARIABLE_OPTIONS_LIMIT),
       context.session.session.activeOrganizationId,
       {
         from: fromISO,
@@ -137,21 +154,19 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
       },
     );
 
-    // Options are the stringified first column, deduplicated, in query order,
-    // capped at VARIABLE_OPTIONS_LIMIT with an explicit truncation flag.
+    // A full result set means ClickHouse cut rows off at the limit, so there may
+    // be more options than we can show — surface that as truncation.
+    const truncated = rows.length >= VARIABLE_OPTIONS_LIMIT;
+
+    // Options are the stringified first column, deduplicated, in query order.
     const seen = new Set<string>();
     const options: string[] = [];
-    let truncated = false;
     for (const row of rows) {
       const values = Object.values(row);
       if (values.length === 0) continue;
       const option = String(values[0]);
       if (seen.has(option)) continue;
       seen.add(option);
-      if (options.length >= VARIABLE_OPTIONS_LIMIT) {
-        truncated = true;
-        break;
-      }
       options.push(option);
     }
     return { options, truncated };
