@@ -44,7 +44,7 @@ export function DashboardTree({ dashboards, search }: DashboardTreeProps) {
         <>
           {results.dashboards.map(({ dashboard, path }) => (
             <DashboardRow
-              key={`${dashboard.source}/${dashboard.slug}`}
+              key={`${dashboard.project}/${dashboard.slug}`}
               dashboard={dashboard}
               depth={0}
               path={path}
@@ -69,7 +69,7 @@ export function DashboardTree({ dashboards, search }: DashboardTreeProps) {
           ))}
           {tree.dashboards.map((dashboard) => (
             <DashboardRow
-              key={`${dashboard.source}/${dashboard.slug}`}
+              key={`${dashboard.project}/${dashboard.slug}`}
               dashboard={dashboard}
               depth={0}
             />
@@ -127,7 +127,7 @@ function FolderRows({
           ))}
           {node.dashboards.map((dashboard) => (
             <DashboardRow
-              key={`${dashboard.source}/${dashboard.slug}`}
+              key={`${dashboard.project}/${dashboard.slug}`}
               dashboard={dashboard}
               depth={depth + 1}
             />
@@ -153,8 +153,8 @@ function DashboardRow({
       style={{ paddingLeft: `${depth * 20 + 26}px` }}
     >
       <Link
-        to="/dashboards/$source/$slug"
-        params={{ source: dashboard.source, slug: dashboard.slug }}
+        to="/dashboards/$project/$slug"
+        params={{ project: dashboard.project, slug: dashboard.slug }}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5"
       >
         <LayoutDashboard className="size-4 shrink-0 text-muted-foreground" />

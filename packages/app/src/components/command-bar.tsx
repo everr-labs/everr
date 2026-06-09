@@ -129,10 +129,10 @@ export function CommandBar() {
               <CommandGroup heading="Dashboards">
                 {dashboardList.map((d) => (
                   <CommandItem
-                    key={`${d.source}/${d.slug}`}
+                    key={`${d.project}/${d.slug}`}
                     value={`dashboard ${d.name} ${d.slug}`}
                     onSelect={() =>
-                      handleSelect(`/dashboards/${d.source}/${d.slug}`)
+                      handleSelect(`/dashboards/${d.project}/${d.slug}`)
                     }
                   >
                     <LayoutDashboard />

@@ -5,7 +5,7 @@ import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/dashboards/$source/$slug",
+  "/_authenticated/_dashboard/dashboards/$project/$slug",
 )({
   staticData: {
     breadcrumb: (match: { loaderData?: { name: string } }) => [
@@ -16,12 +16,12 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Dashboard" }] }),
   component: DashboardGrid,
   notFoundComponent: DashboardNotFound,
-  loader: async ({ context: { queryClient }, params: { source, slug } }) => {
+  loader: async ({ context: { queryClient }, params: { project, slug } }) => {
     // A missing dashboard throws notFound() from the server fn (→ notFound UI);
     // any other failure propagates to the error boundary instead of being
     // masked as not-found.
     const dashboard = await queryClient.ensureQueryData(
-      dashboardOptions(source, slug),
+      dashboardOptions(project, slug),
     );
     // Expose the dashboard's duration/refreshInterval as route time defaults so
     // the time-range hooks seed the picker and panels from the first render —

@@ -53,7 +53,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     slug: "slug",
-    source: "source",
+    project: "project",
     folderPath: "folder_path",
     updatedAt: "updated_at",
     document: "document",
@@ -202,10 +202,10 @@ describe("runVariableOptionsQuery", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getDashboard (source/slug)
+// getDashboard (project/slug)
 // ---------------------------------------------------------------------------
 
-describe("getDashboard (source/slug)", () => {
+describe("getDashboard (project/slug)", () => {
   it("returns the stored document verbatim, including unknown fields", async () => {
     const document = {
       kind: "Dashboard",
@@ -215,7 +215,7 @@ describe("getDashboard (source/slug)", () => {
     };
     selectImpl = () => [{ document }];
     const result = await getDashboard({
-      data: { source: "team", slug: "cpu" },
+      data: { project: "team", slug: "cpu" },
     });
     expect(result).toEqual(document);
   });
@@ -223,7 +223,7 @@ describe("getDashboard (source/slug)", () => {
   it("throws a notFound when the dashboard is missing", async () => {
     selectImpl = () => [];
     const error = await getDashboard({
-      data: { source: "team", slug: "missing" },
+      data: { project: "team", slug: "missing" },
     }).then(
       () => null,
       (e) => e,
@@ -233,11 +233,11 @@ describe("getDashboard (source/slug)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// listDashboards (with source + folderPath)
+// listDashboards (with project + folderPath)
 // ---------------------------------------------------------------------------
 
-describe("listDashboards (with source + folderPath)", () => {
-  it("returns slug, source, name and folderPath", async () => {
+describe("listDashboards (with project + folderPath)", () => {
+  it("returns slug, project, name and folderPath", async () => {
     mockedDb.select.mockImplementationOnce(
       () =>
         ({
@@ -246,7 +246,7 @@ describe("listDashboards (with source + folderPath)", () => {
               Promise.resolve([
                 {
                   slug: "cpu",
-                  source: "team",
+                  project: "team",
                   folderPath: "Infra",
                   displayName: "CPU",
                 },
@@ -256,7 +256,7 @@ describe("listDashboards (with source + folderPath)", () => {
     );
     const rows = await listDashboards();
     expect(rows).toEqual([
-      { slug: "cpu", source: "team", name: "CPU", folderPath: "Infra" },
+      { slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" },
     ]);
   });
 });
