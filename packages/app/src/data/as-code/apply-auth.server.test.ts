@@ -1,10 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const verifyApiKey = vi.fn();
+const getSession = vi.fn();
 vi.mock("@/lib/auth.server", () => ({
   auth: {
-    api: { verifyApiKey: (...args: unknown[]) => verifyApiKey(...args) },
+    api: {
+      verifyApiKey: (...a: unknown[]) => verifyApiKey(...a),
+      getSession: (...a: unknown[]) => getSession(...a),
+    },
   },
+}));
+vi.mock("@/lib/clickhouse", () => ({
+  createClickhouseQuery: () => () => Promise.resolve([]),
+}));
+
+// Org-name lookup goes through a direct DB select; control its result via orgRows.
+let orgRows: unknown[] = [];
+vi.mock("@/db/client", () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.resolve(orgRows),
+        }),
+      }),
+    }),
+  },
+}));
+vi.mock("@/db/schema", () => ({
+  organization: { id: "id", name: "name" },
 }));
 
 import {
@@ -19,6 +43,7 @@ function headers(map: Record<string, string>): Headers {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  orgRows = [];
 });
 
 describe("extractBearerKey", () => {
@@ -36,64 +61,95 @@ describe("extractBearerKey", () => {
 });
 
 describe("resolveApplyAuth", () => {
-  it("throws when there is no API key (sessions are not accepted)", async () => {
+  it("throws when there is no credential", async () => {
     await expect(resolveApplyAuth(headers({}))).rejects.toThrow(
-      /missing api key/i,
+      /missing credential/i,
     );
-    expect(verifyApiKey).not.toHaveBeenCalled();
   });
 
-  it("resolves an org-referenced ingest key to its org", async () => {
+  it("resolves an ek_ ingest key to its org (+name)", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
       key: { id: "k1", referenceId: "org-1" },
     });
+    orgRows = [{ name: "Acme" }];
     const result = await resolveApplyAuth(
       headers({ authorization: "Bearer ek_abc" }),
     );
     expect(result).toEqual({
       organizationId: "org-1",
+      organizationName: "Acme",
       principalId: "apikey:k1",
     });
     expect(verifyApiKey).toHaveBeenCalledWith({
       body: { key: "ek_abc", configId: "ingest" },
     });
+    expect(getSession).not.toHaveBeenCalled();
   });
 
-  it("resolves via the x-api-key header too", async () => {
+  it("falls back to the org id when the org row is missing", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k2", referenceId: "org-2" },
+      key: { id: "k1", referenceId: "org-1" },
     });
-    const result = await resolveApplyAuth(headers({ "x-api-key": "ek_def" }));
-    expect(result).toEqual({
-      organizationId: "org-2",
-      principalId: "apikey:k2",
-    });
+    orgRows = [];
+    const result = await resolveApplyAuth(
+      headers({ authorization: "Bearer ek_abc" }),
+    );
+    expect(result.organizationName).toBe("org-1");
   });
 
-  it("throws when the key is invalid", async () => {
+  it("throws when an ek_ key is invalid", async () => {
     verifyApiKey.mockResolvedValueOnce({ valid: false, key: null });
     await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer nope" })),
+      resolveApplyAuth(headers({ authorization: "Bearer ek_nope" })),
     ).rejects.toThrow(/invalid api key/i);
   });
 
-  it("throws when a valid key has no referenceId", async () => {
-    verifyApiKey.mockResolvedValueOnce({ valid: true, key: { id: "k3" } });
+  it("resolves a session bearer to the active org (+name)", async () => {
+    getSession.mockResolvedValueOnce({
+      user: { id: "u1" },
+      session: { activeOrganizationId: "org-9" },
+    });
+    orgRows = [{ name: "Globex" }];
+    const result = await resolveApplyAuth(
+      headers({ authorization: "Bearer sess_token" }),
+    );
+    expect(result).toEqual({
+      organizationId: "org-9",
+      organizationName: "Globex",
+      principalId: "user:u1",
+    });
+    expect(verifyApiKey).not.toHaveBeenCalled();
+  });
+
+  it("throws when the session has no active org", async () => {
+    getSession.mockResolvedValueOnce({
+      user: { id: "u1" },
+      session: { activeOrganizationId: null },
+    });
     await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_weird" })),
-    ).rejects.toThrow(/invalid api key/i);
+      resolveApplyAuth(headers({ authorization: "Bearer sess_token" })),
+    ).rejects.toThrow(/no active organization/i);
+  });
+
+  it("throws when the session is invalid", async () => {
+    getSession.mockResolvedValueOnce(null);
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer sess_token" })),
+    ).rejects.toThrow(/unauthenticated/i);
   });
 });
 
 describe("buildApplyContext", () => {
-  it("uses the API-key org as the active organization", () => {
+  it("exposes the resolved org as active org and in context.organization", () => {
     const ctx = buildApplyContext({
       organizationId: "org-k",
+      organizationName: "Kettle",
       principalId: "apikey:1",
     });
     expect(ctx.session.session.activeOrganizationId).toBe("org-k");
     expect(ctx.session.user.id).toBe("apikey:1");
+    expect(ctx.organization).toEqual({ id: "org-k", name: "Kettle" });
   });
 });
