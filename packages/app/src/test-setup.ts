@@ -84,6 +84,7 @@ vi.mock("@/lib/clickhouse", () => {
 
 vi.mock("@/lib/serverFn", async () => {
   const { query } = await import("@/lib/clickhouse");
+  const { auth } = await import("@/lib/auth.server");
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
   const makeAuthChain = () =>
@@ -107,20 +108,21 @@ vi.mock("@/lib/serverFn", async () => {
       });
     });
 
-  // authMiddleware only: the raw session passes through. It does NOT guarantee an
-  // active organization and does NOT add `clickhouse`, mirroring the real partial
-  // middleware — so code that wrongly depends on either in a partial-auth flow
-  // fails here instead of passing against an over-provisioned context.
+  // authMiddleware only: pass through whatever auth.api.getSession() returned
+  // (the same source the real middleware reads), apply the same unauthenticated
+  // guard, and add NO `clickhouse` and NO active-org guarantee. Deriving from
+  // the mock — rather than hardcoding activeOrganizationId: undefined — means the
+  // default exercises the active-org path (getSession returns "test_org"), while
+  // a test that wants the no-org branch just overrides auth.api.getSession.
   const makePartialAuthChain = () =>
     makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
+      const session = await auth.api.getSession({ headers: new Headers() });
+      if (!session?.session || !session?.user) {
+        throw new Error("Unauthenticated");
+      }
       return fn({
         data: opts?.data,
-        context: {
-          session: {
-            session: { id: "test_session", activeOrganizationId: undefined },
-            user: { id: "test_user" },
-          },
-        },
+        context: { session },
       });
     });
 
