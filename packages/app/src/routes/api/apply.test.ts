@@ -60,6 +60,7 @@ describe("POST /api/apply", () => {
     });
     const res = await POST({
       request: req({
+        projects: ["default"],
         documents: [
           {
             path: "cpu.yaml",
@@ -83,6 +84,7 @@ describe("POST /api/apply", () => {
     });
     expect(applyResources).toHaveBeenCalledWith({
       orgId: "org-1",
+      projects: ["default"],
       documents: [
         {
           path: "cpu.yaml",
@@ -109,6 +111,7 @@ describe("POST /api/apply", () => {
     );
     const res = await POST({
       request: req({
+        projects: ["default"],
         documents: [{ path: "bad.yaml", document: { kind: "Gizmo" } }],
       }),
       context: ctx,
@@ -124,6 +127,7 @@ describe("POST /api/apply", () => {
     );
     const res = await POST({
       request: req({
+        projects: ["default"],
         documents: [
           {
             path: "cpu.yaml",
