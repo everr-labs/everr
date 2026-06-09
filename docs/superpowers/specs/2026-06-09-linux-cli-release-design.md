@@ -29,8 +29,11 @@ builds and publishes Linux CLI release artifacts independently:
 The workflow should test the CLI crate, build both release binaries, run a smoke
 test on each binary with `--help`, upload one release payload artifact, attest
 the checksums, and dispatch the deploy repository with the artifact name, source
-repository, run id, commit SHA, and the version from
-`packages/desktop-app/package.json`.
+repository, run id, commit SHA, release kind, and the version from
+`packages/desktop-app/package.json`. The deploy repository must listen for the
+Linux CLI dispatch, validate the Linux artifact payload, and upload the
+architecture-specific Linux binaries and checksums into the existing
+`everr-app` download prefix without overwriting desktop app metadata objects.
 
 The Linux release path should use raw Cargo builds rather than
 `pnpm build:cli:release`, because the Node release wrapper prepares macOS-only

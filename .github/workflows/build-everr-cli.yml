@@ -213,5 +213,6 @@ jobs:
               "run_id": "${{ github.run_id }}",
               "sha": "${{ github.sha }}",
               "version": "${{ steps.version.outputs.version }}",
+              "release_kind": "cli-linux",
               "artifact_name": "everr-cli-linux-release-${{ github.sha }}"
             }

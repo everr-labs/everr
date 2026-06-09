@@ -25,6 +25,10 @@
   - Generate checksums, attest the final payload on main, and dispatch the deploy repo.
 - Create or modify `packages/desktop-app/scripts/cli-release-workflow.test.ts`
   - Assert that the workflow includes both Linux targets, final artifact upload, checksum attestation, and deploy dispatch.
+- Companion deploy repo change: modify `everr-deploy/.github/workflows/deploy-desktop-app.yml`
+  - Accept the `cli-linux-release` dispatch event.
+  - Validate and attest the Linux CLI payload.
+  - Upload `everr-linux-arm64`, `everr-linux-arm64.sha256`, `everr-linux-x86_64`, and `everr-linux-x86_64.sha256` to the existing `everr-app` prefix.
 
 ## Baseline
 
