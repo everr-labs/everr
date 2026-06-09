@@ -26,6 +26,17 @@ Make a directory to hold your dashboards and add one file. The directory is the 
 mkdir -p dashboards
 ```
 
+Every apply directory needs an `everr.yaml` (or `everr.yml`) at its root declaring the projects it manages. Apply reads and reconciles exactly those projects — there is no implicit `default`, so to use the default project you list it explicitly.
+
+`dashboards/everr.yaml`:
+
+```yaml
+projects:
+  - demo
+```
+
+Every dashboard's `metadata.project` (or `default` when omitted) must appear in this list, or apply rejects it. This tutorial uses `demo`; the simplest possible setup is `projects: [default]` plus dashboards that omit `metadata.project`.
+
 `dashboards/api-latency.yaml`:
 
 ```yaml
