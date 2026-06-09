@@ -38,7 +38,7 @@ export const Route = createFileRoute(
           end: deps.end,
           timeRange: { from: deps.from, to: deps.to },
         }),
-        refresh: deps.refresh ?? "",
+        refresh: deps.refresh ?? "off",
       }),
     );
   },

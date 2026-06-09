@@ -6,16 +6,6 @@ const datemath = z.string().refine(isValid);
 
 export type RefreshInterval = string;
 
-/**
- * Durable URL token for an *explicitly* disabled auto-refresh. The picker's own
- * "off" value is the empty string, but that is indistinguishable from "unset"
- * once it round-trips the URL (it gets stripped, see the `_dashboard` route's
- * `stripSearchParams`). A route with a saved refresh default would then re-arm
- * itself. This sentinel lets an explicit off survive as a real search param so
- * it can win over the route default; it is mapped back to "" at the picker.
- */
-export const REFRESH_OFF = "off";
-
 export const TimeRangeSearchSchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
@@ -27,7 +17,7 @@ export const ResolvedTimeRangeSearchSchema = z.object({
     .catch(DEFAULT_TIME_RANGE.from)
     .default(DEFAULT_TIME_RANGE.from),
   to: datemath.catch(DEFAULT_TIME_RANGE.to).default(DEFAULT_TIME_RANGE.to),
-  refresh: z.string().default(""),
+  refresh: z.string().default("off"),
 });
 
 /**
@@ -48,9 +38,8 @@ export interface RouteTimeDefaults {
  * default `to`. The result still needs `ResolvedTimeRangeSearchSchema` to fill
  * the global fallback for anything left undefined.
  *
- * `refresh` uses nullish-coalescing (not `||`) so an explicit off — carried as
- * `REFRESH_OFF` or "" — wins over the route default instead of being treated as
- * "unset" and re-armed.
+ * `refresh` uses nullish-coalescing (not `||`) so an explicit "off" in the URL
+ * wins over the route default instead of being treated as "unset" and re-armed.
  */
 export function applyRouteTimeDefaults(
   search: { from?: string; to?: string; refresh?: string },

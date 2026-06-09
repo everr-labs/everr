@@ -40,7 +40,7 @@ describe("ResolvedTimeRangeSearchSchema", () => {
     expect(result).toEqual({
       from: DEFAULT_TIME_RANGE.from,
       to: DEFAULT_TIME_RANGE.to,
-      refresh: "",
+      refresh: "off",
     });
   });
 
@@ -106,20 +106,13 @@ describe("applyRouteTimeDefaults", () => {
     });
   });
 
-  it("lets an explicit off (REFRESH_OFF) win over the default", () => {
+  it("lets an explicit off win over the default", () => {
+    // `??` (not `||`) — "off" is an explicit choice and must not re-arm the
+    // default. (`||` would have treated a falsy/empty refresh as "unset".)
     expect(applyRouteTimeDefaults({ refresh: "off" }, defaults)).toEqual({
       from: "now-24h",
       to: "now",
       refresh: "off",
-    });
-  });
-
-  it("treats an empty-string refresh as off, not as unset", () => {
-    // `??` (not `||`) — "" is an explicit off and must not re-arm the default.
-    expect(applyRouteTimeDefaults({ refresh: "" }, defaults)).toEqual({
-      from: "now-24h",
-      to: "now",
-      refresh: "",
     });
   });
 
@@ -153,7 +146,7 @@ describe("getRefreshIntervalMs", () => {
   });
 
   it("returns null for off", () => {
-    expect(getRefreshIntervalMs("")).toBeNull();
+    expect(getRefreshIntervalMs("off")).toBeNull();
   });
 
   it("returns null for unknown values", () => {

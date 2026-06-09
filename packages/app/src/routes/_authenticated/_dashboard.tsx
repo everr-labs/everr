@@ -44,10 +44,11 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
     middlewares: [
+      // `refresh` is intentionally not stripped: "off" is an explicit choice
+      // that must survive in the URL to override a dashboard's saved interval.
       stripSearchParams({
         from: DEFAULT_TIME_RANGE.from,
         to: DEFAULT_TIME_RANGE.to,
-        refresh: "",
       }),
       retainSearchParams(["from", "to", "refresh"]),
     ],

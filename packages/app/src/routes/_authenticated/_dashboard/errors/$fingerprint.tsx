@@ -33,7 +33,7 @@ function ErrorDetailPage() {
       repo={remoteErrorsRepo}
       fingerprint={fingerprint}
       timeRange={timeRange}
-      refresh={refresh ?? ""}
+      refresh={refresh ?? "off"}
       service={service}
       occurrence={search.occurrence}
       renderBackLink={(children) => (
