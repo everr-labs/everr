@@ -63,7 +63,6 @@ pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApplyRequest {
-    pub source: String,
     pub documents: Vec<ResourceDocument>,
     #[serde(rename = "dryRun", skip_serializing_if = "std::ops::Not::not")]
     pub dry_run: bool,
@@ -78,10 +77,17 @@ pub struct KindResult {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct ApplyOrganization {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct ApplySummary {
     #[serde(rename = "dryRun")]
     pub dry_run: bool,
     pub results: Vec<KindResult>,
+    pub organization: ApplyOrganization,
 }
 
 #[cfg(test)]
@@ -133,7 +139,6 @@ mod tests {
     #[test]
     fn apply_request_omits_dry_run_when_false() {
         let req = ApplyRequest {
-            source: "team".into(),
             documents: vec![ResourceDocument {
                 path: "cpu.yaml".into(),
                 document: serde_json::json!({"kind": "Dashboard"}),
@@ -141,7 +146,7 @@ mod tests {
             dry_run: false,
         };
         let v = serde_json::to_value(&req).unwrap();
-        assert_eq!(v["source"], "team");
+        assert!(v.get("source").is_none(), "source must no longer be sent");
         assert!(
             v.get("dryRun").is_none(),
             "dryRun should be omitted when false"
@@ -151,7 +156,6 @@ mod tests {
     #[test]
     fn apply_request_includes_dry_run_when_true() {
         let req = ApplyRequest {
-            source: "team".into(),
             documents: vec![],
             dry_run: true,
         };
@@ -160,12 +164,13 @@ mod tests {
     }
 
     #[test]
-    fn apply_summary_deserializes_per_kind() {
+    fn apply_summary_deserializes_per_kind_with_org() {
         let s: ApplySummary = serde_json::from_value(serde_json::json!({
             "dryRun": true,
             "results": [
                 {"kind": "Dashboard", "created": ["a"], "updated": [], "deleted": ["b"]}
-            ]
+            ],
+            "organization": {"id": "org-1", "name": "Acme"}
         }))
         .unwrap();
         assert!(s.dry_run);
@@ -173,5 +178,6 @@ mod tests {
         assert_eq!(s.results[0].kind, "Dashboard");
         assert_eq!(s.results[0].created, vec!["a".to_string()]);
         assert_eq!(s.results[0].deleted, vec!["b".to_string()]);
+        assert_eq!(s.organization.name, "Acme");
     }
 }
