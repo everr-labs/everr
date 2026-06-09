@@ -106,6 +106,23 @@ describe("applyRouteTimeDefaults", () => {
     });
   });
 
+  it("lets an explicit off (REFRESH_OFF) win over the default", () => {
+    expect(applyRouteTimeDefaults({ refresh: "off" }, defaults)).toEqual({
+      from: "now-24h",
+      to: "now",
+      refresh: "off",
+    });
+  });
+
+  it("treats an empty-string refresh as off, not as unset", () => {
+    // `??` (not `||`) — "" is an explicit off and must not re-arm the default.
+    expect(applyRouteTimeDefaults({ refresh: "" }, defaults)).toEqual({
+      from: "now-24h",
+      to: "now",
+      refresh: "",
+    });
+  });
+
   it("is a no-op when there are no defaults", () => {
     expect(applyRouteTimeDefaults({ from: "now-1h", to: "now" }, {})).toEqual({
       from: "now-1h",

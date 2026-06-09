@@ -4,6 +4,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import {
   applyRouteTimeDefaults,
+  REFRESH_OFF,
   type RefreshInterval,
   ResolvedTimeRangeSearchSchema,
 } from "@/lib/time-range";
@@ -15,16 +16,22 @@ export function useAutoRefresh() {
   const { refresh } = ResolvedTimeRangeSearchSchema.parse(
     applyRouteTimeDefaults(search, defaults),
   );
+  // The picker speaks "" for off; translate the durable REFRESH_OFF token back.
+  const refreshInterval = refresh === REFRESH_OFF ? "" : refresh;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const setRefreshInterval = (value: RefreshInterval) => {
+    // Off ("") must persist as REFRESH_OFF only when a route default would
+    // otherwise re-arm it; without one, drop the param for a clean URL.
+    const next =
+      value === "" && defaults.refresh ? REFRESH_OFF : value || undefined;
     void navigate({
       // @ts-expect-error -- route-agnostic navigation
       search: (prev) => ({
         ...prev,
-        refresh: value || undefined,
+        refresh: next,
       }),
       replace: true,
     });
@@ -40,7 +47,7 @@ export function useAutoRefresh() {
       intervalRef.current = null;
     }
 
-    const ms = getRefreshIntervalMs(refresh);
+    const ms = getRefreshIntervalMs(refreshInterval);
     if (ms) {
       intervalRef.current = setInterval(() => {
         void queryClient.invalidateQueries();
@@ -52,7 +59,7 @@ export function useAutoRefresh() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [refresh, queryClient]);
+  }, [refreshInterval, queryClient]);
 
-  return { refreshInterval: refresh, setRefreshInterval, refreshNow };
+  return { refreshInterval, setRefreshInterval, refreshNow };
 }
