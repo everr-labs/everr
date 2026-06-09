@@ -712,6 +712,7 @@ mod api_client_tests {
 
         let client = ApiClient::from_token(&server.url(), "bad-token").unwrap();
         let request = crate::apply::ApplyRequest {
+            projects: vec![],
             documents: vec![],
             dry_run: false,
         };
@@ -739,6 +740,7 @@ mod api_client_tests {
 
         let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
         let request = crate::apply::ApplyRequest {
+            projects: vec![],
             documents: vec![],
             dry_run: false,
         };
@@ -765,6 +767,7 @@ mod api_client_tests {
 
         let client = ApiClient::from_token(&server.url(), "tok").unwrap();
         let request = crate::apply::ApplyRequest {
+            projects: vec![],
             documents: vec![],
             dry_run: false,
         };

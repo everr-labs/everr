@@ -86,44 +86,91 @@ const dash = (name: string, project?: string) => ({
 });
 
 describe("applyDashboardSpecs", () => {
-  it("dryRun diffs against existing rows in the run's projects and does not write", async () => {
+  it("rejects a doc whose project is not declared (incl. a defaulted doc)", async () => {
+    await expect(
+      applyDashboardSpecs({
+        orgId: "org-1",
+        projects: ["platform"],
+        documents: [{ path: "cpu.yaml", document: dash("cpu") }], // -> "default"
+      }),
+    ).rejects.toThrow(/project "default".*not declared/i);
+    expect(mockedDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("accepts a defaulted doc when default is declared", async () => {
+    mockApplySelect([]);
+    const result = await applyDashboardSpecs({
+      orgId: "org-1",
+      projects: ["default"],
+      dryRun: true,
+      documents: [{ path: "cpu.yaml", document: dash("cpu") }],
+    });
+    expect(result.created).toEqual(["cpu"]);
+  });
+
+  it("prunes the last dashboard of a declared project with no files", async () => {
     mockApplySelect([
       {
-        project: "default",
-        slug: "old-dash",
+        project: "team",
+        slug: "old",
         folderPath: "",
-        document: dash("old-dash"),
+        document: dash("old", "team"),
       },
     ]);
     const result = await applyDashboardSpecs({
       orgId: "org-1",
-      dryRun: true,
-      documents: [{ path: "cpu.yaml", document: dash("cpu") }],
-    });
-    expect(result).toEqual({
-      created: ["cpu"],
-      updated: [],
-      deleted: ["old-dash"],
-      dryRun: true,
-    });
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
-  });
-
-  it("does not prune a project absent from the run", async () => {
-    mockApplySelect([]);
-    const result = await applyDashboardSpecs({
-      orgId: "org-1",
+      projects: ["team"],
       dryRun: true,
       documents: [],
     });
-    expect(result.deleted).toEqual([]);
-    expect(result.created).toEqual([]);
+    expect(result).toEqual({
+      created: [],
+      updated: [],
+      deleted: ["old"],
+      dryRun: true,
+    });
+  });
+
+  it("prunes the stale side of a cross-project move", async () => {
+    mockApplySelect([
+      {
+        project: "default",
+        slug: "cpu",
+        folderPath: "",
+        document: dash("cpu", "default"),
+      },
+    ]);
+    const result = await applyDashboardSpecs({
+      orgId: "org-1",
+      projects: ["default", "platform"],
+      dryRun: true,
+      documents: [{ path: "cpu.yaml", document: dash("cpu", "platform") }],
+    });
+    expect(result.created).toEqual(["cpu"]);
+    expect(result.deleted).toEqual(["cpu"]);
+  });
+
+  it("with an empty declared scope loads nothing and writes nothing", async () => {
+    const result = await applyDashboardSpecs({
+      orgId: "org-1",
+      projects: [],
+      dryRun: true,
+      documents: [],
+    });
+    expect(result).toEqual({
+      created: [],
+      updated: [],
+      deleted: [],
+      dryRun: true,
+    });
+    expect(mockedDb.select).not.toHaveBeenCalled();
   });
 
   it("applies the diff inside a transaction when not a dry run", async () => {
     mockApplySelect([]);
     const result = await applyDashboardSpecs({
       orgId: "org-1",
+      projects: ["team"],
       documents: [{ path: "a.yaml", document: dash("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
@@ -135,6 +182,7 @@ describe("applyDashboardSpecs", () => {
     await expect(
       applyDashboardSpecs({
         orgId: "org-1",
+        projects: ["default"],
         documents: [
           { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
         ],

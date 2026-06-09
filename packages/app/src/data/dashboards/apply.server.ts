@@ -1,4 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { ApplyValidationError } from "@/data/as-code/errors";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
@@ -14,26 +15,44 @@ export interface ApplyDashboardsResult {
 
 /**
  * Declarative reconcile core for dashboards, shared by the apply route. The
- * desired set may span multiple projects; existing rows are loaded ONLY for the
- * projects present in this run, so projects not in the run are never pruned.
- * Identity is (org, project, slug). Unless dryRun, applies creates/updates/
- * deletes in a single transaction.
+ * declared `projects` (from everr.yaml) are the authoritative reconcile scope —
+ * exactly these, with NO implicit "default". Every desired dashboard must
+ * belong to a declared project; existing rows are loaded only for declared
+ * projects, so anything not in the desired tree (a removed file, the stale side
+ * of a cross-project move, the last dashboard of an emptied project) is pruned —
+ * and projects this run doesn't declare are never touched (multi-repo safe).
+ * Unless dryRun, applies creates/updates/deletes in a single transaction.
  *
  * Lives in `.server.ts` (not `server.ts`) because it is a plain db-using export;
  * `server.ts` is reachable from the client and would drag `pg` into the bundle.
  */
 export async function applyDashboardSpecs(opts: {
   orgId: string;
+  projects: string[];
   documents: { path: string; document: unknown }[];
   dryRun?: boolean;
 }): Promise<ApplyDashboardsResult> {
-  const { orgId, documents, dryRun } = opts;
+  const { orgId, projects, documents, dryRun } = opts;
 
   const desired = buildDesiredSet(documents);
-  const projectsInRun = [...new Set(desired.map((d) => d.project))];
+
+  const scope = [...new Set(projects)];
+  const scopeSet = new Set(scope);
+
+  // Every desired dashboard must target a declared project — otherwise its
+  // project would be written but never pruned, and a typo'd project would
+  // silently orphan rows. A file that omits metadata.project resolves to
+  // "default", which must itself be declared.
+  for (const d of desired) {
+    if (!scopeSet.has(d.project)) {
+      throw new ApplyValidationError(
+        `dashboard "${d.slug}" targets project "${d.project}", which is not declared in everr.yaml (add it to projects)`,
+      );
+    }
+  }
 
   const existing =
-    projectsInRun.length === 0
+    scope.length === 0
       ? []
       : await db
           .select({
@@ -46,7 +65,7 @@ export async function applyDashboardSpecs(opts: {
           .where(
             and(
               eq(dashboards.organizationId, orgId),
-              inArray(dashboards.project, projectsInRun),
+              inArray(dashboards.project, scope),
             ),
           );
 

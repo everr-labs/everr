@@ -68,8 +68,8 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
 
 ## Dashboards (gitops)
 
-- `everr apply <dir>` — reconcile a directory of dashboard definitions (`.yaml`/`.yml`/`.json`) into Everr. Makes each project's dashboards exactly match the tree: new files are created, changed files updated, and removed files **deleted**. A dashboard's project comes from its `metadata.project` (optional, defaults to `default`); pruning is scoped per project, so only projects present in the applied directory are affected. See [Dashboards](/docs/dashboards).
-  - `<dir>` directory to read resource files from (recursively); the directory structure becomes folder paths
+- `everr apply <dir>` — reconcile a directory of dashboard definitions (`.yaml`/`.yml`/`.json`) into Everr. The directory must contain an `everr.yaml` (or `everr.yml`) at its root declaring the projects it manages (`projects: [default, platform]`); apply errors without it. That list is the authoritative reconcile scope — apply reads and prunes only the declared projects, and there is no implicit `default`. Within those projects it makes the live dashboards exactly match the tree: new files are created, changed files updated, and removed files **deleted**. Every dashboard's `metadata.project` (optional, defaults to `default`) must appear in the list or apply rejects it. See [Dashboards](/docs/dashboards).
+  - `<dir>` directory to read resource files from (recursively); must contain an `everr.yaml` manifest at its root; the directory structure becomes folder paths
   - `--dry-run` compute and print the diff without writing
   - `--yes`, `-y` skip the confirmation prompt (required in non-interactive contexts such as CI or pipes)
 

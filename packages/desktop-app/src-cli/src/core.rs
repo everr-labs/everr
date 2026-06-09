@@ -598,7 +598,7 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
 }
 
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
-    use everr_core::apply::{ApplyRequest, load_resource_documents};
+    use everr_core::apply::{ApplyRequest, load_apply_manifest, load_resource_documents};
 
     let dir = std::path::Path::new(&args.dir);
     if !dir.is_dir() {
@@ -611,6 +611,10 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             args.dir
         );
     }
+
+    // The required everr.yaml declares which projects this run manages (the
+    // reconcile scope). Absent -> error before any request.
+    let projects = load_apply_manifest(dir)?;
 
     // Credential precedence: an ingest key in EVERR_API_TOKEN (CI) wins;
     // otherwise fall back to the logged-in session (`cloud login`).
@@ -639,6 +643,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     // Plan first (dry run) to learn the destination org and the change set.
     let plan = client
         .apply(&ApplyRequest {
+            projects: projects.clone(),
             documents: documents.clone(),
             dry_run: true,
         })
@@ -679,6 +684,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
 
     let summary = client
         .apply(&ApplyRequest {
+            projects,
             documents,
             dry_run: false,
         })

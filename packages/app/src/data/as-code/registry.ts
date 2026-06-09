@@ -21,6 +21,7 @@ export interface ApplyResourcesResult {
 /** A reconciler makes the org's resources of one kind match the given docs. */
 type Reconciler = (opts: {
   orgId: string;
+  projects: string[];
   documents: ApplyDocument[];
   dryRun?: boolean;
 }) => Promise<{ created: string[]; updated: string[]; deleted: string[] }>;
@@ -28,8 +29,8 @@ type Reconciler = (opts: {
 /**
  * Resource kind → reconciler. Add a new kind (e.g. "Alert") by adding one entry;
  * the CLI does not change. Every registered kind is reconciled on each apply, so
- * a kind absent from the tree is pruned within the projects present in the run —
- * the tree is the complete desired state across all kinds.
+ * a kind absent from the tree is pruned within the declared projects — the tree
+ * is the complete desired state across all kinds for those projects.
  */
 const REGISTRY: Record<string, Reconciler> = {
   Dashboard: applyDashboardSpecs,
@@ -46,17 +47,18 @@ function documentKind(doc: ApplyDocument): string {
 }
 
 /**
- * Apply a heterogeneous set of resource documents: group by kind, reject unknown
- * kinds, then reconcile EVERY registered kind (groups default to empty so absent
- * kinds prune within the projects present in the run). Returns a per-kind
- * summary.
+ * Apply a heterogeneous set of resource documents for the declared projects:
+ * group by kind, reject unknown kinds, then reconcile EVERY registered kind
+ * (groups default to empty so absent kinds prune within the declared projects).
+ * Returns a per-kind summary.
  */
 export async function applyResources(opts: {
   orgId: string;
+  projects: string[];
   documents: ApplyDocument[];
   dryRun?: boolean;
 }): Promise<ApplyResourcesResult> {
-  const { orgId, documents, dryRun } = opts;
+  const { orgId, projects, documents, dryRun } = opts;
 
   const byKind = new Map<string, ApplyDocument[]>();
   for (const doc of documents) {
@@ -74,7 +76,7 @@ export async function applyResources(opts: {
   const results: KindResult[] = [];
   for (const [kind, reconcile] of Object.entries(REGISTRY)) {
     const group = byKind.get(kind) ?? [];
-    const r = await reconcile({ orgId, documents: group, dryRun });
+    const r = await reconcile({ orgId, projects, documents: group, dryRun });
     results.push({
       kind,
       created: r.created,

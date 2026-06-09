@@ -32,11 +32,13 @@ describe("applyResources", () => {
     });
     const out = await applyResources({
       orgId: "org-1",
+      projects: ["default"],
       documents: [doc("Dashboard", "cpu")],
       dryRun: false,
     });
     expect(dashboardReconciler).toHaveBeenCalledWith({
       orgId: "org-1",
+      projects: ["default"],
       documents: [doc("Dashboard", "cpu")],
       dryRun: false,
     });
@@ -51,11 +53,13 @@ describe("applyResources", () => {
   it("reconciles every registered kind even when absent from the tree (prunes)", async () => {
     await applyResources({
       orgId: "org-1",
+      projects: ["default"],
       documents: [],
       dryRun: false,
     });
     expect(dashboardReconciler).toHaveBeenCalledWith({
       orgId: "org-1",
+      projects: ["default"],
       documents: [],
       dryRun: false,
     });
@@ -65,6 +69,7 @@ describe("applyResources", () => {
     await expect(
       applyResources({
         orgId: "org-1",
+        projects: ["default"],
         documents: [
           { path: "bad.yaml", document: { metadata: { name: "x" } } },
         ],
@@ -77,6 +82,7 @@ describe("applyResources", () => {
     await expect(
       applyResources({
         orgId: "org-1",
+        projects: ["default"],
         documents: [doc("Gizmo", "x")],
         dryRun: false,
       }),
@@ -95,6 +101,7 @@ describe("applyResources", () => {
     await expect(
       applyResources({
         orgId: "org-1",
+        projects: ["default"],
         documents: [doc(kind, "x")],
         dryRun: false,
       }),
