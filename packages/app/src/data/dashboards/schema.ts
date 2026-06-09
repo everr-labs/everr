@@ -45,7 +45,10 @@ export const panelQuery = z.object({
 export const panel = z.object({
   kind: z.literal("Panel"),
   spec: z.object({
-    display: dashboardDisplay,
+    // Optional to match Perses: a panel may carry only `plugin` (+ `queries`).
+    // Validation must never be stricter than Perses; the UI falls back to the
+    // panel key when no display name is present.
+    display: dashboardDisplay.optional(),
     plugin: panelPlugin,
     queries: z.array(panelQuery).optional(),
   }),

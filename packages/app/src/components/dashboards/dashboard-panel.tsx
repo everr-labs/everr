@@ -41,8 +41,8 @@ export function DashboardPanel({ panel, panelKey }: DashboardPanelProps) {
   return (
     <div className="group/panel relative h-full">
       <PanelShell
-        title={display.name ?? panelKey}
-        description={display.description}
+        title={display?.name ?? panelKey}
+        description={display?.description}
         status={status}
         errorMessage={errorMessage}
         className="h-full"
