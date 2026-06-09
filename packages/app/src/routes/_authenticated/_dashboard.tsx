@@ -5,14 +5,12 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@everr/ui/components/sidebar";
-import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
   Outlet,
   redirect,
   retainSearchParams,
-  stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
@@ -43,15 +41,13 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
 export const Route = createFileRoute("/_authenticated/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
-    middlewares: [
-      // `refresh` is intentionally not stripped: "off" is an explicit choice
-      // that must survive in the URL to override a dashboard's saved interval.
-      stripSearchParams({
-        from: DEFAULT_TIME_RANGE.from,
-        to: DEFAULT_TIME_RANGE.to,
-      }),
-      retainSearchParams(["from", "to", "refresh"]),
-    ],
+    // Nothing is stripped here on purpose. A dashboard can seed its own time
+    // range / refresh as route defaults (layered under the URL). Stripping a
+    // value because it equals the *global* default would erase an explicit
+    // selection that happens to match it — making that one value (e.g. the
+    // default range, or "off") unselectable on a dashboard with a different
+    // default, since the route default would immediately re-apply.
+    middlewares: [retainSearchParams(["from", "to", "refresh"])],
   },
   beforeLoad({ search }) {
     const { from, to } = ResolvedTimeRangeSearchSchema.parse(search);
