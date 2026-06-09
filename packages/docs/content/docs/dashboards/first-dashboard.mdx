@@ -9,14 +9,14 @@ This is the shortest path to a working dashboard: write one YAML file, reconcile
 
 - The CLI is installed. See [Install](/docs/getting-started/install).
 - You have telemetry in Everr to query. If not, start with [Your first trace](/docs/getting-started/first-trace).
-- **`everr apply` authenticates with an organization ingest key, not your `everr cloud login` session.** Create an ingest key in Everr and export it before running the commands below:
+- **`everr apply` uses your `everr cloud login` session by default** and prints the destination organization before writing. For CI or non-interactive use, set `EVERR_API_TOKEN` to an organization ingest key:
 
   ```sh
   export EVERR_API_TOKEN="<your-org-ingest-key>"
   export EVERR_API_URL="https://app.everr.dev"   # your Everr host; falls back to a prior `everr cloud login` URL
   ```
 
-  A logged-in session alone won't work — apply is token-only. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+  See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Create a dashboard file
 
@@ -32,6 +32,7 @@ mkdir -p dashboards
 kind: Dashboard
 metadata:
   name: api-latency
+  project: demo            # optional; defaults to "default"
 spec:
   display:
     name: API Latency
@@ -70,6 +71,7 @@ spec:
 A few things worth noting:
 
 - `metadata.name` is the **slug** — the dashboard's stable identity and its URL. Use lowercase letters, digits, and hyphens.
+- `metadata.project` groups dashboards into a named set. It defaults to `default` when omitted. A dashboard's URL is `/dashboards/<project>/<slug>`, so two projects can share the same slug without colliding.
 - The panel's query must alias its time column to a recognized name (`ts`, `time`, `timestamp`, `bucket`, …). The time-series chart uses that column for the x-axis and treats the remaining numeric columns as series. See [Panels and visualizations](/docs/dashboards/panels-and-visualizations).
 - The `{from:String}` / `{to:String}` parameters carry the dashboard's selected time range. They aren't injected automatically, so include the `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` filter — otherwise the query scans all history and ignores the picker.
 - The `layouts` grid places the panel. `content.$ref` points at the panel key under `spec.panels` (here, `p99`). The grid is 24 columns wide.
@@ -79,7 +81,7 @@ A few things worth noting:
 Always dry-run first. It computes the diff and writes nothing:
 
 ```sh
-everr apply ./dashboards --source=demo --dry-run
+everr apply ./dashboards --dry-run
 ```
 
 ```
@@ -87,20 +89,33 @@ everr apply ./dashboards --source=demo --dry-run
   + api-latency
 ```
 
-`--source=demo` names the set of dashboards this directory owns. Pick something meaningful for real use (your repo or team name).
+The project each dashboard belongs to comes from `metadata.project` in the file. Pick a meaningful name for your repo or team; it defaults to `default` when omitted.
 
 ## Apply it
 
 ```sh
-everr apply ./dashboards --source=demo
+everr apply ./dashboards
 ```
 
+Apply first prints a plan, then — because there are changes — asks you to confirm before writing. Answer the `Apply to «Acme Corp»?` prompt, or pass `--yes` (`-y`) to skip it (required in CI and piped contexts).
+
 ```
+(plan) Destination org: «Acme Corp»
+(plan) Dashboard: 1 created, 0 updated, 0 deleted
+  + api-latency
+```
+
+After you confirm, it runs the apply and prints the same summary without the `(plan)` prefix:
+
+```
+Destination org: «Acme Corp»
 Dashboard: 1 created, 0 updated, 0 deleted
   + api-latency
 ```
 
-Re-running is idempotent — apply again and you'll see `0 created, 0 updated, 0 deleted`.
+If there are no changes, apply prints `Nothing to apply.` and exits without prompting.
+
+Re-running is idempotent — apply again and you'll see `Nothing to apply.`
 
 ## View it
 
@@ -110,6 +125,8 @@ Open Everr and go to **Dashboards**, or navigate directly to:
 /dashboards/demo/api-latency
 ```
 
+(Replace `demo` with the `metadata.project` value you used, or `default` if you omitted it.)
+
 The panel renders live, driven by the global time-range picker. Adjust the time range and the query re-runs; drag across a time-series panel to zoom.
 
 ## Change and re-apply
@@ -117,22 +134,40 @@ The panel renders live, driven by the global time-range picker. Adjust the time 
 Edit the file — say, add a second panel or change the query — and apply again. A changed dashboard is updated in place; the URL never changes because the slug didn't.
 
 ```sh
-everr apply ./dashboards --source=demo
+everr apply ./dashboards
 ```
 
 ```
+(plan) Destination org: «Acme Corp»
+(plan) Dashboard: 0 created, 1 updated, 0 deleted
+  ~ api-latency
+```
+
+After confirming (or with `--yes`):
+
+```
+Destination org: «Acme Corp»
 Dashboard: 0 created, 1 updated, 0 deleted
   ~ api-latency
 ```
 
-And to remove a dashboard, delete its file and apply — reconciliation is delete-by-default within the source:
+And to remove a dashboard, delete its file and apply — reconciliation is delete-by-default within the project:
 
 ```sh
 rm dashboards/api-latency.yaml
-everr apply ./dashboards --source=demo
+everr apply ./dashboards
 ```
 
 ```
+(plan) Destination org: «Acme Corp»
+(plan) Dashboard: 0 created, 0 updated, 1 deleted
+  - api-latency
+```
+
+After confirming:
+
+```
+Destination org: «Acme Corp»
 Dashboard: 0 created, 0 updated, 1 deleted
   - api-latency
 ```
@@ -141,4 +176,4 @@ Dashboard: 0 created, 0 updated, 1 deleted
 
 - Add more panels and pick visualizations in [Panels and visualizations](/docs/dashboards/panels-and-visualizations).
 - Make the dashboard interactive with [Variables](/docs/dashboards/variables).
-- Group dashboards into folders and apply from CI in [Organizing dashboards and sources](/docs/dashboards/organizing-and-sources).
+- Group dashboards into folders and apply from CI in [Organizing dashboards and projects](/docs/dashboards/organizing-and-sources).

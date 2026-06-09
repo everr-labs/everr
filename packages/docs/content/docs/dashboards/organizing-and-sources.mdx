@@ -1,6 +1,6 @@
 ---
-title: Organizing Dashboards and Sources
-description: Use directories for folders, manage dashboards from multiple repos with sources, and apply from CI.
+title: Organizing Dashboards and Projects
+description: Use directories for folders, manage dashboards from multiple repos with projects, and apply from CI.
 ---
 
 As you add dashboards, two things matter: how they're grouped in the UI, and how multiple teams or repos contribute without stepping on each other. Both come from how `everr apply` works.
@@ -22,35 +22,57 @@ dashboards/
 
 Directory segments become the folder path, joined by ` / `. Underscores and hyphens in segment names are shown as spaces (`team_payments` → `team payments`). Move a file to a different directory and re-apply, and the dashboard moves folders. There are no folder objects to create, rename, or delete.
 
-## Sources: who owns what
+## Projects: who owns what
 
-Every apply runs under a `--source`. A source is an identifier you choose for a set of dashboards — typically one per repo or team (`platform`, `team-payments`). It does two things:
+Every dashboard belongs to a project, declared in `metadata.project` (defaults to `default`). A project is an identifier you choose for a set of dashboards — typically one per repo or team (`platform`, `team-payments`). It does two things:
 
-1. **Namespaces identity.** A dashboard's full identity is `source` + `slug`, and its URL is `/dashboards/<source>/<slug>`. Two sources can both have an `overview` dashboard without colliding.
-2. **Scopes reconciliation.** `everr apply --source=X` makes source `X`'s dashboards exactly match the applied tree — and only `X`'s. It can never read, modify, or delete another source's (or another organization's) dashboards.
+1. **Namespaces identity.** A dashboard's full identity is `project` + `slug`, and its URL is `/dashboards/<project>/<slug>`. Two projects can both have an `overview` dashboard without colliding.
+2. **Scopes reconciliation.** `everr apply` makes each project's dashboards exactly match its files — and only affects projects that appear in the applied directory. It can never modify another project's (or another organization's) dashboards.
 
-This is what makes multiple repos safe. Each repo applies its own source from its own CI; a repo can only ever change its own dashboards.
+This is what makes multiple repos safe. Each repo applies its own project from its own CI; a repo can only ever change its own dashboards.
+
+```yaml
+# platform repo — dashboards/api-latency.yaml
+kind: Dashboard
+metadata:
+  name: api-latency
+  project: platform
+spec:
+  ...
+```
+
+```yaml
+# payments repo — dashboards/checkout-funnel.yaml
+kind: Dashboard
+metadata:
+  name: checkout-funnel
+  project: team-payments
+spec:
+  ...
+```
+
+Apply each repo independently:
 
 ```sh
 # in the platform repo
-everr apply ./dashboards --source=platform
+everr apply ./dashboards
 
 # in the payments repo, independently
-everr apply ./dashboards --source=team-payments
+everr apply ./dashboards
 ```
 
-## Delete-by-default, scoped to the source
+## Delete-by-default, scoped to the project
 
-`everr apply` is declarative. For the applied source it will:
+`everr apply` is declarative. For each project present in the applied directory it will:
 
 - **create** dashboards whose files are new,
 - **update** dashboards whose files changed,
 - **delete** dashboards whose files are no longer present.
 
-There is no separate prune step — removing a file removes the dashboard on the next apply. It's safe because deletion only ever applies within the source you're applying. Always preview with `--dry-run` first:
+There is no separate prune step — removing a file removes the dashboard on the next apply. It's safe because deletion only ever applies within the projects represented in the directory you're applying. Always preview with `--dry-run` first:
 
 ```sh
-everr apply ./dashboards --source=platform --dry-run
+everr apply ./dashboards --dry-run
 ```
 
 ```
@@ -63,7 +85,7 @@ everr apply ./dashboards --source=platform --dry-run
 
 ## Applying from CI
 
-`everr apply` is token-only: it always authenticates with an organization **ingest key**, never an interactive session — so the same command works identically on a laptop and in CI. Set the key in `EVERR_API_TOKEN` and the API base URL in `EVERR_API_URL` (or rely on the one persisted by a prior `everr cloud login`).
+By default `everr apply` uses your `everr cloud login` session and prints the destination organization before writing. For CI and other non-interactive contexts, set `EVERR_API_TOKEN` to an organization ingest key instead. If `EVERR_API_URL` is not set, the base URL falls back to the one saved by a prior `everr cloud login`.
 
 ```yaml
 # .github/workflows/dashboards.yml
@@ -77,11 +99,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: everr apply ./dashboards --source=platform
+      - run: everr apply ./dashboards --yes
         env:
           EVERR_API_TOKEN: ${{ secrets.EVERR_API_TOKEN }}
           EVERR_API_URL: ${{ vars.EVERR_API_URL }}
 ```
+
+`--yes` (or `-y`) skips the confirmation prompt that apply shows before writing. It is required in non-interactive contexts such as CI or piped scripts. Use `--dry-run` instead to preview the diff without writing anything.
 
 Gate the apply on your default branch so dashboards change only after review — the whole point of defining them as code. To preview in a pull request, run the same command with `--dry-run` and surface the diff.
 

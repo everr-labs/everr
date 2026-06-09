@@ -9,6 +9,7 @@ A dashboard file is a [Perses](https://perses.dev)-style resource with three top
 kind: Dashboard
 metadata:
   name: <slug>
+  project: platform        # optional; defaults to "default"
 spec:
   { ... }
 ```
@@ -16,7 +17,8 @@ spec:
 | Key | Type | Notes |
 | --- | --- | --- |
 | `kind` | `"Dashboard"` | Selects the reconciler. Required. |
-| `metadata.name` | string | The **slug** (identity + URL). Falls back to the filename if omitted. See [Slug rules](#slug-rules). |
+| `metadata.name` | string | The **slug** — identity within its project, and the URL segment. Falls back to the filename if omitted. See [Slug rules](#slug-rules). |
+| `metadata.project` | string | Groups dashboards into a named set. Optional; defaults to `default`. Identity is `project` + `slug`, so two projects can share the same slug without colliding. |
 | `spec` | object | The dashboard contents, below. |
 
 ## `spec`
@@ -133,7 +135,7 @@ The slug (from `metadata.name`, else the filename without extension) must:
 - not start or end with a hyphen,
 - be 1–200 characters.
 
-A slug must be unique within a source; applying two files that resolve to the same slug fails.
+A slug must be unique within a project; applying two files that resolve to the same slug within the same project fails.
 
 ## Time defaults
 
