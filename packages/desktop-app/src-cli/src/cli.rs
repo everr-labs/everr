@@ -41,6 +41,8 @@ pub enum Commands {
     /// Manage bundled Everr agent skills
     #[command(name = "skills")]
     Skills(SkillsArgs),
+    /// Apply a directory of resource definitions (gitops)
+    Apply(ApplyArgs),
 }
 
 #[derive(Args, Debug)]
@@ -188,6 +190,18 @@ pub struct SkillsUninstallArgs {
     /// Preview without removing files
     #[arg(long)]
     pub dry_run: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ApplyArgs {
+    /// Directory containing resource YAML/JSON files
+    pub dir: String,
+    /// Compute and print the diff without writing
+    #[arg(long = "dry-run")]
+    pub dry_run: bool,
+    /// Skip the confirmation prompt (required in non-interactive contexts)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
 }
 
 #[derive(Args, Debug, Default)]

@@ -44,7 +44,7 @@ export async function ensureTraceDetailData({
         end: deps.end,
         timeRange: { from: deps.from, to: deps.to },
       }),
-      refresh: deps.refresh ?? "",
+      refresh: deps.refresh ?? "off",
     }),
   );
 }
@@ -90,6 +90,7 @@ export function TraceDetailRouteError({
       <Button
         variant="outline"
         size="sm"
+        nativeButton={false}
         render={<Link to="/traces" search={toTraceListSearch(search)} />}
       >
         Back to traces

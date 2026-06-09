@@ -52,6 +52,7 @@
     "quick-lru": "^7.3.0",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-grid-layout": "^2.2.3",
     "react-virtuoso": "^4.18.6",
     "recharts": "catalog:",
     "resend": "^6.12.3",

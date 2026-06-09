@@ -40,5 +40,6 @@ export interface PanelChromeProps {
   icon?: LucideIcon;
   action?: ReactNode;
   inset?: "default" | "flush-content";
+  headerClassName?: string;
   className?: string;
 }

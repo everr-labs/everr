@@ -5,22 +5,22 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@everr/ui/components/sidebar";
-import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
   Outlet,
   redirect,
   retainSearchParams,
-  stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
+import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { z } from "zod";
 import { RefreshPicker } from "@/components/analytics/refresh-picker";
 import { TimeRangePicker } from "@/components/analytics/time-range-picker";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
+import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
@@ -29,19 +29,19 @@ import {
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   github_install: z.string().optional(),
   reason: z.string().optional(),
+  // Dashboard variable values, e.g. ?vars={"env":"prod","svc":["a","b"]}.
+  // Deliberately NOT retained across navigation — different dashboards have
+  // different variables. Malformed values fall back to spec defaults.
+  vars: z
+    .record(z.string(), z.union([z.string(), z.array(z.string())]))
+    .optional()
+    .catch(undefined),
 });
 
 export const Route = createFileRoute("/_authenticated/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
-    middlewares: [
-      stripSearchParams({
-        from: DEFAULT_TIME_RANGE.from,
-        to: DEFAULT_TIME_RANGE.to,
-        refresh: "",
-      }),
-      retainSearchParams(["from", "to", "refresh"]),
-    ],
+    middlewares: [retainSearchParams(["from", "to", "refresh"])],
   },
   beforeLoad({ search }) {
     const { from, to } = ResolvedTimeRangeSearchSchema.parse(search);
@@ -54,6 +54,18 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
       });
     }
   },
+  head: () => ({
+    links: [
+      {
+        rel: "stylesheet",
+        href: gridLayoutCSS,
+      },
+      {
+        rel: "stylesheet",
+        href: gridLayoutOverridesCSS,
+      },
+    ],
+  }),
   component: RouteComponent,
 });
 

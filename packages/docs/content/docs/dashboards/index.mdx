@@ -1,0 +1,62 @@
+---
+title: Dashboards
+description: Custom dashboards defined as code, reconciled into Everr with the CLI, and rendered read-only from your ClickHouse data.
+---
+
+Everr dashboards are **defined as code**. You write dashboards as YAML or JSON files in a Git repository, then reconcile them into Everr with `everr apply`. The Everr app **renders** them — it runs their queries and draws the charts — but it never edits them. Git is the source of truth.
+
+This is a deliberate, gitops-style model. There is no click-to-edit grid, no save button, no in-app authoring. A dashboard changes when a file changes and you apply it — so dashboards are reviewable in pull requests, versioned with your code, and reproducible across environments.
+
+## The model
+
+A dashboard file follows the [Perses](https://perses.dev) data model — `kind`, `metadata`, and `spec` — with `panels`, `layouts`, and `variables`. Panels run ClickHouse SQL against your telemetry and render it with a visualization (time series, table, or stat). See the [Dashboard spec reference](/docs/dashboards/dashboard-spec) for the full shape.
+
+```yaml
+kind: Dashboard
+metadata:
+  name: api-latency        # the slug; URL becomes /dashboards/<project>/api-latency
+  project: platform        # optional; defaults to "default"
+spec:
+  display:
+    name: API Latency
+  panels:
+    p99:
+      kind: Panel
+      spec:
+        display: { name: p99 latency }
+        plugin: { kind: TimeSeriesChart, spec: { unit: ms } }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfMinute(Timestamp) AS ts,
+                           quantile(0.99)(Duration) / 1e6 AS p99_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    GROUP BY ts ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0, y: 0, width: 24, height: 8, content: { $ref: "#/spec/panels/p99" } }
+```
+
+## Key concepts
+
+- **Project.** Every dashboard belongs to a project, set in `metadata.project` (defaults to `default`). A project is an identifier you choose for a set of dashboards — typically one per repo or team (`platform`, `team-payments`). A project owns its dashboards and nothing else.
+- **Identity is `project` + `slug`.** A dashboard's slug comes from `metadata.name` (falling back to the filename). Its URL is `/dashboards/<project>/<slug>`. Two different projects can use the same slug without colliding.
+- **Folders come from directories.** The directory a file lives in becomes its folder path in the dashboards tree. There are no folder objects to create or own — move a file, move the dashboard. See [Organizing dashboards](/docs/dashboards/organizing-and-sources).
+- **A manifest declares the scope.** Each apply directory needs an `everr.yaml` (or `everr.yml`) at its root listing the projects it manages (`projects: [default, platform]`). That list is the authoritative reconcile scope — apply touches only those projects, and there is no implicit `default`. Every dashboard's `metadata.project` must appear in the list. See [Organizing dashboards](/docs/dashboards/organizing-and-sources).
+- **Apply is declarative (delete-by-default).** `everr apply` makes each declared project's dashboards exactly match its directory tree. A file you add is created, a changed file is updated, and a file you remove is **deleted**. Reconciliation is scoped to the projects listed in `everr.yaml` — no other project is affected. Use `--dry-run` to preview the diff first.
+- **Apply auth and confirmation.** By default `everr apply` uses your `everr cloud login` session and prints the destination organization before writing. It asks for confirmation before applying changes (creates, updates, and deletes all prompt); pass `--yes` (or `-y`) to skip the prompt (required in CI and piped contexts). If there are no changes it prints `Nothing to apply.` and exits without prompting. For CI, set `EVERR_API_TOKEN` to an organization ingest key instead of relying on an interactive session.
+
+## Where to go next
+
+- **[Your first dashboard](/docs/dashboards/first-dashboard)** — write one file and apply it (tutorial).
+- **[Panels and visualizations](/docs/dashboards/panels-and-visualizations)** — add panels and choose how they render.
+- **[Variables](/docs/dashboards/variables)** — make dashboards interactive with template variables.
+- **[Organizing dashboards and projects](/docs/dashboards/organizing-and-sources)** — folders, multiple repos, and applying from CI.
+- **[Dashboard spec](/docs/dashboards/dashboard-spec)** and **[Visualizations](/docs/dashboards/visualizations)** — the full reference.

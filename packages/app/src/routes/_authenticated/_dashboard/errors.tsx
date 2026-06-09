@@ -45,7 +45,7 @@ function ErrorsPage() {
     <ErrorIssues
       repo={remoteErrorsRepo}
       timeRange={timeRange}
-      refresh={refresh ?? ""}
+      refresh={refresh ?? "off"}
       search={{ q, service, fingerprint, sort, attributes }}
       onSearchChange={(patch) =>
         navigate({

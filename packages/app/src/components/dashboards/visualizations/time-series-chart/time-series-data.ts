@@ -1,0 +1,244 @@
+import type { ChartConfig } from "@everr/ui/components/chart";
+import {
+  detectTimeKey,
+  getValueKeys,
+  isNumericValue,
+  toNumber,
+  toTimestamp,
+} from "../data-utils";
+import type { QueryResultRow } from "../index";
+
+export const TS_KEY = "__ts";
+
+const COLORS = [
+  "hsl(217, 91%, 60%)",
+  "hsl(142, 71%, 45%)",
+  "hsl(0, 84%, 60%)",
+  "hsl(280, 68%, 60%)",
+  "hsl(35, 92%, 50%)",
+  "hsl(190, 90%, 50%)",
+];
+
+function getGroupKeys(rows: QueryResultRow[], timeKey: string): string[] {
+  const first = rows[0];
+  if (!first) return [];
+  // A column is a grouping dimension if it carries non-numeric string content in
+  // *any* row. A string that parses as a number (e.g. a quoted ClickHouse
+  // aggregate) is a value, not a dimension — exclude it so it isn't
+  // double-counted. Scanning all rows mirrors getValueKeys: the leading bucket
+  // may be NULL for a dimension that is populated later.
+  return Object.keys(first).filter(
+    (k) =>
+      k !== timeKey &&
+      rows.some((row) => typeof row[k] === "string" && !isNumericValue(row[k])),
+  );
+}
+
+function pivotByGroup(
+  rows: QueryResultRow[],
+  timeKey: string,
+  groupKey: string,
+  valueKey: string,
+): {
+  pivoted: QueryResultRow[];
+  seriesKeys: string[];
+} {
+  const byTimestamp = new Map<string | number, QueryResultRow>();
+  const seriesSet = new Set<string>();
+
+  for (const row of rows) {
+    const ts = row[timeKey];
+    // The raw group value is the series identifier — keep it intact (it's the
+    // label, and uniqueness comes from the Set, not from mangling the name).
+    const group = String(row[groupKey]);
+    const value = toNumber(row[valueKey]);
+    seriesSet.add(group);
+
+    let entry = byTimestamp.get(ts as string | number);
+    if (!entry) {
+      entry = { [timeKey]: ts };
+      byTimestamp.set(ts as string | number, entry);
+    }
+    entry[group] = value;
+  }
+
+  const seriesKeys = [...seriesSet].sort();
+  const pivoted = [...byTimestamp.values()];
+  return { pivoted, seriesKeys };
+}
+
+function detectInterval(timestamps: number[]): number | null {
+  if (timestamps.length < 2) return null;
+  const diffs: number[] = [];
+  for (let i = 1; i < timestamps.length; i++) {
+    diffs.push(timestamps[i]! - timestamps[i - 1]!);
+  }
+  diffs.sort((a, b) => a - b);
+  return diffs[Math.floor(diffs.length / 2)]!;
+}
+
+/** Sort the merged timeline and clamp it to the domain (no gap markers — this
+ * array drives the x-axis and the crosshair/tooltip lookup, not the lines). */
+function clampMerged(
+  byTs: Map<number, Record<string, unknown>>,
+  domain: [number, number] | undefined,
+): Array<Record<string, unknown>> {
+  const merged = [...byTs.values()].sort(
+    (a, b) => (a[TS_KEY] as number) - (b[TS_KEY] as number),
+  );
+  if (!domain) return merged;
+  return merged.filter((r) => {
+    const ts = r[TS_KEY] as number;
+    return ts >= domain[0] && ts <= domain[1];
+  });
+}
+
+/**
+ * Build one line's data from its OWN samples (ts → value), independent of any
+ * other series' timestamps. Each line is rendered with its own array so a
+ * timestamp where only another series has a point is simply absent here — it
+ * never becomes a hole that breaks the line. We do NOT snap onto an
+ * epoch-aligned grid: every in-range point keeps its real timestamp. A single
+ * null marker is inserted when two consecutive points of THIS series are more
+ * than ~1.5× its own typical interval apart, so a non-connecting line shows the
+ * genuine gap.
+ */
+function buildSeriesData(
+  samples: Map<number, number | null>,
+  renderKey: string,
+  domain: [number, number] | undefined,
+): Array<Record<string, unknown>> {
+  let points = [...samples.entries()].sort((a, b) => a[0] - b[0]);
+  if (domain) {
+    points = points.filter(([ts]) => ts >= domain[0] && ts <= domain[1]);
+  }
+
+  const interval = detectInterval(points.map(([ts]) => ts));
+  const gapThreshold = interval ? interval * 1.5 : null;
+
+  const result: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < points.length; i++) {
+    const [ts, value] = points[i]!;
+    if (i > 0 && interval && gapThreshold) {
+      const prevTs = points[i - 1]![0];
+      if (ts - prevTs > gapThreshold) {
+        result.push({ [TS_KEY]: prevTs + interval, [renderKey]: null });
+      }
+    }
+    result.push({ [TS_KEY]: ts, [renderKey]: value });
+  }
+  return result;
+}
+
+export interface ChartModel {
+  /** Merged timeline (all series by timestamp). Drives the x-axis domain and
+   * the crosshair/tooltip lookup — NOT the lines. */
+  chartData: Array<Record<string, unknown>>;
+  valueKeys: string[];
+  chartConfig: ChartConfig;
+  /** Per-series data arrays, keyed by render key. Each `<Line>` renders from its
+   * own array so it connects its own points regardless of other series. */
+  seriesData: Record<string, Array<Record<string, unknown>>>;
+}
+
+/**
+ * Builds a chart model by merging rows from every query result set onto a
+ * single shared timeline keyed by timestamp. Rows that share a timestamp —
+ * whether across different queries OR within a single query — are merged into
+ * one entry, so a single set containing duplicate timestamps is collapsed
+ * last-write-wins. This merge is intentional: it's how multiple queries' series
+ * land on one x-axis.
+ */
+export function buildChartModel(
+  dataSets: QueryResultRow[][],
+  domain: [number, number] | undefined,
+): ChartModel {
+  const chartConfig: ChartConfig = {};
+  const valueKeys: string[] = [];
+  const byTs = new Map<number, Record<string, unknown>>();
+  // Per render key: its own samples (ts → value), collapsed last-write-wins on
+  // duplicate timestamps — the source of each line's independent data array.
+  const samplesByKey = new Map<string, Map<number, number | null>>();
+  let seriesIndex = 0;
+
+  dataSets.forEach((data) => {
+    if (!data || data.length === 0) return;
+    const tk = detectTimeKey(data);
+    if (!tk) return;
+
+    const groupKeys = getGroupKeys(data, tk);
+    const rawValueKeys = getValueKeys(data, tk);
+
+    let rows: QueryResultRow[];
+    // The series' source names: pivoted group values, or raw value-column names.
+    // Each is unique within its result set and is used as the human-readable
+    // legend/tooltip label.
+    let seriesNames: string[];
+
+    if (groupKeys.length >= 1 && rawValueKeys.length === 1) {
+      const compositeKey = "__group__";
+      const keyed = data.map((row) => ({
+        ...row,
+        [compositeKey]: groupKeys.map((k) => row[k]).join(" · "),
+      }));
+      const piv = pivotByGroup(keyed, tk, compositeKey, rawValueKeys[0]!);
+      rows = piv.pivoted;
+      seriesNames = piv.seriesKeys;
+    } else {
+      rows = data;
+      seriesNames = rawValueKeys;
+    }
+
+    // Render keys are opaque, sequential ids (`s0`, `s1`, …) — never derived
+    // from the name. This guarantees a unique, valid CSS-var/dataKey identifier
+    // per series, so distinct names that would mangle to the same string (e.g.
+    // `a-b` and `a b`) can't collide and overwrite each other. The original name
+    // stays as the label.
+    const renderKeyByName = new Map<string, string>();
+    for (const name of seriesNames) {
+      const renderKey = `s${seriesIndex}`;
+      renderKeyByName.set(name, renderKey);
+      valueKeys.push(renderKey);
+      chartConfig[renderKey] = {
+        label: name,
+        color: COLORS[seriesIndex % COLORS.length],
+      };
+      samplesByKey.set(renderKey, new Map());
+      seriesIndex++;
+    }
+
+    for (const row of rows) {
+      const ts = toTimestamp(row[tk]);
+      let entry = byTs.get(ts);
+      if (!entry) {
+        entry = { [TS_KEY]: ts };
+        byTs.set(ts, entry);
+      }
+      for (const name of seriesNames) {
+        // Only record a sample where this series actually has one. A pivoted row
+        // carries only the groups present at its timestamp, so a missing key is
+        // "not sampled here" — NOT a gap — and must not appear in this series'
+        // data (where it would break the line).
+        if (!(name in row)) continue;
+        const renderKey = renderKeyByName.get(name)!;
+        // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
+        // recharts plots them; non-numeric values become null (a gap).
+        const value = toNumber(row[name]);
+        entry[renderKey] = value;
+        samplesByKey.get(renderKey)!.set(ts, value);
+      }
+    }
+  });
+
+  const seriesData: Record<string, Array<Record<string, unknown>>> = {};
+  for (const key of valueKeys) {
+    seriesData[key] = buildSeriesData(samplesByKey.get(key)!, key, domain);
+  }
+
+  return {
+    chartData: clampMerged(byTs, domain),
+    valueKeys,
+    chartConfig,
+    seriesData,
+  };
+}

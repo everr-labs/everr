@@ -1,0 +1,138 @@
+---
+title: Organizing Dashboards and Projects
+description: Use directories for folders, manage dashboards from multiple repos with projects, and apply from CI.
+---
+
+As you add dashboards, two things matter: how they're grouped in the UI, and how multiple teams or repos contribute without stepping on each other. Both come from how `everr apply` works.
+
+## Folders come from directories
+
+The dashboards index shows a folder tree. You don't define folders — they're derived from the directory each file sits in, relative to the directory you applied.
+
+```
+dashboards/
+  everr.yaml                    -> manifest (declares the projects)
+  overview.yaml                 -> root
+  platform/
+    api-latency.yaml            -> folder "platform"
+    db_health.yaml              -> folder "platform"
+  team_payments/
+    checkout/
+      funnel.yaml               -> folder "team payments / checkout"
+```
+
+Directory segments become the folder path, joined by ` / `. Underscores and hyphens in segment names are shown as spaces (`team_payments` → `team payments`). Move a file to a different directory and re-apply, and the dashboard moves folders. There are no folder objects to create, rename, or delete.
+
+## The manifest declares what you manage
+
+Every apply directory must contain an `everr.yaml` (or `everr.yml`) at its root that lists the projects it manages:
+
+```yaml
+# dashboards/everr.yaml
+projects:
+  - default
+  - platform
+```
+
+This list is the **authoritative reconcile scope**. `everr apply` reads and reconciles exactly the projects named here — nothing else is touched. There is no implicit `default`: to manage the default project you must list `default` explicitly. Every dashboard's `metadata.project` (or `default` when omitted) must appear in the list, or apply rejects it, naming the file and project.
+
+## Projects: who owns what
+
+Every dashboard belongs to a project, declared in `metadata.project` (defaults to `default`). A project is an identifier you choose for a set of dashboards — typically one per repo or team (`platform`, `team-payments`). It does two things:
+
+1. **Namespaces identity.** A dashboard's full identity is `project` + `slug`, and its URL is `/dashboards/<project>/<slug>`. Two projects can both have an `overview` dashboard without colliding.
+2. **Scopes reconciliation.** `everr apply` makes each declared project's dashboards exactly match its files — and only affects the projects listed in `everr.yaml`. It can never modify another project's (or another organization's) dashboards.
+
+This is what makes multiple repos safe. Each repo's `everr.yaml` lists only its own projects, so repos with disjoint project lists never affect each other — a repo can only ever change the dashboards in the projects it declares.
+
+```yaml
+# platform repo — dashboards/everr.yaml
+projects:
+  - platform
+```
+
+```yaml
+# platform repo — dashboards/api-latency.yaml
+kind: Dashboard
+metadata:
+  name: api-latency
+  project: platform
+spec:
+  ...
+```
+
+```yaml
+# payments repo — dashboards/everr.yaml
+projects:
+  - team-payments
+```
+
+```yaml
+# payments repo — dashboards/checkout-funnel.yaml
+kind: Dashboard
+metadata:
+  name: checkout-funnel
+  project: team-payments
+spec:
+  ...
+```
+
+Apply each repo independently:
+
+```sh
+# in the platform repo
+everr apply ./dashboards
+
+# in the payments repo, independently
+everr apply ./dashboards
+```
+
+## Full reconcile, scoped to the declared projects
+
+`everr apply` is declarative. For each project listed in `everr.yaml` it makes the live dashboards exactly match the files:
+
+- **create** dashboards whose files are new,
+- **update** dashboards whose files changed,
+- **delete** dashboards whose files are no longer present.
+
+There is no separate prune step — removing a file removes the dashboard on the next apply, moving a dashboard's file between two declared projects relocates it (no duplicate), and emptying a declared project removes its last dashboard. It's safe because reconciliation only ever applies within the projects named in `everr.yaml`. Always preview with `--dry-run` first:
+
+```sh
+everr apply ./dashboards --dry-run
+```
+
+```
+(dry run) Dashboard: 1 created, 2 updated, 1 deleted
+  + db-health
+  ~ api-latency
+  ~ overview
+  - legacy-dashboard
+```
+
+## Applying from CI
+
+By default `everr apply` uses your `everr cloud login` session and prints the destination organization before writing. For CI and other non-interactive contexts, set `EVERR_API_TOKEN` to an organization ingest key instead. If `EVERR_API_URL` is not set, the base URL falls back to the one saved by a prior `everr cloud login`.
+
+```yaml
+# .github/workflows/dashboards.yml
+name: Apply dashboards
+on:
+  push:
+    branches: [main]
+    paths: ["dashboards/**"]
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: everr apply ./dashboards --yes
+        env:
+          EVERR_API_TOKEN: ${{ secrets.EVERR_API_TOKEN }}
+          EVERR_API_URL: ${{ vars.EVERR_API_URL }}
+```
+
+`--yes` (or `-y`) skips the confirmation prompt that apply shows before writing. It is required in non-interactive contexts such as CI or piped scripts. Use `--dry-run` instead to preview the diff without writing anything.
+
+Gate the apply on your default branch so dashboards change only after review — the whole point of defining them as code. To preview in a pull request, run the same command with `--dry-run` and surface the diff.
+
+See the [`everr apply` CLI reference](/docs/reference/cli#dashboards-gitops) for the full flag and environment list.

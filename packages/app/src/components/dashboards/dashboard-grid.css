@@ -1,0 +1,6 @@
+/* The grid is read-only (drag/resize disabled). react-grid-layout positions
+   items via transforms; suppress its transition so items don't animate when the
+   container width changes. */
+.react-grid-item.cssTransforms {
+  transition: none;
+}

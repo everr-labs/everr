@@ -14,10 +14,11 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { SearchIcon } from "lucide-react";
+import { LayoutDashboard, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
+import { dashboardListOptions } from "@/data/dashboards/options";
 import { searchRunsOptions } from "@/data/runs-list/options";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { navMain } from "@/lib/navigation";
@@ -32,6 +33,8 @@ export function CommandBar() {
     ...searchRunsOptions(debouncedSearch),
     enabled: debouncedSearch.length >= 2,
   });
+
+  const { data: dashboardList } = useQuery(dashboardListOptions());
 
   function handleSelect(url: string) {
     toggleCommandBar(false);
@@ -118,6 +121,22 @@ export function CommandBar() {
                     <CommandShortcut>
                       {formatRelativeTime(run.timestamp)}
                     </CommandShortcut>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {dashboardList && dashboardList.length > 0 && (
+              <CommandGroup heading="Dashboards">
+                {dashboardList.map((d) => (
+                  <CommandItem
+                    key={`${d.project}/${d.slug}`}
+                    value={`dashboard ${d.name} ${d.slug}`}
+                    onSelect={() =>
+                      handleSelect(`/dashboards/${d.project}/${d.slug}`)
+                    }
+                  >
+                    <LayoutDashboard />
+                    {d.name}
                   </CommandItem>
                 ))}
               </CommandGroup>

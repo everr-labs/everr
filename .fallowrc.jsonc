@@ -22,7 +22,7 @@
     "packages/docs/routes/**/*.{ts,tsx}",
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
-    "packages/app/src/ssr-shims/**"
+    "packages/app/src/ssr-shims/**",
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
@@ -67,6 +67,11 @@
     },
     {
       "file": "packages/ui/src/components/time-range-picker.tsx",
+      "exports": ["*"]
+    },
+    {
+      // Dashboard Zod schemas — Perses-compat surface (variables/datasources) kept schema-only by design.
+      "file": "packages/app/src/data/dashboards/schema.ts",
       "exports": ["*"]
     }
   ]

@@ -3,7 +3,8 @@ import type { AnyRouteMatch } from "@tanstack/react-router";
 
 export interface BreadcrumbSegment {
   label: string;
-  search: Record<string, unknown>;
+  to?: string;
+  search?: Record<string, unknown>;
 }
 
 declare module "@tanstack/react-router" {

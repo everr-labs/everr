@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
         Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,
         Commands::Skills(args) => skills::run(args)?,
+        Commands::Apply(args) => core::run_apply(args).await?,
     }
 
     Ok(())

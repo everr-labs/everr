@@ -1,4 +1,5 @@
 pub mod api;
+pub mod apply;
 pub mod auth;
 pub mod build;
 pub mod collector;

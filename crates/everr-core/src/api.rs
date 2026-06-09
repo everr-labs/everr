@@ -31,10 +31,20 @@ pub fn is_reauthentication_required(error: &anyhow::Error) -> bool {
     error.downcast_ref::<ReauthenticationRequired>().is_some()
 }
 
+/// Which credential the client authenticates with. Apply's 401 handling differs
+/// by kind: a bad `EVERR_API_TOKEN` can't be fixed by `cloud login`, while a
+/// missing/expired session can.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuthKind {
+    Session,
+    Token,
+}
+
 pub struct ApiClient {
     http: reqwest::Client,
     base_url: String,
     base_endpoint: String,
+    auth_kind: AuthKind,
 }
 
 impl ApiClient {
@@ -58,7 +68,71 @@ impl ApiClient {
             http,
             base_url,
             base_endpoint,
+            auth_kind: AuthKind::Session,
         })
+    }
+
+    /// Build a client from a raw bearer token + base URL (for CI: `EVERR_API_TOKEN`).
+    pub fn from_token(api_base_url: &str, token: &str) -> Result<Self> {
+        let mut headers = HeaderMap::new();
+        let bearer = format!("Bearer {token}");
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&bearer).context("invalid token for Authorization header")?,
+        );
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        let http = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()
+            .context("failed to build HTTP client")?;
+        let base_url = api_base_url.trim_end_matches('/').to_string();
+        let base_endpoint = format!("{base_url}/api/cli");
+        Ok(Self {
+            http,
+            base_url,
+            base_endpoint,
+            auth_kind: AuthKind::Token,
+        })
+    }
+
+    pub async fn apply(
+        &self,
+        request: &crate::apply::ApplyRequest,
+    ) -> Result<crate::apply::ApplySummary> {
+        let response = self
+            .http
+            .post(format!("{}/api/apply", self.base_url))
+            .json(request)
+            .send()
+            .await
+            .context("apply request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            // A 401 means different things per credential: a bad EVERR_API_TOKEN
+            // can't be fixed by `cloud login`, so the token path returns its own
+            // message; a missing/expired session (already refresh-attempted)
+            // routes through the standard reauth path that directs `cloud login`.
+            if status == StatusCode::UNAUTHORIZED {
+                return Err(match self.auth_kind {
+                    AuthKind::Token => anyhow::anyhow!(
+                        "apply was rejected (401 Unauthorized): EVERR_API_TOKEN is missing, \
+                         invalid, or not an organization ingest key."
+                    ),
+                    AuthKind::Session => anyhow::Error::new(ReauthenticationRequired),
+                });
+            }
+            return Err(http_status_error(status, text, "apply"));
+        }
+
+        response
+            .json()
+            .await
+            .context("failed to decode apply response")
     }
 
     pub async fn get_runs_list(&self, query: &[(&str, String)]) -> Result<Value> {
@@ -623,6 +697,86 @@ mod api_client_tests {
             error.to_string(),
             "Session expired. Run `everr cloud login` to re-authenticate."
         );
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn apply_unauthorized_reports_token_error_not_reauthentication() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/apply")
+            .with_status(401)
+            .with_body(r#"{"error":"unauthorized"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_token(&server.url(), "bad-token").unwrap();
+        let request = crate::apply::ApplyRequest {
+            projects: vec![],
+            documents: vec![],
+            dry_run: false,
+        };
+        let error = client.apply(&request).await.unwrap_err();
+
+        // Token path: a 401 must NOT trigger the `cloud login` reauth path.
+        assert!(!is_reauthentication_required(&error));
+        let message = error.to_string();
+        assert!(message.contains("EVERR_API_TOKEN"), "got: {message}");
+        // Must not be the session-reauth message that *directs* a `cloud login`.
+        assert!(!message.contains("Session expired"), "got: {message}");
+        assert!(!message.contains("re-authenticate"), "got: {message}");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn apply_unauthorized_via_session_triggers_reauthentication() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/apply")
+            .with_status(401)
+            .with_body(r#"{"error":"Unauthenticated"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let request = crate::apply::ApplyRequest {
+            projects: vec![],
+            documents: vec![],
+            dry_run: false,
+        };
+        let error = client.apply(&request).await.unwrap_err();
+
+        // Session path: a 401 (after refresh) routes through the standard reauth
+        // path that directs the user to `cloud login` — not the token message.
+        assert!(is_reauthentication_required(&error));
+        let message = error.to_string();
+        assert!(message.contains("cloud login"), "got: {message}");
+        assert!(!message.contains("EVERR_API_TOKEN"), "got: {message}");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn apply_non_auth_failure_surfaces_status_and_body() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/apply")
+            .with_status(400)
+            .with_body(r#"bad.yaml: unknown kind "Gizmo""#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_token(&server.url(), "tok").unwrap();
+        let request = crate::apply::ApplyRequest {
+            projects: vec![],
+            documents: vec![],
+            dry_run: false,
+        };
+        let error = client.apply(&request).await.unwrap_err();
+
+        assert!(!is_reauthentication_required(&error));
+        let message = error.to_string();
+        assert!(message.contains("400"), "got: {message}");
+        assert!(message.contains("Gizmo"), "got: {message}");
         mock.assert_async().await;
     }
 

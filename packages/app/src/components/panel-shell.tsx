@@ -19,6 +19,7 @@ import type { PanelChromeProps } from "./panel-types";
 
 export interface PanelShellProps extends PanelChromeProps {
   status: "pending" | "error" | "success";
+  errorMessage?: string;
   children?: ReactNode;
 }
 
@@ -56,11 +57,13 @@ export function PanelShell({
   titleHint,
   description,
   status,
+  errorMessage,
   variant = "default",
   skeleton,
   icon: Icon,
   action,
   inset = "default",
+  headerClassName,
   className,
   children,
 }: PanelShellProps) {
@@ -111,6 +114,14 @@ export function PanelShell({
           <div className="flex h-[300px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <AlertCircle className="size-8" />
             <p className="text-sm">Failed to load data</p>
+            {errorMessage && (
+              <p
+                className="max-w-full truncate px-4 text-xs"
+                title={errorMessage}
+              >
+                {errorMessage}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -136,15 +147,13 @@ export function PanelShell({
   return (
     <Card inset={inset} className={cn(className)}>
       {hasHeader && (
-        <CardHeader>
+        <CardHeader className={headerClassName}>
           {title && <CardTitle>{title}</CardTitle>}
           {description && <CardDescription>{description}</CardDescription>}
           {action && <CardAction>{action}</CardAction>}
         </CardHeader>
       )}
-      <CardContent className={cn(!hasHeader && "min-h-0 flex-1")}>
-        {children}
-      </CardContent>
+      <CardContent className="min-h-0 flex-1">{children}</CardContent>
     </Card>
   );
 }

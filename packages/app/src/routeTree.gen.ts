@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
+import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
@@ -44,6 +45,7 @@ import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invit
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
+import { Route as AuthenticatedDashboardDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/dashboards/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
@@ -63,6 +65,7 @@ import { Route as AuthenticatedDashboardWorkflowsRepoWorkflowNameRouteImport } f
 import { Route as AuthenticatedDashboardTracesTraceIdModalRouteImport } from './routes/_authenticated/_dashboard/traces/$traceId/modal'
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
 import { Route as AuthenticatedDashboardErrorsFingerprintModalRouteImport } from './routes/_authenticated/_dashboard/errors/$fingerprint/modal'
+import { Route as AuthenticatedDashboardDashboardsProjectSlugRouteImport } from './routes/_authenticated/_dashboard/dashboards/$project.$slug'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
@@ -92,6 +95,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const ApiCliRoute = ApiCliRouteImport.update({
   id: '/api/cli',
   path: '/api/cli',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiApplyRoute = ApiApplyRouteImport.update({
+  id: '/api/apply',
+  path: '/api/apply',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
@@ -251,6 +259,12 @@ const AuthenticatedDashboardRunsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
+const AuthenticatedDashboardDashboardsIndexRoute =
+  AuthenticatedDashboardDashboardsIndexRouteImport.update({
+    id: '/dashboards/',
+    path: '/dashboards/',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const ApiGithubInstallStartRoute = ApiGithubInstallStartRouteImport.update({
   id: '/api/github/install/start',
   path: '/api/github/install/start',
@@ -358,6 +372,12 @@ const AuthenticatedDashboardErrorsFingerprintModalRoute =
     path: '/$fingerprint/modal',
     getParentRoute: () => AuthenticatedDashboardErrorsRoute,
   } as any)
+const AuthenticatedDashboardDashboardsProjectSlugRoute =
+  AuthenticatedDashboardDashboardsProjectSlugRouteImport.update({
+    id: '/dashboards/$project/$slug',
+    path: '/dashboards/$project/$slug',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
   AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
     id: '/jobs/$jobId/',
@@ -375,6 +395,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
   '/device': typeof AuthenticatedDeviceRoute
+  '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -414,8 +435,10 @@ export interface FileRoutesByFullPath {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
+  '/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardErrorsFingerprintModalRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/traces/$traceId/modal': typeof AuthenticatedDashboardTracesTraceIdModalRoute
@@ -429,6 +452,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
   '/device': typeof AuthenticatedDeviceRoute
+  '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -466,8 +490,10 @@ export interface FileRoutesByTo {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/dashboards': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows': typeof AuthenticatedDashboardWorkflowsIndexRoute
+  '/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardErrorsFingerprintModalRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/traces/$traceId/modal': typeof AuthenticatedDashboardTracesTraceIdModalRoute
@@ -485,6 +511,7 @@ export interface FileRoutesById {
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
+  '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -525,8 +552,10 @@ export interface FileRoutesById {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/_authenticated/_dashboard/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/_authenticated/_dashboard/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
+  '/_authenticated/_dashboard/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
   '/_authenticated/_dashboard/errors/$fingerprint/modal': typeof AuthenticatedDashboardErrorsFingerprintModalRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/_authenticated/_dashboard/traces/$traceId/modal': typeof AuthenticatedDashboardTracesTraceIdModalRoute
@@ -542,6 +571,7 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/device'
+    | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
@@ -581,8 +611,10 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/dashboards/'
     | '/runs/'
     | '/workflows/'
+    | '/dashboards/$project/$slug'
     | '/errors/$fingerprint/modal'
     | '/runs/$traceId/trace'
     | '/traces/$traceId/modal'
@@ -596,6 +628,7 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/device'
+    | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
@@ -633,8 +666,10 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/dashboards'
     | '/runs'
     | '/workflows'
+    | '/dashboards/$project/$slug'
     | '/errors/$fingerprint/modal'
     | '/runs/$traceId/trace'
     | '/traces/$traceId/modal'
@@ -651,6 +686,7 @@ export interface FileRouteTypes {
     | '/_auth/_guest'
     | '/_authenticated/_dashboard'
     | '/_authenticated/device'
+    | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/webhook/github'
@@ -691,8 +727,10 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/_authenticated/_dashboard/dashboards/'
     | '/_authenticated/_dashboard/runs/'
     | '/_authenticated/_dashboard/workflows/'
+    | '/_authenticated/_dashboard/dashboards/$project/$slug'
     | '/_authenticated/_dashboard/errors/$fingerprint/modal'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/_authenticated/_dashboard/traces/$traceId/modal'
@@ -707,6 +745,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  ApiApplyRoute: typeof ApiApplyRoute
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
@@ -759,6 +798,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cli'
       fullPath: '/api/cli'
       preLoaderRoute: typeof ApiCliRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/apply': {
+      id: '/api/apply'
+      path: '/api/apply'
+      fullPath: '/api/apply'
+      preLoaderRoute: typeof ApiApplyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/device': {
@@ -964,6 +1010,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsRoute
     }
+    '/_authenticated/_dashboard/dashboards/': {
+      id: '/_authenticated/_dashboard/dashboards/'
+      path: '/dashboards'
+      fullPath: '/dashboards/'
+      preLoaderRoute: typeof AuthenticatedDashboardDashboardsIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/api/github/install/start': {
       id: '/api/github/install/start'
       path: '/api/github/install/start'
@@ -1096,6 +1149,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/errors/$fingerprint/modal'
       preLoaderRoute: typeof AuthenticatedDashboardErrorsFingerprintModalRouteImport
       parentRoute: typeof AuthenticatedDashboardErrorsRoute
+    }
+    '/_authenticated/_dashboard/dashboards/$project/$slug': {
+      id: '/_authenticated/_dashboard/dashboards/$project/$slug'
+      path: '/dashboards/$project/$slug'
+      fullPath: '/dashboards/$project/$slug'
+      preLoaderRoute: typeof AuthenticatedDashboardDashboardsProjectSlugRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
       id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
@@ -1233,7 +1293,9 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
   AuthenticatedDashboardErrorsFingerprintRoute: typeof AuthenticatedDashboardErrorsFingerprintRoute
   AuthenticatedDashboardTracesTraceIdRoute: typeof AuthenticatedDashboardTracesTraceIdRoute
+  AuthenticatedDashboardDashboardsIndexRoute: typeof AuthenticatedDashboardDashboardsIndexRoute
   AuthenticatedDashboardWorkflowsIndexRoute: typeof AuthenticatedDashboardWorkflowsIndexRoute
+  AuthenticatedDashboardDashboardsProjectSlugRoute: typeof AuthenticatedDashboardDashboardsProjectSlugRoute
   AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
 }
 
@@ -1264,8 +1326,12 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardErrorsFingerprintRoute,
     AuthenticatedDashboardTracesTraceIdRoute:
       AuthenticatedDashboardTracesTraceIdRoute,
+    AuthenticatedDashboardDashboardsIndexRoute:
+      AuthenticatedDashboardDashboardsIndexRoute,
     AuthenticatedDashboardWorkflowsIndexRoute:
       AuthenticatedDashboardWorkflowsIndexRoute,
+    AuthenticatedDashboardDashboardsProjectSlugRoute:
+      AuthenticatedDashboardDashboardsProjectSlugRoute,
     AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute:
       AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute,
   }
@@ -1353,6 +1419,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  ApiApplyRoute: ApiApplyRoute,
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   WebhookGithubRoute: WebhookGithubRoute,

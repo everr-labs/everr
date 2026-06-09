@@ -9,7 +9,9 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from "drizzle-orm/pg-core";
+import type { Dashboard } from "@/data/dashboards/schema";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
   "active",
@@ -164,6 +166,47 @@ export const workflowJobs = pgTable(
     index("workflow_jobs_tenant_trace_id_idx").on(
       table.organizationId,
       table.traceId,
+    ),
+  ],
+);
+
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id").notNull(),
+    // Perses project namespace that owns this dashboard (identity + prune
+    // scope). Denormalized from the document's metadata.project (default
+    // "default") so identity/indexing never reads from JSONB.
+    project: text("project").notNull(),
+    // URL-safe per-project identifier (the document's metadata.name, or the
+    // filename when that's absent). Part of the identity tuple below.
+    slug: text("slug").notNull(),
+    // Derived display path ("Team / Latency"); empty string = root. Comes from
+    // the file's directory tree, not the document, so it's stored separately.
+    folderPath: text("folder_path").notNull().default(""),
+    // The whole Perses document, stored verbatim so unknown fields survive a
+    // read/apply round-trip. Identity/index data (project, slug, folderPath)
+    // lives in dedicated columns above.
+    document: jsonb("document").notNull().$type<Dashboard>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Identity is (org, project, slug): same-named dashboards in different
+    // projects coexist; an in-project duplicate is rejected.
+    uniqueIndex("dashboards_tenant_project_slug_uq").on(
+      table.organizationId,
+      table.project,
+      table.slug,
+    ),
+    index("dashboards_tenant_updated_idx").on(
+      table.organizationId,
+      sql`updated_at DESC`,
     ),
   ],
 );

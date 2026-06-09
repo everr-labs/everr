@@ -16,7 +16,7 @@ export interface RefreshInterval {
 }
 
 export const REFRESH_INTERVALS: readonly RefreshInterval[] = [
-  { label: "Off", value: "" },
+  { label: "Off", value: "off" },
   { label: "5s", value: "5s", ms: 5_000 },
   { label: "10s", value: "10s", ms: 10_000 },
   { label: "30s", value: "30s", ms: 30_000 },
@@ -78,7 +78,9 @@ export function RefreshPicker({
             <Button variant="outline" className="rounded-l-none gap-1 px-1.5" />
           }
         >
-          {value && <span className="text-xs text-center">{activeLabel}</span>}
+          {getRefreshIntervalMs(value) !== null && (
+            <span className="text-xs text-center">{activeLabel}</span>
+          )}
           <ChevronDownIcon className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

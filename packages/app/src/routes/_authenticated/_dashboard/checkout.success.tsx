@@ -44,7 +44,11 @@ function CheckoutSuccessPage() {
               Checkout ID: {checkout_id}
             </p>
           ) : null}
-          <Button className="w-full" render={<Link to="/" />}>
+          <Button
+            className="w-full"
+            nativeButton={false}
+            render={<Link to="/" />}
+          >
             Back to dashboard
           </Button>
         </CardContent>

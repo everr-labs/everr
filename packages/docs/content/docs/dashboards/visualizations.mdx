@@ -1,0 +1,75 @@
+---
+title: Visualizations
+description: The built-in panel visualizations and the spec options each one accepts.
+---
+
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships three visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+
+All three infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
+
+## TimeSeriesChart
+
+Line chart over time. The query's time column (detected by name: `ts`, `time`, `timestamp`, `date`, `datetime`, `created_at`, `period`, `bucket`, `interval`) is the x-axis; numeric columns become series, and a string column pivots a value column into one line per label. Supports drag-to-zoom (writes the new range to the URL).
+
+```yaml
+plugin:
+  kind: TimeSeriesChart
+  spec:
+    unit: ms
+    showLegend: true
+    lineWidth: 1.5
+    curveType: monotone
+    connectNulls: false
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `unit` | string | `""` | Suffix appended to axis/values. |
+| `showLegend` | boolean | `false` | Show the series legend. |
+| `lineWidth` | number | `1.5` | Stroke width. |
+| `curveType` | enum | `monotone` | One of `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter`. |
+| `connectNulls` | boolean | `false` | Bridge gaps instead of breaking the line. |
+
+## Table
+
+Renders every column the query returns, in order, as a table. With multiple queries it shows a per-query selector.
+
+```yaml
+plugin:
+  kind: Table
+  spec:
+    stickyHeader: true
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `stickyHeader` | boolean | `false` | Keep the header visible while scrolling. |
+
+## StatChart
+
+Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Return one numeric column; include a time column to enable the sparkline. Multiple resulting series render as multiple tiles.
+
+```yaml
+plugin:
+  kind: StatChart
+  spec:
+    calculation: last
+    unit: ms
+    sparkline: true
+    thresholds:
+      mode: absolute
+      defaultColor: "#22c55e"
+      steps:
+        - { value: 200, color: "#f59e0b" }
+        - { value: 500, color: "#ef4444" }
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`. |
+| `unit` | string | `""` | Suffix appended to the value. |
+| `sparkline` | boolean | `false` | Draw a sparkline (needs a time column). |
+| `thresholds` | object | — | Color the value (and sparkline) by thresholds. |
+| `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against the series max. |
+| `thresholds.defaultColor` | string | — | Color below the first step. |
+| `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. |

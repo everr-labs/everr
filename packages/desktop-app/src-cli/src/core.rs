@@ -597,6 +597,135 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
     query.push(("offset", offset.to_string()));
 }
 
+pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
+    use everr_core::apply::{ApplyRequest, load_apply_manifest, load_resource_documents};
+
+    let dir = std::path::Path::new(&args.dir);
+    if !dir.is_dir() {
+        anyhow::bail!("{} is not a directory", args.dir);
+    }
+    let documents = load_resource_documents(dir)?;
+    if documents.is_empty() {
+        eprintln!(
+            "warning: no resource files (.yaml/.yml/.json) found under {}",
+            args.dir
+        );
+    }
+
+    // The required everr.yaml declares which projects this run manages (the
+    // reconcile scope). Absent -> error before any request.
+    let projects = load_apply_manifest(dir)?;
+
+    // Credential precedence: an ingest key in EVERR_API_TOKEN (CI) wins;
+    // otherwise fall back to the logged-in session (`cloud login`).
+    let client = match std::env::var("EVERR_API_TOKEN")
+        .ok()
+        .filter(|t| !t.is_empty())
+    {
+        Some(token) => {
+            let base_url = std::env::var("EVERR_API_URL")
+                .ok()
+                .filter(|u| !u.is_empty())
+                .or_else(persisted_api_base_url)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "EVERR_API_TOKEN is set but no base URL; set EVERR_API_URL"
+                    )
+                })?;
+            everr_core::api::ApiClient::from_token(&base_url, &token)?
+        }
+        None => {
+            let session = crate::auth::require_session_with_refresh().await?;
+            everr_core::api::ApiClient::from_session(&session)?
+        }
+    };
+
+    // Plan first (dry run) to learn the destination org and the change set.
+    let plan = client
+        .apply(&ApplyRequest {
+            projects: projects.clone(),
+            documents: documents.clone(),
+            dry_run: true,
+        })
+        .await?;
+    print_apply_summary(&plan, true);
+
+    if args.dry_run {
+        return Ok(());
+    }
+
+    let has_changes = plan.results.iter().any(|r| {
+        !r.created.is_empty() || !r.updated.is_empty() || !r.deleted.is_empty()
+    });
+    if !has_changes {
+        println!("Nothing to apply.");
+        return Ok(());
+    }
+
+    // Confirm the (destructive) change before writing.
+    if !args.yes {
+        if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+            let proceed = cliclack::confirm(format!(
+                "Apply to «{}»?",
+                plan.organization.name
+            ))
+            .interact()?;
+            if !proceed {
+                println!("Aborted.");
+                return Ok(());
+            }
+        } else {
+            anyhow::bail!(
+                "refusing to apply to «{}» without confirmation; re-run with --yes",
+                plan.organization.name
+            );
+        }
+    }
+
+    let summary = client
+        .apply(&ApplyRequest {
+            projects,
+            documents,
+            dry_run: false,
+        })
+        .await?;
+    print_apply_summary(&summary, false);
+    Ok(())
+}
+
+fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
+    let label = if plan { "(plan) " } else { "" };
+    println!("{label}Destination org: «{}»", summary.organization.name);
+    for r in &summary.results {
+        println!(
+            "{label}{}: {} created, {} updated, {} deleted",
+            r.kind,
+            r.created.len(),
+            r.updated.len(),
+            r.deleted.len()
+        );
+        for s in &r.created {
+            println!("  + {s}");
+        }
+        for s in &r.updated {
+            println!("  ~ {s}");
+        }
+        for s in &r.deleted {
+            println!("  - {s}");
+        }
+    }
+}
+
+fn persisted_api_base_url() -> Option<String> {
+    let store = crate::auth::state_store();
+    // We load whatever session is persisted and return its base URL.
+    // `load_session` (without a filter) loads the most-recently saved session.
+    store
+        .load_session()
+        .ok()
+        .map(|session| session.api_base_url)
+}
+
 #[cfg(test)]
 mod tests {
     use everr_core::git::parse_repo_from_remote_url;

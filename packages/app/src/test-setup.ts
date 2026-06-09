@@ -65,9 +65,11 @@ vi.mock("@tanstack/react-start", () => ({
 
 vi.mock("@/lib/clickhouse", () => {
   const query = vi.fn();
+  const querySqlApi = vi.fn();
 
   return {
     query,
+    querySqlApi,
     createClickhouseQuery: vi.fn(
       (tenantId: number) => (sql: string, params?: Record<string, unknown>) =>
         query(sql, params, tenantId),
@@ -82,36 +84,57 @@ vi.mock("@/lib/clickhouse", () => {
 
 vi.mock("@/lib/serverFn", async () => {
   const { query } = await import("@/lib/clickhouse");
+  const { auth } = await import("@/lib/auth.server");
 
-  return {
-    authMiddleware: { __handler: vi.fn() },
-    requireOrgMiddleware: { __handler: vi.fn() },
-    createAuthenticatedServerFn: vi.fn(() =>
-      makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
-        return fn({
-          data: opts?.data,
-          context: {
+  // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
+  const makeAuthChain = () =>
+    makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
+      return fn({
+        data: opts?.data,
+        context: {
+          session: {
             session: {
-              session: {
-                userId: "test_user",
-                activeOrganizationId: "test_org",
-                id: "test_session",
-              },
-              user: {
-                id: "test_user",
-                email: "test@example.com",
-                name: "Test User",
-                image: null,
-              },
+              userId: "test_user",
+              activeOrganizationId: "test_org",
+              id: "test_session",
             },
-            clickhouse: {
-              query: <T>(sql: string, params?: Record<string, unknown>) =>
-                query<T>(sql, "42", params),
+            user: {
+              id: "test_user",
+              email: "test@example.com",
+              name: "Test User",
+              image: null,
             },
           },
-        });
-      }),
-    ),
+          clickhouse: {
+            query: <T>(sql: string, params?: Record<string, unknown>) =>
+              query<T>(sql, "42", params),
+          },
+        },
+      });
+    });
+
+  // authMiddleware only: pass through whatever auth.api.getSession() returned
+  // (the same source the real middleware reads), apply the same unauthenticated
+  // guard, and add NO `clickhouse` and NO active-org guarantee. Deriving from
+  // the mock — rather than hardcoding activeOrganizationId: undefined — means the
+  // default exercises the active-org path (getSession returns "test_org"), while
+  // a test that wants the no-org branch just overrides auth.api.getSession.
+  const makePartialAuthChain = () =>
+    makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
+      const session = await auth.api.getSession({ headers: new Headers() });
+      if (!session?.session || !session?.user) {
+        throw new Error("Unauthenticated");
+      }
+      return fn({
+        data: opts?.data,
+        context: { session },
+      });
+    });
+
+  return {
+    requireOrgMiddleware: { __handler: vi.fn() },
+    createAuthenticatedServerFn: vi.fn(makeAuthChain),
+    createPartiallyAuthenticatedServerFn: vi.fn(makePartialAuthChain),
   };
 });
 

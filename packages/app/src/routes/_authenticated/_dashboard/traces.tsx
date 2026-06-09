@@ -45,7 +45,7 @@ function TracesSearchPage() {
     <TracesSearch
       repo={remoteTracesRepo}
       timeRange={timeRange}
-      refresh={search.refresh ?? ""}
+      refresh={search.refresh ?? "off"}
       search={{
         namespace: search.namespace,
         service: search.service,
