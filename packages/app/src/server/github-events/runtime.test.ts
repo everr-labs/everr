@@ -284,7 +284,7 @@ describe("github events runtime", () => {
       "org-1",
     );
     expect(runtimeMocks.startActiveSpan).toHaveBeenCalledWith(
-      "replay github webhook to collector",
+      "github_events.jobs.replay_webhook_to_collector",
       {
         attributes: {
           "github.event.type": "workflow_run",
@@ -316,7 +316,7 @@ describe("github events runtime", () => {
       }),
     );
     expect(runtimeMocks.startActiveSpan).toHaveBeenCalledWith(
-      "handle github status event",
+      "github_events.jobs.handle_status_event",
       {
         attributes: {
           "github.event.type": "workflow_job",
@@ -342,7 +342,7 @@ describe("github events runtime", () => {
       message: "TerminalEventError: collector rejected event",
     });
     expect(runtimeMocks.serverLoggerError).toHaveBeenCalledWith(
-      "github_events.collector.terminal_error",
+      "github_events.jobs.collector_terminal_error",
       expect.objectContaining({
         "exception.message": "collector rejected event",
         "exception.type": "TerminalEventError",
@@ -368,7 +368,7 @@ describe("github events runtime", () => {
       message: "TerminalEventError: workflow job missing data",
     });
     expect(runtimeMocks.serverLoggerError).toHaveBeenCalledWith(
-      "github_events.status.terminal_error",
+      "github_events.jobs.handle_status_terminal_error",
       expect.objectContaining({
         "exception.message": "workflow job missing data",
         "exception.type": "TerminalEventError",
@@ -420,7 +420,7 @@ describe("github events runtime", () => {
     });
 
     expect(runtimeMocks.serverLoggerError).toHaveBeenCalledWith(
-      "github_events.graphile_worker.pool_listen_error",
+      "github_events.jobs.pool_listen_error",
       expect.objectContaining({
         "exception.message": "listen failed",
         "exception.type": "Error",
