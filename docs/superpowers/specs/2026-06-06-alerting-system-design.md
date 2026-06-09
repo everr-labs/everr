@@ -6,9 +6,9 @@ Date: 2026-06-06
 
 Everr will add a YAML-defined alerting system for free-form observability alerts. The v1 model avoids SLO/SLI terminology and uses a Grafana-style rule shape: users write a ClickHouse SQL query that returns violating rows. If the query returns at least one row, the alert is firing. If it returns zero rows, the alert resolves.
 
-Alert definitions are managed as YAML resource files in an apply directory, not through a hidden manifest. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can apply alert definitions through the shared apply flow. Apply reads alert resources from the requested directory, derives alert identity from `metadata.project` and `metadata.name`, and applies the diff to Everr.
+Alert definitions are managed as YAML resource files in an apply directory. The apply root has an `everr.yml` file that contains only a `repoid` string used as the stable repository identifier. Users can test definitions locally through the Everr CLI against cloud data by default, or local telemetry with `--local`. Users can apply dashboards and alerts through the shared apply flow. Apply reads dashboard and alert resources from the requested directory, sends one normalized `state` payload to the apply API, derives alert identity from `repoid` and `metadata.name`, and applies the diff to Everr.
 
-Alert orchestration uses Graphile Worker with the existing Postgres database. Everr-owned alert tables remain the source of truth for schedules, state, events, and retention. Graphile Worker is used for distributed queueing, retries, and a small number of scanner jobs; Everr does not create one cron task per alert.
+Alert orchestration uses Graphile Worker with the existing Postgres database. Everr-owned Postgres tables remain the source of truth for definitions, scheduling, and current state. Alert event history is stored in ClickHouse. Graphile Worker is used for distributed queueing, retries, and a small number of scanner jobs; Everr does not create one cron task per alert.
 
 ## Goals
 
@@ -16,21 +16,23 @@ Alert orchestration uses Graphile Worker with the existing Postgres database. Ev
 - Make alert rules simple to understand: a query returns bad rows, so the alert fires.
 - Run orchestration with Graphile Worker.
 - Use the existing Postgres database for queue persistence and app alert state.
-- Retain Everr-owned alert state, events, and evidence for 7 days.
-- Keep Graphile Worker job cleanup bounded; Everr-owned alert history remains the authoritative 7-day record.
+- Retain Everr-owned alert state while definitions are active, and retain alert event history using the same per-tenant retention window as logs.
+- Keep Graphile Worker job cleanup bounded; ClickHouse `alert_events` remains the authoritative history for the tenant's logs retention window.
 - Test alert resource files from the CLI against cloud or local telemetry.
 - Apply alert resource files from the CLI and validate SQL before activation.
 - Store source metadata so web users can open the definition in the repository.
 - Deliver v1 alert notifications through one organization-level alert settings config.
 - Support email delivery through Resend and Telegram delivery in the MVP.
+- Allow org admins and owners to silence an alert for a bounded time period.
 
 ## Non-Goals
 
 - No SLO, SLI, objective, error-budget, or burn-rate model in v1.
 - No PromQL or SLOTH compatibility beyond loose inspiration from YAML-based declarations.
 - No per-row alert instances in v1. A rule has one alert state even if it returns many rows.
-- No standalone delete command in the first CLI scope. `everr apply <dir>` removes rules omitted from the applied files for each project present in that apply.
+- No standalone delete command in the first CLI scope. `everr apply <dir>` removes rules omitted from the applied state for the target `repoid`.
 - No Slack, PagerDuty, or generic webhook notification targets in v1.
+- No YAML-managed silences in v1. Silences are operational web/API state, not repo state.
 - No durable workflow engine in v1. Alert evaluation is a scheduled queue job plus app-owned state transitions.
 
 ## Current Project Context
@@ -107,17 +109,23 @@ References checked:
 
 ## YAML Format
 
-Alert rules are YAML resource documents. Apply reads `.yaml` and `.yml` files from the requested directory recursively. Directory layout provides source/folder metadata, but alert identity lives in the document.
+The apply root contains `everr.yml`. It is a repo identity file, not a resource document, and it contains only `repoid`.
+
+```yaml
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+```
+
+`repoid` is any non-empty string that is unique and stable for the repository. We recommend UUIDv5 generated from a canonical repository identifier, such as the canonical Git remote URL, but the schema does not require UUID syntax.
+
+Alert rules are YAML resource documents. Apply reads `.yaml` and `.yml` resource files from the requested directory recursively, excluding `everr.yml`. Directory layout provides source/folder metadata, but alert identity lives in `everr.yml` plus the document.
 
 ```yaml
 kind: AlertRule
 metadata:
   name: high-5xx-routes
-  project: platform
   labels:
     team: platform
 spec:
-  severity: critical
   evaluationInterval: 1m
   window: 5m
   summary: "${row_count} routes have elevated 5xxs"
@@ -153,18 +161,19 @@ spec:
 
 Rules:
 
+- `everr.yml` must contain only `repoid`.
+- `repoid` is required, non-empty, and is the stable repository identifier for apply ownership.
+- `repoid` should be globally unique. UUIDv5 is recommended, but any string is accepted.
 - `kind` must be `AlertRule` for alert definitions.
 - `metadata.name` is required and is the alert slug.
-- `metadata.project` is optional and defaults to `default`.
-- Alert identity is `(organization_id, project, slug)`, where `project` comes from `metadata.project` and `slug` comes from `metadata.name`.
-- Alert names must be unique within a project across all alert resources in the applied directory.
+- Alert identity is `(organization_id, repoid, slug)`, where `repoid` comes from `everr.yml` and `slug` comes from `metadata.name`.
+- Alert names must be unique within the `repoid` across all alert resources in the applied state.
 - Apply upserts by alert identity.
-- `metadata.previousName` is optional and supports a one-time rename from `(organization_id, project, previousName)` to `(organization_id, project, name)`.
-- Without `previousName`, changing an alert name is treated as remove old alert plus add new alert.
-- `severity` is fixed to `critical` or `warning`.
-- `critical` and `warning` both create alert events and use the configured delivery targets.
-- Severity is included in persisted state, history logs, and delivered messages.
+- Changing an alert name is treated as remove old alert plus add new alert.
+- Alert rules do not include severity in v1.
+- Firing and resolved events use the configured delivery targets.
 - `AlertSettings.spec.notificationDelivery` is the single organization-level alert delivery config.
+- `AlertSettings` is not an alert and does not participate in alert identity. If present, the resource parser maps it to `state.alertSettings`.
 - MVP delivery targets are `email` and `telegram`.
 - Email delivery uses Resend.
 - Telegram delivery sends to configured chat IDs.
@@ -184,6 +193,97 @@ Rules:
 - The alert engine must only expand allowlisted variables and generated fragments; it must not support arbitrary expression interpolation.
 - Apply validation rejects unknown variables and any variable not explicitly supported by the alert renderer.
 
+## YAML Validation Schemas
+
+Alert YAML MUST use the same validation process as dashboard YAML: parse YAML into unknown data, run the strict Zod schema with `safeParse`, report path-aware validation errors, and only then normalize resources into the apply state. The alert path must not hand-roll schema checks separately from the dashboard validation pipeline.
+
+The Zod definitions for the alerting pieces are:
+
+```ts
+import { z } from "zod";
+
+const NonEmptyStringSchema = z.string().min(1);
+const LabelsSchema = z.record(NonEmptyStringSchema, NonEmptyStringSchema);
+
+export const EverrConfigYamlSchema = z
+  .object({
+    repoid: NonEmptyStringSchema,
+  })
+  .strict();
+
+export const AlertRuleYamlSchema = z
+  .object({
+    kind: z.literal("AlertRule"),
+    metadata: z
+      .object({
+        name: NonEmptyStringSchema,
+        labels: LabelsSchema.optional(),
+      })
+      .strict(),
+    spec: z
+      .object({
+        evaluationInterval: NonEmptyStringSchema,
+        window: NonEmptyStringSchema,
+        summary: NonEmptyStringSchema,
+        description: z.string().optional(),
+        query: NonEmptyStringSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
+export const AlertSettingsYamlSchema = z
+  .object({
+    kind: z.literal("AlertSettings"),
+    spec: z
+      .object({
+        notificationDelivery: z
+          .object({
+            email: z
+              .object({
+                enabled: z.boolean(),
+                to: z.array(NonEmptyStringSchema).default([]),
+              })
+              .strict()
+              .optional(),
+            telegram: z
+              .object({
+                enabled: z.boolean(),
+                chatIds: z.array(NonEmptyStringSchema).default([]),
+              })
+              .strict()
+              .optional(),
+          })
+          .strict(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const AlertYamlResourceSchema = z.discriminatedUnion("kind", [
+  AlertRuleYamlSchema,
+  AlertSettingsYamlSchema,
+]);
+
+export const ApplyStateSchema = z
+  .object({
+    dashboards: z.array(DashboardYamlSchema),
+    alerts: z.array(AlertRuleYamlSchema),
+    alertSettings: AlertSettingsYamlSchema.optional(),
+  })
+  .strict();
+
+export const ApplyRequestSchema = z
+  .object({
+    repoid: NonEmptyStringSchema,
+    state: ApplyStateSchema,
+    source: ApplySourceSchema.optional(),
+  })
+  .strict();
+```
+
+`DashboardYamlSchema` and `ApplySourceSchema` come from the existing shared apply implementation. The alert implementation must import those schemas instead of duplicating them.
+
 ## CLI Flow
 
 Extend apply for alert resources and add an `alerts` test command:
@@ -200,7 +300,7 @@ everr apply <dir>
 - Targets local telemetry with `--local`.
 - Reads alert YAML resources from the requested directory recursively.
 - Parses YAML.
-- Validates schema, window formats, template syntax, and alert variable expansion.
+- Validates schema through the same Zod pipeline used by dashboards, then validates window formats, template syntax, and alert variable expansion.
 - Runs each alert query with its declared `window`.
 - Prints whether each alert is currently firing.
 - Prints bounded evidence rows.
@@ -216,17 +316,36 @@ everr apply <dir>
 - The server distinguishes credential type by token shape and resolves the destination organization from that credential. Alert files do not declare an organization and there is no `--org` flag.
 - The plan response echoes the destination organization before writes. Interactive terminals require confirmation when there are changes; non-interactive runs require `--yes`.
 - Is allowed for any organization member.
-- Reads alert YAML resources from the requested directory recursively.
-- Submits the raw YAML fragments and parsed metadata.
+- Reads `everr.yml` from the apply root and validates it with `EverrConfigYamlSchema`.
+- Reads dashboard and alert YAML resources from the requested directory recursively, excluding `everr.yml`.
+- Validates alert YAML through the same Zod pipeline used by dashboards.
+- Builds and submits one apply API payload containing the complete desired resource state:
+
+```json
+{
+  "repoid": "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1",
+  "state": {
+    "dashboards": [],
+    "alerts": []
+  },
+  "source": {
+    "branch": "main",
+    "commitSha": "abc123",
+    "remote": "git@github.com:example/repo.git"
+  }
+}
+```
+
+- The apply API diffs the submitted `state` against the persisted dashboards and alerts for `(organization_id, repoid)`.
 - Records git-derived repo, branch, commit SHA, remote, and config file path when available.
 - Validates the alert settings delivery config.
 - Runs every alert query once against cloud using the declared `window`.
 - Accepts the apply even if the validation query returns rows, because returned rows mean the alert is currently firing, not invalid.
 - Rejects apply if any query fails to execute or returns a result too large for validation bounds.
-- Builds the desired alert set keyed by `(organization_id, project, slug)`.
-- Adds new alerts, updates changed alerts, applies explicit renames through `metadata.previousName`, and removes active alerts that are no longer present in the applied files for each project present in that apply.
+- Builds the desired alert set keyed by `(organization_id, repoid, slug)`.
+- Adds new alerts, updates changed alerts, and removes active alerts for the `repoid` that are no longer present in `state.alerts`.
 - Removed alerts are deactivated and unscheduled; retained history follows the normal retention policy.
-- Rejects duplicate alert names within the same project.
+- Rejects duplicate alert names within the same `repoid`.
 
 CLI JSON output for data-returning commands must include applied options and filters, following `docs/cli-guidelines.md`.
 
@@ -236,8 +355,11 @@ The web app gets one Alerts page with:
 
 - A list of configured alerts.
 - Each alert detail displays the alert config.
-- Alert details include project, slug, severity, evaluation interval, window, source link, active/deactivated state, current firing/resolved state, last evaluation status, and the configured notification delivery settings.
+- Alert details include repoid, slug, evaluation interval, window, source link, active/deactivated state, current firing/resolved state, last evaluation status, and the configured notification delivery settings.
 - Alert details show the latest bounded evidence rows and links to persisted alert history.
+- Alert details show whether the alert is currently silenced and, if so, the silence end time.
+- Org admins and owners can create a silence with a start time, end time, and optional reason.
+- Org admins and owners can end an active silence early.
 
 Alert settings behavior:
 
@@ -268,8 +390,8 @@ The evaluation job:
 6. If rows are non-empty and previous state is inactive or resolved, create a firing event.
 7. If rows are non-empty and previous state is firing, update `last_seen_at`, row count, and evidence snapshot.
 8. If rows are empty and previous state is firing, create a resolved event.
-9. Persist alert history as OpenTelemetry logs with `service.name = "alert"` and `service.namespace = "everr"`.
-10. Dispatch notifications through the current alert notification delivery settings.
+9. Insert a row into ClickHouse `alert_events` for firing, resolved, and evaluation-failed events.
+10. Dispatch notifications through the current alert notification delivery settings unless an active silence suppresses delivery.
 
 SQL/runtime errors:
 
@@ -280,10 +402,9 @@ SQL/runtime errors:
 
 Retention:
 
-- Everr-owned alert events and evidence are retained for 7 days.
-- Alert history is also persisted as OpenTelemetry logs with `service.name = "alert"` and `service.namespace = "everr"`.
+- ClickHouse `alert_events` and bounded evidence are retained for the tenant's logs retention window.
 - Current alert state is retained while the definition remains active.
-- Graphile Worker job cleanup must stay bounded, while Everr-owned alert events and OpenTelemetry logs remain the authoritative 7-day history.
+- Graphile Worker job cleanup must stay bounded, while ClickHouse `alert_events` remains the authoritative history for the tenant's logs retention window.
 
 ## Notification Delivery
 
@@ -298,28 +419,99 @@ Delivery behavior:
 
 - Firing events deliver according to the current saved alert settings.
 - Resolved events are recorded in alert history and may be delivered if the saved settings enable resolution delivery.
+- Before sending a notification, delivery checks for an active silence on the alert.
+- A silence is active when `starts_at <= now()`, `ends_at > now()`, and `cancelled_at` is unset.
+- Active silences suppress notifications only. Evaluations, state transitions, current evidence, and ClickHouse `alert_events` continue.
+- When delivery is suppressed by a silence, no email or Telegram message is sent and ClickHouse `alert_events` records delivery outcome `silenced`.
+- No catch-up notification is sent when a silence expires.
 - Delivery failures do not change alert firing/resolved state.
-- Delivery attempts and failures are recorded as alert history logs.
-- The Alerts page reads persisted state and OpenTelemetry log history instead of depending on delivery payload retention.
+- Delivery attempts and failures are recorded in ClickHouse `alert_events`.
+- The Alerts page reads persisted current state and ClickHouse event history instead of depending on delivery payload retention.
 - CI failure notifications keep their existing payload and UI path.
 
-## Postgres Data Model
+## Storage Model
 
-Proposed tables:
+Postgres tables:
 
 - `alert_definitions`
-  - Org ID, project, slug, severity, evaluation interval, window, next evaluation time, schedule jitter, last enqueued time, raw YAML fragment, parsed query, summary template, description template, config file path, source link, git metadata, active flag, validation status, last evaluation status.
+  - `id`: internal alert definition ID.
+  - `organization_id`: tenant/org owner.
+  - `repoid`: stable repo identifier from `everr.yml`.
+  - `slug`: alert name from `metadata.name`.
+  - Unique key is `(organization_id, repoid, slug)`.
+  - `evaluation_interval_seconds`: parsed `spec.evaluationInterval`.
+  - `window`: validated alert window, stored in canonical form.
+  - `raw_yaml`: original YAML fragment for display and debugging.
+  - `parsed_query`: validated ClickHouse SQL template.
+  - `summary_template`: required summary template.
+  - `description_template`: optional description template.
+  - `next_evaluation_at`: when the scanner should enqueue the next run.
+  - `schedule_jitter_seconds`: stable per-alert jitter to avoid thundering herds.
+  - `last_enqueued_at`: last time an evaluation job was queued.
+  - `config_file_path`: relative path to the YAML file.
+  - `source_link`: web URL back to repo/file/commit when available.
+  - `created_at` and `updated_at`: normal audit timestamps.
+  - `active`: false when removed by apply or deactivated from the web app.
+  - `validation_status`: result of last apply-time validation.
+  - `last_evaluation_status`: result of last runtime evaluation.
+  - `last_evaluation_error`: latest query/runtime error text, if any.
+  - `current_state`: current alert state, one of `unknown`, `resolved`, or `firing`.
+  - `last_evaluated_at`: latest evaluation attempt time.
+  - `last_fired_at`: when the alert most recently entered firing.
+  - `last_resolved_at`: when the alert most recently resolved.
+  - `last_seen_at`: latest time the alert was still firing.
+  - `last_row_count`: count of violating rows from the latest successful evaluation.
+  - `last_evidence_snapshot`: bounded latest evidence JSON for the alert detail page.
 - `alert_settings`
   - One row per org with the notification delivery config JSON for email and Telegram.
-- `alert_states`
-  - One current state per alert definition.
+- `alert_silences`
+  - `id`: internal silence ID.
+  - `organization_id`: tenant/org owner.
+  - `alert_definition_id`: alert being silenced.
+  - `starts_at`: when the silence starts.
+  - `ends_at`: when the silence stops suppressing notifications.
+  - `reason`: optional human-readable reason.
+  - `created_at` and `updated_at`: normal audit timestamps.
+  - `cancelled_at`: set when an admin or owner ends the silence early.
+  - Active-silence lookups filter by `organization_id`, `alert_definition_id`, `starts_at`, `ends_at`, and `cancelled_at`.
+
+ClickHouse tables:
+
 - `alert_events`
-  - Current app-owned event records for firing, resolved, and evaluation-failed events with bounded evidence rows and evaluation scheduled time.
-
-OpenTelemetry logs:
-
-- Persist alert history as logs with `service.name = "alert"` and `service.namespace = "everr"`.
-- Log records include org ID, alert definition ID, project, slug, severity, event type, evaluation scheduled time, row count, truncation flags, delivery target type, delivery outcome, config file path, and source link.
+  - Append-only event history for firing, resolved, evaluation-failed, and delivery-attempt events.
+  - `event_id`: generated event ID. Use a native UUID where practical.
+  - `organization_id`: tenant/org owner and the key used for tenant retention lookup.
+  - `alert_definition_id`: ID of the alert definition that produced the event.
+  - `repoid`: stable repo identifier from `everr.yml`, copied from the alert definition for history queries.
+  - `slug`: alert name from `metadata.name`, copied from the alert definition for history queries.
+  - `event_type`: event kind, such as `firing`, `resolved`, `evaluation_failed`, or `delivery_attempt`.
+  - `evaluation_scheduled_at`: scheduled evaluation timestamp for evaluator events.
+  - `event_time`: time the event was created; this is the partition and TTL timestamp.
+  - `row_count`: count of violating rows for evaluator events.
+  - `evidence_truncated`: whether evidence rows or JSON bytes were truncated.
+  - `evidence_json`: bounded evidence JSON snapshot for the event.
+  - `delivery_target_type`: delivery target kind for delivery attempts, such as `email` or `telegram`.
+  - `delivery_outcome`: delivery result, such as `sent`, `failed`, or `silenced`.
+  - `silence_id`: ID of the active silence that suppressed delivery, or the empty/default value when not silenced.
+  - `raw_yaml`: alert YAML snapshot associated with the event.
+  - Use native ClickHouse types for typed values: UUIDs for generated event IDs where practical, Date/DateTime64 for dates and times, unsigned integers for row counts and truncation flags, and strings only for real string data.
+  - Use `MergeTree`, partition by event month for lifecycle cleanup, and set TTL from the existing tenant log retention dictionary: `event_time + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', organization_id, toUInt32(3650)) DAY`.
+  - Reuse the existing logs retention behavior, including the intentionally high fallback that over-retains instead of silently dropping data if the dictionary is unavailable.
+  - Plan the `ORDER BY` before implementation around Alerts page reads: filter by org, event date/time, repoid, and slug. A starting key is `(organization_id, event_date, repoid, slug, event_time, event_id)`.
+  - Use `LowCardinality(String)` for bounded strings such as event type, delivery target type, and delivery outcome.
+  - Avoid `Nullable` unless the value has real null semantics; use empty strings, zeros, and empty JSON objects for absent optional values.
+  - Buffer or async-insert alert events so the evaluator does not create one ClickHouse part per alert event under load.
+- `alert_events_logs_mv`
+  - Materialized view from `app.alert_events` into `app.logs`.
+  - Makes alert events queryable through the existing logs path, including `everr cloud query`.
+  - Does not make `app.logs` the canonical alert history store; the Alerts page reads `app.alert_events` directly for alert-specific history.
+  - Projects `event_time` into `Timestamp` and `TimestampTime`.
+  - Uses `ServiceName = 'alert'`.
+  - Uses `EventName = 'everr.alert.' || event_type`.
+  - Uses a concise human-readable `Body` derived from `event_type` and `slug`.
+  - Stores alert identifiers and delivery metadata in `LogAttributes`, including `alert.definition_id`, `alert.repoid`, `alert.slug`, `alert.event_type`, `alert.delivery_outcome`, and `alert.silence_id`.
+  - Keeps `ResourceAttributes['everr.tenant.id']` aligned with `organization_id` so the existing logs tenancy and retention behavior applies.
+  - Leaves trace/span fields empty or defaulted because alert events are operational events, not trace-attached logs.
 
 Do not generate Drizzle migrations until implementation reaches the migration step requested by the user. Schema work first updates Drizzle definitions only.
 
@@ -328,7 +520,7 @@ Do not generate Drizzle migrations until implementation reaches the migration st
 Add alerting code under focused modules:
 
 - `packages/app/src/server/alerts/`
-  - Graphile Worker runtime startup, due-alert scanner, evaluation worker, alert variable expansion, state transitions, notification delivery, alert history log emission, and cleanup.
+  - Graphile Worker runtime startup, due-alert scanner, evaluation worker, alert variable expansion, state transitions, notification delivery, ClickHouse alert event insertion, and cleanup.
 - `packages/app/src/data/alerts/`
   - Web server functions and data loaders.
 - `packages/app/src/routes/api/cli/alerts/*`
@@ -341,8 +533,6 @@ Add alerting code under focused modules:
   - `alerts test` command and shared `apply` support for alert resources.
 - `packages/app/src/lib/mailer.server.ts`
   - Reuse Resend mailer infrastructure for email alert delivery.
-- `docs/superpowers/specs/` and `/Users/guidodorsi/.agents/skills/everr-setup-telemetry`
-  - Update the telemetry setup skill to include an alert rule example for emitted alert history logs with `service.name = "alert"` and `service.namespace = "everr"`.
 
 ## Bounds And Auditability
 
@@ -355,32 +545,38 @@ Query evidence is bounded at every boundary:
 
 Alert apply auditability:
 
-- Store `created_by_user_id`, `updated_by_user_id`, `created_at`, and `updated_at` on alert definitions.
+- Store `created_at` and `updated_at` on alert definitions.
 - Store the config file path, source link, and git-derived repo, branch, commit SHA, and remote when available.
-- Show creator, last applier, and source link in the web rule page.
+- Show the source link in the web rule page.
 - Org admins and owners can deactivate any alert rule from the web app, even though any member can apply.
 
 ## Testing
 
 Unit tests:
 
-- YAML schema validation.
+- `everr.yml` and alert resource YAML schema validation.
+- Alert schema validation uses the same Zod validation pipeline as dashboard schema validation.
 - Window parsing and alert variable expansion.
 - Template rendering.
 - Alert settings validation.
 - Alert state transitions.
+- Active silence detection.
 - Evidence row bounding.
-- OpenTelemetry alert history log payload construction.
+- ClickHouse alert event row construction.
+- ClickHouse `alert_events` schema definition uses the expected `MergeTree`, monthly partition, logs-retention TTL, and `ORDER BY` shape.
+- `alert_events_logs_mv` maps alert event rows into the existing `app.logs` schema.
 
 API route tests:
 
 - Apply authentication for both `INGEST_TOKEN` and `SESSION_TOKEN`.
 - Cloud test authentication.
 - Member apply permission.
+- Apply request validation for a complete `state` payload containing dashboards and alerts.
 - Alert settings validation.
+- Alert silence create and cancel authorization.
 - Query validation success and failure.
-- Upsert semantics by `(organization_id, project, slug)`.
-- Apply diff semantics for add, update, explicit rename, and remove.
+- Upsert semantics by `(organization_id, repoid, slug)`.
+- Apply diff semantics for add, update, and remove.
 
 Graphile Worker/evaluator tests:
 
@@ -391,13 +587,18 @@ Graphile Worker/evaluator tests:
 - Scanner claims due alerts and advances `next_evaluation_at`.
 - Two worker processes sharing one Postgres database do not double-enqueue or double-apply the same alert evaluation.
 - Queue retry behavior records evaluation failure without changing firing state.
+- Evaluation events are inserted into ClickHouse `alert_events`.
+- Silenced firing events update alert state and evidence without sending notifications.
 - Load-oriented test covers a large due set by batching scanner claims.
 
 CLI tests:
 
 - Parser/help output.
 - Cloud default and `--local` targeting.
+- `everr.yml` `repoid` parsing and validation.
 - Alert YAML resource discovery in an apply directory.
+- Dashboard and alert state payload construction for `everr apply <dir>`.
+- `everr cloud query` can query projected alert events through `app.logs`.
 - Mocked apply/test API calls.
 - JSON output includes applied options.
 
@@ -407,10 +608,13 @@ Desktop tests:
 
 Notification delivery tests:
 
-- Critical and warning firing events use the saved alert delivery config.
+- Firing events use the saved alert delivery config.
 - Resend email delivery is invoked for configured email recipients.
 - Telegram delivery is invoked for configured chat IDs.
+- Active silences suppress email and Telegram delivery.
+- Silenced delivery attempts insert ClickHouse `alert_events` rows with delivery outcome `silenced`.
 - Delivery failures are logged without changing firing/resolved state.
+- Delivery attempts and failures insert ClickHouse `alert_events` rows.
 
 ## Validated Risk Status
 
@@ -422,10 +626,11 @@ Notification delivery tests:
 - Per-alert runtime cron schedules: rejected for scale. At 5,000 alerts per minute, app-owned due-time scanning is a better shape than thousands of dynamic cron entries.
 - Multiple worker replicas: accepted with required verification. Graphile Worker distributes claimed jobs through Postgres-backed locking, and the scanner additionally uses app-table row locks. Implementation must run a two-process integration test against one Postgres database.
 - 5,000 alerts per minute: partially validated. Queue throughput should not be the primary bottleneck; ClickHouse query concurrency and cost are. Implementation must load test scanner batching and evaluation concurrency before treating this capacity target as satisfied.
-- Queue retention: resolved by design. Keep Graphile Worker job cleanup bounded, while Everr-owned alert events and evidence remain the authoritative 7-day history.
+- Queue retention: resolved by design. Keep Graphile Worker job cleanup bounded, while ClickHouse `alert_events` remains the authoritative history for the tenant's logs retention window.
 - Query result bounds: resolved by design. Evidence row and byte limits are mandatory.
 - Member apply risk: accepted product risk with mitigations. Any member can apply, but source links, applier metadata, and admin/owner deactivation make changes auditable and reversible.
-- Alert history persistence: resolved by design. App state remains in Postgres for current behavior, while alert history is also emitted as OpenTelemetry logs with `service.name = "alert"` and `service.namespace = "everr"`.
+- Alert history persistence: resolved by design. Current state remains in Postgres, while event history is stored in ClickHouse `alert_events`.
+- Alert event queryability: resolved by design. `alert_events_logs_mv` projects alert events into `app.logs` for `everr cloud query`, while `app.alert_events` remains canonical for alert-specific history.
 
 ## Approved Decisions
 
@@ -436,16 +641,18 @@ Notification delivery tests:
 - Non-empty query result fires; empty result resolves.
 - Use Everr `${name}` alert variable notation, including `${window}` derived from `window`.
 - Require `summary`; allow optional `description`.
-- Remove root `service`; alert ownership is project-scoped.
-- Use ordinary YAML resource files in an apply directory.
-- Identify alerts by `(organization_id, project, slug)` using `metadata.project` and `metadata.name`.
+- Remove root `service`; alert ownership is repo-scoped through `repoid`.
+- Use `everr.yml` with only `repoid` plus ordinary YAML resource files in an apply directory.
+- Identify alerts by `(organization_id, repoid, slug)` using `everr.yml` and `metadata.name`.
 - Validate apply by running each query against cloud.
-- Use fixed severities: `critical` and `warning`.
+- Do not include alert severity in v1.
 - Use one organization alert settings config for notification delivery.
 - Support email through Resend and Telegram in the MVP delivery config.
-- Persist alert history as OpenTelemetry logs with `service.name = "alert"` and `service.namespace = "everr"`.
+- Persist alert event history in ClickHouse `alert_events`.
+- Project alert events into `app.logs` through a materialized view so they are queryable through `everr cloud query`.
+- Support bounded operational alert silences that suppress delivery but do not stop evaluation or state updates.
 - Any org member can apply alert YAML.
-- `everr apply <dir>` scans alert resources and applies the diff for add, update, explicit rename, and remove.
+- `everr apply <dir>` sends one `state` payload containing dashboards and alerts, then applies the diff for add, update, and remove.
 - Apply accepts `SESSION_TOKEN` and `INGEST_TOKEN`, echoes the resolved destination organization, and requires confirmation before destructive writes.
 - Use Graphile Worker for alert orchestration and scheduling.
 - Use app-owned due-time scanning instead of one runtime schedule per alert.
