@@ -268,6 +268,11 @@ export function TimeSeriesChartVisualization({
             axisLine={false}
             tickMargin={8}
             tickFormatter={createTickFormatter(domain)}
+            // Hard domain: the leading bucket kept by buildSeriesData sits
+            // before `from` — clip its line at the plot edge instead of letting
+            // recharts stretch the axis to fit it (which would also skew the
+            // linear px↔ts mapping the brush and crosshair rely on).
+            allowDataOverflow
           />
           <YAxis
             tickLine={false}

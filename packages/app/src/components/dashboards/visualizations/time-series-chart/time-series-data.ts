@@ -102,6 +102,13 @@ function clampMerged(
  * null marker is inserted when two consecutive points of THIS series are more
  * than ~1.5× its own typical interval apart, so a non-connecting line shows the
  * genuine gap.
+ *
+ * Domain clamping treats each point as a BUCKET, not an instant: a bucketed
+ * timestamp (e.g. ClickHouse `toStartOfInterval`) labels the bucket's start,
+ * so the bucket just before `from` still covers in-range rows whenever `from`
+ * isn't bucket-aligned. That point is kept when its bucket overlaps the
+ * domain; it sits left of the axis and the line clips at the plot edge
+ * (Grafana-style) instead of silently losing up to a bucket of data.
  */
 function buildSeriesData(
   samples: Map<number, number | null>,
@@ -109,11 +116,17 @@ function buildSeriesData(
   domain: [number, number] | undefined,
 ): Array<Record<string, unknown>> {
   let points = [...samples.entries()].sort((a, b) => a[0] - b[0]);
+  // Inferred from ALL samples, pre-clamp, so the leading bucket's width is
+  // known even when only one point lands inside the domain.
+  const interval = detectInterval(points.map(([ts]) => ts));
   if (domain) {
-    points = points.filter(([ts]) => ts >= domain[0] && ts <= domain[1]);
+    points = points.filter(([ts]) => {
+      if (ts > domain[1]) return false;
+      if (ts >= domain[0]) return true;
+      return interval !== null && ts + interval > domain[0];
+    });
   }
 
-  const interval = detectInterval(points.map(([ts]) => ts));
   const gapThreshold = interval ? interval * 1.5 : null;
 
   const result: Array<Record<string, unknown>> = [];

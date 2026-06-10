@@ -181,7 +181,9 @@ describe("buildChartModel", () => {
     const model = buildChartModel(
       [
         [
-          { time: "2026-06-07T00:00:00", value: 1 }, // before the domain
+          // Before the domain, and its bucket [00:00, 00:01) ends exactly at
+          // the domain start — no overlap, so it stays dropped.
+          { time: "2026-06-07T00:00:00", value: 1 },
           { time: "2026-06-07T00:01:00", value: 2 },
           { time: "2026-06-07T00:02:00", value: 3 },
         ],
@@ -190,6 +192,39 @@ describe("buildChartModel", () => {
     );
     expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([2, 3]);
     expect(model.chartData.map((r) => r.s0)).toEqual([2, 3]);
+  });
+
+  it("keeps the leading bucket when its interval overlaps an unaligned domain start", () => {
+    const minute = 60_000;
+    const t0 = Date.parse("2026-06-07T00:00:00Z");
+    const model = buildChartModel(
+      [
+        [
+          // 30m buckets; the domain starts mid-bucket at 00:05, so the 00:00
+          // bucket covers in-range rows (00:05–00:30) and must survive.
+          { time: "2026-06-07T00:00:00", value: 1 },
+          { time: "2026-06-07T00:30:00", value: 2 },
+          { time: "2026-06-07T01:00:00", value: 3 },
+        ],
+      ],
+      [t0 + 5 * minute, t0 + 95 * minute],
+    );
+    expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([1, 2, 3]);
+    expect(model.seriesData.s0?.[0]?.[TS_KEY]).toBe(t0);
+    // The merged crosshair/tooltip timeline stays strictly in-domain: the
+    // off-axis point renders (clipped) but is not hoverable.
+    expect(model.chartData.map((r) => r.s0)).toEqual([2, 3]);
+  });
+
+  it("still drops a lone pre-domain point when no bucket width can be inferred", () => {
+    const minute = 60_000;
+    const t0 = Date.parse("2026-06-07T00:00:00Z");
+    const model = buildChartModel(
+      [[{ time: "2026-06-07T00:00:00", value: 1 }]],
+      [t0 + 5 * minute, t0 + 65 * minute],
+    );
+    expect(model.seriesData.s0 ?? []).toHaveLength(0);
+    expect(model.chartData).toHaveLength(0);
   });
 
   it("inserts a single null marker into a series to break the line across a real gap", () => {
