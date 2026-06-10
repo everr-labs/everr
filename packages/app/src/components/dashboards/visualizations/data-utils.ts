@@ -1,3 +1,4 @@
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { QueryResultRow } from "./index";
 
 export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
@@ -76,17 +77,9 @@ export function toTimestamp(value: unknown): number {
     // A bare epoch returned as a (quoted) string, e.g. toUnixTimestamp64Milli
     // (Int64 → quoted) or toUnixTimestamp wrapped in toString.
     if (/^\d+$/.test(trimmed)) return epochToMs(Number(trimmed));
-    // ClickHouse DateTime comes as `YYYY-MM-DD HH:MM:SS` (space-separated, UTC,
-    // no timezone): normalize the separator and assume UTC. But don't append a
-    // second `Z` when the value already carries a timezone (`...Z` or `±HH:MM`)
-    // — that produced `...ZZ`, failed to parse, fell back to 0, and the row was
-    // then filtered out of the time range.
-    const isoish = trimmed.replace(" ", "T");
-    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(isoish);
-    const hasTime = isoish.includes("T");
-    const normalized = hasTime && !hasTimezone ? `${isoish}Z` : isoish;
-    const ms = new Date(normalized).getTime();
-    if (!Number.isNaN(ms)) return ms;
+    // Anything else is a ClickHouse DateTime/Date string, assumed UTC.
+    const parsed = parseTimestampAsUTC(trimmed);
+    if (parsed) return parsed.getTime();
   }
   return 0;
 }

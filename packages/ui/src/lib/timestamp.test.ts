@@ -30,6 +30,18 @@ describe("parseTimestampAsUTC", () => {
     expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
   });
 
+  it("parses a date-only value as UTC midnight", () => {
+    const result = parseTimestampAsUTC("2026-03-07");
+    expect(result).toBeInstanceOf(Date);
+    expect(result!.toISOString()).toBe("2026-03-07T00:00:00.000Z");
+  });
+
+  it("parses a timezone offset without a colon", () => {
+    const result = parseTimestampAsUTC("2026-03-07T14:32:00+0100");
+    expect(result).toBeInstanceOf(Date);
+    expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
+  });
+
   it("returns null for an invalid string", () => {
     expect(parseTimestampAsUTC("not-a-date")).toBeNull();
   });

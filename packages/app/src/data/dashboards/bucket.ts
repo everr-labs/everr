@@ -6,6 +6,8 @@
  * without the query hard-coding a resolution. Pure module (no I/O) for testing.
  */
 
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+
 /** Default bucket budget: a time-series query targets at most ~this many points. */
 export const DEFAULT_TARGET_POINTS = 500;
 
@@ -28,17 +30,6 @@ export function snapToNiceStep(seconds: number): number {
   return Math.ceil(s / DAY_SECONDS) * DAY_SECONDS;
 }
 
-// ClickHouse datetimes are UTC, space-separated `YYYY-MM-DD HH:MM:SS[.mmm]`.
-// Normalize to ISO-8601 and pin UTC so Date.parse doesn't read them as local.
-function parseClickHouseDateTimeMs(value: string): number {
-  const isoish = value.includes("T") ? value : value.replace(" ", "T");
-  const withZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(isoish)
-    ? isoish
-    : `${isoish}Z`;
-  const ms = Date.parse(withZone);
-  return Number.isNaN(ms) ? 0 : ms;
-}
-
 /**
  * Seconds-per-bucket for a resolved `[fromISO, toISO]` range, snapped to a nice
  * width, so a time-series query yields ~`targetPoints` buckets. Always >= 1.
@@ -51,7 +42,8 @@ export function computeStepSeconds(
 ): number {
   const rangeSeconds = Math.max(
     0,
-    (parseClickHouseDateTimeMs(toISO) - parseClickHouseDateTimeMs(fromISO)) /
+    ((parseTimestampAsUTC(toISO)?.getTime() ?? 0) -
+      (parseTimestampAsUTC(fromISO)?.getTime() ?? 0)) /
       1000,
   );
   const points = Math.max(1, Math.floor(targetPoints));

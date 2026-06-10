@@ -1,10 +1,18 @@
 export function parseTimestampAsUTC(timestamp: string): Date | null {
   const normalized = timestamp.trim();
   if (!normalized) return null;
-  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized);
-  const candidate = hasTimezone
+  // ClickHouse DateTime is space-separated (`YYYY-MM-DD HH:MM:SS`, UTC, no
+  // timezone): normalize the separator, then pin `Z` — but only when a time
+  // component is present without an explicit timezone. A date-only value is
+  // already parsed as UTC per the spec, and appending `Z` to it is out-of-spec
+  // (engines disagree); doubling up an existing timezone (`...ZZ`) fails to
+  // parse everywhere.
+  const isoish = normalized.includes("T")
     ? normalized
-    : `${normalized.includes("T") ? normalized : normalized.replace(" ", "T")}Z`;
+    : normalized.replace(" ", "T");
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(isoish);
+  const candidate =
+    !hasTimezone && isoish.includes("T") ? `${isoish}Z` : isoish;
   const parsed = new Date(candidate);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
