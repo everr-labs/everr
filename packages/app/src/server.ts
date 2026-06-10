@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-start/server";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "@/db/client";
+import { startWorkerRuntime } from "@/server/github-events/runtime";
 import {
   getTelemetryTracer,
   recordTelemetryError,
@@ -31,6 +32,13 @@ await startupTracer.startActiveSpan(
     }
   },
 );
+
+void startWorkerRuntime().catch((error) => {
+  recordTelemetryError(error, {
+    "error.handled": true,
+    "error.source": "startup.worker_runtime",
+  });
+});
 
 const handler = defineHandlerCallback((ctx) => {
   return defaultStreamHandler(ctx);

@@ -50,9 +50,11 @@ vi.unmock("@/lib/clickhouse");
 
 import {
   deprovisionSqlApiOrgUser,
+  insertAlertEvents,
   provisionSqlApiOrgUser,
   query,
   querySqlApi,
+  querySqlApiWithMeta,
 } from "./clickhouse";
 
 const ORG = "org42";
@@ -131,6 +133,66 @@ describe("querySqlApi", () => {
       /tenant context/i,
     );
     expect(mockQuery).not.toHaveBeenCalled();
+  });
+});
+
+describe("querySqlApiWithMeta", () => {
+  it("uses JSON format so column metadata is available for empty results", async () => {
+    mockJson.mockResolvedValueOnce({
+      meta: [{ name: "route" }, { name: "n" }],
+      data: [],
+    });
+
+    await expect(querySqlApiWithMeta("SELECT 1", ORG)).resolves.toEqual({
+      rows: [],
+      columns: ["route", "n"],
+    });
+
+    expect(mockQuery).toHaveBeenCalledWith({
+      query: "SELECT 1",
+      query_params: undefined,
+      format: "JSON",
+      auth: { username: ORG_USER, password: ORG_PASSWORD },
+      http_headers: { "X-ClickHouse-Quota": ORG_USER },
+    });
+  });
+});
+
+describe("insertAlertEvents", () => {
+  it("writes alert events through the admin client with async inserts", async () => {
+    await insertAlertEvents([
+      {
+        organization_id: ORG,
+        alert_definition_id: "alert-1",
+        repoid: "repo-1",
+        slug: "high-5xx",
+        event_type: "firing",
+      },
+    ]);
+
+    expect(mockInsert).toHaveBeenCalledWith({
+      table: "app.alert_events",
+      values: [
+        {
+          organization_id: ORG,
+          alert_definition_id: "alert-1",
+          repoid: "repo-1",
+          slug: "high-5xx",
+          event_type: "firing",
+        },
+      ],
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 1,
+      },
+    });
+  });
+
+  it("does not issue an insert for an empty batch", async () => {
+    await insertAlertEvents([]);
+
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 });
 

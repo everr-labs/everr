@@ -13,6 +13,7 @@ import {
   type WorkerEvents,
 } from "graphile-worker";
 import { db, pool } from "@/db/client";
+import { alertCronItems, alertTaskList } from "@/server/alerts/runtime";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { getTelemetryTracer } from "@/telemetry/node";
 import { replayWebhookToCollector } from "./collector";
@@ -173,12 +174,16 @@ async function startGitHubEventsRuntime(): Promise<Runner> {
     concurrency: GH_EVENTS_CONFIG.workerCount,
     events,
     noHandleSignals: true,
-    parsedCronItems: [],
+    parsedCronItems: alertCronItems,
     pgPool: pool,
-    taskList: TASK_LIST,
+    taskList: { ...TASK_LIST, ...alertTaskList },
   });
 
   return runner;
+}
+
+export async function startWorkerRuntime(): Promise<Runner> {
+  return startGitHubEventsRuntime();
 }
 
 export async function enqueueWebhookEvent(

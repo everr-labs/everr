@@ -43,6 +43,8 @@ pub enum Commands {
     Skills(SkillsArgs),
     /// Apply a directory of resource definitions (gitops)
     Apply(ApplyArgs),
+    /// Test alert rules without applying them
+    Alerts(AlertsArgs),
 }
 
 #[derive(Args, Debug)]
@@ -202,6 +204,30 @@ pub struct ApplyArgs {
     /// Skip the confirmation prompt (required in non-interactive contexts)
     #[arg(long, short = 'y')]
     pub yes: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct AlertsArgs {
+    #[command(subcommand)]
+    pub command: AlertsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AlertsSubcommand {
+    /// Test alert rules in a resource directory
+    Test(AlertsTestArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct AlertsTestArgs {
+    /// Directory containing resource YAML/JSON files
+    pub dir: String,
+    /// Target the local app server at http://localhost:5173
+    #[arg(long)]
+    pub local: bool,
+    /// Print the full JSON response
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug, Default)]
@@ -371,7 +397,8 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, StatusArgs, WatchArgs,
+        AlertsSubcommand, CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand,
+        StatusArgs, WatchArgs,
     };
 
     #[test]
@@ -403,6 +430,15 @@ mod tests {
             panic!("expected local command");
         };
         assert!(matches!(local.command, LocalSubcommand::Status));
+
+        let alerts = Cli::try_parse_from(["everr", "alerts", "test", "alerts", "--json"])
+            .expect("alerts command");
+        let Commands::Alerts(alerts) = alerts.command else {
+            panic!("expected alerts command");
+        };
+        let AlertsSubcommand::Test(test) = alerts.command;
+        assert_eq!(test.dir, "alerts");
+        assert!(test.json);
     }
 
     #[test]

@@ -1,111 +1,70 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardReconciler = vi.fn();
+const alertReconciler = vi.fn();
 vi.mock("@/data/dashboards/apply.server", () => ({
   applyDashboardSpecs: (...a: unknown[]) => dashboardReconciler(...a),
+}));
+vi.mock("@/data/alerts/apply.server", () => ({
+  applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
 
 import { applyResources } from "./registry";
 
-const doc = (kind: string, name: string) => ({
-  path: `${name}.yaml`,
-  document: { kind, metadata: { name }, spec: { panels: {}, layouts: [] } },
-});
+const empty = { created: [], updated: [], deleted: [] };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  dashboardReconciler.mockResolvedValue({
-    created: [],
-    updated: [],
-    deleted: [],
-    dryRun: false,
-  });
+  dashboardReconciler.mockResolvedValue(empty);
+  alertReconciler.mockResolvedValue(empty);
 });
 
 describe("applyResources", () => {
-  it("routes Dashboard docs to the dashboard reconciler and returns a per-kind summary", async () => {
+  it("routes state.dashboards and state.alerts to their reconcilers with repoid", async () => {
+    const dash = { path: "d.yaml", resource: { kind: "Dashboard" } };
+    const alert = { path: "a.yaml", resource: { kind: "AlertRule" } };
     dashboardReconciler.mockResolvedValueOnce({
       created: ["cpu"],
       updated: [],
       deleted: [],
-      dryRun: false,
     });
+    alertReconciler.mockResolvedValueOnce(empty);
     const out = await applyResources({
       orgId: "org-1",
-      projects: ["default"],
-      documents: [doc("Dashboard", "cpu")],
+      repoid: "repo-1",
+      state: { dashboards: [dash], alerts: [alert] },
       dryRun: false,
     });
-    expect(dashboardReconciler).toHaveBeenCalledWith({
-      orgId: "org-1",
-      projects: ["default"],
-      documents: [doc("Dashboard", "cpu")],
-      dryRun: false,
-    });
+    expect(dashboardReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org-1",
+        repoid: "repo-1",
+        resources: [dash],
+      }),
+    );
+    expect(alertReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org-1",
+        repoid: "repo-1",
+        resources: [alert],
+      }),
+    );
     expect(out).toEqual({
       dryRun: false,
       results: [
         { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
+        { kind: "AlertRule", created: [], updated: [], deleted: [] },
       ],
     });
   });
 
-  it("reconciles every registered kind even when absent from the tree (prunes)", async () => {
+  it("reconciles every kind even when its array is empty (prunes within repoid)", async () => {
     await applyResources({
       orgId: "org-1",
-      projects: ["default"],
-      documents: [],
-      dryRun: false,
+      repoid: "repo-1",
+      state: { dashboards: [], alerts: [] },
     });
-    expect(dashboardReconciler).toHaveBeenCalledWith({
-      orgId: "org-1",
-      projects: ["default"],
-      documents: [],
-      dryRun: false,
-    });
-  });
-
-  it("throws on a document missing a string kind", async () => {
-    await expect(
-      applyResources({
-        orgId: "org-1",
-        projects: ["default"],
-        documents: [
-          { path: "bad.yaml", document: { metadata: { name: "x" } } },
-        ],
-        dryRun: false,
-      }),
-    ).rejects.toThrow(/bad\.yaml.*kind/i);
-  });
-
-  it("throws on an unknown kind", async () => {
-    await expect(
-      applyResources({
-        orgId: "org-1",
-        projects: ["default"],
-        documents: [doc("Gizmo", "x")],
-        dryRun: false,
-      }),
-    ).rejects.toThrow(/unknown kind "Gizmo".*x\.yaml/i);
-  });
-
-  it.each([
-    "constructor",
-    "toString",
-    "hasOwnProperty",
-    "__proto__",
-  ])("rejects the inherited Object property %p as an unknown kind and reconciles nothing", async (kind) => {
-    // `kind in REGISTRY` would accept these (prototype chain); an own-property
-    // check must not. They must throw BEFORE any reconciler runs — otherwise a
-    // doc with such a kind is dropped while Dashboard still prunes the project.
-    await expect(
-      applyResources({
-        orgId: "org-1",
-        projects: ["default"],
-        documents: [doc(kind, "x")],
-        dryRun: false,
-      }),
-    ).rejects.toThrow(new RegExp(`unknown kind "${kind}"`));
-    expect(dashboardReconciler).not.toHaveBeenCalled();
+    expect(dashboardReconciler).toHaveBeenCalledOnce();
+    expect(alertReconciler).toHaveBeenCalledOnce();
   });
 });

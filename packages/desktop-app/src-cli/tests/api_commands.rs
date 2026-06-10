@@ -1,5 +1,6 @@
 mod support;
 
+use std::fs;
 use std::path::Path;
 use std::process::Command as ProcessCommand;
 
@@ -232,6 +233,61 @@ fn runs_list_uses_current_branch_when_flag_is_passed() {
         .assert()
         .success()
         .stdout(contains("\"runs\": []"));
+
+    mock.assert();
+}
+
+#[test]
+fn alerts_test_posts_only_alert_resources_and_prints_json() {
+    let env = CliTestEnv::new();
+    let resources_dir = env.home_dir.join("resources");
+    fs::create_dir_all(resources_dir.join("alerts")).expect("create alerts dir");
+    fs::write(
+        resources_dir.join("dashboard.yaml"),
+        "kind: Dashboard\nmetadata:\n  name: ci\nspec:\n  panels: {}\n  layouts: []\n",
+    )
+    .expect("write dashboard");
+    fs::write(
+        resources_dir.join("alerts/high-errors.yaml"),
+        "kind: AlertRule\nmetadata:\n  name: high-errors\nspec:\n  evaluationInterval: 5m\n  window: 15m\n  summary: ${row_count} errors\n  query: SELECT 1\n",
+    )
+    .expect("write alert");
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-abc");
+
+    let mock = server
+        .mock("POST", "/api/cli/alerts/test")
+        .match_header("authorization", "Bearer token-abc")
+        .match_body(Matcher::Json(serde_json::json!({
+            "options": { "local": false },
+            "alerts": [
+                {
+                    "path": "alerts/high-errors.yaml",
+                    "resource": {
+                        "kind": "AlertRule",
+                        "metadata": { "name": "high-errors" },
+                        "spec": {
+                            "evaluationInterval": "5m",
+                            "window": "15m",
+                            "summary": "${row_count} errors",
+                            "query": "SELECT 1"
+                        }
+                    }
+                }
+            ]
+        })))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"options":{"local":false},"results":[{"path":"alerts/high-errors.yaml","slug":"high-errors","firing":true,"rowCount":1,"columns":["ok"],"evidence":[{"ok":1}],"truncated":false}]}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["alerts", "test", resources_dir.to_str().unwrap(), "--json"])
+        .assert()
+        .success()
+        .stdout(contains("\"slug\": \"high-errors\""))
+        .stdout(contains("\"local\": false"));
 
     mock.assert();
 }

@@ -107,6 +107,45 @@ export async function querySqlApi<T>(
   return result.json<T>();
 }
 
+export interface SqlApiResult<T> {
+  rows: T[];
+  columns: string[];
+}
+
+export async function querySqlApiWithMeta<T>(
+  query: string,
+  organizationId: string,
+  query_params?: Record<string, unknown>,
+): Promise<SqlApiResult<T>> {
+  if (typeof organizationId !== "string" || !organizationId) {
+    throw new Error("Missing ClickHouse tenant context");
+  }
+
+  const username = sqlApiOrgUserName(organizationId);
+  const password = sqlApiOrgPassword(organizationId);
+
+  const result = await instrumentClickhouseOperation(
+    { client: "sql_api", operation: "QUERY" },
+    () =>
+      clickhouse.query({
+        query,
+        query_params,
+        format: "JSON",
+        auth: { username, password },
+        http_headers: { "X-ClickHouse-Quota": username },
+      }),
+  );
+
+  const body = (await result.json()) as {
+    meta?: { name: string }[];
+    data?: T[];
+  };
+  return {
+    rows: body.data ?? [],
+    columns: (body.meta ?? []).map((m) => m.name),
+  };
+}
+
 export function createClickhouseQuery(organizationId: string) {
   return async <T>(sql: string, params?: Record<string, unknown>) =>
     query<T>(sql, organizationId, params);
@@ -149,6 +188,39 @@ export async function upsertTenantRetention(row: {
           },
         ],
         format: "JSONEachRow",
+      }),
+  );
+}
+
+export interface AlertEventRow {
+  organization_id: string;
+  alert_definition_id: string;
+  repoid: string;
+  slug: string;
+  event_type: "firing" | "resolved" | "evaluation_failed" | "delivery_attempt";
+  evaluation_scheduled_at?: string;
+  row_count?: number;
+  evidence_truncated?: 0 | 1;
+  evidence_json?: string;
+  delivery_target_type?: "" | "email" | "telegram";
+  delivery_outcome?: "" | "sent" | "failed" | "silenced";
+  silence_id?: string;
+}
+
+export async function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
+  if (rows.length === 0) return;
+
+  await instrumentClickhouseOperation(
+    { client: "admin", operation: "INSERT" },
+    () =>
+      clickhouseAdmin.insert({
+        table: "app.alert_events",
+        values: rows,
+        format: "JSONEachRow",
+        clickhouse_settings: {
+          async_insert: 1,
+          wait_for_async_insert: 1,
+        },
       }),
   );
 }

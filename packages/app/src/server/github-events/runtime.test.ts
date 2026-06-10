@@ -5,6 +5,8 @@ import type { WebhookJobData } from "./types";
 
 const COLLECTOR_TASK_IDENTIFIER = "github-events/collector";
 const STATUS_TASK_IDENTIFIER = "github-events/status";
+const ALERT_SCAN_TASK = "alerts/scan";
+const ALERT_EVALUATE_TASK = "alerts/evaluate";
 
 type MockSpan = {
   end: ReturnType<typeof vi.fn>;
@@ -34,6 +36,7 @@ type MockRunOptions = {
   concurrency: number;
   events: EventEmitter;
   noHandleSignals: boolean;
+  parsedCronItems: unknown[];
   pgPool: unknown;
   taskList: Record<string, MockTask>;
 };
@@ -50,8 +53,17 @@ const runtimeMocks = vi.hoisted(() => {
   const runOptions: MockRunOptions[] = [];
   const runnerInstances: MockRunner[] = [];
   const pool = { query: vi.fn() };
+  const alertScanTask = "alerts/scan";
+  const alertEvaluateTask = "alerts/evaluate";
+  const alertCronItems = [{ task: alertScanTask }];
+  const alertTaskList = {
+    [alertScanTask]: vi.fn(),
+    [alertEvaluateTask]: vi.fn(),
+  };
 
   return {
+    alertCronItems,
+    alertTaskList,
     handleStatusEvent: vi.fn(),
     logActiveSpan,
     pool,
@@ -94,6 +106,11 @@ const runtimeMocks = vi.hoisted(() => {
 
 vi.mock("graphile-worker", () => ({
   run: runtimeMocks.run,
+}));
+
+vi.mock("@/server/alerts/runtime", () => ({
+  alertCronItems: runtimeMocks.alertCronItems,
+  alertTaskList: runtimeMocks.alertTaskList,
 }));
 
 vi.mock("@/db/client", () => ({
@@ -231,9 +248,14 @@ describe("github events runtime", () => {
       pgPool: runtimeMocks.pool,
     });
     expect(Object.keys(runtimeMocks.runOptions[0].taskList).sort()).toEqual([
+      ALERT_EVALUATE_TASK,
+      ALERT_SCAN_TASK,
       COLLECTOR_TASK_IDENTIFIER,
       STATUS_TASK_IDENTIFIER,
     ]);
+    expect(runtimeMocks.runOptions[0]).toMatchObject({
+      parsedCronItems: runtimeMocks.alertCronItems,
+    });
   });
 
   it("adds collector and status jobs for the same event", async () => {

@@ -175,9 +175,12 @@ export const dashboards = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
-    // Perses project namespace that owns this dashboard (identity + prune
-    // scope). Denormalized from the document's metadata.project (default
-    // "default") so identity/indexing never reads from JSONB.
+    // Stable repository identifier from everr.yaml — the apply ownership and
+    // prune boundary. Dashboards are unreleased, so identity changes directly.
+    repoid: text("repoid").notNull().default(""),
+    // Perses project namespace inside the repository. Denormalized from the
+    // document's metadata.project (default "default") so identity/indexing
+    // never reads from JSONB.
     project: text("project").notNull(),
     // URL-safe per-project identifier (the document's metadata.name, or the
     // filename when that's absent). Part of the identity tuple below.
@@ -197,10 +200,11 @@ export const dashboards = pgTable(
       .defaultNow(),
   },
   (table) => [
-    // Identity is (org, project, slug): same-named dashboards in different
-    // projects coexist; an in-project duplicate is rejected.
-    uniqueIndex("dashboards_tenant_project_slug_uq").on(
+    // Identity is (org, repoid, project, slug); project is only the Perses
+    // namespace inside the repository, not the prune boundary.
+    uniqueIndex("dashboards_tenant_repo_project_slug_uq").on(
       table.organizationId,
+      table.repoid,
       table.project,
       table.slug,
     ),
