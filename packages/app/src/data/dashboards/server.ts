@@ -1,3 +1,4 @@
+import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
 import { and, eq, sql } from "drizzle-orm";
@@ -9,6 +10,30 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
 import type { Dashboard } from "./schema";
 import { dashboardSpecSchema } from "./schema";
+
+/** A time-series panel targets ~this many points; `step` is sized to hit it. */
+const PANEL_TARGET_POINTS = 500;
+
+/**
+ * The ClickHouse query parameters bound to every dashboard query (panel and
+ * variable-options alike), so the documented contract — `{from}`/`{to}` plus an
+ * adaptive `{step:UInt32}` bucket width — holds for all of them by construction.
+ * `from`/`to` are the resolved range; `step` is the adaptive bucket width
+ * (seconds) so a chart can `toStartOfInterval(col, INTERVAL {step:UInt32}
+ * SECOND)` and stay ~bounded in point count at any zoom. Queries that don't
+ * reference a parameter simply ignore it.
+ */
+function dashboardQueryParams(range: { from?: string; to?: string }) {
+  const { fromDate, toDate, fromISO, toISO } = resolveTimeRange({
+    from: range.from ?? DEFAULT_TIME_RANGE.from,
+    to: range.to ?? DEFAULT_TIME_RANGE.to,
+  });
+  return {
+    from: fromISO,
+    to: toISO,
+    step: bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS),
+  };
+}
 
 export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ project: z.string(), slug: z.string() }))
@@ -90,10 +115,6 @@ export const runPanelQuery = createAuthenticatedServerFn({
   )
   .handler(
     async ({ data: { sql, from, to, variables, variableMeta }, context }) => {
-      const { fromISO, toISO } = resolveTimeRange({
-        from: from ?? DEFAULT_TIME_RANGE.from,
-        to: to ?? DEFAULT_TIME_RANGE.to,
-      });
       const interpolated = variables
         ? interpolateVariables(sql, variables, variableMeta ?? {})
         : sql;
@@ -103,7 +124,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
       const rows = await querySqlApi<QueryRow>(
         interpolated,
         context.session.session.activeOrganizationId,
-        { from: fromISO, to: toISO },
+        dashboardQueryParams({ from, to }),
       );
       return { rows };
     },
@@ -137,21 +158,16 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
     }),
   )
   .handler(async ({ data: { query, from, to }, context }) => {
-    const { fromISO, toISO } = resolveTimeRange({
-      from: from ?? DEFAULT_TIME_RANGE.from,
-      to: to ?? DEFAULT_TIME_RANGE.to,
-    });
     // User-supplied SQL: run it through the per-org SQL API user (row-policy
     // tenant isolation), not the SETTINGS-based app path it could override. The
     // LIMIT is injected into the SQL because the SQL API profile THROWS on
     // result overflow — capping after the fetch would never run for large sets.
+    // Bind the same parameters as a panel query (including `{step}`) so an
+    // options query can reference any of them without erroring.
     const rows = await querySqlApi<Record<string, unknown>>(
       withRowLimit(query, VARIABLE_OPTIONS_LIMIT),
       context.session.session.activeOrganizationId,
-      {
-        from: fromISO,
-        to: toISO,
-      },
+      dashboardQueryParams({ from, to }),
     );
 
     // A full result set means ClickHouse cut rows off at the limit, so there may

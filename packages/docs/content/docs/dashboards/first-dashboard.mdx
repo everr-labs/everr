@@ -62,7 +62,7 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT toStartOfMinute(Timestamp) AS ts,
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
                            quantile(0.99)(Duration) / 1e6 AS p99
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
@@ -85,6 +85,7 @@ A few things worth noting:
 - `metadata.project` groups dashboards into a named set. It defaults to `default` when omitted. A dashboard's URL is `/dashboards/<project>/<slug>`, so two projects can share the same slug without colliding.
 - The panel's query must alias its time column to a recognized name (`ts`, `time`, `timestamp`, `bucket`, …). The time-series chart uses that column for the x-axis and treats the remaining numeric columns as series. See [Panels and visualizations](/docs/dashboards/panels-and-visualizations).
 - The `{from:String}` / `{to:String}` parameters carry the dashboard's selected time range. They aren't injected automatically, so include the `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` filter — otherwise the query scans all history and ignores the picker.
+- `{step:UInt32}` is an adaptive bucket width in seconds — Everr sizes it so the chart renders ~500 points at any range. See [Adaptive bucketing](/docs/dashboards/panels-and-visualizations#adaptive-bucketing).
 - The `layouts` grid places the panel. `content.$ref` points at the panel key under `spec.panels` (here, `p99`). The grid is 24 columns wide.
 
 ## Preview the change

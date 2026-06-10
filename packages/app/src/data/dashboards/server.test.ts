@@ -127,6 +127,21 @@ describe("runPanelQuery – variable interpolation", () => {
       "SELECT $notavar FROM logs",
     );
   });
+
+  it("binds from/to and an adaptive {step} bucket as query params", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({ data: { sql: "SELECT 1" } });
+
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<
+      string,
+      unknown
+    >;
+    expect(typeof params.from).toBe("string");
+    expect(typeof params.to).toBe("string");
+    // Default range is now-7d..now → 604800s / 500 = 1209.6 → snapped to 30m.
+    expect(params.step).toBe(1800);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -147,6 +162,24 @@ describe("runVariableOptionsQuery", () => {
     });
 
     expect(result).toEqual({ options: ["api", "web", "42"], truncated: false });
+  });
+
+  it("binds the same from/to/step params as a panel query", async () => {
+    // The docs promise the parameters are always available; an options query
+    // referencing {step}/{from}/{to} must not error where a panel wouldn't.
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runVariableOptionsQuery({
+      data: { query: "SELECT DISTINCT ServiceName FROM traces" },
+    });
+
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<
+      string,
+      unknown
+    >;
+    expect(typeof params.from).toBe("string");
+    expect(typeof params.to).toBe("string");
+    expect(params.step).toBe(1800); // default now-7d..now → 30m
   });
 
   it("injects a LIMIT so the SQL API profile never throws on overflow", async () => {
