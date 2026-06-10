@@ -71,7 +71,7 @@ export type AlertSummary = {
   activeSilenceCount: number;
 };
 
-export type AlertDetail = AlertSummary & {
+type AlertDetail = AlertSummary & {
   rawYaml: string;
   parsedQuery: string;
   summaryTemplate: string;
@@ -353,7 +353,7 @@ export type AlertInstanceSummary = {
   state: "firing" | "resolved";
   lastFiredAt: string | null;
   lastResolvedAt: string | null;
-  lastRow: Record<string, unknown>;
+  lastRow: Record<string, AlertEvidenceValue>;
   silenced: boolean;
 };
 
@@ -432,7 +432,10 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
         state: row.lastEventType === "instance_fired" ? "firing" : "resolved",
         lastFiredAt: row.lastFiredAt || null,
         lastResolvedAt: row.lastResolvedAt || null,
-        lastRow: parseJsonObject(row.lastFiredEvidenceJson),
+        lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<
+          string,
+          AlertEvidenceValue
+        >,
         silenced: Boolean(findSilenceForInstance(silences, labels)),
       } satisfies AlertInstanceSummary;
     });

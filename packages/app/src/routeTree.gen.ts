@@ -29,7 +29,6 @@ import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
 import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
-import { Route as ApiCliAlertsTestRouteImport } from './routes/api/cli/alerts/test'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './routes/_authenticated/_dashboard/users-management'
 import { Route as AuthenticatedDashboardTracesRouteImport } from './routes/_authenticated/_dashboard/traces'
@@ -41,8 +40,8 @@ import { Route as AuthenticatedDashboardIngestKeysRouteImport } from './routes/_
 import { Route as AuthenticatedDashboardErrorsRouteImport } from './routes/_authenticated/_dashboard/errors'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
-import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
 import { Route as AuthenticatedDashboardAlertsRouteImport } from './routes/_authenticated/_dashboard/alerts'
+import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
@@ -53,9 +52,11 @@ import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/githu
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
+import { Route as ApiCliAlertsTestRouteImport } from './routes/api/cli/alerts/test'
 import { Route as AuthenticatedDashboardTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/traces_.$traceId'
 import { Route as AuthenticatedDashboardErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/errors_.$fingerprint'
 import { Route as AuthenticatedDashboardCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/checkout.success'
+import { Route as AuthenticatedDashboardAlertsAlertIdRouteImport } from './routes/_authenticated/_dashboard/alerts_.$alertId'
 import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
 import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
 import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
@@ -168,11 +169,6 @@ const ApiCliImportRoute = ApiCliImportRouteImport.update({
   path: '/import',
   getParentRoute: () => ApiCliRoute,
 } as any)
-const ApiCliAlertsTestRoute = ApiCliAlertsTestRouteImport.update({
-  id: '/alerts/test',
-  path: '/alerts/test',
-  getParentRoute: () => ApiCliRoute,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -238,16 +234,16 @@ const AuthenticatedDashboardBillingRoute =
     path: '/billing',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthenticatedDashboardAccountRoute =
-  AuthenticatedDashboardAccountRouteImport.update({
-    id: '/account',
-    path: '/account',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
 const AuthenticatedDashboardAlertsRoute =
   AuthenticatedDashboardAlertsRouteImport.update({
     id: '/alerts',
     path: '/alerts',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardAccountRoute =
+  AuthenticatedDashboardAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthInviteInvitationIdRoute = AuthInviteInvitationIdRouteImport.update({
@@ -304,6 +300,11 @@ const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
   path: '/name',
   getParentRoute: () => ApiCliOrgRoute,
 } as any)
+const ApiCliAlertsTestRoute = ApiCliAlertsTestRouteImport.update({
+  id: '/alerts/test',
+  path: '/alerts/test',
+  getParentRoute: () => ApiCliRoute,
+} as any)
 const AuthenticatedDashboardTracesTraceIdRoute =
   AuthenticatedDashboardTracesTraceIdRouteImport.update({
     id: '/traces_/$traceId',
@@ -320,6 +321,12 @@ const AuthenticatedDashboardCheckoutSuccessRoute =
   AuthenticatedDashboardCheckoutSuccessRouteImport.update({
     id: '/checkout/success',
     path: '/checkout/success',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardAlertsAlertIdRoute =
+  AuthenticatedDashboardAlertsAlertIdRouteImport.update({
+    id: '/alerts_/$alertId',
+    path: '/alerts/$alertId',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthGuestAuthSignUpRoute = AuthGuestAuthSignUpRouteImport.update({
@@ -427,7 +434,6 @@ export interface FileRoutesByFullPath {
   '/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -442,9 +448,11 @@ export interface FileRoutesByFullPath {
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
+  '/alerts/$alertId': typeof AuthenticatedDashboardAlertsAlertIdRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
+  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -485,7 +493,6 @@ export interface FileRoutesByTo {
   '/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -499,9 +506,11 @@ export interface FileRoutesByTo {
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
+  '/alerts/$alertId': typeof AuthenticatedDashboardAlertsAlertIdRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
+  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -547,7 +556,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
   '/_authenticated/_dashboard/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -563,9 +571,11 @@ export interface FileRoutesById {
   '/_auth/_guest/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/_auth/_guest/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/_auth/_guest/auth/sign-up': typeof AuthGuestAuthSignUpRoute
+  '/_authenticated/_dashboard/alerts_/$alertId': typeof AuthenticatedDashboardAlertsAlertIdRoute
   '/_authenticated/_dashboard/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/_authenticated/_dashboard/errors_/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/_authenticated/_dashboard/traces_/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
+  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -609,7 +619,6 @@ export interface FileRouteTypes {
     | '/traces'
     | '/users-management'
     | '/api/auth/$'
-    | '/api/cli/alerts/test'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -624,9 +633,11 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/alerts/$alertId'
     | '/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
+    | '/api/cli/alerts/test'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -667,7 +678,6 @@ export interface FileRouteTypes {
     | '/traces'
     | '/users-management'
     | '/api/auth/$'
-    | '/api/cli/alerts/test'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -681,9 +691,11 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/alerts/$alertId'
     | '/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
+    | '/api/cli/alerts/test'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -728,7 +740,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/traces'
     | '/_authenticated/_dashboard/users-management'
     | '/api/auth/$'
-    | '/api/cli/alerts/test'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -744,9 +755,11 @@ export interface FileRouteTypes {
     | '/_auth/_guest/auth/reset-password'
     | '/_auth/_guest/auth/sign-in'
     | '/_auth/_guest/auth/sign-up'
+    | '/_authenticated/_dashboard/alerts_/$alertId'
     | '/_authenticated/_dashboard/checkout/success'
     | '/_authenticated/_dashboard/errors_/$fingerprint'
     | '/_authenticated/_dashboard/traces_/$traceId'
+    | '/api/cli/alerts/test'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -923,13 +936,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliImportRouteImport
       parentRoute: typeof ApiCliRoute
     }
-    '/api/cli/alerts/test': {
-      id: '/api/cli/alerts/test'
-      path: '/alerts/test'
-      fullPath: '/api/cli/alerts/test'
-      preLoaderRoute: typeof ApiCliAlertsTestRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -1007,18 +1013,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardBillingRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_authenticated/_dashboard/account': {
-      id: '/_authenticated/_dashboard/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AuthenticatedDashboardAccountRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
     '/_authenticated/_dashboard/alerts': {
       id: '/_authenticated/_dashboard/alerts'
       path: '/alerts'
       fullPath: '/alerts'
       preLoaderRoute: typeof AuthenticatedDashboardAlertsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/account': {
+      id: '/_authenticated/_dashboard/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedDashboardAccountRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_auth/invite/$invitationId': {
@@ -1091,6 +1097,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliOrgNameRouteImport
       parentRoute: typeof ApiCliOrgRoute
     }
+    '/api/cli/alerts/test': {
+      id: '/api/cli/alerts/test'
+      path: '/alerts/test'
+      fullPath: '/api/cli/alerts/test'
+      preLoaderRoute: typeof ApiCliAlertsTestRouteImport
+      parentRoute: typeof ApiCliRoute
+    }
     '/_authenticated/_dashboard/traces_/$traceId': {
       id: '/_authenticated/_dashboard/traces_/$traceId'
       path: '/traces/$traceId'
@@ -1110,6 +1123,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout/success'
       fullPath: '/checkout/success'
       preLoaderRoute: typeof AuthenticatedDashboardCheckoutSuccessRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/alerts_/$alertId': {
+      id: '/_authenticated/_dashboard/alerts_/$alertId'
+      path: '/alerts/$alertId'
+      fullPath: '/alerts/$alertId'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsAlertIdRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_auth/_guest/auth/sign-up': {
@@ -1330,6 +1350,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardTracesRoute: typeof AuthenticatedDashboardTracesRouteWithChildren
   AuthenticatedDashboardUsersManagementRoute: typeof AuthenticatedDashboardUsersManagementRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
+  AuthenticatedDashboardAlertsAlertIdRoute: typeof AuthenticatedDashboardAlertsAlertIdRoute
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
   AuthenticatedDashboardErrorsFingerprintRoute: typeof AuthenticatedDashboardErrorsFingerprintRoute
   AuthenticatedDashboardTracesTraceIdRoute: typeof AuthenticatedDashboardTracesTraceIdRoute
@@ -1361,6 +1382,8 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
     AuthenticatedDashboardUsersManagementRoute:
       AuthenticatedDashboardUsersManagementRoute,
     AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
+    AuthenticatedDashboardAlertsAlertIdRoute:
+      AuthenticatedDashboardAlertsAlertIdRoute,
     AuthenticatedDashboardCheckoutSuccessRoute:
       AuthenticatedDashboardCheckoutSuccessRoute,
     AuthenticatedDashboardErrorsFingerprintRoute:
@@ -1434,7 +1457,6 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 )
 
 interface ApiCliRouteChildren {
-  ApiCliAlertsTestRoute: typeof ApiCliAlertsTestRoute
   ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliNotificationRoute: typeof ApiCliNotificationRoute
@@ -1442,10 +1464,10 @@ interface ApiCliRouteChildren {
   ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
+  ApiCliAlertsTestRoute: typeof ApiCliAlertsTestRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
-  ApiCliAlertsTestRoute: ApiCliAlertsTestRoute,
   ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
   ApiCliNotificationRoute: ApiCliNotificationRoute,
@@ -1453,6 +1475,7 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliReposRoute: ApiCliReposRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,
+  ApiCliAlertsTestRoute: ApiCliAlertsTestRoute,
 }
 
 const ApiCliRouteWithChildren =
