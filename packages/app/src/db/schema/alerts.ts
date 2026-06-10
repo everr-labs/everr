@@ -63,6 +63,11 @@ export const alertDefinitions = pgTable(
     lastEvidenceSnapshot: jsonb("last_evidence_snapshot")
       .notNull()
       .default(sql`'[]'::jsonb`),
+    firingInstanceCount: integer("firing_instance_count").notNull().default(0),
+    instanceLabelColumns: jsonb("instance_label_columns")
+      .notNull()
+      .default(sql`'[]'::jsonb`)
+      .$type<string[]>(),
   },
   (table) => [
     uniqueIndex("alert_definitions_org_repo_slug_uq").on(
@@ -86,6 +91,12 @@ export const alertSettings = pgTable("alert_settings", {
     .defaultNow(),
 });
 
+export type AlertSilenceMatcher = {
+  label: string;
+  op: "=" | "!=" | "=~" | "!~";
+  value: string;
+};
+
 export const alertSilences = pgTable(
   "alert_silences",
   {
@@ -97,6 +108,10 @@ export const alertSilences = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     reason: text("reason").notNull().default(""),
+    matchers: jsonb("matchers")
+      .notNull()
+      .default(sql`'[]'::jsonb`)
+      .$type<AlertSilenceMatcher[]>(),
     createdByUserId: text("created_by_user_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
