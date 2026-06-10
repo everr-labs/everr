@@ -11,41 +11,31 @@ export interface GeoMarker {
   label: string | undefined;
 }
 
-/** Light → dark anchors per scheme, interpolated for choropleth fills. */
-const RAMP: Record<GeoColorScheme, [[number, number, number], [number, number, number]]> = {
-  blue: [
-    [219, 234, 254],
-    [30, 64, 175],
-  ],
-  green: [
-    [220, 252, 231],
-    [22, 101, 52],
-  ],
-  orange: [
-    [255, 237, 213],
-    [154, 52, 18],
-  ],
-  red: [
-    [254, 226, 226],
-    [153, 27, 27],
-  ],
+/** Full saturated color per scheme (markers + choropleth high end). */
+const SCHEME_COLOR: Record<GeoColorScheme, [number, number, number]> = {
+  blue: [37, 99, 235],
+  green: [22, 163, 74],
+  orange: [234, 88, 12],
+  red: [220, 38, 38],
 };
 
-function lerp(a: number, b: number, t: number): number {
-  return Math.round(a + (b - a) * t);
-}
-
-/** Interpolated fill color for a choropleth scheme at position t in [0,1]. */
+/**
+ * Choropleth fill for a scheme at position t in [0,1]: the scheme's full color
+ * at opacity t, so low values fade toward transparent (revealing the land
+ * beneath) and high values reach full color. Avoids a washed-out white low end
+ * on dark backgrounds.
+ */
 export function colorRamp(scheme: GeoColorScheme, t: number): string {
-  const [lo, hi] = RAMP[scheme];
+  const [r, g, b] = SCHEME_COLOR[scheme];
   const u = t < 0 ? 0 : t > 1 ? 1 : t;
-  return `rgb(${lerp(lo[0], hi[0], u)}, ${lerp(lo[1], hi[1], u)}, ${lerp(lo[2], hi[2], u)})`;
+  const a = Math.round(u * 1000) / 1000;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-/** The saturated end of a scheme — used as a points-mode marker base color. */
+/** The scheme's full color — used as a points-mode marker base color. */
 export function schemeBaseColor(scheme: GeoColorScheme): string {
-  const [, hi] = RAMP[scheme];
-  return `rgb(${hi[0]}, ${hi[1]}, ${hi[2]})`;
+  const [r, g, b] = SCHEME_COLOR[scheme];
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 function validLat(n: number): boolean {
@@ -74,7 +64,13 @@ export function extractMarkers(
         spec.labelColumn && row[spec.labelColumn] != null
           ? String(row[spec.labelColumn])
           : undefined;
-      markers.push({ lat, lon, value: toNumber(row[spec.valueColumn]), frame, label });
+      markers.push({
+        lat,
+        lon,
+        value: toNumber(row[spec.valueColumn]),
+        frame,
+        label,
+      });
     }
   });
   return { markers, skipped };
@@ -103,7 +99,10 @@ export function mergeRegions(
 }
 
 /** [min,max] color/size domain: explicit spec bounds win, else data extent. */
-export function deriveDomain(vals: number[], spec: GeoMapSpec): [number, number] {
+export function deriveDomain(
+  vals: number[],
+  spec: GeoMapSpec,
+): [number, number] {
   const min = spec.min ?? (vals.length ? Math.min(...vals) : 0);
   const max = spec.max ?? (vals.length ? Math.max(...vals) : 1);
   return [min, max];

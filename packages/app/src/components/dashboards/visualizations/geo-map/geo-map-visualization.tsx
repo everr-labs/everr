@@ -18,6 +18,8 @@ import { getWorldCountries } from "./world-geometry";
 const VW = 980;
 const VH = 500;
 const R_RANGE: [number, number] = [3, 22];
+/** Marker fill opacity — shared by map markers and the legend swatches. */
+const MARKER_OPACITY = 0.65;
 
 /** Marker color encodes which query: frame 0 = scheme base, then the palette. */
 function markerColor(frame: number, spec: GeoMapSpec): string {
@@ -97,46 +99,49 @@ export function GeoMapVisualization({
         >
           <title>Geographic map</title>
 
+          {/* base land — every country in a muted fill */}
           {countries.map((f) => {
             const d = path(f) ?? undefined;
             if (!d) return null;
-            let dataFill: string | undefined;
-            if (content.kind === "choropleth") {
-              const v = content.values.get(String(f.id));
-              if (v !== undefined) {
-                const t = d1 > d0 ? (v - d0) / (d1 - d0) : 1;
-                dataFill = colorRamp(spec.colorScheme, t);
-              }
-            }
             return (
-              // biome-ignore lint/a11y/noStaticElementInteractions: map region hover
               <path
                 key={String(f.id)}
                 d={d}
-                className={
-                  dataFill ? "stroke-border" : "fill-muted stroke-border"
-                }
-                fill={dataFill}
+                className="fill-muted stroke-border"
                 strokeWidth={0.5}
-                onMouseEnter={
-                  content.kind === "choropleth"
-                    ? () => {
-                        const v = content.values.get(String(f.id));
-                        if (v === undefined) return;
-                        const c = path.centroid(f);
-                        setHover({
-                          x: c[0],
-                          y: c[1],
-                          title: f.properties?.name ?? String(f.id),
-                          value: v,
-                        });
-                      }
-                    : undefined
-                }
-                onMouseLeave={() => setHover(null)}
               />
             );
           })}
+
+          {/* choropleth data — colored overlay (transparent→full) over the land */}
+          {content.kind === "choropleth" &&
+            countries.map((f) => {
+              const v = content.values.get(String(f.id));
+              if (v === undefined) return null;
+              const d = path(f) ?? undefined;
+              if (!d) return null;
+              const t = d1 > d0 ? (v - d0) / (d1 - d0) : 1;
+              return (
+                // biome-ignore lint/a11y/noStaticElementInteractions: map region hover
+                <path
+                  key={`v-${String(f.id)}`}
+                  d={d}
+                  fill={colorRamp(spec.colorScheme, t)}
+                  className="stroke-border"
+                  strokeWidth={0.5}
+                  onMouseEnter={() => {
+                    const c = path.centroid(f);
+                    setHover({
+                      x: c[0],
+                      y: c[1],
+                      title: f.properties?.name ?? String(f.id),
+                      value: v,
+                    });
+                  }}
+                  onMouseLeave={() => setHover(null)}
+                />
+              );
+            })}
 
           {content.kind === "points" &&
             content.markers.map((m, i) => {
@@ -151,7 +156,7 @@ export function GeoMapVisualization({
                   cy={xy[1]}
                   r={r}
                   fill={markerColor(m.frame, spec)}
-                  fillOpacity={0.65}
+                  fillOpacity={MARKER_OPACITY}
                   stroke="white"
                   strokeWidth={0.75}
                   onMouseEnter={() =>
@@ -194,7 +199,15 @@ export function GeoMapVisualization({
             <g transform={`translate(12, ${VH - 12 - frameCount * 18})`}>
               {Array.from({ length: frameCount }, (_, f) => (
                 <g key={f} transform={`translate(0, ${f * 18})`}>
-                  <circle cx={6} cy={6} r={6} fill={markerColor(f, spec)} />
+                  <circle
+                    cx={6}
+                    cy={6}
+                    r={6}
+                    fill={markerColor(f, spec)}
+                    fillOpacity={MARKER_OPACITY}
+                    stroke="white"
+                    strokeWidth={0.75}
+                  />
                   <text x={18} y={10} fontSize={12} className="fill-foreground">
                     {queryLabel(f)}
                   </text>
@@ -208,14 +221,24 @@ export function GeoMapVisualization({
                 <linearGradient id="geo-ramp" x1="0" x2="1" y1="0" y2="0">
                   <stop
                     offset="0%"
-                    stopColor={colorRamp(spec.colorScheme, 0)}
+                    stopColor={schemeBaseColor(spec.colorScheme)}
+                    stopOpacity={0}
                   />
                   <stop
                     offset="100%"
-                    stopColor={colorRamp(spec.colorScheme, 1)}
+                    stopColor={schemeBaseColor(spec.colorScheme)}
+                    stopOpacity={1}
                   />
                 </linearGradient>
               </defs>
+              <rect
+                x={0}
+                y={0}
+                width={160}
+                height={10}
+                rx={2}
+                className="fill-muted"
+              />
               <rect
                 x={0}
                 y={0}
