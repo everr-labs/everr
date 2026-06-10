@@ -107,7 +107,7 @@ GROUP BY ts ORDER BY ts
 
 ## Time range and variables
 
-The dashboard's **global time range** (the picker at the top, stored in the URL) is supplied to every query as two ClickHouse parameters, `{from:String}` and `{to:String}` — UTC datetimes in `YYYY-MM-DD HH:MM:SS` form. They are **not** injected automatically, so add them to your `WHERE` clause to scope the query to the picker:
+The dashboard's **global time range** (the picker at the top, stored in the URL) is supplied to every query as two ClickHouse parameters, `{from:String}` and `{to:String}` — UTC datetimes in `YYYY-MM-DD HH:MM:SS.mmm` form. They are **not** injected automatically, so add them to your `WHERE` clause to scope the query to the picker:
 
 ```sql
 WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
@@ -128,6 +128,17 @@ GROUP BY ts ORDER BY ts
 ```
 
 The width snaps to clock-aligned values so bucket boundaries land on clean axis lines — see [Query parameters](/docs/dashboards/dashboard-spec#query-parameters) for the exact widths. Like `from`/`to`, the parameter is always bound; queries that don't reference it are unaffected.
+
+<Callout type="info">
+  The first and last buckets of a range are usually **partial** — the picker's
+  edges rarely fall on a bucket boundary, so the leading bucket starts before
+  `from` and the trailing one ends before a full `step` has elapsed. An
+  aggregate like `count()` or `sum()` therefore reads lower at the edges: the
+  time-series chart clips the leading partial bucket at the left edge and shows
+  the trailing one as a dip. This is inherent to time bucketing (Grafana behaves
+  the same) — read edge values as approximate, and don't mistake the trailing
+  dip for a real drop.
+</Callout>
 
 ### Variables
 
