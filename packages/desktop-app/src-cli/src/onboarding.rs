@@ -553,7 +553,6 @@ async fn step_install_desktop_app() -> Result<bool> {
 
 #[cfg(not(target_os = "macos"))]
 async fn step_install_desktop_app() -> Result<bool> {
-    cliclack::log::remark("Skipping desktop app setup on this platform.")?;
     Ok(false)
 }
 
