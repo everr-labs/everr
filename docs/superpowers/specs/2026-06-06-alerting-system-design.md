@@ -696,3 +696,7 @@ Notification delivery tests:
 - Use Graphile Worker for alert orchestration and scheduling.
 - Use app-owned due-time scanning instead of one runtime schedule per alert.
 - Support multiple app/worker replicas with Postgres-backed queueing and app-level idempotency.
+
+- Support .json as source
+
+Per-row alert instances, instance-scoped silences with matcher expressions, and the Alerts list/detail UI split are designed in `2026-06-11-alert-instances-ui-design.md`, which supersedes this document's "one alert instance per rule" decision, the "No per-row alert instances in v1" non-goal, and the "Alerts Page" section.
