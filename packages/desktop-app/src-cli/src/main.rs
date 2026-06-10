@@ -7,6 +7,7 @@ mod onboarding;
 mod skills;
 mod telemetry;
 mod uninstall;
+mod update_notice;
 mod wrap;
 
 use anyhow::Result;
@@ -16,6 +17,7 @@ use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    update_notice::maybe_print(&cli).await;
 
     match cli.command {
         Commands::Uninstall => uninstall::run_uninstall()?,
