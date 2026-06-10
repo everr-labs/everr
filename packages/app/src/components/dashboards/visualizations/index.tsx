@@ -1,6 +1,8 @@
 import { type ComponentType, useMemo } from "react";
 import type * as z from "zod";
 import type { PanelPlugin } from "@/data/dashboards/schema";
+import { GeoMapVisualization } from "./geo-map/geo-map-visualization";
+import { geoMapSpec } from "./geo-map/spec";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";
 import { StatChartVisualization } from "./stat-chart/stat-chart-visualization";
@@ -43,6 +45,11 @@ function defineVisualization<S extends z.ZodType>(entry: {
 }
 
 const registry: Record<string, VisualizationEntry> = {
+  GeoMap: defineVisualization({
+    schema: geoMapSpec,
+    component: GeoMapVisualization,
+    inset: "flush-content",
+  }),
   StatChart: defineVisualization({
     schema: statChartSpec,
     component: StatChartVisualization,
