@@ -18,8 +18,6 @@ import { getWorldCountries } from "./world-geometry";
 const VW = 980;
 const VH = 500;
 const R_RANGE: [number, number] = [3, 22];
-const NO_DATA_FILL = "hsl(215, 16%, 90%)";
-const STROKE = "hsl(215, 16%, 70%)";
 
 /** Marker color encodes which query: frame 0 = scheme base, then the palette. */
 function markerColor(frame: number, spec: GeoMapSpec): string {
@@ -102,12 +100,12 @@ export function GeoMapVisualization({
           {countries.map((f) => {
             const d = path(f) ?? undefined;
             if (!d) return null;
-            let fill = NO_DATA_FILL;
+            let dataFill: string | undefined;
             if (content.kind === "choropleth") {
               const v = content.values.get(String(f.id));
               if (v !== undefined) {
                 const t = d1 > d0 ? (v - d0) / (d1 - d0) : 1;
-                fill = colorRamp(spec.colorScheme, t);
+                dataFill = colorRamp(spec.colorScheme, t);
               }
             }
             return (
@@ -115,8 +113,10 @@ export function GeoMapVisualization({
               <path
                 key={String(f.id)}
                 d={d}
-                fill={fill}
-                stroke={STROKE}
+                className={
+                  dataFill ? "stroke-border" : "fill-muted stroke-border"
+                }
+                fill={dataFill}
                 strokeWidth={0.5}
                 onMouseEnter={
                   content.kind === "choropleth"
