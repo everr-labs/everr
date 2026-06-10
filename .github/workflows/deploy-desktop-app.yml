@@ -287,6 +287,13 @@ jobs:
           path: target/linux-cli-release
           merge-multiple: true
 
+      - name: Read desktop app version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./packages/desktop-app/package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Merge Linux CLI assets
         run: |
           set -euo pipefail
@@ -380,7 +387,7 @@ jobs:
         id: upload-desktop-release
         uses: actions/upload-artifact@v4
         with:
-          name: everr-desktop-release-${{ github.sha }}
+          name: everr-desktop-release-${{ steps.version.outputs.version }}
           path: target/desktop-release
           if-no-files-found: error
           retention-days: 14
@@ -422,5 +429,5 @@ jobs:
               "run_id": "${{ github.run_id }}",
               "sha": "${{ github.sha }}",
               "version": "${{ steps.version.outputs.version }}",
-              "artifact_name": "everr-desktop-release-${{ github.sha }}"
+              "artifact_name": "everr-desktop-release-${{ steps.version.outputs.version }}"
             }
