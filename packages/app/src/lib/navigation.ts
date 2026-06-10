@@ -1,4 +1,5 @@
 import {
+  Bell,
   Bug,
   FlaskConical,
   GitBranch,
@@ -54,6 +55,11 @@ export const navMain: NavItem[] = [
     title: "Errors",
     url: "/errors",
     icon: Bug,
+  },
+  {
+    title: "Alerts",
+    url: "/alerts",
+    icon: Bell,
   },
   {
     title: "Traces",
