@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { dashboardSlugSchema, dashboardSpecSchema } from "./schema";
+import {
+  dashboardSlugSchema,
+  dashboardSpecSchema,
+  dashboardSpecSchemaStrict,
+} from "./schema";
 
 const panel = {
   kind: "Panel" as const,
@@ -72,6 +76,73 @@ describe("dashboardSpecSchema datasources", () => {
         ch: { plugin: { kind: "ClickHouseDatasource", spec: {} } },
       },
     });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("dashboardSpecSchemaStrict plugin specs", () => {
+  const specWithPlugin = (kind: string, pluginSpec: unknown) => ({
+    panels: {
+      cpu: {
+        kind: "Panel" as const,
+        spec: { plugin: { kind, spec: pluginSpec } },
+      },
+    },
+    layouts: [
+      {
+        kind: "Grid" as const,
+        spec: { items: [gridItem("#/spec/panels/cpu")] },
+      },
+    ],
+  });
+
+  it("accepts valid options for a known kind", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("TimeSeriesChart", { unit: "ms", lineWidth: 2 }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an invalid option value with the full panel path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("TimeSeriesChart", { lineWidth: "3" }),
+    );
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([
+      "panels",
+      "cpu",
+      "spec",
+      "plugin",
+      "spec",
+      "lineWidth",
+    ]);
+  });
+
+  it("rejects an out-of-enum option", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("StatChart", { calculation: "median" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts unknown option keys on a known kind (never stricter than Perses)", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("Table", { stickyHeader: true, futureOption: 1 }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts unknown plugin kinds with arbitrary specs", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("GaugeChart", { whatever: { nested: true } }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("the base schema stays lenient for the read path", () => {
+    const result = dashboardSpecSchema.safeParse(
+      specWithPlugin("TimeSeriesChart", { lineWidth: "3" }),
+    );
     expect(result.success).toBe(true);
   });
 });

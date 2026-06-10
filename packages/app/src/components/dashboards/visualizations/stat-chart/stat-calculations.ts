@@ -1,17 +1,6 @@
-export type CalculationType = "last" | "first" | "mean" | "min" | "max" | "sum";
+import type { CalculationType, ThresholdsSpec } from "./spec";
 
-const CALCULATIONS: ReadonlyArray<{ value: CalculationType }> = [
-  { value: "last" },
-  { value: "first" },
-  { value: "mean" },
-  { value: "min" },
-  { value: "max" },
-  { value: "sum" },
-] as const;
-
-export function isCalculationType(value: unknown): value is CalculationType {
-  return CALCULATIONS.some((c) => c.value === value);
-}
+export type { CalculationType, ThresholdsSpec } from "./spec";
 
 export function calculate(
   values: number[],
@@ -32,17 +21,6 @@ export function calculate(
     case "sum":
       return values.reduce((a, b) => a + b, 0);
   }
-}
-
-export interface ThresholdStep {
-  value: number;
-  color?: string;
-}
-
-export interface ThresholdsSpec {
-  mode?: "absolute" | "percent";
-  defaultColor?: string;
-  steps?: ThresholdStep[];
 }
 
 export function resolveThresholdColor(
