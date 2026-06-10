@@ -3,9 +3,9 @@ title: Visualizations
 description: The built-in panel visualizations and the spec options each one accepts.
 ---
 
-A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships three visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships four visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
-All three infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
+They infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
 Options are validated: `everr apply` rejects a dashboard whose option values don't match the tables below, naming the file and the offending option. Unknown option keys are accepted and preserved. If an already-stored dashboard contains an invalid value, the panel still renders with the default and shows a warning icon in its header listing the ignored options.
 
@@ -84,3 +84,34 @@ plugin:
 | `thresholds.max` | number | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window. |
 | `thresholds.defaultColor` | string | — | Color when no step is crossed. |
 | `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. |
+
+## GeoMap
+
+Plots geographic data on a world map, either as latitude/longitude markers (`points`) or by shading countries (`choropleth`). In points mode it renders **all** query frames, giving each query its own marker color; in choropleth mode it merges every frame by **summing** the value of each region. Region codes that don't resolve to a known country and points with invalid coordinates are dropped.
+
+```yaml
+plugin:
+  kind: GeoMap
+  spec:
+    mode: points
+    latColumn: lat
+    lonColumn: lon
+    valueColumn: value
+    unit: req
+    showLegend: true
+    colorScheme: blue
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `mode` | enum | `points` | `points` plots lat/lon markers; `choropleth` shades countries. |
+| `latColumn` | string | `lat` | Latitude column (points mode). |
+| `lonColumn` | string | `lon` | Longitude column (points mode). |
+| `regionColumn` | string | `region` | ISO-3166 alpha-2/alpha-3 column (choropleth mode). |
+| `valueColumn` | string | `value` | Sizes markers / shades regions. |
+| `labelColumn` | string | — | Tooltip title; falls back to the region or coordinates. |
+| `unit` | string | `""` | Value formatting in the tooltip and legend. |
+| `showLegend` | boolean | `true` | Per-query swatches (points) or the color ramp (choropleth). |
+| `colorScheme` | enum | `blue` | One of `blue`, `green`, `orange`, `red` — marker base / choropleth ramp. |
+| `min` | number | — | Lower bound of the color/size domain. Auto-derived from data when unset. |
+| `max` | number | — | Upper bound of the color/size domain. Auto-derived from data when unset. |
