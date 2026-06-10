@@ -83,6 +83,7 @@ vi.mock("@/db/schema", () => ({
     lastSeenAt: "last_seen_at",
     lastRowCount: "last_row_count",
     lastEvidenceSnapshot: "last_evidence_snapshot",
+    instanceLabelColumns: "instance_label_columns",
   },
 }));
 
@@ -340,6 +341,42 @@ describe("applyAlertSpecs", () => {
         ],
       }),
     ).rejects.toThrow(/bad-var\.yaml: unsupported query variable/);
+  });
+
+  it("rejects instanceLabels columns the query does not return", async () => {
+    await expect(
+      applyAlertSpecs({
+        orgId: "org-1",
+        repoid: "repo-1",
+        resources: [
+          {
+            path: "labels.yaml",
+            resource: alert("labels", { instanceLabels: ["missing"] }),
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      /labels\.yaml: instanceLabels references column "missing"/,
+    );
+  });
+
+  it("persists instanceLabelColumns on create", async () => {
+    mockApplySelect([]);
+
+    await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [
+        {
+          path: "alerts/high-errors.yaml",
+          resource: alert("high-errors", { instanceLabels: ["service"] }),
+        },
+      ],
+    });
+
+    expect(insertValues[0]).toMatchObject({
+      instanceLabelColumns: ["service"],
+    });
   });
 
   it("validates top columns from metadata even when the query returns zero rows", async () => {

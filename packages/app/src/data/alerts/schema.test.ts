@@ -17,6 +17,30 @@ describe("AlertRuleYamlSchema", () => {
     expect(AlertRuleYamlSchema.safeParse(valid).success).toBe(true);
   });
 
+  it("accepts optional spec.instanceLabels", () => {
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, instanceLabels: ["route"] },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects empty instanceLabels arrays and entries", () => {
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, instanceLabels: [] },
+      }).success,
+    ).toBe(false);
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, instanceLabels: [""] },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects unknown keys, missing summary, and empty name", () => {
     expect(AlertRuleYamlSchema.safeParse({ ...valid, extra: 1 }).success).toBe(
       false,

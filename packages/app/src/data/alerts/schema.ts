@@ -26,6 +26,7 @@ export const AlertRuleYamlSchema = z
         summary: nonEmptyString,
         description: z.string().optional(),
         query: nonEmptyString,
+        instanceLabels: z.array(nonEmptyString).min(1).optional(),
       })
       .strict(),
   })

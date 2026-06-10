@@ -27,6 +27,7 @@ interface DesiredAlert {
   parsedQuery: string;
   summaryTemplate: string;
   descriptionTemplate: string;
+  instanceLabelColumns: string[];
   scheduleJitterSeconds: number;
   configFilePath: string;
   sourceLink: string;
@@ -48,6 +49,7 @@ interface ExistingAlert {
   parsedQuery: string;
   summaryTemplate: string;
   descriptionTemplate: string;
+  instanceLabelColumns: string[];
   scheduleJitterSeconds: number;
   configFilePath: string;
   sourceLink: string;
@@ -202,6 +204,17 @@ async function buildDesiredAlerts(opts: {
       );
     }
 
+    const instanceLabelColumns = parsed.rule.spec.instanceLabels ?? [];
+    const columnNames = new Set(result.columns);
+    for (const column of instanceLabelColumns) {
+      if (!columnNames.has(column)) {
+        throw validationError(
+          parsed.path,
+          `instanceLabels references column "${column}" which the query does not return`,
+        );
+      }
+    }
+
     out.push({
       slug: parsed.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
@@ -210,6 +223,7 @@ async function buildDesiredAlerts(opts: {
       parsedQuery: parsed.parsedQuery,
       summaryTemplate: parsed.rule.spec.summary,
       descriptionTemplate: parsed.rule.spec.description ?? "",
+      instanceLabelColumns,
       scheduleJitterSeconds: scheduleJitterSeconds(
         opts.orgId,
         opts.repoid,
@@ -234,6 +248,8 @@ function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
     existing.parsedQuery !== desired.parsedQuery ||
     existing.summaryTemplate !== desired.summaryTemplate ||
     existing.descriptionTemplate !== desired.descriptionTemplate ||
+    JSON.stringify(existing.instanceLabelColumns) !==
+      JSON.stringify(desired.instanceLabelColumns) ||
     existing.scheduleJitterSeconds !== desired.scheduleJitterSeconds ||
     existing.configFilePath !== desired.configFilePath ||
     existing.sourceLink !== desired.sourceLink
@@ -260,6 +276,7 @@ function activeValues(
     parsedQuery: desired.parsedQuery,
     summaryTemplate: desired.summaryTemplate,
     descriptionTemplate: desired.descriptionTemplate,
+    instanceLabelColumns: desired.instanceLabelColumns,
     nextEvaluationAt: nextEvaluationAt(now, desired),
     scheduleJitterSeconds: desired.scheduleJitterSeconds,
     configFilePath: desired.configFilePath,
@@ -313,6 +330,7 @@ export const applyAlertSpecs: Reconciler = async ({
       parsedQuery: alertDefinitions.parsedQuery,
       summaryTemplate: alertDefinitions.summaryTemplate,
       descriptionTemplate: alertDefinitions.descriptionTemplate,
+      instanceLabelColumns: alertDefinitions.instanceLabelColumns,
       scheduleJitterSeconds: alertDefinitions.scheduleJitterSeconds,
       configFilePath: alertDefinitions.configFilePath,
       sourceLink: alertDefinitions.sourceLink,
