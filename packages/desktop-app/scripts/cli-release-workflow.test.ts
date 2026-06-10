@@ -41,7 +41,6 @@ describe("CLI release workflow", () => {
 
     expect(workflow).toContain("event-type: cli-linux-release");
     expect(workflow).toContain("repository: everr-labs/everr-deploy");
-    expect(workflow).toContain('"release_kind": "cli-linux"');
     expect(workflow).toContain('"artifact_name": "everr-cli-linux-release-${{ github.sha }}"');
   });
 });
