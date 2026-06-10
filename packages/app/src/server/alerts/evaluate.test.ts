@@ -12,6 +12,15 @@ vi.mock("./delivery", () => ({
   deliverAlertNotification: (...args: unknown[]) => deliver(...args),
 }));
 
+const fetchFiring = vi.fn();
+vi.mock("./instances", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./instances")>();
+  return {
+    ...actual,
+    fetchFiringInstances: (...args: unknown[]) => fetchFiring(...args),
+  };
+});
+
 const definitionRows = vi.fn();
 const updates: unknown[] = [];
 vi.mock("@/db/client", () => ({
@@ -38,13 +47,16 @@ vi.mock("@/telemetry/logger", () => ({
   exceptionAttributes: (error: unknown) => ({
     "exception.message": error instanceof Error ? error.message : String(error),
   }),
-  serverLogger: { error: vi.fn() },
+  serverLogger: { error: vi.fn(), warn: vi.fn() },
 }));
 
 import { evaluateAlert } from "./evaluate";
+import { instanceFingerprint } from "./instances";
+
+const alertDefinitionId = "11111111-1111-4111-8111-111111111111";
 
 const baseDef = {
-  id: "a1",
+  id: alertDefinitionId,
   organizationId: "org-1",
   repoid: "r1",
   slug: "high-5xx",
@@ -54,42 +66,96 @@ const baseDef = {
   summaryTemplate: `\${row_count} bad`,
   descriptionTemplate: "",
   currentState: "resolved",
+  instanceLabelColumns: [],
+  firingInstanceCount: 0,
 };
+
+const fp = (route: string) => instanceFingerprint({ route });
+const firing = (route: string) => ({
+  fingerprint: fp(route),
+  labels: { route },
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
   updates.length = 0;
   deliver.mockResolvedValue(undefined);
   insertEvents.mockResolvedValue(undefined);
+  fetchFiring.mockResolvedValue([]);
 });
 
 describe("evaluateAlert", () => {
-  it("fires on non-empty result", async () => {
+  it("fires new instances and notifies", async () => {
     definitionRows.mockReturnValue([baseDef]);
     sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
 
     await evaluateAlert({
-      alertDefinitionId: "a1",
+      alertDefinitionId,
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
+    const inserted = insertEvents.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >[];
+    expect(inserted.map((e) => e.event_type)).toEqual([
+      "instance_fired",
+      "firing",
+    ]);
+    expect(inserted[0]).toMatchObject({ instance_fingerprint: fp("/x") });
     expect(
       updates.some(
         (u) => (u as { currentState?: string }).currentState === "firing",
       ),
     ).toBe(true);
-    expect(insertEvents).toHaveBeenCalledWith([
-      expect.objectContaining({ event_type: "firing", row_count: 1 }),
-    ]);
-    expect(deliver).toHaveBeenCalledOnce();
+    expect(
+      updates.some(
+        (u) =>
+          (u as { firingInstanceCount?: number }).firingInstanceCount === 1,
+      ),
+    ).toBe(true);
+    expect(deliver).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "firing", firingCount: 1 }),
+    );
   });
 
-  it("updates evidence for repeated firing without a new event or delivery", async () => {
+  it("re-notifies when a new instance joins an already firing rule", async () => {
     definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
+    fetchFiring.mockResolvedValue([firing("/x")]);
+    sqlApi.mockResolvedValue({
+      rows: [{ route: "/x" }, { route: "/y" }],
+      columns: ["route"],
+    });
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    const inserted = insertEvents.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >[];
+    expect(inserted.map((e) => e.event_type)).toEqual([
+      "instance_fired",
+      "firing",
+    ]);
+    expect(deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "firing",
+        firingCount: 2,
+        instances: [expect.objectContaining({ fingerprint: fp("/y") })],
+      }),
+    );
+  });
+
+  it("does not notify or write events when the firing set is unchanged", async () => {
+    definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
+    fetchFiring.mockResolvedValue([firing("/x")]);
     sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
 
     await evaluateAlert({
-      alertDefinitionId: "a1",
+      alertDefinitionId,
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
@@ -98,18 +164,66 @@ describe("evaluateAlert", () => {
     expect(updates.length).toBeGreaterThan(0);
   });
 
-  it("resolves from firing on empty result", async () => {
+  it("resolves instances and the rule when the result empties", async () => {
     definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
+    fetchFiring.mockResolvedValue([firing("/x")]);
     sqlApi.mockResolvedValue({ rows: [], columns: ["route"] });
 
     await evaluateAlert({
-      alertDefinitionId: "a1",
+      alertDefinitionId,
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
-    expect(insertEvents).toHaveBeenCalledWith([
-      expect.objectContaining({ event_type: "resolved" }),
+    const inserted = insertEvents.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >[];
+    expect(inserted.map((e) => e.event_type)).toEqual([
+      "instance_resolved",
+      "resolved",
     ]);
+    expect(deliver).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "resolved", firingCount: 0 }),
+    );
+  });
+
+  it("resolves part of the set without a rule-level resolved event", async () => {
+    definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
+    fetchFiring.mockResolvedValue([firing("/x"), firing("/y")]);
+    sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    const inserted = insertEvents.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >[];
+    expect(inserted.map((e) => e.event_type)).toEqual(["instance_resolved"]);
+    expect(deliver).not.toHaveBeenCalled();
+  });
+
+  it("records evaluation_failed when the firing-set read fails", async () => {
+    definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
+    sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
+    fetchFiring.mockRejectedValue(new Error("ch down"));
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    expect(
+      updates.some(
+        (u) => (u as { currentState?: string }).currentState !== undefined,
+      ),
+    ).toBe(false);
+    expect(insertEvents).toHaveBeenCalledWith([
+      expect.objectContaining({ event_type: "evaluation_failed" }),
+    ]);
+    expect(deliver).not.toHaveBeenCalled();
   });
 
   it("records evaluation_failed without changing state when the query fails", async () => {
@@ -117,7 +231,7 @@ describe("evaluateAlert", () => {
     sqlApi.mockRejectedValue(new Error("boom"));
 
     await evaluateAlert({
-      alertDefinitionId: "a1",
+      alertDefinitionId,
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
@@ -143,10 +257,22 @@ describe("evaluateAlert", () => {
     definitionRows.mockReturnValue([{ ...baseDef, active: false }]);
 
     await evaluateAlert({
-      alertDefinitionId: "a1",
+      alertDefinitionId,
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
     expect(sqlApi).not.toHaveBeenCalled();
+  });
+
+  it("drops malformed stale jobs before querying Postgres", async () => {
+    await evaluateAlert({
+      alertDefinitionId: "1",
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    expect(definitionRows).not.toHaveBeenCalled();
+    expect(sqlApi).not.toHaveBeenCalled();
+    expect(insertEvents).not.toHaveBeenCalled();
+    expect(deliver).not.toHaveBeenCalled();
   });
 });

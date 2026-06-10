@@ -6,30 +6,53 @@ import { alertDefinitions } from "@/db/schema";
 import { insertAlertEvents, querySqlApiWithMeta } from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { deliverAlertNotification } from "./delivery";
-import { boundEvidence, buildEvaluationEvent } from "./events";
+import { boundEvidence, buildEvaluationEvent, buildInstanceEvent } from "./events";
+import {
+  diffInstances,
+  fetchFiringInstances,
+  type FiringInstance,
+  rowsToInstances,
+} from "./instances";
 import type { EvaluatePayload } from "./scanner";
-import { type AlertState, computeTransition } from "./transitions";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parsePayload(payload: EvaluatePayload) {
+  const scheduledFor = new Date(payload.scheduledFor);
+  if (
+    !UUID_RE.test(payload.alertDefinitionId) ||
+    Number.isNaN(scheduledFor.getTime())
+  ) {
+    serverLogger.warn("alerts.evaluate.invalid_payload", {
+      "alert.definition_id": String(payload.alertDefinitionId),
+      "alert.scheduled_for": String(payload.scheduledFor),
+    });
+    return null;
+  }
+
+  return {
+    alertDefinitionId: payload.alertDefinitionId,
+    scheduledFor,
+  };
+}
 
 export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
+  const parsedPayload = parsePayload(payload);
+  if (!parsedPayload) return;
+
   const [def] = await db
     .select()
     .from(alertDefinitions)
-    .where(eq(alertDefinitions.id, payload.alertDefinitionId))
+    .where(eq(alertDefinitions.id, parsedPayload.alertDefinitionId))
     .limit(1);
   if (!def?.active) return;
 
-  const scheduledFor = new Date(payload.scheduledFor);
+  const scheduledFor = parsedPayload.scheduledFor;
   const now = new Date();
   const query = renderQuery(def.parsedQuery, parseWindow(def.window).interval);
 
-  let rows: Record<string, unknown>[];
-  try {
-    const result = await querySqlApiWithMeta<Record<string, unknown>>(
-      query,
-      def.organizationId,
-    );
-    rows = result.rows;
-  } catch (error) {
+  async function recordEvaluationFailure(error: unknown, logEvent: string) {
     const message = error instanceof Error ? error.message : String(error);
     await db
       .update(alertDefinitions)
@@ -46,18 +69,44 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
         scheduledFor,
       }),
     ]);
-    serverLogger.error("alerts.evaluate.query_failed", {
+    serverLogger.error(logEvent, {
       ...exceptionAttributes(error),
       "alert.definition_id": def.id,
     });
+  }
+
+  let rows: Record<string, unknown>[];
+  try {
+    const result = await querySqlApiWithMeta<Record<string, unknown>>(
+      query,
+      def.organizationId,
+    );
+    rows = result.rows;
+  } catch (error) {
+    await recordEvaluationFailure(error, "alerts.evaluate.query_failed");
+    return;
+  }
+
+  let previous: FiringInstance[];
+  try {
+    previous = await fetchFiringInstances(def);
+  } catch (error) {
+    await recordEvaluationFailure(
+      error,
+      "alerts.evaluate.firing_set_read_failed",
+    );
     return;
   }
 
   const evidence = boundEvidence(rows);
-  const transition = computeTransition(
-    def.currentState as AlertState,
-    evidence.rowCount,
+  const current = rowsToInstances(
+    evidence.rows,
+    def.instanceLabelColumns ?? [],
   );
+  const diff = diffInstances(previous, current);
+  const wasFiring = previous.length > 0;
+  const isFiring = current.length > 0;
+
   const summary = renderMessage(def.summaryTemplate, {
     rowCount: evidence.rowCount,
     firstRow: evidence.firstRow,
@@ -68,77 +117,81 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
         firstRow: evidence.firstRow,
       })
     : "";
-  const baseUpdate = {
-    lastEvaluationStatus: "ok",
-    lastEvaluationError: "",
-    lastEvaluatedAt: now,
-    lastRowCount: evidence.rowCount,
-    lastEvidenceSnapshot: evidence.rows,
-  };
 
-  if (transition === "fire") {
-    await db
-      .update(alertDefinitions)
-      .set({
-        ...baseUpdate,
-        currentState: "firing",
-        lastFiredAt: now,
-        lastSeenAt: now,
-      })
-      .where(eq(alertDefinitions.id, def.id));
-    await insertAlertEvents([
-      buildEvaluationEvent({
+  await db
+    .update(alertDefinitions)
+    .set({
+      lastEvaluationStatus: "ok",
+      lastEvaluationError: "",
+      lastEvaluatedAt: now,
+      lastRowCount: evidence.rowCount,
+      lastEvidenceSnapshot: evidence.rows,
+      currentState: isFiring ? "firing" : "resolved",
+      firingInstanceCount: current.length,
+      ...(isFiring ? { lastSeenAt: now } : {}),
+      ...(diff.newlyFired.length > 0 && !wasFiring ? { lastFiredAt: now } : {}),
+      ...(wasFiring && !isFiring ? { lastResolvedAt: now } : {}),
+    })
+    .where(eq(alertDefinitions.id, def.id));
+
+  const events = [
+    ...diff.newlyFired.map((instance) =>
+      buildInstanceEvent({
         def,
-        eventType: "firing",
+        eventType: "instance_fired",
         scheduledFor,
-        evidence,
+        fingerprint: instance.fingerprint,
+        labels: instance.labels,
+        row: instance.row,
       }),
-    ]);
-    await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary,
-      description,
-    });
-    return;
+    ),
+    ...diff.nowResolved.map((instance) =>
+      buildInstanceEvent({
+        def,
+        eventType: "instance_resolved",
+        scheduledFor,
+        fingerprint: instance.fingerprint,
+        labels: instance.labels,
+      }),
+    ),
+  ];
+  if (diff.newlyFired.length > 0) {
+    events.push(
+      buildEvaluationEvent({ def, eventType: "firing", scheduledFor, evidence }),
+    );
   }
-
-  if (transition === "still_firing") {
-    await db
-      .update(alertDefinitions)
-      .set({ ...baseUpdate, lastSeenAt: now })
-      .where(eq(alertDefinitions.id, def.id));
-    return;
-  }
-
-  if (transition === "resolve") {
-    await db
-      .update(alertDefinitions)
-      .set({
-        ...baseUpdate,
-        currentState: "resolved",
-        lastResolvedAt: now,
-      })
-      .where(eq(alertDefinitions.id, def.id));
-    await insertAlertEvents([
+  if (wasFiring && !isFiring) {
+    events.push(
       buildEvaluationEvent({
         def,
         eventType: "resolved",
         scheduledFor,
         evidence,
       }),
-    ]);
+    );
+  }
+  if (events.length > 0) await insertAlertEvents(events);
+
+  if (diff.newlyFired.length > 0) {
+    await deliverAlertNotification({
+      def,
+      kind: "firing",
+      summary,
+      description,
+      firingCount: current.length,
+      instances: diff.newlyFired.map(({ fingerprint, labels }) => ({
+        fingerprint,
+        labels,
+      })),
+    });
+  } else if (wasFiring && !isFiring) {
     await deliverAlertNotification({
       def,
       kind: "resolved",
       summary,
       description,
+      firingCount: 0,
+      instances: diff.nowResolved,
     });
-    return;
   }
-
-  await db
-    .update(alertDefinitions)
-    .set({ ...baseUpdate, currentState: "resolved" })
-    .where(eq(alertDefinitions.id, def.id));
 }
