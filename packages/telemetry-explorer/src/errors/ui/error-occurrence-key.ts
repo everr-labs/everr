@@ -1,9 +1,7 @@
 import type { ErrorOccurrence } from "../data/types";
 
 export function getErrorOccurrenceKey(occurrence: ErrorOccurrence): string {
-  return [occurrence.timestamp, occurrence.traceId, occurrence.spanId].join(
-    "|",
-  );
+  return [occurrence.timestamp, occurrence.timestampRank ?? 1].join("|");
 }
 
 export function findErrorOccurrenceByKey(
