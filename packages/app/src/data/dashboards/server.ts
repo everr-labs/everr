@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { computeStepSeconds } from "./bucket";
 import { interpolateVariables } from "./interpolate";
 import type { Dashboard } from "./schema";
 import { dashboardSpecSchema } from "./schema";
@@ -100,10 +101,15 @@ export const runPanelQuery = createAuthenticatedServerFn({
       // User-supplied SQL: run it through the per-org SQL API user, whose tenant
       // filter is a row policy bound to the user — not a `SETTINGS`-based filter
       // a malicious query could override to read another tenant's rows.
+      //
+      // `step` is the adaptive bucket width (seconds) for the selected range, so
+      // a chart can `toStartOfInterval(col, INTERVAL {step:UInt32} SECOND)` and
+      // stay ~bounded in point count at any zoom. Bound alongside from/to as a
+      // ClickHouse query parameter; queries that don't reference it ignore it.
       const rows = await querySqlApi<QueryRow>(
         interpolated,
         context.session.session.activeOrganizationId,
-        { from: fromISO, to: toISO },
+        { from: fromISO, to: toISO, step: computeStepSeconds(fromISO, toISO) },
       );
       return { rows };
     },
