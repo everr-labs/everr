@@ -1,4 +1,5 @@
 import { and, eq, gt, isNull, lte } from "drizzle-orm";
+import { findSilenceForInstance } from "@/data/alerts/matchers";
 import { db } from "@/db/client";
 import { alertSettings, alertSilences } from "@/db/schema";
 import { type AlertEventRow, insertAlertEvents } from "@/lib/clickhouse";
@@ -6,18 +7,48 @@ import { mailer } from "@/lib/mailer.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { buildDeliveryEvent } from "./events";
+import type { FiringInstance } from "./instances";
+
+const MAX_LISTED_INSTANCES = 10;
 
 export interface DeliveryInput {
   def: { id: string; organizationId: string; repoid: string; slug: string };
   kind: "firing" | "resolved";
   summary: string;
   description: string;
+  // Current firing instance count after this evaluation.
+  firingCount: number;
+  // newlyFired for "firing", nowResolved for "resolved".
+  instances: FiringInstance[];
+}
+
+function formatLabels(labels: Record<string, string>): string {
+  const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return "(no labels)";
+  return entries.map(([key, value]) => `${key}=${value}`).join(", ");
+}
+
+function buildText(input: DeliveryInput, listed: FiringInstance[]): string {
+  const lines = [input.summary];
+  if (input.description) lines.push("", input.description);
+  if (input.kind === "firing") {
+    lines.push("", `Firing instances: ${input.firingCount}`);
+  } else {
+    lines.push("", "All instances resolved");
+  }
+  for (const instance of listed.slice(0, MAX_LISTED_INSTANCES)) {
+    lines.push(`- ${formatLabels(instance.labels)}`);
+  }
+  if (listed.length > MAX_LISTED_INSTANCES) {
+    lines.push(`… and ${listed.length - MAX_LISTED_INSTANCES} more`);
+  }
+  return lines.join("\n");
 }
 
 export async function deliverAlertNotification(
   input: DeliveryInput,
 ): Promise<void> {
-  const { def, kind, summary, description } = input;
+  const { def, kind } = input;
 
   const [settings] = await db
     .select()
@@ -29,8 +60,11 @@ export async function deliverAlertNotification(
   if (kind === "resolved" && !delivery.notifyOnResolved) return;
 
   const now = new Date();
-  const [silence] = await db
-    .select()
+  const silences = await db
+    .select({
+      id: alertSilences.id,
+      matchers: alertSilences.matchers,
+    })
     .from(alertSilences)
     .where(
       and(
@@ -40,8 +74,7 @@ export async function deliverAlertNotification(
         gt(alertSilences.endsAt, now),
         isNull(alertSilences.cancelledAt),
       ),
-    )
-    .limit(1);
+    );
 
   const targets: ("email" | "telegram")[] = [];
   if (delivery.email?.enabled && delivery.email.to.length > 0) {
@@ -52,15 +85,26 @@ export async function deliverAlertNotification(
   }
   if (targets.length === 0) return;
 
+  const unsilenced: FiringInstance[] = [];
+  let suppressingSilenceId = "";
+  for (const instance of input.instances) {
+    const silence = findSilenceForInstance(silences, instance.labels);
+    if (silence) {
+      suppressingSilenceId = suppressingSilenceId || silence.id;
+    } else {
+      unsilenced.push(instance);
+    }
+  }
+
   const events: AlertEventRow[] = [];
-  if (silence) {
+  if (input.instances.length > 0 && unsilenced.length === 0) {
     for (const target of targets) {
       events.push(
         buildDeliveryEvent({
           def,
           target,
           outcome: "silenced",
-          silenceId: silence.id,
+          silenceId: suppressingSilenceId,
         }),
       );
     }
@@ -69,7 +113,7 @@ export async function deliverAlertNotification(
   }
 
   const subject = `[${kind}] ${def.slug}`;
-  const text = description ? `${summary}\n\n${description}` : summary;
+  const text = buildText(input, unsilenced);
 
   if (targets.includes("email")) {
     try {
