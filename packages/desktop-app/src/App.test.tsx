@@ -78,7 +78,6 @@ type MainCommand =
   | "set_notification_emails"
   | "reset_dev_onboarding"
   | "trigger_test_notification"
-  | "get_build_info"
   | "get_collector_status"
   | "restart_collector"
   | "get_runs_list"
@@ -227,12 +226,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
           return resetDevOnboardingSpy();
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
-        case "get_build_info":
-          return {
-            platform_version: "0.0.0",
-            release_sha: "unknown",
-            release_short_sha: "unknown",
-          };
         case "get_collector_status":
           return collectorStatus;
         case "restart_collector":
@@ -429,24 +422,6 @@ describe("desktop window", () => {
         "Test notification queued behind the active notification.",
       ),
     ).toBeInTheDocument();
-  });
-
-  it("shows the desktop release SHA on the settings page", async () => {
-    renderMainApp({
-      commandOverrides: {
-        get_build_info: () => ({
-          platform_version: "0.1.1264",
-          release_sha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
-          release_short_sha: "82efe1c",
-        }),
-      },
-    });
-
-    await act(async () => {
-      await router.navigate({ to: "/settings" });
-    });
-
-    expect(await screen.findByText("82efe1c")).toBeInTheDocument();
   });
 
   it("resets the dev session and reopens onboarding from the developer view", async () => {
