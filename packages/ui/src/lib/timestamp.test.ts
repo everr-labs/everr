@@ -24,6 +24,12 @@ describe("parseTimestampAsUTC", () => {
     expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
   });
 
+  it("parses a lowercase-t separator as UTC (not local time)", () => {
+    const result = parseTimestampAsUTC("2026-03-07t13:32:00");
+    expect(result).toBeInstanceOf(Date);
+    expect(result!.toISOString()).toBe("2026-03-07T13:32:00.000Z");
+  });
+
   it("trims whitespace around the input", () => {
     const result = parseTimestampAsUTC("  2026-03-07T13:32:00Z  ");
     expect(result).toBeInstanceOf(Date);
