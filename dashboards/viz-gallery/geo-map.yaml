@@ -1,0 +1,144 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-geo-map
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — GeoMap
+    description: >-
+      GeoMap regression sheet — both modes (points, choropleth), every
+      colorScheme enum, showLegend on/off, multi-query overlay, and the empty
+      state, driven by the deterministic geo TestData scenario.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    geo-points:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: points"
+          description: "mode: points · single query · blue · marker size = value"
+        plugin:
+          kind: GeoMap
+          spec:
+            mode: points
+            colorScheme: blue
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: points, seed: 11, points: 24 }
+    geo-points-multi:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: points, multi-query overlay"
+          description: "Two queries → two marker colors + legend"
+        plugin:
+          kind: GeoMap
+          spec:
+            mode: points
+            colorScheme: green
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: points, seed: 21, points: 16 }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: points, seed: 22, points: 16 }
+    geo-choropleth:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth"
+          description: "mode: choropleth · region codes summed · blue ramp"
+        plugin:
+          kind: GeoMap
+          spec:
+            mode: choropleth
+            colorScheme: blue
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 31, count: 16 }
+    geo-choropleth-green:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, green"
+          description: "colorScheme: green"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, colorScheme: green, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 32, count: 16 }
+    geo-choropleth-orange:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, orange"
+          description: "colorScheme: orange"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, colorScheme: orange, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 33, count: 16 }
+    geo-choropleth-red-nolegend:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, red, no legend"
+          description: "colorScheme: red · showLegend: false"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, colorScheme: red, showLegend: false }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 34, count: 16 }
+    geo-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: empty result"
+          description: "Query returns no rows → 'No mappable data in this result'"
+        plugin:
+          kind: GeoMap
+          spec: { mode: points }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: csv, columns: [lat, lon, value], rows: [] }
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-points" } }
+          - { x: 12, y: 0,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-points-multi" } }
+          - { x: 0,  y: 9,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth" } }
+          - { x: 12, y: 9,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth-green" } }
+          - { x: 0,  y: 18, width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth-orange" } }
+          - { x: 12, y: 18, width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth-red-nolegend" } }
+          - { x: 0,  y: 27, width: 12, height: 8, content: { $ref: "#/spec/panels/geo-empty" } }
