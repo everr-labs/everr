@@ -128,6 +128,7 @@ export function buildUpdaterManifest({
 }
 
 export function buildReleaseMetadata({
+  releaseVersion,
   platformVersion,
   releaseSha,
   releaseShortSha,
@@ -136,6 +137,7 @@ export function buildReleaseMetadata({
   files,
   createdAt,
 }: {
+  releaseVersion: string;
   platformVersion: string;
   releaseSha: string;
   releaseShortSha: string;
@@ -148,7 +150,7 @@ export function buildReleaseMetadata({
     {
       schema_version: 1,
       product: "Everr",
-      version: platformVersion,
+      version: releaseVersion,
       platform_version: platformVersion,
       release_sha: releaseSha,
       release_short_sha: releaseShortSha,
@@ -302,14 +304,27 @@ export async function findReleaseArtifacts(bundleDir: string): Promise<ReleaseAr
   };
 }
 
-async function readDesktopVersion() {
+async function readDesktopPackageVersion() {
+  const packageJsonPath = path.join(packageDir, "package.json");
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+    version?: string;
+  };
+
+  if (!packageJson.version) {
+    throw new Error(`Could not resolve desktop app version from ${packageJsonPath}.`);
+  }
+
+  return packageJson.version;
+}
+
+async function readDesktopTauriVersion() {
   const configPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
   const config = JSON.parse(await readFile(configPath, "utf8")) as {
     version?: string;
   };
 
   if (!config.version) {
-    throw new Error(`Could not resolve desktop app version from ${configPath}.`);
+    throw new Error(`Could not resolve desktop platform version from ${configPath}.`);
   }
 
   return config.version;
@@ -418,7 +433,8 @@ export async function stageReleaseArtifacts() {
   const bundleDir = await findBundleDir();
   const artifacts = await findReleaseArtifacts(bundleDir);
   const appDestDir = path.join(desktopReleaseDir, "everr-app");
-  const fallbackVersion = await readDesktopVersion();
+  const releaseVersion = await readDesktopPackageVersion();
+  const fallbackVersion = await readDesktopTauriVersion();
   const identity = resolveDesktopReleaseIdentity({
     fallbackVersion: process.env.EVERR_PLATFORM_VERSION ?? fallbackVersion,
     fallbackSha: process.env.EVERR_RELEASE_SHA ?? process.env.GITHUB_SHA,
@@ -469,6 +485,7 @@ export async function stageReleaseArtifacts() {
   await writeFile(
     path.join(desktopReleaseDir, RELEASE_METADATA_NAME),
     buildReleaseMetadata({
+      releaseVersion,
       platformVersion: identity.platformVersion,
       releaseSha: identity.releaseSha,
       releaseShortSha: identity.releaseShortSha,

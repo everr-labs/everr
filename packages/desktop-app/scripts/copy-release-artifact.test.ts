@@ -82,6 +82,7 @@ describe("copy-release-artifact helpers", () => {
 
   it("builds release metadata for the deploy artifact bundle", () => {
     const metadata = buildReleaseMetadata({
+      releaseVersion: "0.1.31",
       platformVersion: "0.1.1264",
       releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       releaseShortSha: "82efe1c",
@@ -100,7 +101,7 @@ describe("copy-release-artifact helpers", () => {
     expect(JSON.parse(metadata)).toMatchObject({
       schema_version: 1,
       product: "Everr",
-      version: "0.1.1264",
+      version: "0.1.31",
       platform_version: "0.1.1264",
       release_sha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       release_short_sha: "82efe1c",
