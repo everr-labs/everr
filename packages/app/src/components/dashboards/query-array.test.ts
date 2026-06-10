@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Panel } from "@/data/dashboards/schema";
-import { getQueryTextAt, getQueryTexts } from "./query-array";
+import {
+  getPanelQuerySources,
+  getQuerySourceAt,
+  getQueryTextAt,
+  getQueryTexts,
+} from "./query-array";
 
 function panelWith(queries: string[]): Panel {
   return {
@@ -74,5 +79,63 @@ describe("query-array", () => {
       },
     };
     expect(getQueryTexts(panel)).toEqual(["", "select 1"]);
+  });
+
+  it("extracts a ClickHouseSQL source", () => {
+    const panel = panelWith(["select 1"]);
+    expect(getQuerySourceAt(panel, 0)).toEqual({
+      kind: "ClickHouseSQL",
+      sql: "select 1",
+    });
+  });
+
+  it("extracts a TestData source carrying its raw spec", () => {
+    const panel: Panel = {
+      kind: "Panel",
+      spec: {
+        display: { name: "p" },
+        plugin: { kind: "TimeSeriesChart", spec: {} },
+        queries: [
+          {
+            kind: "TestData",
+            spec: {
+              plugin: {
+                kind: "TestData",
+                spec: { scenario: "random_walk", series: [{ name: "v" }] },
+              },
+            },
+          },
+        ],
+      },
+    };
+    expect(getQuerySourceAt(panel, 0)).toEqual({
+      kind: "TestData",
+      spec: { scenario: "random_walk", series: [{ name: "v" }] },
+    });
+  });
+
+  it("maps unknown/absent query kinds to none", () => {
+    expect(getQuerySourceAt(panelWith([]), 0)).toEqual({ kind: "none" });
+    const prom: Panel = {
+      kind: "Panel",
+      spec: {
+        display: { name: "p" },
+        plugin: { kind: "TimeSeriesChart", spec: {} },
+        queries: [
+          {
+            kind: "PromQuery",
+            spec: { plugin: { kind: "PromQuery", spec: { query: "up" } } },
+          },
+        ],
+      },
+    };
+    expect(getQuerySourceAt(prom, 0)).toEqual({ kind: "none" });
+  });
+
+  it("getPanelQuerySources returns one source per query in order", () => {
+    expect(getPanelQuerySources(panelWith(["a", "b"]))).toEqual([
+      { kind: "ClickHouseSQL", sql: "a" },
+      { kind: "ClickHouseSQL", sql: "b" },
+    ]);
   });
 });
