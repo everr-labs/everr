@@ -1,14 +1,13 @@
 use std::fmt::Write as _;
-#[cfg(target_os = "macos")]
 use std::io::IsTerminal;
 use std::path::Path;
 
 #[cfg(target_os = "macos")]
 use std::process::Command as ProcessCommand;
 
-use anyhow::Result;
 #[cfg(target_os = "macos")]
-use anyhow::{Context, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use everr_core::api::{ApiClient, MeResponse, OrgResponse};
 use everr_core::build;
 use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
