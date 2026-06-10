@@ -222,6 +222,7 @@ export function buildChartModel(
 
     for (const row of rows) {
       const ts = toTimestamp(row[tk]);
+      if (ts === null) continue;
       let entry = byTs.get(ts);
       if (!entry) {
         entry = { [TS_KEY]: ts };

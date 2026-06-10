@@ -11,7 +11,7 @@ Options are validated: `everr apply` rejects a dashboard whose option values don
 
 ## TimeSeriesChart
 
-Line chart over time. The query's time column (detected by name: `ts`, `time`, `timestamp`, `date`, `datetime`, `created_at`, `period`, `bucket`, `interval`) is the x-axis; numeric columns become series, and a string column pivots a value column into one line per label. Supports drag-to-zoom (writes the new range to the URL).
+Line chart over time. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis; numeric columns become series, and a string column pivots a value column into one line per label. Supports drag-to-zoom (writes the new range to the URL).
 
 ```yaml
 plugin:
@@ -49,7 +49,9 @@ plugin:
 
 ## StatChart
 
-Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Return one numeric column; include a time column to enable the sparkline. Multiple resulting series render as multiple tiles.
+Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Return one numeric column; include a time column to enable the sparkline. Multiple resulting series render as multiple tiles; a query that returns no value renders its tile with the `noValue` text instead of disappearing.
+
+Values at or above one million abbreviate (`1234567` → `1.23M`); smaller values keep thousands grouping. The tile label is shown automatically with multiple tiles and hidden for a single tile unless `showLabel` is set.
 
 ```yaml
 plugin:
@@ -57,21 +59,28 @@ plugin:
   spec:
     calculation: last
     unit: ms
+    decimals: 1
     sparkline: true
     thresholds:
-      mode: absolute
+      mode: percent
+      max: 500
       defaultColor: "#22c55e"
       steps:
-        - { value: 200, color: "#f59e0b" }
-        - { value: 500, color: "#ef4444" }
+        - { value: 40, color: "#f59e0b" }
+        - { value: 80, color: "#ef4444" }
 ```
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`. |
+| `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
 | `unit` | string | `""` | Suffix appended to the value. |
+| `decimals` | number | — | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped. |
 | `sparkline` | boolean | `false` | Draw a sparkline (needs a time column). |
+| `colorMode` | enum | `value` | `value` tints the number; `background` fills the whole tile with the threshold color. |
+| `showLabel` | boolean | `false` | Show the series label on a single-tile panel too. |
+| `noValue` | string | `–` | Text shown for a query that produced no value. |
 | `thresholds` | object | — | Color the value (and sparkline) by thresholds. |
-| `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against the series max. |
-| `thresholds.defaultColor` | string | — | Color below the first step. |
+| `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`. |
+| `thresholds.max` | number | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window. |
+| `thresholds.defaultColor` | string | — | Color when no step is crossed. |
 | `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. |

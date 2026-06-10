@@ -1,14 +1,19 @@
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { QueryResultRow } from "./index";
 
+/**
+ * The time-axis column, detected by EXACT name (case-insensitive). A prefix
+ * match would claim columns like `timezone` or `timestamp_label` as the time
+ * axis and silently poison the chart, so queries must alias their time column
+ * to one of these names. Keep the docs' list in sync.
+ */
 export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
   const first = rows[0];
   if (!first) return undefined;
 
-  const timePatterns =
-    /^(time|timestamp|date|datetime|created_at|ts|period|bucket|interval)/i;
+  const timeNames = /^(ts|time|timestamp)$/i;
   for (const key of Object.keys(first)) {
-    if (timePatterns.test(key)) return key;
+    if (timeNames.test(key)) return key;
   }
   return undefined;
 }
@@ -65,12 +70,17 @@ export function getValueKeys(
  * this, a seconds value is read as ms and lands near 1970, then gets filtered
  * out of the selected range.
  */
-function epochToMs(n: number): number {
-  if (!Number.isFinite(n)) return 0;
+function epochToMs(n: number): number | null {
+  if (!Number.isFinite(n)) return null;
   return n < 1e12 ? n * 1000 : n;
 }
 
-export function toTimestamp(value: unknown): number {
+/**
+ * Milliseconds since epoch, or null when the value isn't a timestamp. Callers
+ * must drop null rows — a sentinel like 0 would be a valid instant (1970) that
+ * sorts to the front and corrupts first/last calculations and sparklines.
+ */
+export function toTimestamp(value: unknown): number | null {
   if (typeof value === "number") return epochToMs(value);
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -81,5 +91,5 @@ export function toTimestamp(value: unknown): number {
     const parsed = parseTimestampAsUTC(trimmed);
     if (parsed) return parsed.getTime();
   }
-  return 0;
+  return null;
 }

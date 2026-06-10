@@ -16,6 +16,22 @@ describe("buildChartModel", () => {
     expect(model.seriesData.s0?.[0]?.s0).toBe(5);
   });
 
+  it("skips rows whose timestamp cannot be parsed", () => {
+    const model = buildChartModel(
+      [
+        [
+          { time: "garbage", value: 99 },
+          { time: "2026-06-07T00:00:00", value: 5 },
+        ],
+      ],
+      undefined,
+    );
+    // The bad row must not become a point at epoch 0.
+    expect(model.chartData).toHaveLength(1);
+    expect(model.chartData[0]?.s0).toBe(5);
+    expect(model.seriesData.s0).toHaveLength(1);
+  });
+
   it("gives each series a distinct key across two queries and merges by time", () => {
     const model = buildChartModel(
       [

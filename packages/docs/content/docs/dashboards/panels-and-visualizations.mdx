@@ -57,7 +57,7 @@ What you `SELECT` determines what renders. The visualizations infer their struct
 
 ### Time series
 
-- One column must be the **time axis**. It's detected by name — alias it to `ts`, `time`, `timestamp`, `date`, `datetime`, `created_at`, `period`, `bucket`, or `interval`.
+- One column must be the **time axis**. It's detected by exact name (case-insensitive) — alias it to `ts`, `time`, or `timestamp`.
 - Remaining **numeric** columns become series (lines).
 - A remaining **string** column is treated as a series label, pivoting one value column into multiple lines. For example, grouping by `ServiceName`:
 
