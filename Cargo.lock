@@ -1218,6 +1218,10 @@ dependencies = [
  "libc",
  "mockito",
  "nix",
+ "opentelemetry",
+ "opentelemetry-appender-tracing",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
  "predicates",
  "regex",
  "reqwest 0.12.28",
@@ -1227,6 +1231,8 @@ dependencies = [
  "strip-ansi-escapes",
  "tempfile",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "webbrowser",
 ]
 
