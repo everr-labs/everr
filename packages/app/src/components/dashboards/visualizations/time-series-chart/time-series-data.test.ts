@@ -3,11 +3,14 @@ import { buildChartModel } from "./time-series-data";
 
 const TS_KEY = "__ts";
 
+// A domain wide enough that no test data is clamped away.
+const WIDE: [number, number] = [0, Date.parse("2100-01-01T00:00:00Z")];
+
 describe("buildChartModel", () => {
   it("assigns an opaque render key and keeps the column name as the label", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", value: 5 }]],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartConfig.s0?.label).toBe("value");
@@ -24,7 +27,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:00:00", value: 5 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     // The bad row must not become a point at epoch 0.
     expect(model.chartData).toHaveLength(1);
@@ -38,7 +41,7 @@ describe("buildChartModel", () => {
         [{ time: "2026-06-07T00:00:00", value: 1 }],
         [{ time: "2026-06-07T00:00:00", value: 2 }],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0", "s1"]);
     expect(model.chartData).toHaveLength(1);
@@ -58,7 +61,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:03:00", value: 4 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0", "s1"]);
     // Each series' own array holds only its own points — the other query's
@@ -77,13 +80,13 @@ describe("buildChartModel", () => {
         [{ time: "2026-06-07T00:00:00", value: 1 }],
         [{ time: "2026-06-07T00:00:00", value: 2 }],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.chartConfig.s0?.color).not.toBe(model.chartConfig.s1?.color);
   });
 
   it("returns an empty model for empty input", () => {
-    expect(buildChartModel([], undefined)).toEqual({
+    expect(buildChartModel([], WIDE)).toEqual({
       chartData: [],
       valueKeys: [],
       chartConfig: {},
@@ -100,7 +103,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:01:00", host: "a", value: 3 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     // One opaque key per group value, in sorted group order (a, b).
     expect(model.valueKeys).toEqual(["s0", "s1"]);
@@ -125,7 +128,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:00:00", host: "a b", value: 2 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     // "a-b" and "a b" both sanitize to "a_b"; opaque keys keep them apart so
     // neither series overwrites the other.
@@ -139,7 +142,7 @@ describe("buildChartModel", () => {
   it("keeps non-identifier column names as the label without mangling the key", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", "count()": "42" }]],
-      undefined,
+      WIDE,
     );
     // `count()` as a render key would produce `var(--color-count())` (invalid);
     // the opaque key sidesteps that and the original name stays as the label.
@@ -156,7 +159,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:01:00", p99: 12.5 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartConfig.s0?.label).toBe("p99");
@@ -166,7 +169,7 @@ describe("buildChartModel", () => {
   it("treats quoted numeric strings (ClickHouse aggregates) as values", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", count: "42" }]],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartData[0]?.s0).toBe(42);

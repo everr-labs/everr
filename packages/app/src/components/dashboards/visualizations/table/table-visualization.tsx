@@ -5,10 +5,9 @@ import {
 } from "@everr/ui/components/toggle-group";
 import { TableIcon } from "lucide-react";
 import { useState } from "react";
+import { queryLabel } from "../data-utils";
 import type { QueryResultRow, VisualizationProps } from "../index";
 import type { TableSpec } from "./spec";
-
-const QUERY_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 function buildColumns(rows: QueryResultRow[]): Column<QueryResultRow>[] {
   const first = rows[0];
@@ -65,7 +64,7 @@ export function TableVisualization({
           >
             {sets.map((_, i) => (
               <ToggleGroupItem key={i} value={String(i)}>
-                Query {QUERY_LABELS[i] ?? i + 1}
+                {queryLabel(i)}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>

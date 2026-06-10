@@ -38,9 +38,13 @@ describe("computeStatTiles", () => {
   });
 
   it("handles value-only rows with no time column", () => {
-    const tiles = computeStatTiles([[{ value: 7 }]], "last");
-    expect(tiles[0]?.value).toBe(7);
-    expect(tiles[0]?.points).toEqual([]);
+    const tiles = computeStatTiles([[{ value: 7 }, { value: 9 }]], "last");
+    expect(tiles[0]?.value).toBe(9);
+    // Without a time column the row index stands in as the sparkline ts.
+    expect(tiles[0]?.points).toEqual([
+      { ts: 0, value: 7 },
+      { ts: 1, value: 9 },
+    ]);
   });
 
   it("emits a placeholder tile for an empty result set", () => {

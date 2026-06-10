@@ -96,7 +96,7 @@ LIMIT 50
 
 ### Stat
 
-Reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …). Return one numeric column (a time column enables the optional sparkline):
+Reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …). Return one numeric column (the optional sparkline follows the time column, or row order without one):
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS requests

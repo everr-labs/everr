@@ -49,7 +49,7 @@ plugin:
 
 ## StatChart
 
-Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Return one numeric column; include a time column to enable the sparkline. Multiple resulting series render as multiple tiles; a query that returns no value renders its tile with the `noValue` text instead of disappearing.
+Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Return one numeric column; the sparkline follows the time column when there is one, or the row order otherwise. Multiple resulting series render as multiple tiles; a query that returns no value renders its tile with the `noValue` text instead of disappearing.
 
 Values at or above one million abbreviate (`1234567` → `1.23M`); smaller values keep thousands grouping. The tile label is shown automatically with multiple tiles and hidden for a single tile unless `showLabel` is set.
 
@@ -75,7 +75,7 @@ plugin:
 | `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
 | `unit` | string | `""` | Suffix appended to the value. |
 | `decimals` | number | — | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped. |
-| `sparkline` | boolean | `false` | Draw a sparkline (needs a time column). |
+| `sparkline` | boolean | `false` | Draw a sparkline (in time order, or row order without a time column). |
 | `colorMode` | enum | `value` | `value` tints the number; `background` fills the whole tile with the threshold color. |
 | `showLabel` | boolean | `false` | Show the series label on a single-tile panel too. |
 | `noValue` | string | `–` | Text shown for a query that produced no value. |
