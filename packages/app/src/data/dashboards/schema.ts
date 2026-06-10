@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { panelPluginSpecs } from "./plugin-specs";
+import { panelPluginSpecs, queryPluginSpecs } from "./plugin-specs";
 
 /** Recursive JSON-serializable value type for Perses plugin specs. */
 export type PluginSpecValue =
@@ -189,23 +189,48 @@ export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine(
   (spec, ctx) => {
     for (const [key, p] of Object.entries(spec.panels)) {
       const pluginSchema = panelPluginSpecs[p.spec.plugin.kind];
-      if (!pluginSchema) continue;
-      const result = pluginSchema.safeParse(p.spec.plugin.spec);
-      if (result.success) continue;
-      for (const issue of result.error.issues) {
-        ctx.addIssue({
-          code: "custom",
-          message: issue.message,
-          path: [
-            "panels",
-            key,
-            "spec",
-            "plugin",
-            "spec",
-            ...issue.path.map(String),
-          ],
-        });
+      if (pluginSchema) {
+        const result = pluginSchema.safeParse(p.spec.plugin.spec);
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            ctx.addIssue({
+              code: "custom",
+              message: issue.message,
+              path: [
+                "panels",
+                key,
+                "spec",
+                "plugin",
+                "spec",
+                ...issue.path.map(String),
+              ],
+            });
+          }
+        }
       }
+      (p.spec.queries ?? []).forEach((q, qi) => {
+        const querySchema = queryPluginSpecs[q.spec.plugin.kind];
+        if (!querySchema) return;
+        const qResult = querySchema.safeParse(q.spec.plugin.spec);
+        if (qResult.success) return;
+        for (const issue of qResult.error.issues) {
+          ctx.addIssue({
+            code: "custom",
+            message: issue.message,
+            path: [
+              "panels",
+              key,
+              "spec",
+              "queries",
+              qi,
+              "spec",
+              "plugin",
+              "spec",
+              ...issue.path.map(String),
+            ],
+          });
+        }
+      });
     }
   },
 );
