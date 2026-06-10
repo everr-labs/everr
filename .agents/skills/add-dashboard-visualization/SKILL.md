@@ -160,7 +160,7 @@ Add the new kind and its option table to `packages/docs/content/docs/dashboards/
 
 ### 7. Add it to the gallery dashboard
 
-`dashboards/viz-gallery.yaml` (project `demo`) is the visual regression sheet: it must exercise **every visualization kind with every spec option** — including each enum value — at least once. This step applies to ANY spec change, not just new kinds: when you add an option (or enum value) to an existing visualization, add or extend a gallery panel that exercises it.
+The `dashboards/viz-gallery/` directory (project `demo`) is the visual regression sheet, split by visualization type into one dashboard per kind — `time-series.yaml`, `stat.yaml`, and `table.yaml`. Together they must exercise **every visualization kind with every spec option** — including each enum value — and every meaningful data-shape behavior (multi-query, grouped pivot, no time column, empty/no-data states) at least once. This step applies to ANY spec change, not just new kinds: when you add an option (or enum value) to an existing visualization, add or extend a panel in the matching per-type file that exercises it.
 
 The gallery's panels are driven by the **`TestData`** query kind (a deterministic,
 ClickHouse-free dev data source), not real telemetry — so the sheet renders
@@ -172,8 +172,8 @@ series/stats, `table` for tabular data, `csv` for exact small frames) rather tha
 scenario options.
 
 - One panel per meaningful option combination; put the options it exercises in the panel's `display.description` (e.g. `"curveType: stepAfter · unit: ms"`).
-- Reference each new panel from the layout grid at the bottom of the file.
-- Reconcile and eyeball it: `everr apply ./dashboards`, then open `/dashboards/demo/viz-gallery`.
+- Reference each new panel from the layout grid at the bottom of the same per-type file.
+- Reconcile and eyeball it: `everr apply ./dashboards`, then open `/dashboards/demo/viz-gallery-time-series` (or `-stat` / `-table`).
 
 ### 8. Use it in a dashboard
 

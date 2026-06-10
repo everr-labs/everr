@@ -1,0 +1,208 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-time-series
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — Time Series
+    description: >-
+      TimeSeriesChart regression sheet — every option (unit, showLegend,
+      lineWidth, curveType, connectNulls) and behavior (grouped pivot,
+      multi-column, multi-query, null gaps, empty result) exercised with
+      deterministic TestData.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    # ── Options + core behaviors ─────────────────────────────────────
+    ts-monotone-grouped:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: monotone, grouped, legend"
+          description: "curveType: monotone · showLegend: true · connectNulls: false · grouped pivot (one series per StatusCode)"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 11
+                  labelColumn: status
+                  series:
+                    - { name: Ok,    start: 800, noise: 60, min: 0 }
+                    - { name: Error, start: 40,  noise: 12, min: 0 }
+                    - { name: Unset, start: 120, noise: 20, min: 0 }
+    ts-step-after-multi-column:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: stepAfter, unit, two columns"
+          description: "curveType: stepAfter · unit: ms · lineWidth: 2 · two value columns from one query"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: true
+            lineWidth: 2
+            curveType: stepAfter
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 7
+                  series:
+                    - { name: p50_ms, start: 40,  noise: 5,  min: 0 }
+                    - { name: p95_ms, start: 120, noise: 12, min: 0 }
+    ts-linear-connect-nulls:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: linear, connectNulls, thick"
+          description: "curveType: linear · connectNulls: true (sparse errors bridge gaps) · lineWidth: 3"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: false
+            lineWidth: 3
+            curveType: linear
+            connectNulls: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 3
+                  series:
+                    - { name: error_spans, start: 4, noise: 3, min: 0, nullChance: 0.45 }
+    ts-natural:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: natural, seconds unit"
+          description: "curveType: natural · unit: s"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: s
+            showLegend: false
+            lineWidth: 1.5
+            curveType: natural
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 5
+                  series:
+                    - { name: avg_s, start: 0.5, noise: 0.1, min: 0 }
+    ts-step-before:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: stepBefore, hairline"
+          description: "curveType: stepBefore · lineWidth: 1"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: false
+            lineWidth: 1
+            curveType: stepBefore
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 9
+                  series:
+                    - { name: spans, start: 50, noise: 10, min: 0 }
+    # ── Data-shape behaviors + edge states ───────────────────────────
+    ts-multi-query:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: multi-query merge"
+          description: "Two queries merged onto one timeline · showLegend: true"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 51
+                  series:
+                    - { name: requests, start: 400, noise: 40, min: 0 }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 52
+                  series:
+                    - { name: errors, start: 30, noise: 12, min: 0 }
+    ts-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: empty result"
+          description: "Query returns no rows → 'No data in this time range' (the chart's single empty state)"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: false
+            lineWidth: 1.5
+            curveType: monotone
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, value]
+                  rows: []
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/ts-monotone-grouped" } }
+          - { x: 12, y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/ts-step-after-multi-column" } }
+          - { x: 0,  y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-linear-connect-nulls" } }
+          - { x: 8,  y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-natural" } }
+          - { x: 16, y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-step-before" } }
+          - { x: 0,  y: 15, width: 16, height: 8, content: { $ref: "#/spec/panels/ts-multi-query" } }
+          - { x: 16, y: 15, width: 8,  height: 8, content: { $ref: "#/spec/panels/ts-empty" } }

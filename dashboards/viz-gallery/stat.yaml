@@ -1,0 +1,338 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-stat
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — Stat
+    description: >-
+      StatChart regression sheet — every option (all 9 calculations, unit,
+      decimals, sparkline, thresholds absolute/percent, colorMode, showLabel,
+      noValue) and behavior (multi-query, placeholder tile, row-order sparkline,
+      multi-tile, empty) exercised with deterministic TestData.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    # ── Calculations + options ───────────────────────────────────────
+    stat-last:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: last"
+          description: "calculation: last · unit: ms · decimals: 1 · sparkline · absolute thresholds with steps"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: ms
+            decimals: 1
+            sparkline: true
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 10000, color: "#f59e0b" }
+                - { value: 60000, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 21
+                  series:
+                    - { name: p95_ms, start: 120, noise: 18, min: 0 }
+    stat-first:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: first"
+          description: "calculation: first · decimals: 0"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: first
+            decimals: 0
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 22
+                  series:
+                    - { name: ci_spans, start: 200, noise: 30, min: 0 }
+    stat-mean:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: mean"
+          description: "calculation: mean · unit: s · decimals: 2"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: mean
+            unit: s
+            decimals: 2
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 23
+                  series:
+                    - { name: avg_s, start: 0.6, noise: 0.1, min: 0 }
+    stat-min:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: min"
+          description: "calculation: min · unit: ms"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: min
+            unit: ms
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 24
+                  series:
+                    - { name: min_ms, start: 5, noise: 2, min: 0 }
+    stat-max-percent-thresholds:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: max, percent thresholds"
+          description: "calculation: max · thresholds mode: percent with max: 2000 (steps compare value/max·100)"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: max
+            thresholds:
+              mode: percent
+              max: 2000
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 50, color: "#f59e0b" }
+                - { value: 90, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 25
+                  series:
+                    - { name: ci_spans, start: 800, noise: 200, min: 0 }
+    stat-sum-background:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: sum, background color"
+          description: "calculation: sum · colorMode: background (tile fills with the threshold color) · sparkline on a filled tile"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+            sparkline: true
+            colorMode: background
+            thresholds:
+              mode: absolute
+              defaultColor: "#3b82f6"
+              steps:
+                - { value: 1000, color: "#f59e0b" }
+                - { value: 10000, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 26
+                  series:
+                    - { name: ci_spans, start: 300, noise: 80, min: 0 }
+    stat-count-show-label:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: count, forced label"
+          description: "calculation: count (number of buckets) · showLabel: true on a single tile"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: count
+            showLabel: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 27
+                  series:
+                    - { name: active_buckets, start: 10, noise: 4, min: 0 }
+    stat-range:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: range"
+          description: "calculation: range (max − min) · sparkline"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: range
+            sparkline: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 28
+                  series:
+                    - { name: ci_spans, start: 500, noise: 120, min: 0 }
+    stat-diff:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: diff"
+          description: "calculation: diff (last − first; can be negative)"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: diff
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 29
+                  series:
+                    - { name: ci_spans, start: 500, noise: 120, min: 0 }
+    # ── Multi-query, placeholder, row-order, multi-tile, empty ───────
+    stat-multi-query-no-value:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: multi-query + noValue"
+          description: "Two queries on one panel — Query B returns no rows, so its tile shows the custom noValue text under the Query B fallback label."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            noValue: "n/a"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 30
+                  series:
+                    - { name: ci_spans, start: 1000, noise: 150, min: 0 }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [svc, never]
+                  rows: []
+    stat-row-order-sparkline:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: row-order sparkline"
+          description: "No time column — the sparkline follows row order (50 generated points, no ts)."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: max
+            sparkline: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 31
+                  timeColumn: false
+                  points: 50
+                  series:
+                    - { name: spans, start: 5, noise: 6, min: 0 }
+    stat-multi-tile:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: multi-tile (3 columns)"
+          description: "One query, three numeric columns → one tile each (multi-tile layout) · sparkline"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            sparkline: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 61
+                  series:
+                    - { name: p50_ms, start: 40,  noise: 6,  min: 0 }
+                    - { name: p95_ms, start: 120, noise: 14, min: 0 }
+                    - { name: p99_ms, start: 240, noise: 30, min: 0 }
+    stat-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: empty result"
+          description: "Single query returns no rows → 'No numeric data'"
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, value]
+                  rows: []
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-last" } }
+          - { x: 8,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-first" } }
+          - { x: 16, y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-mean" } }
+          - { x: 0,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-min" } }
+          - { x: 8,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-max-percent-thresholds" } }
+          - { x: 16, y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-sum-background" } }
+          - { x: 0,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-count-show-label" } }
+          - { x: 8,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-range" } }
+          - { x: 16, y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-diff" } }
+          - { x: 0,  y: 15, width: 12, height: 6, content: { $ref: "#/spec/panels/stat-multi-query-no-value" } }
+          - { x: 12, y: 15, width: 12, height: 6, content: { $ref: "#/spec/panels/stat-row-order-sparkline" } }
+          - { x: 0,  y: 21, width: 16, height: 6, content: { $ref: "#/spec/panels/stat-multi-tile" } }
+          - { x: 16, y: 21, width: 8,  height: 6, content: { $ref: "#/spec/panels/stat-empty" } }
