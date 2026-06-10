@@ -164,6 +164,24 @@ describe("runVariableOptionsQuery", () => {
     expect(result).toEqual({ options: ["api", "web", "42"], truncated: false });
   });
 
+  it("binds the same from/to/step params as a panel query", async () => {
+    // The docs promise the parameters are always available; an options query
+    // referencing {step}/{from}/{to} must not error where a panel wouldn't.
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runVariableOptionsQuery({
+      data: { query: "SELECT DISTINCT ServiceName FROM traces" },
+    });
+
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<
+      string,
+      unknown
+    >;
+    expect(typeof params.from).toBe("string");
+    expect(typeof params.to).toBe("string");
+    expect(params.step).toBe(1800); // default now-7d..now → 30m
+  });
+
   it("injects a LIMIT so the SQL API profile never throws on overflow", async () => {
     // The profile caps results at 1000 with result_overflow_mode='throw', so the
     // bound must be in the SQL — wrap the user query and LIMIT the outer select.

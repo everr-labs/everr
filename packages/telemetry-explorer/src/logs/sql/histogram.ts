@@ -1,3 +1,4 @@
+import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import type { LogHistogramBucket, LogHistogramInput } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
@@ -5,41 +6,6 @@ import type { BuiltQuery } from "./explorer";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 import { validateTableName } from "./table";
 import { buildWhereClause } from "./where";
-
-const HISTOGRAM_INTERVAL_SECONDS = [
-  1,
-  5,
-  10,
-  15,
-  30,
-  60,
-  2 * 60,
-  5 * 60,
-  10 * 60,
-  15 * 60,
-  30 * 60,
-  60 * 60,
-  2 * 60 * 60,
-  6 * 60 * 60,
-  12 * 60 * 60,
-  24 * 60 * 60,
-] as const;
-
-export function bucketSeconds(
-  fromDate: Date,
-  toDate: Date,
-  targetBuckets: number,
-): number {
-  const durationSeconds = Math.max(
-    1,
-    (toDate.getTime() - fromDate.getTime()) / 1000,
-  );
-  const idealSeconds = durationSeconds / targetBuckets;
-  return (
-    HISTOGRAM_INTERVAL_SECONDS.find((s) => s >= idealSeconds) ??
-    HISTOGRAM_INTERVAL_SECONDS[HISTOGRAM_INTERVAL_SECONDS.length - 1]
-  );
-}
 
 export interface HistogramRowRaw {
   bucket: string;
