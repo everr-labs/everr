@@ -311,6 +311,23 @@ jobs:
             cp "target/linux-cli-release/$asset.sha256" "target/desktop-release/$asset.sha256"
           done
 
+      - name: Stage action bundled CLI assets
+        run: |
+          set -euo pipefail
+
+          action_bin="target/action-bundled-cli"
+          rm -rf "$action_bin"
+          mkdir -p "$action_bin/darwin-arm64" "$action_bin/linux-arm64" "$action_bin/linux-x64"
+
+          cp target/desktop-release/everr "$action_bin/darwin-arm64/everr"
+          cp target/desktop-release/everr.sha256 "$action_bin/darwin-arm64/everr.sha256"
+          cp target/desktop-release/everr-linux-arm64 "$action_bin/linux-arm64/everr"
+          cp target/desktop-release/everr-linux-arm64.sha256 "$action_bin/linux-arm64/everr.sha256"
+          cp target/desktop-release/everr-linux-x86_64 "$action_bin/linux-x64/everr"
+          cp target/desktop-release/everr-linux-x86_64.sha256 "$action_bin/linux-x64/everr.sha256"
+
+          chmod +x "$action_bin/darwin-arm64/everr" "$action_bin/linux-arm64/everr" "$action_bin/linux-x64/everr"
+
       - name: Refresh release metadata and checksums
         run: |
           set -euo pipefail
@@ -392,6 +409,56 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+      - name: Upload action bundled CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-action-bundled-cli-${{ steps.version.outputs.version }}
+          path: target/action-bundled-cli
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Generate GitHub App token for action repo
+        id: action-repo-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
+          owner: everr-labs
+          repositories: everr-action
+
+      - name: Push bundled CLI assets to action repo
+        env:
+          GH_TOKEN: ${{ steps.action-repo-token.outputs.token }}
+          SRC_SHA: ${{ github.sha }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          work="${RUNNER_TEMP}/everr-action-clone"
+          rm -rf "$work"
+          git clone --depth 1 --branch main \
+            "https://x-access-token:${GH_TOKEN}@github.com/everr-labs/everr-action.git" "$work"
+
+          cd "$work"
+          git config user.name "everr-action-bot"
+          git config user.email "everr-action-bot@users.noreply.github.com"
+
+          rm -rf bin
+          mkdir -p bin
+          cp -R "${GITHUB_WORKSPACE}/target/action-bundled-cli"/. bin/
+
+          git add -A bin
+          if git diff --cached --quiet; then
+            echo "No bundled CLI asset changes to publish."
+          else
+            git commit -m "Update bundled CLI ${VERSION} (from everr-labs/everr@${SRC_SHA})"
+            git push origin main || {
+              git pull --rebase origin main
+              git push origin main
+            }
+          fi
 
   notify-deploy:
     name: Notify Deploy Repo

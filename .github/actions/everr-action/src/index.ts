@@ -31,6 +31,7 @@ type SaveState = (key: string, value: string) => void;
 type ReadState = (key: string) => string;
 type Log = (message: string) => void;
 type Now = () => Date;
+type AddPath = (inputPath: string) => void;
 type FinalizePartialArtifactImpl = typeof finalizePartialArtifact;
 type ResolveFilesystemInfo = (workspacePath: string) => Promise<FilesystemInfo>;
 type UploadArtifactImpl = (
@@ -51,6 +52,17 @@ interface StartResourceUsageOptions {
   now?: Now;
   saveState?: SaveState;
   spawnImpl?: typeof spawn;
+  warning?: Log;
+}
+
+interface InstallBundledCliOptions {
+  actionRoot?: string;
+  addPath?: AddPath;
+  arch?: string;
+  fspModule?: typeof fsp;
+  getInput?: GetInput;
+  info?: Log;
+  platform?: string;
   warning?: Log;
 }
 
@@ -118,6 +130,73 @@ function resolveCheckRunIdInput({
 
 function isResourceUsageEnabled(getInput: GetInput): boolean {
   return getInput("resource-usage").trim().toLowerCase() === "true";
+}
+
+function isCliInstallEnabled(getInput: GetInput): boolean {
+  return getInput("install-cli").trim().toLowerCase() === "true";
+}
+
+function bundledCliTargetForRuntime(
+  platform: NodeJS.Platform | string = process.platform,
+  arch: NodeJS.Architecture | string = process.arch,
+): string | null {
+  if (platform === "darwin" && arch === "arm64") {
+    return "darwin-arm64";
+  }
+
+  if (platform === "linux" && arch === "arm64") {
+    return "linux-arm64";
+  }
+
+  if (platform === "linux" && arch === "x64") {
+    return "linux-x64";
+  }
+
+  return null;
+}
+
+async function installBundledCli({
+  actionRoot = resolveActionRoot(),
+  addPath = core.addPath,
+  arch = process.arch,
+  fspModule = fsp,
+  getInput = core.getInput,
+  info = core.info,
+  platform = process.platform,
+  warning = core.warning,
+}: InstallBundledCliOptions = {}): Promise<{
+  enabled: boolean;
+  failed?: boolean;
+  path?: string;
+  target?: string;
+}> {
+  if (!isCliInstallEnabled(getInput)) {
+    return { enabled: false };
+  }
+
+  const target = bundledCliTargetForRuntime(platform, arch);
+  if (!target) {
+    warning(`install-cli skipped: unsupported runner ${platform}-${arch}`);
+    return { enabled: true, failed: true };
+  }
+
+  const binDir = path.join(actionRoot, "bin", target);
+  const cliPath = path.join(binDir, "everr");
+
+  try {
+    await fspModule.access(cliPath, fs.constants.X_OK);
+  } catch {
+    try {
+      await fspModule.chmod(cliPath, 0o755);
+    } catch (error) {
+      warning(`install-cli skipped: bundled Everr CLI is unavailable: ${formatError(error)}`);
+      return { enabled: true, failed: true, target };
+    }
+  }
+
+  addPath(binDir);
+  info(`installed bundled Everr CLI for ${target}`);
+  return { enabled: true, path: cliPath, target };
 }
 
 async function startResourceUsage({
@@ -402,6 +481,7 @@ async function run(): Promise<void> {
   const isPost = core.getState("isPost") === "true";
   if (!isPost) {
     core.saveState("isPost", "true");
+    await installBundledCli();
     await startResourceUsage();
     return;
   }
@@ -420,9 +500,12 @@ if (entrypointPath === fileURLToPath(import.meta.url)) {
 export {
   artifactNameForCheckRun,
   buildRuntimePaths,
+  bundledCliTargetForRuntime,
   ensureSamplesFile,
   finalizeAndUploadResourceUsage,
   formatError,
+  installBundledCli,
+  isCliInstallEnabled,
   isResourceUsageEnabled,
   normalizeCheckRunId,
   resolveActionRoot,

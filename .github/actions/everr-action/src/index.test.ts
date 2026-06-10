@@ -8,7 +8,10 @@ import { fileURLToPath } from "node:url";
 import {
   artifactNameForCheckRun,
   buildRuntimePaths,
+  bundledCliTargetForRuntime,
   finalizeAndUploadResourceUsage,
+  installBundledCli,
+  isCliInstallEnabled,
   isResourceUsageEnabled,
   normalizeCheckRunId,
   resolveActionRoot,
@@ -73,6 +76,81 @@ test("isResourceUsageEnabled accepts only the literal string 'true'", () => {
   assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "false" })), false);
   assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "1" })), false);
   assert.equal(isResourceUsageEnabled(inputResolver({})), false);
+});
+
+test("isCliInstallEnabled accepts only the literal string 'true'", () => {
+  assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": "true" })), true);
+  assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": "TRUE" })), true);
+  assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": " true " })), true);
+  assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": "false" })), false);
+  assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": "1" })), false);
+  assert.equal(isCliInstallEnabled(inputResolver({})), false);
+});
+
+test("bundledCliTargetForRuntime supports bundled release targets", () => {
+  assert.equal(bundledCliTargetForRuntime("darwin", "arm64"), "darwin-arm64");
+  assert.equal(bundledCliTargetForRuntime("linux", "arm64"), "linux-arm64");
+  assert.equal(bundledCliTargetForRuntime("linux", "x64"), "linux-x64");
+  assert.equal(bundledCliTargetForRuntime("darwin", "x64"), null);
+  assert.equal(bundledCliTargetForRuntime("win32", "x64"), null);
+});
+
+test("installBundledCli no-ops when install-cli input is disabled", async () => {
+  let didAddPath = false;
+
+  const result = await installBundledCli({
+    getInput: inputResolver({ "install-cli": "false" }),
+    addPath: () => {
+      didAddPath = true;
+    },
+  });
+
+  assert.equal(result.enabled, false);
+  assert.equal(didAddPath, false);
+});
+
+test("installBundledCli warns on unsupported runners", async () => {
+  const warnings: string[] = [];
+
+  const result = await installBundledCli({
+    getInput: inputResolver({ "install-cli": "true" }),
+    platform: "win32",
+    arch: "x64",
+    warning: (message: string) => warnings.push(message),
+  });
+
+  assert.deepEqual(result, { enabled: true, failed: true });
+  assert.match(warnings[0], /unsupported runner win32-x64/);
+});
+
+test("installBundledCli adds the bundled CLI directory to PATH", async () => {
+  const actionRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-action-cli-"));
+  const binDir = path.join(actionRoot, "bin", "darwin-arm64");
+  const cliPath = path.join(binDir, "everr");
+  const paths: string[] = [];
+  const infos: string[] = [];
+
+  try {
+    await fsp.mkdir(binDir, { recursive: true });
+    await fsp.writeFile(cliPath, "#!/bin/sh\n", { mode: 0o755 });
+
+    const result = await installBundledCli({
+      actionRoot,
+      getInput: inputResolver({ "install-cli": "true" }),
+      platform: "darwin",
+      arch: "arm64",
+      addPath: (inputPath: string) => paths.push(inputPath),
+      info: (message: string) => infos.push(message),
+      warning: () => {},
+    });
+
+    assert.equal(result.enabled, true);
+    assert.equal(result.path, cliPath);
+    assert.deepEqual(paths, [binDir]);
+    assert.match(infos[0], /installed bundled Everr CLI for darwin-arm64/);
+  } finally {
+    await fsp.rm(actionRoot, { recursive: true, force: true });
+  }
 });
 
 test("startResourceUsage no-ops when resource-usage input is not enabled", async () => {

@@ -127911,9 +127911,12 @@ var __webpack_exports__ = {};
 __nccwpck_require__.d(__webpack_exports__, {
   UU: () => (/* binding */ artifactNameForCheckRun),
   Bd: () => (/* binding */ buildRuntimePaths),
+  FD: () => (/* binding */ bundledCliTargetForRuntime),
   kB: () => (/* binding */ ensureSamplesFile),
   iA: () => (/* binding */ finalizeAndUploadResourceUsage),
   Wk: () => (/* binding */ src_formatError),
+  c4: () => (/* binding */ installBundledCli),
+  h: () => (/* binding */ isCliInstallEnabled),
   zB: () => (/* binding */ isResourceUsageEnabled),
   Y3: () => (/* binding */ normalizeCheckRunId),
   FI: () => (/* binding */ resolveActionRoot),
@@ -128143,6 +128146,48 @@ function resolveCheckRunIdInput({ getInput = core.getInput, warning = core.warni
 function isResourceUsageEnabled(getInput) {
     return getInput("resource-usage").trim().toLowerCase() === "true";
 }
+function isCliInstallEnabled(getInput) {
+    return getInput("install-cli").trim().toLowerCase() === "true";
+}
+function bundledCliTargetForRuntime(platform = process.platform, arch = process.arch) {
+    if (platform === "darwin" && arch === "arm64") {
+        return "darwin-arm64";
+    }
+    if (platform === "linux" && arch === "arm64") {
+        return "linux-arm64";
+    }
+    if (platform === "linux" && arch === "x64") {
+        return "linux-x64";
+    }
+    return null;
+}
+async function installBundledCli({ actionRoot = resolveActionRoot(), addPath = core.addPath, arch = process.arch, fspModule = promises_, getInput = core.getInput, info = core.info, platform = process.platform, warning = core.warning, } = {}) {
+    if (!isCliInstallEnabled(getInput)) {
+        return { enabled: false };
+    }
+    const target = bundledCliTargetForRuntime(platform, arch);
+    if (!target) {
+        warning(`install-cli skipped: unsupported runner ${platform}-${arch}`);
+        return { enabled: true, failed: true };
+    }
+    const binDir = external_node_path_.join(actionRoot, "bin", target);
+    const cliPath = external_node_path_.join(binDir, "everr");
+    try {
+        await fspModule.access(cliPath, external_node_fs_.constants.X_OK);
+    }
+    catch {
+        try {
+            await fspModule.chmod(cliPath, 0o755);
+        }
+        catch (error) {
+            warning(`install-cli skipped: bundled Everr CLI is unavailable: ${src_formatError(error)}`);
+            return { enabled: true, failed: true, target };
+        }
+    }
+    addPath(binDir);
+    info(`installed bundled Everr CLI for ${target}`);
+    return { enabled: true, path: cliPath, target };
+}
 async function startResourceUsage({ env = process.env, fsModule = external_node_fs_, fspModule = promises_, saveState = core.saveState, getInput = core.getInput, info = core.info, warning = core.warning, now = () => new Date(), spawnImpl = external_node_child_process_namespaceObject.spawn, } = {}) {
     if (!isResourceUsageEnabled(getInput)) {
         saveState("enabled", "0");
@@ -128348,6 +128393,7 @@ async function run() {
     const isPost = core.getState("isPost") === "true";
     if (!isPost) {
         core.saveState("isPost", "true");
+        await installBundledCli();
         await startResourceUsage();
         return;
     }
@@ -128363,9 +128409,12 @@ if (entrypointPath === (0,external_node_url_.fileURLToPath)(import.meta.url)) {
 
 var __webpack_exports__artifactNameForCheckRun = __webpack_exports__.UU;
 var __webpack_exports__buildRuntimePaths = __webpack_exports__.Bd;
+var __webpack_exports__bundledCliTargetForRuntime = __webpack_exports__.FD;
 var __webpack_exports__ensureSamplesFile = __webpack_exports__.kB;
 var __webpack_exports__finalizeAndUploadResourceUsage = __webpack_exports__.iA;
 var __webpack_exports__formatError = __webpack_exports__.Wk;
+var __webpack_exports__installBundledCli = __webpack_exports__.c4;
+var __webpack_exports__isCliInstallEnabled = __webpack_exports__.h;
 var __webpack_exports__isResourceUsageEnabled = __webpack_exports__.zB;
 var __webpack_exports__normalizeCheckRunId = __webpack_exports__.Y3;
 var __webpack_exports__resolveActionRoot = __webpack_exports__.FI;
@@ -128373,4 +128422,4 @@ var __webpack_exports__resolveCheckRunIdInput = __webpack_exports__.dI;
 var __webpack_exports__resolveWorkspaceFilesystemInfo = __webpack_exports__.RH;
 var __webpack_exports__startResourceUsage = __webpack_exports__.sk;
 var __webpack_exports__stopSampler = __webpack_exports__.X6;
-export { __webpack_exports__artifactNameForCheckRun as artifactNameForCheckRun, __webpack_exports__buildRuntimePaths as buildRuntimePaths, __webpack_exports__ensureSamplesFile as ensureSamplesFile, __webpack_exports__finalizeAndUploadResourceUsage as finalizeAndUploadResourceUsage, __webpack_exports__formatError as formatError, __webpack_exports__isResourceUsageEnabled as isResourceUsageEnabled, __webpack_exports__normalizeCheckRunId as normalizeCheckRunId, __webpack_exports__resolveActionRoot as resolveActionRoot, __webpack_exports__resolveCheckRunIdInput as resolveCheckRunIdInput, __webpack_exports__resolveWorkspaceFilesystemInfo as resolveWorkspaceFilesystemInfo, __webpack_exports__startResourceUsage as startResourceUsage, __webpack_exports__stopSampler as stopSampler };
+export { __webpack_exports__artifactNameForCheckRun as artifactNameForCheckRun, __webpack_exports__buildRuntimePaths as buildRuntimePaths, __webpack_exports__bundledCliTargetForRuntime as bundledCliTargetForRuntime, __webpack_exports__ensureSamplesFile as ensureSamplesFile, __webpack_exports__finalizeAndUploadResourceUsage as finalizeAndUploadResourceUsage, __webpack_exports__formatError as formatError, __webpack_exports__installBundledCli as installBundledCli, __webpack_exports__isCliInstallEnabled as isCliInstallEnabled, __webpack_exports__isResourceUsageEnabled as isResourceUsageEnabled, __webpack_exports__normalizeCheckRunId as normalizeCheckRunId, __webpack_exports__resolveActionRoot as resolveActionRoot, __webpack_exports__resolveCheckRunIdInput as resolveCheckRunIdInput, __webpack_exports__resolveWorkspaceFilesystemInfo as resolveWorkspaceFilesystemInfo, __webpack_exports__startResourceUsage as startResourceUsage, __webpack_exports__stopSampler as stopSampler };

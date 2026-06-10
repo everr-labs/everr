@@ -2,6 +2,10 @@ name: Everr Action
 description: Everr CI helpers. Capabilities are toggled via inputs.
 
 inputs:
+  install-cli:
+    description: Add the bundled Everr CLI to PATH for later workflow steps. Supports macOS arm64, Linux arm64, and Linux x64 runners when the matching binary is bundled.
+    required: false
+    default: "false"
   resource-usage:
     description: Collect per-job machine resource usage and upload a best-effort artifact. Set to "false" to opt out.
     required: false
