@@ -10,7 +10,9 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - "@everr/desktop-app@*"
 
 jobs:
   build-desktop:
